@@ -23,6 +23,10 @@ verbs instead of hand-rolled `uv run` steps:
 - `ward exec test` / `ward exec lint` / `ward exec smoke` - the same verbs a
   dispatched agent runs. Each app defines these in its own `.ward/ward.yaml`.
 
+The image seeds `/home/ubuntu/.ward` for the default agent uid/gid before
+`warded` starts, so the first audit write does not have to repair a
+root-owned home path.
+
 [`ci-in-dev-base-example.yml`](ci-in-dev-base-example.yml) is a copy-paste
 starting point for an app's `.forgejo/workflows/*.yml`.
 

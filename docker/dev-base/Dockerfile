@@ -31,6 +31,12 @@ ARG DOTNET_VERSION=10.0.301
 ARG GOLANGCI_LINT_VERSION=2.12.2
 ARG TRUFFLEHOG_VERSION=3.95.8
 ARG KDLFMT_VERSION=0.1.7
+# Default runtime user for the surface path. ward can still override these when
+# it builds a different surface image, but the published dev-base seeds the
+# home app dir for the standard agent user so the first audit preflight does not
+# race a root-owned mkdir.
+ARG WARD_AGENT_UID=1000
+ARG WARD_AGENT_GID=1000
 
 # buildx populates TARGETARCH (amd64|arm64) per platform in the manifest list.
 ARG TARGETARCH
@@ -80,6 +86,14 @@ RUN set -eux; \
     uv tool install "pre-commit"; \
     chmod -R a+rX /opt/uv; \
     pre-commit --version
+
+# Seed the default surface home path before ward starts. ward's audit preflight
+# runs against $HOME/.ward, so the path has to exist with the runtime agent's
+# ownership before the root bootstrap reaches `MkdirAll` and freezes it that way.
+RUN set -eux; \
+    mkdir -p /home/ubuntu; \
+    chmod 0755 /home/ubuntu; \
+    install -d -o "${WARD_AGENT_UID}" -g "${WARD_AGENT_GID}" -m 0700 /home/ubuntu/.ward
 
 # Managed Pythons for the fleet's required versions. The env
 # above points UV_PYTHON_INSTALL_DIR at /opt/uv/python, and the a+rX above grants
