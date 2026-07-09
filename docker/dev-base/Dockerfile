@@ -7,6 +7,10 @@ ARG UV_VERSION=0.11.26
 ARG NODE_VERSION=22.23.1
 ARG GO_VERSION=1.26.4
 ARG AWSCLI_VERSION=2.35.15
+ARG GH_VERSION=2.96.0
+ARG HELM_VERSION=4.2.2
+ARG KUBECTL_VERSION=1.36.2
+ARG YQ_VERSION=4.53.3
 ARG CLAUDE_VERSION=2.1.200
 ARG MCPORTER_VERSION=0.12.3
 ARG CODEX_VERSION=0.142.5
@@ -63,11 +67,11 @@ RUN apt-get update \
 # Map Docker's TARGETARCH onto each upstream's arch spelling once.
 RUN set -eux; \
     case "${TARGETARCH}" in \
-      amd64) NODE_ARCH=x64;   GO_ARCH=amd64; AWS_ARCH=x86_64; CODEX_ARCH=x86_64; GOOSE_ARCH=x86_64; DOCKER_ARCH=x86_64; TS_ARCH=amd64; GOLANGCI_ARCH=amd64; TRUFFLEHOG_ARCH=amd64; KDL_ARCH=x86_64; DOTNET_ARCH=x64 ;; \
-      arm64) NODE_ARCH=arm64; GO_ARCH=arm64; AWS_ARCH=aarch64; CODEX_ARCH=aarch64; GOOSE_ARCH=aarch64; DOCKER_ARCH=aarch64; TS_ARCH=arm64; GOLANGCI_ARCH=arm64; TRUFFLEHOG_ARCH=arm64; KDL_ARCH=aarch64; DOTNET_ARCH=arm64 ;; \
+      amd64) NODE_ARCH=x64;   GO_ARCH=amd64; AWS_ARCH=x86_64; GH_ARCH=amd64; HELM_ARCH=amd64; KUBECTL_ARCH=amd64; YQ_ARCH=amd64; CODEX_ARCH=x86_64; GOOSE_ARCH=x86_64; DOCKER_ARCH=x86_64; TS_ARCH=amd64; GOLANGCI_ARCH=amd64; TRUFFLEHOG_ARCH=amd64; KDL_ARCH=x86_64; DOTNET_ARCH=x64 ;; \
+      arm64) NODE_ARCH=arm64; GO_ARCH=arm64; AWS_ARCH=aarch64; GH_ARCH=arm64; HELM_ARCH=arm64; KUBECTL_ARCH=arm64; YQ_ARCH=arm64; CODEX_ARCH=aarch64; GOOSE_ARCH=aarch64; DOCKER_ARCH=aarch64; TS_ARCH=arm64; GOLANGCI_ARCH=arm64; TRUFFLEHOG_ARCH=arm64; KDL_ARCH=aarch64; DOTNET_ARCH=arm64 ;; \
       *) echo "unsupported TARGETARCH: ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
-    echo "NODE_ARCH=${NODE_ARCH} GO_ARCH=${GO_ARCH} AWS_ARCH=${AWS_ARCH} CODEX_ARCH=${CODEX_ARCH} GOOSE_ARCH=${GOOSE_ARCH} DOCKER_ARCH=${DOCKER_ARCH} TS_ARCH=${TS_ARCH} GOLANGCI_ARCH=${GOLANGCI_ARCH} TRUFFLEHOG_ARCH=${TRUFFLEHOG_ARCH} KDL_ARCH=${KDL_ARCH} DOTNET_ARCH=${DOTNET_ARCH}" > /tmp/arch.env
+    echo "NODE_ARCH=${NODE_ARCH} GO_ARCH=${GO_ARCH} AWS_ARCH=${AWS_ARCH} GH_ARCH=${GH_ARCH} HELM_ARCH=${HELM_ARCH} KUBECTL_ARCH=${KUBECTL_ARCH} YQ_ARCH=${YQ_ARCH} CODEX_ARCH=${CODEX_ARCH} GOOSE_ARCH=${GOOSE_ARCH} DOCKER_ARCH=${DOCKER_ARCH} TS_ARCH=${TS_ARCH} GOLANGCI_ARCH=${GOLANGCI_ARCH} TRUFFLEHOG_ARCH=${TRUFFLEHOG_ARCH} KDL_ARCH=${KDL_ARCH} DOTNET_ARCH=${DOTNET_ARCH}" > /tmp/arch.env
 
 # uv (Python project + tool manager).
 RUN set -eux; \
@@ -114,6 +118,35 @@ RUN set -eux; \
     tar -xzf /tmp/go.tar.gz -C /usr/local; \
     rm /tmp/go.tar.gz; \
     go version
+
+# Shared fleet CI tools. These are broad and light enough to bake in.
+# buildx stays job-local for release-image publishing, and Rust + wasm-pack stay
+# job-local for galaxy-gen because they are heavier and more domain-specific than
+# the shared fleet utilities below.
+RUN set -eux; \
+    . /tmp/arch.env; \
+    curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${GH_ARCH}.tar.gz" \
+      -o /tmp/gh.tar.gz; \
+    tar -xzf /tmp/gh.tar.gz -C /usr/local/bin --strip-components=1 \
+      "gh_${GH_VERSION}_linux_${GH_ARCH}/bin/gh"; \
+    chmod 0755 /usr/local/bin/gh; \
+    rm /tmp/gh.tar.gz; \
+    gh --version; \
+    curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${HELM_ARCH}.tar.gz" \
+      -o /tmp/helm.tar.gz; \
+    tar -xzf /tmp/helm.tar.gz -C /usr/local/bin --strip-components=1 \
+      "linux-${HELM_ARCH}/helm"; \
+    chmod 0755 /usr/local/bin/helm; \
+    rm /tmp/helm.tar.gz; \
+    helm version --short; \
+    curl -fsSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${KUBECTL_ARCH}/kubectl" \
+      -o /usr/local/bin/kubectl; \
+    chmod 0755 /usr/local/bin/kubectl; \
+    kubectl version --client=true --output=yaml >/dev/null; \
+    curl -fsSL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${YQ_ARCH}" \
+      -o /usr/local/bin/yq; \
+    chmod 0755 /usr/local/bin/yq; \
+    yq --version
 
 # .NET SDK, pinned. dev-base shipped no C# toolchain, so any repo
 # with C# to compile (eco-app's Eco mods, `dotnet build mods/*`) had to hand-install

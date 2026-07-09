@@ -19,9 +19,10 @@ API drops that one tool from the plan, it never blocks the others.
 
 Version policy: bumps stay on the pinned line where crossing it is risky. Node
 tracks the latest release of its currently-pinned major (no surprise major jump);
-uv/go/aws-cli/claude/mcporter/codex/goose/ward track the latest stable upstream
-release (ward off its Forgejo tags, mcporter off npm, everything else off a
-GitHub Releases/tags feed).
+uv/go/aws-cli/gh/helm/kubectl/yq/claude/mcporter/codex/goose/ward track the
+latest stable upstream release (ward off its Forgejo tags, kubectl off
+Kubernetes' stable feed, mcporter off npm, everything else off a GitHub
+Releases/tags feed).
 
 Usage:
     python3 scripts/dep-bump.py plan            # TSV: NAME<TAB>CURRENT<TAB>LATEST
@@ -97,6 +98,16 @@ def _get_json(url: str) -> object:
         return json.load(resp)
 
 
+def _get_text(url: str) -> str:
+    headers = {"User-Agent": "aos-dep-bump"}
+    token = os.environ.get("UPSTREAM_GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+    if token and url.startswith(GITHUB_API):
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+        return resp.read().decode("utf-8")
+
+
 def _gh_release(repo: str, tag_re: re.Pattern[str]) -> str | None:
     """Highest stable (non-draft, non-prerelease) release tag matching `tag_re` group 1."""
     data = _get_json(f"{GITHUB_API}/repos/{repo}/releases?per_page=100")
@@ -125,6 +136,14 @@ def _resolve_uv() -> str | None:
     return _gh_release("astral-sh/uv", re.compile(r"^v?(\d+\.\d+\.\d+)$"))
 
 
+def _resolve_gh() -> str | None:
+    return _gh_release("cli/cli", re.compile(r"^v?(\d+\.\d+\.\d+)$"))
+
+
+def _resolve_helm() -> str | None:
+    return _gh_release("helm/helm", re.compile(r"^v(\d+\.\d+\.\d+)$"))
+
+
 def _resolve_node(current: str) -> str | None:
     # Stay on the pinned major (e.g. 22): an auto major jump can break the runtime.
     major = current.split(".")[0]
@@ -146,6 +165,10 @@ def _resolve_go() -> str | None:
 def _resolve_awscli() -> str | None:
     # aws-cli ships v1 and v2 lines as tags and no Releases; track latest v2.
     return _gh_tag("aws/aws-cli", re.compile(r"^(2\.\d+\.\d+)$"))
+
+
+def _resolve_kubectl() -> str | None:
+    return _get_text("https://dl.k8s.io/release/stable.txt").strip().removeprefix("v")
 
 
 def _resolve_claude() -> str | None:
@@ -184,6 +207,10 @@ def _resolve_trufflehog() -> str | None:
     return _gh_release("trufflesecurity/trufflehog", re.compile(r"^v(\d+\.\d+\.\d+)$"))
 
 
+def _resolve_yq() -> str | None:
+    return _gh_release("mikefarah/yq", re.compile(r"^v(\d+\.\d+\.\d+)$"))
+
+
 def _resolve_dotnet(current: str) -> str | None:
     # Stay on the pinned .NET major (like NODE_VERSION): the per-channel release
     # metadata carries `latest-sdk`, so an auto major jump never blindsides a consumer.
@@ -213,6 +240,10 @@ def _resolve_ward() -> str | None:
 # resolver = never auto-bumped: the golangci-lint / kdlfmt opt-out (auto-bump doc).
 RESOLVERS: dict[str, Callable[..., str | None]] = {
     "UV_VERSION": _resolve_uv,
+    "GH_VERSION": _resolve_gh,
+    "HELM_VERSION": _resolve_helm,
+    "KUBECTL_VERSION": _resolve_kubectl,
+    "YQ_VERSION": _resolve_yq,
     "NODE_VERSION": _resolve_node,
     "GO_VERSION": _resolve_go,
     "AWSCLI_VERSION": _resolve_awscli,

@@ -15,6 +15,8 @@ inner-loop toolchain on `ubuntu:24.04`:
 - **python3 + shellcheck + git + build-essential** - direct needs and catalog-hook shell-outs.
 - **node + npm** - Claude Code's runtime.
 - **go** - builds the `warp/` hooks and the ward binary below.
+- **gh + helm + kubectl + yq** - shared fleet CI utilities that were getting
+  reinstalled in consumer workflows and are light enough to bake into the image.
 - **.NET SDK 10 + ICU** - C# mods compile in-container with no per-run install, full ICU globalization (`libicu74`) not invariant mode (agentic-os#329).
 - **aws cli v2** - SSM secret loader + `~/.aws` passthrough; `AWS_DEFAULT_REGION` / `AWS_REGION` default `us-east-1` (agentic-os#286).
 - **claude + mcporter + codex + goose** - pinned agent CLIs and MCP runtime; plus **docker cli + socat** for `explore`'s sibling `warded #N` dispatch (ward#315).
@@ -62,6 +64,8 @@ Needs a one-time `docker login`; `ward container up/exec` (ward#98) is the entry
 ## Not here
 
 - Mount / compose logic and `ward container` verbs - ward#98; the mount-eligibility manifest - aos#222.
+- Docker buildx - release-image publishing keeps its local runner-side install.
+- Rust + wasm-pack - galaxy-gen keeps that toolchain job-local.
 - `coily` (retired, folded into `ward ops`) and running services - not shipped.
 
 ## See also

@@ -15,6 +15,10 @@ FROM ubuntu:24.04
 ARG UV_VERSION=0.11.21
 ARG NODE_VERSION=22.22.3
 ARG GO_VERSION=1.26.4
+ARG GH_VERSION=2.96.0
+ARG HELM_VERSION=4.2.2
+ARG KUBECTL_VERSION=1.36.2
+ARG YQ_VERSION=4.53.3
 ARG MCPORTER_VERSION=0.12.2
 
 ARG TARGETARCH
@@ -38,6 +42,10 @@ def test_parse_args_block_collects_only_arg_defaults() -> None:
         "UV_VERSION": "0.11.21",
         "NODE_VERSION": "22.22.3",
         "GO_VERSION": "1.26.4",
+        "GH_VERSION": "2.96.0",
+        "HELM_VERSION": "4.2.2",
+        "KUBECTL_VERSION": "1.36.2",
+        "YQ_VERSION": "4.53.3",
         "MCPORTER_VERSION": "0.12.2",
     }
     # `ARG TARGETARCH` has no default, so it must not appear at all.
@@ -96,12 +104,17 @@ def test_compute_plan_reports_only_drifted_pins(monkeypatch) -> None:
     assert plan == [{"arg": "UV_VERSION", "current": "0.11.21", "latest": "0.12.0"}]
 
 
-def test_version_sensitive_pins_are_excluded_from_auto_bump() -> None:
+def test_shared_ci_pins_and_version_sensitive_pins_are_classified_correctly() -> None:
     # golangci-lint / kdlfmt pin to consumer CI versions, not upstream latest, so
-    # they get no resolver; trufflehog tracks latest, so it gets one (agentic-os#292).
+    # they get no resolver; the shared fleet CI tools do get resolvers, and
+    # trufflehog tracks latest, so it gets one (agentic-os#292).
     script = _load_script()
     assert "GOLANGCI_LINT_VERSION" not in script.RESOLVERS
     assert "KDLFMT_VERSION" not in script.RESOLVERS
+    assert "GH_VERSION" in script.RESOLVERS
+    assert "HELM_VERSION" in script.RESOLVERS
+    assert "KUBECTL_VERSION" in script.RESOLVERS
+    assert "YQ_VERSION" in script.RESOLVERS
     assert "TRUFFLEHOG_VERSION" in script.RESOLVERS
 
 
@@ -125,6 +138,35 @@ def test_mcporter_resolver_reads_npm_latest(monkeypatch) -> None:
     monkeypatch.setattr(script, "_get_json", fake_get_json)
     assert script._resolve_mcporter() == "0.12.3"
     assert seen["url"] == "https://registry.npmjs.org/mcporter/latest"
+
+
+def test_gh_resolver_reads_latest_release(monkeypatch) -> None:
+    script = _load_script()
+    seen: dict[str, str] = {}
+
+    def fake_get_json(url: str) -> object:
+        seen["url"] = url
+        return [
+            {"draft": False, "prerelease": False, "tag_name": "v2.95.0"},
+            {"draft": False, "prerelease": False, "tag_name": "v2.96.0"},
+        ]
+
+    monkeypatch.setattr(script, "_get_json", fake_get_json)
+    assert script._resolve_gh() == "2.96.0"
+    assert seen["url"] == "https://api.github.com/repos/cli/cli/releases?per_page=100"
+
+
+def test_kubectl_resolver_reads_stable_feed(monkeypatch) -> None:
+    script = _load_script()
+    seen: dict[str, str] = {}
+
+    def fake_get_text(url: str) -> str:
+        seen["url"] = url
+        return "v1.36.2\n"
+
+    monkeypatch.setattr(script, "_get_text", fake_get_text)
+    assert script._resolve_kubectl() == "1.36.2"
+    assert seen["url"] == "https://dl.k8s.io/release/stable.txt"
 
 
 def test_ward_binary_is_auto_bumped() -> None:
