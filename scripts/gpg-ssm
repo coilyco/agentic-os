@@ -5,16 +5,20 @@
 # Wire-up:
 #   git config --global gpg.program "$HOME/.local/bin/gpg-ssm"
 #
-# SSM param: /coilysiren/gpg-passphrase/<keyid>  (SecureString)
-# Where <keyid> is read from `git config --global --get user.signingkey`,
-# so each host's own keypair maps to its own SSM param. Per-machine keys
-# mean a stolen laptop only burns one key, not the whole identity.
+# SSM params:
+#   /coilysiren/gpg-secret-key   (SecureString, armored secret key)
+#   /coilysiren/gpg-passphrase    (SecureString, signing passphrase)
+# The configured signing key comes from `git config --global --get
+# user.signingkey`. If the key is not already local, the wrapper bootstraps
+# it from SSM before signing.
 #
 # Behavior:
 #   - Verification / non-signing gpg invocations pass through untouched.
 #   - For signing invocations, runs `aws sts get-caller-identity` first as
-#     a fail-fast credential gate, then fetches the passphrase from SSM and
-#     hands it to gpg via --passphrase-fd 3 (no command-line exposure).
+#     a fail-fast credential gate, bootstraps the shared secret key from
+#     SSM when it is not already local, then fetches the passphrase from
+#     SSM and hands it to gpg via --passphrase-fd 3 (no command-line
+#     exposure).
 #   - After the first successful sign in a session, gpg-agent caches the
 #     unlocked key in memory and subsequent signs reuse it without
 #     re-invoking SSM (provided default-cache-ttl in gpg-agent.conf is
@@ -56,18 +60,38 @@ if [ -z "$keyid" ]; then
   exit 1
 fi
 
+needs_key_import=0
+if ! gpg --batch --with-colons --list-secret-keys "$keyid" 2>/dev/null | grep -q '^sec:'; then
+  needs_key_import=1
+fi
+
 if ! ward ops aws sts get-caller-identity >/dev/null 2>&1; then
   echo "gpg-ssm: AWS credentials expired or missing. Run 'aws sso login' and retry." >&2
   exit 1
 fi
 
-ssm_name="/coilysiren/gpg-passphrase/$keyid"
-pass=$(ward ops aws ssm get-parameter \
-  --name "$ssm_name" \
-  --with-decryption \
-  --query Parameter.Value \
-  --output text 2>/dev/null) || {
-  echo "gpg-ssm: failed to fetch $ssm_name from SSM." >&2
+fetch_ssm_value() {
+  local ssm_name="$1"
+  ward ops aws ssm get-parameter \
+    --name "$ssm_name" \
+    --with-decryption \
+    --query Parameter.Value \
+    --output text 2>/dev/null
+}
+
+if [ "$needs_key_import" -eq 1 ]; then
+  secret_key=$(fetch_ssm_value "/coilysiren/gpg-secret-key") || {
+    echo "gpg-ssm: failed to fetch /coilysiren/gpg-secret-key from SSM." >&2
+    exit 1
+  }
+  if ! printf '%s' "$secret_key" | gpg --batch --import >/dev/null 2>&1; then
+    echo "gpg-ssm: failed to import shared secret key from SSM." >&2
+    exit 1
+  fi
+fi
+
+pass=$(fetch_ssm_value "/coilysiren/gpg-passphrase") || {
+  echo "gpg-ssm: failed to fetch /coilysiren/gpg-passphrase from SSM." >&2
   exit 1
 }
 

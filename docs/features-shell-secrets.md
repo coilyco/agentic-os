@@ -24,7 +24,7 @@ Single Warp config tree rendered into the host's Warp config dir - `~/.warp-prev
 
 ## GPG signing without disk-cached passphrases
 
-`gpg-ssm` is a wrapper around `gpg` that pulls the per-host signing-key passphrase from AWS SSM at sign time instead of caching it on disk. Per-host signing keys keep stolen-laptop blast radius bounded. Mac/Linux + Windows (`.cmd` shim for Git for Windows, which can't reliably exec extensionless shebang scripts). Wire it in once with `git config --global gpg.program`.
+`gpg-ssm` is a wrapper around `gpg` that pulls the signing passphrase from AWS SSM at sign time instead of caching it on disk. When the configured signing key is missing locally, it bootstraps `/coilysiren/gpg-secret-key` in memory before signing. Mac/Linux + Windows (`.cmd` shim for Git for Windows). Wire it in once with `git config --global gpg.program`.
 
 ## Install surface
 

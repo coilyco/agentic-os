@@ -20,3 +20,8 @@ id or DSN into a tracked file.
   GlitchTip project and populates this param (the one externally-visible step,
   agentic-os#250); the shipper no-ops and the buffer keeps accumulating until
   then.
+
+## `/coilysiren/`
+
+- `/coilysiren/gpg-secret-key` - shared armored GPG secret key imported on demand by `scripts/gpg-ssm` when the configured signing key is not yet local.
+- `/coilysiren/gpg-passphrase` - shared GPG signing passphrase fetched on demand by `scripts/gpg-ssm` at sign time.

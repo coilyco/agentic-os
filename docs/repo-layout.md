@@ -31,7 +31,7 @@ Setup, after `brew install --cask karabiner-elements`:
 
 - `verbatim-echo.sh` - wrap a command's output in a fenced block clipped to 20 lines / 100 chars per line for chat-safe dumps.
 - `check-aws-config.py` - reject the `[profile default]` trap in `~/.aws/config` that surfaces later as a cryptic `NoRegion` from SSM/S3.
-- `gpg-ssm` / `gpg-ssm.cmd` - GPG signing wrapper that pulls the passphrase from AWS SSM at `/coilysiren/gpg-passphrase/<keyid>` instead of caching it on disk. The `.cmd` is a bash.exe shim Git for Windows needs because it can't invoke extensionless shebang scripts reliably.
+- `gpg-ssm` / `gpg-ssm.cmd` - GPG signing wrapper that pulls the passphrase from AWS SSM at `/coilysiren/gpg-passphrase` and bootstraps `/coilysiren/gpg-secret-key` when the local keyring is empty. The `.cmd` is a bash.exe shim Git for Windows needs.
 - `agent-name.sh` - decorate the agent self-name for the Claude Code status line or the SessionStart hook. The name comes from `ward agent-name` with a local fallback when ward is absent.
 - `install-agent-name.py` - idempotently wire `agent-name.sh` into `~/.claude/settings.json` as both a status line and a SessionStart hook.
 - `session-pulse.sh` - SessionStart hook that cats `~/.cache/agentic-os/session-pulse.yaml` when present, no-op when absent. Any producer writes to that path; the hook is provider-agnostic. YAML so secondary surfaces can reuse the same blob.

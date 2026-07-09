@@ -1,6 +1,6 @@
 # gpg-ssm design
 
-**Per-host keys.** Each machine has its own GPG keypair. `git config --global --get user.signingkey` returns the local keyid. SSM param path: `/coilysiren/gpg-passphrase/<keyid>` (SecureString). Each host's wrapper resolves its own param. Stolen laptop burns one key, not the identity.
+**Shared signing key bootstrap.** `git config --global --get user.signingkey` returns the configured keyid. If that key is not already in the local secret-keyring, the wrapper fetches `/coilysiren/gpg-secret-key` (SecureString) and imports it before signing. The signing passphrase lives at `/coilysiren/gpg-passphrase` (SecureString). The wrapper resolves both params without writing secret material to disk. Stolen laptop still burns only the local machine until the secret key is imported.
 
 **No on-disk passphrase.** The wrapper hands the passphrase to gpg via `--passphrase-fd 3` with a process substitution (`3< <(printf '%s' "$pass")`). No command-line exposure (would show in `ps`), no temp file, no Keychain entry.
 
@@ -12,7 +12,7 @@
 
 ## Git Bash carve-out
 
-MSYS / Git Bash mangles leading-slash args into Windows paths, which would corrupt the SSM param name `/coilysiren/gpg-passphrase/...` into something like `C:/Program Files/Git/coilysiren/gpg-passphrase/...`. The wrapper opts out:
+MSYS / Git Bash mangles leading-slash args into Windows paths, which would corrupt the flat SSM param names such as `/coilysiren/gpg-passphrase` into something like `C:/Program Files/Git/coilysiren/gpg-passphrase`. The wrapper opts out:
 
 ```bash
 case "$(uname -s)" in
