@@ -14,6 +14,8 @@ export BAT_PAGER=""
 export HISTSIZE=100000
 export SAVEHIST=100000
 
+export WARD_CONFIG_REF=forgejo.coilysiren.me/coilyco-flight-deck/agentic-os@main//.ward
+
 # Env + PATH are inherited, so run once per terminal tree: the exported guard is
 # the "has this run in this terminal yet?" check. Aliases/functions always define.
 if [ -z "${_SIREN_SHELL_ENV:-}" ]; then
