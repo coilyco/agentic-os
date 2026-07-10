@@ -30,6 +30,11 @@ verbs instead of hand-rolled `uv run` steps:
 [`ci-in-dev-base-example.yml`](ci-in-dev-base-example.yml) is a copy-paste
 starting point for an app's `.forgejo/workflows/*.yml`.
 
+This repo's live companion is [`.forgejo/workflows/ci.yml`](../.forgejo/workflows/ci.yml).
+It keeps the workflow name `ci` and the job name `gate`, so Forgejo branch
+protection can require the `ci / gate` status context on `pull-requests-and-merge`
+repos.
+
 ## Pinned, not `:latest`
 
 CI pins an explicit `vX.Y.Z` tag, never `:latest`, so a run is reproducible and

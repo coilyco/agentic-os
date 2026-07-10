@@ -1,0 +1,28 @@
+# Pull-request CI gate for director-merge repos. This is the live version of
+# docs/ci-in-dev-base-example.yml, and branch protection can require the
+# resulting `ci / gate` status context on PR-gated workflows.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: docker
+    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:v0.195.0
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Repo test gate
+        run: |
+          set -euo pipefail
+          uv run pytest
+          pre-commit run --all-files
