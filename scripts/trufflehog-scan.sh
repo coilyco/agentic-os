@@ -15,8 +15,13 @@
 # Real staged-secret detection is untouched: only conventionally-gitignored
 # build/cache dirs are excluded, and a secret anywhere else still fails the scan.
 
-trufflehog git file://. --since-commit HEAD \
-  --exclude-paths <(cat <<'EOF'
+exclude_paths_file="$(mktemp)"
+cleanup() {
+  rm -f "$exclude_paths_file"
+}
+trap cleanup EXIT
+
+cat >"$exclude_paths_file" <<'EOF'
 (^|/)target/
 (^|/)\.venv/
 (^|/)venv/
@@ -27,4 +32,7 @@ trufflehog git file://. --since-commit HEAD \
 (^|/)\.ruff_cache/
 (^|/)(dist|build)/
 EOF
-) --no-verification --no-update --fail
+
+trufflehog git file://. --since-commit HEAD \
+  --exclude-paths "$exclude_paths_file" \
+  --no-verification --no-update --fail
