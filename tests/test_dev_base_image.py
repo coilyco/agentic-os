@@ -98,6 +98,7 @@ def test_dev_base_plan_carries_per_tier_cache_and_alias_refs() -> None:
     assert [entry["alias_image"] for entry in plan] == [
         f"{REGISTRY_BASE}:{tier_tag(tier, 'release')}" for tier in PUBLISHED_TIER_NAMES
     ]
+    assert plan[-1]["legacy_alias_image"] == f"{REGISTRY_BASE}-full:latest"
     assert plan[-1]["cache_image"] == f"{REGISTRY_BASE}:buildcache"
     assert plan[-1]["alias_image"] == f"{REGISTRY_BASE}:release"
 
@@ -236,6 +237,12 @@ def test_pushed_build_tags_every_tier_with_the_branch_alias(monkeypatch) -> None
     # The push path also verifies the alias manifest per tier, not just the tag.
     inspect_cmds = [cmd for cmd in commands if cmd[:4] == ["docker", "buildx", "imagetools", "inspect"]]
     assert f"{REGISTRY_BASE}:release" in [cmd[-1] for cmd in inspect_cmds]
+    assert f"{REGISTRY_BASE}-full:latest" in [cmd[-1] for cmd in inspect_cmds]
+    assert any(
+        cmd[:4] == ["docker", "buildx", "imagetools", "create"]
+        and cmd[5] == f"{REGISTRY_BASE}-full:latest"
+        for cmd in commands
+    )
 
 
 def test_single_tier_push_builds_only_that_tier_with_graft_args(monkeypatch) -> None:

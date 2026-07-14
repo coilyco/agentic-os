@@ -53,8 +53,8 @@ _siren_ward_config_ref() {
 
 export WARD_CONFIG_REF="$(_siren_ward_config_ref)"
 
-# Dev-base image for `ward agent` dispatch: overrides ward's baked default (the
-# retired agentic-os-full:latest ref). Remove once ward#1139 lands and ward is current.
+# Dev-base image for `ward agent` dispatch: point host shells at the moving
+# release alias.
 export WARD_AGENT_IMAGE="forgejo.coilysiren.me/coilyco-flight-deck/agentic-os"
 export WARD_AGENT_TAG="release"
 

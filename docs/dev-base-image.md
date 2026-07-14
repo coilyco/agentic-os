@@ -31,8 +31,8 @@ tag, so the published refs are `agentic-os:${TAG}`, `agentic-os:core-${TAG}`,
 `agentic-os:lang-node-${TAG}`, and so on. Each tier also carries a moving alias
 named for the publishing branch (`agentic-os:release` and `agentic-os:core-release`
 in the two-stage flow), each release uses one `vX.Y.Z`, and the `buildcache` tags
-hold the cache. `:latest` and the old `agentic-os-<tier>` package names are
-retired.
+hold the cache. Compatibility republishes `agentic-os-full:latest`;
+alias stays `agentic-os:release`.
 
 ## How it publishes
 

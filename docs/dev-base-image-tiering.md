@@ -47,7 +47,7 @@ The tiers form a fan-out/fan-in DAG (aos#491):
   `release` job needs `publish-full`, so the tag lands only after the
   whole family. Builder and layer cache persist between runs:
   [dev-base build cache](dev-base-build-cache.md).
-- Every pushed tier carries a moving alias named for the publishing branch (`:release` in the two-stage flow) alongside the release tag, so `dev-base-full` still fans in last and keeps the default `agentic-os:release` surface ward pulls. `:latest` is retired - the branch name says what the alias tracks, `latest` said nothing.
+- Every pushed tier carries a moving alias named for the publishing branch (`:release` in the two-stage flow) alongside the release tag, so `dev-base-full` still fans in last and keeps the default `agentic-os:release` surface ward pulls. The full image also republishes `agentic-os-full:latest` for older launches.
 
 ## ARG ownership
 

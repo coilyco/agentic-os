@@ -88,6 +88,10 @@ def image_ref(registry_base: str, tier: str, tag: str) -> str:
     return f"{registry_base}:{tier_tag(tier, tag)}"
 
 
+def legacy_full_image_ref(registry_base: str, tag: str) -> str:
+    return f"{registry_base}-full:{tag}"
+
+
 def tier_dockerfile(tier: str) -> Path:
     return TIER_BY_NAME[tier].dockerfile
 
@@ -118,6 +122,8 @@ def publish_plan(
         }
         if alias:
             entry["alias_image"] = image_ref(registry_base, spec.tier, alias)
+        if spec.tier == "full":
+            entry["legacy_alias_image"] = legacy_full_image_ref(registry_base, "latest")
         plan.append(entry)
         images[spec.tier] = ref
     return plan

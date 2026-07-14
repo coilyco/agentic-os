@@ -106,6 +106,19 @@ def _build_plan(
             _run(["docker", "buildx", "imagetools", "inspect", entry["image"]])
             if entry.get("alias_image"):
                 _run(["docker", "buildx", "imagetools", "inspect", entry["alias_image"]])
+            if entry.get("legacy_alias_image"):
+                _run(
+                    [
+                        "docker",
+                        "buildx",
+                        "imagetools",
+                        "create",
+                        "-t",
+                        entry["legacy_alias_image"],
+                        entry["alias_image"] if entry.get("alias_image") else entry["image"],
+                    ]
+                )
+                _run(["docker", "buildx", "imagetools", "inspect", entry["legacy_alias_image"]])
             _probe_cache_write(entry["cache_image"])
 
 
