@@ -124,7 +124,7 @@ repos:
         stages: [pre-commit]
       - id: warp-go-vet
         name: vet the ward exec warp module
-        entry: bash -c 'cd warp && go vet ./...'
+        entry: bash -c 'cd warp && go vet -p 1 ./...'
         language: system
         files: ^warp/.*\.go$
         pass_filenames: false
@@ -134,6 +134,20 @@ repos:
         entry: bash -c 'cd warp && gofmt -w .'
         language: system
         files: ^warp/.*\.go$
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: aos-say-go-vet
+        name: vet the aos-say module
+        entry: bash -c 'cd aos-say && go vet -p 1 ./...'
+        language: system
+        files: ^aos-say/.*\.go$
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: aos-say-gofmt
+        name: gofmt the aos-say module
+        entry: bash -c 'cd aos-say && gofmt -w .'
+        language: system
+        files: ^aos-say/.*\.go$
         pass_filenames: false
         stages: [pre-commit]
       - id: unresolved-placeholder-guard

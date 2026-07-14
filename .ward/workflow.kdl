@@ -2,7 +2,7 @@ workflow default="merge-remote-main" {
     // infra repos are structurally hostile to headless agent work
     repo "coilyco-flight-deck/infrastructure" workflow="pull-request"
     repo "coilyco-bridge/deploy" workflow="pull-request"
-    // these repos need a steadier workflow than the rest of the fleet
+    // public-facing surface wants a steadier workflow than most repos
     repo "coilyco-flight-deck/cli-guard" workflow="pull-request-and-merge"
     repo "coilyco-flight-deck/ward" workflow="pull-request-and-merge"
     repo "coilyco-flight-deck/ward-mcp" workflow="pull-request-and-merge"

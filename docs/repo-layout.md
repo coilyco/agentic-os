@@ -6,7 +6,7 @@ Full breakdown of what lives where. Summary in [the README](../README.md).
 
 One shared core, two thin per-shell entries, so bash and zsh run identical env, PATH, aliases, and functions.
 
-- `shell/common.sh` - shared core (bash/zsh common subset). Env + per-OS PATH (picked via `uname -s`), aliases, git helpers, `rg` wrapper, the SSM loader, auto-cd to `~/projects`. Env runs once per terminal tree via the `_SIREN_SHELL_ENV` guard.
+- `shell/common.sh` - shared core. Env + per-OS PATH, aliases, git helpers, `rg` wrapper, the SSM loader, auto-cd to `~/projects`. Env runs once per terminal tree via `_SIREN_SHELL_ENV`.
 - `shell/zshrc` - zsh entry, symlinked to `~/.zshrc`. Sources `common.sh`, then zsh-only bits: `compinit`, the `vcs_info` siren prompt, `warp.zsh`.
 - `shell/bashrc` - bash entry, symlinked to `~/.bashrc`. Sources `common.sh`, then bash-only bits: completion, the `PROMPT_COMMAND` siren prompt.
 - `shell/warp.zsh` - the zsh-only `warp` dispatcher + completion.
@@ -16,6 +16,8 @@ One shared core, two thin per-shell entries, so bash and zsh run identical env, 
 
 - `warp/settings.toml` - Warp config. Vertical tabs, theme, font, custom secret-regex list, AI/agent toggles. `[account] is_settings_sync_enabled = false` so the repo wins over cloud sync.
 - `warp/tab_configs/startup_config.toml` - default new-tab pane setup.
+
+- `aos-say/` - speech helper client and relay.
 
 ## karabiner
 
