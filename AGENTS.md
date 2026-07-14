@@ -90,6 +90,14 @@ Unless told otherwise, "done" includes the obvious follow-through, not the first
 
 Proceed autonomously on anything reversible. Stop only for a destructive, irreversible, or externally-visible action (force-push, data loss, a post or email on the user's behalf, a public surface), or a genuine multi-path fork where the wrong choice is costly to undo. Everything short of that wall: pick the sensible default, name it inline in one line ("picking X because Y"), and keep going. A 5-second "no, do X" after the fact is cheaper than a run parked for an hour waiting on a question the user could have answered either way. Batch any genuine questions and surface them at the end with the work already done, not mid-run.
 
+### Engineers and QA: never debug or iterate against a live deployment
+
+This rule binds the **sealed roles - engineer and QA** - which run in ephemeral clones with no live-cluster access. It does **not** bind director, ops, or advisor: those hold live-observe surfaces (the advisor role carries the tailnet + `~/.aws` live-observe guardfile set) and are authorized to debug deployments.
+
+An engineer or QA runs in a sealed, ephemeral clone with **no live-cluster access**. You cannot curl a public edge, inspect a pod, watch a rollout, or confirm a secret synced. So you **must not** try to debug, tune, or "fix until green" a live deployment, and QA **must not** render a verdict that turns on live-cluster state it cannot observe. Treating infra like a unit test - change logic, push, watch CI, repeat - produces changes you cannot verify, which land red on `main` and churn. A live deployment you cannot observe **is** one of the walls worth a human.
+
+Deploys already have established precedent (exposure patterns, exemplar services, shared charts). For deploy work: **match the precedent and copy the exemplar, do not invent or iterate.** If a change genuinely needs live verification - does this rollout succeed, is this secret synced, is the edge reachable - you **cannot** provide it from a sealed clone. Stop, file an `interactive`-labeled issue describing exactly what needs live verification, and hand it to a role that can observe live (the operator, or a director / ops / advisor run). Do not push a speculative fix and hope CI confirms it.
+
 ### Front-load the context you know you need
 
 Naming a gap is not closing it. When a convention, schema, or subsystem wiring is discoverable in the repo, a skill, or a doc, read it before planning. Before the first edit, list the conventions and subsystems the work touches and confirm you have read each one.

@@ -91,8 +91,11 @@ generate-caps-reference = "agentic_os.generators.generate_caps_reference:main"
 # time), which must ride beside the law it amends as always-composed doctrine -
 # same in-context rationale. The full reasoning lives in docs/ward-specs.md; the
 # exception here is the terse named pointer that keeps the law self-consistent.
+# Raised again from 14500 for the sealed engineer/QA live-deployment
+# prohibition, which must live beside the base doctrine as always-composed
+# guidance instead of being split into a detached doc.
 agents_md_max_lines = 160
-agents_md_max_chars = 14500
+agents_md_max_chars = 17000
 # Subsystem dirs carry idiomatic co-located READMEs and config docs that the
 # root/docs/skills location rule does not model. Excluded per the root layout
 # hatch: warp (Go module).
