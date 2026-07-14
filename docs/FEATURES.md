@@ -23,7 +23,7 @@ This doc lists major shipped capabilities, not files. If you want a file invento
 - [Role surface tiers](role-surface-tiers.md) - the intended per-role container capability tiers.
 - [Cross-repo tooling and release](features-release-tooling.md) - hooks, diagnostics, and Forgejo-canonical release actions, with the release pipeline gated before tagging.
 - [Telegram CI failure alerts](telegram-ci-alerts.md) - reusable red-channel alerting for failing jobs.
-- [dev-base container image](dev-base-image.md) - the inner-loop toolchain image family, including the self-name banner and the coilyco-ops git committer stamp.
+- [dev-base container image](dev-base-image.md) - inner-loop toolchain image family with release/latest aliases, self-name banner, and coilyco-ops git stamp.
 - [CI parity in dev-base](ci-in-dev-base.md) - CI runs inside the pinned dev-base image.
 - [Pull-request CI gate](ci-in-dev-base.md) - the live `ci` workflow that runs `pytest` on pull requests.
 - [Managed AGENTS.md pointer block](features-agents-pointer.md) - generated workspace pointer block for sibling repos.

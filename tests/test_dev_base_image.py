@@ -90,7 +90,7 @@ def test_tier_specs_stay_in_topological_order() -> None:
 
 
 def test_dev_base_plan_carries_per_tier_cache_and_alias_refs() -> None:
-    plan = publish_plan(REGISTRY_BASE, "v0.242.0", "release")
+    plan = publish_plan(REGISTRY_BASE, "v0.242.0", ("release", "latest", "release", ""))
 
     assert [entry["cache_image"] for entry in plan] == [
         f"{REGISTRY_BASE}:{tier_tag(tier, 'buildcache')}" for tier in PUBLISHED_TIER_NAMES
@@ -98,8 +98,15 @@ def test_dev_base_plan_carries_per_tier_cache_and_alias_refs() -> None:
     assert [entry["alias_image"] for entry in plan] == [
         f"{REGISTRY_BASE}:{tier_tag(tier, 'release')}" for tier in PUBLISHED_TIER_NAMES
     ]
+    assert [entry["alias_images"][1] for entry in plan] == [
+        f"{REGISTRY_BASE}:{tier_tag(tier, 'latest')}" for tier in PUBLISHED_TIER_NAMES
+    ]
     assert plan[-1]["cache_image"] == f"{REGISTRY_BASE}:buildcache"
     assert plan[-1]["alias_image"] == f"{REGISTRY_BASE}:release"
+    assert plan[-1]["alias_images"] == [
+        f"{REGISTRY_BASE}:release",
+        f"{REGISTRY_BASE}:latest",
+    ]
 
 
 def test_core_tier_keeps_the_hidden_ward_builder_stage() -> None:
@@ -214,7 +221,7 @@ def test_pushed_build_uses_release_tagless_cache_ref(monkeypatch) -> None:
     )
 
 
-def test_pushed_build_tags_every_tier_with_the_branch_alias(monkeypatch) -> None:
+def test_pushed_build_tags_every_tier_with_the_requested_aliases(monkeypatch) -> None:
     script = _load_script()
     commands: list[list[str]] = []
 
@@ -223,7 +230,13 @@ def test_pushed_build_tags_every_tier_with_the_branch_alias(monkeypatch) -> None
     monkeypatch.setattr(script, "_host_targetarch", lambda: "amd64")
     monkeypatch.setattr(script, "_ward_config_ref_commit", lambda: "abc123")
 
-    script._build_plan(REGISTRY_BASE, "v0.243.0", True, "linux/amd64,linux/arm64", "release")
+    script._build_plan(
+        REGISTRY_BASE,
+        "v0.243.0",
+        True,
+        "linux/amd64,linux/arm64",
+        ("release", "latest"),
+    )
 
     build_cmds = [cmd for cmd in commands if "--push" in cmd]
     assert len(build_cmds) == len(PUBLISHED_TIER_NAMES)
@@ -232,10 +245,48 @@ def test_pushed_build_tags_every_tier_with_the_branch_alias(monkeypatch) -> None
         assert tags == [
             f"{REGISTRY_BASE}:{tier_tag(tier, 'v0.243.0')}",
             f"{REGISTRY_BASE}:{tier_tag(tier, 'release')}",
+            f"{REGISTRY_BASE}:{tier_tag(tier, 'latest')}",
         ]
     # The push path also verifies the alias manifest per tier, not just the tag.
     inspect_cmds = [cmd for cmd in commands if cmd[:4] == ["docker", "buildx", "imagetools", "inspect"]]
     assert f"{REGISTRY_BASE}:release" in [cmd[-1] for cmd in inspect_cmds]
+    assert f"{REGISTRY_BASE}:latest" in [cmd[-1] for cmd in inspect_cmds]
+
+
+def test_promote_plan_retags_a_draft_to_release_aliases(monkeypatch) -> None:
+    script = _load_script()
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr(script, "_run", lambda cmd: commands.append(cmd))
+
+    script._promote_plan(REGISTRY_BASE, "draft-abc123", "v0.244.0", ("release", "latest"), "full")
+
+    create_cmds = [cmd for cmd in commands if cmd[:4] == ["docker", "buildx", "imagetools", "create"]]
+    assert create_cmds == [
+        [
+            "docker",
+            "buildx",
+            "imagetools",
+            "create",
+            "-t",
+            f"{REGISTRY_BASE}:v0.244.0",
+            "-t",
+            f"{REGISTRY_BASE}:release",
+            "-t",
+            f"{REGISTRY_BASE}:latest",
+            f"{REGISTRY_BASE}:draft-abc123",
+        ]
+    ]
+    inspect_refs = [
+        cmd[-1]
+        for cmd in commands
+        if cmd[:4] == ["docker", "buildx", "imagetools", "inspect"]
+    ]
+    assert inspect_refs == [
+        f"{REGISTRY_BASE}:v0.244.0",
+        f"{REGISTRY_BASE}:release",
+        f"{REGISTRY_BASE}:latest",
+    ]
 
 
 def test_single_tier_push_builds_only_that_tier_with_graft_args(monkeypatch) -> None:

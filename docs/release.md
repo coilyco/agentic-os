@@ -1,21 +1,22 @@
 # Release pipeline
 
 Two-stage Forgejo-canonical release (ward#1117 / aos#469). Stage 1:
-`promote.yml` runs the full repo gate on every `main` push and, when green,
-fast-forwards `release` to that sha using `CI_RELEASE_TOKEN` (a real-user PAT,
-so the push reliably enqueues workflows). Stage 2: `release.yml` runs on
-`release` pushes only, under a no-cancel `concurrency` queue, so promoted shas
-release in sequence instead of the old overlap-and-cancel. `main` stays
-yolo-able; `release` is last-known-good. Forgejo owns the release and tag per
+`promote.yml` gates every `main` push, publishes the dev-base family under
+`draft-${sha}`, then fast-forwards `release` with `CI_RELEASE_TOKEN`. Stage 2:
+`release.yml` runs on `release` pushes only under a no-cancel `concurrency`
+queue, so promoted shas release in sequence. `main` stays yolo-able. `release`
+is last-known-good. Forgejo owns the release and tag per
 [forgejo-github-mirror-contract.md](forgejo-github-mirror-contract.md).
 
-`release.yml` computes the next tag first, then publishes and verifies the
-dev-base image family before it cuts the public git/release tag - one job per
-tier, with `needs:` carrying the tier DAG (aos#491), so a flaky tier reruns
-alone instead of costing the family. Core publishes first, `dev-base-full`
-fans in last and gates the tag. There is no test gate on `release`:
-promote.yml already ran the full suite on the exact sha it fast-forwarded, so
-a flaky rerun cannot fail a vouched promotion.
+`release.yml` computes semver, retags the draft image family to `vX.Y.Z`,
+`:release`, and `:latest`, verifies those manifests, then cuts the public
+git/release tag. The release queue owns semver, so two main pushes cannot race
+to claim the same version. The expensive image build already happened on
+`main`, before the release branch moved. There is no test gate on `release`:
+promote.yml already ran the suite on the exact sha it fast-forwarded.
+
+`draft-*` tags are commit-scoped staging refs for Forgejo package cleanup
+rules. `:latest` is a compatibility alias for `:release`.
 
 agentic-os is consumed as pre-commit hooks pinned by `rev:` tag, not a brew
 formula or a prebuilt binary, so there is nothing to attach to the release and

@@ -7,6 +7,7 @@ import json
 import platform
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from agentic_os.dev_base import PUBLISHED_TIER_NAMES, REGISTRY_BASE, publish_plan
@@ -27,7 +28,7 @@ def _run(cmd: list[str]) -> None:
 
 def _probe_cache_write(buildcache_ref: str) -> None:
     # cache-to runs with ignore-error=true so a registry hiccup cannot fail the
-    # push; probe the cache manifest and warn loudly so a cold cache is visible.
+    # push. Probe the cache manifest and warn loudly so a cold cache is visible.
     probe = subprocess.run(
         ["docker", "buildx", "imagetools", "inspect", buildcache_ref],
         check=False,
@@ -63,12 +64,12 @@ def _build_plan(
     tag: str,
     push: bool,
     platforms: str | None,
-    alias: str | None = None,
+    aliases: str | Sequence[str] | None = None,
     only_tier: str | None = None,
 ) -> None:
     # only_tier serves the per-tier CI jobs: base/graft refs resolve to the
     # sibling jobs' already-pushed images under the same tag.
-    plan = publish_plan(registry_base, tag, alias)
+    plan = publish_plan(registry_base, tag, aliases)
     if only_tier is not None:
         plan = [entry for entry in plan if entry["tier"] == only_tier]
         if not plan:
@@ -96,17 +97,41 @@ def _build_plan(
                 ]
             )
         cmd.extend(["-t", entry["image"]])
-        if push and entry.get("alias_image"):
-            # The pipeline passes its branch name as the moving alias, so
-            # ward's default agentic-os:release surface stays pullable.
-            cmd.extend(["-t", entry["alias_image"]])
+        if push:
+            for alias_image in entry.get("alias_images", []):
+                cmd.extend(["-t", alias_image])
         cmd.extend(["-f", str(dockerfile), str(dockerfile.parent.parent)])
         _run(cmd)
         if push:
             _run(["docker", "buildx", "imagetools", "inspect", entry["image"]])
-            if entry.get("alias_image"):
-                _run(["docker", "buildx", "imagetools", "inspect", entry["alias_image"]])
+            for alias_image in entry.get("alias_images", []):
+                _run(["docker", "buildx", "imagetools", "inspect", alias_image])
             _probe_cache_write(entry["cache_image"])
+
+
+def _promote_plan(
+    registry_base: str,
+    source_tag: str,
+    target_tag: str,
+    aliases: str | Sequence[str] | None = None,
+    only_tier: str | None = None,
+) -> None:
+    source_plan = publish_plan(registry_base, source_tag)
+    target_plan = {entry["tier"]: entry for entry in publish_plan(registry_base, target_tag, aliases)}
+    if only_tier is not None:
+        source_plan = [entry for entry in source_plan if entry["tier"] == only_tier]
+        if not source_plan:
+            raise SystemExit(f"unknown tier: {only_tier}")
+    for source_entry in source_plan:
+        target_entry = target_plan[source_entry["tier"]]
+        target_images = [target_entry["image"], *target_entry.get("alias_images", [])]
+        cmd = ["docker", "buildx", "imagetools", "create"]
+        for target_image in target_images:
+            cmd.extend(["-t", target_image])
+        cmd.append(source_entry["image"])
+        _run(cmd)
+        for target_image in target_images:
+            _run(["docker", "buildx", "imagetools", "inspect", target_image])
 
 
 def _cmd_plan(args: argparse.Namespace) -> int:
@@ -116,6 +141,11 @@ def _cmd_plan(args: argparse.Namespace) -> int:
 
 def _cmd_build(args: argparse.Namespace) -> int:
     _build_plan(args.registry, args.tag, args.push, args.platforms, args.alias, args.tier)
+    return 0
+
+
+def _cmd_promote(args: argparse.Namespace) -> int:
+    _promote_plan(args.registry, args.source_tag, args.tag, args.alias, args.tier)
     return 0
 
 
@@ -133,8 +163,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--alias",
-        default=None,
-        help="Moving alias tag pushed alongside the release tag (the CI pipeline passes its branch name).",
+        action="append",
+        default=[],
+        help="Moving alias tag pushed alongside the stamped tag. May be repeated.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -147,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
         "--tier",
         default=None,
         choices=PUBLISHED_TIER_NAMES,
-        help="Build only this tier (per-tier CI jobs); base and graft tiers must already exist under the same tag.",
+        help="Build only this tier (per-tier CI jobs). Base and graft tiers must already exist under the same tag.",
     )
     p_build.add_argument(
         "--platforms",
@@ -155,6 +186,20 @@ def main(argv: list[str] | None = None) -> int:
         help="Platforms for buildx publishes (ignored for local builds).",
     )
     p_build.set_defaults(func=_cmd_build)
+
+    p_promote = sub.add_parser("promote", help="Retag an already-pushed image family.")
+    p_promote.add_argument(
+        "--source-tag",
+        required=True,
+        help="Existing tag to retag from, usually the draft tag built on main.",
+    )
+    p_promote.add_argument(
+        "--tier",
+        default=None,
+        choices=PUBLISHED_TIER_NAMES,
+        help="Promote only this tier (per-tier CI jobs).",
+    )
+    p_promote.set_defaults(func=_cmd_promote)
 
     args = parser.parse_args(argv)
     return args.func(args)

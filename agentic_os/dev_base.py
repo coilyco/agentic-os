@@ -1,6 +1,7 @@
 """Shared dev-base tier metadata and release/build planning helpers."""
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -96,15 +97,36 @@ def graft_build_arg(tier: str) -> str:
     return f"{tier.replace('-', '_').upper()}_IMAGE"
 
 
+def normalize_aliases(aliases: str | Iterable[str] | None = None) -> tuple[str, ...]:
+    if aliases is None:
+        return ()
+
+    if isinstance(aliases, str):
+        raw_aliases = (aliases,)
+    else:
+        raw_aliases = tuple(aliases)
+
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for alias in raw_aliases:
+        clean_alias = str(alias).strip()
+        if not clean_alias or clean_alias in seen:
+            continue
+        normalized.append(clean_alias)
+        seen.add(clean_alias)
+    return tuple(normalized)
+
+
 def publish_plan(
-    registry_base: str, tag: str, alias: str | None = None
-) -> list[dict[str, str | bool | dict[str, str]]]:
-    plan: list[dict[str, str | bool | dict[str, str]]] = []
+    registry_base: str, tag: str, aliases: str | Iterable[str] | None = None
+) -> list[dict[str, object]]:
+    plan: list[dict[str, object]] = []
+    alias_tags = normalize_aliases(aliases)
     images: dict[str, str] = {}
     for spec in TIER_SPECS:
         ref = image_ref(registry_base, spec.tier, tag)
         base_ref = "ubuntu:24.04" if spec.base_tier is None else images[spec.base_tier]
-        entry: dict[str, str | bool | dict[str, str]] = {
+        entry: dict[str, object] = {
             "tier": spec.tier,
             "stage": spec.stage,
             "dockerfile": spec.dockerfile.relative_to(REPO_ROOT).as_posix(),
@@ -116,8 +138,10 @@ def publish_plan(
             },
             "published": spec.published,
         }
-        if alias:
-            entry["alias_image"] = image_ref(registry_base, spec.tier, alias)
+        if alias_tags:
+            alias_images = [image_ref(registry_base, spec.tier, alias) for alias in alias_tags]
+            entry["alias_images"] = alias_images
+            entry["alias_image"] = alias_images[0]
         plan.append(entry)
         images[spec.tier] = ref
     return plan

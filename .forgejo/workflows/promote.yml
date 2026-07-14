@@ -1,8 +1,9 @@
 # Stage 1 of the two-stage release flow (ward#1117 / aos#469): every main push
-# re-runs the full repo gate here, and only a green gate fast-forwards `release`
-# to that sha. release.yml then runs on the `release` push (stage 2: image
-# publish, tag - no re-gate; this green gate is the only test run). main
-# stays the integration branch Kai can yolo;
+# re-runs the full repo gate, publishes the dev-base image family under a
+# commit-scoped draft tag, and only then fast-forwards `release` to that sha.
+# release.yml runs on the `release` push and retags the already-pushed draft
+# images to the versioned tag, `:release`, and `:latest` before creating the
+# public git/release tag. main stays the integration branch Kai can yolo.
 # `release` is the last-known-good branch downstream consumers and heavy tests
 # hang off. Bursts on main collapse to the newest sha (cancel-in-progress: true
 # is correct here - promotion is idempotent and a newer gate supersedes an older
@@ -32,14 +33,36 @@ permissions:
   contents: write
 
 jobs:
-  gate-and-promote:
+  plan-draft:
+    runs-on: docker
+    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
+    outputs:
+      draft_tag: ${{ steps.draft.outputs.draft_tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - id: draft
+        name: Derive the draft image tag
+        run: |
+          set -euo pipefail
+          echo "draft_tag=draft-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Alert Telegram on main failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        uses: ./actions/telegram-alert
+        with:
+          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+
+  gate:
     runs-on: docker
     container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          persist-credentials: false
 
       - name: Repo test gate
         run: |
@@ -74,6 +97,149 @@ jobs:
           export WARD_CONFIG_REF="file://${PWD}/.ward"
           CLIGUARD_NO_SANDBOX=1 "$WARD_BIN" doctor
 
+      - name: Alert Telegram on main failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        uses: ./actions/telegram-alert
+        with:
+          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+
+  publish-core:
+    needs: [plan-draft, gate]
+    runs-on: docker
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./actions/publish-dev-base-tier
+        with:
+          tier: core
+          tag: ${{ needs.plan-draft.outputs.draft_tag }}
+          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+      - name: Alert Telegram on main failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        uses: ./actions/telegram-alert
+        with:
+          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+
+  publish-lang-node:
+    needs: [plan-draft, publish-core]
+    runs-on: docker
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./actions/publish-dev-base-tier
+        with:
+          tier: lang-node
+          tag: ${{ needs.plan-draft.outputs.draft_tag }}
+          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+      - name: Alert Telegram on main failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        uses: ./actions/telegram-alert
+        with:
+          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+
+  publish-lang-go:
+    needs: [plan-draft, publish-core]
+    runs-on: docker
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./actions/publish-dev-base-tier
+        with:
+          tier: lang-go
+          tag: ${{ needs.plan-draft.outputs.draft_tag }}
+          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+      - name: Alert Telegram on main failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        uses: ./actions/telegram-alert
+        with:
+          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+
+  publish-lang-dotnet:
+    needs: [plan-draft, publish-core]
+    runs-on: docker
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./actions/publish-dev-base-tier
+        with:
+          tier: lang-dotnet
+          tag: ${{ needs.plan-draft.outputs.draft_tag }}
+          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+      - name: Alert Telegram on main failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        uses: ./actions/telegram-alert
+        with:
+          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+
+  publish-ops:
+    needs: [plan-draft, publish-core]
+    runs-on: docker
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./actions/publish-dev-base-tier
+        with:
+          tier: ops
+          tag: ${{ needs.plan-draft.outputs.draft_tag }}
+          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+      - name: Alert Telegram on main failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        uses: ./actions/telegram-alert
+        with:
+          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+
+  publish-agent:
+    needs: [plan-draft, publish-ops, publish-lang-node]
+    runs-on: docker
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./actions/publish-dev-base-tier
+        with:
+          tier: agent
+          tag: ${{ needs.plan-draft.outputs.draft_tag }}
+          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+      - name: Alert Telegram on main failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        uses: ./actions/telegram-alert
+        with:
+          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+
+  publish-full:
+    needs: [plan-draft, publish-agent, publish-lang-go, publish-lang-dotnet]
+    runs-on: docker
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./actions/publish-dev-base-tier
+        with:
+          tier: full
+          tag: ${{ needs.plan-draft.outputs.draft_tag }}
+          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+      - name: Alert Telegram on main failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        uses: ./actions/telegram-alert
+        with:
+          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+
+  promote-release:
+    needs: [publish-full]
+    runs-on: docker
+    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
       - name: Promote main to release (fast-forward only)
         env:
           PROMOTE_TOKEN: ${{ secrets.CI_RELEASE_TOKEN }}
@@ -82,7 +248,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${PROMOTE_TOKEN:-}" ]; then
-            echo "::error::CI_RELEASE_TOKEN not set; promotion needs a real-user PAT so the release push enqueues release.yml. Mint from SSM /forgejo/ci-release-token (docs/release.md)." >&2
+            echo "::error::CI_RELEASE_TOKEN not set. Promotion needs a real-user PAT so the release push enqueues release.yml. Mint from SSM /forgejo/ci-release-token (docs/release.md)." >&2
             exit 1
           fi
           # server_url resolves to the in-cluster http URL on this runner, so
@@ -96,61 +262,7 @@ jobs:
 
       - name: Alert Telegram on main failure
         if: ${{ failure() && github.ref == 'refs/heads/main' }}
-        env:
-          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-          REPO: ${{ github.repository }}
-          WORKFLOW: ${{ github.workflow }}
-          JOB: ${{ github.job }}
-          REF: ${{ github.ref }}
-          SHA: ${{ github.sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          API_BASE: https://api.telegram.org
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os
-          import urllib.error
-          import urllib.parse
-          import urllib.request
-
-          def build_message(repo, workflow, job, ref, sha, run_url):
-              return "\n".join([
-                  "CI failed on main",
-                  f"repo: {repo}",
-                  f"workflow: {workflow}",
-                  f"job: {job}",
-                  f"ref: {ref}",
-                  f"sha: {sha}",
-                  f"run: {run_url}",
-              ])
-
-          def main():
-              bot_token = os.environ["BOT_TOKEN"]
-              chat_id = os.environ["CHAT_ID"]
-              message = build_message(
-                  os.environ["REPO"],
-                  os.environ["WORKFLOW"],
-                  os.environ["JOB"],
-                  os.environ["REF"],
-                  os.environ["SHA"],
-                  os.environ["RUN_URL"],
-              )
-              payload = urllib.parse.urlencode(
-                  {
-                      "chat_id": chat_id,
-                      "text": message,
-                      "disable_web_page_preview": "true",
-                  }
-              ).encode("utf-8")
-              url = f"{os.environ['API_BASE'].rstrip('/')}/bot{bot_token}/sendMessage"
-              req = urllib.request.Request(url, data=payload, method="POST")
-              try:
-                  with urllib.request.urlopen(req, timeout=15) as resp:
-                      resp.read()
-              except urllib.error.URLError as exc:
-                  print(f"telegram alert failed: {exc}")
-                  raise SystemExit(1)
-
-          main()
-          PY
+        uses: ./actions/telegram-alert
+        with:
+          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}

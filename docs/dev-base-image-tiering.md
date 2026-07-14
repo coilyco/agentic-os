@@ -1,7 +1,7 @@
 # Tiered dev-base image split
 
-This is the implemented tier split for dev-base. The old monolithic Dockerfile
-became one folder per published tier, with `dev-base-full` the default surface.
+dev-base split: one folder per published tier, with
+`dev-base-full` the default surface.
 
 ## Tier layout
 
@@ -17,7 +17,7 @@ became one folder per published tier, with `dev-base-full` the default surface.
 
 The tiers form a fan-out/fan-in DAG (aos#491):
 
-- `core` is the root; `lang-node`, `lang-go`, `lang-dotnet`, and `ops` are
+- `core` is the root. `lang-node`, `lang-go`, `lang-dotnet`, and `ops` are
   siblings on it, each carrying only its own toolchain.
 - `agent` builds from `ops` and **grafts** Node in (Claude Code rides Node).
   `full` builds last from `agent` and grafts `lang-go` and `lang-dotnet`.
@@ -31,23 +31,29 @@ The tiers form a fan-out/fan-in DAG (aos#491):
 ## Tag derivation
 
 - One repo release tag drives the whole family.
-- Everything publishes under the single `agentic-os` package, with the tier in the tag: `core` becomes `agentic-os:core-${TAG}` while `full`, the default surface, keeps the plain `agentic-os:${TAG}`.
+- Everything publishes under one `agentic-os` package, with the tier in the
+  tag: `core` becomes `agentic-os:core-${TAG}` while `full` keeps
+  `agentic-os:${TAG}`.
 - The release helper in [`scripts/dev-base-build.py`](../scripts/dev-base-build.py) derives the plan from the directory layout.
 - Every published ref derives from `{registry base, folder name, tag}` - there is no checked-in manifest JSON to drift out of step with the folder layout.
 
 ## Release flow
 
-- `release.yml` computes the next tag first, then runs **one publish job per
-  tier**
+- `promote.yml` runs **one draft publish job per tier**
   ([`actions/publish-dev-base-tier`](../actions/publish-dev-base-tier/action.yml)),
   with `needs:` carrying the DAG above: siblings build in parallel, a flaky
   tier fails and reruns alone, and a `lang-dotnet` flake no longer takes
   `ops` or `agent` down - only `full` waits on it.
-- Each job verifies its pushed tag and alias manifests; the tag-cutting
-  `release` job needs `publish-full`, so the tag lands only after the
-  whole family. Builder and layer cache persist between runs:
-  [dev-base build cache](dev-base-build-cache.md).
-- Every pushed tier carries a moving alias named for the publishing branch (`:release` in the two-stage flow) alongside the release tag, so `dev-base-full` still fans in last and keeps the default `agentic-os:release` surface ward pulls. `:latest` is retired - the branch name says what the alias tracks, `latest` said nothing.
+- `release.yml` computes the next public tag first, then runs one retag job
+  per tier from `draft-${sha}` to `vX.Y.Z`, `:release`, and `:latest`.
+- Each job verifies its pushed or retagged manifests. The tag-cutting
+  `release` job needs every retag job, so the public tag lands only after the
+  whole family is pullable under the final refs. Builder and layer cache
+  persist between runs: [dev-base build cache](dev-base-build-cache.md).
+- Every released tier carries the moving `:release` branch alias and the
+  `:latest` compatibility alias alongside the versioned release tag, so
+  `dev-base-full` keeps the default `agentic-os:release` surface ward pulls
+  while older `:latest` consumers still resolve to the same image.
 
 ## ARG ownership
 

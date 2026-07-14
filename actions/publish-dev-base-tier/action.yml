@@ -1,12 +1,13 @@
 name: "Publish one dev-base tier"
 description: |
-  Build and push a single dev-base tier as one multi-arch image. Extracted
-  from the old monolithic publish-dev-base job (aos#491) so release.yml can
-  run one job per tier with `needs:` expressing the real tier DAG: a flake in
-  one tier costs that tier and its dependents, never the whole family. The
-  base and graft tiers this tier consumes must already be pushed under the
-  same tag by the upstream jobs; scripts/dev-base-build.py resolves their
-  refs from the folder layout.
+  Build and push a single dev-base tier as one multi-arch image, or retag an
+  already-pushed draft tier into the release tags. Extracted from the old
+  monolithic publish-dev-base job (aos#491) so workflows can run one job per
+  tier with `needs:` expressing the real tier DAG: a flake in one tier costs
+  that tier and its dependents, never the whole family. The base and graft
+  tiers this tier consumes must already be pushed under the same tag by the
+  upstream jobs. scripts/dev-base-build.py resolves their refs from the folder
+  layout.
 
 inputs:
   tier:
@@ -16,8 +17,21 @@ inputs:
     description: "Release tag to stamp onto the tier image."
     required: true
   alias:
-    description: "Moving alias tag pushed alongside the release tag (the pipeline passes its branch name)."
-    required: true
+    description: "Optional moving alias tag pushed alongside the stamped tag."
+    required: false
+    default: ""
+  extra-aliases:
+    description: "Optional whitespace-separated alias tags appended after alias."
+    required: false
+    default: ""
+  mode:
+    description: "Operation mode: build pushes a tier, promote retags source-tag."
+    required: false
+    default: "build"
+  source-tag:
+    description: "Existing source tag used by promote mode."
+    required: false
+    default: ""
   registry-token:
     description: "Forgejo PAT with write:package for the registry login."
     required: true
@@ -106,12 +120,13 @@ runs:
       run: |
         set -euo pipefail
         if [ -z "${REGISTRY_TOKEN:-}" ]; then
-          echo "::error::REGISTRY_TOKEN not set; mint a forgejo PAT with write:package and add it as an Actions secret. See docs/dev-base-image.md." >&2
+          echo "::error::REGISTRY_TOKEN not set. Mint a forgejo PAT with write:package and add it as an Actions secret. See docs/dev-base-image.md." >&2
           exit 1
         fi
         echo "${REGISTRY_TOKEN}" | docker login forgejo.coilysiren.me -u coilyco-ops --password-stdin
 
     - name: Set up qemu + reuse the persistent buildx builder
+      if: ${{ inputs.mode == 'build' }}
       shell: bash
       run: |
         set -euo pipefail
@@ -130,7 +145,7 @@ runs:
             --driver docker-container --driver-opt network=host || true
         fi
         if ! docker buildx inspect aosbuilder --bootstrap; then
-          echo "aosbuilder exists but fails to bootstrap; recreating it (warm cache is lost this once)"
+          echo "aosbuilder exists but fails to bootstrap. Recreating it (warm cache is lost this once)"
           docker buildx rm -f aosbuilder 2>/dev/null || true
           docker buildx create --name aosbuilder \
             --driver docker-container --driver-opt network=host
@@ -140,26 +155,51 @@ runs:
         echo "buildx after bootstrap"
         docker buildx ls
 
-    - name: Build and push the tier (multi-arch)
+    - name: Publish or promote the tier
       shell: bash
       env:
+        MODE: ${{ inputs.mode }}
         TIER: ${{ inputs.tier }}
         TAG: ${{ inputs.tag }}
         ALIAS: ${{ inputs.alias }}
+        EXTRA_ALIASES: ${{ inputs.extra-aliases }}
+        SOURCE_TAG: ${{ inputs.source-tag }}
         IMAGE_BASE: ${{ inputs.image-base }}
         PLATFORMS: ${{ inputs.platforms }}
         BUILD_TIMEOUT: ${{ inputs.build-timeout }}
       run: |
         set -euo pipefail
-        # The build script verifies the pushed tag + alias manifests and
-        # probes the buildcache write after the push, so a green step means
-        # the tier is pullable and the cache state is visible in the log.
-        timeout --preserve-status --kill-after=5m "${BUILD_TIMEOUT}" \
-          uv run python scripts/dev-base-build.py \
-          --registry "${IMAGE_BASE}" \
-          --tag "${TAG}" \
-          --alias "${ALIAS}" \
-          build \
-          --push \
-          --tier "${TIER}" \
-          --platforms "${PLATFORMS}"
+        alias_args=()
+        for alias in ${ALIAS:-} ${EXTRA_ALIASES:-}; do
+          [ -n "${alias}" ] && alias_args+=(--alias "${alias}")
+        done
+        base_args=(
+          uv run python scripts/dev-base-build.py
+          --registry "${IMAGE_BASE}"
+          --tag "${TAG}"
+          "${alias_args[@]}"
+        )
+        if [ "${MODE}" = "build" ]; then
+          # The build script verifies the pushed tag + alias manifests and
+          # probes the buildcache write after the push, so a green step means
+          # the tier is pullable and the cache state is visible in the log.
+          timeout --preserve-status --kill-after=5m "${BUILD_TIMEOUT}" \
+            "${base_args[@]}" \
+            build \
+            --push \
+            --tier "${TIER}" \
+            --platforms "${PLATFORMS}"
+        elif [ "${MODE}" = "promote" ]; then
+          if [ -z "${SOURCE_TAG:-}" ]; then
+            echo "::error::source-tag is required in promote mode" >&2
+            exit 1
+          fi
+          timeout --preserve-status --kill-after=5m "${BUILD_TIMEOUT}" \
+            "${base_args[@]}" \
+            promote \
+            --source-tag "${SOURCE_TAG}" \
+            --tier "${TIER}"
+        else
+          echo "::error::unknown mode: ${MODE}" >&2
+          exit 1
+        fi

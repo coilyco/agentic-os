@@ -1,32 +1,31 @@
 # Forgejo-canonical release pipeline, stage 2 of the two-stage flow
 # (ward#1117 / aos#469): promote.yml fast-forwards gate-green main pushes onto
-# the `release` branch, and this pipeline runs on `release` pushes only - main
-# pushes never build or tag directly. The concurrency queue below replaces the
-# old overlap-and-cancel behavior: release runs execute in sequence
-# (cancel-in-progress: false), so a burst of promotions cannot cancel an
-# in-flight build. agentic-os dogfoods the composite actions it ships
-# (actions/tag-bump, actions/create-release) via local `./actions/*` refs, so
-# the source repo never depends on its own GitHub mirror being current to
-# release. No bump input means every promoted release is a minor bump; major is
+# the `release` branch after main has already published the dev-base family
+# under `draft-<sha>`, and this pipeline runs on `release` pushes only. The
+# concurrency queue below replaces the old overlap-and-cancel behavior:
+# release runs execute in sequence (cancel-in-progress: false), so a burst of
+# promotions cannot cancel an in-flight build. agentic-os dogfoods the
+# composite actions it ships (actions/tag-bump, actions/create-release) via
+# local `./actions/*` refs, so the source repo never depends on its own GitHub
+# mirror being current to release. No bump input means every promoted release
+# is a minor bump. Major is
 # hand-driven via scripts/release.py. The consumer pin resolves from the latest
 # git tag at read time (agentic-os#238), so there is no pin-bump job and no
 # per-push DEFAULT_REV commit - cutting the tag is the whole release. A
 # workflow_dispatch trigger re-fires the same pipeline by hand when Forgejo
-# misses a push enqueue (agentic-os#240); dispatch it against the `release`
-# ref. The pipeline computes the next tag first, builds and verifies the
-# dev-base image family by tier, and only then creates the public git/release
-# tag, keeping the announced tag as the last success marker. Full rationale in
+# misses a push enqueue (agentic-os#240). Dispatch it against the `release`
+# ref. The pipeline computes the next tag first, retags the draft dev-base
+# image family to the versioned tag plus `:release` and `:latest`, and only
+# then creates the public git/release tag, keeping the announced tag as the
+# last success marker. Full rationale in
 # docs/release.md, image notes in docs/dev-base-image.md. There is no test job
 # here: promote.yml already ran the full repo gate on the exact sha it
 # fast-forwarded, so re-running the suite on `release` only lets a flaky rerun
 # fail an already-vouched promotion (Kai's call, 2026-07-12). The dev-base
-# family publishes as one job per tier through the publish-dev-base-tier
-# composite action, with `needs:` carrying the tier DAG (aos#491): core fans
-# out to the sibling lang-node / lang-go / lang-dotnet / ops tiers, agent
-# composes ops plus a lang-node graft, and full fans in last and gates the
-# tag. A flaky tier costs itself and its dependents only - a lang-dotnet
-# failure no longer takes ops or agent down with it - and a failed tier reruns
-# alone via rerun-failed-jobs. Tier DAG and cache model:
+# family retags as one job per tier through the publish-dev-base-tier
+# composite action, so a failed retag reruns alone via rerun-failed-jobs.
+# Draft tags are commit-scoped and intended for Forgejo package cleanup rules.
+# Tier DAG and cache model:
 # docs/dev-base-image-tiering.md.
 
 name: release
@@ -57,11 +56,12 @@ permissions:
 jobs:
   plan-release:
     runs-on: docker
-    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:latest
+    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
     outputs:
       tag: ${{ steps.tag.outputs.new_tag }}
       version: ${{ steps.tag.outputs.new_version }}
       changelog: ${{ steps.tag.outputs.changelog }}
+      draft_tag: ${{ steps.draft.outputs.draft_tag }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -72,6 +72,12 @@ jobs:
         with:
           bump: ${{ github.event.inputs.bump || 'minor' }}
           create_tag: false
+
+      - id: draft
+        name: Derive the draft image tag
+        run: |
+          set -euo pipefail
+          echo "draft_tag=draft-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Alert Telegram on main failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
@@ -133,7 +139,7 @@ jobs:
 
           main()
           PY
-  publish-core:
+  retag-core:
     needs: [plan-release]
     if: ${{ needs.plan-release.outputs.tag != '' }}
     runs-on: docker
@@ -143,9 +149,12 @@ jobs:
 
       - uses: ./actions/publish-dev-base-tier
         with:
+          mode: promote
           tier: core
           tag: ${{ needs.plan-release.outputs.tag }}
+          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
           alias: ${{ github.ref_name }}
+          extra-aliases: latest
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
           build-timeout: 110m
 
@@ -156,8 +165,8 @@ jobs:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
-  publish-lang-node:
-    needs: [plan-release, publish-core]
+  retag-lang-node:
+    needs: [plan-release]
     if: ${{ needs.plan-release.outputs.tag != '' }}
     runs-on: docker
     timeout-minutes: 90
@@ -166,9 +175,12 @@ jobs:
 
       - uses: ./actions/publish-dev-base-tier
         with:
+          mode: promote
           tier: lang-node
           tag: ${{ needs.plan-release.outputs.tag }}
+          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
           alias: ${{ github.ref_name }}
+          extra-aliases: latest
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
           build-timeout: 80m
 
@@ -179,8 +191,8 @@ jobs:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
-  publish-lang-go:
-    needs: [plan-release, publish-core]
+  retag-lang-go:
+    needs: [plan-release]
     if: ${{ needs.plan-release.outputs.tag != '' }}
     runs-on: docker
     timeout-minutes: 90
@@ -189,9 +201,12 @@ jobs:
 
       - uses: ./actions/publish-dev-base-tier
         with:
+          mode: promote
           tier: lang-go
           tag: ${{ needs.plan-release.outputs.tag }}
+          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
           alias: ${{ github.ref_name }}
+          extra-aliases: latest
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
           build-timeout: 80m
 
@@ -202,8 +217,8 @@ jobs:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
-  publish-lang-dotnet:
-    needs: [plan-release, publish-core]
+  retag-lang-dotnet:
+    needs: [plan-release]
     if: ${{ needs.plan-release.outputs.tag != '' }}
     runs-on: docker
     timeout-minutes: 90
@@ -212,9 +227,12 @@ jobs:
 
       - uses: ./actions/publish-dev-base-tier
         with:
+          mode: promote
           tier: lang-dotnet
           tag: ${{ needs.plan-release.outputs.tag }}
+          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
           alias: ${{ github.ref_name }}
+          extra-aliases: latest
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
           build-timeout: 80m
 
@@ -225,8 +243,8 @@ jobs:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
-  publish-ops:
-    needs: [plan-release, publish-core]
+  retag-ops:
+    needs: [plan-release]
     if: ${{ needs.plan-release.outputs.tag != '' }}
     runs-on: docker
     timeout-minutes: 90
@@ -235,9 +253,12 @@ jobs:
 
       - uses: ./actions/publish-dev-base-tier
         with:
+          mode: promote
           tier: ops
           tag: ${{ needs.plan-release.outputs.tag }}
+          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
           alias: ${{ github.ref_name }}
+          extra-aliases: latest
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
           build-timeout: 80m
 
@@ -248,8 +269,8 @@ jobs:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
-  publish-agent:
-    needs: [plan-release, publish-ops, publish-lang-node]
+  retag-agent:
+    needs: [plan-release]
     if: ${{ needs.plan-release.outputs.tag != '' }}
     runs-on: docker
     timeout-minutes: 90
@@ -258,9 +279,12 @@ jobs:
 
       - uses: ./actions/publish-dev-base-tier
         with:
+          mode: promote
           tier: agent
           tag: ${{ needs.plan-release.outputs.tag }}
+          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
           alias: ${{ github.ref_name }}
+          extra-aliases: latest
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
           build-timeout: 80m
 
@@ -271,8 +295,8 @@ jobs:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
-  publish-full:
-    needs: [plan-release, publish-agent, publish-lang-go, publish-lang-dotnet]
+  retag-full:
+    needs: [plan-release]
     if: ${{ needs.plan-release.outputs.tag != '' }}
     runs-on: docker
     timeout-minutes: 90
@@ -281,9 +305,12 @@ jobs:
 
       - uses: ./actions/publish-dev-base-tier
         with:
+          mode: promote
           tier: full
           tag: ${{ needs.plan-release.outputs.tag }}
+          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
           alias: ${{ github.ref_name }}
+          extra-aliases: latest
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
           build-timeout: 80m
 
@@ -293,11 +320,20 @@ jobs:
         with:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+
   release:
-    needs: [plan-release, publish-full]
+    needs:
+      - plan-release
+      - retag-core
+      - retag-lang-node
+      - retag-lang-go
+      - retag-lang-dotnet
+      - retag-ops
+      - retag-agent
+      - retag-full
     if: ${{ needs.plan-release.outputs.tag != '' }}
     runs-on: docker
-    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:latest
+    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
     steps:
       - uses: actions/checkout@v6
         with:
@@ -330,14 +366,14 @@ jobs:
           # asset upload needs no extra secret. If this instance ever denies the
           # built-in token asset scope, this step fails loud and the fix is a PAT
           # secret, mirroring ward's publish-binaries CI_RELEASE_TOKEN.
-          # ward's build input is homed here in .ward/ (flattened, aos#330 -
-          # aos#315 first landed it at top-level ward-specs/); ward's build
+          # ward's build input is homed here in .ward/ (flattened, aos#330.
+          # aos#315 first landed it at top-level ward-specs/). ward's build
           # sites pin + overlay THIS asset so ward's own tree can go neutral
           # without breaking the fleet's brew-from-source install. Pinning to a
           # dedicated tarball asset (not a raw tracked path) gives ward a stable,
           # checksummable URL. See docs/ward-specs.md and ward#503.
           if [ -z "${REL_ID:-}" ]; then
-            echo "::error::no release_id from create-release; cannot attach ward-specs asset" >&2
+            echo "::error::no release_id from create-release. Cannot attach ward-specs asset" >&2
             exit 1
           fi
           asset="ward-specs-${TAG}.tar.gz"
