@@ -7,6 +7,7 @@ This doc lists major shipped capabilities, not files. If you want a file invento
 ## Inventory
 
 - [Shell and secret handling](features-shell-secrets.md) - shared shell setup, Warp config, SSM secrets, GPG bootstrap, repo gate.
+- [Speech helper](aos-say.md) - `aos-say` client plus relay for host and container status speech.
 - **Karabiner key bindings** - complex modifications for the external keyboard and Remote Desktop.
 - [Agents and sessions](features-agents-sessions.md) - agent self-name, session pulse, and status-line repo tracking.
 - [Code review skill](../.agents/skills/tooling-code-review/SKILL.md) - the in-container review stance for ward workers.

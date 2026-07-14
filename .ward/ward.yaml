@@ -4,6 +4,12 @@ commands:
   warp:
     run: go run -C warp .
     description: "Establish and verify Kai's Warp config across hosts. `ward exec warp apply` renders all three state layers (repo template, config-dir TOML, SQLite); `ward exec warp doctor` reports drift. See project-a-ward-exec-warp.md."
+  aos-say:
+    run: go run -C aos-say .
+    description: "Speak short status text with the Mac-integrated `aos-say` client. On Darwin it calls `/usr/bin/say` directly, and on other hosts it forwards one JSON request to the configured relay. Use `ward exec aos-say -- relay` for the relay entrypoint."
+  aos-say-test:
+    run: go test -C aos-say ./...
+    description: "Run the `aos-say` Go test suite."
   agent-compat:
     run: uv run python scripts/agent-compat.py
     description: "Run daily unittest smoke checks for local agent harness compatibility. The roster is read live from `ward agents list --json`, so it tracks ward's embedded fleet (Claude, Codex, OpenCode, Goose) instead of a private list; narrow with `-- --harness codex`. Uses unittest's native ok/FAIL/ERROR output and exit code. See docs/agent-compat.md."
