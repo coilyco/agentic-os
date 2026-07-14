@@ -1,13 +1,13 @@
 # Features
 
-What `agentic-os` does. Cross-platform shell, terminal, and secret-handling for every host Kai runs.
+What `agentic-os` does. Cross-platform shell, terminal, and secret-handling.
 
 This doc lists major shipped capabilities, not files. If you want a file inventory, run `ls`.
 
 ## Inventory
 
 - [Shell and secret handling](features-shell-secrets.md) - shared shell setup, Warp config, SSM secrets, GPG bootstrap, repo gate.
-- [Speech helper](aos-say.md) - `aos-say` client plus relay for host and container status speech.
+- [Speech helper](aos-say.md) - `aos-say` client plus relay for status speech.
 - **Karabiner key bindings** - complex modifications for the external keyboard and Remote Desktop.
 - [Agents and sessions](features-agents-sessions.md) - agent self-name, session pulse, and status-line repo tracking.
 - [Code review skill](../.agents/skills/tooling-code-review/SKILL.md) - the in-container review stance for ward workers.
@@ -18,14 +18,14 @@ This doc lists major shipped capabilities, not files. If you want a file invento
 - [Forgejo Actions log bridge](forgejo-actions-logs.md) - packaged plaintext helper for live workflow logs while ward#950 moves the surface to ward-kdl.
 - [Forgejo Actions list bridge](forgejo-actions-listing.md) - safe first-page helper for live Actions run/task inspection while raw `limit` examples stay pinned to `page=1`.
 - [Forgejo Actions rerun bridge](forgejo-actions-rerun.md) - guarded run-id rerun helper for failed Forgejo Actions jobs on the coilyco deployment.
-- [ward deployment spec bundle](ward-specs.md) - the shipped `WARD_CONFIG_REF` bundle for the coilyco fleet, with the upstream Forgejo spec fetched instead of committed.
-- [Ward profile assets home](ward-profile-assets.md) - AOS-owned profile/config source layout for the Ward typed `ProfileProvider` seam, kept public-safe and separate from any operator-facing migration knob.
+- [ward deployment spec bundle](ward-specs.md) - the shipped `WARD_CONFIG_REF` bundle for the coilyco fleet.
+- [Ward profile assets home](ward-profile-assets.md) - AOS-owned profile/config source layout for Ward's typed `ProfileProvider` seam.
 - [Role surface tiers](role-surface-tiers.md) - the intended per-role container capability tiers.
 - [Cross-repo tooling and release](features-release-tooling.md) - hooks, diagnostics, and Forgejo-canonical release actions, with the release pipeline gated before tagging.
 - [Telegram CI failure alerts](telegram-ci-alerts.md) - reusable red-channel alerting for failing jobs.
 - [dev-base container image](dev-base-image.md) - the inner-loop toolchain image family, including the self-name banner and the coilyco-ops git committer stamp.
 - [CI parity in dev-base](ci-in-dev-base.md) - CI runs inside the pinned dev-base image.
-- [Pull-request CI gate](ci-in-dev-base.md) - the live `ci` workflow that runs `pytest` on pull requests and exposes a required `ci / gate` context for branch protection.
+- [Pull-request CI gate](ci-in-dev-base.md) - the live `ci` workflow that runs `pytest` on pull requests.
 - [Managed AGENTS.md pointer block](features-agents-pointer.md) - generated workspace pointer block for sibling repos.
 - [Encoded leak guard](leak-guard.md) - hex-encoded leak-term detector.
 - [Context-budget report](context-budget.md) - eager startup budget measurement per harness.
