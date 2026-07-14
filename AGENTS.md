@@ -98,6 +98,8 @@ An engineer or QA runs in a sealed, ephemeral clone with **no live-cluster acces
 
 Deploys already have established precedent (exposure patterns, exemplar services, shared charts). For deploy work: **match the precedent and copy the exemplar, do not invent or iterate.** If a change genuinely needs live verification - does this rollout succeed, is this secret synced, is the edge reachable - you **cannot** provide it from a sealed clone. Stop, file an `interactive`-labeled issue describing exactly what needs live verification, and hand it to a role that can observe live (the operator, or a director / ops / advisor run). Do not push a speculative fix and hope CI confirms it.
 
+Cross-reference the deploy precedent doc (`coilyco-bridge/deploy/docs/deploy-patterns.md`, forthcoming) and the burndown repo-exclusion filter (`coilyco-flight-deck/ward#1105`).
+
 ### Front-load the context you know you need
 
 Naming a gap is not closing it. When a convention, schema, or subsystem wiring is discoverable in the repo, a skill, or a doc, read it before planning. Before the first edit, list the conventions and subsystems the work touches and confirm you have read each one.
