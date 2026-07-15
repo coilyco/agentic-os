@@ -53,6 +53,7 @@ The tiers form a fan-out/fan-in DAG (aos#491):
   tag, so `dev-base-full` keeps the default `agentic-os:release` surface.
 - `release.yml` keeps the same publication logic as a manual retry path and
   never runs on push.
+- Manual workflow dispatches can target one tier closure. See [publish resume](dev-base-publish-resume.md).
 
 ## ARG ownership
 

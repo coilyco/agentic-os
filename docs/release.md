@@ -9,10 +9,9 @@ gate the branch. `main` stays yolo-able. `release` is
 last-known-good. Forgejo owns the release and tag per
 [forgejo-github-mirror-contract.md](forgejo-github-mirror-contract.md).
 
-`promote.yml` computes semver, retags the draft image family to `vX.Y.Z`,
-`:release`, and `:latest`, verifies those manifests, creates the public
-git/release tag, uploads the ward-specs asset, then cuts the release branch.
-The queue owns semver, so pushes cannot race. The image build already happened on main before the release branch moved. `release.yml` keeps the same logic as a manual retry path, but it no longer runs on push.
+`promote.yml` computes semver, retags the draft image family to `vX.Y.Z`, `:release`, and `:latest`, verifies those manifests, creates the public git/release tag, uploads the ward-specs asset, then cuts the release branch. The queue owns semver, so pushes cannot race. `release.yml` keeps the same logic as a manual retry path, but it no longer runs on push.
+
+See [publish resume](dev-base-publish-resume.md).
 
 `draft-*` tags are commit-scoped staging refs for Forgejo package cleanup
 rules. `:latest` is a compatibility alias for `:release`.
