@@ -42,25 +42,6 @@ roles {
             reasoning-effort xhigh
         }
     }
-    // advisor: in depth research and analysis
-    role advisor {
-        // guardfiles for day to day read (defaults)
-        guardfile "guardfile.forgejo.read.kdl"
-        guardfile "guardfile.forgejo.readactions.kdl"
-        // guardfiles for ops
-        guardfile "guardfile.aws.kdl"
-        guardfile "guardfile.tailscale.kdl"
-        guardfile "guardfile.kubectl.kdl"
-        // make the agents lil bit smart
-        agent claude {
-            model claude-fable-5
-            reasoning-effort xhigh
-        }
-        agent codex {
-            model gpt-5.6-sol
-            reasoning-effort xhigh
-        }
-    }
     // qa: pair with engineers on polishing code
     role qa {
         // guardfiles for day to day read (defaults)

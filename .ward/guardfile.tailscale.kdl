@@ -1,6 +1,6 @@
 // ward-kdl ops tailscale - the tailnet live-observe surface as an allowlist
 // (cli-guard execverb, exec dialect). Wraps the image-baked
-// `/usr/local/bin/tailscale` client so an advisor/director/ops surface can
+// `/usr/local/bin/tailscale` client so a live-observe surface can
 // answer "is the tailnet up, is the peer reachable" itself instead of handing
 // a human a runbook (agentic-os#447, the infrastructure#538 gap). Read-only by
 // design: status/ping/netcheck and friends mount, while the state-changing

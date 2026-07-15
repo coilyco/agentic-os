@@ -1,15 +1,15 @@
 # Role surface tiers
 
 The intended capability surface each `ward agent` container role carries, made
-deliberate after the 2026-07-10 permissions rollback stripped the director and
-advisor surfaces below operational need (agentic-os#447). This is the reviewed
+deliberate after the 2026-07-10 permissions rollback stripped the live-observe
+surfaces below operational need (agentic-os#447). This is the reviewed
 definition. A live surface that differs from it is drift to fix.
 
 ## Tiers
 
 * **engineer** - forgejo read + actions read + write - lands code inside its clone, no live infra reach.
 * **qa** - forgejo read + actions read + write - inspects a candidate and posts a verdict comment.
-* **advisor** - forgejo read + actions read + aws/ssm + tailnet live-observe - answers with live findings, never writes code. The live-observe pair (tailnet + `~/.aws`) is the documented default this role lost in the rollback.
+* **advisor** - personal overlay role, not shipped in the public bundle - forgejo read + actions read + aws/ssm + tailnet live-observe. The live-observe pair (tailnet + `~/.aws`) stays the documented default for that overlay.
 * **director** - forgejo read + actions read + write + aws/ssm + kubectl + runner-token mint + tailnet live-observe - drives the headless lane and fronts incident recovery.
 * **ops** - forgejo read + actions read + write + aws/ssm + kubectl + runner-token mint + tailnet live-observe - live system maintenance, the widest tier.
 
@@ -24,7 +24,7 @@ credential is director/ops reach, not a read.
 Each capability is owned by exactly one layer, so a one-layer rollback reads
 as drift against this map instead of silently disabling a role.
 
-* **guardfile bindings** - [.ward/roles.kdl](../.ward/roles.kdl), authored here - which guarded verb families a role mounts: the forgejo read/readactions/write tiers, [aws](../.ward/guardfile.aws.kdl), [tailscale](../.ward/guardfile.tailscale.kdl), [kubectl](../.ward/guardfile.kubectl.kdl), [runner-token](../.ward/guardfile.forgejo.runnertoken.kdl), and the thin exec bridge in [guardfile.forgejo.runnertoken.exec.kdl](../.ward/guardfile.forgejo.runnertoken.exec.kdl). Per ward#578 the tailnet and `~/.aws` reach of a role container keys off these bindings.
+* **guardfile bindings** - [.ward/roles.kdl](../.ward/roles.kdl), authored here - which guarded verb families a shipped role mounts: the forgejo read/readactions/write tiers, [aws](../.ward/guardfile.aws.kdl), [tailscale](../.ward/guardfile.tailscale.kdl), [kubectl](../.ward/guardfile.kubectl.kdl), [runner-token](../.ward/guardfile.forgejo.runnertoken.kdl), and the thin exec bridge in [guardfile.forgejo.runnertoken.exec.kdl](../.ward/guardfile.forgejo.runnertoken.exec.kdl). Per ward#578 the tailnet and `~/.aws` reach of a role container keys off these bindings.
 * **role presets** - ward's tree - tagline, capabilities, modes, posture. Stripped from the aos overlay on 2026-07-10 (commit 566f42f) by design, never re-authored here.
 * **image binaries** - [docker/dev-base/](dev-base-image-tiering.md), authored here - whether `aws`, `kubectl`, `helm`, `tailscale`, `tailscaled`, and the Docker client exist on disk. They land in the `ops` image tier and flow into `agent` and `full`.
 * **container bring-up** - ward's tree - whether creds and daemons are live: the `~/.aws` dir, a kubeconfig, `tailscaled` process/auth/socket wiring, `FORGEJO_TOKEN`, and the `WARD_CONTEXT_LEVEL` context slice. A binary existing says nothing about this layer.

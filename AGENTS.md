@@ -92,11 +92,11 @@ Proceed autonomously on anything reversible. Stop only for a destructive, irreve
 
 ### Engineers and QA: never debug or iterate against a live deployment
 
-This rule binds the **sealed roles - engineer and QA** - which run in ephemeral clones with no live-cluster access. It does **not** bind director, ops, or advisor: those hold live-observe surfaces (the advisor role carries the tailnet + `~/.aws` live-observe guardfile set) and are authorized to debug deployments.
+This rule binds the **sealed roles - engineer and QA** - which run in ephemeral clones with no live-cluster access. It does **not** bind director or ops: those hold live-observe surfaces and are authorized to debug deployments.
 
 An engineer or QA runs in a sealed, ephemeral clone with **no live-cluster access**. You cannot curl a public edge, inspect a pod, watch a rollout, or confirm a secret synced. So you **must not** try to debug, tune, or "fix until green" a live deployment, and QA **must not** render a verdict that turns on live-cluster state it cannot observe. Treating infra like a unit test - change logic, push, watch CI, repeat - produces changes you cannot verify, which land red on `main` and churn. A live deployment you cannot observe **is** one of the walls worth a human.
 
-Deploys already have established precedent (exposure patterns, exemplar services, shared charts). For deploy work: **match the precedent and copy the exemplar, do not invent or iterate.** If a change genuinely needs live verification - does this rollout succeed, is this secret synced, is the edge reachable - you **cannot** provide it from a sealed clone. Stop, file an `interactive`-labeled issue describing exactly what needs live verification, and hand it to a role that can observe live (the operator, or a director / ops / advisor run). Do not push a speculative fix and hope CI confirms it.
+Deploys already have established precedent (exposure patterns, exemplar services, shared charts). For deploy work: **match the precedent and copy the exemplar, do not invent or iterate.** If a change genuinely needs live verification - does this rollout succeed, is this secret synced, is the edge reachable - you **cannot** provide it from a sealed clone. Stop, file an `interactive`-labeled issue describing exactly what needs live verification, and hand it to a role that can observe live (the operator, or a director / ops run). Do not push a speculative fix and hope CI confirms it.
 
 Cross-reference the deploy precedent doc (`coilyco-bridge/deploy/docs/deploy-patterns.md`, forthcoming) and the burndown repo-exclusion filter (`coilyco-flight-deck/ward#1105`).
 
