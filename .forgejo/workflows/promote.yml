@@ -36,19 +36,10 @@ jobs:
       - name: Repo test gate
         run: |
           set -euo pipefail
-          # Same gate release.yml fronts: ward verbs when the image carries
-          # ward, exact wrapped commands otherwise.
-          if command -v ward >/dev/null 2>&1; then
-            ward exec test
-          else
-            uv run pytest
-          fi
-
-          if command -v ward >/dev/null 2>&1; then
-            ward exec pre-commit-all
-          else
-            pre-commit run --all-files
-          fi
+          uv run pytest
+          # Same surface release.yml fronts: without this, a pre-commit
+          # violation passes the gate and reddens main.
+          pre-commit run --all-files
 
       - name: Install ward from source with workflow bundle support
         run: |
