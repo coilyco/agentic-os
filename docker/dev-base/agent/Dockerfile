@@ -64,6 +64,14 @@ RUN set -eux; \
     rm /tmp/goose.tar.gz; \
     goose --version
 
+# Bake the deployment bot identity into git's system config so every user on
+# the image inherits it without a SessionStart write. The runtime hook keeps a
+# fallback path for older or custom images that do not carry this baked config.
+RUN set -eux; \
+    git config --system user.name "${WARD_GIT_NAME:-coilyco-ops}"; \
+    git config --system user.email "${WARD_GIT_EMAIL:-coilyco-ops@coilysiren.me}"; \
+    git config --system --list --show-origin | grep -E 'file:/etc/gitconfig[[:space:]]+user\.(name|email)='
+
 # Agent self-name + status-line composer. Warded
 # explorers / headless agents run in this image and otherwise get no name - host
 # sessions self-name via a Claude Code SessionStart + statusLine hook the

@@ -22,7 +22,13 @@ def _run(
 ) -> str:
     # A fresh HOME isolates --global writes/reads to this test's gitconfig, and
     # TMPDIR isolates the per-session name cache so runs never cross-talk.
-    env = {"HOME": str(home), "TMPDIR": str(home), "PATH": "/usr/bin:/bin"}
+    env = {
+        "HOME": str(home),
+        "TMPDIR": str(home),
+        "PATH": "/usr/bin:/bin",
+        "GIT_CONFIG_GLOBAL": str(home / ".gitconfig"),
+        "GIT_CONFIG_SYSTEM": "/dev/null",
+    }
     # WARD_CONTAINER_NAME drives the container-name suffix; leave it unset to
     # exercise the native-host / self-suppress path (agentic-os#296).
     if container is not None:
@@ -45,15 +51,53 @@ def _git_global(key: str, home: Path) -> str:
         ["git", "config", "--global", "--get", key],
         capture_output=True,
         text=True,
-        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        env={
+            "HOME": str(home),
+            "PATH": "/usr/bin:/bin",
+            "GIT_CONFIG_GLOBAL": str(home / ".gitconfig"),
+            "GIT_CONFIG_SYSTEM": "/dev/null",
+        },
     )
     return proc.stdout.strip()  # empty string when unset (exit 1 ignored)
 
 
-def test_gitidentity_sets_bot_committer_identity(tmp_path: Path) -> None:
+def _git_effective(key: str, home: Path, system_config: Path | None = None) -> str:
+    env = {
+        "HOME": str(home),
+        "PATH": "/usr/bin:/bin",
+        "GIT_CONFIG_GLOBAL": str(home / ".gitconfig"),
+        "GIT_CONFIG_SYSTEM": "/dev/null",
+    }
+    if system_config is not None:
+        env["GIT_CONFIG_SYSTEM"] = str(system_config)
+    proc = subprocess.run(
+        ["git", "config", "--get", key],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    return proc.stdout.strip()
+
+
+def test_gitidentity_sets_bot_committer_identity_when_unconfigured(tmp_path: Path) -> None:
     _run("gitidentity", tmp_path)
     assert _git_global("user.name", tmp_path) == "coilyco-ops"
     assert _git_global("user.email", tmp_path) == "coilyco-ops@coilysiren.me"
+
+
+def test_gitidentity_honors_baked_git_identity(tmp_path: Path) -> None:
+    system_config = tmp_path / "gitconfig-system"
+    system_config.write_text(
+        "[user]\n"
+        "\tname = baked-bot\n"
+        "\temail = baked-bot@example.com\n",
+        encoding="utf-8",
+    )
+    _run("gitidentity", tmp_path, extra_env={"GIT_CONFIG_SYSTEM": str(system_config)})
+    assert _git_global("user.name", tmp_path) == ""
+    assert _git_global("user.email", tmp_path) == ""
+    assert _git_effective("user.name", tmp_path, system_config) == "baked-bot"
+    assert _git_effective("user.email", tmp_path, system_config) == "baked-bot@example.com"
 
 
 def test_gitidentity_honors_committer_overrides(tmp_path: Path) -> None:
