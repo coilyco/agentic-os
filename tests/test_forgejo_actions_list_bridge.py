@@ -54,3 +54,30 @@ def test_actions_list_bridge_defaults_page_and_honours_override(
     assert tail in got
     assert "Authorization: token token" in got
     assert "Accept: application/json" in got
+
+
+def test_action_run_list_dry_run_adds_page_when_limit_is_supplied() -> None:
+    env = os.environ.copy()
+    env["WARD_CONFIG_REF"] = f"file://{SCRIPT.parents[1] / '.ward'}"
+
+    proc = subprocess.run(
+        [
+            "ward",
+            "ops",
+            "forgejo",
+            "action-run",
+            "list",
+            "coilyco-flight-deck",
+            "ward",
+            "--limit",
+            "3",
+            "--dry-run",
+        ],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "/actions/runs?limit=3&page=1" in proc.stdout
+    assert "%24%7Blimit%7D" not in proc.stdout

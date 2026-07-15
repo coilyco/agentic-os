@@ -161,6 +161,33 @@ wrap ward-kdl-read ops forgejo {
         op ActionRun
         describe "single Actions run with its status and conclusion (GET /repos/{owner}/{repo}/actions/runs/{run_id}). op pinned to the upstream ActionRun id."
     }
+    action list action-run {
+        describe "List Actions runs with a safe page-1 default."
+        input owner {
+            positional
+            required
+            help "repo owner"
+        }
+        input repo {
+            positional
+            required
+            help "repo name"
+        }
+        input limit {
+            flag
+            required
+            help "page size of results (required for bounded output)"
+        }
+        call list action-run {
+            args {
+                owner $owner
+                repo $repo
+                page "1"
+                limit $limit
+            }
+            as action_runs
+        }
+    }
     // actions tasks: the read-only CI-run listing surface.
     can list tasks
     action list tasks {
