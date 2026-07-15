@@ -29,7 +29,7 @@ jobs:
   test:
     runs-on: docker
     timeout-minutes: 30
-    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:latest
+    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
     steps:
       - uses: actions/checkout@v6
         with:
@@ -112,7 +112,7 @@ jobs:
     needs: test
     runs-on: docker
     timeout-minutes: 15
-    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:latest
+    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
     steps:
       - uses: actions/checkout@v6
         with:
