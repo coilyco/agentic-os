@@ -11,6 +11,7 @@ import (
 
 // templateData is the substitution set; all paths use forward slashes.
 type templateData struct {
+	RepoRoot      string
 	WorkspaceDir  string
 	StartupDir    string
 	ThemePath     string
@@ -21,6 +22,7 @@ type templateData struct {
 // newTemplateData builds the substitution set from resolved host paths.
 func newTemplateData(h *HostPaths) templateData {
 	return templateData{
+		RepoRoot:      filepath.ToSlash(h.RepoRoot),
 		WorkspaceDir:  filepath.ToSlash(h.WorkspaceDir),
 		StartupDir:    filepath.ToSlash(h.StartupDir),
 		ThemePath:     filepath.ToSlash(h.ThemePath),

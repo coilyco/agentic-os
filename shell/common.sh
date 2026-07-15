@@ -423,16 +423,12 @@ ssm-get() {
     --query 'Parameter.Value' --output text
 }
 
-# Auto-cd a fresh interactive shell (landing at $HOME or the projects root, where
-# Warp opens tabs) into agentic-os; work hosts opt out (AOS_HOST_CLASS=work).
+# Auto-cd a fresh interactive shell landing at $HOME into the projects root,
+# matching Warp's default new-tab directory.
 case $- in
   *i*)
-    if [ "$PWD" = "$HOME" ] || [ "$PWD" = "${WARD_LOCKDOWN_ROOT:-$HOME/projects}" ]; then
-      if [ "${AOS_HOST_CLASS:-}" != "work" ] && [ -d "$HOME/projects/coilyco-flight-deck/agentic-os" ]; then
-        cd "$HOME/projects/coilyco-flight-deck/agentic-os"
-      elif [ -d "$HOME/projects" ]; then
-        cd "$HOME/projects"
-      fi
+    if [ "$PWD" = "$HOME" ] && [ -d "$HOME/projects" ]; then
+      cd "$HOME/projects"
     fi
     ;;
 esac

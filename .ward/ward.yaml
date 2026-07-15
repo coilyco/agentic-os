@@ -4,6 +4,9 @@ commands:
   warp:
     run: go run -C warp .
     description: "Establish and verify Kai's Warp config across hosts. `ward exec warp apply` renders all three state layers (repo template, config-dir TOML, SQLite); `ward exec warp doctor` reports drift. See project-a-ward-exec-warp.md."
+  warp-test:
+    run: go test -C warp ./...
+    description: "Run the Warp config Go test suite."
   aos-say:
     run: go run -C aos-say .
     description: "Speak short status text with the Mac-integrated `aos-say` client. On Darwin it calls `/usr/bin/say` directly, and on other hosts it forwards one JSON request to the configured relay. Use `ward exec aos-say -- relay` for the relay entrypoint."

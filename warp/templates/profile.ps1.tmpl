@@ -20,7 +20,7 @@ $_bash = @(
     'C:\msys64\usr\bin\bash.exe'
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
 if ($_bash) {
-    $_envOut = & $_bash --norc --noprofile -c "source '{{ .StartupDir }}/shell/common.sh' 2>/dev/null && env" 2>$null
+    $_envOut = & $_bash --norc --noprofile -c "source '{{ .RepoRoot }}/shell/common.sh' 2>/dev/null && env" 2>$null
     $_bashPath = ''
     foreach ($_line in ($_envOut -split "`n")) {
         if ($_line -match '^([A-Za-z][A-Za-z0-9_]*)=(.*)$') {
