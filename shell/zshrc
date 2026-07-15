@@ -19,3 +19,8 @@ command -v direnv >/dev/null && eval "$(direnv hook zsh)"
 
 # ripgrep: load config (enables --hidden so rg searches dotfiles by default)
 export RIPGREP_CONFIG_PATH="$HOME/.config/ripgrep/ripgreprc"
+# The following lines have been added by Docker Desktop to enable Docker CLI completions.
+fpath=(/Users/kai/.docker/completions $fpath)
+autoload -Uz compinit
+compinit
+# End of Docker CLI completions
