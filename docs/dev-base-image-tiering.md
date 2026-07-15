@@ -50,6 +50,7 @@ The tiers form a fan-out/fan-in DAG (aos#491):
   runs: [dev-base build cache](dev-base-build-cache.md).
 - `release.yml` keeps the same publication logic as a manual retry path and
   never runs on push.
+- Manual workflow dispatches can target one tier closure. See [publish resume](dev-base-publish-resume.md).
 
 ## ARG ownership
 

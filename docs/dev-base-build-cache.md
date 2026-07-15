@@ -31,8 +31,8 @@ cold run pushes even more multi-GB blobs at the struggling registry.
 
 [`scripts/dev-base-build.py`](../scripts/dev-base-build.py) now probes the
 buildcache manifest after each pushed tier and emits a `::warning::` in the
-job log when the write did not land, so cache rot is observed, not inferred
-from slow runs.
+job log when the write did not land, after a bounded retry budget, so cache rot
+is observed, not inferred from slow runs or a single transient registry miss.
 
 ## See also
 

@@ -9,6 +9,29 @@ on:
   push:
     branches: [release]
   workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit SHA to publish. Defaults to the dispatch ref."
+        required: false
+        default: ""
+      tier:
+        description: "Tier to publish or resume. all runs the full DAG."
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - core
+          - lang-node
+          - lang-go
+          - lang-dotnet
+          - ops
+          - agent
+          - full
+      tag:
+        description: "Draft tag override. Defaults to draft-<sha>."
+        required: false
+        default: ""
 
 concurrency:
   group: dev-base-publish-${{ github.ref }}
@@ -33,10 +56,17 @@ jobs:
         name: Derive the draft image tag
         run: |
           set -euo pipefail
-          echo "draft_tag=draft-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          sha="${{ github.event.inputs.sha || github.sha }}"
+          tag="${{ github.event.inputs.tag || '' }}"
+          if [ -n "$tag" ]; then
+            echo "draft_tag=$tag" >> "$GITHUB_OUTPUT"
+          else
+            echo "draft_tag=draft-${sha}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Alert Telegram on release failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
+        continue-on-error: true
         uses: ./actions/telegram-alert
         with:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -44,6 +74,7 @@ jobs:
 
   publish-core:
     needs: [plan-draft]
+    if: ${{ github.event_name != 'workflow_dispatch' || contains('all,core,lang-node,lang-go,lang-dotnet,ops,agent,full', github.event.inputs.tier) }}
     runs-on: docker
     timeout-minutes: 120
     steps:
@@ -63,6 +94,7 @@ jobs:
 
   publish-lang-node:
     needs: [plan-draft, publish-core]
+    if: ${{ github.event_name != 'workflow_dispatch' || contains('all,lang-node,agent,full', github.event.inputs.tier) }}
     runs-on: docker
     timeout-minutes: 120
     steps:
@@ -82,6 +114,7 @@ jobs:
 
   publish-lang-go:
     needs: [plan-draft, publish-core]
+    if: ${{ github.event_name != 'workflow_dispatch' || contains('all,lang-go,full', github.event.inputs.tier) }}
     runs-on: docker
     timeout-minutes: 120
     steps:
@@ -101,6 +134,7 @@ jobs:
 
   publish-lang-dotnet:
     needs: [plan-draft, publish-core]
+    if: ${{ github.event_name != 'workflow_dispatch' || contains('all,lang-dotnet,full', github.event.inputs.tier) }}
     runs-on: docker
     timeout-minutes: 120
     steps:
@@ -120,6 +154,7 @@ jobs:
 
   publish-ops:
     needs: [plan-draft, publish-core]
+    if: ${{ github.event_name != 'workflow_dispatch' || contains('all,ops,agent,full', github.event.inputs.tier) }}
     runs-on: docker
     timeout-minutes: 120
     steps:
@@ -131,6 +166,7 @@ jobs:
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
       - name: Alert Telegram on release failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
+        continue-on-error: true
         uses: ./actions/telegram-alert
         with:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -138,6 +174,7 @@ jobs:
 
   publish-agent:
     needs: [plan-draft, publish-ops, publish-lang-node]
+    if: ${{ github.event_name != 'workflow_dispatch' || contains('all,agent,full', github.event.inputs.tier) }}
     runs-on: docker
     timeout-minutes: 120
     steps:
@@ -149,6 +186,7 @@ jobs:
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
       - name: Alert Telegram on release failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
+        continue-on-error: true
         uses: ./actions/telegram-alert
         with:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -156,6 +194,7 @@ jobs:
 
   publish-full:
     needs: [plan-draft, publish-agent, publish-lang-go, publish-lang-dotnet]
+    if: ${{ github.event_name != 'workflow_dispatch' || contains('all,full', github.event.inputs.tier) }}
     runs-on: docker
     timeout-minutes: 120
     steps:
@@ -167,6 +206,7 @@ jobs:
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
       - name: Alert Telegram on release failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
+        continue-on-error: true
         uses: ./actions/telegram-alert
         with:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}

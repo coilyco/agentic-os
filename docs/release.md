@@ -3,16 +3,17 @@
 Three-stage Forgejo-canonical release (ward#1117 / aos#469). Stage 1:
 `promote.yml` gates every `main` push and fast-forwards `release` with
 `CI_RELEASE_TOKEN`. Stage 2: `dev-base-publish.yml` publishes the draft
-dev-base family under `draft-${sha}` on the promoted SHA. Stage 3:
-`release.yml` is manual retry only under a no-cancel queue, so retries stay
-sequenced and never gate the branch. `main` stays yolo-able. `release` is
-last-known-good. Forgejo owns the release and tag per
-[forgejo-github-mirror-contract.md](forgejo-github-mirror-contract.md).
+dev-base family under `draft-${sha}` on the promoted SHA, and its manual
+dispatch path can resume a tier closure. Stage 3: `release.yml`
+is manual retry only under a no-cancel queue, so retries stay sequenced and
+never gate the branch. `main` stays yolo-able. `release` is last-known-good.
+Forgejo owns the release and tag per [forgejo-github-mirror-contract.md](forgejo-github-mirror-contract.md).
 
 `promote.yml` only computes the repo gate and advances the branch. The draft
-image publish workflow uses the promoted SHA to keep image availability
-separate from branch promotion. `release.yml` keeps the same publication logic
-as a manual retry path, and it no longer runs on push.
+publish workflow keeps image availability separate from branch promotion.
+`release.yml` is the manual retry path and no longer runs on push. Dispatches
+can override `sha`, `tier`, `tag`, and `source-tag` to resume a partial
+publish or retag.
 
 `draft-*` tags are commit-scoped staging refs for Forgejo package cleanup
 rules. `:latest` is a compatibility alias for `:release`.
@@ -22,19 +23,11 @@ formula or a prebuilt binary, so there is nothing to attach to the release and
 no formula to bump. The only downstream artifact is the git tag itself.
 
 ## Why not release-please
-
-release-please is PR-driven, and `coilysiren/agentic-os` has
-`hasPullRequestsEnabled = false` on GitHub (the no-PR-on-GitHub stance). Rather
-than port release-please to Forgejo, agentic-os reuses the forgejo-API-only
-composite actions it already ships for the rest of the fleet. No PR, no
-manifest config, no GitHub API calls.
+release-please is PR-driven, and `coilysiren/agentic-os` disables GitHub PRs. Rather than port it to Forgejo, agentic-os reuses its forgejo-API-only release actions.
 
 ## Version bump
 
-`actions/tag-bump` runs with no bump input, so every push-to-main release is a
-minor bump. Commit messages are never parsed. For a major, run
-`scripts/release.py --bump major` to cut `vN.0.0` by hand (its commit carries
-`[skip ci]`). The actions are referenced locally (`uses: ./actions/...`).
+`actions/tag-bump` runs with no bump input, so every push-to-main release is minor. Commit messages are never parsed. For a major, run `scripts/release.py --bump major` to cut `vN.0.0` by hand (`[skip ci]`). The actions are referenced locally (`uses: ./actions/...`).
 
 `actions/tag-bump` also has a compute-only mode: derive the next semver first,
 create the public tag and Forgejo release only at the end.
@@ -44,7 +37,8 @@ create the public tag and Forgejo release only at the end.
 A `workflow_dispatch` re-fires the publication retry stage by hand, no dummy
 commit - dispatch against the `release` ref when the draft images already
 exist and the release publication needs a retry. It is the recovery lever for
-agentic-os#240 (missed enqueue). Its `bump` input defaults to `minor`.
+agentic-os#240 (missed enqueue). Its `bump` input defaults to `minor`, and
+the tier inputs can resume one closure at a time.
 
 ## Consumer pin (derived from the tag)
 

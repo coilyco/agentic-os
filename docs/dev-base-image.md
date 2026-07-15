@@ -3,8 +3,7 @@
 aos owns the agent dev env. ward consumes it by tag, so config cannot
 drift.
 
-This page describes the `dev-base-full` contract. The tier layout is in
-[Tiered dev-base image split](dev-base-image-tiering.md).
+This page covers `dev-base-full`. See [tiering](dev-base-image-tiering.md).
 
 ## What ships
 
@@ -46,6 +45,8 @@ retags the already-published draft family to `vX.Y.Z`, `:release`, and
 The core image stamps `WARD_CONFIG_REF` from the current commit, so ward
 launches against the bundled `.ward/` checkout. The core build runs `ward
 doctor` first, rejecting a broken bundle before the draft image publishes.
+
+See [publish resume](dev-base-publish-resume.md).
 
 ## Pinning a tool
 

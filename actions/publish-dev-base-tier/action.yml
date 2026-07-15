@@ -120,14 +120,71 @@ runs:
         REGISTRY_TOKEN: ${{ inputs.registry-token }}
       run: |
         set -euo pipefail
+        retry() {
+          local attempts="$1"
+          shift
+          local delay=2
+          local n=1
+          while true; do
+            if "$@"; then
+              return 0
+            fi
+            if [ "$n" -ge "$attempts" ]; then
+              return 1
+            fi
+            echo "registry login failed, retrying in ${delay}s" >&2
+            sleep "$delay"
+            n=$((n + 1))
+            delay=$((delay * 2))
+          done
+        }
         if [ -z "${REGISTRY_TOKEN:-}" ]; then
           echo "::error::REGISTRY_TOKEN not set. Mint a forgejo PAT with write:package and add it as an Actions secret. See docs/dev-base-image.md." >&2
           exit 1
         fi
-        echo "${REGISTRY_TOKEN}" | docker login forgejo.coilysiren.me -u coilyco-ops --password-stdin
+        retry 4 sh -c 'printf "%s" "$REGISTRY_TOKEN" | docker login forgejo.coilysiren.me -u coilyco-ops --password-stdin'
+
+    - name: Check whether the tier already landed
+      id: checkpoint
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        TIER: ${{ inputs.tier }}
+        TAG: ${{ inputs.tag }}
+        ALIAS: ${{ inputs.alias }}
+        EXTRA_ALIASES: ${{ inputs.extra-aliases }}
+        SOURCE_TAG: ${{ inputs.source-tag }}
+        IMAGE_BASE: ${{ inputs.image-base }}
+      run: |
+        set -euo pipefail
+        alias_args=()
+        for alias in ${ALIAS:-} ${EXTRA_ALIASES:-}; do
+          [ -n "${alias}" ] && alias_args+=(--alias "${alias}")
+        done
+        source_args=()
+        if [ -n "${SOURCE_TAG:-}" ]; then
+          source_args+=(--source-tag "${SOURCE_TAG}")
+        fi
+        if uv run python scripts/dev-base-build.py \
+          --registry "${IMAGE_BASE}" \
+          --tag "${TAG}" \
+          "${alias_args[@]}" \
+          check \
+          --mode "${MODE}" \
+          --tier "${TIER}" \
+          "${source_args[@]}"
+        then
+          echo "skip_publish=true" >> "$GITHUB_OUTPUT"
+        else
+          rc=$?
+          if [ "$rc" -ne 1 ]; then
+            exit "$rc"
+          fi
+          echo "skip_publish=false" >> "$GITHUB_OUTPUT"
+        fi
 
     - name: Set up qemu + reuse the persistent buildx builder
-      if: ${{ inputs.mode == 'build' }}
+      if: ${{ inputs.mode == 'build' && steps.checkpoint.outputs.skip_publish != 'true' }}
       shell: bash
       run: |
         set -euo pipefail
@@ -157,6 +214,7 @@ runs:
         docker buildx ls
 
     - name: Publish or promote the tier
+      if: ${{ steps.checkpoint.outputs.skip_publish != 'true' }}
       shell: bash
       env:
         MODE: ${{ inputs.mode }}

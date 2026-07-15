@@ -1,6 +1,7 @@
 """Tests for the dev-base image contract."""
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import re
 from pathlib import Path
@@ -221,6 +222,30 @@ def test_pushed_build_uses_release_tagless_cache_ref(monkeypatch) -> None:
     )
 
 
+def test_pushed_build_skips_an_existing_checkpoint(monkeypatch) -> None:
+    script = _load_script()
+    commands: list[list[str]] = []
+    probed: list[str] = []
+
+    monkeypatch.setattr(script, "_has_target_checkpoint", lambda *_args: True)
+    monkeypatch.setattr(script, "_run", lambda cmd: commands.append(cmd))
+    monkeypatch.setattr(script, "_probe_cache_write", lambda ref: probed.append(ref))
+    monkeypatch.setattr(script, "_host_targetarch", lambda: "amd64")
+    monkeypatch.setattr(script, "_ward_config_ref_commit", lambda: "abc123")
+
+    script._build_plan(
+        REGISTRY_BASE,
+        "v0.243.0",
+        True,
+        "linux/amd64,linux/arm64",
+        ("release",),
+        "full",
+    )
+
+    assert commands == []
+    assert probed == []
+
+
 def test_pushed_build_tags_every_tier_with_the_requested_aliases(monkeypatch) -> None:
     script = _load_script()
     commands: list[list[str]] = []
@@ -287,6 +312,50 @@ def test_promote_plan_retags_a_draft_to_release_aliases(monkeypatch) -> None:
         f"{REGISTRY_BASE}:release",
         f"{REGISTRY_BASE}:latest",
     ]
+
+
+def test_promote_plan_skips_an_existing_checkpoint(monkeypatch) -> None:
+    script = _load_script()
+    commands: list[list[str]] = []
+
+    monkeypatch.setattr(script, "_target_matches_source", lambda *_args: True)
+    monkeypatch.setattr(script, "_run", lambda cmd: commands.append(cmd))
+
+    script._promote_plan(REGISTRY_BASE, "draft-abc123", "v0.244.0", ("release", "latest"), "full")
+
+    assert commands == []
+
+
+def test_cmd_check_reports_the_requested_checkpoint_state(monkeypatch) -> None:
+    script = _load_script()
+
+    monkeypatch.setattr(script, "_has_target_checkpoint", lambda *_args: True)
+    monkeypatch.setattr(script, "_target_matches_source", lambda *_args: True)
+
+    build_args = argparse.Namespace(
+        registry=REGISTRY_BASE,
+        tag="v0.243.0",
+        alias=["release"],
+        mode="build",
+        tier="full",
+        source_tag="",
+    )
+    promote_args = argparse.Namespace(
+        registry=REGISTRY_BASE,
+        tag="v0.244.0",
+        alias=["release", "latest"],
+        mode="promote",
+        tier="full",
+        source_tag="draft-abc123",
+    )
+
+    assert script._cmd_check(build_args) == 0
+    assert script._cmd_check(promote_args) == 0
+
+    monkeypatch.setattr(script, "_has_target_checkpoint", lambda *_args: False)
+    monkeypatch.setattr(script, "_target_matches_source", lambda *_args: False)
+    assert script._cmd_check(build_args) == 1
+    assert script._cmd_check(promote_args) == 1
 
 
 def test_single_tier_push_builds_only_that_tier_with_graft_args(monkeypatch) -> None:

@@ -33,6 +33,32 @@ name: release
 on:
   workflow_dispatch:
     inputs:
+      sha:
+        description: "Commit SHA to retag. Defaults to the dispatch ref."
+        required: false
+        default: ""
+      tier:
+        description: "Tier to retag or resume. all runs the full DAG."
+        required: false
+        default: "all"
+        type: choice
+        options:
+          - all
+          - core
+          - lang-node
+          - lang-go
+          - lang-dotnet
+          - ops
+          - agent
+          - full
+      tag:
+        description: "Version tag override. Defaults to the next semver tag."
+        required: false
+        default: ""
+      source-tag:
+        description: "Draft tag override. Defaults to draft-<sha>."
+        required: false
+        default: ""
       bump:
         description: "Version bump for a manual run (minor|major|patch|none). Defaults to minor, matching promoted releases."
         required: false
@@ -71,12 +97,20 @@ jobs:
         with:
           bump: ${{ github.event.inputs.bump || 'minor' }}
           create_tag: false
+          tag_name: ${{ github.event.inputs.tag || '' }}
+          release_sha: ${{ github.event.inputs.sha || github.sha }}
 
       - id: draft
         name: Derive the draft image tag
         run: |
           set -euo pipefail
-          echo "draft_tag=draft-${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          sha="${{ github.event.inputs.sha || github.sha }}"
+          source_tag="${{ github.event.inputs['source-tag'] || '' }}"
+          if [ -n "$source_tag" ]; then
+            echo "draft_tag=$source_tag" >> "$GITHUB_OUTPUT"
+          else
+            echo "draft_tag=draft-${sha}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Alert Telegram on main failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
@@ -141,7 +175,7 @@ jobs:
           PY
   retag-core:
     needs: [plan-release]
-    if: ${{ needs.plan-release.outputs.tag != '' }}
+    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,core,lang-node,lang-go,lang-dotnet,ops,agent,full', github.event.inputs.tier)) }}
     runs-on: docker
     timeout-minutes: 120
     steps:
@@ -167,8 +201,8 @@ jobs:
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
   retag-lang-node:
-    needs: [plan-release]
-    if: ${{ needs.plan-release.outputs.tag != '' }}
+    needs: [plan-release, retag-core]
+    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,lang-node,agent,full', github.event.inputs.tier)) }}
     runs-on: docker
     timeout-minutes: 90
     steps:
@@ -194,8 +228,8 @@ jobs:
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
   retag-lang-go:
-    needs: [plan-release]
-    if: ${{ needs.plan-release.outputs.tag != '' }}
+    needs: [plan-release, retag-core]
+    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,lang-go,full', github.event.inputs.tier)) }}
     runs-on: docker
     timeout-minutes: 90
     steps:
@@ -221,8 +255,8 @@ jobs:
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
   retag-lang-dotnet:
-    needs: [plan-release]
-    if: ${{ needs.plan-release.outputs.tag != '' }}
+    needs: [plan-release, retag-core]
+    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,lang-dotnet,full', github.event.inputs.tier)) }}
     runs-on: docker
     timeout-minutes: 90
     steps:
@@ -248,8 +282,8 @@ jobs:
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
   retag-ops:
-    needs: [plan-release]
-    if: ${{ needs.plan-release.outputs.tag != '' }}
+    needs: [plan-release, retag-core]
+    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,ops,agent,full', github.event.inputs.tier)) }}
     runs-on: docker
     timeout-minutes: 90
     steps:
@@ -275,8 +309,8 @@ jobs:
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
   retag-agent:
-    needs: [plan-release]
-    if: ${{ needs.plan-release.outputs.tag != '' }}
+    needs: [plan-release, retag-ops, retag-lang-node]
+    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,agent,full', github.event.inputs.tier)) }}
     runs-on: docker
     timeout-minutes: 90
     steps:
@@ -302,8 +336,8 @@ jobs:
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
   retag-full:
-    needs: [plan-release]
-    if: ${{ needs.plan-release.outputs.tag != '' }}
+    needs: [plan-release, retag-agent, retag-lang-go, retag-lang-dotnet]
+    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,full', github.event.inputs.tier)) }}
     runs-on: docker
     timeout-minutes: 90
     steps:
@@ -322,6 +356,7 @@ jobs:
 
       - name: Alert Telegram on main failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
+        continue-on-error: true
         uses: ./actions/telegram-alert
         with:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -416,6 +451,7 @@ jobs:
           done
       - name: Alert Telegram on main failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
+        continue-on-error: true
         env:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
