@@ -20,9 +20,10 @@ API drops that one tool from the plan, it never blocks the others.
 
 Version policy: bumps stay on the pinned line where crossing it is risky. Node
 tracks the latest release of its currently-pinned major (no surprise major jump);
-uv/go/aws-cli/claude/mcporter/codex/goose/ward/gh/helm/kubectl/yq track the
-latest stable upstream release (ward off its Forgejo tags, mcporter off npm,
-everything else off a GitHub Releases/tags feed).
+uv/go/aws-cli/claude/mcporter/codex/goose/gh/helm/kubectl/yq track the latest
+stable upstream release (mcporter off npm, everything else off a GitHub
+Releases/tags feed). Ward is manual until raw ward releases become trustworthy
+staging inputs and aos owns the prod/N-1 promotion.
 
 Usage:
     python3 scripts/dep-bump.py plan            # TSV: NAME<TAB>CURRENT<TAB>LATEST
@@ -242,23 +243,8 @@ def _resolve_dotnet(current: str) -> str | None:
     return data.get("latest-sdk")  # type: ignore[union-attr]
 
 
-def _resolve_ward() -> str | None:
-    # ward lives on Forgejo (not GitHub), so its tags list is the version source.
-    # Return the bare X.Y.Z - the Dockerfile ARG is v-less; the build re-prefixes.
-    data = _get_json(
-        "https://forgejo.coilysiren.me/api/v1/repos/coilyco-flight-deck/ward/tags?limit=100"
-    )
-    tag_re = re.compile(r"^v(\d+\.\d+\.\d+)$")
-    cands = []
-    for tag in data:  # type: ignore[union-attr]
-        match = tag_re.match(tag.get("name", ""))
-        if match:
-            cands.append(match.group(1))
-    return pick_highest(cands)
-
-
-# Resolver per ARG (node's gets the pinned value, to stay on its major). No
-# resolver = never auto-bumped: the golangci-lint / kdlfmt opt-out (auto-bump doc).
+# Resolver per ARG. No resolver means never auto-bumped.
+# Node stays on major; ward opts out until aos validates prod/N-1.
 RESOLVERS: dict[str, Callable[..., str | None]] = {
     "UV_VERSION": _resolve_uv,
     "NODE_VERSION": _resolve_node,
@@ -275,13 +261,12 @@ RESOLVERS: dict[str, Callable[..., str | None]] = {
     "YQ_VERSION": _resolve_yq,
     "TAILSCALE_VERSION": _resolve_tailscale,
     "TRUFFLEHOG_VERSION": _resolve_trufflehog,
-    "WARD_VERSION": _resolve_ward,
     "DOTNET_VERSION": _resolve_dotnet,
 }
 _NEEDS_CURRENT = {"NODE_VERSION", "DOTNET_VERSION"}
 
 PUBLISHED_TIER_OWNERSHIP: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("dev-base-core", ("UV_VERSION", "WARD_VERSION")),
+    ("dev-base-core", ("UV_VERSION",)),
     ("dev-base-lang-node", ("NODE_VERSION",)),
     ("dev-base-lang-go", ("GO_VERSION",)),
     ("dev-base-lang-dotnet", ("DOTNET_VERSION",)),

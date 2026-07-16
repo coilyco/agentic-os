@@ -50,9 +50,11 @@ See [publish resume](dev-base-publish-resume.md).
 
 ## Pinning a tool
 
-Versions pin as `ARG`s: hand-edit and push to main to pin or roll back, else a
-scheduled **auto-bump** refreshes stale pins ([auto-bump doc](dev-base-auto-bump.md)).
-`GOLANGCI_LINT_VERSION` and `KDLFMT_VERSION` opt out, bumped by hand.
+Versions pin as `ARG`s: hand-edit and push, else **auto-bump** refreshes stale
+pins ([auto-bump doc](dev-base-auto-bump.md)).
+`GOLANGCI_LINT_VERSION`, `KDLFMT_VERSION`, and `WARD_VERSION` opt out. Ward stays
+manual while raw releases stage: aos advances prod/N-1 after real-bundle
+validation.
 
 ## Pulling it
 

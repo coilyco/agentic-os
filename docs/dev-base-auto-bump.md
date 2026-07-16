@@ -30,24 +30,18 @@ before it pushes, so a bad pin leaves the run red and stops before `main`.
   (`chore(dev-base): bump UV_VERSION 0.11.21 -> 0.11.24`), so history shows every
   bump and a bad one bisects to its own commit.
 - **Conservative bumps.** Node and the .NET SDK track the latest release of their
-  currently-pinned major (no surprise major jump - the SDK stays on the .NET 10
-  channel eco-app's mods build against, agentic-os#329); uv, go, aws-cli, claude,
-  mcporter, codex, goose, gh, helm, kubectl, yq, docker, tailscale, trufflehog,
-  and ward track the latest stable upstream release.
+  currently-pinned major (no surprise major jump - the SDK stays on .NET 10,
+  agentic-os#329); uv, go, aws-cli, claude, mcporter, codex, goose, gh, helm,
+  kubectl, yq, docker, tailscale, and trufflehog track latest stable.
   Tailscale resolves against its `pkgs.tailscale.com/stable` feed (not GitHub
-  tags, which interleave the unstable odd-minor releases); ward resolves against
-  its Forgejo tags list (it lives on Forgejo, not GitHub, and the image builds it
-  from source at that pinned tag - agentic-os#223). A hand-edited `ARG` wins until
-  upstream passes it.
-- **Two deliberate opt-outs.** `GOLANGCI_LINT_VERSION` and `KDLFMT_VERSION` have
-  no resolver, so the auto-bump never touches them (agentic-os#292). Their lint /
-  format output is version-sensitive, and the in-container gate has to match the
-  version the consuming repos' CI pins (cli-guard + ward pin golangci-lint
-  v2.12.2; ward pins kdlfmt v0.1.7). Auto-bumping them to upstream latest would
-  re-drift the container gate from CI - the exact failure the bake-in closed.
-  Bump them by hand when the consumers move. `docker buildx` and `wasm-pack`
-  stay job-local for the publish and language-specific workflows, so dev-base
-  does not claim them.
+  tags, which interleave the unstable odd-minor releases). A hand-edited `ARG`
+  wins until upstream passes it.
+- **Three deliberate opt-outs.** `GOLANGCI_LINT_VERSION`, `KDLFMT_VERSION`, and
+  `WARD_VERSION` have no resolver, so auto-bump never touches them
+  (agentic-os#292). Lint/format pins must match consumer CI. Ward is manual while
+  raw releases are staging: aos should advance prod/N-1 only after validating
+  candidate N against the real `.ward` bundle. `docker buildx` and `wasm-pack`
+  stay job-local, so dev-base does not claim them.
 - **Fail-soft.** A resolver whose upstream is unreachable or has reshaped its API
   drops from that run with a warning; it never blocks the other bumps.
 

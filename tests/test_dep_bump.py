@@ -150,7 +150,6 @@ def test_tier_ownership_covers_each_managed_arg_once() -> None:
     assert set(owned_args) == set(script.RESOLVERS)
     assert script.ARG_TO_TARGET == {
         "UV_VERSION": "dev-base-core",
-        "WARD_VERSION": "dev-base-core",
         "NODE_VERSION": "dev-base-lang-node",
         "GO_VERSION": "dev-base-lang-go",
         "DOTNET_VERSION": "dev-base-lang-dotnet",
@@ -234,23 +233,11 @@ def test_yq_resolver_reads_the_latest_release(monkeypatch) -> None:
     assert script._resolve_yq() == "4.53.3"
 
 
-def test_ward_binary_is_auto_bumped() -> None:
-    # ward builds from source at a pinned WARD_VERSION and tracks its own Forgejo
-    # releases, so it carries a resolver instead of opting out (agentic-os#223).
+def test_ward_binary_is_manual_until_aos_validates_prod_channel() -> None:
+    # Raw ward releases are staging until release assets are executable-smoked and
+    # aos promotes a candidate as prod/N-1, so dep-bump must not chase latest.
     script = _load_script()
-    assert "WARD_VERSION" in script.RESOLVERS
-
-
-def test_ward_resolver_picks_highest_v_prefixed_tag(monkeypatch) -> None:
-    # The Forgejo tags endpoint returns v-prefixed names; the resolver must strip
-    # the `v` (the Dockerfile ARG is v-less) and order numerically, not lexically.
-    script = _load_script()
-    monkeypatch.setattr(
-        script,
-        "_get_json",
-        lambda url: [{"name": "v0.9.0"}, {"name": "v0.396.0"}, {"name": "v0.40.0"}],
-    )
-    assert script._resolve_ward() == "0.396.0"
+    assert "WARD_VERSION" not in script.RESOLVERS
 
 
 def test_dotnet_is_auto_bumped_and_stays_on_its_channel() -> None:
