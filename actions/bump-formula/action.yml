@@ -102,17 +102,17 @@ runs:
             '{message:$msg, content:$c, sha:$sha, branch:$branch}')
         else
           put_payload=$("$json_tool" - "$message" "$new_b64" "$cur_sha" "$BRANCH" <<'PY'
-import json
-import sys
+        import json
+        import sys
 
-msg, content, sha, branch = sys.argv[1:]
-print(json.dumps({
-    "message": msg,
-    "content": content,
-    "sha": sha,
-    "branch": branch,
-}))
-PY
+        msg, content, sha, branch = sys.argv[1:]
+        print(json.dumps({
+            "message": msg,
+            "content": content,
+            "sha": sha,
+            "branch": branch,
+        }))
+        PY
           )
         fi
 

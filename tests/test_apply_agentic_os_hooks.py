@@ -151,6 +151,8 @@ def test_managed_block_includes_standard_hygiene_hooks() -> None:
         "check-toml",
         "https://github.com/rhysd/actionlint",
         "files: ^\\.forgejo/workflows/.*\\.(ya?ml)$",
+        "https://code.forgejo.org/forgejo/runner",
+        "forgejo-runner-validate",
         "https://github.com/shellcheck-py/shellcheck-py",
         "https://github.com/crate-ci/typos",
         "args: []",

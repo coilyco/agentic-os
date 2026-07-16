@@ -14,7 +14,8 @@ For each repo checked out under ~/projects/<org>/<name> across every org dir
      documentation-layout, code-comments, check-skills, dead-cross-links,
      skill-discipline).
   3. Insert/refresh the managed block: the agentic-os hook set plus the
-     standard hygiene hooks, actionlint, shellcheck, and typos.
+     standard hygiene hooks, actionlint, Forgejo Runner validation, shellcheck,
+     and typos.
   4. Run `pre-commit install --hook-type pre-commit --hook-type commit-msg
      --hook-type prepare-commit-msg`.
 
@@ -124,7 +125,10 @@ PRECOMMIT_HOOKS = [
 
 ACTIONLINT_REPO_URL = "https://github.com/rhysd/actionlint"
 ACTIONLINT_REV = "v1.7.12"
-ACTIONLINT_FILES = r"^\.forgejo/workflows/.*\.(ya?ml)$"
+FORGEJO_WORKFLOW_FILES = r"^\.forgejo/workflows/.*\.(ya?ml)$"
+
+FORGEJO_RUNNER_REPO_URL = "https://code.forgejo.org/forgejo/runner"
+FORGEJO_RUNNER_REV = "v12.10.1"
 
 SHELLCHECK_REPO_URL = "https://github.com/shellcheck-py/shellcheck-py"
 SHELLCHECK_REV = "v0.11.0.1"
@@ -136,6 +140,7 @@ TYPOS_REV = "v1.48.0"
 MANAGED_REPO_URLS = [
     PRECOMMIT_HOOKS_REPO_URL,
     ACTIONLINT_REPO_URL,
+    FORGEJO_RUNNER_REPO_URL,
     SHELLCHECK_REPO_URL,
     TYPOS_REPO_URL,
 ]
@@ -232,7 +237,12 @@ def managed_block(rev: str, hook_ids: list[str] | None = None) -> str:
     hooks:
       # Forgejo workflows use GitHub Actions syntax; no exclude split is needed yet.
       - id: actionlint
-        files: {ACTIONLINT_FILES}
+        files: {FORGEJO_WORKFLOW_FILES}
+  - repo: {FORGEJO_RUNNER_REPO_URL}
+    rev: {FORGEJO_RUNNER_REV}
+    hooks:
+      - id: forgejo-runner-validate
+        files: {FORGEJO_WORKFLOW_FILES}
   - repo: {SHELLCHECK_REPO_URL}
     rev: {SHELLCHECK_REV}
     hooks:

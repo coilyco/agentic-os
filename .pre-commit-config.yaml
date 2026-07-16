@@ -187,6 +187,11 @@ repos:
           - -config-file
           - .github/actionlint.yaml
         files: ^\.forgejo/workflows/.*\.(ya?ml)$
+  - repo: https://code.forgejo.org/forgejo/runner
+    rev: v12.10.1
+    hooks:
+      - id: forgejo-runner-validate
+        files: ^\.forgejo/workflows/.*\.(ya?ml)$
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
     hooks:
