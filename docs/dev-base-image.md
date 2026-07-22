@@ -3,7 +3,8 @@
 aos owns the agent dev env. ward consumes it by tag, so config cannot
 drift.
 
-This page covers `dev-base-full`. See [tiering](dev-base-image-tiering.md).
+This page covers the language specialists and the `dev-base-full` compatibility
+surface. See [tiering](dev-base-image-tiering.md).
 
 ## What ships
 
@@ -11,12 +12,12 @@ This page covers `dev-base-full`. See [tiering](dev-base-image-tiering.md).
 the root runtime tier on `ubuntu:24.04`. The sibling tier Dockerfiles live in
 [`docker/dev-base/`](../docker/dev-base/) as one folder per tier.
 
-- **core toolchain** - `uv`, pre-commit, Python, shellcheck, git, git-lfs, build-essential, and ward.
-- **language/runtime tiers** - Node, Go, .NET 10 + ICU, and Rust (stable toolchain, wasm target, `trunk`).
-- **ops / agent CLIs** - aws cli, Homebrew, claude, mcporter, opencode, codex, goose, gh, helm, kubectl, yq, Docker CLI, and the Tailscale client plus `tailscaled` daemon binary.
-- **gate tools** - golangci-lint, trufflehog, and kdlfmt.
-- **native game-build libs (full only)** - alsa/udev/wayland/xkbcommon + pkg-config for Bevy-class builds.
-- **platform seed** - the substrate mirrors, the baked agent self-name / status-line assets, and the container shell entrypoint that seeds `AOS_REPO_ROOT` plus `WARD_CONFIG_REF` before the read-only director shell starts.
+* **core** - common development tools, Node-backed agent harnesses, operational CLIs, platform assets, and ward.
+* **language specialists** - Node, Go, .NET 10 + ICU, Rust + wasm + `trunk`, and Python + pip + `pipenv`.
+* **shared CLIs** - aws, Homebrew, claude, mcporter, opencode, codex, goose, gh, helm, kubectl, yq, Docker, `tailscale`, and `tailscaled`. Core supplies them to every parallel `lang-*` image.
+* **gate tools** - golangci-lint, trufflehog, and kdlfmt.
+* **native libs (full only)** - alsa/udev/wayland/xkbcommon + pkg-config.
+* **platform seed** - substrate mirrors, self-name/status assets, and the shell entrypoint.
 
 Tools under `/usr/local`, `/home/linuxbrew/.linuxbrew`, or `/opt` run as any uid. ward owns `run-as-uid`, mounts, and `~/.aws`. Root bootstrap seeds `/home/ubuntu/.ward/audit` as uid 1000 and avoids root-owned audit state.
 
@@ -25,8 +26,10 @@ Tools under `/usr/local`, `/home/linuxbrew/.linuxbrew`, or `/opt` run as any uid
 Published as one package,
 `forgejo.coilysiren.me/coilyco-flight-deck/agentic-os`, with variants as tags.
 `full` is the plain default tag, and the folder name prefixes every other tier's
-tag, so the published refs are `agentic-os:${TAG}`, `agentic-os:core-${TAG}`,
-`agentic-os:lang-node-${TAG}`, and so on. `dev-base-publish.yml` first
+tag. `full` uses `agentic-os:${TAG}`. Other refs use
+`agentic-os:<tier>-${TAG}` for `core`, `lang-node`, `lang-go`, `lang-dotnet`,
+`lang-rust`, and `lang-python`. The family publishes no `ops` or `agent` tag.
+`dev-base-publish.yml` first
 publishes draft tags (`agentic-os:draft-${sha}`, `agentic-os:core-draft-${sha}`,
 and so on) on the promoted SHA. Its manual dispatch path can resume one tier
 closure at a time. `release.yml` retags that family to `vX.Y.Z`, `:release`,
@@ -65,13 +68,13 @@ Needs a `docker login`. `ward container up/exec` (ward#98) is the entry point.
 
 ## Not here
 
-- Mount / compose logic and `ward container` verbs - ward#98. The mount-eligibility manifest - aos#222.
-- `coily` (retired, folded into `ward ops`) and running services - not shipped.
-- `docker buildx` and `wasm-pack` - job-local.
-- Tailnet daemon startup, auth, and socket wiring - ward owns bring-up, even though the image now ships both Tailscale binaries.
+* Mount and compose logic, `ward container` verbs, and the mount-eligibility manifest - ward#98 and aos#222.
+* `coily` (retired, folded into `ward ops`) and running services - not shipped.
+* Standalone `ops` and `agent` images - capabilities live in each language specialist instead.
+* `docker buildx` and `wasm-pack` - job-local.
+* Tailnet startup, auth, and socket wiring - ward owns bring-up.
 
 ## See also
 
-- [release.md](release.md) - the pipeline this rides on. [FEATURES.md](FEATURES.md).
-- [Tiered dev-base image split](dev-base-image-tiering.md) - the implemented fan-out
-  and fan-in model that preserves `dev-base-full` as the default.
+* [release.md](release.md) - the pipeline this rides on. [FEATURES.md](FEATURES.md).
+* [Language-specialist dev-base images](dev-base-image-tiering.md) - the inheritance and compatibility fan-in model.

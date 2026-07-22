@@ -2,32 +2,35 @@ ARG BASE_IMAGE
 ARG LANG_GO_IMAGE
 ARG LANG_DOTNET_IMAGE
 ARG LANG_RUST_IMAGE
+ARG LANG_PYTHON_IMAGE
 FROM ${LANG_GO_IMAGE} AS dev-base-lang-go-graft
 FROM ${LANG_DOTNET_IMAGE} AS dev-base-lang-dotnet-graft
 FROM ${LANG_RUST_IMAGE} AS dev-base-lang-rust-graft
+FROM ${LANG_PYTHON_IMAGE} AS dev-base-lang-python-graft
 FROM ${BASE_IMAGE} AS dev-base-full
 ARG GOLANGCI_LINT_VERSION=2.12.2
 ARG TRUFFLEHOG_VERSION=3.95.8
 ARG KDLFMT_VERSION=0.1.7
 
-# Toolchain grafts. full is the fan-in default surface: it sits on agent
-# (which carries Node) and grafts the remaining sibling language tiers in via
-# COPY --from since the aos#491 fan-out - Docker images have one parent, so
-# composed tiers graft rather than inherit through a linear chain. Both
-# prefixes are self-contained and already on core's ENV PATH (DOTNET_ROOT
-# points at /usr/local/dotnet there too). golangci-lint below needs the Go
-# toolchain at lint time, so the go graft is also a build-order dependency.
+# Toolchain grafts. full sits on core, which already carries Node and the
+# shared tools, and grafts the remaining parallel language specialists.
 COPY --from=dev-base-lang-go-graft /usr/local/go /usr/local/go
 COPY --from=dev-base-lang-dotnet-graft /usr/local/dotnet /usr/local/dotnet
 COPY --from=dev-base-lang-rust-graft /usr/local/cargo /usr/local/cargo
 COPY --from=dev-base-lang-rust-graft /usr/local/rustup /usr/local/rustup
+COPY --from=dev-base-lang-python-graft /opt/uv/tools/pipenv /opt/uv/tools/pipenv
+COPY --from=dev-base-lang-python-graft /usr/local/bin/python /usr/local/bin/python
+COPY --from=dev-base-lang-python-graft /usr/local/bin/pip /usr/local/bin/pip
+COPY --from=dev-base-lang-python-graft /usr/local/bin/pipenv /usr/local/bin/pipenv
 RUN set -eux; \
     node --version; \
     go version; \
     dotnet --list-sdks; \
     cargo --version; \
     trunk --version; \
-    rustup target list --installed | grep -q wasm32-unknown-unknown
+    rustup target list --installed | grep -q wasm32-unknown-unknown; \
+    python --version; \
+    pipenv --version
 
 # golangci-lint (Go linter for ward + cli-guard). Closes the missing-binary gap
 # that made the in-container `pre-commit run --all-files` / CI lint job unrunnable

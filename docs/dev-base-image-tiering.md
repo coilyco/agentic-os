@@ -1,74 +1,57 @@
-# Tiered dev-base image split
+# Language-specialist dev-base images
 
-dev-base split: one folder per published tier, with
-`dev-base-full` the default surface.
+The dev-base family publishes language specialists and retains `dev-base-full`
+as its compatibility surface.
 
 ## Tier layout
 
-- `docker/dev-base/core/Dockerfile` - Ubuntu, certs, shell/git, `python3`, `uv`, `pre-commit`, `ward`, and the hidden `dev-base-ward-builder` stage that compiles `ward`.
-- `docker/dev-base/lang-node/Dockerfile` - Node and npm.
-- `docker/dev-base/lang-go/Dockerfile` - Go.
-- `docker/dev-base/lang-dotnet/Dockerfile` - .NET SDK and ICU.
-- `docker/dev-base/lang-rust/Dockerfile` - Rust toolchain, wasm target, `trunk`.
-- `docker/dev-base/ops/Dockerfile` - `aws`, `gh`, `helm`, `kubectl`, `yq`, Docker client, Tailscale client, and `tailscaled`.
-- `docker/dev-base/agent/Dockerfile` - Claude, Codex, Goose, mcporter, self-name assets, substrate seed.
-- `docker/dev-base/full/Dockerfile` - fan-in default surface for `warded` use, plus gate tools and Bevy-class native libs.
+* `core` - Ubuntu, common tooling, Node-backed agent harnesses, operational CLIs, assets, entrypoint, substrate seed, and the hidden `ward` builder.
+* `lang-node` - the Node specialist tag over the common substrate.
+* `lang-go` - the shared specialist surface plus Go.
+* `lang-dotnet` - the shared specialist surface plus the .NET SDK and ICU.
+* `lang-rust` - the shared specialist surface plus Rust, wasm, and `trunk`.
+* `lang-python` - the shared specialist surface plus `python`, `pip`, and `pipenv`.
+* `full` - the compatibility fan-in, gate tools, and Bevy-class native libraries.
+
+The family publishes no `ops` or `agent` image. Operational tooling and agent
+harnesses are capabilities of each language specialist, not standalone
+specialists of their own.
 
 ## Dependency graph
 
-The tiers form a fan-out/fan-in DAG (aos#491):
-
-- `core` is the root. The `lang-*` tiers and `ops` are siblings on it,
-  each carrying only its own toolchain.
-- `agent` builds from `ops` and **grafts** Node in (Claude Code rides Node).
-  `full` builds last from `agent` and grafts `lang-go`,
-  `lang-dotnet`, and `lang-rust`.
-- Docker images have one parent, so composed tiers graft sibling toolchains
-  with `COPY --from=` of self-contained prefixes (`/usr/local/node`, `/go`,
-  `/dotnet`, `/cargo` + `/rustup`), all on `core`'s `PATH`. `TierSpec.base_tier` / `graft_tiers` in
-  [`agentic_os/dev_base.py`](../agentic_os/dev_base.py) emit the
-  `BASE_IMAGE` / `<TIER>_IMAGE` build-args.
-- The hidden builder stage stays inside `core` so ward still compiles per target platform.
+* `core` is the shared substrate. Node lives there because the agent harnesses require its runtime.
+* Every `lang-*` image is a direct, parallel child of `core`.
+* `full` builds from `core` and grafts the non-Node language toolchains back together. Node already arrives through `core`.
+* `full` grafts self-contained tool prefixes. [`agentic_os/dev_base.py`](../agentic_os/dev_base.py) emits the required image build args.
+* The hidden builder stage stays inside `core` so ward still compiles per target platform.
 
 ## Tag derivation
 
-- One repo release tag drives the whole family.
-- Everything publishes under one `agentic-os` package, with the tier in the
-  tag: `core` becomes `agentic-os:core-${TAG}` while `full` keeps
-  `agentic-os:${TAG}`.
-- The release helper in [`scripts/dev-base-build.py`](../scripts/dev-base-build.py) derives the plan from the directory layout.
-- Every published ref derives from `{registry base, folder name, tag}` - there is no checked-in manifest JSON to drift out of step with the folder layout.
+* One repo release tag drives the whole family.
+* Every tier publishes under the `agentic-os` package. `full` keeps the plain tag and other tiers prefix it with their name.
+* The release helper in [`scripts/dev-base-build.py`](../scripts/dev-base-build.py) derives the plan from the declared tier graph.
+* Every ref derives from `{registry base, tier, tag}`. No manifest JSON can drift.
 
 ## Release flow
 
-- `promote.yml` only gates `main` and fast-forwards `release` once the repo
-  is green. Draft image publishing is separate, so a registry or build flake
-  cannot stall branch advancement.
-- `dev-base-publish.yml` runs **one draft publish job per tier**
-  ([`actions/publish-dev-base-tier`](../actions/publish-dev-base-tier/action.yml)),
-  keyed by the promoted SHA, with `needs:` carrying the DAG above: siblings
-  build in parallel, flakes rerun alone, and only `full` waits on `lang-dotnet`.
-- Each job verifies its manifests. Builder and layer cache persist between
-  runs: [dev-base build cache](dev-base-build-cache.md).
-- `release.yml` keeps the same publication logic as a manual retry path and
-  never runs on push. Its retag jobs wait on their draft source tags, so a
-  slower draft publish only delays the matching tier.
-- Manual workflow dispatches can target one tier closure at a time. See
-  [publish resume](dev-base-publish-resume.md).
+* `promote.yml` gates `main` and fast-forwards `release`. Draft image publishing is separate.
+* `dev-base-publish.yml` runs one draft job per tier through [`actions/publish-dev-base-tier`](../actions/publish-dev-base-tier/action.yml). `needs:` carries the graph above.
+* Each job verifies its manifests. Builder and layer cache persist between runs: [dev-base build cache](dev-base-build-cache.md).
+* `release.yml` provides manual retag retries and never runs on push.
+* Manual workflow dispatches can target one tier closure at a time. See [publish resume](dev-base-publish-resume.md).
 
 ## ARG ownership
 
-- `UV_VERSION` and `WARD_VERSION` live in `core`.
-- `NODE_VERSION` lives in `lang-node`.
-- `GO_VERSION` lives in `lang-go`.
-- `DOTNET_VERSION` lives in `lang-dotnet`.
-- `TRUNK_VERSION` lives in `lang-rust`.
-- `AWSCLI_VERSION`, `GH_VERSION`, `DOCKER_VERSION`, `HELM_VERSION`, `KUBECTL_VERSION`, `YQ_VERSION`, and `TAILSCALE_VERSION` live in `ops`.
-- `CLAUDE_VERSION`, `MCPORTER_VERSION`, `OPENCODE_VERSION`, `CODEX_VERSION`, and `GOOSE_VERSION` live in `agent`.
-- `GOLANGCI_LINT_VERSION`, `TRUFFLEHOG_VERSION`, and `KDLFMT_VERSION` live in `full`.
+* `UV_VERSION` and `WARD_VERSION` live in `core`.
+* Node, agent-harness, and operational CLI version arguments live in `core`.
+* `GO_VERSION` lives in `lang-go`.
+* `DOTNET_VERSION` lives in `lang-dotnet`.
+* `TRUNK_VERSION` lives in `lang-rust`.
+* `lang-python` uses the Python runtimes and `uv` supplied by `core` and owns its `pipenv` installation.
+* `GOLANGCI_LINT_VERSION`, `TRUFFLEHOG_VERSION`, and `KDLFMT_VERSION` live in `full`.
 
 ## See also
 
-- [dev-base container image](dev-base-image.md) - the current published contract.
-- [CI parity in dev-base](ci-in-dev-base.md) - the pinned consumer side.
-- [FEATURES.md](FEATURES.md) - the feature inventory this lands in.
+* [dev-base container image](dev-base-image.md) - the current published contract.
+* [CI parity in dev-base](ci-in-dev-base.md) - the pinned consumer side.
+* [FEATURES.md](FEATURES.md) - the feature inventory this lands in.

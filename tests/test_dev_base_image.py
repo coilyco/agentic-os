@@ -37,6 +37,11 @@ def test_dev_base_tier_directories_exist() -> None:
         assert _tier_path(tier).is_file()
 
 
+def test_retired_non_language_tiers_are_absent() -> None:
+    assert not _tier_path("ops").exists()
+    assert not _tier_path("agent").exists()
+
+
 def test_dev_base_plan_is_derived_from_tier_folder_names() -> None:
     tag = "v0.242.0"
     plan = publish_plan(REGISTRY_BASE, tag)
@@ -54,26 +59,19 @@ def test_dev_base_plan_is_derived_from_tier_folder_names() -> None:
         f"docker/dev-base/{tier}/Dockerfile" for tier in PUBLISHED_TIER_NAMES
     ]
     assert [entry["context_dir"] for entry in plan] == [
-        "docker/dev-base/core",
+        "docker/dev-base",
         "docker/dev-base/lang-node",
         "docker/dev-base/lang-go",
         "docker/dev-base/lang-dotnet",
         "docker/dev-base/lang-rust",
-        "docker/dev-base/ops",
-        "docker/dev-base",
+        "docker/dev-base/lang-python",
         "docker/dev-base/full",
     ]
-    # The fan-out DAG (aos#491): the lang tiers and ops are siblings on core,
-    # agent composes ops, full fans in on agent.
+    # Core owns the common agent surface. Every language tier is its direct,
+    # parallel child, while full fans the standalone toolchains back together.
     assert [entry["base_image"] for entry in plan] == [
         "ubuntu:24.04",
-        f"{REGISTRY_BASE}:core-{tag}",
-        f"{REGISTRY_BASE}:core-{tag}",
-        f"{REGISTRY_BASE}:core-{tag}",
-        f"{REGISTRY_BASE}:core-{tag}",
-        f"{REGISTRY_BASE}:core-{tag}",
-        f"{REGISTRY_BASE}:ops-{tag}",
-        f"{REGISTRY_BASE}:agent-{tag}",
+        *[f"{REGISTRY_BASE}:core-{tag}"] * 6,
     ]
     assert plan[-1]["tier"] == "full"
     assert "alias_image" not in plan[0]
@@ -84,13 +82,20 @@ def test_dev_base_plan_grafts_toolchains_into_the_composed_tiers() -> None:
     plan = publish_plan(REGISTRY_BASE, tag)
     grafts = {entry["tier"]: entry["graft_images"] for entry in plan}
 
-    assert grafts["agent"] == {"LANG_NODE_IMAGE": f"{REGISTRY_BASE}:lang-node-{tag}"}
     assert grafts["full"] == {
         "LANG_GO_IMAGE": f"{REGISTRY_BASE}:lang-go-{tag}",
         "LANG_DOTNET_IMAGE": f"{REGISTRY_BASE}:lang-dotnet-{tag}",
         "LANG_RUST_IMAGE": f"{REGISTRY_BASE}:lang-rust-{tag}",
+        "LANG_PYTHON_IMAGE": f"{REGISTRY_BASE}:lang-python-{tag}",
     }
-    for tier in ("core", "lang-node", "lang-go", "lang-dotnet", "lang-rust", "ops"):
+    for tier in (
+        "core",
+        "lang-node",
+        "lang-go",
+        "lang-dotnet",
+        "lang-rust",
+        "lang-python",
+    ):
         assert grafts[tier] == {}
 
 
@@ -178,7 +183,14 @@ def test_tier_tag_keeps_full_plain_and_prefixes_variants() -> None:
 
 
 def test_tier_files_build_from_their_declared_base_image() -> None:
-    for tier in ("lang-node", "lang-go", "lang-dotnet", "ops", "agent", "full"):
+    for tier in (
+        "lang-node",
+        "lang-go",
+        "lang-dotnet",
+        "lang-rust",
+        "lang-python",
+        "full",
+    ):
         text = _tier_path(tier).read_text()
         assert f"FROM ${{BASE_IMAGE}} AS dev-base-{tier}" in text
         assert "ARG BASE_IMAGE" in text
@@ -194,27 +206,24 @@ def test_composed_tier_files_graft_their_declared_toolchain_tiers() -> None:
             assert f"ARG {arg}" in text, f"{spec.tier}: missing ARG {arg}"
             assert f"FROM ${{{arg}}} AS dev-base-{graft}-graft" in text
             assert f"COPY --from=dev-base-{graft}-graft " in text
-    agent_text = _tier_path("agent").read_text()
     full_text = _tier_path("full").read_text()
-    assert (
-        "COPY --from=dev-base-lang-node-graft /usr/local/node /usr/local/node"
-        in agent_text
-    )
     assert "COPY --from=dev-base-lang-go-graft /usr/local/go /usr/local/go" in full_text
     assert (
         "COPY --from=dev-base-lang-dotnet-graft /usr/local/dotnet /usr/local/dotnet"
         in full_text
     )
+    assert (
+        "COPY --from=dev-base-lang-python-graft /opt/uv/tools/pipenv /opt/uv/tools/pipenv"
+        in full_text
+    )
 
 
-def test_node_graft_prefix_is_on_the_core_path() -> None:
-    # Cross-tier wiring: core bakes the PATH entry so the node prefix grafted
-    # into agent (see the graft test above) lands runnable.
+def test_node_prefix_is_on_the_core_path() -> None:
     assert "/usr/local/node/bin" in _tier_path("core").read_text()
 
 
-def test_agent_tier_still_copies_the_stable_assets_from_the_root_context() -> None:
-    text = _tier_path("agent").read_text()
+def test_core_copies_the_stable_assets_from_the_root_context() -> None:
+    text = _tier_path("core").read_text()
     assert "COPY agent-name.sh /opt/agentic-os/agent-name.sh" in text
     assert "COPY statusline.sh /opt/agentic-os/statusline.sh" in text
     assert "COPY statusline.d/ /opt/agentic-os/statusline.d/" in text
@@ -228,6 +237,50 @@ def test_agent_tier_still_copies_the_stable_assets_from_the_root_context() -> No
     )
     assert "COPY substrate-image-repos.txt /tmp/substrate-image-repos.txt" in text
     assert 'ENTRYPOINT ["/opt/agentic-os/ward-shell-entrypoint.sh"]' in text
+
+
+def test_core_owns_the_shared_harness_and_operational_tools() -> None:
+    text = _tier_path("core").read_text()
+    for version_arg in (
+        "CLAUDE_VERSION",
+        "MCPORTER_VERSION",
+        "OPENCODE_VERSION",
+        "CODEX_VERSION",
+        "GOOSE_VERSION",
+        "AWSCLI_VERSION",
+        "GH_VERSION",
+        "DOCKER_VERSION",
+        "HELM_VERSION",
+        "KUBECTL_VERSION",
+        "YQ_VERSION",
+        "TAILSCALE_VERSION",
+    ):
+        assert f"ARG {version_arg}=" in text
+    for command in (
+        "claude --version",
+        "mcporter --help",
+        "opencode --version",
+        "codex --version",
+        "goose --version",
+        "aws --version",
+        "gh --version",
+        "helm version",
+        "kubectl version",
+        "yq --version",
+        "docker --version",
+        "tailscale version",
+        "tailscaled --version",
+    ):
+        assert command in text
+
+
+def test_python_specialist_exposes_the_expected_python_tooling() -> None:
+    text = _tier_path("lang-python").read_text()
+    assert "ln -sf /usr/bin/python3 /usr/local/bin/python" in text
+    assert "ln -sf /usr/bin/pip3 /usr/local/bin/pip" in text
+    assert "uv tool install pipenv" in text
+    for command in ("python --version", "pip --version", "pipenv --version", "uv --version"):
+        assert command in text
 
 
 def test_full_tier_remains_the_default_surface() -> None:
@@ -281,8 +334,8 @@ def test_pushed_build_uses_release_tagless_cache_ref(monkeypatch) -> None:
 def test_dev_base_plan_uses_tier_local_build_contexts() -> None:
     plan = publish_plan(REGISTRY_BASE, "v0.243.0")
 
-    assert plan[0]["context_dir"] == "docker/dev-base/core"
-    assert plan[6]["context_dir"] == "docker/dev-base"
+    assert plan[0]["context_dir"] == "docker/dev-base"
+    assert plan[1]["context_dir"] == "docker/dev-base/lang-node"
     assert plan[-1]["context_dir"] == "docker/dev-base/full"
 
 
@@ -319,7 +372,7 @@ def test_core_push_emits_a_release_context_breadcrumb(
     assert f"image={REGISTRY_BASE}:core-v0.243.0" in captured
     assert f"cache={REGISTRY_BASE}:core-buildcache" in captured
     assert "ward_config_ref_commit=abc123" in captured
-    assert "context=docker/dev-base/core" in captured
+    assert "context=docker/dev-base" in captured
     assert "docker buildx build --progress=plain --push --platform linux/amd64,linux/arm64" in captured
     assert "cache_source_provenance=sha256:cache" in captured
     assert commands
@@ -329,7 +382,7 @@ def test_core_push_emits_a_release_context_breadcrumb(
     assert f"- image: {REGISTRY_BASE}:core-v0.243.0" in summary
     assert f"- cache: {REGISTRY_BASE}:core-buildcache" in summary
     assert "- base: ubuntu:24.04" in summary
-    assert "- context: docker/dev-base/core" in summary
+    assert "- context: docker/dev-base" in summary
     assert "- ward_config_ref_commit: abc123" in summary
     assert "command: docker buildx build --progress=plain --push --platform linux/amd64,linux/arm64" in summary
     assert "### core cache plan" in summary
@@ -622,9 +675,11 @@ def test_single_tier_push_builds_only_that_tier_with_graft_args(monkeypatch) -> 
     assert len(build_cmds) == 1
     cmd = build_cmds[0]
     build_args = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--build-arg"]
-    assert f"BASE_IMAGE={REGISTRY_BASE}:agent-v0.243.0" in build_args
+    assert f"BASE_IMAGE={REGISTRY_BASE}:core-v0.243.0" in build_args
     assert f"LANG_GO_IMAGE={REGISTRY_BASE}:lang-go-v0.243.0" in build_args
     assert f"LANG_DOTNET_IMAGE={REGISTRY_BASE}:lang-dotnet-v0.243.0" in build_args
+    assert f"LANG_RUST_IMAGE={REGISTRY_BASE}:lang-rust-v0.243.0" in build_args
+    assert f"LANG_PYTHON_IMAGE={REGISTRY_BASE}:lang-python-v0.243.0" in build_args
     assert probed == [f"{REGISTRY_BASE}:buildcache"]
 
 

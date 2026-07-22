@@ -63,12 +63,12 @@ def test_set_arg_in_tree_rewrites_each_dockerfile_with_arg(tmp_path: Path) -> No
     script = _load_script()
     (tmp_path / "core").mkdir()
     (tmp_path / "lang-go").mkdir()
-    (tmp_path / "agent").mkdir()
+    (tmp_path / "lang-node").mkdir()
     (tmp_path / "core" / "Dockerfile").write_text("ARG GO_VERSION=1.26.4\n", encoding="utf-8")
     (tmp_path / "lang-go" / "Dockerfile").write_text(
         "ARG GO_VERSION=1.26.4\n", encoding="utf-8"
     )
-    (tmp_path / "agent" / "Dockerfile").write_text(
+    (tmp_path / "lang-node" / "Dockerfile").write_text(
         "ARG CLAUDE_VERSION=2.1.200\n", encoding="utf-8"
     )
 
@@ -77,7 +77,7 @@ def test_set_arg_in_tree_rewrites_each_dockerfile_with_arg(tmp_path: Path) -> No
     assert "ARG GO_VERSION=1.26.5\n" in (tmp_path / "core" / "Dockerfile").read_text()
     assert "ARG GO_VERSION=1.26.5\n" in (tmp_path / "lang-go" / "Dockerfile").read_text()
     assert "ARG CLAUDE_VERSION=2.1.200\n" in (
-        tmp_path / "agent" / "Dockerfile"
+        tmp_path / "lang-node" / "Dockerfile"
     ).read_text()
 
 
@@ -138,8 +138,8 @@ def test_tier_ownership_declares_each_published_target_once() -> None:
         "dev-base-lang-node",
         "dev-base-lang-go",
         "dev-base-lang-dotnet",
-        "dev-base-ops",
-        "dev-base-agent",
+        "dev-base-lang-rust",
+        "dev-base-lang-python",
         "dev-base-full",
     )
 
@@ -150,20 +150,20 @@ def test_tier_ownership_covers_each_managed_arg_once() -> None:
     assert set(owned_args) == set(script.RESOLVERS)
     assert script.ARG_TO_TARGET == {
         "UV_VERSION": "dev-base-core",
-        "NODE_VERSION": "dev-base-lang-node",
+        "NODE_VERSION": "dev-base-core",
         "GO_VERSION": "dev-base-lang-go",
         "DOTNET_VERSION": "dev-base-lang-dotnet",
-        "AWSCLI_VERSION": "dev-base-ops",
-        "GH_VERSION": "dev-base-ops",
-        "DOCKER_VERSION": "dev-base-ops",
-        "HELM_VERSION": "dev-base-ops",
-        "KUBECTL_VERSION": "dev-base-ops",
-        "YQ_VERSION": "dev-base-ops",
-        "TAILSCALE_VERSION": "dev-base-ops",
-        "CLAUDE_VERSION": "dev-base-agent",
-        "MCPORTER_VERSION": "dev-base-agent",
-        "CODEX_VERSION": "dev-base-agent",
-        "GOOSE_VERSION": "dev-base-agent",
+        "AWSCLI_VERSION": "dev-base-core",
+        "GH_VERSION": "dev-base-core",
+        "DOCKER_VERSION": "dev-base-core",
+        "HELM_VERSION": "dev-base-core",
+        "KUBECTL_VERSION": "dev-base-core",
+        "YQ_VERSION": "dev-base-core",
+        "TAILSCALE_VERSION": "dev-base-core",
+        "CLAUDE_VERSION": "dev-base-core",
+        "MCPORTER_VERSION": "dev-base-core",
+        "CODEX_VERSION": "dev-base-core",
+        "GOOSE_VERSION": "dev-base-core",
         "TRUFFLEHOG_VERSION": "dev-base-full",
     }
 

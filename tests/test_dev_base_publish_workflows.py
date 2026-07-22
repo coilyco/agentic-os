@@ -50,11 +50,15 @@ def test_dev_base_publish_workflows_support_tier_reruns_and_non_blocking_alerts(
         assert needle in release
 
     assert "needs: [plan-release, retag-core]" in release
-    assert "needs: [plan-release, retag-ops, retag-lang-node]" in release
     assert (
-        "needs: [plan-release, retag-agent, retag-lang-go, retag-lang-dotnet,"
-        " retag-lang-rust]" in release
+        "needs: [plan-release, retag-lang-node, retag-lang-go, retag-lang-dotnet,"
+        " retag-lang-rust, retag-lang-python]" in release
     )
+    for retired_tier in ("ops", "agent"):
+        assert f"publish-{retired_tier}" not in publish
+        assert f"retag-{retired_tier}" not in release
+        assert f"tier: {retired_tier}" not in publish
+        assert f"tier: {retired_tier}" not in release
     assert "github.event.inputs.tier == 'all'" in release
     _assert_alert_steps_are_non_blocking(publish)
     _assert_alert_steps_are_non_blocking(release)

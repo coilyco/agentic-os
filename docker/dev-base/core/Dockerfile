@@ -72,6 +72,19 @@ RUN set -eux; \
 FROM ubuntu:24.04 AS dev-base-core
 ARG UV_VERSION
 ARG TARGETARCH
+ARG NODE_VERSION=22.23.1
+ARG CLAUDE_VERSION=2.1.206
+ARG MCPORTER_VERSION=0.12.3
+ARG CODEX_VERSION=0.144.1
+ARG GOOSE_VERSION=1.41.0
+ARG OPENCODE_VERSION=1.17.18
+ARG AWSCLI_VERSION=2.35.15
+ARG GH_VERSION=2.96.0
+ARG DOCKER_VERSION=28.5.2
+ARG HELM_VERSION=4.2.2
+ARG KUBECTL_VERSION=1.36.2
+ARG YQ_VERSION=4.53.3
+ARG TAILSCALE_VERSION=1.98.8
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PATH=/usr/local/go/bin:/usr/local/node/bin:/usr/local/dotnet:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin \
@@ -180,6 +193,128 @@ RUN set -eux; \
     chmod -R a+rwX "${UV_PYTHON_INSTALL_DIR}"; \
     uv python list
 
+# Node is part of the shared substrate because the agent harnesses use its
+# runtime. The language specialists remain parallel children of core.
+RUN set -eux; \
+    . /tmp/arch.env; \
+    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" \
+      -o /tmp/node.tar.xz; \
+    mkdir -p /usr/local/node; \
+    tar -xJf /tmp/node.tar.xz -C /usr/local/node --strip-components=1 \
+      --exclude='*/CHANGELOG.md' --exclude='*/README.md' --exclude='*/LICENSE'; \
+    rm /tmp/node.tar.xz; \
+    node --version; npm --version
+
+RUN set -eux; \
+    npm install -g "@anthropic-ai/claude-code@${CLAUDE_VERSION}"; \
+    timeout 5m npm install -g "mcporter@${MCPORTER_VERSION}"; \
+    npm_config_cache=/tmp/npm-cache timeout 10m npm install -g "opencode-ai@${OPENCODE_VERSION}"; \
+    rm -rf /tmp/npm-cache; \
+    claude --version; \
+    timeout 1m mcporter --help >/dev/null; \
+    opencode --version
+
+RUN set -eux; \
+    . /tmp/arch.env; \
+    curl -fsSL "https://github.com/openai/codex/releases/download/rust-v${CODEX_VERSION}/codex-${CODEX_ARCH}-unknown-linux-musl.tar.gz" \
+      -o /tmp/codex.tar.gz; \
+    tar -xzf /tmp/codex.tar.gz -C /usr/local/bin; \
+    mv "/usr/local/bin/codex-${CODEX_ARCH}-unknown-linux-musl" /usr/local/bin/codex; \
+    chmod 0755 /usr/local/bin/codex; \
+    rm /tmp/codex.tar.gz; \
+    codex --version; \
+    curl -fsSL "https://github.com/block/goose/releases/download/v${GOOSE_VERSION}/goose-${GOOSE_ARCH}-unknown-linux-musl.tar.gz" \
+      -o /tmp/goose.tar.gz; \
+    tar -xzf /tmp/goose.tar.gz -C /usr/local/bin ./goose; \
+    chmod 0755 /usr/local/bin/goose; \
+    rm /tmp/goose.tar.gz; \
+    goose --version
+
+# Operational CLIs are shared substrate capabilities, not a language tier.
+RUN set -eux; \
+    . /tmp/arch.env; \
+    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}-${AWSCLI_VERSION}.zip" \
+      -o /tmp/awscli.zip; \
+    unzip -q /tmp/awscli.zip -d /tmp; \
+    /tmp/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli; \
+    rm -rf /tmp/awscli.zip /tmp/aws; \
+    aws --version
+
+RUN set -eux; \
+    . /tmp/arch.env; \
+    curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${GH_ARCH}.tar.gz" \
+      -o /tmp/gh.tar.gz; \
+    tar -xzf /tmp/gh.tar.gz -C /usr/local/bin --strip-components=2 \
+      "gh_${GH_VERSION}_linux_${GH_ARCH}/bin/gh"; \
+    chmod 0755 /usr/local/bin/gh; \
+    rm /tmp/gh.tar.gz; \
+    gh --version; \
+    curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-${HELM_ARCH}.tar.gz" \
+      -o /tmp/helm.tar.gz; \
+    tar -xzf /tmp/helm.tar.gz -C /usr/local/bin --strip-components=1 \
+      "linux-${HELM_ARCH}/helm"; \
+    chmod 0755 /usr/local/bin/helm; \
+    rm /tmp/helm.tar.gz; \
+    helm version --short; \
+    curl -fsSL "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${KUBECTL_ARCH}/kubectl" \
+      -o /usr/local/bin/kubectl; \
+    chmod 0755 /usr/local/bin/kubectl; \
+    kubectl version --client=true; \
+    curl -fsSL "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_${YQ_ARCH}" \
+      -o /usr/local/bin/yq; \
+    chmod 0755 /usr/local/bin/yq; \
+    yq --version
+
+RUN set -eux; \
+    . /tmp/arch.env; \
+    curl -fsSL "https://download.docker.com/linux/static/stable/${DOCKER_ARCH}/docker-${DOCKER_VERSION}.tgz" \
+      -o /tmp/docker.tgz; \
+    tar -xzf /tmp/docker.tgz -C /usr/local/bin --strip-components=1 docker/docker; \
+    chmod 0755 /usr/local/bin/docker; \
+    rm /tmp/docker.tgz; \
+    docker --version; \
+    curl -fsSL "https://pkgs.tailscale.com/stable/tailscale_${TAILSCALE_VERSION}_${TS_ARCH}.tgz" \
+      -o /tmp/tailscale.tgz; \
+    tar -xzf /tmp/tailscale.tgz -C /usr/local/bin --strip-components=1 \
+      "tailscale_${TAILSCALE_VERSION}_${TS_ARCH}/tailscale" \
+      "tailscale_${TAILSCALE_VERSION}_${TS_ARCH}/tailscaled"; \
+    chmod 0755 /usr/local/bin/tailscale /usr/local/bin/tailscaled; \
+    rm /tmp/tailscale.tgz; \
+    tailscale version; \
+    tailscaled --version
+
+RUN set -eux; \
+    git config --system user.name "${WARD_GIT_NAME:-coilyco-ops}"; \
+    git config --system user.email "${WARD_GIT_EMAIL:-coilyco-ops@coilysiren.me}"; \
+    git config --system --list --show-origin | grep -E 'file:/etc/gitconfig[[:space:]]+user\.(name|email)='; \
+    mkdir -p /opt/agentic-os /etc/claude-code /home/ubuntu/.ward/audit; \
+    chown -R 1000:1000 /home/ubuntu/.ward; \
+    chmod 0700 /home/ubuntu/.ward /home/ubuntu/.ward/audit
+COPY agent-name.sh /opt/agentic-os/agent-name.sh
+COPY statusline.sh /opt/agentic-os/statusline.sh
+COPY statusline.d/ /opt/agentic-os/statusline.d/
+COPY ward-shell-entrypoint.sh /opt/agentic-os/ward-shell-entrypoint.sh
+COPY claude-managed-settings.json /etc/claude-code/managed-settings.json
+RUN set -eux; \
+    chmod 0755 /opt/agentic-os/agent-name.sh /opt/agentic-os/statusline.sh; \
+    chmod 0755 /opt/agentic-os/statusline.d/*.sh /opt/agentic-os/ward-shell-entrypoint.sh; \
+    chmod 0644 /etc/claude-code/managed-settings.json
+
+COPY substrate-image-repos.txt /tmp/substrate-image-repos.txt
+RUN set -eux; \
+    mkdir -p /opt/substrate-seed; \
+    while read -r ref; do \
+      case "$ref" in ''|\#*) continue ;; esac; \
+      owner="${ref%%/*}"; name="${ref##*/}"; \
+      case "$owner" in \
+        coilysiren) base="https://github.com" ;; \
+        *) base="https://forgejo.coilysiren.me" ;; \
+      esac; \
+      git clone --mirror "$base/$owner/$name.git" "/opt/substrate-seed/${owner}__${name}.git"; \
+    done < /tmp/substrate-image-repos.txt; \
+    rm /tmp/substrate-image-repos.txt; \
+    chmod -R a+rX /opt/substrate-seed
+
 # CARGO_HOME/RUSTUP_HOME and the cargo PATH entry stay in core's ENV, but the
 # Rust toolchain itself ships in lang-rust and grafts into full (aos#610).
 COPY --from=dev-base-ward-builder /usr/local/bin/ward /usr/local/bin/ward
@@ -193,3 +328,7 @@ RUN set -eux; \
     mkdir -p /home/ubuntu/.ward/audit; \
     chown -R 1000:1000 /home/ubuntu/.ward; \
     chmod 0700 /home/ubuntu/.ward /home/ubuntu/.ward/audit
+
+WORKDIR /workspace
+ENTRYPOINT ["/opt/agentic-os/ward-shell-entrypoint.sh"]
+CMD ["bash"]

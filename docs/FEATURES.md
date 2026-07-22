@@ -25,7 +25,7 @@ This doc lists major shipped capabilities, not files. If you want a file invento
 - [Role surface tiers](role-surface-tiers.md) - the intended per-role container capability tiers.
 - [Cross-repo tooling and release](features-release-tooling.md) - hooks, diagnostics, Forgejo release actions, fast-forward promotion, draft retries, and tier reruns.
 - [Telegram CI failure alerts](telegram-ci-alerts.md) - reusable red-channel alerting for failing jobs.
-- [dev-base container image](dev-base-image.md) - toolchain image family with release/latest aliases, draft publishing, and retries.
+- [dev-base images](dev-base-image.md) - language specialists with shared agent and operational tools, release aliases, and resumable publishing.
 - [CI parity in dev-base](ci-in-dev-base.md) - CI runs inside the pinned dev-base image.
 - [Pull-request CI gate](ci-in-dev-base.md) - the live `ci` workflow that runs `pytest` on pull requests.
 - [Managed AGENTS.md pointer block](features-agents-pointer.md) - generated workspace pointer block for sibling repos.

@@ -54,8 +54,7 @@ on:
           - lang-go
           - lang-dotnet
           - lang-rust
-          - ops
-          - agent
+          - lang-python
           - full
       tag:
         description: "Version tag override. Defaults to the next semver tag."
@@ -181,7 +180,7 @@ jobs:
           PY
   retag-core:
     needs: [plan-release]
-    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,core,lang-node,lang-go,lang-dotnet,lang-rust,ops,agent,full', github.event.inputs.tier)) }}
+    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,core,lang-node,lang-go,lang-dotnet,lang-rust,lang-python,full', github.event.inputs.tier)) }}
     runs-on: docker
     timeout-minutes: 120
     steps:
@@ -208,7 +207,7 @@ jobs:
 
   retag-lang-node:
     needs: [plan-release, retag-core]
-    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,lang-node,agent,full', github.event.inputs.tier)) }}
+    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,lang-node,full', github.event.inputs.tier)) }}
     runs-on: docker
     timeout-minutes: 90
     steps:
@@ -314,9 +313,9 @@ jobs:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
-  retag-ops:
+  retag-lang-python:
     needs: [plan-release, retag-core]
-    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,ops,agent,full', github.event.inputs.tier)) }}
+    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,lang-python,full', github.event.inputs.tier)) }}
     runs-on: docker
     timeout-minutes: 90
     steps:
@@ -325,34 +324,7 @@ jobs:
       - uses: ./actions/publish-dev-base-tier
         with:
           mode: promote
-          tier: ops
-          tag: ${{ needs.plan-release.outputs.tag }}
-          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
-          alias: ${{ github.ref_name }}
-          extra-aliases: latest
-          registry-token: ${{ secrets.REGISTRY_TOKEN }}
-          build-timeout: 80m
-
-      - name: Alert Telegram on main failure
-        if: ${{ failure() && github.ref == 'refs/heads/release' }}
-        continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-
-  retag-agent:
-    needs: [plan-release, retag-ops, retag-lang-node]
-    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,agent,full', github.event.inputs.tier)) }}
-    runs-on: docker
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: ./actions/publish-dev-base-tier
-        with:
-          mode: promote
-          tier: agent
+          tier: lang-python
           tag: ${{ needs.plan-release.outputs.tag }}
           source-tag: ${{ needs.plan-release.outputs.draft_tag }}
           alias: ${{ github.ref_name }}
@@ -369,7 +341,7 @@ jobs:
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
   retag-full:
-    needs: [plan-release, retag-agent, retag-lang-go, retag-lang-dotnet, retag-lang-rust]
+    needs: [plan-release, retag-lang-node, retag-lang-go, retag-lang-dotnet, retag-lang-rust, retag-lang-python]
     if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,full', github.event.inputs.tier)) }}
     runs-on: docker
     timeout-minutes: 90
@@ -402,8 +374,8 @@ jobs:
       - retag-lang-node
       - retag-lang-go
       - retag-lang-dotnet
-      - retag-ops
-      - retag-agent
+      - retag-lang-rust
+      - retag-lang-python
       - retag-full
     if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || github.event.inputs.tier == 'all') }}
     runs-on: docker

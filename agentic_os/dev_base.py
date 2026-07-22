@@ -21,6 +21,7 @@ class TierSpec:
     # Sibling tiers grafted in via COPY --from of their self-contained install
     # dirs - a composed tier's extra toolchains (docs/dev-base-image-tiering.md).
     graft_tiers: tuple[str, ...] = ()
+    shared_context: bool = False
     published: bool = True
 
 
@@ -32,6 +33,7 @@ TIER_SPECS: tuple[TierSpec, ...] = (
         stage="dev-base-core",
         dockerfile=DEV_BASE_ROOT / "core" / "Dockerfile",
         base_tier=None,
+        shared_context=True,
     ),
     TierSpec(
         tier="lang-node",
@@ -58,24 +60,22 @@ TIER_SPECS: tuple[TierSpec, ...] = (
         base_tier="core",
     ),
     TierSpec(
-        tier="ops",
-        stage="dev-base-ops",
-        dockerfile=DEV_BASE_ROOT / "ops" / "Dockerfile",
+        tier="lang-python",
+        stage="dev-base-lang-python",
+        dockerfile=DEV_BASE_ROOT / "lang-python" / "Dockerfile",
         base_tier="core",
-    ),
-    TierSpec(
-        tier="agent",
-        stage="dev-base-agent",
-        dockerfile=DEV_BASE_ROOT / "agent" / "Dockerfile",
-        base_tier="ops",
-        graft_tiers=("lang-node",),
     ),
     TierSpec(
         tier="full",
         stage="dev-base-full",
         dockerfile=DEV_BASE_ROOT / "full" / "Dockerfile",
-        base_tier="agent",
-        graft_tiers=("lang-go", "lang-dotnet", "lang-rust"),
+        base_tier="core",
+        graft_tiers=(
+            "lang-go",
+            "lang-dotnet",
+            "lang-rust",
+            "lang-python",
+        ),
     ),
 )
 
@@ -136,11 +136,11 @@ def publish_plan(
             "tier": spec.tier,
             "stage": spec.stage,
             "dockerfile": spec.dockerfile.relative_to(REPO_ROOT).as_posix(),
-            # Most tiers build from their own folder. agent keeps the shared
-            # docker/dev-base root because it copies sibling assets from there.
+            # Most tiers build from their own folder. Core owns the shared
+            # agent assets, so its build uses docker/dev-base root.
             "context_dir": (
                 spec.dockerfile.parent.parent
-                if spec.tier == "agent"
+                if spec.shared_context
                 else spec.dockerfile.parent
             ).relative_to(REPO_ROOT).as_posix(),
             "image": ref,

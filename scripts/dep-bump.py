@@ -266,13 +266,15 @@ RESOLVERS: dict[str, Callable[..., str | None]] = {
 _NEEDS_CURRENT = {"NODE_VERSION", "DOTNET_VERSION"}
 
 PUBLISHED_TIER_OWNERSHIP: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("dev-base-core", ("UV_VERSION",)),
-    ("dev-base-lang-node", ("NODE_VERSION",)),
-    ("dev-base-lang-go", ("GO_VERSION",)),
-    ("dev-base-lang-dotnet", ("DOTNET_VERSION",)),
     (
-        "dev-base-ops",
+        "dev-base-core",
         (
+            "UV_VERSION",
+            "NODE_VERSION",
+            "CLAUDE_VERSION",
+            "MCPORTER_VERSION",
+            "CODEX_VERSION",
+            "GOOSE_VERSION",
             "AWSCLI_VERSION",
             "GH_VERSION",
             "DOCKER_VERSION",
@@ -282,7 +284,11 @@ PUBLISHED_TIER_OWNERSHIP: tuple[tuple[str, tuple[str, ...]], ...] = (
             "TAILSCALE_VERSION",
         ),
     ),
-    ("dev-base-agent", ("CLAUDE_VERSION", "MCPORTER_VERSION", "CODEX_VERSION", "GOOSE_VERSION")),
+    ("dev-base-lang-node", ()),
+    ("dev-base-lang-go", ("GO_VERSION",)),
+    ("dev-base-lang-dotnet", ("DOTNET_VERSION",)),
+    ("dev-base-lang-rust", ()),
+    ("dev-base-lang-python", ()),
     ("dev-base-full", ("TRUFFLEHOG_VERSION",)),
 )
 
