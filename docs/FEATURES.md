@@ -10,8 +10,9 @@ This doc lists major shipped capabilities, not files. If you want a file invento
 - [Speech helper](aos-say.md) - `aos-say` client plus relay for status speech.
 - **Karabiner key bindings** - complex modifications for the external keyboard and Remote Desktop.
 - [Agents and sessions](features-agents-sessions.md) - agent self-name, session pulse, and status-line repo tracking.
+- [Agent-compose personalities](personality-provider.md) - invariant plus 16 full/brief bodies.
 - [Code review skill](../.agents/skills/tooling-code-review/SKILL.md) - the in-container review stance for ward workers.
-- [Code review contract](../CODE-REVIEW.md) - the root review doctrine for repo-local invariants and refresh triggers.
+- [Code review contract](../CODE-REVIEW.md) - review invariants.
 - [Harness selection](harness-selection.md) - choose Claude, Codex, OpenCode, Aider, or Goose.
 - [Test harnesses](test-harness.md) - smoke tests for agent harness and model pairings.
 - [Issue-corpus discovery index](issue-corpus.md) - offline corpus render plus live Forgejo lookup.
@@ -21,7 +22,7 @@ This doc lists major shipped capabilities, not files. If you want a file invento
 - [Forgejo Actions rerun bridge](forgejo-actions-rerun.md) - guarded run-id rerun helper that falls back to dispatch, plus fetch mirror.
 - [Forgejo org-repo bootstrap](forgejo-org-repo-bootstrap.md) - admin-backed helper that creates or reconciles org repos for GitHub profile mirrors.
 - [ward bundle](ward-specs.md) - launch policy, guarded surfaces, and AOSH-selected local models.
-- [Ward profile assets home](ward-profile-assets.md) - AOS-owned profile/config source layout for Ward's typed `ProfileProvider` seam, with CUE behind YAML inputs.
+- [Ward profile assets home](ward-profile-assets.md) - AOS profile/config inputs for Ward's `ProfileProvider`.
 - [Role surface tiers](role-surface-tiers.md) - the intended per-role container capability tiers.
 - [Cross-repo tooling and release](features-release-tooling.md) - hooks, diagnostics, Forgejo release actions, fast-forward promotion, draft retries, and tier reruns.
 - [Telegram CI failure alerts](telegram-ci-alerts.md) - reusable red-channel alerting for failing jobs.
