@@ -304,3 +304,30 @@ runs:
           fi
           exit "${rc}"
         fi
+
+    - name: Verify full native development surface on both architectures
+      if: ${{ inputs.tier == 'full' }}
+      shell: bash
+      env:
+        IMAGE_BASE: ${{ inputs.image-base }}
+        TAG: ${{ inputs.tag }}
+      run: |
+        set -euo pipefail
+        image="${IMAGE_BASE}:${TAG}"
+        for platform in linux/amd64 linux/arm64; do
+          echo "verifying ${image} on ${platform}"
+          docker run --rm --platform "${platform}" --entrypoint bash "${image}" \
+            -euo pipefail -c '
+              dpkg-query -W libwayland-dev libxkbcommon-dev pkg-config
+              pkg-config --exists wayland-client xkbcommon
+              printf "%s\\n" \
+                "#include <wayland-client.h>" \
+                "#include <xkbcommon/xkbcommon.h>" \
+                "int main(void) { return 0; }" \
+                > /tmp/bevy-native-smoke.c
+              cc /tmp/bevy-native-smoke.c \
+                $(pkg-config --cflags --libs wayland-client xkbcommon) \
+                -o /tmp/bevy-native-smoke
+              /tmp/bevy-native-smoke
+            '
+        done

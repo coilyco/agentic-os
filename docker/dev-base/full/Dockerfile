@@ -81,6 +81,16 @@ RUN set -eux; \
       libwayland-dev \
       libxkbcommon-dev \
       pkg-config; \
+    printf '%s\n' \
+      '#include <wayland-client.h>' \
+      '#include <xkbcommon/xkbcommon.h>' \
+      'int main(void) { return 0; }' \
+      > /tmp/bevy-native-smoke.c; \
+    cc /tmp/bevy-native-smoke.c \
+      $(pkg-config --cflags --libs wayland-client xkbcommon) \
+      -o /tmp/bevy-native-smoke; \
+    /tmp/bevy-native-smoke; \
+    rm /tmp/bevy-native-smoke /tmp/bevy-native-smoke.c; \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace

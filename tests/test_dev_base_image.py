@@ -289,6 +289,16 @@ def test_full_tier_remains_the_default_surface() -> None:
     assert 'CMD ["bash"]' in text
 
 
+def test_full_tier_compiles_the_native_wayland_and_xkb_headers() -> None:
+    text = _tier_path("full").read_text()
+    for package in ("libwayland-dev", "libxkbcommon-dev", "pkg-config"):
+        assert package in text
+    assert "#include <wayland-client.h>" in text
+    assert "#include <xkbcommon/xkbcommon.h>" in text
+    assert "pkg-config --cflags --libs wayland-client xkbcommon" in text
+    assert "cc /tmp/bevy-native-smoke.c" in text
+
+
 def test_old_manifest_is_gone() -> None:
     assert not (DEV_BASE_ROOT / "Dockerfile").exists()
     assert not (DEV_BASE_ROOT / "ci-image-manifest.json").exists()

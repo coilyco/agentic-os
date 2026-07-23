@@ -9,6 +9,7 @@ from agentic_os.dev_base import PUBLISHED_TIER_NAMES
 ROOT = Path(__file__).resolve().parent.parent
 PUBLISH = ROOT / ".forgejo" / "workflows" / "dev-base-publish.yml"
 RELEASE = ROOT / ".forgejo" / "workflows" / "release.yml"
+PUBLISH_TIER = ROOT / "actions" / "publish-dev-base-tier" / "action.yml"
 
 
 def _assert_alert_steps_are_non_blocking(text: str) -> None:
@@ -71,3 +72,15 @@ def test_dev_base_image_builds_use_the_dedicated_runner() -> None:
 
     assert publish.count("runs-on: docker-build") == len(PUBLISHED_TIER_NAMES)
     assert "plan-draft:\n    runs-on: docker\n" in publish
+
+
+def test_full_publish_verifies_native_wayland_and_xkb_development_surface() -> None:
+    action = PUBLISH_TIER.read_text(encoding="utf-8")
+
+    assert "Verify full native development surface on both architectures" in action
+    assert "if: ${{ inputs.tier == 'full' }}" in action
+    assert "linux/amd64 linux/arm64" in action
+    assert "--entrypoint bash" in action
+    assert "dpkg-query -W libwayland-dev libxkbcommon-dev pkg-config" in action
+    assert "pkg-config --exists wayland-client xkbcommon" in action
+    assert "cc /tmp/bevy-native-smoke.c" in action
