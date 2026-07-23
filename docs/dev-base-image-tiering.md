@@ -36,7 +36,7 @@ specialists of their own.
 
 * `promote.yml` gates `main` and fast-forwards `release`. Draft image publishing is separate.
 * `dev-base-publish.yml` keeps `plan-draft` on the general `docker` runner and sends every image-building job to the dedicated `docker-build` lane. That lane's 130-minute runner cap encloses each workflow-level 120-minute wall. Each draft tier runs through [`actions/publish-dev-base-tier`](../actions/publish-dev-base-tier/action.yml), and `needs:` carries the graph above.
-* Each job verifies its manifests. Builder and layer cache persist between runs: [dev-base build cache](dev-base-build-cache.md).
+* Each job verifies its manifests. `lang-rust` and `full` also run the native Wayland/XKB smoke test on both architectures. Builder and layer cache persist between runs: [dev-base build cache](dev-base-build-cache.md).
 * `release.yml` provides manual retag retries and never runs on push.
 * Manual workflow dispatches can target one tier closure at a time. See [publish resume](dev-base-publish-resume.md).
 

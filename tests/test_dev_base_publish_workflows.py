@@ -78,11 +78,11 @@ def test_dev_base_image_builds_use_the_dedicated_runner() -> None:
     assert "plan-draft:\n    runs-on: docker\n" in publish
 
 
-def test_lang_rust_publish_verifies_native_wayland_and_xkb_development_surface() -> None:
+def test_published_rust_and_full_tiers_verify_native_wayland_and_xkb_development_surface() -> None:
     action = PUBLISH_TIER.read_text(encoding="utf-8")
 
-    assert "Verify lang-rust native development surface on both architectures" in action
-    assert "if: ${{ inputs.tier == 'lang-rust' }}" in action
+    assert "Verify native development surface on both architectures" in action
+    assert "inputs.tier == 'lang-rust' || inputs.tier == 'full'" in action
     assert "linux/amd64 linux/arm64" in action
     assert "--entrypoint bash" in action
     assert "libasound2-dev" in action

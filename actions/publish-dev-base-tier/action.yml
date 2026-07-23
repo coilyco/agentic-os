@@ -305,8 +305,8 @@ runs:
           exit "${rc}"
         fi
 
-    - name: Verify lang-rust native development surface on both architectures
-      if: ${{ inputs.tier == 'lang-rust' }}
+    - name: Verify native development surface on both architectures
+      if: ${{ inputs.tier == 'lang-rust' || inputs.tier == 'full' }}
       shell: bash
       env:
         IMAGE_BASE: ${{ inputs.image-base }}
