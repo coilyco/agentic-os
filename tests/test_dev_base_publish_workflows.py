@@ -9,6 +9,8 @@ from agentic_os.dev_base import PUBLISHED_TIER_NAMES
 ROOT = Path(__file__).resolve().parent.parent
 PUBLISH = ROOT / ".forgejo" / "workflows" / "dev-base-publish.yml"
 RELEASE = ROOT / ".forgejo" / "workflows" / "release.yml"
+DOCKER_BOOTSTRAP = ROOT / "actions" / "install-docker-buildx" / "action.yml"
+PUBLISH_TIER = ROOT / "actions" / "publish-dev-base-tier" / "action.yml"
 
 
 def _assert_alert_steps_are_non_blocking(text: str) -> None:
@@ -71,3 +73,15 @@ def test_dev_base_image_builds_use_the_dedicated_runner() -> None:
 
     assert publish.count("runs-on: docker-build") == len(PUBLISHED_TIER_NAMES)
     assert "plan-draft:\n    runs-on: docker\n" in publish
+
+
+def test_docker_bootstrap_retries_every_download_and_is_shared() -> None:
+    publish = PUBLISH.read_text(encoding="utf-8")
+    bootstrap = DOCKER_BOOTSTRAP.read_text(encoding="utf-8")
+    tier = PUBLISH_TIER.read_text(encoding="utf-8")
+    downloads = [line for line in bootstrap.splitlines() if "curl --retry" in line]
+
+    assert len(downloads) == 3
+    assert all("--retry-all-errors" in line and "-fsSL" in line for line in downloads)
+    assert "uses: ./actions/install-docker-buildx" in publish
+    assert "uses: ./actions/install-docker-buildx" in tier
