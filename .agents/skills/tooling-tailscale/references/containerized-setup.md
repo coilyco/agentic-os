@@ -40,9 +40,12 @@ TS_AUTHKEY="$(ward ops aws ssm get-parameter \
 The standing box serves SOCKS5 on `0.0.0.0:1055` to two distinct callers, and the compose above wires both:
 
 - **Host tools** reach it on the published `127.0.0.1:1055` loopback. SSH and any host-side client point at that port (see below). The bind stays loopback-only, so nothing off the host can dial it.
-- **In-VM containers** that join the `ward-tailnet` network reach it by name as `socks5h://tailscale-proxy:1055`. The fixed docker name is what lets a `ward agent` carry resolve the box without an IP or SSM lookup. `socks5h` (not `socks5`) hands the hostname to tailscaled to resolve tailnet-side, which is what makes by-name dialing of tailnet peers work from inside the carry.
+- **In-VM containers** that join the `ward-tailnet` network reach it by name as `socks5h://tailscale-proxy:1055`. The fixed docker name is what lets an AOS live-observe surface resolve the box without an IP or SSM lookup. `socks5h` (not `socks5`) hands the hostname to tailscaled to resolve tailnet-side, which is what makes by-name dialing of tailnet peers work from inside the surface.
 
-The second consumer is the carry side of `ward agent --ts-sidecar`. ward never converges this box - it only attaches a carry to `ward-tailnet` and preflights that `tailscale-proxy` is present. The two shared names, the `ward-tailnet` network and the `tailscale-proxy` host, are a contract between this compose and ward. See ward's [`docs/agent-ts-sidecar.md`](https://github.com/coilyco-flight-deck/ward/blob/main/docs/agent-ts-sidecar.md) for the carry-side attach, preflight, and by-name route.
+The second consumer is AOS advisor/director composition. Infrastructure never
+starts a proxy per surface. AOS attaches the surface and exports its proxy
+environment, while Ward stays transport-neutral and receives no network or
+proxy default.
 
 ## SSH through the proxy
 

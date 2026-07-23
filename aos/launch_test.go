@@ -108,6 +108,45 @@ func TestBuildLaunchPlanCanSkipSubstrate(t *testing.T) {
 	}
 }
 
+func TestBuildLaunchPlanAddsPrivateAccessWithoutLocalDaemon(t *testing.T) {
+	t.Parallel()
+	proxy := "socks5h://private-proxy:1055"
+	plan, err := buildLaunchPlan(launchOptions{
+		Image:    "agentic-os:test",
+		Role:     "director",
+		Layout:   "codex",
+		Density:  "full",
+		Delivery: "native-skills",
+		CWD:      t.TempDir(),
+		Command:  []string{"codex"},
+		UID:      1000,
+		GID:      1000,
+		PrivateAccess: &privateAccessConfig{
+			Network: "private-network",
+			Proxy:   proxy,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(plan.DockerArgs, "\n")
+	for _, want := range []string{
+		"--network\nprivate-network",
+		"--env\nALL_PROXY=" + proxy,
+		"--env\nHTTP_PROXY=" + proxy,
+		"--env\nHTTPS_PROXY=" + proxy,
+	} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("launch plan missing %q\n%s", want, joined)
+		}
+	}
+	for _, forbidden := range []string{"tailscaled", "--cap-add", "NET_ADMIN", "/var/run/tailscale"} {
+		if strings.Contains(joined, forbidden) {
+			t.Errorf("launch plan must not require local private-network runtime %q\n%s", forbidden, joined)
+		}
+	}
+}
+
 func TestArgvAfterDash(t *testing.T) {
 	t.Parallel()
 	got := argvAfterDash([]string{"aos", "--role", "engineer", "acompose", "--", "codex", "exec"})

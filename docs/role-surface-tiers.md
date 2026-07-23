@@ -9,9 +9,9 @@ definition. A live surface that differs from it is drift to fix.
 
 * **engineer** - forgejo read + actions read + write - lands code inside its clone, no live infra reach.
 * **qa** - forgejo read + actions read + write - inspects a candidate and posts a verdict comment.
-* **advisor** - personal overlay role, not shipped in the public bundle - forgejo read + actions read + aws/ssm + tailnet live-observe. The live-observe pair (tailnet + `~/.aws`) stays the documented default for that overlay.
-* **director** - forgejo read + actions read + write + aws/ssm + kubectl + runner-token mint + tailnet live-observe - drives the headless lane and fronts incident recovery.
-* **ops** - forgejo read + actions read + write + aws/ssm + kubectl + runner-token mint + tailnet live-observe - live system maintenance, the widest tier.
+* **advisor** - personal overlay role, not shipped in the public bundle - forgejo read + actions read + aws/ssm + AOS private live-observe. The AOS proxy path is the documented default for that overlay.
+* **director** - forgejo read + actions read + write + aws/ssm + kubectl + runner-token mint + AOS private live-observe - drives the headless lane and fronts incident recovery.
+* **ops** - forgejo read + actions read + write + aws/ssm + kubectl + runner-token mint - live system maintenance, the widest tier.
 
 Runner-token mint is `ward ops forgejo actions generate-runner-token`
 ([guardfile](../.ward/guardfile.forgejo.runnertoken.kdl)), whose absence
@@ -24,20 +24,21 @@ credential is director/ops reach, not a read.
 Each capability is owned by exactly one layer, so a one-layer rollback reads
 as drift against this map instead of silently disabling a role.
 
-* **guardfile bindings** - [.ward/roles.kdl](../.ward/roles.kdl), authored here - which guarded verb families a shipped role mounts. The Forgejo read/write tiers and the ops guardfiles under [aws](../.ward/guardfile.aws.kdl) and [tailscale](../.ward/guardfile.tailscale.kdl) are the clearest examples. Per ward#578 the tailnet and `~/.aws` reach of a role container keys off these bindings.
+* **guardfile bindings** - [.ward/roles.kdl](../.ward/roles.kdl), authored here - which guarded verb families a shipped role mounts. The Forgejo read/write tiers and the ops guardfiles under [aws](../.ward/guardfile.aws.kdl) are the clearest examples. Ward does not select a private network or proxy.
 * **role presets** - ward's tree - tagline, capabilities, modes, posture. Stripped from the aos overlay on 2026-07-10 (commit 566f42f) by design, never re-authored here.
-* **image binaries** - [docker/dev-base/](dev-base-image-tiering.md), authored here - whether `aws`, `kubectl`, `helm`, `tailscale`, `tailscaled`, and the Docker client exist on disk. They land in `core` and flow into every parallel `lang-*` image plus `full`. The `ops` role remains a permission and bring-up boundary, not an image tag.
-* **container bring-up** - ward's tree - whether creds and daemons are live: the `~/.aws` dir, a kubeconfig, `tailscaled` process/auth/socket wiring, `FORGEJO_TOKEN`, and the `WARD_CONTEXT_LEVEL` context slice. A binary existing says nothing about this layer.
+* **image binaries** - [docker/dev-base/](dev-base-image-tiering.md), authored here - whether `aws`, `kubectl`, `helm`, and the Docker client exist on disk. The `ops` role remains a permission and bring-up boundary, not an image tag.
+* **private live-observe composition** - [AOS](aos-private-network.md), authored here - advisor and director attach to the infrastructure-managed network and receive the remote-DNS proxy environment. Infrastructure converges the standing proxy and its reachability. Neither Ward nor the role guardfiles own a daemon, socket, TUN capability, network, proxy, or destination.
 
-The 2026-07-10 incident: guardfiles still compiled in, but the binaries,
-creds, and daemons under them were gone, and nothing flagged it.
+The observable failure mode is a launch-time error for a missing AOS private
+network/proxy input, or a connection failure through that proxy after launch.
+Neither is fixed by starting a daemon in the agent container.
 
 ## Live-check ownership
 
-The capability map above is descriptive. If a live probe of the role surface is
-still desired, that check belongs in ward's bring-up path, where ward owns the
-container state and can make the result authoritative. See ward#1072 for the
-ward-owned follow-up path.
+Infrastructure owns standing-proxy reachability. A director uses the AOS proxy
+path for a read-only private MCP tool-inventory smoke test without logging an
+endpoint, credentials, or service content. An unavailable proxy or private DNS
+path is an infrastructure/AOS composition failure, not a Ward bring-up task.
 
 ## Deferred
 

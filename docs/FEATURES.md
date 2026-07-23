@@ -11,7 +11,7 @@ This doc lists major shipped capabilities, not files. If you want a file invento
 - **Karabiner key bindings** - complex modifications for the external keyboard and Remote Desktop.
 - [Agents and sessions](features-agents-sessions.md) - agent self-name, session pulse, and status-line repo tracking.
 - [Agent-compose personalities](personality-provider.md) - invariant plus 16 full/brief bodies.
-- [AOS launcher](aos-cli.md) - released Go containers with CWD and substrate.
+- [AOS](aos-cli.md) - containers, CWD, substrate, [private live observe](aos-private-network.md).
 - [Code review skill](../.agents/skills/tooling-code-review/SKILL.md) - the in-container review stance for ward workers.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
 - [Harness selection](harness-selection.md) - choose Claude, Codex, OpenCode, Aider, or Goose.

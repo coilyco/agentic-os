@@ -26,6 +26,10 @@ Every launch supplies the same runtime base:
 * Present API-key environment variables cross by name, never by rendered value.
 * The Docker socket, AWS config, host HOME, and Git credentials do not mount.
 
+Advisor and director additionally use AOS's [private live-observe
+composition](aos-private-network.md). All other roles retain the runtime base
+above without a private network or proxy.
+
 Root performs bootstrap only. The harness runs as the host uid and gid with an
 ephemeral `/home/aos`, keeping a Linux bind-mounted workspace writable while
 the root-owned substrate stays read-only.

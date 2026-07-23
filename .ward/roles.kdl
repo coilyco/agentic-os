@@ -32,7 +32,6 @@ roles {
         guardfile "guardfile.forgejo.merge.kdl"
         // guardfiles for ops
         guardfile "guardfile.aws.kdl"
-        guardfile "guardfile.tailscale.kdl"
         guardfile "guardfile.kubectl.kdl"
         guardfile "guardfile.forgejo.runnertoken.kdl"
         guardfile "guardfile.forgejo.runnertoken.exec.kdl"
@@ -76,7 +75,6 @@ roles {
         guardfile "guardfile.forgejo.readactions.kdl"
         // guardfiles for ops
         guardfile "guardfile.aws.kdl"
-        guardfile "guardfile.tailscale.kdl"
         guardfile "guardfile.kubectl.kdl"
         // make the agents lil bit smart
         agent claude {
@@ -99,7 +97,6 @@ roles {
         guardfile "guardfile.forgejo.readactions.kdl"
         // guardfiles for ops
         guardfile "guardfile.aws.kdl"
-        guardfile "guardfile.tailscale.kdl"
         guardfile "guardfile.kubectl.kdl"
         guardfile "guardfile.forgejo.runnertoken.kdl"
         guardfile "guardfile.forgejo.runnertoken.exec.kdl"

@@ -126,6 +126,10 @@ func runAcompose(ctx context.Context, cmd *cli.Command) error {
 	if cmd.Bool("auth") {
 		authMounts = discoverAuthMounts(layout)
 	}
+	privateAccess, err := privateAccessForRole(role)
+	if err != nil {
+		return err
+	}
 	plan, err := buildLaunchPlan(launchOptions{
 		Image:         cmd.String("image"),
 		Role:          role,
@@ -140,6 +144,7 @@ func runAcompose(ctx context.Context, cmd *cli.Command) error {
 		NoSubstrate:   cmd.Bool("no-substrate"),
 		AuthMounts:    authMounts,
 		ForwardedEnvs: forwardedEnvironment(),
+		PrivateAccess: privateAccess,
 	})
 	if err != nil {
 		return err

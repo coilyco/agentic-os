@@ -44,6 +44,7 @@ type launchOptions struct {
 	NoSubstrate   bool
 	AuthMounts    []authMount
 	ForwardedEnvs []string
+	PrivateAccess *privateAccessConfig
 }
 
 type launchPlan struct {
@@ -108,6 +109,12 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 	)
 	for _, key := range opts.ForwardedEnvs {
 		args = append(args, "--env", key)
+	}
+	if opts.PrivateAccess != nil {
+		args = append(args, "--network", opts.PrivateAccess.Network)
+		for _, environment := range opts.PrivateAccess.environment() {
+			args = append(args, "--env", environment)
+		}
 	}
 	for _, mount := range opts.AuthMounts {
 		args = append(args, "--mount",

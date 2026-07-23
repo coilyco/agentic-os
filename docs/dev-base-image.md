@@ -72,7 +72,7 @@ Needs a `docker login`. `ward container up/exec` (ward#98) is the entry point.
 * `coily` (retired, folded into `ward ops`) and running services - not shipped.
 * Standalone `ops` and `agent` images - capabilities live in each language specialist instead.
 * `docker buildx` and `wasm-pack` - job-local.
-* Tailnet startup, auth, and socket wiring - ward owns bring-up.
+* Infrastructure owns private-network startup/auth/sockets. AOS composes client access.
 
 ## See also
 
