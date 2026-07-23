@@ -54,8 +54,12 @@ def test_dev_base_publish_workflows_support_tier_reruns_and_non_blocking_alerts(
 
     assert "needs: [plan-release, retag-core]" in release
     assert (
-        "needs: [plan-release, retag-lang-node, retag-lang-go, retag-lang-dotnet,"
-        " retag-lang-rust, retag-lang-python]" in release
+        "needs: [plan-release, retag-lang-go, retag-lang-dotnet, retag-lang-rust,"
+        " retag-lang-python]" in release
+    )
+    assert (
+        "needs: [plan-draft, publish-lang-go, publish-lang-dotnet, publish-lang-rust,"
+        " publish-lang-python]" in publish
     )
     for retired_tier in ("ops", "agent"):
         assert f"publish-{retired_tier}" not in publish
@@ -74,13 +78,18 @@ def test_dev_base_image_builds_use_the_dedicated_runner() -> None:
     assert "plan-draft:\n    runs-on: docker\n" in publish
 
 
-def test_full_publish_verifies_native_wayland_and_xkb_development_surface() -> None:
+def test_lang_rust_publish_verifies_native_wayland_and_xkb_development_surface() -> None:
     action = PUBLISH_TIER.read_text(encoding="utf-8")
 
-    assert "Verify full native development surface on both architectures" in action
-    assert "if: ${{ inputs.tier == 'full' }}" in action
+    assert "Verify lang-rust native development surface on both architectures" in action
+    assert "if: ${{ inputs.tier == 'lang-rust' }}" in action
     assert "linux/amd64 linux/arm64" in action
     assert "--entrypoint bash" in action
-    assert "dpkg-query -W libwayland-dev libxkbcommon-dev pkg-config" in action
+    assert "libasound2-dev" in action
+    assert "libudev-dev" in action
+    assert "libwayland-dev" in action
+    assert "libxkbcommon-dev" in action
+    assert "pkg-config" in action
+    assert "rustup target list --installed" in action
     assert "pkg-config --exists wayland-client xkbcommon" in action
     assert "cc /tmp/bevy-native-smoke.c" in action

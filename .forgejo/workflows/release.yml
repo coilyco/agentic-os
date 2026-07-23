@@ -207,7 +207,7 @@ jobs:
 
   retag-lang-node:
     needs: [plan-release, retag-core]
-    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,lang-node,full', github.event.inputs.tier)) }}
+    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,lang-node', github.event.inputs.tier)) }}
     runs-on: docker
     timeout-minutes: 90
     steps:
@@ -341,7 +341,7 @@ jobs:
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
   retag-full:
-    needs: [plan-release, retag-lang-node, retag-lang-go, retag-lang-dotnet, retag-lang-rust, retag-lang-python]
+    needs: [plan-release, retag-lang-go, retag-lang-dotnet, retag-lang-rust, retag-lang-python]
     if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,full', github.event.inputs.tier)) }}
     runs-on: docker
     timeout-minutes: 90

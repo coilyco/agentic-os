@@ -305,8 +305,8 @@ runs:
           exit "${rc}"
         fi
 
-    - name: Verify full native development surface on both architectures
-      if: ${{ inputs.tier == 'full' }}
+    - name: Verify lang-rust native development surface on both architectures
+      if: ${{ inputs.tier == 'lang-rust' }}
       shell: bash
       env:
         IMAGE_BASE: ${{ inputs.image-base }}
@@ -318,7 +318,15 @@ runs:
           echo "verifying ${image} on ${platform}"
           docker run --rm --platform "${platform}" --entrypoint bash "${image}" \
             -euo pipefail -c '
-              dpkg-query -W libwayland-dev libxkbcommon-dev pkg-config
+              dpkg-query -W \
+                libasound2-dev \
+                libudev-dev \
+                libwayland-dev \
+                libxkbcommon-dev \
+                pkg-config
+              cargo --version
+              trunk --version
+              rustup target list --installed | grep -qx wasm32-unknown-unknown
               pkg-config --exists wayland-client xkbcommon
               printf "%s\\n" \
                 "#include <wayland-client.h>" \

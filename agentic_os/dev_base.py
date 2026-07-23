@@ -69,11 +69,12 @@ TIER_SPECS: tuple[TierSpec, ...] = (
         tier="full",
         stage="dev-base-full",
         dockerfile=DEV_BASE_ROOT / "full" / "Dockerfile",
-        base_tier="core",
+        # full inherits the complete native Rust surface. The remaining
+        # language toolchains are self-contained prefix grafts.
+        base_tier="lang-rust",
         graft_tiers=(
             "lang-go",
             "lang-dotnet",
-            "lang-rust",
             "lang-python",
         ),
     ),

@@ -16,7 +16,7 @@ the root runtime tier on `ubuntu:24.04`. The sibling tier Dockerfiles live in
 * **language specialists** - Node, Go, .NET 10 + ICU, Rust + wasm + `trunk`, and Python + pip + `pipenv`.
 * **shared CLIs** - aws, Homebrew, claude, mcporter, opencode, codex, goose, gh, helm, kubectl, yq, Docker, `tailscale`, and `tailscaled`. Core supplies them to every parallel `lang-*` image.
 * **gate tools** - golangci-lint, trufflehog, and kdlfmt.
-* **native libs (full only)** - alsa/udev/wayland/xkbcommon + pkg-config.
+* Rust native libs - `lang-rust` supplies native Bevy/Winit dependencies, and `full` inherits them.
 * **platform seed** - substrate mirrors, self-name/status assets, and the shell entrypoint.
 
 Tools under `/usr/local`, `/home/linuxbrew/.linuxbrew`, or `/opt` run as any uid. ward owns `run-as-uid`, mounts, and `~/.aws`. Root bootstrap seeds `/home/ubuntu/.ward/audit` as uid 1000 and avoids root-owned audit state.

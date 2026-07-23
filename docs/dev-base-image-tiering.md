@@ -9,9 +9,9 @@ as its compatibility surface.
 * `lang-node` - the Node specialist tag over the common substrate.
 * `lang-go` - the shared specialist surface plus Go.
 * `lang-dotnet` - the shared specialist surface plus the .NET SDK and ICU.
-* `lang-rust` - the shared specialist surface plus Rust, wasm, and `trunk`.
+* `lang-rust` - the shared specialist surface plus Rust, wasm, `trunk`, and the native alsa/udev/Wayland/XKB build contract.
 * `lang-python` - the shared specialist surface plus `python`, `pip`, and `pipenv`.
-* `full` - the compatibility fan-in, gate tools, and Bevy-class native libraries.
+* `full` - the compatibility fan-in and gate tools, inheriting the complete Rust/native surface.
 
 The family publishes no `ops` or `agent` image. Operational tooling and agent
 harnesses are capabilities of each language specialist, not standalone
@@ -21,8 +21,8 @@ specialists of their own.
 
 * `core` is the shared substrate. Node lives there because the agent harnesses require its runtime.
 * Every `lang-*` image is a direct, parallel child of `core`.
-* `full` builds from `core` and grafts the non-Node language toolchains back together. Node already arrives through `core`.
-* `full` grafts self-contained tool prefixes. [`agentic_os/dev_base.py`](../agentic_os/dev_base.py) emits the required image build args.
+* `full` builds from the same-release `lang-rust` image, so its Rust, wasm, Trunk, and native Bevy/Winit dependencies are inherited as one contract. Node already arrives through `core`.
+* `full` grafts the self-contained Go, .NET, and Python prefixes. [`agentic_os/dev_base.py`](../agentic_os/dev_base.py) emits the required image build args.
 * The hidden builder stage stays inside `core` so ward still compiles per target platform.
 
 ## Tag derivation

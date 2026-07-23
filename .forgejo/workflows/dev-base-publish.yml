@@ -304,7 +304,7 @@ jobs:
 
   publish-lang-node:
     needs: [plan-draft, publish-core]
-    if: ${{ github.event_name != 'workflow_dispatch' || contains('all,lang-node,full', github.event.inputs.tier) }}
+    if: ${{ github.event_name != 'workflow_dispatch' || contains('all,lang-node', github.event.inputs.tier) }}
     runs-on: docker-build
     timeout-minutes: 120
     steps:
@@ -403,7 +403,7 @@ jobs:
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
   publish-full:
-    needs: [plan-draft, publish-lang-node, publish-lang-go, publish-lang-dotnet, publish-lang-rust, publish-lang-python]
+    needs: [plan-draft, publish-lang-go, publish-lang-dotnet, publish-lang-rust, publish-lang-python]
     if: ${{ github.event_name != 'workflow_dispatch' || contains('all,full', github.event.inputs.tier) }}
     runs-on: docker-build
     timeout-minutes: 120

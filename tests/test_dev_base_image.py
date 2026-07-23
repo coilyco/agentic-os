@@ -68,10 +68,11 @@ def test_dev_base_plan_is_derived_from_tier_folder_names() -> None:
         "docker/dev-base/full",
     ]
     # Core owns the common agent surface. Every language tier is its direct,
-    # parallel child, while full fans the standalone toolchains back together.
+    # parallel child, while full inherits the complete Rust/native contract.
     assert [entry["base_image"] for entry in plan] == [
         "ubuntu:24.04",
-        *[f"{REGISTRY_BASE}:core-{tag}"] * 6,
+        *[f"{REGISTRY_BASE}:core-{tag}"] * 5,
+        f"{REGISTRY_BASE}:lang-rust-{tag}",
     ]
     assert plan[-1]["tier"] == "full"
     assert "alias_image" not in plan[0]
@@ -85,7 +86,6 @@ def test_dev_base_plan_grafts_toolchains_into_the_composed_tiers() -> None:
     assert grafts["full"] == {
         "LANG_GO_IMAGE": f"{REGISTRY_BASE}:lang-go-{tag}",
         "LANG_DOTNET_IMAGE": f"{REGISTRY_BASE}:lang-dotnet-{tag}",
-        "LANG_RUST_IMAGE": f"{REGISTRY_BASE}:lang-rust-{tag}",
         "LANG_PYTHON_IMAGE": f"{REGISTRY_BASE}:lang-python-{tag}",
     }
     for tier in (
@@ -289,14 +289,21 @@ def test_full_tier_remains_the_default_surface() -> None:
     assert 'CMD ["bash"]' in text
 
 
-def test_full_tier_compiles_the_native_wayland_and_xkb_headers() -> None:
-    text = _tier_path("full").read_text()
-    for package in ("libwayland-dev", "libxkbcommon-dev", "pkg-config"):
+def test_lang_rust_owns_the_native_wayland_and_xkb_contract() -> None:
+    text = _tier_path("lang-rust").read_text()
+    for package in (
+        "libasound2-dev",
+        "libudev-dev",
+        "libwayland-dev",
+        "libxkbcommon-dev",
+        "pkg-config",
+    ):
         assert package in text
     assert "#include <wayland-client.h>" in text
     assert "#include <xkbcommon/xkbcommon.h>" in text
     assert "pkg-config --cflags --libs wayland-client xkbcommon" in text
     assert "cc /tmp/bevy-native-smoke.c" in text
+    assert "libwayland-dev" not in _tier_path("full").read_text()
 
 
 def test_old_manifest_is_gone() -> None:
@@ -685,10 +692,10 @@ def test_single_tier_push_builds_only_that_tier_with_graft_args(monkeypatch) -> 
     assert len(build_cmds) == 1
     cmd = build_cmds[0]
     build_args = [cmd[i + 1] for i, arg in enumerate(cmd) if arg == "--build-arg"]
-    assert f"BASE_IMAGE={REGISTRY_BASE}:core-v0.243.0" in build_args
+    assert f"BASE_IMAGE={REGISTRY_BASE}:lang-rust-v0.243.0" in build_args
     assert f"LANG_GO_IMAGE={REGISTRY_BASE}:lang-go-v0.243.0" in build_args
     assert f"LANG_DOTNET_IMAGE={REGISTRY_BASE}:lang-dotnet-v0.243.0" in build_args
-    assert f"LANG_RUST_IMAGE={REGISTRY_BASE}:lang-rust-v0.243.0" in build_args
+    assert not any(arg.startswith("LANG_RUST_IMAGE=") for arg in build_args)
     assert f"LANG_PYTHON_IMAGE={REGISTRY_BASE}:lang-python-v0.243.0" in build_args
     assert probed == [f"{REGISTRY_BASE}:buildcache"]
 

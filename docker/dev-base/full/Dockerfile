@@ -1,23 +1,19 @@
 ARG BASE_IMAGE
 ARG LANG_GO_IMAGE
 ARG LANG_DOTNET_IMAGE
-ARG LANG_RUST_IMAGE
 ARG LANG_PYTHON_IMAGE
 FROM ${LANG_GO_IMAGE} AS dev-base-lang-go-graft
 FROM ${LANG_DOTNET_IMAGE} AS dev-base-lang-dotnet-graft
-FROM ${LANG_RUST_IMAGE} AS dev-base-lang-rust-graft
 FROM ${LANG_PYTHON_IMAGE} AS dev-base-lang-python-graft
 FROM ${BASE_IMAGE} AS dev-base-full
 ARG GOLANGCI_LINT_VERSION=2.12.2
 ARG TRUFFLEHOG_VERSION=3.95.8
 ARG KDLFMT_VERSION=0.1.7
 
-# Toolchain grafts. full sits on core, which already carries Node and the
-# shared tools, and grafts the remaining parallel language specialists.
+# Toolchain grafts. full inherits lang-rust (and core's Node/shared tools),
+# then adds the remaining parallel language specialists.
 COPY --from=dev-base-lang-go-graft /usr/local/go /usr/local/go
 COPY --from=dev-base-lang-dotnet-graft /usr/local/dotnet /usr/local/dotnet
-COPY --from=dev-base-lang-rust-graft /usr/local/cargo /usr/local/cargo
-COPY --from=dev-base-lang-rust-graft /usr/local/rustup /usr/local/rustup
 COPY --from=dev-base-lang-python-graft /opt/uv/tools/pipenv /opt/uv/tools/pipenv
 COPY --from=dev-base-lang-python-graft /usr/local/bin/python /usr/local/bin/python
 COPY --from=dev-base-lang-python-graft /usr/local/bin/pip /usr/local/bin/pip
@@ -69,29 +65,6 @@ RUN set -eux; \
     chmod 0755 /usr/local/bin/kdlfmt; \
     rm /tmp/kdlfmt.tar.xz; \
     kdlfmt --version
-
-# Bevy-class native build libs (alsa/udev/wayland/xkbcommon via pkg-config)
-# so Rust game workspaces can `cargo test` natively in CI. Apt libs cannot
-# graft, so they live in the fan-in tier next to the lang-rust consumer.
-RUN set -eux; \
-    apt-get update; \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      libasound2-dev \
-      libudev-dev \
-      libwayland-dev \
-      libxkbcommon-dev \
-      pkg-config; \
-    printf '%s\n' \
-      '#include <wayland-client.h>' \
-      '#include <xkbcommon/xkbcommon.h>' \
-      'int main(void) { return 0; }' \
-      > /tmp/bevy-native-smoke.c; \
-    cc /tmp/bevy-native-smoke.c \
-      $(pkg-config --cflags --libs wayland-client xkbcommon) \
-      -o /tmp/bevy-native-smoke; \
-    /tmp/bevy-native-smoke; \
-    rm /tmp/bevy-native-smoke /tmp/bevy-native-smoke.c; \
-    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
 CMD ["bash"]
