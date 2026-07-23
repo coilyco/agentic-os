@@ -2,7 +2,7 @@
 
 ARG UV_VERSION=0.11.26
 ARG GO_VERSION=1.26.5
-ARG AGENT_COMPOSE_VERSION=0.20.0
+ARG AGENT_COMPOSE_VERSION=0.21.0
 # Ward raw releases are staging until aos validates them against the real .ward
 # bundle. Keep the build tool pinned to the current prod/N-1 ward; the target
 # shape is N-1 for build work, then candidate N only at the late config gate.
