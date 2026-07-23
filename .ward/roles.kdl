@@ -1,12 +1,6 @@
 roles {
     // engineer: write code, merge code, stay focused on your goal
     role engineer {
-        // BEGIN generated role-intent harness routes
-        intent autonomous-coding {
-            harness openhands
-        }
-        // END generated role-intent harness routes
-
         // guardfiles for day to day read (defaults)
         guardfile "guardfile.forgejo.read.kdl"
         guardfile "guardfile.forgejo.readactions.kdl"
@@ -32,12 +26,6 @@ roles {
     }
     // director: pair with the human on high level goals
     role director {
-        // BEGIN generated role-intent harness routes
-        intent strategic-planning {
-            harness plandex
-        }
-        // END generated role-intent harness routes
-
         // guardfiles for day to day read (defaults)
         guardfile "guardfile.forgejo.read.kdl"
         guardfile "guardfile.forgejo.readactions.kdl"
@@ -66,12 +54,6 @@ roles {
     }
     // qa: pair with engineers on polishing code
     role qa {
-        // BEGIN generated role-intent harness routes
-        intent code-review {
-            harness aider
-        }
-        // END generated role-intent harness routes
-
         // guardfiles for day to day read (defaults)
         guardfile "guardfile.forgejo.read.kdl"
         guardfile "guardfile.forgejo.readactions.kdl"
@@ -91,12 +73,6 @@ roles {
     }
     // advisor: in depth research and analysis
     role advisor {
-        // BEGIN generated role-intent harness routes
-        intent research-synthesis {
-            harness hermes
-        }
-        // END generated role-intent harness routes
-
         // guardfiles for day to day read (defaults)
         guardfile "guardfile.forgejo.read.kdl"
         guardfile "guardfile.forgejo.readactions.kdl"
@@ -120,15 +96,6 @@ roles {
     }
     // ops: investigate live systems and apply modifications and remediation
     role ops {
-        // BEGIN generated role-intent harness routes
-        intent ops-investigation {
-            harness holmesgpt
-        }
-        intent operational-decision {
-            harness goose
-        }
-        // END generated role-intent harness routes
-
         // guardfiles for day to day read (defaults)
         guardfile "guardfile.forgejo.read.kdl"
         guardfile "guardfile.forgejo.readactions.kdl"
@@ -154,15 +121,6 @@ roles {
     }
     // pm: autonomous triage and project management
     role pm {
-        // BEGIN generated role-intent harness routes
-        intent strategic-planning {
-            harness hermes
-        }
-        intent project-coordination {
-            harness plane
-        }
-        // END generated role-intent harness routes
-
         // guardfiles for day to day read (defaults)
         guardfile "guardfile.forgejo.read.kdl"
         guardfile "guardfile.forgejo.readactions.kdl"
@@ -184,47 +142,11 @@ roles {
         }
     }
     // designer: shape product interactions and produce design artifacts
-    role designer {
-        // BEGIN generated role-intent harness routes
-        intent product-shaping {
-            harness penpot
-        }
-        intent design-production {
-            harness aosx
-        }
-        // END generated role-intent harness routes
-    }
+    role designer {}
     // social: social media leads and analysis
-    role social {
-        // BEGIN generated role-intent harness routes
-        intent message-composition {
-            harness mixpost
-        }
-        intent channel-publishing {
-            harness elizaos
-        }
-        // END generated role-intent harness routes
-    }
+    role social {}
     // sales: brings in the money
-    role sales {
-        // BEGIN generated role-intent harness routes
-        intent research-synthesis {
-            harness hermes
-        }
-        intent conversation-management {
-            harness elizaos
-        }
-        // END generated role-intent harness routes
-    }
+    role sales {}
     // customer-success: onboarding, support, retention, and customer research
-    role customer-success {
-        // BEGIN generated role-intent harness routes
-        intent knowledge-retrieval {
-            harness rasa
-        }
-        intent conversation-management {
-            harness rasa
-        }
-        // END generated role-intent harness routes
-    }
+    role customer-success {}
 }

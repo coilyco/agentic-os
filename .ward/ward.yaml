@@ -66,7 +66,7 @@ commands:
     description: "Sync AOSH's selected Goose route into `.ward/agents.kdl`. OpenCode remains AOS-local backend policy. `-- --check` compares the synced overlay with the selected, provisioned roster and fails on drift. See docs/ward-local-models.md."
   sync-harness-board:
     run: uv run python -m agentic_os.harness_board_sync
-    description: "Project AOSH's model-opaque role-intent harness selections into `.ward/roles.kdl`, plus the compiled `aos/role-harnesses.json` launcher view. `-- --check` reports drift without writing. See docs/ward-local-models.md."
+    description: "Project AOSH's model-opaque role-intent harness selections into `.agents/roles.kdl`, plus the compiled `aos/role-harnesses.json` launcher view. `-- --check` reports drift without writing. See docs/ward-local-models.md."
   dev-base-build:
     run: uv run python scripts/dev-base-build.py --registry agentic-os --tag dev-base-local build
     description: "Build the specialist dev-base image family in topological order locally under agentic-os:<tier>-dev-base-local (agentic-os:dev-base-local for full) for validating docker/dev-base/<tier>/Dockerfile changes before the release workflow publishes the multi-arch image."
