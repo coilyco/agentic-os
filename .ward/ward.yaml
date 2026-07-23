@@ -46,6 +46,15 @@ commands:
   aos-dry-run:
     run: ./aos/aos --role engineer --dry-run acompose -- codex --version
     description: "Render the default standalone composed-container launch without starting Docker."
+  aguard-lock:
+    run: sh scripts/aguard-lock.sh
+    description: "Refresh aguard's vendored API snapshot and frozen cli-guard dependency graph with the packaged specgen driver."
+  aguard-build:
+    run: specgen --project-root .specgen build --out dist/aguard
+    description: "Materialize the standalone aguard operator CLI from the independent .specgen snapshot."
+  aguard-run:
+    run: specgen --project-root .specgen run --
+    description: "Materialize and run aguard from the independent .specgen snapshot, passing arguments after `--`."
   aos-image-build:
     run: uv run python scripts/dev-base-build.py --registry agentic-os --tag aos-local build --tier core
     description: "Build only the local core image as agentic-os:core-aos-local for standalone `aos` smoke testing."

@@ -1,0 +1,36 @@
+// Aguard's repository-local Forgejo Actions bridges. The upstream API contract
+// omits the live log and rerun controls, so these narrow scripts share one
+// command group and the coilyco-ops bot token.
+wrap aguard ops actions {
+    exec bash {
+        env FORGEJO_TOKEN {
+            value ssm "/forgejo/coilyco-ops/api-token"
+        }
+    }
+
+    can run logs {
+        argv ".specgen/aguard/scripts/forgejo-actions-logs.sh"
+        when arg0 matches coily*
+        describe "stream plaintext Actions job logs from the live Forgejo web route"
+    }
+    can run runs {
+        argv ".specgen/aguard/scripts/forgejo-actions-list.sh" "runs"
+        when arg0 matches coily*
+        describe "list Forgejo Actions runs with a safe page-1 default"
+    }
+    can run tasks {
+        argv ".specgen/aguard/scripts/forgejo-actions-list.sh" "tasks"
+        when arg0 matches coily*
+        describe "list Forgejo Actions tasks with a safe page-1 default"
+    }
+    can run rerun {
+        argv ".specgen/aguard/scripts/forgejo-actions-rerun.sh"
+        when arg0 matches coily*
+        describe "rerun an existing workflow run, falling back to dispatch for the same ref"
+    }
+    can run rerun-failed-jobs {
+        argv ".specgen/aguard/scripts/forgejo-actions-rerun-failed-jobs.sh"
+        when arg0 matches coily*
+        describe "rerun failed jobs when supported, falling back to dispatch for the same ref"
+    }
+}
