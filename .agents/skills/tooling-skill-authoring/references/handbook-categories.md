@@ -1,6 +1,6 @@
 # Handbook: Categories
 
-Eleven prefix families and five exact-name skills. Pick the prefix up front; the validator rejects unknown prefixes.
+Twelve prefix families and five exact-name skills. Pick the prefix up front; the validator rejects unknown prefixes.
 
 * `<personal>-*` (e.g. `kai-*`) - operating context - durable rules about how the user works (preferences, voice, git workflow, repo registry pointers).
 * `daily-*` - cron'd inbox routines - fetch / digest / render shape, write to vault inbox.
@@ -10,6 +10,7 @@ Eleven prefix families and five exact-name skills. Pick the prefix up front; the
 * `ops-investigation-*` - investigation playbooks and runbooks. Status-enforced. Required H2 sections enforced.
 * `gaming-eco-*` - Eco modding (investigation, scaffolding, source-auditing).
 * `writing-*` - prose / voice / issue authoring surface (writing-voice-guide-linter, writing-bluesky, writing-refactor-plan, writing-to-issues).
+* `personality-*` - role-neutral presence, attention, tempo, and voice for agent-compose personality providers.
 * `home-*` - smart-home control at My House (hue, sonos, cast).
 * `tooling-*` - agent-ecosystem meta (tooling-skillsmp, tooling-scout-capability, tooling-scout-displacement, tooling-mcp-servers, tooling-supply-chain-audit, tooling-security-boundary-discipline). `meta-tooling skills may stay in the personal-prefix` since they encode operating-context discipline.
 * `vault-*` - Obsidian vault tooling (cli, markdown rules, vault rules).

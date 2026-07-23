@@ -24,6 +24,11 @@ categories:
     prefix: writing-
     enforce_status: false
 
+  - id: personality
+    kind: prefix
+    prefix: personality-
+    enforce_status: false
+
   - id: vault
     kind: prefix
     prefix: vault-
