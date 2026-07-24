@@ -1,4 +1,4 @@
-format: agentic-os.goose-context.v3
+format: agentic-os.goose-context.v4
 lane:
   harness: goose
   role: ops
@@ -26,6 +26,20 @@ totals:
     components: 244
     bytes: 506791
     tokens: 125666
+breakdown:
+  eager:
+    agents-cascade: {components: 2, bytes: 40544, tokens: 10136}
+    ordinary-skill-frontmatter: {components: 62, bytes: 14310, tokens: 3601}
+    personality-frontmatter: {components: 3, bytes: 482, tokens: 122}
+    role-composed-frontmatter: {components: 1, bytes: 194, tokens: 49}
+    role-instructions: {components: 1, bytes: 1259, tokens: 315}
+  lazy:
+    mcp-server-registration: {components: 1, bytes: 0, tokens: 0}
+    ordinary-skill-body: {components: 62, bytes: 134503, tokens: 33631}
+    ordinary-skill-resource: {components: 174, bytes: 368189, tokens: 91008}
+    personality-body: {components: 3, bytes: 1614, tokens: 404}
+    personality-resource: {components: 3, bytes: 523, tokens: 132}
+    role-composed-body: {components: 1, bytes: 1962, tokens: 491}
 components:
   eager:
     agents-cascade:
@@ -61,400 +75,70 @@ components:
       tokens: 0
       sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 skills:
-  aos-public/agents-aider:
-    class: ordinary
-    source: provider:.agents/skills/agents-aider/SKILL.md
-    delivery: .agents/skills/agents-aider/SKILL.md#frontmatter
-    eager: {bytes: 160, tokens: 40, sha256: af91e8cf0733327b3029c8cf7db02ca2caba0da9e169bfba09fd7a277d3e7695}
-    lazy: {components: 1, resources: 0, bytes: 740, tokens: 185, body_bytes: 740, body_tokens: 185, resource_bytes: 0, resource_tokens: 0, payload_hash: 88a85d26b0b9101ac95492fda720870970a30f8d00f2eb3bf4462e994ed81e6f}
-  aos-public/agents-claude:
-    class: ordinary
-    source: provider:.agents/skills/agents-claude/SKILL.md
-    delivery: .agents/skills/agents-claude/SKILL.md#frontmatter
-    eager: {bytes: 275, tokens: 69, sha256: f1158272d024626502dab0c14d12d7a0645693b7c45f9f308e086e4c6a51936f}
-    lazy: {components: 1, resources: 0, bytes: 488, tokens: 122, body_bytes: 488, body_tokens: 122, resource_bytes: 0, resource_tokens: 0, payload_hash: da87ef98f46fe609ec7240422d4b2f3a7a338cf837805af50e44f486e2f1d69c}
-  aos-public/agents-codex:
-    class: ordinary
-    source: provider:.agents/skills/agents-codex/SKILL.md
-    delivery: .agents/skills/agents-codex/SKILL.md#frontmatter
-    eager: {bytes: 205, tokens: 52, sha256: 4a3bdc70aa08cdf625d8f654530a47da1028a773d5a6a47f1160cd0561a3bf52}
-    lazy: {components: 1, resources: 0, bytes: 619, tokens: 155, body_bytes: 619, body_tokens: 155, resource_bytes: 0, resource_tokens: 0, payload_hash: 0900ada130bb119b0517ce51d3d47a0ca417bff0c4420a629925b6b528bd75c3}
-  aos-public/agents-goose:
-    class: ordinary
-    source: provider:.agents/skills/agents-goose/SKILL.md
-    delivery: .agents/skills/agents-goose/SKILL.md#frontmatter
-    eager: {bytes: 151, tokens: 38, sha256: aa0c1c95f439b2d7575386d9ff2a9b5201040d6f45b72e7d3a7ef4e8134b8aab}
-    lazy: {components: 1, resources: 0, bytes: 755, tokens: 189, body_bytes: 755, body_tokens: 189, resource_bytes: 0, resource_tokens: 0, payload_hash: fe4ee8c5237754c593d4e73a4272b6c6ab6276397360fe718246257f9fa8b10f}
-  aos-public/agents-opencode:
-    class: ordinary
-    source: provider:.agents/skills/agents-opencode/SKILL.md
-    delivery: .agents/skills/agents-opencode/SKILL.md#frontmatter
-    eager: {bytes: 240, tokens: 60, sha256: c1913ca6f1be00d7289e02605bed96f15f4aa4986f7f75e84e9f7790c50c318b}
-    lazy: {components: 1, resources: 0, bytes: 628, tokens: 157, body_bytes: 628, body_tokens: 157, resource_bytes: 0, resource_tokens: 0, payload_hash: 695a7a42d7b3317838bed2dd21c6441984a269f668d0a0e59dbc7a2573d5b2af}
-  aos-public/claude-code-render:
-    class: ordinary
-    source: provider:.agents/skills/claude-code-render/SKILL.md
-    delivery: .agents/skills/claude-code-render/SKILL.md#frontmatter
-    eager: {bytes: 313, tokens: 79, sha256: d9e7c1d5e30ea500ed7ab71b7b45fb5fbb5ce93bb0a0eeef8636ca590095eefa}
-    lazy: {components: 13, resources: 12, bytes: 60369, tokens: 14185, body_bytes: 2853, body_tokens: 713, resource_bytes: 57516, resource_tokens: 13472, payload_hash: 5244e072f60150b47cffc5c1178940c2ba387edef6300bdaf6cf9dca1574f933}
-  aos-public/coding-ansible:
-    class: ordinary
-    source: provider:.agents/skills/coding-ansible/SKILL.md
-    delivery: .agents/skills/coding-ansible/SKILL.md#frontmatter
-    eager: {bytes: 260, tokens: 65, sha256: 31d1cf8c90f4a2a4f04629a38ba73d807b4e688c01c4d2e4561ffe716e307d1f}
-    lazy: {components: 2, resources: 1, bytes: 5837, tokens: 1460, body_bytes: 2882, body_tokens: 721, resource_bytes: 2955, resource_tokens: 739, payload_hash: 7e86071758812e6f2674409dff35d0b05933abc7453b4128c72bda09d6290e76}
-  aos-public/coding-aws:
-    class: ordinary
-    source: provider:.agents/skills/coding-aws/SKILL.md
-    delivery: .agents/skills/coding-aws/SKILL.md#frontmatter
-    eager: {bytes: 142, tokens: 36, sha256: 159c4aca14e7b161c1631f316d381e8bd6fc112d39a42e31b645a716ae9605b7}
-    lazy: {components: 1, resources: 0, bytes: 1575, tokens: 394, body_bytes: 1575, body_tokens: 394, resource_bytes: 0, resource_tokens: 0, payload_hash: 79f14edcf8c8602d7799ac023054c1291ec81b5034e8eae452a2d0d2fb6a02f5}
-  aos-public/coding-azure:
-    class: ordinary
-    source: provider:.agents/skills/coding-azure/SKILL.md
-    delivery: .agents/skills/coding-azure/SKILL.md#frontmatter
-    eager: {bytes: 178, tokens: 45, sha256: 003ccb6e71c333e393e39654579e7f2a3c8c4488a6ba7a0d2296cbb3e34afc7a}
-    lazy: {components: 1, resources: 0, bytes: 1067, tokens: 267, body_bytes: 1067, body_tokens: 267, resource_bytes: 0, resource_tokens: 0, payload_hash: 9715d3bfdd1bad3aad9a7d74d7820229c1a3eccda0e777c23bfe0c64a6b425e1}
-  aos-public/coding-cloudformation:
-    class: ordinary
-    source: provider:.agents/skills/coding-cloudformation/SKILL.md
-    delivery: .agents/skills/coding-cloudformation/SKILL.md#frontmatter
-    eager: {bytes: 166, tokens: 42, sha256: 3a61ca9e80e0592f088ab6d15ddae2c1ebd7c5da4286045861b8b512cc7b3932}
-    lazy: {components: 1, resources: 0, bytes: 1123, tokens: 281, body_bytes: 1123, body_tokens: 281, resource_bytes: 0, resource_tokens: 0, payload_hash: fb4f2bc48df01208263c9c8d24a32d9abe90066a1eb401737808d841d04c1475}
-  aos-public/coding-csharp:
-    class: ordinary
-    source: provider:.agents/skills/coding-csharp/SKILL.md
-    delivery: .agents/skills/coding-csharp/SKILL.md#frontmatter
-    eager: {bytes: 195, tokens: 49, sha256: ff2d433dac4a7f5dadeecf9f5492a76791c7223686cd94736a3104e72b2b1d3b}
-    lazy: {components: 1, resources: 0, bytes: 2172, tokens: 543, body_bytes: 2172, body_tokens: 543, resource_bytes: 0, resource_tokens: 0, payload_hash: b673d70e4f0531801054bd75532d1627fbbfe26cd4fc4b6d9d7a0f5dec3e4e88}
-  aos-public/coding-discord-bot-architect:
-    class: ordinary
-    source: provider:.agents/skills/coding-discord-bot-architect/SKILL.md
-    delivery: .agents/skills/coding-discord-bot-architect/SKILL.md#frontmatter
-    eager: {bytes: 166, tokens: 42, sha256: 6bb61020906e5a7997da33a556982a0ff46f69638475455799c245aaf7f4c6b1}
-    lazy: {components: 30, resources: 29, bytes: 44689, tokens: 11153, body_bytes: 1435, body_tokens: 359, resource_bytes: 43254, resource_tokens: 10794, payload_hash: 2bec8ccadb5d51ac991f412be3221fcdb58209eda1e88ed048851f500d34079f}
-  aos-public/coding-gcp:
-    class: ordinary
-    source: provider:.agents/skills/coding-gcp/SKILL.md
-    delivery: .agents/skills/coding-gcp/SKILL.md#frontmatter
-    eager: {bytes: 129, tokens: 33, sha256: ebda4fa60a02be3b26683bf35141f2089f49705d4ce14f44711bda3cd9069964}
-    lazy: {components: 1, resources: 0, bytes: 1209, tokens: 303, body_bytes: 1209, body_tokens: 303, resource_bytes: 0, resource_tokens: 0, payload_hash: 0551c4c8aa05c4ee18c9e5644987e41f36741858cbe0f570d2e3c437193cfd77}
-  aos-public/coding-git:
-    class: ordinary
-    source: provider:.agents/skills/coding-git/SKILL.md
-    delivery: .agents/skills/coding-git/SKILL.md#frontmatter
-    eager: {bytes: 252, tokens: 63, sha256: 624be02218c082d838ec94be99663ae21dacb12f80d4a07c3526f894507dbf4d}
-    lazy: {components: 14, resources: 13, bytes: 21398, tokens: 5326, body_bytes: 3446, body_tokens: 862, resource_bytes: 17952, resource_tokens: 4464, payload_hash: 178bfbfce0b6411ef9ecf263a556afab93a1bf5cf19408a3ecf97a3a5cae8edc}
-  aos-public/coding-go:
-    class: ordinary
-    source: provider:.agents/skills/coding-go/SKILL.md
-    delivery: .agents/skills/coding-go/SKILL.md#frontmatter
-    eager: {bytes: 201, tokens: 51, sha256: c27068beb5fe20d22440543d752f19ca84e7370f087d214c99d28a6f6568e270}
-    lazy: {components: 1, resources: 0, bytes: 1271, tokens: 318, body_bytes: 1271, body_tokens: 318, resource_bytes: 0, resource_tokens: 0, payload_hash: 2ed3fb54f230f2d9c31805659c1ec2e94f1a7e7d05b88db5e6c29c13f12bd0b6}
-  aos-public/coding-javascript:
-    class: ordinary
-    source: provider:.agents/skills/coding-javascript/SKILL.md
-    delivery: .agents/skills/coding-javascript/SKILL.md#frontmatter
-    eager: {bytes: 189, tokens: 48, sha256: 44639be368b2473d0014c70a7b261e9b5abccb691993bd2d8c8857136259d939}
-    lazy: {components: 1, resources: 0, bytes: 1327, tokens: 332, body_bytes: 1327, body_tokens: 332, resource_bytes: 0, resource_tokens: 0, payload_hash: 11c02899715a7d8a6c52275310bdb7e8a0967c5fd4d8cb25c231f6709d887a18}
-  aos-public/coding-javascript-react:
-    class: ordinary
-    source: provider:.agents/skills/coding-javascript-react/SKILL.md
-    delivery: .agents/skills/coding-javascript-react/SKILL.md#frontmatter
-    eager: {bytes: 190, tokens: 48, sha256: 23c8fbc6244e205568523601704b4e0140719c238fe82240d890931d770233f3}
-    lazy: {components: 1, resources: 0, bytes: 1675, tokens: 419, body_bytes: 1675, body_tokens: 419, resource_bytes: 0, resource_tokens: 0, payload_hash: 8235b479640c00d6b27d0b3d134a5ab83997b0a333fa856c6c75ef2466c6f330}
-  aos-public/coding-kubernetes:
-    class: ordinary
-    source: provider:.agents/skills/coding-kubernetes/SKILL.md
-    delivery: .agents/skills/coding-kubernetes/SKILL.md#frontmatter
-    eager: {bytes: 169, tokens: 43, sha256: 9ad621a1ef4d01186cdcb5e2da738539cdb050e5010f4d7907f9eb464896e814}
-    lazy: {components: 1, resources: 0, bytes: 1693, tokens: 423, body_bytes: 1693, body_tokens: 423, resource_bytes: 0, resource_tokens: 0, payload_hash: 5ba8043957b2de2ccd9f717c589966f4a370b377ef4146af782c848bf2d06b99}
-  aos-public/coding-licenses:
-    class: ordinary
-    source: provider:.agents/skills/coding-licenses/SKILL.md
-    delivery: .agents/skills/coding-licenses/SKILL.md#frontmatter
-    eager: {bytes: 193, tokens: 49, sha256: a1f63b2c241dd252a19742dcebd98bd0869c9cbc0fe8b3823065d9506ad216eb}
-    lazy: {components: 1, resources: 0, bytes: 3064, tokens: 766, body_bytes: 3064, body_tokens: 766, resource_bytes: 0, resource_tokens: 0, payload_hash: 2b73025f81c9191f9721467b5cf45365e7299632ecbe5e5c97525a5dcaa8b4de}
-  aos-public/coding-pulumi:
-    class: ordinary
-    source: provider:.agents/skills/coding-pulumi/SKILL.md
-    delivery: .agents/skills/coding-pulumi/SKILL.md#frontmatter
-    eager: {bytes: 186, tokens: 47, sha256: 86f6bf563d0eec6220442935430f2c5e80b9118bfdc5900415a5b883cf9bd3ef}
-    lazy: {components: 1, resources: 0, bytes: 1046, tokens: 262, body_bytes: 1046, body_tokens: 262, resource_bytes: 0, resource_tokens: 0, payload_hash: df66cdf304a883ab9226f75345702f784d1ab343d8b7659650dc494aba1fec23}
-  aos-public/coding-python:
-    class: ordinary
-    source: provider:.agents/skills/coding-python/SKILL.md
-    delivery: .agents/skills/coding-python/SKILL.md#frontmatter
-    eager: {bytes: 207, tokens: 52, sha256: 5144d7ab2a08f0bf91d148425eb0fbc7159a9a8df0ef71c2ce759c5a7c13d4c9}
-    lazy: {components: 1, resources: 0, bytes: 1469, tokens: 368, body_bytes: 1469, body_tokens: 368, resource_bytes: 0, resource_tokens: 0, payload_hash: 7c2ae08a1435a1c7983e207d2bac4cedad02ff4a71e2422587bd5f4b3484c8f6}
-  aos-public/coding-ruby:
-    class: ordinary
-    source: provider:.agents/skills/coding-ruby/SKILL.md
-    delivery: .agents/skills/coding-ruby/SKILL.md#frontmatter
-    eager: {bytes: 166, tokens: 42, sha256: 69468ae759cf4f3da4179b99dac10a727574cad3cb84865f6c30bea8f911d992}
-    lazy: {components: 1, resources: 0, bytes: 918, tokens: 230, body_bytes: 918, body_tokens: 230, resource_bytes: 0, resource_tokens: 0, payload_hash: 7a2c81a87c104d8bad96568a7c6275770eac959c5ea203ba0040154e81d3c2c3}
-  aos-public/coding-rust:
-    class: ordinary
-    source: provider:.agents/skills/coding-rust/SKILL.md
-    delivery: .agents/skills/coding-rust/SKILL.md#frontmatter
-    eager: {bytes: 193, tokens: 49, sha256: ce724265a86eea4bdbb4dc2f41337f75df1366c11fb199947e11fb7564d9cf4e}
-    lazy: {components: 1, resources: 0, bytes: 2569, tokens: 643, body_bytes: 2569, body_tokens: 643, resource_bytes: 0, resource_tokens: 0, payload_hash: bdcf1b7a473ccffcd140f629d5c4f4a49494b635f79d807b955092c96a575e4a}
-  aos-public/coding-shape-cloud:
-    class: ordinary
-    source: provider:.agents/skills/coding-shape-cloud/SKILL.md
-    delivery: .agents/skills/coding-shape-cloud/SKILL.md#frontmatter
-    eager: {bytes: 216, tokens: 54, sha256: 8e9a66e07a41cfa19103f913df4fb457b7ae5690a972d10d52b00ddf2f38586f}
-    lazy: {components: 1, resources: 0, bytes: 3253, tokens: 814, body_bytes: 3253, body_tokens: 814, resource_bytes: 0, resource_tokens: 0, payload_hash: f0e3637676fb295a4f9eed2d6649ae600d7ed2e581602297d2af4ca6144b0297}
-  aos-public/coding-shape-iac:
-    class: ordinary
-    source: provider:.agents/skills/coding-shape-iac/SKILL.md
-    delivery: .agents/skills/coding-shape-iac/SKILL.md#frontmatter
-    eager: {bytes: 272, tokens: 68, sha256: 93f0ae1961556d5eea19e23df6977bc3f92c700ec9ab853665a0270c298b9274}
-    lazy: {components: 1, resources: 0, bytes: 3163, tokens: 791, body_bytes: 3163, body_tokens: 791, resource_bytes: 0, resource_tokens: 0, payload_hash: 7e54c6bee80b5e5ed607b75d30afd6482f3a172242d76fdf183b23ff16a2d5a2}
-  aos-public/coding-shape-observability:
-    class: ordinary
-    source: provider:.agents/skills/coding-shape-observability/SKILL.md
-    delivery: .agents/skills/coding-shape-observability/SKILL.md#frontmatter
-    eager: {bytes: 208, tokens: 52, sha256: 329c2f9fab64005c0d8596ec39f34103ccff8824aee7811383e28b9aad07b68e}
-    lazy: {components: 1, resources: 0, bytes: 3112, tokens: 778, body_bytes: 3112, body_tokens: 778, resource_bytes: 0, resource_tokens: 0, payload_hash: 5df516ebb3bd97856bb72d8e6b03d827813d1c29e904c64da0abb6aae47918c1}
-  aos-public/coding-shape-tui:
-    class: ordinary
-    source: provider:.agents/skills/coding-shape-tui/SKILL.md
-    delivery: .agents/skills/coding-shape-tui/SKILL.md#frontmatter
-    eager: {bytes: 201, tokens: 51, sha256: be71e43787aad984bbd542653ee625844ebf2034f115f4ef24eee7e33149aa4e}
-    lazy: {components: 1, resources: 0, bytes: 1654, tokens: 412, body_bytes: 1654, body_tokens: 412, resource_bytes: 0, resource_tokens: 0, payload_hash: 08223bf1a49e67d60f3834164bbfa72dd4e2da34d54829816bad99ffb525728e}
-  aos-public/coding-terraform:
-    class: ordinary
-    source: provider:.agents/skills/coding-terraform/SKILL.md
-    delivery: .agents/skills/coding-terraform/SKILL.md#frontmatter
-    eager: {bytes: 181, tokens: 46, sha256: 7fa847ffc8669a2cd21b5a870ee4d4d751011d5984effdd916c5da64fd3ef799}
-    lazy: {components: 1, resources: 0, bytes: 1912, tokens: 478, body_bytes: 1912, body_tokens: 478, resource_bytes: 0, resource_tokens: 0, payload_hash: 23e73586bd4fed42a4a85b8717f37d764183754064b8686203a43206c56747be}
-  aos-public/kai-gish:
-    class: ordinary
-    source: provider:.agents/skills/kai-gish/SKILL.md
-    delivery: .agents/skills/kai-gish/SKILL.md#frontmatter
-    eager: {bytes: 342, tokens: 86, sha256: 3da6e87cfa9fa9ca3a3217a323c9765c86b33d2a295e87cf398bc71f6002b7ed}
-    lazy: {components: 2, resources: 1, bytes: 7614, tokens: 1905, body_bytes: 3621, body_tokens: 906, resource_bytes: 3993, resource_tokens: 999, payload_hash: 610efebbc68b7625ce1319785cf3e2ee0d073e3875edf98d5c56bd80419758ea}
-  aos-public/kai-git-workflow:
-    class: ordinary
-    source: provider:.agents/skills/kai-git-workflow/SKILL.md
-    delivery: .agents/skills/kai-git-workflow/SKILL.md#frontmatter
-    eager: {bytes: 102, tokens: 26, sha256: 0f2f54b9863f57e8270284809d38c3cd6efd8f75037331753e01fced55ce0525}
-    lazy: {components: 4, resources: 3, bytes: 9759, tokens: 2440, body_bytes: 3864, body_tokens: 966, resource_bytes: 5895, resource_tokens: 1474, payload_hash: afaf28d87dadac25acef0e82929f343ff9a519b7d7ab99ac221d41e77a3858cc}
-  aos-public/kai-tech-prefs:
-    class: ordinary
-    source: provider:.agents/skills/kai-tech-prefs/SKILL.md
-    delivery: .agents/skills/kai-tech-prefs/SKILL.md#frontmatter
-    eager: {bytes: 201, tokens: 51, sha256: 5ed7dec7ea64facefbae9bfc9710afda51080c12bdd2d5caef3e9a54211174ff}
-    lazy: {components: 6, resources: 5, bytes: 7801, tokens: 1952, body_bytes: 2277, body_tokens: 570, resource_bytes: 5524, resource_tokens: 1382, payload_hash: eceb8850a39f1cd8986f2def57eff8a0f5529265c45734dce6645f9a7dab3925}
-  aos-public/personality-grounded:
-    class: personality
-    source: provider:.agents/skills/personality-grounded/SKILL.md
-    delivery: .agents/skills/personality-grounded/SKILL.md#frontmatter
-    eager: {bytes: 155, tokens: 39, sha256: 556de1a21cf87a611de2b6d1faeadfc29eba4e7d65c4335b71552c050f04e3b8}
-    lazy: {components: 2, resources: 1, bytes: 709, tokens: 178, body_bytes: 528, body_tokens: 132, resource_bytes: 181, resource_tokens: 46, payload_hash: 13d74306d0fd640a54d612ba3e3bbc7797432398a7031cb14c4ad7832f9dc566}
-  aos-public/personality-protective:
-    class: personality
-    source: provider:.agents/skills/personality-protective/SKILL.md
-    delivery: .agents/skills/personality-protective/SKILL.md#frontmatter
-    eager: {bytes: 169, tokens: 43, sha256: 2fc9cc90235b8356f996bf10d3fa827d2ee67d878002fac6aa290853eafb6b19}
-    lazy: {components: 2, resources: 1, bytes: 726, tokens: 182, body_bytes: 547, body_tokens: 137, resource_bytes: 179, resource_tokens: 45, payload_hash: ad6a75c22c4c593b5554c71a47541dc7f6cf74fb3a83609991dd20b4fc0f585a}
-  aos-public/personality-reflective:
-    class: personality
-    source: provider:.agents/skills/personality-reflective/SKILL.md
-    delivery: .agents/skills/personality-reflective/SKILL.md#frontmatter
-    eager: {bytes: 158, tokens: 40, sha256: 8792aba0a50cc96dc820ddbeef2de7847e9c5d9286f1d242dce85f81a87908f9}
-    lazy: {components: 2, resources: 1, bytes: 702, tokens: 176, body_bytes: 539, body_tokens: 135, resource_bytes: 163, resource_tokens: 41, payload_hash: 7784413d166880b9ded8fc67058da24982bc79c5735015a54aebc56d3d279c9c}
-  aos-public/repo-agentic-os:
-    class: ordinary
-    source: provider:.agents/skills/repo-agentic-os/SKILL.md
-    delivery: .agents/skills/repo-agentic-os/SKILL.md#frontmatter
-    eager: {bytes: 223, tokens: 56, sha256: c7b512e5067d4901a11aceea62534e7b6dfe8e757543d362b2fbf37c66ce9a59}
-    lazy: {components: 1, resources: 0, bytes: 369, tokens: 93, body_bytes: 369, body_tokens: 93, resource_bytes: 0, resource_tokens: 0, payload_hash: 2538776c74764a0cdb559a582feb5b1658e9f332fcb2f755525f1e35bd00202c}
-  aos-public/tooling-agent-workflows:
-    class: ordinary
-    source: provider:.agents/skills/tooling-agent-workflows/SKILL.md
-    delivery: .agents/skills/tooling-agent-workflows/SKILL.md#frontmatter
-    eager: {bytes: 209, tokens: 53, sha256: f8cc707d64ec282fffb208ccb8bfc5410eeea10579a018debfa60ef9b464141f}
-    lazy: {components: 5, resources: 4, bytes: 6558, tokens: 1642, body_bytes: 1530, body_tokens: 383, resource_bytes: 5028, resource_tokens: 1259, payload_hash: 3b8894d6547369ac7682c03b432aa74cae7ee4fe8e6a3a7582f136b03d20b343}
-  aos-public/tooling-claude-in-chrome:
-    class: ordinary
-    source: provider:.agents/skills/tooling-claude-in-chrome/SKILL.md
-    delivery: .agents/skills/tooling-claude-in-chrome/SKILL.md#frontmatter
-    eager: {bytes: 220, tokens: 55, sha256: 72543cb8aa9f233d136e2a20366e45e053a91b2650db100c2d0ca04e5d4e5f88}
-    lazy: {components: 4, resources: 3, bytes: 5660, tokens: 1416, body_bytes: 1472, body_tokens: 368, resource_bytes: 4188, resource_tokens: 1048, payload_hash: 47a2166ab510f69f9b02da2631c1d0a42d22e57c37e659826f84071d2add376a}
-  aos-public/tooling-code-review:
-    class: ordinary
-    source: provider:.agents/skills/tooling-code-review/SKILL.md
-    delivery: .agents/skills/tooling-code-review/SKILL.md#frontmatter
-    eager: {bytes: 343, tokens: 86, sha256: 84b33f2b884825982f2ab74cc7d8cd3f0acacd2d30d1f332a1a32d3bb096db49}
-    lazy: {components: 2, resources: 1, bytes: 2839, tokens: 711, body_bytes: 2018, body_tokens: 505, resource_bytes: 821, resource_tokens: 206, payload_hash: 7966beebea2b8368e5e51362769493929047040d03910de37d2274036cfa7576}
-  aos-public/tooling-elevenlabs-persona:
-    class: ordinary
-    source: provider:.agents/skills/tooling-elevenlabs-persona/SKILL.md
-    delivery: .agents/skills/tooling-elevenlabs-persona/SKILL.md#frontmatter
-    eager: {bytes: 208, tokens: 52, sha256: c499cf7a8998f956732f150ef8e38ac61785bc23c88857ce8869b70062042415}
-    lazy: {components: 2, resources: 1, bytes: 4318, tokens: 1081, body_bytes: 3261, body_tokens: 816, resource_bytes: 1057, resource_tokens: 265, payload_hash: 9cb5d575adb8a9d43f1e36380a9d7be88823f56deaaaace6581654508555b974}
-  aos-public/tooling-ffmpeg:
-    class: ordinary
-    source: provider:.agents/skills/tooling-ffmpeg/SKILL.md
-    delivery: .agents/skills/tooling-ffmpeg/SKILL.md#frontmatter
-    eager: {bytes: 200, tokens: 50, sha256: 279ff2e6e0e7c2331e2b7576420be228d91f741a4b914f5a04aba2677e81d5c9}
-    lazy: {components: 1, resources: 0, bytes: 2236, tokens: 559, body_bytes: 2236, body_tokens: 559, resource_bytes: 0, resource_tokens: 0, payload_hash: 7d9263fd00d319da0ff43f60bc148a556002df51419858eae133b34b0e1f1d1b}
-  aos-public/tooling-gpg-ssm:
-    class: ordinary
-    source: provider:.agents/skills/tooling-gpg-ssm/SKILL.md
-    delivery: .agents/skills/tooling-gpg-ssm/SKILL.md#frontmatter
-    eager: {bytes: 312, tokens: 78, sha256: 7494bec2b5e0f88c45100334f17d4f2c3563b3212ef6f40373bc3801df2e02e0}
-    lazy: {components: 4, resources: 3, bytes: 5497, tokens: 1376, body_bytes: 1369, body_tokens: 343, resource_bytes: 4128, resource_tokens: 1033, payload_hash: bd9998152aac7f4b640bf2b0ea08e2590454c8b2987684fcadfdd598b770230a}
-  aos-public/tooling-honeycomb-ui:
-    class: ordinary
-    source: provider:.agents/skills/tooling-honeycomb-ui/SKILL.md
-    delivery: .agents/skills/tooling-honeycomb-ui/SKILL.md#frontmatter
-    eager: {bytes: 203, tokens: 51, sha256: 8684ee62339255c68982e26218be286781a7f081e401715f802dfeef08ca2d49}
-    lazy: {components: 5, resources: 4, bytes: 9981, tokens: 2494, body_bytes: 2811, body_tokens: 703, resource_bytes: 7170, resource_tokens: 1791, payload_hash: c0f6d948836c007e298bd191da3909082994a2eac9cc50acb388b35c19a1d8ee}
-  aos-public/tooling-image-zoom:
-    class: ordinary
-    source: provider:.agents/skills/tooling-image-zoom/SKILL.md
-    delivery: .agents/skills/tooling-image-zoom/SKILL.md#frontmatter
-    eager: {bytes: 173, tokens: 44, sha256: d03f5318d7a138dd77b07f2af0b2254c3a55d75991296445653ceb79891e44be}
-    lazy: {components: 2, resources: 1, bytes: 3793, tokens: 949, body_bytes: 1060, body_tokens: 265, resource_bytes: 2733, resource_tokens: 684, payload_hash: 5f7837af90a32fd0cc70b6ca52c5d45b60258977afeb020d469451f42ba6cef5}
-  aos-public/tooling-imagemagick:
-    class: ordinary
-    source: provider:.agents/skills/tooling-imagemagick/SKILL.md
-    delivery: .agents/skills/tooling-imagemagick/SKILL.md#frontmatter
-    eager: {bytes: 198, tokens: 50, sha256: 35a6a639369885cb426687f2dda32825ebd96f4d6972dcb8e858e5a037b75521}
-    lazy: {components: 1, resources: 0, bytes: 1968, tokens: 492, body_bytes: 1968, body_tokens: 492, resource_bytes: 0, resource_tokens: 0, payload_hash: 2a674e71bf0635da3d4fb29f5d9ef858d938637ab8e5e09be6b20b346664c655}
-  aos-public/tooling-issue-prioritization:
-    class: ordinary
-    source: provider:.agents/skills/tooling-issue-prioritization/SKILL.md
-    delivery: .agents/skills/tooling-issue-prioritization/SKILL.md#frontmatter
-    eager: {bytes: 472, tokens: 118, sha256: 2c8baed6cd20ab4aad4a0d7ba4e6a594f8390bccbaec25eceea8ae50a7070882}
-    lazy: {components: 6, resources: 5, bytes: 15839, tokens: 3962, body_bytes: 3499, body_tokens: 875, resource_bytes: 12340, resource_tokens: 3087, payload_hash: 2c05010a06c9c7e356f169b77e8bbf61b80bdab3dec9f29a2edfce44cbdb519a}
-  aos-public/tooling-mcp-servers:
-    class: ordinary
-    source: provider:.agents/skills/tooling-mcp-servers/SKILL.md
-    delivery: .agents/skills/tooling-mcp-servers/SKILL.md#frontmatter
-    eager: {bytes: 142, tokens: 36, sha256: 32f3940f71582b97c805d72e2f7a6a64982b41289d78e0967bbf65354276631e}
-    lazy: {components: 4, resources: 3, bytes: 7165, tokens: 1793, body_bytes: 1718, body_tokens: 430, resource_bytes: 5447, resource_tokens: 1363, payload_hash: 5c0130c5bf7e292cb4c3631e4268f8e3dc2e7b7e6279f6b261237265f71eafc6}
-  aos-public/tooling-ops-live-remediation:
-    class: role-composed
-    source: provider:.agents/composed/tooling-ops-live-remediation/COMPOSED.md
-    delivery: .agents/skills/tooling-ops-live-remediation/SKILL.md#frontmatter
-    eager: {bytes: 194, tokens: 49, sha256: 7bef6ef3286be0b62b4c37ab781cf67c88588e9503b07947039bc60ac1f49aa6}
-    lazy: {components: 1, resources: 0, bytes: 1962, tokens: 491, body_bytes: 1962, body_tokens: 491, resource_bytes: 0, resource_tokens: 0, payload_hash: 8a904ece054216d4180032afed3b57ba756a5f5021b13c640dfb503326868ce0}
-  aos-public/tooling-product-brainstorming:
-    class: ordinary
-    source: provider:.agents/skills/tooling-product-brainstorming/SKILL.md
-    delivery: .agents/skills/tooling-product-brainstorming/SKILL.md#frontmatter
-    eager: {bytes: 318, tokens: 80, sha256: fddd73c4dfd6f76d2d7743ac3b2091f9a82185b96066c39dba71511a2bc6206c}
-    lazy: {components: 11, resources: 10, bytes: 26672, tokens: 6646, body_bytes: 2921, body_tokens: 731, resource_bytes: 23751, resource_tokens: 5915, payload_hash: a1be9097fcc4120426109d0befac7f9644e99df169c122acdcd8508728e93c9d}
-  aos-public/tooling-scout-autonomy:
-    class: ordinary
-    source: provider:.agents/skills/tooling-scout-autonomy/SKILL.md
-    delivery: .agents/skills/tooling-scout-autonomy/SKILL.md#frontmatter
-    eager: {bytes: 248, tokens: 62, sha256: 1aae4d71d13fd015beb21d1f87607d8747c1bc5570dec52d67bd4fae1148cc72}
-    lazy: {components: 7, resources: 6, bytes: 13757, tokens: 3441, body_bytes: 3657, body_tokens: 914, resource_bytes: 10100, resource_tokens: 2527, payload_hash: 9ecedd937d743282b6971b40ad601a05a787154055a0a41a3c8817c3ae2ea0ed}
-  aos-public/tooling-scout-capability:
-    class: ordinary
-    source: provider:.agents/skills/tooling-scout-capability/SKILL.md
-    delivery: .agents/skills/tooling-scout-capability/SKILL.md#frontmatter
-    eager: {bytes: 295, tokens: 74, sha256: bceb99333d280179907fd7c667a62840ac8c4f6586372f8d288b2cabfdcd6922}
-    lazy: {components: 8, resources: 7, bytes: 16126, tokens: 4007, body_bytes: 3364, body_tokens: 836, resource_bytes: 12762, resource_tokens: 3171, payload_hash: 8c54d0ff8dbc1531121d9a3d7ec4725675ea820e09d0e00facf54d18ab757de3}
-  aos-public/tooling-scout-displacement:
-    class: ordinary
-    source: provider:.agents/skills/tooling-scout-displacement/SKILL.md
-    delivery: .agents/skills/tooling-scout-displacement/SKILL.md#frontmatter
-    eager: {bytes: 352, tokens: 88, sha256: 0bce62933b6da6f37c26222bf614e9a3aec223ab705c8319dad8ff895f63ceee}
-    lazy: {components: 2, resources: 1, bytes: 5638, tokens: 1410, body_bytes: 2888, body_tokens: 722, resource_bytes: 2750, resource_tokens: 688, payload_hash: 9dfa0544ddcaa0e9a4660d588e4937334b9f5edd615275d46447b83e76cd741a}
-  aos-public/tooling-security-boundary-discipline:
-    class: ordinary
-    source: provider:.agents/skills/tooling-security-boundary-discipline/SKILL.md
-    delivery: .agents/skills/tooling-security-boundary-discipline/SKILL.md#frontmatter
-    eager: {bytes: 198, tokens: 50, sha256: c02b912ed5ae7ec19500075fc4229b7eddbfddaf1750e81f95d913d901614e21}
-    lazy: {components: 3, resources: 2, bytes: 11267, tokens: 2818, body_bytes: 3429, body_tokens: 858, resource_bytes: 7838, resource_tokens: 1960, payload_hash: 67954b6e329c31175e001e46b83ef340189a4f30399c30a7547b316ee46b8288}
-  aos-public/tooling-sidequest:
-    class: ordinary
-    source: provider:.agents/skills/tooling-sidequest/SKILL.md
-    delivery: .agents/skills/tooling-sidequest/SKILL.md#frontmatter
-    eager: {bytes: 159, tokens: 40, sha256: 2d1f8b38bb382644a1156ab30995e810bc6b148bd304da57ad2aa554f1b3ef43}
-    lazy: {components: 4, resources: 3, bytes: 9283, tokens: 2322, body_bytes: 2772, body_tokens: 693, resource_bytes: 6511, resource_tokens: 1629, payload_hash: f62bcca75261c7453e87bb62277d0e19876159ddf7dcb350c29cf7c2d9b644d8}
-  aos-public/tooling-skill-authoring:
-    class: ordinary
-    source: provider:.agents/skills/tooling-skill-authoring/SKILL.md
-    delivery: .agents/skills/tooling-skill-authoring/SKILL.md#frontmatter
-    eager: {bytes: 175, tokens: 44, sha256: 59095de38f0ab0498e096f6686bbdeee87bde686dc8b7e75ec12331922778e77}
-    lazy: {components: 19, resources: 18, bytes: 49306, tokens: 12253, body_bytes: 2527, body_tokens: 632, resource_bytes: 46779, resource_tokens: 11621, payload_hash: a8192e130e566af339bc233a02189eb3ff0b0eef7d3e1cb195264cddcd714602}
-  aos-public/tooling-skillsmp:
-    class: ordinary
-    source: provider:.agents/skills/tooling-skillsmp/SKILL.md
-    delivery: .agents/skills/tooling-skillsmp/SKILL.md#frontmatter
-    eager: {bytes: 186, tokens: 47, sha256: 0a838c4c6cccc0ba4c66a0503ab6408dca397783fcdafb19fa4a7cfb487cb8e2}
-    lazy: {components: 8, resources: 7, bytes: 18248, tokens: 4564, body_bytes: 2982, body_tokens: 746, resource_bytes: 15266, resource_tokens: 3818, payload_hash: a383fe16a15776f08db9076cf6b37a53b153019f0cb562abfffd284f06e4553c}
-  aos-public/tooling-supply-chain-audit:
-    class: ordinary
-    source: provider:.agents/skills/tooling-supply-chain-audit/SKILL.md
-    delivery: .agents/skills/tooling-supply-chain-audit/SKILL.md#frontmatter
-    eager: {bytes: 197, tokens: 50, sha256: 0fcb5c401099b09f4840041630e5bbacdb9aca11af6779bbf6756b82bd87cbac}
-    lazy: {components: 12, resources: 11, bytes: 30261, tokens: 7567, body_bytes: 2744, body_tokens: 686, resource_bytes: 27517, resource_tokens: 6881, payload_hash: 9e582b2f863e8284c2c21e3822e1fe1f99f26360727522e7a02fd85ceb280ba6}
-  aos-public/tooling-tailscale:
-    class: ordinary
-    source: provider:.agents/skills/tooling-tailscale/SKILL.md
-    delivery: .agents/skills/tooling-tailscale/SKILL.md#frontmatter
-    eager: {bytes: 433, tokens: 109, sha256: 7cbc6d24d79048c4bede3cdb83b1fdc3694fb3a44ea870ab8422e292db4fe94d}
-    lazy: {components: 3, resources: 2, bytes: 7535, tokens: 1885, body_bytes: 2247, body_tokens: 562, resource_bytes: 5288, resource_tokens: 1323, payload_hash: ab9d7505977ddafaeb975c6aa6bddba19035c0b296ebbac3d72218073e4fcd86}
-  aos-public/tooling-warp:
-    class: ordinary
-    source: provider:.agents/skills/tooling-warp/SKILL.md
-    delivery: .agents/skills/tooling-warp/SKILL.md#frontmatter
-    eager: {bytes: 174, tokens: 44, sha256: 5a44891eed2592e5d7f35c544271894b9bdee88991b14b6dbf136f573d5baf2f}
-    lazy: {components: 7, resources: 6, bytes: 17601, tokens: 4404, body_bytes: 2866, body_tokens: 717, resource_bytes: 14735, resource_tokens: 3687, payload_hash: 53cb42aba2ce8c955f25be4903e68c25ad96059cf1b71f076ed4b881c6769400}
-  aos-public/tooling-zsh:
-    class: ordinary
-    source: provider:.agents/skills/tooling-zsh/SKILL.md
-    delivery: .agents/skills/tooling-zsh/SKILL.md#frontmatter
-    eager: {bytes: 453, tokens: 114, sha256: c6b92161d0f9a1b7bb43e17a75d2dc3551a2e7ffea1f925e430ac412d15f792f}
-    lazy: {components: 1, resources: 0, bytes: 3132, tokens: 778, body_bytes: 3132, body_tokens: 778, resource_bytes: 0, resource_tokens: 0, payload_hash: 56b038134d281791f47dfc14f69e542a82da33a78878bc66c4ebaa4478f7eb90}
-  aos-public/vault-obsidian-markdown:
-    class: ordinary
-    source: provider:.agents/skills/vault-obsidian-markdown/SKILL.md
-    delivery: .agents/skills/vault-obsidian-markdown/SKILL.md#frontmatter
-    eager: {bytes: 208, tokens: 52, sha256: 71b1e6e90d8890e0d47e1e170f1b3d03c769f7f2dca0a0a93558ffd8ac5f8471}
-    lazy: {components: 7, resources: 6, bytes: 9134, tokens: 2286, body_bytes: 2760, body_tokens: 690, resource_bytes: 6374, resource_tokens: 1596, payload_hash: 631171ca24f2a01d880bb231233bd714625dc3c6a3fa38ca4a8b6014c7a1407d}
-  aos-public/writing-observer-narrator:
-    class: ordinary
-    source: provider:.agents/skills/writing-observer-narrator/SKILL.md
-    delivery: .agents/skills/writing-observer-narrator/SKILL.md#frontmatter
-    eager: {bytes: 347, tokens: 87, sha256: e5d0e93527aae8c772589b03cc55fe2e3543fc7a3f731bd25e361d784504dd14}
-    lazy: {components: 4, resources: 3, bytes: 7519, tokens: 1882, body_bytes: 2887, body_tokens: 722, resource_bytes: 4632, resource_tokens: 1160, payload_hash: 4c709a11ebc739246a4311f3a9bccc9e5b90a97f7a301e4c3c9338b3621aea0a}
-  aos-public/writing-public-repos:
-    class: ordinary
-    source: provider:.agents/skills/writing-public-repos/SKILL.md
-    delivery: .agents/skills/writing-public-repos/SKILL.md#frontmatter
-    eager: {bytes: 208, tokens: 52, sha256: d40ce56f78ba470501f63e03f570870c51ae696707e7aefddb358233a5dbcfc4}
-    lazy: {components: 1, resources: 0, bytes: 832, tokens: 208, body_bytes: 832, body_tokens: 208, resource_bytes: 0, resource_tokens: 0, payload_hash: 960e8fb47b1e7d5b5be84833dc8724750c13655816a217b89e60b69c582bb1be}
-  aos-public/writing-refactor-plan:
-    class: ordinary
-    source: provider:.agents/skills/writing-refactor-plan/SKILL.md
-    delivery: .agents/skills/writing-refactor-plan/SKILL.md#frontmatter
-    eager: {bytes: 443, tokens: 111, sha256: d47906c6e93244a2eb2005b846a130da7ae4cf74ba87102cdf47f83164cf97d6}
-    lazy: {components: 1, resources: 0, bytes: 2444, tokens: 611, body_bytes: 2444, body_tokens: 611, resource_bytes: 0, resource_tokens: 0, payload_hash: 799bd4fa73c1d7c6c5a6baf7ca4ff61ee7b3c8dd535460ade54368631bed6d30}
-  aos-public/writing-system-improvement-vocab:
-    class: ordinary
-    source: provider:.agents/skills/writing-system-improvement-vocab/SKILL.md
-    delivery: .agents/skills/writing-system-improvement-vocab/SKILL.md#frontmatter
-    eager: {bytes: 277, tokens: 70, sha256: 208df4a84cb06eb8c5a893ef955122ea52e8fecf3aab187636098562a2165a6e}
-    lazy: {components: 2, resources: 1, bytes: 4418, tokens: 1105, body_bytes: 3623, body_tokens: 906, resource_bytes: 795, resource_tokens: 199, payload_hash: 376a8a4d0049e2f2e5f85507c8883757a90fa0f0b4f85325be239257190e1c01}
-  aos-public/writing-to-issues:
-    class: ordinary
-    source: provider:.agents/skills/writing-to-issues/SKILL.md
-    delivery: .agents/skills/writing-to-issues/SKILL.md#frontmatter
-    eager: {bytes: 276, tokens: 69, sha256: 502ba4666aa796de25ca73f6aff6f73c8da469cbb2a9686028e5ef5aa0899c12}
-    lazy: {components: 2, resources: 1, bytes: 3405, tokens: 852, body_bytes: 2656, body_tokens: 664, resource_bytes: 749, resource_tokens: 188, payload_hash: 4055815038e194b830dac9b5e61b25fa626a0b982b393b9963081502cf48d86a}
-  aos-public/writing-voice-guide-linter:
-    class: ordinary
-    source: provider:.agents/skills/writing-voice-guide-linter/SKILL.md
-    delivery: .agents/skills/writing-voice-guide-linter/SKILL.md#frontmatter
-    eager: {bytes: 211, tokens: 53, sha256: 44c53204499276362199dbbc3246b1541d3528637a86354334d281bb46b07051}
-    lazy: {components: 2, resources: 1, bytes: 3922, tokens: 981, body_bytes: 1581, body_tokens: 396, resource_bytes: 2341, resource_tokens: 585, payload_hash: 975cf284fc115ebdaa18349645523a48c55653460f936cbe9cede5d84bb1dfe7}
-payload_hash: 63250bee9c1b85322e75ead9bae933df70a7d7e8ef6e995d22e9bd3044a587be
+  aos-public/agents-aider: {class: ordinary, eager: 40, lazy: 185, resources: 0}
+  aos-public/agents-claude: {class: ordinary, eager: 69, lazy: 122, resources: 0}
+  aos-public/agents-codex: {class: ordinary, eager: 52, lazy: 155, resources: 0}
+  aos-public/agents-goose: {class: ordinary, eager: 38, lazy: 189, resources: 0}
+  aos-public/agents-opencode: {class: ordinary, eager: 60, lazy: 157, resources: 0}
+  aos-public/claude-code-render: {class: ordinary, eager: 79, lazy: 14185, resources: 12}
+  aos-public/coding-ansible: {class: ordinary, eager: 65, lazy: 1460, resources: 1}
+  aos-public/coding-aws: {class: ordinary, eager: 36, lazy: 394, resources: 0}
+  aos-public/coding-azure: {class: ordinary, eager: 45, lazy: 267, resources: 0}
+  aos-public/coding-cloudformation: {class: ordinary, eager: 42, lazy: 281, resources: 0}
+  aos-public/coding-csharp: {class: ordinary, eager: 49, lazy: 543, resources: 0}
+  aos-public/coding-discord-bot-architect: {class: ordinary, eager: 42, lazy: 11153, resources: 29}
+  aos-public/coding-gcp: {class: ordinary, eager: 33, lazy: 303, resources: 0}
+  aos-public/coding-git: {class: ordinary, eager: 63, lazy: 5326, resources: 13}
+  aos-public/coding-go: {class: ordinary, eager: 51, lazy: 318, resources: 0}
+  aos-public/coding-javascript: {class: ordinary, eager: 48, lazy: 332, resources: 0}
+  aos-public/coding-javascript-react: {class: ordinary, eager: 48, lazy: 419, resources: 0}
+  aos-public/coding-kubernetes: {class: ordinary, eager: 43, lazy: 423, resources: 0}
+  aos-public/coding-licenses: {class: ordinary, eager: 49, lazy: 766, resources: 0}
+  aos-public/coding-pulumi: {class: ordinary, eager: 47, lazy: 262, resources: 0}
+  aos-public/coding-python: {class: ordinary, eager: 52, lazy: 368, resources: 0}
+  aos-public/coding-ruby: {class: ordinary, eager: 42, lazy: 230, resources: 0}
+  aos-public/coding-rust: {class: ordinary, eager: 49, lazy: 643, resources: 0}
+  aos-public/coding-shape-cloud: {class: ordinary, eager: 54, lazy: 814, resources: 0}
+  aos-public/coding-shape-iac: {class: ordinary, eager: 68, lazy: 791, resources: 0}
+  aos-public/coding-shape-observability: {class: ordinary, eager: 52, lazy: 778, resources: 0}
+  aos-public/coding-shape-tui: {class: ordinary, eager: 51, lazy: 412, resources: 0}
+  aos-public/coding-terraform: {class: ordinary, eager: 46, lazy: 478, resources: 0}
+  aos-public/kai-gish: {class: ordinary, eager: 86, lazy: 1905, resources: 1}
+  aos-public/kai-git-workflow: {class: ordinary, eager: 26, lazy: 2440, resources: 3}
+  aos-public/kai-tech-prefs: {class: ordinary, eager: 51, lazy: 1952, resources: 5}
+  aos-public/personality-grounded: {class: personality, eager: 39, lazy: 178, resources: 1}
+  aos-public/personality-protective: {class: personality, eager: 43, lazy: 182, resources: 1}
+  aos-public/personality-reflective: {class: personality, eager: 40, lazy: 176, resources: 1}
+  aos-public/repo-agentic-os: {class: ordinary, eager: 56, lazy: 93, resources: 0}
+  aos-public/tooling-agent-workflows: {class: ordinary, eager: 53, lazy: 1642, resources: 4}
+  aos-public/tooling-claude-in-chrome: {class: ordinary, eager: 55, lazy: 1416, resources: 3}
+  aos-public/tooling-code-review: {class: ordinary, eager: 86, lazy: 711, resources: 1}
+  aos-public/tooling-elevenlabs-persona: {class: ordinary, eager: 52, lazy: 1081, resources: 1}
+  aos-public/tooling-ffmpeg: {class: ordinary, eager: 50, lazy: 559, resources: 0}
+  aos-public/tooling-gpg-ssm: {class: ordinary, eager: 78, lazy: 1376, resources: 3}
+  aos-public/tooling-honeycomb-ui: {class: ordinary, eager: 51, lazy: 2494, resources: 4}
+  aos-public/tooling-image-zoom: {class: ordinary, eager: 44, lazy: 949, resources: 1}
+  aos-public/tooling-imagemagick: {class: ordinary, eager: 50, lazy: 492, resources: 0}
+  aos-public/tooling-issue-prioritization: {class: ordinary, eager: 118, lazy: 3962, resources: 5}
+  aos-public/tooling-mcp-servers: {class: ordinary, eager: 36, lazy: 1793, resources: 3}
+  aos-public/tooling-ops-live-remediation: {class: role-composed, eager: 49, lazy: 491, resources: 0}
+  aos-public/tooling-product-brainstorming: {class: ordinary, eager: 80, lazy: 6646, resources: 10}
+  aos-public/tooling-scout-autonomy: {class: ordinary, eager: 62, lazy: 3441, resources: 6}
+  aos-public/tooling-scout-capability: {class: ordinary, eager: 74, lazy: 4007, resources: 7}
+  aos-public/tooling-scout-displacement: {class: ordinary, eager: 88, lazy: 1410, resources: 1}
+  aos-public/tooling-security-boundary-discipline: {class: ordinary, eager: 50, lazy: 2818, resources: 2}
+  aos-public/tooling-sidequest: {class: ordinary, eager: 40, lazy: 2322, resources: 3}
+  aos-public/tooling-skill-authoring: {class: ordinary, eager: 44, lazy: 12253, resources: 18}
+  aos-public/tooling-skillsmp: {class: ordinary, eager: 47, lazy: 4564, resources: 7}
+  aos-public/tooling-supply-chain-audit: {class: ordinary, eager: 50, lazy: 7567, resources: 11}
+  aos-public/tooling-tailscale: {class: ordinary, eager: 109, lazy: 1885, resources: 2}
+  aos-public/tooling-warp: {class: ordinary, eager: 44, lazy: 4404, resources: 6}
+  aos-public/tooling-zsh: {class: ordinary, eager: 114, lazy: 778, resources: 0}
+  aos-public/vault-obsidian-markdown: {class: ordinary, eager: 52, lazy: 2286, resources: 6}
+  aos-public/writing-observer-narrator: {class: ordinary, eager: 87, lazy: 1882, resources: 3}
+  aos-public/writing-public-repos: {class: ordinary, eager: 52, lazy: 208, resources: 0}
+  aos-public/writing-refactor-plan: {class: ordinary, eager: 111, lazy: 611, resources: 0}
+  aos-public/writing-system-improvement-vocab: {class: ordinary, eager: 70, lazy: 1105, resources: 1}
+  aos-public/writing-to-issues: {class: ordinary, eager: 69, lazy: 852, resources: 1}
+  aos-public/writing-voice-guide-linter: {class: ordinary, eager: 53, lazy: 981, resources: 1}
+payload_hash: fbb590b1a87408c0a1276a1fb718873d7ccad2cc6f8c4085631f6d57cc5b58f1

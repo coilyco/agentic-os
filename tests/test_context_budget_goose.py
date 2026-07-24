@@ -241,27 +241,25 @@ def test_build_snapshot_separates_eager_and_lazy_components(tmp_path: Path) -> N
         "skill-root-0/plugin-tool",
     ]
     alpha = skills["aos-public/alpha"]
+    assert set(alpha) == {
+        "class",
+        "eager",
+        "lazy",
+        "resources",
+    }
     assert alpha["class"] == "ordinary"
-    assert alpha["eager"]["tokens"] > 0
-    assert alpha["lazy"]["components"] == 2
-    assert alpha["lazy"]["resources"] == 1
+    assert alpha["eager"] > 0
+    assert alpha["lazy"] > 0
+    assert alpha["resources"] == 1
+    assert skills["aos-public/tooling-ops-live-remediation"]["class"] == "role-composed"
+    assert skills["skill-root-0/plugin-tool"]["class"] == "plugin"
     components = {item["id"]: item for item in component_rows(first)}
     assert components["instructions:goose"]["delivery"] == ".config/goose/.goosehints"
     assert components["agents:000:AGENTS.md"]["eager"] is True
     assert components["agents:001:nested/AGENTS.md"]["eager"] is True
-    assert components["skill:aos-public:alpha:frontmatter"]["kind"] == (
-        "ordinary-skill-frontmatter"
-    )
-    assert components["skill:aos-public:alpha:body"]["eager"] is False
-    assert components[
-        "skill:aos-public:tooling-ops-live-remediation:frontmatter"
-    ]["source"] == (
-        "provider:.agents/composed/tooling-ops-live-remediation/COMPOSED.md"
-    )
-    assert components["skill:skill-root-0:plugin-tool:frontmatter"]["kind"] == (
-        "plugin-skill-frontmatter"
-    )
     assert components["mcp:deferred"]["tokens"] == 0
+    assert first["breakdown"]["eager"]["ordinary-skill-frontmatter"]["tokens"] > 0
+    assert first["breakdown"]["lazy"]["ordinary-skill-resource"]["tokens"] > 0
     assert first["totals"]["eager"]["tokens"] > 0
     assert first["totals"]["lazy"]["tokens"] > 0
 
@@ -289,8 +287,8 @@ def test_snapshot_round_trip_and_delta(tmp_path: Path) -> None:
     serialized = yaml.safe_load(serialized_text)
     assert list(serialized["components"]) == ["eager", "lazy"]
     assert "skills" in serialized
-    assert "eager: {" in serialized_text
-    assert "lazy: {" in serialized_text
+    assert "aos-public/alpha: {class: ordinary, eager:" in serialized_text
+    assert len(serialized_text.splitlines()) < 100
 
     write(repo / "nested" / "AGENTS.md", "# Nested instructions\n" + "More context.\n" * 5)
     after = goose.build_snapshot(bundle, provider, repo, cwd)

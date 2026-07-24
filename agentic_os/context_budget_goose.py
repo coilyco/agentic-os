@@ -25,7 +25,8 @@ from agentic_os.agents_context_inventory import (
 from agentic_os.context_budget_tokens import TOKENIZER_NOTE, count_tokens
 from agentic_os.generators.generate_agent_compose import _split_frontmatter
 
-FORMAT = "agentic-os.goose-context.v3"
+FORMAT = "agentic-os.goose-context.v4"
+COLLAPSED_FORMAT = "agentic-os.goose-context.v3"
 GROUPED_FORMAT = "agentic-os.goose-context.v2"
 LEGACY_FORMAT = "agentic-os.goose-context.v1"
 HARNESS = "goose"
@@ -536,38 +537,14 @@ def _skill_records_from_rows(
         ]
         if len(body) != 1 or len(body) + len(resources) != len(lazy):
             raise RuntimeError(f"skill {skill_key} has malformed lazy components")
-        lazy_material = "\n".join(
-            f"{raw['id']}:{raw.get('sha256', '')}" for raw in lazy
-        ).encode()
-        records[skill_key] = {
-            "class": skill_class,
-            "source": frontmatter.get("source"),
-            "delivery": frontmatter.get("delivery"),
-            "eager": _FlowMap(
-                {
-                    "bytes": int(frontmatter.get("bytes", 0)),
-                    "tokens": int(frontmatter.get("tokens", 0)),
-                    "sha256": frontmatter.get("sha256"),
-                }
-            ),
-            "lazy": _FlowMap(
-                {
-                    "components": len(lazy),
-                    "resources": len(resources),
-                    "bytes": sum(int(raw.get("bytes", 0)) for raw in lazy),
-                    "tokens": sum(int(raw.get("tokens", 0)) for raw in lazy),
-                    "body_bytes": int(body[0].get("bytes", 0)),
-                    "body_tokens": int(body[0].get("tokens", 0)),
-                    "resource_bytes": sum(
-                        int(raw.get("bytes", 0)) for raw in resources
-                    ),
-                    "resource_tokens": sum(
-                        int(raw.get("tokens", 0)) for raw in resources
-                    ),
-                    "payload_hash": hashlib.sha256(lazy_material).hexdigest(),
-                }
-            ),
-        }
+        records[skill_key] = _FlowMap(
+            {
+                "class": skill_class,
+                "eager": int(frontmatter.get("tokens", 0)),
+                "lazy": sum(int(raw.get("tokens", 0)) for raw in lazy),
+                "resources": len(resources),
+            }
+        )
     return records
 
 
@@ -581,6 +558,29 @@ def _group_skills(components: list[Component]) -> dict[str, dict[str, object]]:
         for component in components
     ]
     return _skill_records_from_rows(rows)
+
+
+def _component_breakdown(
+    components: list[Component],
+) -> dict[str, dict[str, _FlowMap]]:
+    breakdown: dict[str, dict[str, _FlowMap]] = {}
+    for eager, delivery_class in ((True, "eager"), (False, "lazy")):
+        kinds = sorted({component.kind for component in components if component.eager is eager})
+        breakdown[delivery_class] = {}
+        for kind in kinds:
+            selected = [
+                component
+                for component in components
+                if component.eager is eager and component.kind == kind
+            ]
+            breakdown[delivery_class][kind] = _FlowMap(
+                {
+                    "components": len(selected),
+                    "bytes": sum(component.byte_count for component in selected),
+                    "tokens": sum(component.tokens for component in selected),
+                }
+            )
+    return breakdown
 
 
 def build_snapshot(
@@ -672,10 +672,20 @@ def build_snapshot(
             "eager": _totals(components, True),
             "lazy": _totals(components, False),
         },
+        "breakdown": _component_breakdown(components),
         "components": _group_components(other_components),
         "skills": _group_skills(skill_components),
     }
-    canonical = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
+    payload_material = {
+        "snapshot": document,
+        "component_hashes": [
+            {"id": component.id, "sha256": component.sha256}
+            for component in components
+        ],
+    }
+    canonical = json.dumps(
+        payload_material, sort_keys=True, separators=(",", ":")
+    ).encode()
     document["payload_hash"] = hashlib.sha256(canonical).hexdigest()
     return document
 
@@ -768,19 +778,30 @@ def load_snapshot(path: Path) -> dict[str, object]:
         raise RuntimeError(f"read Goose context snapshot {path}: {exc}") from exc
     if not isinstance(document, dict):
         raise RuntimeError(f"{path}: Goose context snapshot must be a mapping")
-    if document.get("format") not in {FORMAT, GROUPED_FORMAT, LEGACY_FORMAT}:
+    if document.get("format") not in {
+        FORMAT,
+        COLLAPSED_FORMAT,
+        GROUPED_FORMAT,
+        LEGACY_FORMAT,
+    }:
         raise RuntimeError(f"{path}: unsupported Goose context snapshot format")
     if document.get("lane") != {"harness": HARNESS, "role": ROLE, "intent": INTENT}:
         raise RuntimeError(f"{path}: snapshot is not the fixed Goose lane")
     components = document.get("components")
-    if document["format"] in {FORMAT, GROUPED_FORMAT} and not isinstance(
-        components, dict
-    ):
+    if document["format"] in {
+        FORMAT,
+        COLLAPSED_FORMAT,
+        GROUPED_FORMAT,
+    } and not isinstance(components, dict):
         raise RuntimeError(f"{path}: grouped snapshot components must be a mapping")
     if document["format"] == LEGACY_FORMAT and not isinstance(components, list):
         raise RuntimeError(f"{path}: legacy snapshot components must be an array")
-    if document["format"] == FORMAT and not isinstance(document.get("skills"), dict):
+    if document["format"] in {FORMAT, COLLAPSED_FORMAT} and not isinstance(
+        document.get("skills"), dict
+    ):
         raise RuntimeError(f"{path}: collapsed snapshot skills must be a mapping")
+    if document["format"] == FORMAT and not isinstance(document.get("breakdown"), dict):
+        raise RuntimeError(f"{path}: snapshot breakdown must be a mapping")
     list(_snapshot_component_rows(document))
     _snapshot_skill_records(document)
     return document
@@ -823,18 +844,34 @@ def _snapshot_skill_records(
         records: dict[str, dict[str, object]] = {}
         for skill_key in sorted(skills):
             raw = skills[skill_key]
-            if (
-                not isinstance(skill_key, str)
-                or "/" not in skill_key
-                or not isinstance(raw, dict)
-                or raw.get("class") not in SKILL_CLASS_KINDS
-                or not isinstance(raw.get("source"), str)
-                or not isinstance(raw.get("delivery"), str)
-                or not isinstance(raw.get("eager"), dict)
-                or not isinstance(raw.get("lazy"), dict)
+            if not isinstance(skill_key, str) or "/" not in skill_key or not isinstance(
+                raw, dict
             ):
                 raise RuntimeError(f"snapshot skill {skill_key!r} is malformed")
-            records[skill_key] = raw
+            if snapshot.get("format") == FORMAT:
+                if (
+                    raw.get("class") not in SKILL_CLASS_KINDS
+                    or not isinstance(raw.get("eager"), int)
+                    or not isinstance(raw.get("lazy"), int)
+                    or not isinstance(raw.get("resources"), int)
+                ):
+                    raise RuntimeError(f"snapshot skill {skill_key!r} is malformed")
+                records[skill_key] = raw
+                continue
+            eager = raw.get("eager")
+            lazy = raw.get("lazy")
+            if (
+                raw.get("class") not in SKILL_CLASS_KINDS
+                or not isinstance(eager, dict)
+                or not isinstance(lazy, dict)
+            ):
+                raise RuntimeError(f"snapshot skill {skill_key!r} is malformed")
+            records[skill_key] = {
+                "class": raw["class"],
+                "eager": int(eager.get("tokens", 0)),
+                "lazy": int(lazy.get("tokens", 0)),
+                "resources": int(lazy.get("resources", 0)),
+            }
         return records
     skill_rows = [
         raw
@@ -894,11 +931,23 @@ def _snapshot_component_rows(
     snapshot: dict[str, object],
 ) -> Iterable[dict[str, object]]:
     yield from _snapshot_base_component_rows(snapshot)
-    if isinstance(snapshot.get("skills"), dict):
-        yield from _expanded_skill_rows(_snapshot_skill_records(snapshot))
+    skills = snapshot.get("skills")
+    if snapshot.get("format") == COLLAPSED_FORMAT and isinstance(skills, dict):
+        yield from _expanded_skill_rows(skills)
 
 
 def _component_kind_totals(snapshot: dict[str, object], eager: bool) -> list[tuple[str, int, int]]:
+    breakdown = snapshot.get("breakdown")
+    delivery_class = "eager" if eager else "lazy"
+    if isinstance(breakdown, dict):
+        kinds = breakdown.get(delivery_class)
+        if not isinstance(kinds, dict):
+            raise RuntimeError(f"snapshot {delivery_class} breakdown is malformed")
+        return [
+            (kind, int(values["bytes"]), int(values["tokens"]))
+            for kind, values in sorted(kinds.items())
+            if isinstance(kind, str) and isinstance(values, dict)
+        ]
     totals: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for raw in _snapshot_component_rows(snapshot):
         if raw.get("eager") is not eager:
@@ -945,19 +994,15 @@ def _snapshot_components(snapshot: dict[str, object]) -> dict[str, dict[str, obj
             continue
         out[str(raw["id"])] = raw
     for skill_key, record in _snapshot_skill_records(snapshot).items():
-        eager = record["eager"]
-        lazy = record["lazy"]
-        assert isinstance(eager, dict) and isinstance(lazy, dict)
         component_id = f"skill:{skill_key}"
         out[component_id] = {
             "id": component_id,
             "kind": "skill",
             "class": record["class"],
-            "source": record["source"],
-            "delivery": record["delivery"],
-            "eager": dict(eager),
-            "lazy": dict(lazy),
-            "tokens": int(eager.get("tokens", 0)) + int(lazy.get("tokens", 0)),
+            "eager": record["eager"],
+            "lazy": record["lazy"],
+            "resources": record["resources"],
+            "tokens": int(record["eager"]) + int(record["lazy"]),
         }
     return out
 
