@@ -118,7 +118,6 @@ func TestBuildLaunchPlanAddsPrivateAccessWithoutLocalDaemon(t *testing.T) {
 		Image:    "agentic-os:test",
 		Role:     "director",
 		Layout:   "codex",
-		Density:  "full",
 		Delivery: "native-skills",
 		CWD:      t.TempDir(),
 		Command:  []string{"codex"},
