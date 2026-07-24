@@ -62,10 +62,8 @@ def validate_catalog(
         skill_id = personality_skill_id(personality)
         skill_root = skills_root / skill_id
         entrypoint = skill_root / "SKILL.md"
-        brief = skill_root / "BRIEF.md"
         try:
             entrypoint_text = entrypoint.read_text(encoding="utf-8")
-            brief_text = brief.read_text(encoding="utf-8")
         except OSError as exc:
             raise RolePersonalitySyncError(
                 f"AOSH personality {personality} lacks AOS body {skill_root}: {exc}"
@@ -80,9 +78,9 @@ def validate_catalog(
             raise RolePersonalitySyncError(
                 f"{entrypoint}: description must be non-empty text"
             )
-        if not body.strip() or not brief_text.strip():
+        if not body.strip():
             raise RolePersonalitySyncError(
-                f"{skill_root}: SKILL.md and BRIEF.md bodies must be non-empty"
+                f"{skill_root}: SKILL.md body must be non-empty"
             )
 
 

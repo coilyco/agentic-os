@@ -29,16 +29,14 @@ The compose request supplies the stable source id `aos-public`, so adding an
 ordinary skill or role binding needs no parallel hand-authored provider
 inventory.
 
-Each personality directory carries two densities:
-
-* `SKILL.md` - the full presence, attention, tempo, and voice definition.
-* `BRIEF.md` - the same posture compressed into one short paragraph.
+Each personality directory carries one canonical `SKILL.md` with its presence,
+attention, tempo, voice, and balance definition.
 
 Agent-compose activates the complete ordered personality meld for a selected
 role. A request cannot select an arbitrary trait or change compatibility.
 Agent-compose owns canonical role-to-personality bindings. AOS commits a narrow
-alignment board that verifies each selected full and brief body and the actual
-bundle manifest without selecting runtime behavior. See
+alignment board that verifies each selected body and the actual bundle
+manifest without selecting runtime behavior. See
 [role-orientation projections](role-orientation-projections.md).
 
 ## Local consumer use
@@ -49,15 +47,13 @@ An agent-compose request stored under the provider root admits that root:
 compose {
     role "engineer"
     delivery "native-skills"
-    density "full"
     source "aos-public" root="." required=#true
 }
 ```
 
-`compiled` delivery uses `BRIEF.md` when the request asks for brief density
-and `SKILL.md` for full density. Native delivery preserves the selected skill
-directories. Both modes always carry the shared invariant as source
-instructions.
+`compiled` delivery joins the selected canonical `SKILL.md` bodies into one
+document. Native delivery preserves the selected skill directories. Both modes
+always carry the shared invariant as source instructions.
 
 Host convergence points `roster_sources` at the AOS checkout. The roster
 artifact supplies seat dispatch and linked personality definitions to the

@@ -10,7 +10,7 @@ This lists shipped capabilities, not files.
 - [Speech helper](aos-say.md) - `aos-say` client plus relay for status speech.
 - **Karabiner key bindings** - complex modifications for the external keyboard and Remote Desktop.
 - [Agents and sessions](features-agents-sessions.md) - self-name, session pulse, status line, and harness policy.
-- [Agent-compose personalities](personality-provider.md) - 16 full/brief bodies plus role alignment.
+- [Agent-compose personalities](personality-provider.md) - 16 canonical bodies plus role alignment.
 - [Role-composed skills](role-composed-skills.md) - deep, role-gated knowledge.
 - [AOS launcher](aos-cli.md) - containers, embedded defaults, and [private live observation](aos-private-network.md).
 - [aguard](aguard.md) - canonical guarded operator CLI in the full image.

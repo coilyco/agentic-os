@@ -43,10 +43,6 @@ def personality_sources(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
             f"# {personality}\n",
             encoding="utf-8",
         )
-        (skill_root / "BRIEF.md").write_text(
-            f"Bring {personality} attention.\n",
-            encoding="utf-8",
-        )
     return aosh_root, roles_path, skills_root, tmp_path / "projection.json"
 
 
@@ -109,7 +105,7 @@ def test_missing_personality_body_fails_closed(
     missing = role_personality_sync.personality_skill_id(
         orientation.roles[0].personalities[0]
     )
-    (skills_root / missing / "BRIEF.md").unlink()
+    (skills_root / missing / "SKILL.md").unlink()
 
     with pytest.raises(
         role_personality_sync.RolePersonalitySyncError,

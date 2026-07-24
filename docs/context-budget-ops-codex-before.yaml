@@ -8,36 +8,38 @@ cwd: .
 tokenizer: tokens = chars/4 proxy (v1, swap for the qwen tokenizer later)
 bundle:
   format: agent-compose.bundle
-  density: full
+  personalities:
+  - protective
+  - grounded
+  - reflective
   sources:
   - person:kai
   - aos-public
 mcp:
   delivery: deferred
-  server_count: 11
+  server_count: 12
   eager_schema_count: 0
 totals:
   eager:
-    components: 70
-    bytes: 57992
-    tokens: 14524
+    components: 71
+    bytes: 58218
+    tokens: 14580
   lazy:
-    components: 244
-    bytes: 506923
-    tokens: 125699
+    components: 242
+    bytes: 509458
+    tokens: 126332
 breakdown:
   eager:
     agents-cascade: {components: 3, bytes: 41372, tokens: 10343}
-    ordinary-skill-frontmatter: {components: 62, bytes: 14310, tokens: 3601}
+    ordinary-skill-frontmatter: {components: 63, bytes: 14534, tokens: 3657}
     personality-frontmatter: {components: 3, bytes: 482, tokens: 122}
     role-composed-frontmatter: {components: 1, bytes: 194, tokens: 49}
-    role-instructions: {components: 1, bytes: 1634, tokens: 409}
+    role-instructions: {components: 1, bytes: 1636, tokens: 409}
   lazy:
     mcp-server-registration: {components: 1, bytes: 0, tokens: 0}
-    ordinary-skill-body: {components: 62, bytes: 134503, tokens: 33631}
-    ordinary-skill-resource: {components: 174, bytes: 368321, tokens: 91041}
-    personality-body: {components: 3, bytes: 1614, tokens: 404}
-    personality-resource: {components: 3, bytes: 523, tokens: 132}
+    ordinary-skill-body: {components: 63, bytes: 134959, tokens: 33745}
+    ordinary-skill-resource: {components: 174, bytes: 368293, tokens: 91034}
+    personality-body: {components: 3, bytes: 4244, tokens: 1062}
     role-composed-body: {components: 1, bytes: 1962, tokens: 491}
 components:
   eager:
@@ -68,9 +70,9 @@ components:
       owner: agent-compose+aos-public
       source: bundle:content/instructions.md
       delivery: .codex/AGENTS.md
-      bytes: 1634
+      bytes: 1636
       tokens: 409
-      sha256: 969d8481010b0abf066659afee46e1768350b535723b8b8e7ed4c83bc9692f00
+      sha256: 97bdcc43b35945dbca21326cfac13737bc1f39073c5bf44ae8b9e409fe7b1786
   lazy:
     mcp-server-registration:
     - id: mcp:deferred
@@ -112,10 +114,11 @@ skills:
   aos-public/kai-gish: {class: ordinary, eager: 86, lazy: 1905, resources: 1}
   aos-public/kai-git-workflow: {class: ordinary, eager: 26, lazy: 2440, resources: 3}
   aos-public/kai-tech-prefs: {class: ordinary, eager: 51, lazy: 1952, resources: 5}
-  aos-public/personality-grounded: {class: personality, eager: 39, lazy: 178, resources: 1}
-  aos-public/personality-protective: {class: personality, eager: 43, lazy: 182, resources: 1}
-  aos-public/personality-reflective: {class: personality, eager: 40, lazy: 176, resources: 1}
+  aos-public/personality-grounded: {class: personality, eager: 39, lazy: 350, resources: 0}
+  aos-public/personality-protective: {class: personality, eager: 43, lazy: 366, resources: 0}
+  aos-public/personality-reflective: {class: personality, eager: 40, lazy: 346, resources: 0}
   aos-public/repo-agentic-os: {class: ordinary, eager: 56, lazy: 93, resources: 0}
+  aos-public/repo-infrastructure: {class: ordinary, eager: 56, lazy: 93, resources: 0}
   aos-public/tooling-agent-workflows: {class: ordinary, eager: 53, lazy: 1642, resources: 4}
   aos-public/tooling-claude-in-chrome: {class: ordinary, eager: 55, lazy: 1416, resources: 3}
   aos-public/tooling-code-review: {class: ordinary, eager: 86, lazy: 711, resources: 1}
@@ -125,7 +128,7 @@ skills:
   aos-public/tooling-honeycomb-ui: {class: ordinary, eager: 51, lazy: 2494, resources: 4}
   aos-public/tooling-image-zoom: {class: ordinary, eager: 44, lazy: 975, resources: 1}
   aos-public/tooling-imagemagick: {class: ordinary, eager: 50, lazy: 492, resources: 0}
-  aos-public/tooling-issue-prioritization: {class: ordinary, eager: 118, lazy: 3969, resources: 5}
+  aos-public/tooling-issue-prioritization: {class: ordinary, eager: 118, lazy: 3962, resources: 5}
   aos-public/tooling-mcp-servers: {class: ordinary, eager: 36, lazy: 1793, resources: 3}
   aos-public/tooling-ops-live-remediation: {class: role-composed, eager: 49, lazy: 491, resources: 0}
   aos-public/tooling-product-brainstorming: {class: ordinary, eager: 80, lazy: 6646, resources: 10}
@@ -138,8 +141,8 @@ skills:
   aos-public/tooling-skillsmp: {class: ordinary, eager: 47, lazy: 4564, resources: 7}
   aos-public/tooling-supply-chain-audit: {class: ordinary, eager: 50, lazy: 7567, resources: 11}
   aos-public/tooling-tailscale: {class: ordinary, eager: 109, lazy: 1885, resources: 2}
-  aos-public/tooling-warp: {class: ordinary, eager: 44, lazy: 4404, resources: 6}
-  aos-public/tooling-zsh: {class: ordinary, eager: 114, lazy: 778, resources: 0}
+  aos-public/tooling-warp: {class: ordinary, eager: 44, lazy: 4416, resources: 6}
+  aos-public/tooling-zsh: {class: ordinary, eager: 114, lazy: 787, resources: 0}
   aos-public/vault-obsidian-markdown: {class: ordinary, eager: 52, lazy: 2286, resources: 6}
   aos-public/writing-observer-narrator: {class: ordinary, eager: 87, lazy: 1882, resources: 3}
   aos-public/writing-public-repos: {class: ordinary, eager: 52, lazy: 208, resources: 0}
@@ -147,4 +150,4 @@ skills:
   aos-public/writing-system-improvement-vocab: {class: ordinary, eager: 70, lazy: 1105, resources: 1}
   aos-public/writing-to-issues: {class: ordinary, eager: 69, lazy: 852, resources: 1}
   aos-public/writing-voice-guide-linter: {class: ordinary, eager: 53, lazy: 981, resources: 1}
-payload_hash: 31345d4afbffd2cdacc235b703035e833b3963c5c5619202bc1faca573e3acb0
+payload_hash: 7da50d475a9c3eb92a5b43a0fdba58aef42a26943e2583eef0b5a2f24b3d47f0

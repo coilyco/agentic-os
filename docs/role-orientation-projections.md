@@ -35,7 +35,6 @@ to its conventional AOS `personality-*` skill.
 The sync requires every selected personality to provide:
 
 * a full `SKILL.md` with matching name and description
-* a non-empty compact `BRIEF.md`
 * the one shared personality invariant
 
 The board does not select runtime personality. Agent-compose continues to do

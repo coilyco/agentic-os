@@ -35,7 +35,6 @@ type launchOptions struct {
 	Image         string
 	Role          string
 	Layout        string
-	Density       string
 	Delivery      string
 	CWD           string
 	Command       []string
@@ -129,7 +128,6 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 		opts.Image,
 		"--role", opts.Role,
 		"--layout", opts.Layout,
-		"--density", opts.Density,
 		"--delivery", opts.Delivery,
 	)
 	if opts.NoSubstrate {

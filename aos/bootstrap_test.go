@@ -120,7 +120,6 @@ func TestPrepareContainerHydratesSubstrateAndProjectsHome(t *testing.T) {
 	spec, err := prepareContainer(context.Background(), bootstrapOptions{
 		Role:              "engineer",
 		Layout:            "codex",
-		Density:           "full",
 		Delivery:          "native-skills",
 		Workspace:         filepath.Join(root, "workspace"),
 		UID:               uid,
@@ -156,7 +155,6 @@ func TestPrepareContainerHydratesSubstrateAndProjectsHome(t *testing.T) {
 	for _, want := range []string{
 		`role "engineer"`,
 		`delivery "native-skills"`,
-		`density "full"`,
 		`source "aos-public" root="." required=#true`,
 	} {
 		if !strings.Contains(runner.request, want) {
@@ -210,7 +208,6 @@ func TestPrepareContainerWithoutSubstrateStillMaterializesProvider(t *testing.T)
 	_, err := prepareContainer(context.Background(), bootstrapOptions{
 		Role:              "advisor",
 		Layout:            "codex",
-		Density:           "brief",
 		Delivery:          "compiled",
 		Workspace:         filepath.Join(root, "workspace"),
 		UID:               uid,

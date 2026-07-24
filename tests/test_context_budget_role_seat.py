@@ -61,10 +61,6 @@ def provider_fixture(root: Path) -> Path:
             "---\n"
             f"# {personality}\n",
         )
-        write(
-            provider / ".agents" / "skills" / skill_id / "BRIEF.md",
-            f"Bring {personality} attention.\n",
-        )
     write(
         provider / role_personality_sync.PROJECTION_PATH,
         json.dumps(
@@ -102,7 +98,6 @@ def bundle_fixture(root: Path) -> Path:
                 "format": "agent-compose.bundle",
                 "role": "ops",
                 "personalities": list(FIXTURE_PERSONALITIES),
-                "density": "full",
                 "sources": ["person:kai", "aos-public"],
                 "delivery": {
                     "mode": "native-skills",
@@ -144,15 +139,6 @@ def bundle_fixture(root: Path) -> Path:
             f"description: Bring {personality} attention.\n"
             "---\n"
             f"# {personality}\n",
-        )
-        write(
-            bundle
-            / "content"
-            / "skills"
-            / "aos-public"
-            / skill_id
-            / "BRIEF.md",
-            f"Bring {personality} attention.\n",
         )
     write(
         bundle

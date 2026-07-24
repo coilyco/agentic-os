@@ -792,7 +792,6 @@ def build_snapshot(
         "tokenizer": TOKENIZER_NOTE,
         "bundle": {
             "format": manifest["format"],
-            "density": manifest.get("density"),
             "personalities": list(personalities),
             "sources": manifest.get("sources", []),
         },
@@ -829,7 +828,6 @@ def _request_text(provider_root: str, role: str) -> str:
         "compose {\n"
         f'    role "{role}"\n'
         '    delivery "native-skills"\n'
-        '    density "full"\n'
         f'    source "{SOURCE_ID}" root={root} required=#true\n'
         "}\n"
     )

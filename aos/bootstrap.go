@@ -42,7 +42,6 @@ func (osCommandRunner) Run(ctx context.Context, name string, args ...string) err
 type bootstrapOptions struct {
 	Role              string
 	Layout            string
-	Density           string
 	Delivery          string
 	Workspace         string
 	UID               int
@@ -279,7 +278,6 @@ func composeHome(
 	body := "compose {\n" +
 		"    role " + strconv.Quote(opts.Role) + "\n" +
 		"    delivery " + strconv.Quote(opts.Delivery) + "\n" +
-		"    density " + strconv.Quote(opts.Density) + "\n" +
 		"    source \"aos-public\" root=\".\" required=#true\n" +
 		"}\n"
 	if _, err := io.WriteString(request, body); err != nil {

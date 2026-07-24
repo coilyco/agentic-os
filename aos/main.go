@@ -14,7 +14,6 @@ var version = "dev"
 
 const (
 	defaultImage    = "forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release"
-	defaultDensity  = "full"
 	defaultDelivery = "native-skills"
 )
 
@@ -38,9 +37,9 @@ func main() {
 				Usage: "agent-compose harness layout, inferred from the command when omitted",
 			},
 			&cli.StringFlag{
-				Name:  "density",
-				Value: defaultDensity,
-				Usage: "agent-compose personality density: full or brief",
+				Name:   "density",
+				Usage:  "retired compatibility input, only full is accepted",
+				Hidden: true,
 			},
 			&cli.StringFlag{
 				Name:  "delivery",
@@ -116,6 +115,9 @@ func main() {
 }
 
 func runAcompose(ctx context.Context, cmd *cli.Command) error {
+	if err := validateLegacyDensity(cmd.String("density")); err != nil {
+		return err
+	}
 	role := strings.TrimSpace(cmd.String("role"))
 	if role == "" {
 		return fmt.Errorf("acompose needs --role")
@@ -145,7 +147,6 @@ func runAcompose(ctx context.Context, cmd *cli.Command) error {
 		Image:         cmd.String("image"),
 		Role:          role,
 		Layout:        layout,
-		Density:       cmd.String("density"),
 		Delivery:      cmd.String("delivery"),
 		CWD:           cwd,
 		Command:       command,
@@ -171,6 +172,9 @@ func runContainerAcompose(ctx context.Context, cmd *cli.Command) error {
 	if os.Getenv("AOS_CONTAINER") != "1" {
 		return fmt.Errorf("_container-acompose is internal to an AOS container")
 	}
+	if err := validateLegacyDensity(cmd.String("density")); err != nil {
+		return err
+	}
 	command := argvAfterDash(os.Args)
 	if len(command) == 0 {
 		return fmt.Errorf("_container-acompose needs a command after `--`")
@@ -186,7 +190,6 @@ func runContainerAcompose(ctx context.Context, cmd *cli.Command) error {
 	spec, err := prepareContainer(ctx, bootstrapOptions{
 		Role:        role,
 		Layout:      layout,
-		Density:     cmd.String("density"),
 		Delivery:    cmd.String("delivery"),
 		Workspace:   cmd.String("workspace"),
 		UID:         cmd.Int("uid"),
@@ -198,6 +201,14 @@ func runContainerAcompose(ctx context.Context, cmd *cli.Command) error {
 		return err
 	}
 	return execAs(cmd.Int("uid"), cmd.Int("gid"), spec)
+}
+
+func validateLegacyDensity(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "full" {
+		return nil
+	}
+	return fmt.Errorf("personality density %q was removed; omit --density", value)
 }
 
 func argvAfterDash(argv []string) []string {

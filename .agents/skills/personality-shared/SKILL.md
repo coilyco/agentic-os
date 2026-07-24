@@ -19,8 +19,8 @@ The author gives every full `SKILL.md` four explicit properties:
 * **Voice** - how the personality appears in communication.
 
 The author keeps each property role-neutral and positive. A body names no
-company role, model, harness, permission, or task policy. A compact `BRIEF.md`
-preserves all four properties in one short paragraph without frontmatter.
+company role, model, harness, permission, or task policy. The canonical
+`SKILL.md` body is the only personality expression source.
 
 ## Shared boundary
 

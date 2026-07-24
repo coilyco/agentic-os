@@ -10,8 +10,10 @@ aos --role engineer acompose -- codex
 ```
 
 The command after `--` is preserved exactly. Its executable selects the
-agent-compose layout unless `--layout` names one explicitly. `--role`,
-`--density`, and `--delivery` become a normal agent-compose request.
+agent-compose layout unless `--layout` names one explicitly. `--role` and
+`--delivery` become a normal agent-compose request.
+
+The container accepts and ignores legacy `--density full` from an old launcher. Brief density is removed.
 
 ## Launch contract
 
@@ -35,12 +37,10 @@ the root-owned substrate stays read-only.
 The image carries `agent-compose`, its `acompose` alias, and the AOS provider
 snapshot inside the baked AOS substrate seed. Container bootstrap:
 
-1. refreshes the shared mirrors from the image seeds without network
-2. materializes the reference checkouts
-3. composes the requested role
-4. verifies the immutable bundle
-5. projects it with `project --scope home`
-6. execs the command after `--`
+1. refreshes the shared mirrors and materializes reference checkouts
+2. composes the requested role
+3. verifies the immutable bundle
+4. projects it with `project --scope home` and execs the command after `--`
 
 `--no-substrate` omits general reference trees but still materializes the AOS
 provider required for composition. The runtime invokes no Ward command,
