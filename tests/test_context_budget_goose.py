@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+import yaml
 
 from agentic_os import context_budget_goose as goose
 
@@ -13,6 +14,22 @@ from agentic_os import context_budget_goose as goose
 def write(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
+
+
+def component_rows(snapshot: dict[str, object]) -> list[dict[str, object]]:
+    groups = snapshot["components"]
+    assert isinstance(groups, dict)
+    rows: list[dict[str, object]] = []
+    for eager, delivery_class in ((True, "eager"), (False, "lazy")):
+        kinds = groups[delivery_class]
+        assert isinstance(kinds, dict)
+        for kind, components in kinds.items():
+            assert isinstance(kind, str) and isinstance(components, list)
+            rows.extend(
+                {"kind": kind, "eager": eager, **component}
+                for component in components
+            )
+    return rows
 
 
 def provider_fixture(root: Path, *, harness: str = "goose") -> Path:
@@ -154,9 +171,7 @@ def test_agents_inventory_preserves_global_and_repo_delivery_paths(
 
     snapshot = goose.build_snapshot(bundle, provider, provider, cwd)
     components = [
-        item
-        for item in snapshot["components"]
-        if item["kind"] == "agents-cascade"
+        item for item in component_rows(snapshot) if item["kind"] == "agents-cascade"
     ]
 
     assert [item["delivery"] for item in components] == [
@@ -219,7 +234,13 @@ def test_build_snapshot_separates_eager_and_lazy_components(tmp_path: Path) -> N
         "server_count": 2,
         "eager_schema_count": 0,
     }
-    components = {item["id"]: item for item in first["components"]}
+    groups = first["components"]
+    assert isinstance(groups, dict)
+    assert list(groups) == ["eager", "lazy"]
+    for kinds in groups.values():
+        assert isinstance(kinds, dict)
+        assert list(kinds) == sorted(kinds)
+    components = {item["id"]: item for item in component_rows(first)}
     assert components["instructions:goose"]["delivery"] == ".config/goose/.goosehints"
     assert components["agents:000:AGENTS.md"]["eager"] is True
     assert components["agents:001:nested/AGENTS.md"]["eager"] is True
@@ -257,8 +278,10 @@ def test_snapshot_round_trip_and_delta(tmp_path: Path) -> None:
     bundle = bundle_fixture(tmp_path)
     repo, cwd = repo_fixture(tmp_path)
     before = goose.build_snapshot(bundle, provider, repo, cwd)
-    snapshot_path = tmp_path / "before.json"
+    snapshot_path = tmp_path / "before.yaml"
     goose.write_snapshot(snapshot_path, before)
+    serialized = yaml.safe_load(snapshot_path.read_text(encoding="utf-8"))
+    assert list(serialized["components"]) == ["eager", "lazy"]
 
     write(repo / "nested" / "AGENTS.md", "# Nested instructions\n" + "More context.\n" * 5)
     after = goose.build_snapshot(bundle, provider, repo, cwd)
@@ -270,6 +293,24 @@ def test_snapshot_round_trip_and_delta(tmp_path: Path) -> None:
     assert int(after["totals"]["eager"]["tokens"]) > int(
         before["totals"]["eager"]["tokens"]
     )
+
+
+def test_load_snapshot_accepts_legacy_flat_json(tmp_path: Path) -> None:
+    provider = provider_fixture(tmp_path)
+    bundle = bundle_fixture(tmp_path)
+    repo, cwd = repo_fixture(tmp_path)
+    current = goose.build_snapshot(bundle, provider, repo, cwd)
+    legacy = {
+        **current,
+        "format": goose.LEGACY_FORMAT,
+        "components": component_rows(current),
+    }
+    path = tmp_path / "before.json"
+    write(path, json.dumps(legacy))
+
+    loaded = goose.load_snapshot(path)
+
+    assert "components +0  -0  ~0" in goose.render_delta(loaded, current)
 
 
 def test_plugin_skill_collision_fails_closed(tmp_path: Path) -> None:

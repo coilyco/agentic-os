@@ -9,9 +9,11 @@ import subprocess
 import tempfile
 import urllib.parse
 from collections import defaultdict
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+
+import yaml
 
 from agentic_os.agents_context_inventory import (
     InventoryError,
@@ -23,7 +25,8 @@ from agentic_os.agents_context_inventory import (
 from agentic_os.context_budget_tokens import TOKENIZER_NOTE, count_tokens
 from agentic_os.generators.generate_agent_compose import _split_frontmatter
 
-FORMAT = "agentic-os.goose-context.v1"
+FORMAT = "agentic-os.goose-context.v2"
+LEGACY_FORMAT = "agentic-os.goose-context.v1"
 HARNESS = "goose"
 ROLE = "ops"
 INTENT = "operational-decision"
@@ -48,9 +51,15 @@ class Component:
     sha256: str
 
     def document(self) -> dict[str, object]:
-        raw = asdict(self)
-        raw["bytes"] = raw.pop("byte_count")
-        return raw
+        return {
+            "id": self.id,
+            "owner": self.owner,
+            "source": self.source,
+            "delivery": self.delivery,
+            "bytes": self.byte_count,
+            "tokens": self.tokens,
+            "sha256": self.sha256,
+        }
 
 
 def _component(
@@ -420,6 +429,24 @@ def _totals(components: list[Component], eager: bool) -> dict[str, int]:
     }
 
 
+def _group_components(
+    components: list[Component],
+) -> dict[str, dict[str, list[dict[str, object]]]]:
+    """Group stable component rows by delivery class, then component kind."""
+    grouped: dict[str, dict[str, list[dict[str, object]]]] = {}
+    for eager, delivery_class in ((True, "eager"), (False, "lazy")):
+        kinds = sorted({component.kind for component in components if component.eager is eager})
+        grouped[delivery_class] = {
+            kind: [
+                component.document()
+                for component in components
+                if component.eager is eager and component.kind == kind
+            ]
+            for kind in kinds
+        }
+    return grouped
+
+
 def build_snapshot(
     bundle: Path,
     provider: Path,
@@ -503,7 +530,7 @@ def build_snapshot(
             "eager": _totals(components, True),
             "lazy": _totals(components, False),
         },
-        "components": [component.document() for component in components],
+        "components": _group_components(components),
     }
     canonical = json.dumps(document, sort_keys=True, separators=(",", ":")).encode()
     document["payload_hash"] = hashlib.sha256(canonical).hexdigest()
@@ -573,28 +600,76 @@ def capture_snapshot(
 
 
 def write_snapshot(path: Path, snapshot: dict[str, object]) -> None:
+    if path.suffix.lower() not in {".yaml", ".yml"}:
+        raise RuntimeError("Goose context snapshots must use a .yaml or .yml path")
+    if snapshot.get("format") != FORMAT:
+        raise RuntimeError("only the current grouped Goose snapshot format can be written")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(snapshot, indent=2) + "\n", encoding="utf-8")
+    path.write_text(
+        yaml.safe_dump(
+            snapshot,
+            allow_unicode=False,
+            default_flow_style=False,
+            sort_keys=False,
+            width=100,
+        ),
+        encoding="utf-8",
+    )
 
 
 def load_snapshot(path: Path) -> dict[str, object]:
     try:
-        document = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
         raise RuntimeError(f"read Goose context snapshot {path}: {exc}") from exc
-    if document.get("format") != FORMAT:
+    if not isinstance(document, dict):
+        raise RuntimeError(f"{path}: Goose context snapshot must be a mapping")
+    if document.get("format") not in {FORMAT, LEGACY_FORMAT}:
         raise RuntimeError(f"{path}: unsupported Goose context snapshot format")
     if document.get("lane") != {"harness": HARNESS, "role": ROLE, "intent": INTENT}:
         raise RuntimeError(f"{path}: snapshot is not the fixed Goose lane")
-    if not isinstance(document.get("components"), list):
-        raise RuntimeError(f"{path}: snapshot components must be an array")
+    components = document.get("components")
+    if document["format"] == FORMAT and not isinstance(components, dict):
+        raise RuntimeError(f"{path}: grouped snapshot components must be a mapping")
+    if document["format"] == LEGACY_FORMAT and not isinstance(components, list):
+        raise RuntimeError(f"{path}: legacy snapshot components must be an array")
+    list(_snapshot_component_rows(document))
     return document
+
+
+def _snapshot_component_rows(
+    snapshot: dict[str, object],
+) -> Iterable[dict[str, object]]:
+    components = snapshot.get("components")
+    if isinstance(components, list):
+        for raw in components:
+            if not isinstance(raw, dict):
+                raise RuntimeError("snapshot contains a malformed component")
+            yield raw
+        return
+    if not isinstance(components, dict) or set(components) != {"eager", "lazy"}:
+        raise RuntimeError("snapshot component groups must be eager and lazy")
+    for eager, delivery_class in ((True, "eager"), (False, "lazy")):
+        kinds = components[delivery_class]
+        if not isinstance(kinds, dict):
+            raise RuntimeError(f"snapshot {delivery_class} components must be grouped by kind")
+        for kind in sorted(kinds):
+            rows = kinds[kind]
+            if not isinstance(kind, str) or not isinstance(rows, list):
+                raise RuntimeError(f"snapshot {delivery_class} component group is malformed")
+            for raw in rows:
+                if not isinstance(raw, dict):
+                    raise RuntimeError("snapshot contains a malformed component")
+                row = dict(raw)
+                row["kind"] = kind
+                row["eager"] = eager
+                yield row
 
 
 def _component_kind_totals(snapshot: dict[str, object], eager: bool) -> list[tuple[str, int, int]]:
     totals: dict[str, list[int]] = defaultdict(lambda: [0, 0])
-    for raw in snapshot["components"]:  # type: ignore[index]
-        if not isinstance(raw, dict) or raw.get("eager") is not eager:
+    for raw in _snapshot_component_rows(snapshot):
+        if raw.get("eager") is not eager:
             continue
         kind = str(raw.get("kind"))
         totals[kind][0] += int(raw.get("bytes", 0))
@@ -631,8 +706,8 @@ def render_snapshot(snapshot: dict[str, object]) -> str:
 
 def _snapshot_components(snapshot: dict[str, object]) -> dict[str, dict[str, object]]:
     out: dict[str, dict[str, object]] = {}
-    for raw in snapshot["components"]:  # type: ignore[index]
-        if not isinstance(raw, dict) or not isinstance(raw.get("id"), str):
+    for raw in _snapshot_component_rows(snapshot):
+        if not isinstance(raw.get("id"), str):
             raise RuntimeError("snapshot contains a malformed component")
         out[str(raw["id"])] = raw
     return out

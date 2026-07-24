@@ -24,9 +24,10 @@ The snapshot separates:
 * **MCP schemas** - zero eager schemas. The mcporter inventory is recorded as
   deferred registrations without copying configuration or querying a server.
 
-Each component records its class, owner, stable source path, delivery path,
-eager or lazy class, bytes, token proxy, and content hash. Stable ordering and
-the absence of timestamps and absolute source locators make identical inputs
+The YAML artifact groups components first by **eager** or **lazy** delivery,
+then by component kind. Each row records its owner, stable source path,
+delivery path, bytes, token proxy, and content hash. Stable ordering and the
+absence of timestamps and absolute source locators make identical inputs
 produce the same payload hash.
 
 The shared AGENTS inventory supplies the cascade and preserves a source that
@@ -35,7 +36,7 @@ arrives through both global and repository delivery paths as two occurrences.
 The durable artifact retains only the deferred MCP count. Server names,
 configuration, endpoints, and schemas stay in the private inventory that owns
 them. The checked-in
-[pre-refactor snapshot](context-budget-goose-before.json) is the comparison
+[pre-refactor snapshot](context-budget-goose-before.yaml) is the comparison
 point.
 
 ## Capture and compare
@@ -44,15 +45,15 @@ Capture a replacement pre-refactor snapshot:
 
 ```sh
 ward exec context-budget -- --goose \
-  --snapshot docs/context-budget-goose-before.json
+  --snapshot docs/context-budget-goose-before.yaml
 ```
 
 After the refactor, render the component and total delta:
 
 ```sh
 ward exec context-budget -- --goose \
-  --compare docs/context-budget-goose-before.json \
-  --snapshot /tmp/goose-context-after.json
+  --compare docs/context-budget-goose-before.yaml \
+  --snapshot /tmp/goose-context-after.yaml
 ```
 
 `--skill-root` adds a harness or plugin skill root when the projected runtime
