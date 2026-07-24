@@ -32,10 +32,11 @@ This lists shipped capabilities, not files.
 - [dev-base images](dev-base-image.md) - language specialists with shared agent and operational tools, release aliases, and resumable publishing.
 - [CI parity in dev-base](ci-in-dev-base.md) - CI runs inside the pinned dev-base image.
 - [Pull-request CI gate](ci-in-dev-base.md) - the live `ci` workflow that runs `pytest` on pull requests.
-- [Managed AGENTS.md pointer block](features-agents-pointer.md) - generated workspace pointer block for sibling repos.
+- [AGENTS pointer](features-agents-pointer.md) - generated sibling-repo workspace pointer.
 - [Encoded leak guard](leak-guard.md) - hex-encoded leak-term detector.
-- [Context-budget report](context-budget.md) - eager startup budget measurement per harness.
-- [Mount-eligibility manifest](mount-eligibility-manifest.md) - per-harness repo mount list for this host.
+- [Context budget](context-budget.md) - eager startup cost per harness.
+- [AGENTS inventory](agents-context-inventory.md) - fleet corpus and cascades.
+- [Mount eligibility](mount-eligibility-manifest.md) - per-harness repository allowlist.
 - Ward-ops references - [Forgejo](ward-ops-forgejo-reference.md) and [AWS](ward-ops-aws-reference.md) command renders.
 - [Catalog caps reference](catalog-caps-reference.md) - generated numeric caps for validators.
 - [Tool-failure shipper](tool-failures-shipper.md) - batches ward tool failures for GlitchTip.
