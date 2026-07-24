@@ -66,6 +66,7 @@ into a consumer repository for runtime configuration.
 
 * Fleet rollout belongs in infrastructure/ansible.
 * A repository-owned shared runtime image is intentionally absent.
+* Infrastructure owns private-network startup, authentication, and sockets. AOS composes role-scoped client access.
 * Standalone `ops` and `agent` images are intentionally absent.
 
 ## See also

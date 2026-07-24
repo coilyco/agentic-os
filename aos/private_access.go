@@ -17,6 +17,15 @@ type privateAccessConfig struct {
 	Proxy   string
 }
 
+var privateProxyEnvironmentNames = []string{
+	"ALL_PROXY",
+	"all_proxy",
+	"HTTP_PROXY",
+	"http_proxy",
+	"HTTPS_PROXY",
+	"https_proxy",
+}
+
 func privateAccessForRole(role string) (*privateAccessConfig, error) {
 	if role != "advisor" && role != "director" {
 		return nil, nil
@@ -39,12 +48,13 @@ func privateAccessForRole(role string) (*privateAccessConfig, error) {
 }
 
 func (config privateAccessConfig) environment() []string {
-	return []string{
-		"ALL_PROXY=" + config.Proxy,
-		"all_proxy=" + config.Proxy,
-		"HTTP_PROXY=" + config.Proxy,
-		"http_proxy=" + config.Proxy,
-		"HTTPS_PROXY=" + config.Proxy,
-		"https_proxy=" + config.Proxy,
+	environment := make([]string, 0, len(privateProxyEnvironmentNames))
+	for _, name := range privateProxyEnvironmentNames {
+		environment = append(environment, name+"="+config.Proxy)
 	}
+	return environment
+}
+
+func (config privateAccessConfig) environmentNames() []string {
+	return append([]string(nil), privateProxyEnvironmentNames...)
 }

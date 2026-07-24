@@ -9,6 +9,10 @@ access. AOS requires the operator-local `AOS_PRIVATE_NETWORK` and
 container to the former and exports the latter as `ALL_PROXY`, `HTTP_PROXY`,
 and `HTTPS_PROXY`, including lowercase variants.
 
+AOS passes only those environment names on Docker's command line. AOS supplies
+their values through the Docker client process environment, so `--dry-run` does
+not render the private proxy value.
+
 The proxy must use the `socks5h` scheme. That hands private hostname lookup to
 the proxy, rather than requiring the container's ordinary DNS resolver to know
 the private name.

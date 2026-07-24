@@ -49,8 +49,9 @@ type launchOptions struct {
 }
 
 type launchPlan struct {
-	DockerArgs []string
-	Workspace  string
+	DockerArgs        []string
+	DockerEnvironment []string
+	Workspace         string
 }
 
 func resolveLayout(explicit, command string) (string, error) {
@@ -115,8 +116,8 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 	}
 	if opts.PrivateAccess != nil {
 		args = append(args, "--network", opts.PrivateAccess.Network)
-		for _, environment := range opts.PrivateAccess.environment() {
-			args = append(args, "--env", environment)
+		for _, name := range opts.PrivateAccess.environmentNames() {
+			args = append(args, "--env", name)
 		}
 	}
 	for _, mount := range opts.AuthMounts {
@@ -142,7 +143,11 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 		"--",
 	)
 	args = append(args, opts.Command...)
-	return launchPlan{DockerArgs: args, Workspace: workspace}, nil
+	plan := launchPlan{DockerArgs: args, Workspace: workspace}
+	if opts.PrivateAccess != nil {
+		plan.DockerEnvironment = opts.PrivateAccess.environment()
+	}
+	return plan, nil
 }
 
 func discoverAuthMounts(layout string) []authMount {
@@ -188,8 +193,9 @@ func forwardedEnvironment() []string {
 	return present
 }
 
-func runDocker(ctx context.Context, args []string) error {
+func runDocker(ctx context.Context, args, environment []string) error {
 	command := exec.CommandContext(ctx, "docker", args...)
+	command.Env = mergeEnvironment(os.Environ(), environment)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
@@ -197,6 +203,25 @@ func runDocker(ctx context.Context, args []string) error {
 		return fmt.Errorf("docker %s: %w", args[0], err)
 	}
 	return nil
+}
+
+func mergeEnvironment(base, overrides []string) []string {
+	if len(overrides) == 0 {
+		return base
+	}
+	overrideNames := make(map[string]struct{}, len(overrides))
+	for _, entry := range overrides {
+		name, _, _ := strings.Cut(entry, "=")
+		overrideNames[strings.ToUpper(name)] = struct{}{}
+	}
+	merged := make([]string, 0, len(base)+len(overrides))
+	for _, entry := range base {
+		name, _, _ := strings.Cut(entry, "=")
+		if _, overridden := overrideNames[strings.ToUpper(name)]; !overridden {
+			merged = append(merged, entry)
+		}
+	}
+	return append(merged, overrides...)
 }
 
 func isTerminal(reader io.Reader) bool {

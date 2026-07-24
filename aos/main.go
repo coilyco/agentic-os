@@ -164,7 +164,7 @@ func runAcompose(ctx context.Context, cmd *cli.Command) error {
 		fmt.Fprintln(cmd.Root().Writer, shellJoin(append([]string{"docker"}, plan.DockerArgs...)))
 		return nil
 	}
-	return runDocker(ctx, plan.DockerArgs)
+	return runDocker(ctx, plan.DockerArgs, plan.DockerEnvironment)
 }
 
 func runContainerAcompose(ctx context.Context, cmd *cli.Command) error {

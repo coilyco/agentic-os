@@ -12,7 +12,7 @@ This lists shipped capabilities, not files.
 - [Agents and sessions](features-agents-sessions.md) - self-name, session pulse, status line, and harness policy.
 - [Agent-compose personalities](personality-provider.md) - 16 full/brief bodies plus role alignment.
 - [Role-composed skills](role-composed-skills.md) - deep, role-gated knowledge.
-- [AOS launcher](aos-cli.md) - released Go containers and embedded defaults.
+- [AOS launcher](aos-cli.md) - containers plus [private live observation](aos-private-network.md).
 - [aguard](aguard.md) - guarded-ops CLI.
 - [Code review skill](../.agents/skills/tooling-code-review/SKILL.md) - in-container review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
