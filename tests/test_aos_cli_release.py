@@ -28,6 +28,12 @@ def artifact_name(target: str) -> str:
     return f"aos-{goos}-{goarch}{suffix}"
 
 
+def aguard_artifact_name(target: str) -> str:
+    goos, goarch = target.split("/")
+    suffix = ".exe" if goos == "windows" else ""
+    return f"aguard-{goos}-{goarch}{suffix}"
+
+
 def test_release_target_manifest_is_safe_and_unique() -> None:
     targets = release_targets()
 
@@ -42,6 +48,8 @@ def test_packaging_covers_every_release_binary(tmp_path: Path) -> None:
     for target in release_targets():
         name = artifact_name(target)
         (tmp_path / name).write_bytes(f"fixture:{target}".encode())
+        aguard_name = aguard_artifact_name(target)
+        (tmp_path / aguard_name).write_bytes(f"aguard:{target}".encode())
 
     version = "aos-v1.2.3"
     env = os.environ | {
@@ -61,9 +69,15 @@ def test_packaging_covers_every_release_binary(tmp_path: Path) -> None:
     for target in release_targets():
         digest = hashlib.sha256((tmp_path / artifact_name(target)).read_bytes()).hexdigest()
         assert digest in rendered
+        aguard_digest = hashlib.sha256(
+            (tmp_path / aguard_artifact_name(target)).read_bytes()
+        ).hexdigest()
+        assert aguard_digest in rendered
 
     assert manifest["version"] == version.removeprefix("aos-v")
     assert f"/releases/download/{version}/" in rendered
+    assert "aguard-windows-amd64.exe" in manifest["architecture"]["64bit"]["bin"][1][0]
+    assert "resource(\"aguard\")" in formula
 
 
 def test_release_workflow_derives_assets_from_dist() -> None:
@@ -79,6 +93,12 @@ def test_release_workflow_derives_assets_from_dist() -> None:
 
     assert "for asset in dist/*" in workflow_script
     assert "release-targets.txt" in builder
+    assert "build_aguard" in builder
+    assert "specverb.lock" in builder
+    assert "aguard-*" in builder
     assert "scripts/ci/aos-cli-release.sh" in workflow
     assert "ward exec aos-release-build" in workflow_script
     assert "ward exec aos-release-package" in workflow_script
+    assert "ops actions runs --help" in (ROOT / "scripts" / "check-aos-release.sh").read_text(
+        encoding="utf-8"
+    )

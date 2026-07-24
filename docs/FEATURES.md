@@ -13,7 +13,7 @@ This lists shipped capabilities, not files.
 - [Agent-compose provider](personality-provider.md) - ordinary and role-composed skills with per-skill low-context policy, the public harness capability registry, and measurement alignment.
 - [Role-composed skills](role-composed-skills.md) - role-gated specialist and coding knowledge.
 - [AOS launcher](aos-cli.md) - released Go containers and embedded defaults, including [agent-specific composed-role check-ins](aos-acompose-checkin.md).
-- [aguard](aguard.md) - canonical guarded operator CLI in the full image.
+- [aguard](aguard.md) - canonical guarded operator CLI in the full image and paired native AOS releases.
 - [Code review skill](../.agents/composed/tooling-code-review/COMPOSED.md) - QA-only in-container review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
 - [Harness selection](harness-selection.md) - 10-role agent-compose and AOS board.

@@ -67,3 +67,20 @@ def test_aguard_dependency_lock_is_committed() -> None:
     lock = json.loads((PROJECT / "specverb.lock").read_text(encoding="utf-8"))
     assert lock["cliGuard"].startswith("v")
     assert not list(SOURCE.glob("*.md"))
+
+
+def test_native_release_wrapper_embeds_the_actions_bridge() -> None:
+    wrapper = ROOT / "aguard-release" / "main.go"
+    text = wrapper.read_text(encoding="utf-8")
+
+    assert "//go:embed payload/aguard payload/agentic_os/*" in text
+    assert "PYTHONPATH=" in text
+    build = (ROOT / "scripts" / "aos-release-build.sh").read_text(encoding="utf-8")
+    assert "gzip -dc" in build
+    for module in (
+        "forgejo_actions_list.py",
+        "forgejo_actions_logs.py",
+        "forgejo_actions_rerun.py",
+        "forgejo_actions_web.py",
+    ):
+        assert f'"$repo_root/agentic_os/{module}"' in build
