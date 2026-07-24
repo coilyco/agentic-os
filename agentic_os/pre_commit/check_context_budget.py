@@ -53,8 +53,8 @@ Usage:
     check-context-budget                  # report every harness vs its budget
     check-context-budget --check          # exit 1 if any harness is over budget
     check-context-budget --claude-budget 12000
-    check-context-budget --goose --snapshot before.json
-    check-context-budget --goose --compare before.json --snapshot after.json
+    check-context-budget --goose --snapshot before.yaml
+    check-context-budget --goose --compare before.yaml --snapshot after.yaml
 """
 from __future__ import annotations
 
@@ -481,7 +481,7 @@ def main() -> int:
     parser.add_argument(
         "--snapshot",
         type=Path,
-        help="write the deterministic --goose JSON snapshot to this path",
+        help="write the deterministic grouped --goose YAML snapshot to this path",
     )
     parser.add_argument(
         "--compare",
