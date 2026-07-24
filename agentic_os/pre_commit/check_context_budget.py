@@ -53,6 +53,8 @@ Usage:
     check-context-budget                  # report every harness vs its budget
     check-context-budget --check          # exit 1 if any harness is over budget
     check-context-budget --claude-budget 12000
+    check-context-budget --goose --snapshot before.json
+    check-context-budget --goose --compare before.json --snapshot after.json
 """
 from __future__ import annotations
 
@@ -64,6 +66,10 @@ from pathlib import Path
 from typing import Iterable, NamedTuple
 
 from agentic_os.config import iter_workspace_repos
+from agentic_os.context_budget_tokens import (
+    TOKENIZER_NOTE,
+    count_tokens,
+)
 from agentic_os.generators.generate_agent_compose import (
     COMPOSED_PATH,
     CONFIG_PATH,
@@ -78,11 +84,6 @@ from agentic_os.generators.generate_agent_compose import (
     _normalize_scopes,
 )
 
-# v1 proxy: chars/4, deterministic and hermetic; the single swap point for a real
-# qwen tokenizer later. Consistent across harnesses (see docs/context-budget.md).
-CHARS_PER_TOKEN = 4
-TOKENIZER_NOTE = "tokens = chars/4 proxy (v1; swap for the qwen tokenizer later)"
-
 # Whole-baseline (doc + skills) budgets, not laws. Tune via agent-compose.yaml
 # `budgets:` / CLI flags; per-harness rationale in docs/context-budget.md.
 DEFAULT_BUDGETS = {"claude": 13_000, "codex": 6_000, "opencode": 5_000}
@@ -94,12 +95,6 @@ DEFAULT_SKILL_ROOTS = {
     "codex": ["~/.codex/skills", ".codex/skills"],
     "opencode": ["~/.agents/skills", ".agents/skills"],
 }
-
-
-def count_tokens(text: str) -> int:
-    """Estimate tokens for text. v1: deterministic chars/4 (ceil)."""
-    return -(-len(text) // CHARS_PER_TOKEN)
-
 
 class TierWalk(NamedTuple):
     """One clone's measured init-load context: file count, bytes, token proxy.
@@ -461,6 +456,51 @@ def run(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Report per-harness eager context budget.")
     parser.add_argument(
+        "--goose",
+        action="store_true",
+        help="capture the fixed ops/operational-decision Goose structural baseline",
+    )
+    parser.add_argument(
+        "--provider",
+        type=Path,
+        default=Path(__file__).resolve().parents[2],
+        help="AOS provider root for --goose (defaults to this checkout)",
+    )
+    parser.add_argument(
+        "--repo",
+        type=Path,
+        default=Path(__file__).resolve().parents[2],
+        help="repository root whose AGENTS.md cascade --goose measures",
+    )
+    parser.add_argument(
+        "--cwd",
+        type=Path,
+        default=Path(__file__).resolve().parents[2],
+        help="CWD inside --repo for the --goose cascade",
+    )
+    parser.add_argument(
+        "--snapshot",
+        type=Path,
+        help="write the deterministic --goose JSON snapshot to this path",
+    )
+    parser.add_argument(
+        "--compare",
+        type=Path,
+        help="compare --goose against a prior snapshot",
+    )
+    parser.add_argument(
+        "--skill-root",
+        type=Path,
+        action="append",
+        default=[],
+        help="extra Goose/plugin skill root to include; repeatable",
+    )
+    parser.add_argument(
+        "--agent-compose",
+        default="agent-compose",
+        help="agent-compose executable used to materialize the local Goose bundle",
+    )
+    parser.add_argument(
         "--check",
         action="store_true",
         help="exit 1 if any harness is over budget (for CI), instead of just printing",
@@ -493,6 +533,36 @@ def main() -> int:
             f"--{harness}-budget", type=int, default=None, help=f"override the {harness} token budget"
         )
     args = parser.parse_args()
+    if args.goose:
+        from agentic_os.context_budget_goose import (
+            capture_snapshot,
+            load_snapshot,
+            render_delta,
+            render_snapshot,
+            write_snapshot,
+        )
+
+        try:
+            snapshot = capture_snapshot(
+                args.provider,
+                args.repo,
+                args.cwd,
+                agent_compose=args.agent_compose,
+                plugin_roots=args.skill_root,
+                mcporter_path=args.mcporter,
+            )
+            print(render_snapshot(snapshot))
+            if args.compare:
+                print()
+                print(render_delta(load_snapshot(args.compare), snapshot))
+            if args.snapshot:
+                write_snapshot(args.snapshot, snapshot)
+                print(f"\nsnapshot: {args.snapshot}")
+            return 0
+        except RuntimeError as exc:
+            sys.stderr.write(f"context-budget: {exc}\n")
+            return 1
+
     cli_budgets = {
         harness: getattr(args, f"{harness}_budget")
         for harness in DEFAULT_BUDGETS

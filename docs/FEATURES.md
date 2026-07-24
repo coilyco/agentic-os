@@ -33,7 +33,7 @@ This lists shipped capabilities, not files.
 - [Pull-request CI gate](ci-in-dev-base.md) - the live `ci` workflow that runs `pytest` on pull requests.
 - [Managed AGENTS.md pointer block](features-agents-pointer.md) - generated workspace pointer block for sibling repos.
 - [Encoded leak guard](leak-guard.md) - hex-encoded leak-term detector.
-- [Context-budget report](context-budget.md) - eager startup budget measurement per harness.
+- [Context-budget report](context-budget.md) - eager budgets and a fixed Goose refactor snapshot.
 - [Mount-eligibility manifest](mount-eligibility-manifest.md) - per-harness repo mount list for this host.
 - Ward-ops references - [Forgejo](ward-ops-forgejo-reference.md) and [AWS](ward-ops-aws-reference.md) command renders.
 - [Catalog caps reference](catalog-caps-reference.md) - generated numeric caps for validators.
