@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import json
 import re
 from pathlib import Path
@@ -46,6 +47,15 @@ def test_aguard_companion_scripts_are_tracked_and_executable() -> None:
 def test_aguard_vendored_forgejo_contract_is_json() -> None:
     vendored = SOURCE / "forgejo.swagger.v1.json"
     assert json.loads(vendored.read_text(encoding="utf-8"))
+
+
+def test_aguard_forgejo_lock_is_encoded_json() -> None:
+    encoded = SOURCE / "forgejo.swagger.lock.json.gz"
+    legacy = SOURCE / "forgejo.swagger.lock.json"
+
+    assert encoded.is_file()
+    assert not legacy.exists()
+    assert json.loads(gzip.decompress(encoded.read_bytes()))
 
 
 def test_aguard_dependency_lock_is_committed() -> None:

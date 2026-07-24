@@ -27,9 +27,11 @@ Moving a policy change between them is a deliberate review event.
 
 The Forgejo source is vendored from the pruned deployment contract, so
 `aguard-lock` refreshes the dependency graph without reaching a live Forgejo
-edge. The resulting `specverb.lock` pins cli-guard for reproducible builds.
-The lock wrapper removes specgen's reproducible per-member reference renders
-because AOS keeps maintained documentation under `docs/`.
+edge. The source Swagger remains plain JSON for review, while its generated API
+lock is deterministic gzip at `forgejo.swagger.lock.json.gz`. Specgen decodes
+that lock before use. The resulting `specverb.lock` pins cli-guard for
+reproducible builds. The lock wrapper removes specgen's reproducible per-member
+reference renders because AOS keeps maintained documentation under `docs/`.
 
 ## Development
 
