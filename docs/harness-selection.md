@@ -55,7 +55,8 @@ aos --role engineer acompose -- codex
 
 AOSH owns the hand-selected `roles.yaml`, `agent-selections.yaml`, and `harnesses.yaml`.
 AOS owns the generated `intent` children inside each canonical role in
-[`.ward/roles.kdl`](../.ward/roles.kdl), the committed Ward-profile projection.
+[`.agents/roles.kdl`](../.agents/roles.kdl), the committed agent-compose
+provider projection. Ward never parses these composition routes.
 
 The sync also writes [`role-harnesses.json`](../aos/role-harnesses.json) as the
 compiled view embedded by the standalone `aos` binary. The JSON does not become
@@ -68,9 +69,9 @@ pre-commit performs the same check when the sibling AOSH checkout exists.
 Public checkouts without that sibling report a visible skip.
 
 Malformed or incomplete present sources fail closed. Each generated KDL region
-is marker-bounded so the sync preserves hand-owned guardfiles and agent
-overlays. The KDL carries role, intent, and harness identity. The JSON adds
-schema counts and role-source provenance. Neither copies backend routing data.
+is marker-bounded so the sync preserves hand-owned composed-skill bindings.
+The KDL carries role, intent, and harness identity. The JSON adds schema counts
+and role-source provenance. Neither copies backend routing data.
 
 ## See also
 

@@ -10,6 +10,13 @@ ROOT = Path(__file__).resolve().parent.parent
 PUBLISH = ROOT / ".forgejo" / "workflows" / "dev-base-publish.yml"
 RELEASE = ROOT / ".forgejo" / "workflows" / "release.yml"
 PUBLISH_TIER = ROOT / "actions" / "publish-dev-base-tier" / "action.yml"
+VERIFY_RUST = (
+    ROOT
+    / "actions"
+    / "publish-dev-base-tier"
+    / "scripts"
+    / "verify-rust.sh"
+)
 
 
 def _assert_alert_steps_are_non_blocking(text: str) -> None:
@@ -37,8 +44,10 @@ def test_dev_base_publish_workflows_support_tier_reruns_and_non_blocking_alerts(
         "continue-on-error: true",
     ):
         assert needle in publish
-    assert "Publish core image" in publish
-    assert "scripts/dev-base-build.py" in publish
+    assert publish.count("uses: ./actions/publish-dev-base-tier") == len(
+        PUBLISHED_TIER_NAMES
+    )
+    assert "tier: core" in publish
     assert "Probe core buildcache write" not in publish
 
     for needle in (
@@ -80,16 +89,18 @@ def test_dev_base_image_builds_use_the_dedicated_runner() -> None:
 
 def test_lang_rust_publish_verifies_native_wayland_and_xkb_development_surface() -> None:
     action = PUBLISH_TIER.read_text(encoding="utf-8")
+    script = VERIFY_RUST.read_text(encoding="utf-8")
 
     assert "Verify lang-rust native development surface on both architectures" in action
     assert "if: ${{ inputs.tier == 'lang-rust' }}" in action
-    assert "linux/amd64 linux/arm64" in action
-    assert "--entrypoint bash" in action
-    assert "libasound2-dev" in action
-    assert "libudev-dev" in action
-    assert "libwayland-dev" in action
-    assert "libxkbcommon-dev" in action
-    assert "pkg-config" in action
-    assert "rustup target list --installed" in action
-    assert "pkg-config --exists wayland-client xkbcommon" in action
-    assert "cc /tmp/bevy-native-smoke.c" in action
+    assert "scripts/verify-rust.sh" in action
+    assert "linux/amd64 linux/arm64" in script
+    assert "--entrypoint bash" in script
+    assert "libasound2-dev" in script
+    assert "libudev-dev" in script
+    assert "libwayland-dev" in script
+    assert "libxkbcommon-dev" in script
+    assert "pkg-config" in script
+    assert "rustup target list --installed" in script
+    assert "pkg-config --exists wayland-client xkbcommon" in script
+    assert "cc /tmp/bevy-native-smoke.c" in script

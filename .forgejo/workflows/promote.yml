@@ -29,9 +29,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install validated ward for repo gate
-        run: |
-          set -euo pipefail
-          scripts/install-workflow-ward.sh "${WARD_WORKFLOW_VERSION}"
+        run: scripts/install-workflow-ward.sh "${WARD_WORKFLOW_VERSION}"
 
       - name: Cache pre-commit envs
         uses: actions/cache@v4
@@ -42,12 +40,7 @@ jobs:
             pre-commit-${{ runner.os }}-
 
       - name: Repo test gate
-        run: |
-          set -euo pipefail
-          uv run pytest
-          # Same surface release.yml fronts: without this, a pre-commit
-          # violation passes the gate and reddens main.
-          pre-commit run --all-files
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/repo-test-gate.sh"
 
       - name: Alert Telegram on main failure
         if: ${{ failure() && github.ref == 'refs/heads/main' }}
@@ -72,16 +65,7 @@ jobs:
           PROMOTE_TOKEN: ${{ secrets.CI_RELEASE_TOKEN }}
           REPO: ${{ github.repository }}
           SERVER: ${{ github.server_url }}
-        run: |
-          set -euo pipefail
-          if [ -z "${PROMOTE_TOKEN:-}" ]; then
-            echo "::error::CI_RELEASE_TOKEN not set. Promotion needs a real-user PAT for the final release branch fast-forward. Mint from SSM /forgejo/ci-release-token (docs/release.md)." >&2
-            exit 1
-          fi
-          proto="${SERVER%%://*}"
-          host="${SERVER#*://}"
-          git push "${proto}://oauth2:${PROMOTE_TOKEN}@${host}/${REPO}.git" HEAD:release
-          echo "promoted $(git rev-parse --short HEAD) to release"
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/promote-release.sh"
 
       - name: Alert Telegram on main failure
         if: ${{ failure() && github.ref == 'refs/heads/main' }}

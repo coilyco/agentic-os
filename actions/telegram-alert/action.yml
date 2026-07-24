@@ -59,6 +59,4 @@ runs:
         RUN_URL: ${{ inputs.run-url }}
         API_BASE: ${{ inputs.api-base }}
         DRY_RUN: ${{ inputs.dry-run }}
-      run: |
-        set -euo pipefail
-        python3 "${GITHUB_ACTION_PATH}/telegram_alert.py"
+      run: python3 "${GITHUB_ACTION_PATH}/telegram_alert.py"

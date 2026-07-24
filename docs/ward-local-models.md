@@ -10,7 +10,8 @@ config upward from AOSH.
 AOSH's hand-owned `roles.yaml`, `agent-selections.yaml`, and `harnesses.yaml`
 define the model-opaque board. `ward exec sync-harness-board` validates all ten
 roles and sixteen lanes, then rewrites generated `intent` children inside the
-canonical roles in [`roles.kdl`](../.ward/roles.kdl). The same run updates
+agent-compose provider roles in [`.agents/roles.kdl`](../.agents/roles.kdl).
+The same run updates
 [`role-harnesses.json`](../aos/role-harnesses.json) as the compiled launcher
 view.
 
@@ -19,6 +20,8 @@ role-intent-harness assignments. Backend model, server, score, fallback,
 hardware, orchestrator, and selection rationale do not cross the boundary.
 
 The released `aos` binary embeds the compiled JSON view.
+Ward's [`.ward/roles.kdl`](../.ward/roles.kdl) remains execution-only and does
+not consume role-intent harness routes.
 `aos --role ROLE harness-default --intent INTENT` resolves a lane and emits only
 the harness slug. Role remains control-plane provenance and never becomes a
 harness argument.

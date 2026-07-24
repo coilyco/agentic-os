@@ -20,7 +20,7 @@ jobs:
   gate:
     runs-on: docker
     # Pinned dev-base: the same image agents run in. Bump deliberately, never the moving :release alias.
-    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:v0.245.0
+    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:v0.255.0
     steps:
       - uses: actions/checkout@v6
 

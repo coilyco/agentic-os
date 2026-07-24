@@ -2,32 +2,100 @@ roles {
     role engineer {
         composed-skill coding-shape-cli
         composed-skill coding-shape-web-server
+        // BEGIN generated role-intent harness routes
+        intent autonomous-coding {
+            harness openhands
+        }
+        // END generated role-intent harness routes
     }
     role director {
         composed-skill tooling-director-decision-architecture
+        // BEGIN generated role-intent harness routes
+        intent strategic-planning {
+            harness plandex
+        }
+        // END generated role-intent harness routes
     }
     role qa {
         composed-skill tooling-qa-adversarial-verification
+        // BEGIN generated role-intent harness routes
+        intent code-review {
+            harness aider
+        }
+        // END generated role-intent harness routes
     }
     role advisor {
         composed-skill tooling-advisor-evidence-synthesis
+        // BEGIN generated role-intent harness routes
+        intent research-synthesis {
+            harness hermes
+        }
+        // END generated role-intent harness routes
     }
     role ops {
         composed-skill tooling-ops-live-remediation
+        // BEGIN generated role-intent harness routes
+        intent ops-investigation {
+            harness holmesgpt
+        }
+        intent operational-decision {
+            harness goose
+        }
+        // END generated role-intent harness routes
     }
     role pm {
         composed-skill tooling-pm-program-decomposition
+        // BEGIN generated role-intent harness routes
+        intent strategic-planning {
+            harness hermes
+        }
+        intent project-coordination {
+            harness plane
+        }
+        // END generated role-intent harness routes
     }
     role designer {
         composed-skill tooling-designer-interaction-shaping
+        // BEGIN generated role-intent harness routes
+        intent product-shaping {
+            harness penpot
+        }
+        intent design-production {
+            harness aosx
+        }
+        // END generated role-intent harness routes
     }
     role social {
         composed-skill writing-social-editorial-loop
+        // BEGIN generated role-intent harness routes
+        intent message-composition {
+            harness mixpost
+        }
+        intent channel-publishing {
+            harness elizaos
+        }
+        // END generated role-intent harness routes
     }
     role sales {
         composed-skill tooling-sales-discovery
+        // BEGIN generated role-intent harness routes
+        intent research-synthesis {
+            harness hermes
+        }
+        intent conversation-management {
+            harness elizaos
+        }
+        // END generated role-intent harness routes
     }
     role customer-success {
         composed-skill tooling-customer-success-signal-routing
+        // BEGIN generated role-intent harness routes
+        intent knowledge-retrieval {
+            harness rasa
+        }
+        intent conversation-management {
+            harness rasa
+        }
+        // END generated role-intent harness routes
     }
 }

@@ -63,86 +63,23 @@ runs:
       shell: bash
       env:
         UV_VERSION: ${{ inputs.uv-version }}
-      run: |
-        set -euo pipefail
-        # The publish jobs still run on the bare docker runner, so uv stays
-        # job-local here even though the image family itself also ships it.
-        curl --retry 5 --retry-all-errors --retry-delay 2 -LsSf \
-          "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
-        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-        export PATH="$HOME/.local/bin:$PATH"
-        uv --version
+      run: bash "${GITHUB_ACTION_PATH}/scripts/install-uv.sh"
 
     - name: Install docker CLI + buildx plugin
       shell: bash
       env:
         BUILDX_VERSION: ${{ inputs.buildx-version }}
-      run: |
-        set -euo pipefail
-        # Keep the buildx bootstrap here. dev-base does not yet carry a safe
-        # Docker daemon/buildx stack for the publish jobs.
-        docker_cli_ver=$(curl -fsSL https://download.docker.com/linux/static/stable/x86_64/ \
-          | grep -oE 'docker-[0-9]+\.[0-9]+\.[0-9]+\.tgz' | sort -V | tail -1 \
-          | sed -E 's/^docker-(.*)\.tgz$/\1/')
-        curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${docker_cli_ver}.tgz" \
-          | tar -xz -C /tmp
-        install /tmp/docker/docker /usr/local/bin/docker
-        mkdir -p ~/.docker/cli-plugins
-        curl -fsSL "https://github.com/docker/buildx/releases/download/${BUILDX_VERSION}/buildx-${BUILDX_VERSION}.linux-amd64" \
-          -o ~/.docker/cli-plugins/docker-buildx
-        chmod +x ~/.docker/cli-plugins/docker-buildx
-        docker buildx version
-        docker --version
+      run: bash "${GITHUB_ACTION_PATH}/scripts/install-docker.sh"
 
     - name: Resolve docker host
       shell: bash
-      run: |
-        set -euo pipefail
-        gw=$(node -e "const fs=require('fs');const l=(fs.readFileSync('/proc/net/route','utf8').split('\n').find(x=>x.split('\t')[1]==='00000000'))||'';const h=l.split(/\s+/)[2]||'';if(h){console.log(h.match(/../g).reverse().map(x=>parseInt(x,16)).join('.'))}" || true)
-        for h in "tcp://${gw}:2375" "${DOCKER_HOST:-}" tcp://localhost:2375 unix:///var/run/docker.sock; do
-          [ -z "$h" ] && continue
-          [ "$h" = "tcp://:2375" ] && continue
-          if docker -H "$h" info >/dev/null 2>&1; then
-            echo "docker daemon reachable at $h"
-            echo "DOCKER_HOST=$h" >> "$GITHUB_ENV"
-            echo "selected DOCKER_HOST=$h"
-            docker -H "$h" version
-            exit 0
-          fi
-          echo "no docker daemon at $h"
-        done
-        echo "no reachable docker daemon" >&2
-        exit 1
+      run: bash "${GITHUB_ACTION_PATH}/scripts/resolve-docker-host.sh"
 
     - name: Registry login
       shell: bash
       env:
         REGISTRY_TOKEN: ${{ inputs.registry-token }}
-      run: |
-        set -euo pipefail
-        retry() {
-          local attempts="$1"
-          shift
-          local delay=2
-          local n=1
-          while true; do
-            if "$@"; then
-              return 0
-            fi
-            if [ "$n" -ge "$attempts" ]; then
-              return 1
-            fi
-            echo "registry login failed, retrying in ${delay}s" >&2
-            sleep "$delay"
-            n=$((n + 1))
-            delay=$((delay * 2))
-          done
-        }
-        if [ -z "${REGISTRY_TOKEN:-}" ]; then
-          echo "::error::REGISTRY_TOKEN not set. Mint a forgejo PAT with write:package and add it as an Actions secret. See docs/dev-base-image.md." >&2
-          exit 1
-        fi
-        retry 4 sh -c 'printf "%s" "$REGISTRY_TOKEN" | docker login forgejo.coilysiren.me -u coilyco-ops --password-stdin'
+      run: bash "${GITHUB_ACTION_PATH}/scripts/registry-login.sh"
 
     - name: Check whether the tier already landed
       id: checkpoint
@@ -155,63 +92,12 @@ runs:
         EXTRA_ALIASES: ${{ inputs.extra-aliases }}
         SOURCE_TAG: ${{ inputs.source-tag }}
         IMAGE_BASE: ${{ inputs.image-base }}
-      run: |
-        set -euo pipefail
-        alias_args=()
-        for alias in ${ALIAS:-} ${EXTRA_ALIASES:-}; do
-          [ -n "${alias}" ] && alias_args+=(--alias "${alias}")
-        done
-        source_args=()
-        if [ -n "${SOURCE_TAG:-}" ]; then
-          source_args+=(--source-tag "${SOURCE_TAG}")
-        fi
-        if uv run python scripts/dev-base-build.py \
-          --registry "${IMAGE_BASE}" \
-          --tag "${TAG}" \
-          "${alias_args[@]}" \
-          check \
-          --mode "${MODE}" \
-          --tier "${TIER}" \
-          "${source_args[@]}"
-        then
-          echo "skip_publish=true" >> "$GITHUB_OUTPUT"
-        else
-          rc=$?
-          if [ "$rc" -ne 1 ]; then
-            exit "$rc"
-          fi
-          echo "skip_publish=false" >> "$GITHUB_OUTPUT"
-        fi
+      run: bash "${GITHUB_ACTION_PATH}/scripts/checkpoint.sh"
 
     - name: Set up qemu + reuse the persistent buildx builder
       if: ${{ inputs.mode == 'build' && steps.checkpoint.outputs.skip_publish != 'true' }}
       shell: bash
-      run: |
-        set -euo pipefail
-        echo "buildx before bootstrap"
-        docker buildx ls
-        docker run --privileged --rm tonistiigi/binfmt --install all
-        # The docker-container builder keeps its layer cache inside its own
-        # container on the long-lived dind sidecar, so it must be REUSED
-        # between runs - the old rm-then-create bootstrap threw the whole
-        # local cache away every run and left type=registry as the only
-        # cache (aos#491). Create it only when absent (the `|| true` absorbs
-        # the create race between sibling tier jobs) and recreate only when
-        # the existing one genuinely fails to bootstrap.
-        if ! docker buildx inspect aosbuilder >/dev/null 2>&1; then
-          docker buildx create --name aosbuilder \
-            --driver docker-container --driver-opt network=host || true
-        fi
-        if ! docker buildx inspect aosbuilder --bootstrap; then
-          echo "aosbuilder exists but fails to bootstrap. Recreating it (warm cache is lost this once)"
-          docker buildx rm -f aosbuilder 2>/dev/null || true
-          docker buildx create --name aosbuilder \
-            --driver docker-container --driver-opt network=host
-          docker buildx inspect aosbuilder --bootstrap
-        fi
-        docker buildx use aosbuilder
-        echo "buildx after bootstrap"
-        docker buildx ls
+      run: bash "${GITHUB_ACTION_PATH}/scripts/setup-builder.sh"
 
     - name: Publish or promote the tier
       if: ${{ steps.checkpoint.outputs.skip_publish != 'true' }}
@@ -226,84 +112,7 @@ runs:
         IMAGE_BASE: ${{ inputs.image-base }}
         PLATFORMS: ${{ inputs.platforms }}
         BUILD_TIMEOUT: ${{ inputs.build-timeout }}
-      run: |
-        set -euo pipefail
-        summary_file="${GITHUB_STEP_SUMMARY:-}"
-        alias_args=()
-        for alias in ${ALIAS:-} ${EXTRA_ALIASES:-}; do
-          [ -n "${alias}" ] && alias_args+=(--alias "${alias}")
-        done
-        base_args=(
-          uv run python scripts/dev-base-build.py
-          --registry "${IMAGE_BASE}"
-          --tag "${TAG}"
-          "${alias_args[@]}"
-        )
-        if [ "${MODE}" = "build" ]; then
-          # The build script verifies the pushed tag + alias manifests and
-          # probes the buildcache write after the push, so a green step means
-          # the tier is pullable and the cache state is visible in the log.
-          publish_cmd=(
-            timeout --preserve-status --kill-after=5m "${BUILD_TIMEOUT}"
-            "${base_args[@]}"
-            build
-            --push
-            --tier "${TIER}"
-            --platforms "${PLATFORMS}"
-          )
-        elif [ "${MODE}" = "promote" ]; then
-          if [ -z "${SOURCE_TAG:-}" ]; then
-            echo "::error::source-tag is required in promote mode" >&2
-            exit 1
-          fi
-          publish_cmd=(
-            timeout --preserve-status --kill-after=5m "${BUILD_TIMEOUT}"
-            "${base_args[@]}"
-            promote
-            --source-tag "${SOURCE_TAG}"
-            --tier "${TIER}"
-          )
-        else
-          echo "::error::unknown mode: ${MODE}" >&2
-          exit 1
-        fi
-
-        command_line="$(printf '%q ' "${publish_cmd[@]}")"
-        command_line="${command_line% }"
-
-        log_file="$(mktemp)"
-        run_logged() {
-          set +e
-          "$@" 2>&1 | tee "${log_file}"
-          status=${PIPESTATUS[0]}
-          set -e
-          return "${status}"
-        }
-
-        if run_logged "${publish_cmd[@]}"; then
-          :
-        else
-          rc=$?
-          if [ "${TIER}" = "core" ] && [ -n "${summary_file}" ]; then
-            {
-              echo "### core publish failure"
-              echo ""
-              echo "- mode: ${MODE}"
-              echo "- tier: ${TIER}"
-              echo "- exit code: ${rc}"
-              echo "- failing command:"
-              echo '```bash'
-              printf '%s\n' "${command_line}"
-              echo '```'
-              echo ""
-              echo "Recent output:"
-              echo '```text'
-              tail -n 60 "${log_file}"
-              echo '```'
-            } >> "${summary_file}"
-          fi
-          exit "${rc}"
-        fi
+      run: bash "${GITHUB_ACTION_PATH}/scripts/publish-tier.sh"
 
     - name: Verify lang-rust native development surface on both architectures
       if: ${{ inputs.tier == 'lang-rust' }}
@@ -311,31 +120,4 @@ runs:
       env:
         IMAGE_BASE: ${{ inputs.image-base }}
         TAG: ${{ inputs.tag }}
-      run: |
-        set -euo pipefail
-        image="${IMAGE_BASE}:${TAG}"
-        for platform in linux/amd64 linux/arm64; do
-          echo "verifying ${image} on ${platform}"
-          docker run --rm --platform "${platform}" --entrypoint bash "${image}" \
-            -euo pipefail -c '
-              dpkg-query -W \
-                libasound2-dev \
-                libudev-dev \
-                libwayland-dev \
-                libxkbcommon-dev \
-                pkg-config
-              cargo --version
-              trunk --version
-              rustup target list --installed | grep -qx wasm32-unknown-unknown
-              pkg-config --exists wayland-client xkbcommon
-              printf "%s\\n" \
-                "#include <wayland-client.h>" \
-                "#include <xkbcommon/xkbcommon.h>" \
-                "int main(void) { return 0; }" \
-                > /tmp/bevy-native-smoke.c
-              cc /tmp/bevy-native-smoke.c \
-                $(pkg-config --cflags --libs wayland-client xkbcommon) \
-                -o /tmp/bevy-native-smoke
-              /tmp/bevy-native-smoke
-            '
-        done
+      run: bash "${GITHUB_ACTION_PATH}/scripts/verify-rust.sh"

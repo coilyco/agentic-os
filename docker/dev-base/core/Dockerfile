@@ -2,7 +2,7 @@
 
 ARG UV_VERSION=0.11.26
 ARG GO_VERSION=1.26.5
-ARG AGENT_COMPOSE_VERSION=0.20.0
+ARG AGENT_COMPOSE_VERSION=0.21.0
 # Ward raw releases are staging until aos validates them against the real .ward
 # bundle. Keep the build tool pinned to the current prod/N-1 ward; the target
 # shape is N-1 for build work, then candidate N only at the late config gate.
@@ -131,7 +131,7 @@ RUN set -eux; \
       if apt-get update -o Acquire::Retries=3 \
         && apt-get install -y --no-install-recommends \
           ca-certificates curl wget git git-lfs gnupg jq ripgrep less unzip xz-utils socat \
-          build-essential openssh-client procps shellcheck file patch \
+          build-essential openssh-client procps shellcheck file patch ffmpeg imagemagick \
           passwd \
           python3 python3-pip python3-venv \
           libicu74; then \
@@ -142,7 +142,10 @@ RUN set -eux; \
         exit 1; \
       fi; \
       sleep 5; \
-    done
+    done; \
+    convert -version; \
+    ffmpeg -version; \
+    ffprobe -version
 
 # Git LFS is a Git-side capability, not just a client binary, so install the
 # system filter config alongside the package. That makes `git lfs version`

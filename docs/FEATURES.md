@@ -13,10 +13,10 @@ This lists shipped capabilities, not files.
 - [Agent-compose personalities](personality-provider.md) - invariant plus 16 full/brief bodies.
 - [Role-composed skills](role-composed-skills.md) - deep, role-gated knowledge.
 - [AOS launcher](aos-cli.md) - released Go containers and embedded defaults.
-- [aguard](aguard.md) - specgen-built guarded-ops CLI.
+- [aguard](aguard.md) - specgen guarded-ops CLI.
 - [Code review skill](../.agents/skills/tooling-code-review/SKILL.md) - in-container review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
-- [Harness selection](harness-selection.md) - 10-role AOSH board.
+- [Harness selection](harness-selection.md) - 10-role agent-compose and AOS board.
 - [Test harnesses](test-harness.md) - agent/model smokes and composed-role probes.
 - [Issue-corpus discovery index](issue-corpus.md) - offline corpus render plus live Forgejo lookup.
 - [Forgejo Actions log bridge](forgejo-actions-logs.md) - plaintext helper for live workflow logs, plus fetch mirror.
@@ -27,7 +27,7 @@ This lists shipped capabilities, not files.
 - [ward bundle](ward-specs.md) - launch policy, guarded surfaces, AOSH-selected Goose routing, and AOS-local OpenCode policy.
 - [Ward profile assets home](ward-profile-assets.md) - AOS profile/config inputs for Ward's `ProfileProvider`.
 - [Role surface tiers](role-surface-tiers.md) - the intended per-role container capability tiers.
-- [Cross-repo tooling and release](features-release-tooling.md) - hooks, diagnostics, and promotion.
+- [Cross-repo tooling and release](features-release-tooling.md) - hooks, diagnostics, promotion, retries, reruns.
 - [Telegram CI failure alerts](telegram-ci-alerts.md) - reusable red-channel alerting for failing jobs.
 - [dev-base images](dev-base-image.md) - language specialists with shared agent and operational tools, release aliases, and resumable publishing.
 - [CI parity in dev-base](ci-in-dev-base.md) - CI runs inside the pinned dev-base image.

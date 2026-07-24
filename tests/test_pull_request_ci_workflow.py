@@ -22,9 +22,11 @@ def test_pull_request_ci_docs_name_the_required_context() -> None:
 
 def test_promote_workflow_uses_the_same_repo_gate_as_ci() -> None:
     workflow = (ROOT / ".forgejo" / "workflows" / "promote.yml").read_text()
+    gate = (ROOT / "scripts" / "ci" / "repo-test-gate.sh").read_text()
     assert "name: promote" in workflow
-    assert "uv run pytest" in workflow
-    assert "pre-commit run --all-files" in workflow
+    assert "scripts/ci/repo-test-gate.sh" in workflow
+    assert "uv run pytest" in gate
+    assert "pre-commit run --all-files" in gate
     assert "Install validated ward for repo gate" in workflow
     assert "Load the .ward bundle with the updated ward" not in workflow
     assert "ward exec test" not in workflow

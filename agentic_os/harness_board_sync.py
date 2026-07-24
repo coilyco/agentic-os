@@ -16,8 +16,8 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_AOSH_ROOT = REPO_ROOT.parents[1] / "coilyco-bridge" / "agentic-os-hardware"
 DEFAULT_ROLES = REPO_ROOT / ".agents" / "roles.kdl"
+DEFAULT_AGENT_ROLES = DEFAULT_ROLES
 DEFAULT_OUTPUT = REPO_ROOT / "aos" / "role-harnesses.json"
-DEFAULT_WARD_ROLES = REPO_ROOT / ".ward" / "roles.kdl"
 ROLES_PATH = Path("roles.yaml")
 SELECTIONS_PATH = Path("agent-selections.yaml")
 HARNESSES_PATH = Path("harnesses.yaml")
@@ -218,7 +218,7 @@ def render_board(board: HarnessBoard) -> str:
     return json.dumps(payload, indent=2) + "\n"
 
 
-def _remove_legacy_ward_board(current: str, path: Path) -> str:
+def _remove_legacy_role_board(current: str, path: Path) -> str:
     begin_count = current.count(LEGACY_KDL_BEGIN)
     end_count = current.count(LEGACY_KDL_END)
     if begin_count == 0 and end_count == 0:
@@ -254,8 +254,8 @@ def _render_role_routes(route: RoleRoute, indent: str) -> list[str]:
     return lines
 
 
-def merge_ward_board(current: str, board: HarnessBoard, path: Path) -> str:
-    lines = _remove_legacy_ward_board(current, path).splitlines()
+def merge_agent_roles(current: str, board: HarnessBoard, path: Path) -> str:
+    lines = _remove_legacy_role_board(current, path).splitlines()
     for route in board.roles:
         block_pattern = re.compile(
             rf"^([ \t]*)role\s+{re.escape(route.role)}\s+\{{\s*\}}$"
@@ -340,7 +340,7 @@ def run(
     output: Path,
     *,
     roles_path: Path = DEFAULT_ROLES,
-    ward_roles_path: Path = DEFAULT_WARD_ROLES,
+    agent_roles_path: Path = DEFAULT_AGENT_ROLES,
     check: bool,
 ) -> int:
     board = load_board(aosh_root, roles_path=roles_path)
@@ -352,20 +352,20 @@ def run(
     except OSError as exc:
         raise BoardSyncError(f"read {output}: {exc}") from exc
     try:
-        current_ward_roles = ward_roles_path.read_text(encoding="utf-8")
+        current_agent_roles = agent_roles_path.read_text(encoding="utf-8")
     except OSError as exc:
-        raise BoardSyncError(f"read {ward_roles_path}: {exc}") from exc
-    expected_ward_roles = merge_ward_board(
-        current_ward_roles,
+        raise BoardSyncError(f"read {agent_roles_path}: {exc}") from exc
+    expected_agent_roles = merge_agent_roles(
+        current_agent_roles,
         board,
-        ward_roles_path,
+        agent_roles_path,
     )
 
     drift = [
         path
         for path, current, expected in (
             (output, current_output, expected_output),
-            (ward_roles_path, current_ward_roles, expected_ward_roles),
+            (agent_roles_path, current_agent_roles, expected_agent_roles),
         )
         if current != expected
     ]
@@ -385,12 +385,12 @@ def run(
         return 1
 
     try:
-        ward_roles_path.write_text(expected_ward_roles, encoding="utf-8")
+        agent_roles_path.write_text(expected_agent_roles, encoding="utf-8")
         output.write_text(expected_output, encoding="utf-8")
     except OSError as exc:
         raise BoardSyncError(f"write harness-board projection: {exc}") from exc
     print(
-        f"updated {ward_roles_path} and {output} from "
+        f"updated {agent_roles_path} and {output} from "
         f"{aosh_root / SELECTIONS_PATH}"
     )
     return 0
@@ -408,8 +408,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--aosh-root", type=Path, default=DEFAULT_AOSH_ROOT)
     parser.add_argument("--roles", type=Path, default=DEFAULT_ROLES)
+    parser.add_argument("--agent-roles", type=Path, default=DEFAULT_AGENT_ROLES)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
-    parser.add_argument("--ward-roles", type=Path, default=DEFAULT_WARD_ROLES)
     args = parser.parse_args(argv)
 
     if args.if_present and not args.aosh_root.exists():
@@ -420,7 +420,7 @@ def main(argv: list[str] | None = None) -> int:
             args.aosh_root,
             args.output,
             roles_path=args.roles,
-            ward_roles_path=args.ward_roles,
+            agent_roles_path=args.agent_roles,
             check=args.check,
         )
     except BoardSyncError as exc:
