@@ -6,6 +6,9 @@ per-source attribution. It is an on-demand tool (the `ward context-budget`
 verb), not a pre-commit hook, so it carries no weight in the universal commit
 path and is free to grow heavier measurement later.
 
+The [fixed Goose snapshot mode](context-budget-goose.md) measures one
+representative open-source lane before and after the ordinary-skill refactor.
+
 ## What it measures
 
 It sums everything a harness ingests at session start across three axes, each
@@ -31,15 +34,12 @@ are the **proactive** tier (eager prompt bytes); the `immediate_walk` /
 `peripheral_walk` primitives and `--immediate` / `--peripheral` flags measure the
 reachable working-dir/reference tiers - see [context-tiers.md](context-tiers.md).
 
-### Skill scope is cwd-dependent
+### Skill scope follows the CWD
 
-`mount-skills.sh` empties `~/.claude/skills` and symlinks each skill dir into
-per-repo `.claude/skills`, so the eager set is the global plugin skills plus the
-scoped skills discoverable from the cwd. Relative skill roots are expanded
-against the cwd and every workspace repo and deduped by resolved path, so the one
-canonical set mounted into many repos counts once. The reported total is thus the
-**workspace union** (elevated-cwd worst case); a session in one repo sees fewer.
-Roots default per `DEFAULT_SKILL_ROOTS`, overridable via `skill_roots:`.
+`mount-skills.sh` exposes plugin skills plus the skills scoped to the
+CWD. Relative roots expand across the workspace and resolved paths dedupe, so
+the report is a workspace-union worst case. A single-repo session sees fewer.
+Defaults come from `DEFAULT_SKILL_ROOTS`; `skill_roots:` overrides them.
 
 ## Why per-harness budgets differ
 
@@ -72,4 +72,5 @@ points at the shared inventory projected into each native harness registry.
 ## See also
 
 - [features-agents-sessions.md](features-agents-sessions.md) - agent-compose, the composer this measures.
+- [role-composed-skills.md](role-composed-skills.md) - role-gated skills selected into the Goose bundle.
 - [.ward/ward.yaml](../.ward/ward.yaml) - allowlisted commands.
