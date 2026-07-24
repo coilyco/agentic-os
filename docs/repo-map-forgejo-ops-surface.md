@@ -6,15 +6,15 @@ If the same repo also exists under `/substrate`, work in `/workspace/agentic-os`
 
 ## Find the current surfaces
 
-- `ward ops forgejo describe`
-- `ward ops forgejo --help`
-- `rg -n "gen-ward-ops-reference|ward ops forgejo" docs .ward`
+- `aguard ops forgejo describe`
+- `aguard ops forgejo --help`
+- `rg -n "aguard ops forgejo" docs .specgen`
 
 ## First check
 
-- `ward ops forgejo describe`
+- `aguard ops forgejo describe`
 
 ## Notes
 
-- Regenerate the committed render with `ward exec gen-ward-ops-reference` when the surface drifts.
-- Prefer the committed reference before guessing a verb name.
+- Update [aguard](aguard.md) when the operator surface changes.
+- Prefer runtime help before guessing a verb name.

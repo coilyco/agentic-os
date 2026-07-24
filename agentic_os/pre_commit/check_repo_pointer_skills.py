@@ -34,7 +34,7 @@ TRACKER = "docs/features-agents-pointer.md"
 SKILLS_DIR_CANDIDATES = (".agents/skills", ".claude/skills", "skills")
 
 REGEN_HINT = (
-    "  regenerate: ward ops forgejo repo view --repo coilysiren/<name> --json "
+    "  regenerate: aguard ops forgejo repo view --repo coilysiren/<name> --json "
     "| python -m agentic_os.generators.generate_repo_pointer_skill <name> --from-json - --repo-root <repo>"
 )
 

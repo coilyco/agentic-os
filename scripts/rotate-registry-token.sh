@@ -28,12 +28,12 @@ TOKEN_NAME="registry-publish-$(date +%Y%m%d%H%M%S)"
 
 api="https://${HOST}/api/v1"
 
-ward_ssm() { ward ops aws ssm "$@"; }
+aguard_ssm() { aguard ops aws ssm "$@"; }
 
-admin_token="$(ward_ssm get-parameter --name /forgejo/api-token \
+admin_token="$(aguard_ssm get-parameter --name /forgejo/api-token \
   --with-decryption --query Parameter.Value --output text)"
 [ -n "$admin_token" ] || { echo "no /forgejo/api-token in SSM" >&2; exit 1; }
-bot_password="$(ward_ssm get-parameter --name /forgejo/${BOT_USER}/password \
+bot_password="$(aguard_ssm get-parameter --name /forgejo/${BOT_USER}/password \
   --with-decryption --query Parameter.Value --output text)"
 [ -n "$bot_password" ] || { echo "no /forgejo/${BOT_USER}/password in SSM" >&2; exit 1; }
 
@@ -54,7 +54,7 @@ code="$(curl -sS -o /dev/null -w '%{http_code}' -u "${BOT_USER}:${new_token}" "h
 echo "  /v2/ -> 200"
 
 echo "Stashing to SSM ${SSM_PATH} ..."
-ward_ssm put-parameter --name "$SSM_PATH" --type SecureString \
+aguard_ssm put-parameter --name "$SSM_PATH" --type SecureString \
   --value "$new_token" --overwrite >/dev/null
 echo "  stored"
 

@@ -1,59 +1,44 @@
-# dev-base container images
+# dev-base container image
 
-The dev-base family publishes independent language specialists plus the
-`dev-base-full` compatibility surface. See [image topology](dev-base-image-tiering.md).
+AOS publishes one development image. `agentic-os:${TAG}` is the full surface,
+and `agentic-os:release` is the moving default used by the AOS launcher and CI.
+There are no language-specialist, core, ops, or agent image tags.
 
 ## What ships
 
-[`docker/dev-base/Dockerfile`](../docker/dev-base/Dockerfile) is a multi-target
-Dockerfile. Every `dev-base-lang-*` target starts with its own
-`FROM ubuntu:<version>` instruction. The language images do not inherit a
-repository-owned base image or another language target.
+[`docker/dev-base/Dockerfile`](../docker/dev-base/Dockerfile) owns the single
+`dev-base-full` target. It installs the common agent surface once, then adds
+every supported language toolchain:
 
-[`docker/dev-base/install-common.sh`](../docker/dev-base/install-common.sh)
-owns the repeated source-level setup for agent harnesses, operational CLIs,
-platform assets, `aos`, agent-compose, ward, and the substrate seed. Reusing
-that installer keeps the independently built images aligned without turning
-the common surface into a published image contract.
+* Node and the JavaScript agent tools
+* Go
+* .NET and ICU
+* Rust, wasm, `trunk`, and native Bevy/Winit development libraries
+* Python, pip, and `pipenv`
 
-The published specialists are Node, Go, .NET + ICU, Rust + wasm + `trunk`, and
-Python + pip + `pipenv`. `full` inherits the same-release Rust image and grafts
-the self-contained Go, .NET, and Python toolchain prefixes. Rust supplies the
-native Bevy/Winit development libraries.
+The image also carries `aos`, Ward for role-scoped orchestration, `aguard` for
+operator commands, and the repository's packaged Aguard Python bridges.
+Full-only gate tools include `golangci-lint`, `trufflehog`, and `kdlfmt`.
 
-## Naming and tags
+## Build and publication
 
-One repository release tag drives the family:
+`ward exec dev-base-build` builds `agentic-os:dev-base-local`.
+[`scripts/dev-base-build.py`](../scripts/dev-base-build.py) supplies the AOS
+CLI, Aguard spec, and Aguard Python package as named Docker contexts.
 
-* `full` uses the plain `agentic-os:${TAG}` ref.
-* Language images use `agentic-os:<tier>-${TAG}`.
-* Draft, `release`, `latest`, and build-cache tags follow the same rule.
-* The family publishes no `core`, `ops`, or `agent` tag.
-
-The default AOS launcher image remains `agentic-os:release`.
-
-## How it publishes
-
-[`.forgejo/workflows/dev-base-publish.yml`](../.forgejo/workflows/dev-base-publish.yml)
-builds the language images through a matrix capped at one active export on the
-shared image builder. Every matrix row starts from Ubuntu and can rerun
-independently. The `full` job waits for the language matrix.
-
-[`release.yml`](../.forgejo/workflows/release.yml) retags the already-published
-draft manifests to the versioned tag plus `release` and `latest`. The helper
-checks target manifests before work, so a manual retry resumes at the selected
-tier without rebuilding completed outputs. See [publish resume](dev-base-publish-resume.md).
+[`dev-base-publish.yml`](../.forgejo/workflows/dev-base-publish.yml) builds one
+multi-architecture draft manifest after the release branch advances.
+[`release.yml`](../.forgejo/workflows/release.yml) promotes that manifest to the
+versioned tag plus `release` and `latest`. Both paths check the target manifest
+before work, so a retry skips an image that already landed. See
+[publish resume](dev-base-publish-resume.md).
 
 ## Pinning a tool
 
-Tool versions have one default declaration in the Dockerfile that owns the
-installation. Shared and language versions live in the multi-target Dockerfile.
-Full-only gate tools live in `full/Dockerfile`.
-
-`ward exec dep-bump -- check` compares managed pins with upstream releases.
+Every managed version has one default `ARG` in the Dockerfile.
+`ward exec dep-bump -- check` compares those pins with upstream releases.
 `ward exec dep-bump -- apply --arg NAME --version VERSION` rewrites one owning
-default. The scheduled dependency workflow performs the same operation and
-runs the repository gate before pushing.
+declaration.
 
 ## Pulling an image
 
@@ -69,9 +54,11 @@ into a consumer repository for runtime configuration.
 * Infrastructure owns private-network startup, authentication, and sockets. AOS composes role-scoped client access.
 * Standalone `ops` and `agent` images are intentionally absent.
 
+Source ownership follows the tool boundary. The image pins versions but does
+not redefine Ward configuration, Aguard policy, or agent-compose source data.
+
 ## See also
 
-* [Independent language image topology](dev-base-image-tiering.md)
 * [CI parity](ci-in-dev-base.md)
 * [Build cache](dev-base-build-cache.md)
 * [Release workflow](release.md)

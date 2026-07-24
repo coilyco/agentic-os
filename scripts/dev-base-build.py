@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build or plan the tiered dev-base image family from the folder layout."""
+"""Build, publish, or promote the full dev-base image."""
 from __future__ import annotations
 
 import argparse
@@ -158,7 +158,7 @@ def _probe_cache_write(buildcache_ref: str) -> bool:
     if _inspect_manifest(buildcache_ref) is None:
         print(
             f"::warning::buildcache write to {buildcache_ref} failed or is "
-            "missing - the next build of this tier starts cold. "
+            "missing - the next full-image build starts cold. "
             "imagetools inspect could not resolve the cache manifest.",
             file=sys.stderr,
         )
@@ -234,8 +234,6 @@ def _build_plan(
     aliases: str | Sequence[str] | None = None,
     only_tier: str | None = None,
 ) -> None:
-    # only_tier serves the per-tier CI jobs: base/graft refs resolve to the
-    # sibling jobs' already-pushed images under the same tag.
     plan = publish_plan(registry_base, tag, aliases)
     if only_tier is not None:
         plan = [entry for entry in plan if entry["tier"] == only_tier]
@@ -251,26 +249,24 @@ def _build_plan(
         if push and _has_target_checkpoint(entry["image"], alias_images):
             print(
                 f"{entry['tier']} already published at {entry['image']}; "
-                "skipping tier"
+                "skipping image"
             )
             continue
         cmd = _docker_base_command(push, platforms)
-        is_language = str(entry["tier"]).startswith("lang-")
-        if is_language and not push:
+        if not push:
             cmd.extend(["--build-arg", f"TARGETARCH={_host_targetarch()}"])
-        if is_language:
-            cmd.extend(
-                [
-                    "--build-arg",
-                    f"WARD_CONFIG_REF_COMMIT={ward_config_ref_commit}",
-                    "--build-context",
-                    "aos-cli=aos",
-                ]
-            )
-        elif entry["tier"] == "full":
-            cmd.extend(["--build-arg", f"BASE_IMAGE={entry['base_image']}"])
-        for arg_name, graft_ref in entry["graft_images"].items():
-            cmd.extend(["--build-arg", f"{arg_name}={graft_ref}"])
+        cmd.extend(
+            [
+                "--build-arg",
+                f"WARD_CONFIG_REF_COMMIT={ward_config_ref_commit}",
+                "--build-context",
+                "aos-cli=aos",
+                "--build-context",
+                "aguard-spec=.specgen",
+                "--build-context",
+                "aguard-python=agentic_os",
+            ]
+        )
         if push:
             cmd.extend(["--cache-from", cache_from, "--cache-to", cache_to])
         cmd.extend(["-t", entry["image"]])
@@ -279,26 +275,22 @@ def _build_plan(
                 cmd.extend(["-t", alias_image])
         cmd.extend(["--target", str(entry["stage"])])
         cmd.extend(["-f", str(dockerfile), str(context_dir)])
-        if push and is_language:
+        if push:
             summary = "\n".join(
                 [
-                    f"### {entry['tier']} publish context",
+                    "### dev-base publish context",
                     "",
-                    f"- tier: {entry['tier']}",
                     f"- image: {entry['image']}",
                     f"- cache: {entry['cache_image']}",
-                    f"- base: {entry['base_image']}",
                     f"- context: {entry['context_dir']}",
                     f"- ward_config_ref_commit: {ward_config_ref_commit}",
                     f"- command: {shlex.join(cmd)}",
                     "",
                 ]
             )
-            print(f"::group::{entry['tier']} publish context")
-            print(f"tier={entry['tier']}")
+            print("::group::dev-base publish context")
             print(f"image={entry['image']}")
             print(f"cache={entry['cache_image']}")
-            print(f"base={entry['base_image']}")
             print(f"context={entry['context_dir']}")
             print(f"ward_config_ref_commit={ward_config_ref_commit}")
             print(f"command={shlex.join(cmd)}")
@@ -368,7 +360,7 @@ def _promote_plan(
             print(
                 (
                     f"{source_entry['tier']} already promoted to "
-                    f"{target_entry['image']}; skipping tier"
+                    f"{target_entry['image']}; skipping image"
                 )
             )
             continue
@@ -422,7 +414,7 @@ def _cmd_check(args: argparse.Namespace) -> int:
         if not plan:
             raise SystemExit(f"unknown tier: {args.tier}")
     if len(plan) != 1:
-        raise SystemExit("check requires exactly one tier")
+        raise SystemExit("check requires exactly one image")
 
     target_entry = plan[0]
     alias_images = tuple(target_entry.get("alias_images", ()))
@@ -435,7 +427,7 @@ def _cmd_check(args: argparse.Namespace) -> int:
     if args.tier is not None:
         source_plan = [entry for entry in source_plan if entry["tier"] == args.tier]
     if len(source_plan) != 1:
-        raise SystemExit("promote check requires exactly one tier")
+        raise SystemExit("promote check requires exactly one image")
     source_entry = source_plan[0]
     return (
         0
@@ -451,12 +443,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--registry",
         default=REGISTRY_BASE,
-        help="Registry/image family base (default: Forgejo release registry).",
+        help="Registry/image base (default: Forgejo release registry).",
     )
     parser.add_argument(
         "--tag",
         required=True,
-        help="Release tag or local tag to stamp onto each tier image.",
+        help="Release tag or local tag to stamp onto the image.",
     )
     parser.add_argument(
         "--alias",
@@ -466,23 +458,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p_plan = sub.add_parser("plan", help="Print the derived tier plan as JSON.")
+    p_plan = sub.add_parser("plan", help="Print the derived image plan as JSON.")
     p_plan.set_defaults(func=_cmd_plan)
 
-    p_build = sub.add_parser("build", help="Build the tier family in order.")
+    p_build = sub.add_parser("build", help="Build the full image.")
     p_build.add_argument(
         "--push",
         action="store_true",
-        help="Push each published tier instead of loading locally.",
+        help="Push the image instead of loading it locally.",
     )
     p_build.add_argument(
         "--tier",
         default=None,
         choices=PUBLISHED_TIER_NAMES,
-        help=(
-            "Build only this tier (per-tier CI jobs). Base and graft tiers must "
-            "already exist under the same tag."
-        ),
+        help="Compatibility selector. Only full is supported.",
     )
     p_build.add_argument(
         "--platforms",
@@ -491,7 +480,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_build.set_defaults(func=_cmd_build)
 
-    p_promote = sub.add_parser("promote", help="Retag an already-pushed image family.")
+    p_promote = sub.add_parser("promote", help="Retag an already-pushed image.")
     p_promote.add_argument(
         "--source-tag",
         required=True,
@@ -501,15 +490,14 @@ def main(argv: list[str] | None = None) -> int:
         "--tier",
         default=None,
         choices=PUBLISHED_TIER_NAMES,
-        help="Promote only this tier (per-tier CI jobs).",
+        help="Compatibility selector. Only full is supported.",
     )
     p_promote.set_defaults(func=_cmd_promote)
 
     p_check = sub.add_parser(
         "check",
         help=(
-            "Report whether the requested tier already matches its target "
-            "checkpoint."
+            "Report whether the full image already matches its target checkpoint."
         ),
     )
     p_check.add_argument("--mode", required=True, choices=("build", "promote"))
@@ -517,7 +505,7 @@ def main(argv: list[str] | None = None) -> int:
         "--tier",
         default=None,
         choices=PUBLISHED_TIER_NAMES,
-        help="Check only this tier (per-tier CI jobs).",
+        help="Compatibility selector. Only full is supported.",
     )
     p_check.add_argument(
         "--source-tag",

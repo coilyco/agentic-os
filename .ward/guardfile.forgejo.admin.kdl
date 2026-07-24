@@ -9,7 +9,7 @@
 // read/write leaf, every `never` denial (deny inherits up, cli-guard v0.72.0),
 // and the spec/base-url singletons all arrive through the chain. The result is
 // the full curated CRUD surface: the aos-agent admin tier mounts what the
-// monolith mounts (the Phase-2 candidate for `ward ops forgejo`, ward#92),
+// role bundle mounts (the Phase-2 candidate tracked in ward#92),
 // minus the mutating PR lifecycle, which rides guardfile.forgejo.merge.kdl
 // outside the chain and binds to the director/engineer/pm roles only
 // (agentic-os#488).

@@ -18,7 +18,6 @@ Single-purpose validators for cryptic failure modes. These plus [`ward context-b
 
 - `ward aws-config` - catches the `[profile default]` trap (SDKs read `[default]`; a misplaced region surfaces later as a useless `NoRegion`).
 - `ward ssm-path` - checks parameter paths against the `/<org>/<repo>/<tier>/<tail>` schema before IAM/KMS, where a malformed path silently misses every tier policy.
-- Verbatim-echo wrapper that fences command output and clips to mobile-readable size, for the `$$ <cmd>` chat convention.
 - GPG signing doctor that walks every check needed to diagnose `failed to sign the data` and names the likely fix per failure mode.
 
 ## Forgejo-canonical release actions
@@ -32,4 +31,4 @@ Composite Forgejo Actions for the brew release pipeline, each a forgejo-API-only
 
 Consumed via `uses: coilyco-flight-deck/agentic-os/actions/<name>@main` from a `.forgejo/workflows/*.yml`. Issued `${{ github.token }}` covers writes.
 
-agentic-os dogfoods these actions in `.forgejo/workflows/`, using local `uses: ./actions/...` refs so the repo never waits on its mirror. Release is split so `promote.yml` gates every main push and fast-forwards `release`, `dev-base-publish.yml` publishes the draft image family on the promoted SHA with tier reruns, and `release.yml` stays the manual retry path. PR retriggers need a real tracked diff. Consumer pin is tag-derived (agentic-os#238). Major bumps stay hand-cut via `scripts/release.py`. `workflow_dispatch` re-fires the retry stage on enqueue miss. Walkthrough: [docs/release.md](release.md).
+agentic-os dogfoods these actions in `.forgejo/workflows/`, using local `uses: ./actions/...` refs so the repo never waits on its mirror. Release is split so `promote.yml` gates every main push and fast-forwards `release`, `dev-base-publish.yml` publishes the draft full image on the promoted SHA, and `release.yml` stays the manual retry path. PR retriggers need a real tracked diff. Consumer pin is tag-derived (agentic-os#238). Major bumps stay hand-cut via `scripts/release.py`. `workflow_dispatch` re-fires the retry stage on enqueue miss. Walkthrough: [docs/release.md](release.md).

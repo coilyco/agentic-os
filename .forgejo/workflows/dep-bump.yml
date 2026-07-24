@@ -1,7 +1,7 @@
 # Scheduled dev-base dependency auto-bump. Resolves each pinned tool in
 # the dev-base Dockerfiles against upstream latest releases and, for every
 # pin that drifted, commits one ARG bump and pushes to main. The push then rides
-# the two-stage flow: promote.yml gates, republishes the image family, and
+# the two-stage flow: promote.yml gates, republishes the full image, and
 # fast-forwards `release`, while release.yml remains the manual retry hook for
 # the same publication work, so the published dev-base stops lagging upstream
 # with no human editing an ARG by hand

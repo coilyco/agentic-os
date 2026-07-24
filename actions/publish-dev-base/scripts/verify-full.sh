@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
+# Verify the complete language and operator surface on every published architecture.
 
 set -euo pipefail
 
-image="${IMAGE_BASE}:lang-rust-${TAG}"
+image="${IMAGE_BASE}:${TAG}"
 for platform in linux/amd64 linux/arm64; do
   echo "verifying ${image} on ${platform}"
   docker run --rm --platform "$platform" --entrypoint bash "$image" \
@@ -16,6 +17,12 @@ for platform in linux/amd64 linux/arm64; do
       cargo --version
       trunk --version
       rustup target list --installed | grep -qx wasm32-unknown-unknown
+      node --version
+      go version
+      dotnet --list-sdks
+      python --version
+      pipenv --version
+      aguard --version
       pkg-config --exists wayland-client xkbcommon
       printf "%s\\n" \
         "#include <wayland-client.h>" \

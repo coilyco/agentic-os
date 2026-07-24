@@ -15,10 +15,6 @@ The probing *mechanism* differs by harness, so the doc does too:
 
 What stays constant is the *questions* (the probe battery) and the *findings shape* (below), so harnesses can be compared on equal terms.
 
-## Daily compatibility check
-
-`ward exec agent-compat` runs the daily smoke check across Claude, Codex, Goose, Aider, OpenCode, and Qwen. It is a Python `unittest` runner, so the output uses native `ok` / `FAIL` / `ERROR` / skip reporting and the process exits non-zero on failure. See [agent-compat](agent-compat.md) for coverage and usage.
-
 ## Authoring a new harness doc
 
 Name it `test-harness-<agent>.md`, link it from this parent's index, and follow these sections:

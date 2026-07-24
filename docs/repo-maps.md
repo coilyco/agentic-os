@@ -8,7 +8,6 @@ The maps are search-first, not frozen inventories. They point at the commands th
 
 ## Maps
 
-- [Ward reaper and drain lifecycle](repo-map-ward-reaper.md)
 - [Ward PR workflow and director merge paths](repo-map-ward-pr-workflow.md)
 - [Forgejo ops surface discovery](repo-map-forgejo-ops-surface.md)
 - [Container startup and broker dispatch](repo-map-container-startup.md)

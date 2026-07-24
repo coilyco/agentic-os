@@ -35,13 +35,18 @@ def test_aguard_has_one_static_binary_group() -> None:
     assert wraps == {"aguard"}
 
 
-def test_aguard_companion_scripts_are_tracked_and_executable() -> None:
-    for member in SOURCE.glob("*.kdl"):
-        text = member.read_text(encoding="utf-8")
-        for relative in re.findall(r'argv "(\.specgen/aguard/scripts/[^"]+)"', text):
-            script = ROOT / relative
-            assert script.is_file(), relative
-            assert script.stat().st_mode & 0o100, relative
+def test_aguard_actions_use_packaged_python_modules() -> None:
+    text = (SOURCE / "actions.kdl").read_text(encoding="utf-8")
+
+    assert "exec python3" in text
+    assert ".specgen/aguard/scripts/" not in text
+    for module in (
+        "forgejo_actions_list",
+        "forgejo_actions_logs",
+        "forgejo_actions_rerun",
+    ):
+        assert f'"agentic_os.{module}"' in text
+        assert (ROOT / "agentic_os" / f"{module}.py").is_file()
 
 
 def test_aguard_vendored_forgejo_contract_is_json() -> None:

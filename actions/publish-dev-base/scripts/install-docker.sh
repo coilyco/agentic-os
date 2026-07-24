@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Install the Docker client used by the image publisher.
 
 set -euo pipefail
 

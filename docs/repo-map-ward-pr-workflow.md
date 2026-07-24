@@ -7,14 +7,14 @@ If the same repo also exists under `/substrate`, work in `/workspace/agentic-os`
 ## Find the current surfaces
 
 - `rg -n "pull-request-and-merge|director merge|WARD-OUTCOME|repos\\.workflow" .ward docs`
-- `ward ops forgejo pr --help`
+- `aguard ops forgejo pr --help`
 - `ward agent director --help`
 
 ## First check
 
-- `ward ops forgejo issue view <owner> <repo> <issue>`
+- `aguard ops forgejo issue view <owner> <repo> <issue>`
 
 ## Notes
 
 - The issue thread carries the workflow and merge authorization.
-- Use `ward ops forgejo pr view <owner> <repo> <pr>` after the PR exists.
+- Use `aguard ops forgejo pr view <owner> <repo> <pr>` after the PR exists.

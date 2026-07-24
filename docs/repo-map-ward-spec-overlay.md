@@ -8,7 +8,7 @@ If the same repo also exists under `/substrate`, work in `/workspace/agentic-os`
 
 - `rg -n "WARD_CONFIG_REF|defaults.kdl|roles.*kdl|repos.kdl|ward-specs" .ward docs`
 - `ward doctor`
-- `ward ops forgejo describe`
+- `aguard ops forgejo describe`
 
 ## First check
 

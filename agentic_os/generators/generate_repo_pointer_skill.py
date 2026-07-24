@@ -15,7 +15,7 @@ supply repo metadata however it likes. The canonical source is Forgejo, whose
 `repo view --json` returns both the description and the topics array in one
 payload. The CLI reads that JSON from stdin:
 
-    ward ops forgejo repo view --repo coilysiren/<name> --json \
+    aguard ops forgejo repo view --repo coilysiren/<name> --json \
         | python -m agentic_os.generators.generate_repo_pointer_skill <name> --from-json - --repo-root <repo>
 
 `--from-json` also accepts the GitHub `gh repo view --json

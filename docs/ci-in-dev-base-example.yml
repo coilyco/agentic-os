@@ -3,8 +3,8 @@
 # means "a headless agent can land this." See docs/ci-in-dev-base.md.
 #
 # Copy this into an app's .forgejo/workflows/ci.yml. Replace the pinned image ref
-# with the tier ref the release helper derives from the declared image graph and
-# the release tag. Pin an explicit full ref, never the moving :release alias.
+# with the full-image ref the release helper derives from the declared image and
+# release tag. Pin an explicit release ref, never the moving :release alias.
 #
 # This is a documentation reference copy owned by aos, not a live workflow -
 # aos ships the convention, each app ships the rollout unit (agentic-os#328).

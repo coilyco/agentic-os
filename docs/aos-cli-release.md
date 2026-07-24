@@ -5,7 +5,7 @@ doc_goal: Explain the standalone aos CLI release, artifact, and package-manager 
 
 The portable CLI has an independent `aos-vMAJOR.MINOR.PATCH` clock inside the
 agentic-os Forgejo repository. Root `v*` tags remain owned by hook pins and the
-dev-base image family, so CLI delivery never waits on image promotion.
+full dev-base image, so CLI delivery never waits on image promotion.
 
 ## Automatic release
 

@@ -13,11 +13,11 @@ definition. A live surface that differs from it is drift to fix.
 * **director** - forgejo read + actions read + write + aws/ssm + kubectl + runner-token mint + AOS private live-observe - drives the headless lane and fronts incident recovery.
 * **ops** - forgejo read + actions read + write + aws/ssm + kubectl + runner-token mint - live system maintenance, the widest tier.
 
-Runner-token mint is `ward ops forgejo actions generate-runner-token`
-([guardfile](../.ward/guardfile.forgejo.runnertoken.kdl)), whose absence
-blocked the infrastructure#539 token restore. It stays out of the fleet-wide
-[readactions overlay](../.ward/guardfile.forgejo.readactions.kdl): minting a
-credential is director/ops reach, not a read.
+Runner-token mint is `aguard ops forgejo actions generate-runner-token`
+for operators. Ward separately mounts the
+[role guardfile](../.ward/guardfile.forgejo.runnertoken.kdl) for director and
+ops containers. It stays out of the fleet-wide
+[readactions overlay](../.ward/guardfile.forgejo.readactions.kdl).
 
 ## Layer ownership
 
@@ -26,7 +26,7 @@ as drift against this map instead of silently disabling a role.
 
 * **guardfile bindings** - [.ward/roles.kdl](../.ward/roles.kdl), authored here - which guarded verb families a shipped role mounts. The Forgejo read/write tiers and the ops guardfiles under [aws](../.ward/guardfile.aws.kdl) are the clearest examples. Ward does not select a private network or proxy.
 * **role presets** - ward's tree - tagline, capabilities, modes, posture. Stripped from the aos overlay on 2026-07-10 (commit 566f42f) by design, never re-authored here.
-* **image binaries** - [docker/dev-base/](dev-base-image-tiering.md), authored here - whether `aws`, `kubectl`, `helm`, `tailscale`, `tailscaled`, and the Docker client exist on disk. The common installer bakes them independently into every Ubuntu-based `lang-*` image. The `full` compatibility image composes the language outputs. The `ops` role remains a permission boundary, not an image tag.
+* **image binaries** - [docker/dev-base/](dev-base-image.md), authored here - whether language toolchains, `aguard`, `aws`, `kubectl`, `helm`, `tailscale`, `tailscaled`, and the Docker client exist on disk. The one full image contains them all. The `ops` role remains a permission boundary, not an image tag.
 * **container bring-up** - AOS supplies CWD, substrate, role-scoped client environment, and explicit network attachment. Infrastructure owns private-network daemons, authentication, sockets, and reachability. A binary existing says nothing about this layer.
 
 The observable failure mode is a launch-time error for a missing AOS private
@@ -49,6 +49,5 @@ specgen also-grant convenience is agentic-os#446.
 ## See also
 
 * [ward-specs.md](ward-specs.md) - the bundle these guardfiles ship in.
-* [dev-base-image-tiering.md](dev-base-image-tiering.md) - the image topology.
-* [ward-ops-forgejo-reference.md](ward-ops-forgejo-reference.md) - the committed forgejo surface render.
-* [ward-ops-aws-reference.md](ward-ops-aws-reference.md) - the committed AWS surface render.
+* [dev-base-image.md](dev-base-image.md) - the full image contract.
+* [aguard.md](aguard.md) - the operator surface.

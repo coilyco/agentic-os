@@ -5,9 +5,8 @@ through the same `ward exec` verbs the agents run**, so a green CI means "a
 headless agent can actually land this," not "it passed in some other
 environment" (agentic-os#328).
 
-The current contract pins one `dev-base-full` image per app. Independent
-language images provide narrower classes behind the same release tag. See
-[independent language image topology](dev-base-image-tiering.md).
+The current contract pins the one full dev-base image per app. The same image
+contains every supported language toolchain.
 
 ## The motivating failure
 
@@ -46,11 +45,10 @@ itself re-validates every app on the next rollout - not silent drift.
 ## The pinned-tag source of truth
 
 <!-- freshness: as-of=2026-07-05 decay-class=pointer half-life=slow -->
-The pin derives from the declared image specifications through
+The pin derives from the declared image specification through
 [`scripts/dev-base-build.py`](../scripts/dev-base-build.py). That helper turns
-the tier name plus release tag into the literal `agentic-os:<tier>-<tag>` ref
-(`agentic-os:<tag>` for `full`, the default surface), so there is no checked-in
-JSON map of identical refs to drift.
+the release tag into the literal `agentic-os:<tag>` ref, so there is no
+checked-in JSON map of identical refs to drift.
 [dev-base-image.md](dev-base-image.md) covers how those tags publish.
 
 ## Authoring vs rollout
@@ -72,6 +70,5 @@ ward verbs pass inside dev-base and parity holds green.
 
 - [dev-base container image](dev-base-image.md) - the image CI pins.
 - [dev-base auto-bump](dev-base-auto-bump.md) - how pinned tool `ARG`s refresh.
-- [Independent dev-base image topology](dev-base-image-tiering.md) - the image
-  family and pinning evolution.
+- [dev-base image](dev-base-image.md) - the full image and pinning contract.
 - [FEATURES.md](FEATURES.md) - the feature inventory this lands in.

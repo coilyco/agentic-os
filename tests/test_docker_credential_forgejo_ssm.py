@@ -8,13 +8,25 @@ from pathlib import Path
 
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "docker-credential-forgejo-ssm"
+BASH = (
+    r"C:\Program Files\Git\bin\bash.exe"
+    if os.name == "nt"
+    else "bash"
+)
+
+
+def _bash_path(path: Path) -> str:
+    if os.name != "nt":
+        return str(path)
+    resolved = path.resolve()
+    return f"/{resolved.drive[0].lower()}{resolved.as_posix()[2:]}"
 
 
 def _run_helper(tmp_path: Path, *, read_token: str = "read-token") -> subprocess.CompletedProcess[str]:
     bash_env = tmp_path / "bash-env"
     bash_env.write_text(
         """\
-ward() {
+aguard() {
   if [[ "${1:-}" == ops && "${2:-}" == aws && "${3:-}" == ssm && "${4:-}" == get-parameter ]]; then
     local name=""
     shift 4
@@ -57,12 +69,12 @@ ward() {
     env = os.environ.copy()
     env.update(
         {
-            "BASH_ENV": str(bash_env),
+            "BASH_ENV": _bash_path(bash_env),
             "FAKE_REGISTRY_READ_TOKEN": read_token,
         }
     )
     return subprocess.run(
-        [str(SCRIPT), "get"],
+        [BASH, _bash_path(SCRIPT), "get"],
         input="forgejo.coilysiren.me\n",
         cwd=tmp_path,
         env=env,
@@ -98,7 +110,7 @@ def test_falls_back_to_registry_publish_token(tmp_path: Path) -> None:
 
 def test_rejects_other_registries(tmp_path: Path) -> None:
     result = subprocess.run(
-        [str(SCRIPT), "get"],
+        [BASH, _bash_path(SCRIPT), "get"],
         input="example.invalid\n",
         cwd=tmp_path,
         text=True,

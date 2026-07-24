@@ -10,7 +10,7 @@ It works off **provenance markers** a fact carries inline. A graded fact
 declares, in a machine-readable HTML comment next to it:
 
     <!-- freshness: as-of=2026-06-24 decay-class=derived half-life=fast
-         source="ward ops forgejo describe" -->
+         source="aguard ops forgejo describe" -->
 
 - **as-of** (required) - the date the fact was last verified against its source.
 - **half-life** (required for grading) - how fast the world rewrites it:

@@ -56,20 +56,17 @@ commands:
     run: specgen --project-root .specgen run --
     description: "Materialize and run aguard from the independent .specgen snapshot, passing arguments after `--`."
   aos-image-build:
-    run: uv run python scripts/dev-base-build.py --registry agentic-os --tag aos-local build --tier lang-node
-    description: "Build the local Node language image as agentic-os:lang-node-aos-local for standalone `aos` smoke testing."
+    run: uv run python scripts/dev-base-build.py --registry agentic-os --tag aos-local build
+    description: "Build the full local image as agentic-os:aos-local for standalone `aos` smoke testing."
   aos-container-smoke:
-    run: ./aos/aos --role engineer --image agentic-os:lang-node-aos-local acompose -- codex --version
-    description: "Launch the local Node language image through `aos`, compose the engineer Codex HOME, hydrate substrate, and print the in-container Codex version."
+    run: ./aos/aos --role engineer --image agentic-os:aos-local acompose -- codex --version
+    description: "Launch the full local image through `aos`, compose the engineer Codex HOME, hydrate substrate, and print the in-container Codex version."
   aos-designer-smoke:
-    run: ./aos/aos --role designer --layout codex --image agentic-os:lang-node-aos-local --auth=false --no-substrate acompose -- sh scripts/aos-designer-smoke.sh
-    description: "Launch the local Node language image as the designer Codex variant and verify its projected AGENTS.md briefing, selected composed skill, entry-point promotion, and role isolation."
+    run: ./aos/aos --role designer --layout codex --image agentic-os:aos-local --auth=false --no-substrate acompose -- sh scripts/aos-designer-smoke.sh
+    description: "Launch the full local image as the designer Codex variant and verify its projected AGENTS.md briefing, selected composed skill, entry-point promotion, and role isolation."
   aos-role-question:
     run: sh scripts/aos-role-question.sh
     description: "Ask one composed role a real question through cloud Codex or Goose with a local model, enforce a bounded run, and require the response to confirm its loaded role. Usage: `ward exec aos-role-question -- cloud|local ROLE [MODEL]`."
-  agent-compat:
-    run: uv run python scripts/agent-compat.py
-    description: "Run daily unittest smoke checks for local agent harness compatibility. The roster is read live from `ward agents list --json`, so it tracks ward's embedded fleet (Claude, Codex, OpenCode, Goose) instead of a private list; narrow with `-- --harness codex`. Uses unittest's native ok/FAIL/ERROR output and exit code. See docs/agent-compat.md."
   sync-local-models:
     run: uv run python -m agentic_os.local_model_sync
     description: "Sync AOSH's selected Goose route into `.ward/agents.kdl`. OpenCode remains AOS-local backend policy. `-- --check` compares the synced overlay with the selected, provisioned roster and fails on drift. See docs/ward-local-models.md."
@@ -84,13 +81,13 @@ commands:
     description: "Project AOSH's ordered role personalities into `aos/role-personalities.json` and validate every selected AOS full and brief personality body. `-- --check` reports drift without writing. See docs/ward-local-models.md."
   dev-base-build:
     run: uv run python scripts/dev-base-build.py --registry agentic-os --tag dev-base-local build
-    description: "Build the independent Ubuntu-based language images and composed full image locally under agentic-os:<tier>-dev-base-local (agentic-os:dev-base-local for full) before the release workflow publishes the multi-arch family."
+    description: "Build the full Ubuntu-based development image locally as agentic-os:dev-base-local before the release workflow publishes it for both architectures."
   dev-base-check:
     run: sh scripts/dev-base-check.sh
-    description: "Run Docker buildx static build checks against the independent language targets and the composed full image without building or publishing layers."
+    description: "Run a Docker buildx static build check against the full development image without building or publishing layers."
   dep-bump:
     run: uv run python scripts/dep-bump.py
-    description: "Resolve the dev-base Dockerfiles' pinned tool versions against upstream and bump them. `ward exec dep-bump -- check` reports drift (exit 1 if stale); `-- plan` emits the stale set as TSV (`--json` for machines); `-- apply --arg UV_VERSION --version X` rewrites one ARG. The scheduled .forgejo/workflows/dep-bump.yml runs this to auto-republish the image family. See docs/dev-base-image.md."
+    description: "Resolve the dev-base Dockerfile's pinned tool versions against upstream and bump them. `ward exec dep-bump -- check` reports drift (exit 1 if stale); `-- plan` emits the stale set as TSV (`--json` for machines); `-- apply --arg UV_VERSION --version X` rewrites one ARG. The scheduled .forgejo/workflows/dep-bump.yml runs this to auto-republish the full image. See docs/dev-base-image.md."
   apply-agentic-os-hooks:
     run: uv run python scripts/apply-agentic-os-hooks.py
     description: "Roll out the canonical pre-commit hook block to every consumer repo under ~/projects/<org>/* (all org dirs). Idempotent."
@@ -147,7 +144,7 @@ commands:
     description: "Converge public-safe Claude Code preferences without clobbering local settings."
   gen-repo-pointer-skill:
     run: uv run python -m agentic_os.generators.generate_repo_pointer_skill
-    description: "Generate a repo-<name> pointer skill from GitHub metadata. Pipe `ward ops gh repo view coilysiren/<name>` into it with `<name> --from-json -`, or pass --description/--topic. See docs/features-agents-pointer.md."
+    description: "Generate a repo-<name> pointer skill from repository metadata. Pipe `aguard ops forgejo repo view --repo coilysiren/<name> --json` into it with `<name> --from-json -`, or pass --description/--topic. See docs/features-agents-pointer.md."
   gen-seed-skills:
     run: uv run python -m agentic_os.generators.generate_seed_skills
     description: "Regenerate agentic_os/seed_skills_data.py from the seed: frontmatter on the coding-<lang> skills. Run after editing a seed block; check-seed-skills-drift fails on staleness. See docs/skill-discipline-authoring-shipping.md."
@@ -169,24 +166,12 @@ commands:
   agents-context-inventory:
     run: uv run python -m agentic_os.agents_context_inventory
     description: "Inventory AGENTS-family sources across the committed substrate and an infrastructure-supplied managed-repo manifest. Emits stable Markdown or JSON with repository provenance, paragraph hashes, clipping candidates, and active role/harness cascades without copying doctrine text. See docs/agents-context-inventory.md."
-  gen-ward-ops-reference:
-    run: bash scripts/gen-ward-ops-reference.sh
-    description: "Regenerate docs/ward-ops-forgejo-reference.md from `ward ops forgejo describe` with a provenance header (as-of date + ward version). The committed render keeps operator-verb names greppable off-disk so a cold agent never guesses the name. Run at converge time or when ward-kdl's forgejo surface changes."
-  gen-ward-ops-aws-reference:
-    run: uv run python -m agentic_os.generators.generate_ward_aws_reference
-    description: "Regenerate docs/ward-ops-aws-reference.md from the launch-selected AOS bundle. `-- --check` reports drift without writing."
   freshness:
     run: uv run python -m agentic_os.freshness
     description: "Knowledge-base freshness probe: parse `<!-- freshness: as-of= half-life= -->` provenance markers across tracked docs and grade each fact by age against its half-life horizon. `-- --check` exits non-zero when any fast-decay fact is past its horizon (the loud trigger a scheduled CI job fails on), `-- --lint` checks markers are well-formed. Hermetic, on-demand/scheduled, not a commit-path hook since rot is time-based. See docs/knowledge-base-freshness.md."
-  ship-tool-failures:
-    run: uv run python -m agentic_os.tool_failures.ship
-    description: "Drain the tool-use failure-record buffer (~/.cache/agentic-os/tool-failures/<repo>.jsonl) to GlitchTip: gate on genuine failures, fingerprint-group, and emit one Sentry-protocol envelope per failure past a per-file watermark (idempotent). DSN from SSM (/sentry-dsn/tool-failures), fail-soft when absent so the buffer keeps accumulating. Producer-agnostic, out-of-band (timer / SessionEnd hook), never a hot path. `-- --dry-run` previews counts without a DSN or POST, `-- --repo <slug>` narrows. See docs/tool-failures-shipper.md, SSM.md."
   forgejo-actions-logs:
     run: uv run python -m agentic_os.forgejo_actions_logs
     description: "Stream a Forgejo Actions job log: `ward exec forgejo-actions-logs -- <owner> <repo> <run_index> <job_index> [attempt]` (indexes as shown in the run URL). Needs FORGEJO_TOKEN. Speaks the UI log-cursor route with Basic auth because the API logs route 404s on Forgejo 15 (aos#476); logs for older runs may already be purged (infrastructure#545)."
-  forgejo-org-repo-bootstrap:
-    run: uv run python scripts/forgejo_org_repo_bootstrap.py
-    description: "Create or reconcile a Forgejo org repo using the admin token. Use this when coilyco-ops only has write access but a GitHub profile mirror needs the repo public and described for a substrate seed."
   sync-actions-secrets:
     run: uv run python scripts/sync-actions-secrets.py
     description: "Sync Forgejo Actions secrets (Telegram alert creds, release PATs, and package-repository writers) from their SSM sources of truth to the aos + ward + cli-guard repos. Values flow SSM -> Forgejo API in-process, never disk or argv. `FORGEJO_ADMIN_TOKEN` overrides the legacy SSM admin-token source for attended runs. `-- --dry-run` previews the mapping. See docs/release.md."

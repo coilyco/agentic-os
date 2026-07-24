@@ -68,7 +68,6 @@ check-unresolved-placeholders = "agentic_os.pre_commit.check_unresolved_placehol
 check-issue-references = "agentic_os.pre_commit.check_issue_references:main"
 leak-guard-encode = "agentic_os.pre_commit.encode_leak_term:main"
 freshness = "agentic_os.freshness:main"
-ship-tool-failures = "agentic_os.tool_failures.ship:main"
 agent-id = "agentic_os.agent_id:main"
 
 generate-agents-pointer = "agentic_os.generators.generate_agents_pointer:main"
@@ -107,10 +106,6 @@ agents_md_max_chars = 34000
 excludes = [
     "warp/launch_configurations/**",
     "warp/tab_configs/**",
-    # Generated render of `ward ops forgejo describe` (scripts/gen-ward-ops-reference.sh).
-    # Over-cap by design: the full operator-verb surface, committed so the names
-    # stay greppable off-disk. Regenerate, do not hand-trim. See docs/ward-ops-forgejo-reference.md.
-    "docs/ward-ops-forgejo-reference.md",
     # Generated pre-rollout AGENTS inventory baseline. It preserves the full
     # review surface and stays over-cap rather than splitting one point-in-time audit.
     "docs/agents-context-inventory-snapshot.md",

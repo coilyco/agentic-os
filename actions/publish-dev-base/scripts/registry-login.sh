@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Authenticate the image publisher to the canonical registry.
 
 set -euo pipefail
 

@@ -67,8 +67,8 @@ run_and_confirm() {
         exit "$status"
     fi
     role_display="$(printf '%s' "$role" | tr '-' ' ')"
-    if ! rg -iFq "ROLE-CONFIRMED: ${role}" "$transcript" \
-        && ! rg -iFq "ROLE-CONFIRMED: ${role_display}" "$transcript"; then
+    if ! grep -Fqi "ROLE-CONFIRMED: ${role}" "$transcript" \
+        && ! grep -Fqi "ROLE-CONFIRMED: ${role_display}" "$transcript"; then
         echo "aos role question: response did not confirm ${role}" >&2
         exit 1
     fi
@@ -80,7 +80,7 @@ mode="${1:-}"
 role="${2:-}"
 model="${3:-qwen3.6:35b}"
 aos_bin="${AOS_BIN:-./aos/aos}"
-aos_image="${AOS_IMAGE:-agentic-os:lang-node-aos-local}"
+aos_image="${AOS_IMAGE:-agentic-os:aos-local}"
 
 [ "$#" -ge 2 ] || usage
 question="$(question_for "$role")"

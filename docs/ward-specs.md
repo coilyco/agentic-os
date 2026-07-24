@@ -1,7 +1,7 @@
 # Ward Spec Bundle
 
 The coilyco ward bundle lives in [`.ward/`](../.ward/) beside `ward.yaml`. It
-carries ops sources, Actions bridges, agent/role/repo policy, and
+carries role-scoped guarded sources, Actions bridges, agent/role/repo policy, and
 [`defaults.kdl`](../.ward/defaults.kdl), which selects the aos agent image and
 `release` tag. Aos tracks no upstream Forgejo OpenAPI blob.
 
@@ -20,13 +20,10 @@ agentic-os on `pull-request-and-merge` (canonical ward#508 spellings).
 This is the one place a shipped tool (ward) consumes runtime config authored in
 a reference repo (aos), a deliberate exception to AGENTS.md's config-placement
 corollary. The bundle is Kai's single coilyco deployment, not fleet config
-every ward user melds. Forgejo splits into a compatibility monolith for the
-current `ward ops forgejo` runtime surface plus role-facing read, write, and
-admin tier guardfiles. The raw Actions log bridge, list bridge, rerun bridge,
-the runner-token overlay, and the fetch mirrors for the dead log/rerun API
-routes stay here as coilyco-specific overlays because the upstream swagger
-omits the live log, list, and rerun routes and the current renderer stays
-JSON-first. The exception is stated in [AGENTS.md](../AGENTS.md).
+every ward user melds. Forgejo is split into role-facing read, write, admin,
+merge, Actions-read, and runner-token guardfiles. The operator monolith moved
+to [Aguard](aguard.md). Ward keeps only the dynamically selected role policy.
+The exception is stated in [AGENTS.md](../AGENTS.md).
 
 See [role overlays](ward-specs-overrides.md) and
 [local model ownership](ward-local-models.md).
@@ -58,11 +55,10 @@ target, but the live config path is the runtime `WARD_CONFIG_REF` seam, not a
 bespoke rebuild from the asset. Ward's embedded image stays neutral, while
 [`defaults.kdl`](../.ward/defaults.kdl) selects the aos image and tag.
 
-The bundle uses `aos-ward` as the source binary name for the public ward surface
-that loads into `ward ops ...`. Role-only Forgejo tier files use `aos-agent`, so
-director/engineer PR lifecycle grants do not merge into the public ops bundle.
-Ward reroots selected bundle sources back to the public `ward` command name at
-runtime.
+The bundle uses source binary names that Ward reroots to the selected role
+command at runtime. Role-only Forgejo tier files use `aos-agent`. Operational
+automation and human operators use `aguard ops ...` instead of loading the Ward
+bundle directly.
 
 Landing policy lives in [`.ward/repos.kdl`](../.ward/repos.kdl). Its workflow
 block keeps the coilyco PR-gated repos explicit.

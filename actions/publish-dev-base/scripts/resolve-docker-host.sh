@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Select the first reachable Docker daemon on the image runner.
 
 set -euo pipefail
 

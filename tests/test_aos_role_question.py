@@ -49,6 +49,7 @@ def test_cloud_question_selects_codex_and_accepts_role_marker(tmp_path: Path) ->
     proc, argv = _run(tmp_path, "cloud", "designer")
 
     assert proc.returncode == 0, proc.stderr
+    assert "--image\nagentic-os:aos-local\n" in argv
     assert "--layout\ncodex\n" in argv
     assert "codex\nexec\n" in argv
 
@@ -63,6 +64,7 @@ def test_local_question_selects_goose_and_forwards_model(tmp_path: Path) -> None
     )
 
     assert proc.returncode == 0, proc.stderr
+    assert "--image\nagentic-os:aos-local\n" in argv
     assert "--layout\ngoose\n" in argv
     assert "GOOSE_MODEL=local-model\n" in argv
     assert "goose\nrun\n--no-session\n" in argv

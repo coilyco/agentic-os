@@ -61,23 +61,29 @@ def test_set_arg_rejects_unknown_arg() -> None:
 
 def test_set_arg_in_tree_rewrites_each_dockerfile_with_arg(tmp_path: Path) -> None:
     script = _load_script()
-    (tmp_path / "core").mkdir()
-    (tmp_path / "lang-go").mkdir()
-    (tmp_path / "lang-node").mkdir()
-    (tmp_path / "core" / "Dockerfile").write_text("ARG GO_VERSION=1.26.4\n", encoding="utf-8")
-    (tmp_path / "lang-go" / "Dockerfile").write_text(
+    (tmp_path / "rooted").mkdir()
+    (tmp_path / "first").mkdir()
+    (tmp_path / "second").mkdir()
+    (tmp_path / "rooted" / "Dockerfile").write_text(
         "ARG GO_VERSION=1.26.4\n", encoding="utf-8"
     )
-    (tmp_path / "lang-node" / "Dockerfile").write_text(
+    (tmp_path / "first" / "Dockerfile").write_text(
+        "ARG GO_VERSION=1.26.4\n", encoding="utf-8"
+    )
+    (tmp_path / "second" / "Dockerfile").write_text(
         "ARG CLAUDE_VERSION=2.1.200\n", encoding="utf-8"
     )
 
     script.set_arg_in_tree(tmp_path, "GO_VERSION", "1.26.5")
 
-    assert "ARG GO_VERSION=1.26.5\n" in (tmp_path / "core" / "Dockerfile").read_text()
-    assert "ARG GO_VERSION=1.26.5\n" in (tmp_path / "lang-go" / "Dockerfile").read_text()
+    assert "ARG GO_VERSION=1.26.5\n" in (
+        tmp_path / "rooted" / "Dockerfile"
+    ).read_text()
+    assert "ARG GO_VERSION=1.26.5\n" in (
+        tmp_path / "first" / "Dockerfile"
+    ).read_text()
     assert "ARG CLAUDE_VERSION=2.1.200\n" in (
-        tmp_path / "lang-node" / "Dockerfile"
+        tmp_path / "second" / "Dockerfile"
     ).read_text()
 
 

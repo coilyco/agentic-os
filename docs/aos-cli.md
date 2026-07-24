@@ -74,7 +74,7 @@ Manual dispatch retries a tag or selects patch, minor, or major.
 
 ## See also
 
-* [dev-base-image.md](dev-base-image.md) - image tiers and publication.
+* [dev-base-image.md](dev-base-image.md) - full image contents and publication.
 * [aos-cli-release.md](aos-cli-release.md) - binary and package delivery.
 * [personality-provider.md](personality-provider.md) - composed source.
 * [FEATURES.md](FEATURES.md) - shipped inventory.

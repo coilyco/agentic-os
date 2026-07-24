@@ -1,7 +1,5 @@
-# Publish the draft dev-base image family after release has already advanced.
-# The branch promotion workflow only gates and fast-forwards `release`; this
-# separate workflow is keyed by that promoted SHA so registry or build flakes
-# cannot block branch advancement.
+# Publish the draft full dev-base image after release has advanced. Registry or
+# build failures do not block branch promotion.
 
 name: dev-base-publish
 
@@ -14,19 +12,6 @@ on:
         description: "Commit SHA to publish. Defaults to the dispatch ref."
         required: false
         default: ""
-      tier:
-        description: "Tier to publish or resume. all runs the full DAG."
-        required: false
-        default: "all"
-        type: choice
-        options:
-          - all
-          - lang-node
-          - lang-go
-          - lang-dotnet
-          - lang-rust
-          - lang-python
-          - full
       tag:
         description: "Draft tag override. Defaults to draft-<sha>."
         required: false
@@ -66,48 +51,14 @@ jobs:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
-  publish-languages:
-    name: publish-${{ matrix.tier }}
-    needs: [plan-draft]
-    runs-on: docker-build
-    timeout-minutes: 120
-    strategy:
-      fail-fast: false
-      max-parallel: 4
-      matrix:
-        tier:
-          - lang-node
-          - lang-go
-          - lang-dotnet
-          - lang-rust
-          - lang-python
-    steps:
-      - if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.tier == 'all' || github.event.inputs.tier == matrix.tier || (github.event.inputs.tier == 'full' && matrix.tier != 'lang-node') }}
-        uses: actions/checkout@v6
-      - if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.tier == 'all' || github.event.inputs.tier == matrix.tier || (github.event.inputs.tier == 'full' && matrix.tier != 'lang-node') }}
-        uses: ./actions/publish-dev-base-tier
-        with:
-          tier: ${{ matrix.tier }}
-          tag: ${{ needs.plan-draft.outputs.draft_tag }}
-          registry-token: ${{ secrets.REGISTRY_TOKEN }}
-      - name: Alert Telegram on release failure
-        if: ${{ failure() && github.ref == 'refs/heads/release' }}
-        continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-
   publish-full:
-    needs: [plan-draft, publish-languages]
-    if: ${{ github.event_name != 'workflow_dispatch' || contains('all,full', github.event.inputs.tier) }}
+    needs: [plan-draft]
     runs-on: docker-build
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v6
-      - uses: ./actions/publish-dev-base-tier
+      - uses: ./actions/publish-dev-base
         with:
-          tier: full
           tag: ${{ needs.plan-draft.outputs.draft_tag }}
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
       - name: Alert Telegram on release failure

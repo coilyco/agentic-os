@@ -57,10 +57,9 @@ discipline: every agent reads it every session, so one stale fact poisons every
 run. Grading the eager facts gives the bake-unsafe / fetch-instead list:
 
 - **fetch-instead (fast-decay, never bake)** - operator-verb names, model ids and
-  pricing, public-library APIs, SSM ids. Serve from a derived render
-  ([ward-ops-forgejo-reference.md](ward-ops-forgejo-reference.md)), a pointer, or
-  runtime lookup. The `coily ops` -> `ward ops` rename that spawned this thread
-  is exactly this cell.
+  pricing, public-library APIs, SSM ids. Serve from `aguard --help`, a pointer,
+  or runtime lookup. The retired operator-command spellings that spawned this
+  thread are exactly this cell.
 - **bake-safe (slow-decay, hand-assert)** - she/her, voice rules, doctrine,
   taste. Hand-assertion in AGENTS.md is correct here.
 

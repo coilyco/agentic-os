@@ -1,83 +1,70 @@
 from __future__ import annotations
 
-import os
-import subprocess
-from pathlib import Path
+import io
+import json
+import urllib.request
 
 import pytest
 
+from agentic_os import forgejo_actions_list
 
-SCRIPT = Path(__file__).resolve().parents[1] / ".ward" / "forgejo-actions-list.sh"
+
+class _Response(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        self.close()
 
 
 @pytest.mark.parametrize(
-    ("kind", "tail"),
+    ("kind", "page", "tail"),
     [
-        ("runs", "/actions/runs?page=1&limit=1"),
-        ("tasks", "/actions/tasks?page=3&limit=1"),
+        ("runs", 1, "/actions/runs?page=1&limit=1"),
+        ("tasks", 3, "/actions/tasks?page=3&limit=1"),
     ],
 )
-def test_actions_list_bridge_defaults_page_and_honours_override(
-    tmp_path: Path, kind: str, tail: str
+def test_actions_list_defaults_page_and_honours_override(
+    monkeypatch, capsys, kind: str, page: int, tail: str
 ) -> None:
-    capture = tmp_path / "curl-args.txt"
-    fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
-    fake_curl = fake_bin / "curl"
-    fake_curl.write_text(
-        "#!/usr/bin/env bash\n"
-        "printf '%s\\n' \"$@\" >\"${CAPTURE_FILE}\"\n"
-        "printf '[]'\n",
-        encoding="utf-8",
-    )
-    fake_curl.chmod(0o755)
+    requests: list[urllib.request.Request] = []
 
-    env = os.environ.copy()
-    env.update(
-        {
-            "CAPTURE_FILE": str(capture),
-            "FORGEJO_TOKEN": "token",
-            "FORGEJO_BASE_URL": "https://forgejo.example",
-            "PATH": f"{fake_bin}:{env['PATH']}",
-        }
-    )
+    def fake_urlopen(request: urllib.request.Request):
+        requests.append(request)
+        return _Response(b"[]")
 
-    args = ["bash", str(SCRIPT), kind, "coilyco-flight-deck", "infrastructure", "--limit", "1"]
-    if kind == "tasks":
-        args += ["--page", "3"]
+    monkeypatch.setattr(forgejo_actions_list.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setenv("FORGEJO_TOKEN", "token")
+    monkeypatch.setenv("FORGEJO_BASE_URL", "https://forgejo.example")
 
-    proc = subprocess.run(args, env=env, check=True, capture_output=True, text=True)
-    assert proc.stdout == "[]"
-    assert proc.stderr == ""
-
-    got = capture.read_text(encoding="utf-8")
-    assert tail in got
-    assert "Authorization: token token" in got
-    assert "Accept: application/json" in got
-
-
-def test_action_run_list_dry_run_adds_page_when_limit_is_supplied() -> None:
-    env = os.environ.copy()
-    env["WARD_CONFIG_REF"] = f"file://{SCRIPT.parents[1] / '.ward'}"
-
-    proc = subprocess.run(
-        [
-            "ward",
-            "ops",
-            "forgejo",
-            "action-run",
-            "list",
-            "coilyco-flight-deck",
-            "ward",
-            "--limit",
-            "3",
-            "--dry-run",
-        ],
-        env=env,
-        check=True,
-        capture_output=True,
-        text=True,
+    assert (
+        forgejo_actions_list.main(
+            [
+                kind,
+                "coilyco-flight-deck",
+                "infrastructure",
+                "--limit",
+                "1",
+                "--page",
+                str(page),
+            ]
+        )
+        == 0
     )
 
-    assert "/actions/runs?limit=3&page=1" in proc.stdout
-    assert "%24%7Blimit%7D" not in proc.stdout
+    assert json.loads(capsys.readouterr().out) == []
+    assert requests[0].full_url.endswith(tail)
+    assert requests[0].get_header("Authorization") == "token token"
+    assert requests[0].get_header("Accept") == "application/json"
+
+
+def test_actions_list_requires_the_guard_injected_token(monkeypatch, capsys) -> None:
+    monkeypatch.delenv("FORGEJO_TOKEN", raising=False)
+
+    assert (
+        forgejo_actions_list.main(
+            ["runs", "coilyco-flight-deck", "infrastructure"]
+        )
+        == 1
+    )
+    assert "FORGEJO_TOKEN is required" in capsys.readouterr().err

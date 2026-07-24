@@ -6,7 +6,7 @@
 # tracked docs, grades each fact by age against its half-life horizon, and fails
 # the run when any fast-decay fact is past its horizon. A failing run is the
 # signal to re-verify the flagged fact against its source and bump its as-of (or
-# regenerate it, for a derived render like docs/ward-ops-forgejo-reference.md).
+# regenerate it for a derived fact.
 #
 # The probe is hermetic - stdlib only, no network, no ward binary - so it runs
 # with just python3 and the checkout on PYTHONPATH. Time-based, not change-based,

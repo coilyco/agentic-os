@@ -1,19 +1,11 @@
-name: "Publish one dev-base tier"
+name: "Publish dev-base"
 description: |
-  Build and push a single dev-base tier as one multi-arch image, or retag an
-  already-pushed draft tier into the release tags. Extracted from the old
-  monolithic publish-dev-base job (aos#491) so workflows can run one job per
-  tier with `needs:` expressing the real tier DAG: a flake in one tier costs
-  that tier and its dependents, never the whole family. Language tiers build
-  independently from Ubuntu. The graft tiers consumed by full must already be
-  pushed under the same tag by upstream jobs.
+  Build and push the full multi-arch development image, or retag an
+  already-pushed draft into the release tags.
 
 inputs:
-  tier:
-    description: "Published image tier (lang-node, lang-go, ..., full)."
-    required: true
   tag:
-    description: "Release tag to stamp onto the tier image."
+    description: "Release tag to stamp onto the image."
     required: true
   alias:
     description: "Optional moving alias tag pushed alongside the stamped tag."
@@ -24,7 +16,7 @@ inputs:
     required: false
     default: ""
   mode:
-    description: "Operation mode: build pushes a tier, promote retags source-tag."
+    description: "Operation mode: build pushes the image, promote retags source-tag."
     required: false
     default: "build"
   source-tag:
@@ -35,7 +27,7 @@ inputs:
     description: "Forgejo PAT with write:package for the registry login."
     required: true
   image-base:
-    description: "Registry/image family base."
+    description: "Registry image base."
     required: false
     default: "forgejo.coilysiren.me/coilyco-flight-deck/agentic-os"
   platforms:
@@ -43,7 +35,7 @@ inputs:
     required: false
     default: "linux/amd64,linux/arm64"
   build-timeout:
-    description: "Inner timeout(1) guard around the tier build."
+    description: "Inner timeout(1) guard around the image build."
     required: false
     default: "110m"
   uv-version:
@@ -80,12 +72,11 @@ runs:
         REGISTRY_TOKEN: ${{ inputs.registry-token }}
       run: bash "${GITHUB_ACTION_PATH}/scripts/registry-login.sh"
 
-    - name: Check whether the tier already landed
+    - name: Check whether the image already landed
       id: checkpoint
       shell: bash
       env:
         MODE: ${{ inputs.mode }}
-        TIER: ${{ inputs.tier }}
         TAG: ${{ inputs.tag }}
         ALIAS: ${{ inputs.alias }}
         EXTRA_ALIASES: ${{ inputs.extra-aliases }}
@@ -98,12 +89,11 @@ runs:
       shell: bash
       run: bash "${GITHUB_ACTION_PATH}/scripts/setup-builder.sh"
 
-    - name: Publish or promote the tier
+    - name: Publish or promote the image
       if: ${{ steps.checkpoint.outputs.skip_publish != 'true' }}
       shell: bash
       env:
         MODE: ${{ inputs.mode }}
-        TIER: ${{ inputs.tier }}
         TAG: ${{ inputs.tag }}
         ALIAS: ${{ inputs.alias }}
         EXTRA_ALIASES: ${{ inputs.extra-aliases }}
@@ -111,12 +101,11 @@ runs:
         IMAGE_BASE: ${{ inputs.image-base }}
         PLATFORMS: ${{ inputs.platforms }}
         BUILD_TIMEOUT: ${{ inputs.build-timeout }}
-      run: bash "${GITHUB_ACTION_PATH}/scripts/publish-tier.sh"
+      run: bash "${GITHUB_ACTION_PATH}/scripts/publish-image.sh"
 
-    - name: Verify lang-rust native development surface on both architectures
-      if: ${{ inputs.tier == 'lang-rust' }}
+    - name: Verify the full development surface on both architectures
       shell: bash
       env:
         IMAGE_BASE: ${{ inputs.image-base }}
         TAG: ${{ inputs.tag }}
-      run: bash "${GITHUB_ACTION_PATH}/scripts/verify-rust.sh"
+      run: bash "${GITHUB_ACTION_PATH}/scripts/verify-full.sh"

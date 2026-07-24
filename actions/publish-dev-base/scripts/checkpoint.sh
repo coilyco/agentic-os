@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Skip publication when the full target manifest already exists.
 
 set -euo pipefail
 
@@ -17,7 +18,6 @@ if uv run python scripts/dev-base-build.py \
   "${alias_args[@]}" \
   check \
   --mode "$MODE" \
-  --tier "$TIER" \
   "${source_args[@]}"
 then
   echo "skip_publish=true" >> "$GITHUB_OUTPUT"

@@ -1,6 +1,6 @@
 # dev-base auto-bump
 
-The dev-base Dockerfiles pin every tool as a hand-edited `ARG`
+The dev-base Dockerfile pins every tool as a hand-edited `ARG`
 ([docs/dev-base-image.md](dev-base-image.md)). `promote.yml` republishes the
 image on every push to main before `release` moves, but nothing kept those pins
 current, so the image drifted behind upstream until a human edited an `ARG`.
@@ -15,7 +15,7 @@ daily (and on `workflow_dispatch`). It calls
 [`scripts/dep-bump.py`](../scripts/dep-bump.py), which resolves each pinned tool
 against its upstream latest release, and for every pin that drifted commits a
 single `ARG` bump and pushes to main. That push republishes the image through
-the same `publish-dev-base` job as any landed commit, so the moving `:release`
+the same `publish-full` job as any landed commit, so the moving `:release`
 alias tracks upstream.
 
 The bump logic lives in this repo because the publish pipeline does (AGENTS.md).

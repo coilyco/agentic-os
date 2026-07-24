@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """Resolve the dev-base image's pinned tool versions against upstream and bump them.
 
-The dev-base Dockerfiles hand-pin every tool as an `ARG` (`UV_VERSION`,
+The dev-base Dockerfile hand-pins every tool as an `ARG` (`UV_VERSION`,
 `NODE_VERSION`, ...). `release.yml`
-republishes the image family on every push to main, but nothing keeps those
+republishes the full image on every push to main, but nothing keeps those
 pins current, so the published image drifts behind upstream until a human edits
 an `ARG` (agentic-os#272, ward#301).
 
 This script is the auto-bump: `plan` resolves each pin's latest upstream release
 and reports the drift; `apply` rewrites a single `ARG` in place. The scheduled
 `.forgejo/workflows/dep-bump.yml` runs `plan`, commits one bump per stale tool,
-and pushes to main, which republishes via the existing `publish-image` job. The
+and pushes to main, which republishes via the existing `publish-full` job. The
 bump logic lives here (the publish pipeline is this repo's per AGENTS.md); the
 fleet rollout is not this script's concern.
 

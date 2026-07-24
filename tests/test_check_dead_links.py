@@ -35,7 +35,7 @@ def test_dead_link_outside_skill_tree_is_caught(
     assert _run(monkeypatch, tmp_path) == 1
     err = capsys.readouterr().err
     assert "dead link" in err
-    assert "docs/ansible.md" in err
+    assert str(Path("docs") / "ansible.md") in err
 
 
 def test_repo_escaping_link_is_hard_violation(

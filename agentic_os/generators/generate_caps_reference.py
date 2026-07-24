@@ -10,7 +10,7 @@ restating a number, so the caps can never drift between code and prose.
 
 Mirrors the seed-skills pattern: `generate-caps-reference` writes the render
 and `check-caps-reference-drift` fails commit when it goes stale. Like the
-committed `docs/ward-ops-forgejo-reference.md` dump, the render is the
+generated operator-command dumps, the render is the
 off-disk, greppable answer so a cold agent reads the real cap without running
 the validator.
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Reuse the persistent multi-architecture Buildx builder.
 
 set -euo pipefail
 

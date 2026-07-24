@@ -1,13 +1,12 @@
 # Forgejo Actions log bridge
 
-The `.ward/forgejo-actions-logs.sh` bridge fetches the live plaintext job log
-for a PR status target and prints it raw to stdout. It is packaged with the
-coilyco ward spec bundle, but latest ward does not mount it as
-`ward ops forgejo actions logs`: the spec-driven `ward ops forgejo` command owns
-that path, and same-path exec overlays are skipped fail-closed.
+`aguard ops actions logs` calls the packaged
+`agentic_os.forgejo_actions_logs` module. It fetches the live plaintext job log
+for a PR status target and prints it raw to stdout. Ward retains a separate
+role-scoped bridge for agent containers.
 
 The companion specverb fetch overlay in
-[`.ward/guardfile.forgejo.kdl`](../.ward/guardfile.forgejo.kdl) pins the dead
+[Aguard's Forgejo spec](../.specgen/aguard/forgejo.kdl) pins the dead
 Forgejo API log route from agentic-os#473. PR #529 replaced that route with
 the live web UI helper below, and this fetch mirror keeps the dead shape
 documented instead of hand-coding another raw HTTP call.
@@ -16,10 +15,9 @@ Why the bridge still exists:
 
 - Forgejo 15.0.2 exposes the Actions metadata in swagger, but not this log
   route.
-- The script preserves the owner gate and uses Basic auth against the job page
+- The module preserves the owner gate and uses Basic auth against the job page
   and its `logCursors` POST, and it does not JSON-render the response body.
-- ward#950 tracks replacing this bridge with a first-class fetch-style ward-kdl
-  surface that can live beside the spec-driven Forgejo verbs.
+- The operator command is independent of the current repository directory.
 
 The visible status target uses the repository run index and job index, for
 example `/actions/runs/886/jobs/0`.
@@ -40,6 +38,6 @@ The resolved log route is:
 
 See also:
 
-- [ward-specs.md](ward-specs.md)
+- [aguard.md](aguard.md)
 - [Forgejo Actions rerun bridge](forgejo-actions-rerun.md)
 - [Cross-repo tooling and release](FEATURES.md)

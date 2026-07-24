@@ -2,9 +2,9 @@
 
 Three-stage Forgejo-canonical release (ward#1117 / aos#469). Stage 1:
 `promote.yml` gates every `main` push and fast-forwards `release` with
-`CI_RELEASE_TOKEN`. Stage 2: `dev-base-publish.yml` publishes the draft
-dev-base family under `draft-${sha}` on the promoted SHA, and its manual
-dispatch path can resume a tier closure. Stage 3: `release.yml`
+`CI_RELEASE_TOKEN`. Stage 2: `dev-base-publish.yml` publishes the draft full
+dev-base image under `draft-${sha}` on the promoted SHA, and its manual
+dispatch path can resume that image. Stage 3: `release.yml`
 is manual retry only under a no-cancel queue, so retries stay sequenced and
 never gate the branch. `main` stays yolo-able. `release` is last-known-good.
 Forgejo owns the release and tag per [forgejo-github-mirror-contract.md](forgejo-github-mirror-contract.md).
@@ -12,13 +12,12 @@ Forgejo owns the release and tag per [forgejo-github-mirror-contract.md](forgejo
 `promote.yml` only computes the repo gate and advances the branch. The draft
 publish workflow keeps image availability separate from branch promotion.
 `release.yml` is the manual retry path and no longer runs on push. Its retag
-jobs wait for their draft source tags, so a slower draft publish only delays
-that tier. Dispatches can override `sha`, `tier`, `tag`, and `source-tag` to
-resume a partial publish or retag.
+job waits for the draft source tag. Dispatches can override `sha`, `tag`, and
+`source-tag` to resume the publish or retag.
 `draft-*` tags are commit-scoped staging refs for Forgejo package cleanup
 rules. `:latest` is a compatibility alias for `:release`.
 
-The root `v*` train serves hook pins and dev-base images. The standalone CLI
+The root `v*` train serves hook pins and the dev-base image. The standalone CLI
 publishes binaries and packages on its independent `aos-v*` train. See
 [aos-cli-release.md](aos-cli-release.md).
 
@@ -37,8 +36,8 @@ create the public tag and Forgejo release only at the end.
 A `workflow_dispatch` re-fires the publication retry stage by hand, no dummy
 commit - dispatch against the `release` ref when the draft images already
 exist and the release publication needs a retry. It is the recovery lever for
-agentic-os#240 (missed enqueue). Its `bump` input defaults to `minor`, and
-the tier inputs can resume one closure at a time.
+agentic-os#240 (missed enqueue). Its `bump` input defaults to `minor`, and the
+image controls can resume one release closure at a time.
 
 ## Consumer pin (derived from the tag)
 

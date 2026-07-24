@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Install uv for the repository's Python-backed publication helper.
 
 set -euo pipefail
 

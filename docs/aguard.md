@@ -1,8 +1,10 @@
 # aguard
 
-`aguard` is AOS's standalone guarded operator CLI. Packaged `specgen` discovers
+`aguard` is AOS's canonical guarded operator CLI. Packaged `specgen` discovers
 the [`.specgen/`](../.specgen/README.md) project, materializes generated Go
 out-of-band, and emits the `aguard` binary without committed Go build glue.
+The [full dev-base image](dev-base-image.md) builds and installs that binary.
+There is no smaller image or alternate operator CLI.
 
 ## Authority boundary
 
@@ -13,17 +15,18 @@ spec-backed `aguard ops forgejo` group. The snapshot deliberately excludes the
 `aos-agent` read, write, admin, and merge tiers plus the engineer-only AWS
 overlay.
 
-That split matters. Ward selects those role sources dynamically through
+That split matters. Ward selects agent-role sources dynamically through
 `.ward/roles.kdl`, while specgen merges every member with the same `wrap`
-identity into one static binary. Copying every Ward source into `aguard` would
-silently union role authority.
+identity into one static binary. Ward retains that role orchestration only.
+Human and operator automation use `aguard ops ...`. Copying every Ward role
+source into `aguard` would silently union role authority.
 
 ## Source ownership
 
-`.specgen/aguard/` is an independent point-in-time snapshot. `.ward/` continues
-to own the live Ward bundle described in [ward specs](ward-specs.md). Neither
-tree is generated from the other, and no drift check forces them to match.
-Moving a policy change between them is a deliberate review event.
+`.specgen/aguard/` owns the operator policy. `.ward/` owns the role-scoped Ward
+bundle described in [ward specs](ward-specs.md). Neither tree is generated from
+the other, and no drift check forces them to match. A policy that agents and
+operators both need is reviewed in both authority contexts.
 
 The Forgejo source is vendored from the pruned deployment contract, so
 `aguard-lock` refreshes the dependency graph without reaching a live Forgejo
@@ -39,9 +42,9 @@ reference renders because AOS keeps maintained documentation under `docs/`.
 passes subsequent arguments to the generated command. `ward exec aguard-lock`
 is the only lock-writing step and uses the packaged `specgen` executable.
 
-Actions log, list, and rerun leaves call the tracked scripts beneath
-`.specgen/aguard/scripts/`. Run `aguard` from the AOS repository root so those
-paths and their `agentic_os` Python modules resolve.
+Actions log, list, and rerun leaves call packaged `agentic_os` Python modules.
+The full image sets their module path, so `aguard` works from any mounted
+repository.
 
 ## See also
 

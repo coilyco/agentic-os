@@ -1,4 +1,4 @@
-// ward ops kubectl - host-native kubectl as an allowlist (cli-guard
+// Role-scoped Ward kubectl surface as an allowlist (cli-guard
 // execverb, exec dialect). Wraps the image-baked `kubectl` against the active
 // kubeconfig (k3s over the tailnet); the exec target is fixed at parse,
 // so the caller can never substitute it. Deny-by-default: only the read verbs

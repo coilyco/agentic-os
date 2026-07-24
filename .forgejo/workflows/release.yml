@@ -1,37 +1,7 @@
-# Forgejo-canonical release publication, manual retry only. `promote.yml`
-# now gates main and fast-forwards `release` on its own, while
-# `dev-base-publish.yml` publishes the draft image family on the promoted SHA.
-# This workflow stays as the retry hook for the same publication work and
-# never runs on push.
-# The concurrency queue below replaces the old overlap-and-cancel behavior:
-# release runs execute in sequence (cancel-in-progress: false), so a burst of
-# manual retries cannot cancel an in-flight build. agentic-os dogfoods the
-# composite actions it ships (actions/tag-bump, actions/create-release) via
-# local `./actions/*` refs, so the source repo never depends on its own GitHub
-# mirror being current to release. No bump input means every promoted release
-# is a minor bump. Major is hand-driven via scripts/release.py. The consumer
-# pin resolves from the latest git tag at read time (agentic-os#238), so there
-# is no pin-bump job and no per-push DEFAULT_REV commit - cutting the tag is
-# the whole release. A `workflow_dispatch` trigger re-fires the same
-# publication pipeline by hand when Forgejo misses a run or a manual retry is
-# needed (agentic-os#240). Dispatch it against the `release` ref. The pipeline
-# computes the next tag first, retags the already-published draft dev-base
-# image family to the versioned tag plus `:release` and `:latest`, and only
-# then creates the public git/release tag, keeping the announced tag as the
-# last success marker. Full rationale in docs/release.md, image notes in
-# docs/dev-base-image.md. Each retag job polls its draft source tag until the
-# corresponding draft image exists, so publish and retag can overlap. The fan-out
-# does not fail every tier immediately. There is no test job here: promote.yml already ran
-# the full repo gate on the exact sha it published, so re-running the suite
-# here only lets a flaky rerun fail an already-vouched promotion (Kai's call,
-# 2026-07-12). The dev-base family retags as one job per tier through the
-# publish-dev-base-tier composite action, so a failed retag reruns alone via
-# rerun-failed-jobs. Draft tags are commit-scoped and intended for Forgejo
-# package cleanup rules. Tier DAG and cache model:
-# docs/dev-base-image-tiering.md.
-# Tier-scoped dispatches can stop at the selected closure for revalidation.
-# The final git/release publish only runs for `tier=all`, so a narrow rerun
-# does not wait on skipped siblings just to prove one tier again.
+# Forgejo-canonical release publication, manual retry only. promote.yml gates
+# main and fast-forwards release. dev-base-publish.yml publishes the draft full
+# image on that SHA. This workflow retags the draft, then creates the public
+# git release as the last success marker.
 
 name: release
 
@@ -42,19 +12,6 @@ on:
         description: "Commit SHA to retag. Defaults to the dispatch ref."
         required: false
         default: ""
-      tier:
-        description: "Tier to retag or resume. all runs the full DAG."
-        required: false
-        default: "all"
-        type: choice
-        options:
-          - all
-          - lang-node
-          - lang-go
-          - lang-dotnet
-          - lang-rust
-          - lang-python
-          - full
       tag:
         description: "Version tag override. Defaults to the next semver tag."
         required: false
@@ -64,7 +21,7 @@ on:
         required: false
         default: ""
       bump:
-        description: "Version bump for a manual run (minor|major|patch|none). Defaults to minor, matching promoted releases."
+        description: "Version bump for a manual run."
         required: false
         default: "minor"
         type: choice
@@ -118,153 +75,18 @@ jobs:
         with:
           bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-  retag-lang-node:
-    needs: [plan-release]
-    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,lang-node', github.event.inputs.tier)) }}
-    runs-on: docker
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: ./actions/publish-dev-base-tier
-        with:
-          mode: promote
-          tier: lang-node
-          tag: ${{ needs.plan-release.outputs.tag }}
-          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
-          alias: ${{ github.ref_name }}
-          extra-aliases: latest
-          registry-token: ${{ secrets.REGISTRY_TOKEN }}
-          build-timeout: 80m
-
-      - name: Alert Telegram on main failure
-        if: ${{ failure() && github.ref == 'refs/heads/release' }}
-        continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-
-  retag-lang-go:
-    needs: [plan-release]
-    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,lang-go,full', github.event.inputs.tier)) }}
-    runs-on: docker
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: ./actions/publish-dev-base-tier
-        with:
-          mode: promote
-          tier: lang-go
-          tag: ${{ needs.plan-release.outputs.tag }}
-          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
-          alias: ${{ github.ref_name }}
-          extra-aliases: latest
-          registry-token: ${{ secrets.REGISTRY_TOKEN }}
-          build-timeout: 80m
-
-      - name: Alert Telegram on main failure
-        if: ${{ failure() && github.ref == 'refs/heads/release' }}
-        continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-
-  retag-lang-dotnet:
-    needs: [plan-release]
-    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,lang-dotnet,full', github.event.inputs.tier)) }}
-    runs-on: docker
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: ./actions/publish-dev-base-tier
-        with:
-          mode: promote
-          tier: lang-dotnet
-          tag: ${{ needs.plan-release.outputs.tag }}
-          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
-          alias: ${{ github.ref_name }}
-          extra-aliases: latest
-          registry-token: ${{ secrets.REGISTRY_TOKEN }}
-          build-timeout: 80m
-
-      - name: Alert Telegram on main failure
-        if: ${{ failure() && github.ref == 'refs/heads/release' }}
-        continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-
-  retag-lang-rust:
-    needs: [plan-release]
-    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,lang-rust,full', github.event.inputs.tier)) }}
-    runs-on: docker
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: ./actions/publish-dev-base-tier
-        with:
-          mode: promote
-          tier: lang-rust
-          tag: ${{ needs.plan-release.outputs.tag }}
-          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
-          alias: ${{ github.ref_name }}
-          extra-aliases: latest
-          registry-token: ${{ secrets.REGISTRY_TOKEN }}
-          build-timeout: 80m
-
-      - name: Alert Telegram on main failure
-        if: ${{ failure() && github.ref == 'refs/heads/release' }}
-        continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-
-  retag-lang-python:
-    needs: [plan-release]
-    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,lang-python,full', github.event.inputs.tier)) }}
-    runs-on: docker
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: ./actions/publish-dev-base-tier
-        with:
-          mode: promote
-          tier: lang-python
-          tag: ${{ needs.plan-release.outputs.tag }}
-          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
-          alias: ${{ github.ref_name }}
-          extra-aliases: latest
-          registry-token: ${{ secrets.REGISTRY_TOKEN }}
-          build-timeout: 80m
-
-      - name: Alert Telegram on main failure
-        if: ${{ failure() && github.ref == 'refs/heads/release' }}
-        continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
   retag-full:
-    needs: [plan-release, retag-lang-go, retag-lang-dotnet, retag-lang-rust, retag-lang-python]
-    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,full', github.event.inputs.tier)) }}
+    needs: [plan-release]
+    if: ${{ needs.plan-release.outputs.tag != '' }}
     runs-on: docker
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v6
 
-      - uses: ./actions/publish-dev-base-tier
+      - uses: ./actions/publish-dev-base
         with:
           mode: promote
-          tier: full
           tag: ${{ needs.plan-release.outputs.tag }}
           source-tag: ${{ needs.plan-release.outputs.draft_tag }}
           alias: ${{ github.ref_name }}
@@ -281,15 +103,8 @@ jobs:
           chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
 
   release:
-    needs:
-      - plan-release
-      - retag-lang-node
-      - retag-lang-go
-      - retag-lang-dotnet
-      - retag-lang-rust
-      - retag-lang-python
-      - retag-full
-    if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || github.event.inputs.tier == 'all') }}
+    needs: [plan-release, retag-full]
+    if: ${{ needs.plan-release.outputs.tag != '' }}
     runs-on: docker
     container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
     steps:
@@ -318,6 +133,7 @@ jobs:
           REL_ID: ${{ steps.create.outputs.release_id }}
           TAG: ${{ needs.plan-release.outputs.tag }}
         run: bash scripts/ci/publish-ward-specs.sh
+
       - name: Alert Telegram on main failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
         continue-on-error: true

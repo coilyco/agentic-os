@@ -18,7 +18,7 @@ Public hosts and work laptops import this base only. Personal machines may compo
 
 Route every dev command through ward, which reads [`.ward/ward.yaml`](.ward/ward.yaml). Agents invoke `ward <verb>`, not bare `make` / `uv` / `python` / `npm` / `cargo` / `dotnet`. Add new verbs to that file before invoking them.
 
-**Operator verbs** (forgejo, aws/ssm, tailscale, kubectl, ...) live in **ward-kdl**, surfaced as `ward ops <area> ...`. Enumerate them with `ward ops <area> describe` or `--help`, or read the committed render at [`docs/ward-ops-forgejo-reference.md`](docs/ward-ops-forgejo-reference.md) - never guess an operator-verb name from prior. The old `coily ops` spelling is retired (agentic-os#261); `coily` is gone.
+**Operator verbs** (forgejo, aws/ssm, tailscale, kubectl, ...) live in **aguard**, surfaced as `aguard ops <area> ...` from the full dev-base image. Enumerate them with `aguard ops <area> describe` or `--help` - never guess an operator-verb name from prior. Ward retains role-scoped agent policy and repository development commands. The old `coily ops` and human-facing `ward ops` spellings are retired.
 
 ## Validation
 
@@ -36,7 +36,7 @@ Keep every artifact public-safe: messages, chat, code, commits, PRs, and public 
 
 Anything that fits as a pre-commit validation is **authored** here in agentic-os (the `agentic_os/check_*.py` validator plus its `.pre-commit-hooks.yaml` entry). Its **fleet rollout** - the thing that fans it across every checkout - lives in infrastructure/ansible, never here. The same split applies to any fleet-wide mutation: the tool or logic is authored in its home repo, and an ansible role is the rollout. Install-time mass mutation never belongs in `ward setup` or a brew post-install. Homebrew installs the binary and stops. Ansible converges the fleet.
 
-The **trigger** for a rollout is a push, not a hand-run publish, keeping it in agent scope. When work needs the dev-base image family rebuilt (a Dockerfile, entrypoint, or pinned-`ARG` edit), the agent authors it and pushes to main - the `publish-dev-base` job in [`release.yml`](.forgejo/workflows/release.yml) rebuilds each tier and pushes the release tag plus the moving `:release` branch alias. It holds no registry creds, runs no `buildx --push`: the publish is a CI consequence of the landed commit, like the tag. So "needs the image republished" is **in** scope (author, push, let CI publish), not a NO-GO wall - reserve it for a deliverable that cannot reduce to a push.
+The **trigger** for a rollout is a push, not a hand-run publish, keeping it in agent scope. When work needs the full dev-base image rebuilt (a Dockerfile, entrypoint, or pinned-`ARG` edit), the agent authors it and pushes to main - the `dev-base-publish` workflow builds the single full image, and the release workflow promotes its tag plus the moving `:release` alias. It holds no registry creds, runs no `buildx --push`: the publish is a CI consequence of the landed commit, like the tag. So "needs the image republished" is **in** scope (author, push, let CI publish), not a NO-GO wall - reserve it for a deliverable that cannot reduce to a push.
 
 ### Config placement
 
@@ -67,7 +67,7 @@ Conventional-commits 1.0.0 and Forgejo issue references are encouraged house sty
 * `pull-request-and-merge` - open a PR for the director lane. Merge only after the issue thread shows `workflow: pull-request-and-merge`, `WARD-OUTCOME: done`, and a passed review summary.
 * `remote-branch-only` - push a branch and stop. No PR or merge authority.
 
-A read-only clone cannot push itself, so push or merge workflows need a writable surface. Track landed work by issue state and commits on `main`. `ward ops forgejo pr list` and `pr view` are allowed; merge stays gated.
+A read-only clone cannot push itself, so push or merge workflows need a writable surface. Track landed work by issue state and commits on `main`. `aguard ops forgejo pr list` and `pr view` are allowed. Merge stays gated.
 
 ## Agent rules
 
