@@ -31,7 +31,7 @@ agents {
         }
     }
     agent goose {
-        // Synced from the AOSH selected batch by `ward exec sync-local-models`.
+        // Synced from AOSH's selected Goose route by `ward exec sync-local-models`.
         model ministral-3:8b
         binary goose
         context-level 1
@@ -45,7 +45,7 @@ agents {
         }
     }
     agent opencode {
-        // Synced from the AOSH selected batch by `ward exec sync-local-models`.
+        // AOS-local backend policy. Role routing in AOSH does not select this model.
         model qwen3.6:35b
         endpoint "http://host.docker.internal:8082/v1"
     }

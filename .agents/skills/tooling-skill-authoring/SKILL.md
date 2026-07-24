@@ -1,27 +1,38 @@
 ---
 name: tooling-skill-authoring
-description: Author, modify, and validate agent skills. Covers naming, description caps, why-encoding, flat layout, Python helpers.
+description: Author, place, prune, and validate skills. Covers admission, ordinary vs composed scope, triggers, structure, why-encoding, and deterministic helpers.
 ---
 
 # Skill authoring
 
 ## Handbook
 
-Structural rules (categories, frontmatter, status lines, required sections, validators, templates) live in [`references/handbook.md`](references/handbook.md), now a slim index over topical files. Authoring walkthrough in [`references/authoring-walkthrough.md`](references/authoring-walkthrough.md). Templates per category in [`templates/`](templates/).
+Start with [skill admission](references/admission.md) and
+[placement](references/placement.md). Structural rules live in the
+[handbook](references/handbook.md), drafting procedure in the
+[authoring walkthrough](references/authoring-walkthrough.md), and shaped
+sources in [`templates/`](templates/).
 
-The rest of this file carries opinionated authoring discipline the handbook doesn't cover: why-encoding, flat-not-nested layout, Python-helpers bias, frontmatter aliases.
+This entrypoint carries the highest-frequency authoring discipline.
 
 ## Location
 
-**Default: skills live at `<personal-os-repo>/.agents/skills/`.** Canonical source for the cross-repo / runbook / operating-context skill surface. Global-scope copy in the harness skills dir (`~/.claude/skills/` or `~/.codex/skills/`) is a symlink managed by the ansible skills role (`make refresh-symlinks`).
+Ordinary skills live at `<provider-repo>/.agents/skills/`. They use `SKILL.md`
+and form the harness-discoverable surface.
 
-**Exception: per-repo co-location for pure design-reference skills.** A repo may host its own `.agents/skills/` if the skills are pure design or usage reference for *that repo only* and never get invoked under cross-repo failure conditions. Per-repo skills surface only when the harness is operating in that repo's directory, the correct scope for design references. Runbooks, investigation playbooks, and anything that fires under partial-failure stay central. Co-location requirements (catalog hooks via `make apply-agentic-os-hooks`, a slim `categories.yaml`, `pre-commit install`) live in [`references/co-location.md`](references/co-location.md).
+Role-scoped sources live at `<provider-repo>/.agents/composed/`. They use
+`COMPOSED.md`, bind in `.agents/roles.kdl`, and become `SKILL.md` only after
+agent-compose selects the role. Never place `SKILL.md` under `.agents/composed/`.
+
+Per-repo co-location is only for design or usage reference scoped to that repo.
+Runbooks and partial-failure playbooks stay central. Requirements live in
+[`references/co-location.md`](references/co-location.md).
 
 ## Authoring
 
-Directory under `.agents/skills/` with `SKILL.md` (frontmatter: `name`, `description` + instructions). Commit in the personal-OS repo, then refresh the skill mount (`make refresh-symlinks`).
-
-Bootstrap also handles client CLAUDE.md import, workspace CLAUDE.md import, parent-dir AGENTS.md symlink. Uses `ln -s`; on Windows needs `MSYS=winsymlinks:nativestrict` + Developer Mode.
+Create an ordinary source with `SKILL.md`, or a role-scoped source with
+`COMPOSED.md`. Both use the same `name` and `description` frontmatter. Bind
+each role-scoped source in `.agents/roles.kdl`.
 
 Run the validator before committing for fast feedback:
 
@@ -31,22 +42,30 @@ pre-commit run dead-cross-links --all-files
 pre-commit run em-dash-check --all-files
 ```
 
-The structural validator enforces the category taxonomy from `.agents/skills/categories.yaml`. If your skill name doesn't match an allowed prefix or exact-name, the validator rejects it. See the handbook for the prefix list.
+The structural validators enforce the category taxonomy from
+`.agents/skills/categories.yaml`. `check-skills` covers ordinary sources.
+`check-composed-skills` covers role-scoped sources and their isolation.
 
 ## Opinionated discipline
 
-Four high-signal rules each carry decision reasoning in [`references/opinionated-discipline.md`](references/opinionated-discipline.md):
+Decision reasoning for these rules lives in
+[`references/opinionated-discipline.md`](references/opinionated-discipline.md):
 
-- **Encode the why, not just the what** - lead with the rule, then **Why:**, then **How to apply:**. Every fresh agent context re-derives undocumented reasoning badly.
-- **Skills are flat, not nested** - every skill is a peer dir under `.agents/skills/`. Nesting is invisible to the loader.
-- **Bias toward Python helpers, not pure-prompt skills** - parsing, globbing, SQLite, date math go in committed `python3`. The LLM tier does synthesis, not parsing.
+- **Encode why** - preserve reasoning across fresh sessions.
+- **Keep sources flat** - every source is a peer directory.
+- **Use deterministic helpers** - scripts parse and transform, models synthesize.
 
-Frontmatter-alias discipline (validator-enforced description ceiling - `categories.yaml:max_description_bytes`, default 500, kai-parity target 200 - and the router-parent carve-out) lives in [`references/frontmatter-aliases.md`](references/frontmatter-aliases.md).
+Description budgets and router exceptions live in
+[`references/frontmatter-aliases.md`](references/frontmatter-aliases.md).
 
 ## Extended discipline
 
-Three longer-form rules live in [`references/discipline.md`](references/discipline.md): investigation/runbook skills live centrally (not co-located with the tool they investigate), plugin-marketplace fast-forward, and full documentation discipline (layout, size caps, code comments).
+Extended rules for runbooks, plugins, and documentation live in
+[`references/discipline.md`](references/discipline.md).
 
 ## Triggers
 
-skill, SKILL.md, frontmatter, plugin, .agents/skills, authoring skill, validator, categories.yaml, skill location, naming, category prefix, description size, flat layout, Python helpers, plugin marketplace, documentation discipline, doc layout, code comments.
+skill, SKILL.md, COMPOSED.md, composed skill, role-scoped skill, roles.kdl,
+frontmatter, authoring skill, validator, categories.yaml, skill admission,
+skill placement, catalog pruning, model-native knowledge, volatile knowledge,
+specialist upskilling, flat layout, deterministic helpers.

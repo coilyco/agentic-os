@@ -50,6 +50,17 @@ snapshot inside the baked AOS substrate seed. Container bootstrap:
 provider required for composition. The runtime invokes no Ward command,
 config, bootstrap, authority, or lifecycle.
 
+## Specialized role smoke
+
+```bash
+ward exec aos-build
+ward exec aos-image-build
+ward exec aos-designer-smoke
+```
+
+The smoke verifies designer instructions, skill promotion, no host auth or
+unrelated substrate, and no engineer or QA composed sources.
+
 ## Ownership
 
 AOS owns the reusable runtime substrate: image seeds, public roster, CWD

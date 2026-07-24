@@ -7,6 +7,7 @@ Pre-commit hooks and authoring docs for documentation and skill repositories.
 The validators live in the `agentic_os` Python package and ship through the managed `coilyco-flight-deck/agentic-os` pre-commit block.
 
 - `check-skills` - validates `.agents/skills/` against a spec at `.agents/skills/categories.yaml`. Checks frontmatter, prefix taxonomy, status lines, required sections, size caps, stale skill-name references.
+- `check-composed-skills` - validates role-scoped `.agents/composed/` sources, requires `COMPOSED.md`, and rejects discoverable entrypoints or ordinary-name collisions.
 - `check-dead-links` - walks every markdown file in the repo, fails if any inline `[text](path.md)` link does not resolve or escapes the repo root.
 - `check-source-doc-refs` - walks source comments, fails if a path-like documentation reference no longer resolves.
 - `check-code-review-contract` - requires a root `CODE-REVIEW.md` that names repo-local invariants, historical issues, and refresh triggers instead of generic review advice.

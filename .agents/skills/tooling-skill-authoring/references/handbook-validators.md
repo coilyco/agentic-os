@@ -10,7 +10,8 @@ The structural validator and dead-link checker ship from [`coilyco-flight-deck/a
 
 * `README.md`, `AGENTS.md`, and `docs/FEATURES.md` exist, cross-link, and stay under the size caps in [`check_documentation_layout.py`](../../../../agentic_os/pre_commit/check_documentation_layout.py).
 * `AGENTS.md` uses the standard repo-local H2 set.
-* Markdown lives only at repo root, flat `docs/*.md`, or flat skill folders, and every Markdown file stays under the cap in `check_documentation_layout.py` (single cap, no per-basename exception).
+* Markdown lives only at repo root, flat `docs/*.md`, or flat ordinary and
+  composed source folders. Every Markdown file stays under the cap.
 * Code comments are up to two contiguous lines, max 90 chars each, with long explanation moved to docs. YAML allows just one comment line, only as the first line, so a key-sorter cannot drift it off its target.
 
 ### `skill-conventions` (upstream) - structural check
@@ -31,11 +32,19 @@ What it checks:
 10. **Section lead lines** (when enforced).
 11. **Stale skill-name backtick references.** Catches `` `<prefix>-<topic>` `` references whose target skill doesn't exist.
 12. **SKILL.md size caps.** Cap in [`check_documentation_layout.py`](../../../../agentic_os/pre_commit/check_documentation_layout.py), same as all Markdown. Push detail into a sibling `<topic>.md` file.
-13. **Symlinks under `.agents/skills/`.** Symlink dirs are skipped, not validated. The loader follows them; the validator walks the canonical target.
+13. **Symlinks under `.agents/skills/`.** Symlink dirs are skipped, not validated. The loader follows them, and the validator walks the canonical target.
+
+### `check-composed-skills` (upstream) - role isolation
+
+Reads the ordinary category spec and walks `.agents/composed/`. It requires
+`COMPOSED.md`, applies the content checks above, and rejects any `SKILL.md`,
+symlink, non-directory entry, or name shared with `.agents/skills/`.
 
 ### `dead-cross-links` (upstream) - cross-link check
 
-Walks every Markdown file under `.agents/skills/`, extracts inline `[text](target)` links, fails on any local-relative target that doesn't resolve.
+Walks every Markdown file in the repo, including both skill source roots,
+extracts inline links, and fails on any local-relative target that does not
+resolve.
 
 What it skips intentionally:
 

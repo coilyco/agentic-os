@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Resolve the dev-base image's pinned tool versions against upstream and bump them.
 
-The dev-base tier Dockerfiles (`docker/dev-base/<tier>/Dockerfile`) hand-pin
-every tool as an `ARG` (`UV_VERSION`, `NODE_VERSION`, ...). `release.yml`
+The dev-base Dockerfiles hand-pin every tool as an `ARG` (`UV_VERSION`,
+`NODE_VERSION`, ...). `release.yml`
 republishes the image family on every push to main, but nothing keeps those
 pins current, so the published image drifts behind upstream until a human edits
 an `ARG` (agentic-os#272, ward#301).
@@ -61,12 +61,13 @@ def parse_args_block(text: str) -> dict[str, str]:
 
 
 def load_pins(dockerfile: Path) -> dict[str, str]:
-    """Collect ARG defaults from a single Dockerfile or the split dev-base tree."""
+    """Collect ARG defaults from one Dockerfile or the dev-base tree."""
     if dockerfile.is_file():
         return parse_args_block(dockerfile.read_text(encoding="utf-8"))
     pins: dict[str, str] = {}
-    for tier in TIER_SPECS:
-        pins.update(parse_args_block(tier.dockerfile.read_text(encoding="utf-8")))
+    dockerfiles = dict.fromkeys(tier.dockerfile for tier in TIER_SPECS)
+    for path in dockerfiles:
+        pins.update(parse_args_block(path.read_text(encoding="utf-8")))
     return pins
 
 
@@ -264,54 +265,6 @@ RESOLVERS: dict[str, Callable[..., str | None]] = {
     "DOTNET_VERSION": _resolve_dotnet,
 }
 _NEEDS_CURRENT = {"NODE_VERSION", "DOTNET_VERSION"}
-
-PUBLISHED_TIER_OWNERSHIP: tuple[tuple[str, tuple[str, ...]], ...] = (
-    (
-        "dev-base-core",
-        (
-            "UV_VERSION",
-            "NODE_VERSION",
-            "CLAUDE_VERSION",
-            "MCPORTER_VERSION",
-            "CODEX_VERSION",
-            "GOOSE_VERSION",
-            "AWSCLI_VERSION",
-            "GH_VERSION",
-            "DOCKER_VERSION",
-            "HELM_VERSION",
-            "KUBECTL_VERSION",
-            "YQ_VERSION",
-            "TAILSCALE_VERSION",
-        ),
-    ),
-    ("dev-base-lang-node", ()),
-    ("dev-base-lang-go", ("GO_VERSION",)),
-    ("dev-base-lang-dotnet", ("DOTNET_VERSION",)),
-    ("dev-base-lang-rust", ()),
-    ("dev-base-lang-python", ()),
-    ("dev-base-full", ("TRUFFLEHOG_VERSION",)),
-)
-
-
-def _build_target_ownership(tiers: tuple[tuple[str, tuple[str, ...]], ...]) -> dict[str, str]:
-    """Map each managed ARG to exactly one published target."""
-    ownership: dict[str, str] = {}
-    seen_targets: set[str] = set()
-    for tier in tiers:
-        target, managed_args = tier
-        if target in seen_targets:
-            raise ValueError(f"duplicate published target declared: {target}")
-        seen_targets.add(target)
-        for arg in managed_args:
-            if arg in ownership:
-                raise ValueError(f"duplicate ownership declared for ARG {arg}")
-            ownership[arg] = target
-    return ownership
-
-
-ARG_TO_TARGET = _build_target_ownership(PUBLISHED_TIER_OWNERSHIP)
-PUBLISHED_TARGETS = tuple(target for target, _ in PUBLISHED_TIER_OWNERSHIP)
-
 
 def compute_plan(text: str) -> list[dict[str, str]]:
     """Resolve every pinned ARG and return the ones whose upstream latest differs.

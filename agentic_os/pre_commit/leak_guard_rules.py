@@ -78,7 +78,7 @@ RULES: list[dict] = [
         "id": "luca-in-public-skills",
         "term_hex": "6c756361",
         "repos": ["agentic-os"],
-        "only_globs": [".agents/skills/**"],
+        "only_globs": [".agents/skills/**", ".agents/composed/**"],
         "allow_globs": [],
         "message": (
             "public agentic-os skill names LUCA, a private observability "

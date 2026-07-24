@@ -1,18 +1,2 @@
-# Public substrate repos for the dev-base image and standalone `aos` launcher.
-# The image retains this manifest at /opt/agentic-os/substrate-repos.txt and
-# bakes matching bare mirrors at /opt/substrate-seed. A launch hydrates its
-# shared mirror cache and fresh read-only /substrate trees without network.
-#
-# Deployment-private reference repos are deliberately not baked into this
-# shareable image. Ward may add governed deployment context through its own
-# grants and lifecycle without changing this public AOS substrate.
-#
-# owner/name, one per line. All are public read (anonymous clone). coilysiren is
-# GitHub-origin until its Forgejo mirror lands (infrastructure#352).
-coilyco-bridge/.github
-coilyco-flight-deck/.github
-coilyco-flight-deck/agentic-os
-coilyco-flight-deck/cli-guard
-coilyco-flight-deck/infrastructure
-coilyco-flight-deck/ward
 coilysiren/coilysiren
+coilyco-flight-deck/agentic-os

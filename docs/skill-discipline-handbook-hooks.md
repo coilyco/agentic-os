@@ -8,13 +8,22 @@
 
 Runs `check-skills`. Checks frontmatter, prefix/exact match, status (where enforced), H1 pattern, required sections, forbidden body strings, stale skill-name backtick references, size caps. Symlinks under `.agents/skills/` are skipped, since their canonical target is validated where it lives.
 
+### check-composed-skills (pre-commit, pre-push)
+
+Runs `check-composed-skills`. Validates `.agents/composed/` against the ordinary
+taxonomy, requires `COMPOSED.md`, and rejects discoverable entrypoints,
+symlinks, invalid entries, and ordinary-name collisions.
+
 ### dead-cross-links (pre-commit, pre-push)
 
 Runs `check-dead-links`. Walks every Markdown file in the repo (root `README.md`/`AGENTS.md`, `docs/`, co-located module READMEs, the skill tree), extracts inline `[text](target)` links, fails on any local-relative target that does not resolve to a real file. A link that resolves outside the repo root is a hard violation, not a skip - an internal `../` link is validated for existence like any other, while one that escapes the repo fails. External URLs, anchors, and placeholders (`...`, `TBD`, `TODO`) are skipped. Directory skipping mirrors `documentation-layout` (`.git`, `node_modules`, build/cache dirs); per-repo `excludes` live under `[tool.agentic-os.dead-cross-links]`.
 
 ### source-doc-refs (pre-commit)
 
-Runs `check-source-doc-refs`. Walks tracked source files, extracts comment lines, and validates path-like documentation refs such as `docs/foo.md`, `.agents/skills/name/SKILL.md`, root `README.md`/`AGENTS.md` pointers, and hyphenated bare doc basenames that should resolve beside the source or under `docs/`. This catches source comments left pointing at deleted docs after a documentation burndown. Per-repo `excludes` live under `[tool.agentic-os.source-doc-refs]`.
+Runs `check-source-doc-refs`. Validates documentation paths in tracked source
+comments, including both skill entrypoint forms, root pointers, and bare doc
+basenames. Per-repo excludes live under
+`[tool.agentic-os.source-doc-refs]`.
 
 ### catalog-trifecta (pre-commit, pre-push)
 
@@ -43,9 +52,9 @@ Runs `check-documentation-layout`. Enforces Markdown placement across the repo:
 
 * root Markdown is limited to the universal allow-list (`README.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `CODE-REVIEW.md`, `GOVERNANCE.md`, `SECURITY.md`, `SUPPORT.md`, `LICENSE.md`);
 * ordinary documentation lives in flat `docs/*.md`;
-* skill documentation lives under `.agents/skills/`, `.agents/skills/`, or `skills/`;
+* skill documentation lives under `.agents/skills/`, `.agents/composed/`, `.claude/skills/`, or `skills/`;
 * `docs/` has no subdirectories. Use filename prefixes when grouping is needed;
-* every Markdown file stays under the size cap enforced by [`check_documentation_layout.py`](../agentic_os/pre_commit/check_documentation_layout.py). AGENTS.md and SKILL.md are not exempt.
+* every Markdown file stays under the cap in [`check_documentation_layout.py`](../agentic_os/pre_commit/check_documentation_layout.py). Entrypoints are not exempt.
 
 ### code-comments (pre-commit)
 

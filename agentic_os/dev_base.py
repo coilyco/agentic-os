@@ -29,41 +29,39 @@ class TierSpec:
 # an earlier entry, so a sequential local build always has its inputs.
 TIER_SPECS: tuple[TierSpec, ...] = (
     TierSpec(
-        tier="core",
-        stage="dev-base-core",
-        dockerfile=DEV_BASE_ROOT / "core" / "Dockerfile",
+        tier="lang-node",
+        stage="dev-base-lang-node",
+        dockerfile=DEV_BASE_ROOT / "Dockerfile",
         base_tier=None,
         shared_context=True,
     ),
     TierSpec(
-        tier="lang-node",
-        stage="dev-base-lang-node",
-        dockerfile=DEV_BASE_ROOT / "lang-node" / "Dockerfile",
-        base_tier="core",
-    ),
-    TierSpec(
         tier="lang-go",
         stage="dev-base-lang-go",
-        dockerfile=DEV_BASE_ROOT / "lang-go" / "Dockerfile",
-        base_tier="core",
+        dockerfile=DEV_BASE_ROOT / "Dockerfile",
+        base_tier=None,
+        shared_context=True,
     ),
     TierSpec(
         tier="lang-dotnet",
         stage="dev-base-lang-dotnet",
-        dockerfile=DEV_BASE_ROOT / "lang-dotnet" / "Dockerfile",
-        base_tier="core",
+        dockerfile=DEV_BASE_ROOT / "Dockerfile",
+        base_tier=None,
+        shared_context=True,
     ),
     TierSpec(
         tier="lang-rust",
         stage="dev-base-lang-rust",
-        dockerfile=DEV_BASE_ROOT / "lang-rust" / "Dockerfile",
-        base_tier="core",
+        dockerfile=DEV_BASE_ROOT / "Dockerfile",
+        base_tier=None,
+        shared_context=True,
     ),
     TierSpec(
         tier="lang-python",
         stage="dev-base-lang-python",
-        dockerfile=DEV_BASE_ROOT / "lang-python" / "Dockerfile",
-        base_tier="core",
+        dockerfile=DEV_BASE_ROOT / "Dockerfile",
+        base_tier=None,
+        shared_context=True,
     ),
     TierSpec(
         tier="full",
@@ -137,10 +135,10 @@ def publish_plan(
             "tier": spec.tier,
             "stage": spec.stage,
             "dockerfile": spec.dockerfile.relative_to(REPO_ROOT).as_posix(),
-            # Most tiers build from their own folder. Core owns the shared
-            # agent assets, so its build uses docker/dev-base root.
+            # Language targets share one multi-target Dockerfile and context.
+            # Full retains its small graft-only Dockerfile and local context.
             "context_dir": (
-                spec.dockerfile.parent.parent
+                DEV_BASE_ROOT
                 if spec.shared_context
                 else spec.dockerfile.parent
             ).relative_to(REPO_ROOT).as_posix(),

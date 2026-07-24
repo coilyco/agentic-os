@@ -12,10 +12,10 @@ lever:
              eager so the model knows the skill exists; bodies load lazily on
              invoke. With a large skill surface this is routinely the BIGGEST
              axis, larger than the composed doc. Lever: prune the skill set.
-  * mcp    - native MCP tool schemas. Lazy through mcporter (codex shells
-             `mcporter call`/`list` on demand) and deferred under ToolSearch, so
-             the eager figure is near-0; reported as a server-count note, not a
-             token sum, until a non-lazy path needs measuring.
+  * mcp    - native MCP tool schemas. One mcporter inventory is projected into
+             each native harness registry, where schema discovery is deferred.
+             `mcporter call` remains the CLI fallback. The eager figure is near
+             zero and is reported as a server-count note, not a token sum.
 
 The three axes above are the *proactive* tier - eager prompt bytes, per harness.
 Two further tiers are cheap-to-provide context a driver can reach one tool call
@@ -53,6 +53,9 @@ Usage:
     check-context-budget                  # report every harness vs its budget
     check-context-budget --check          # exit 1 if any harness is over budget
     check-context-budget --claude-budget 12000
+    check-context-budget --role ops --seat codex --snapshot context-budget-ops-codex-before.yaml
+    check-context-budget --role ops --seat codex --compare context-budget-ops-codex-before.yaml \
+        --snapshot context-budget-ops-codex-after.yaml
 """
 from __future__ import annotations
 
@@ -64,6 +67,10 @@ from pathlib import Path
 from typing import Iterable, NamedTuple
 
 from agentic_os.config import iter_workspace_repos
+from agentic_os.context_budget_tokens import (
+    TOKENIZER_NOTE,
+    count_tokens,
+)
 from agentic_os.generators.generate_agent_compose import (
     COMPOSED_PATH,
     CONFIG_PATH,
@@ -78,11 +85,6 @@ from agentic_os.generators.generate_agent_compose import (
     _normalize_scopes,
 )
 
-# v1 proxy: chars/4, deterministic and hermetic; the single swap point for a real
-# qwen tokenizer later. Consistent across harnesses (see docs/context-budget.md).
-CHARS_PER_TOKEN = 4
-TOKENIZER_NOTE = "tokens = chars/4 proxy (v1; swap for the qwen tokenizer later)"
-
 # Whole-baseline (doc + skills) budgets, not laws. Tune via agent-compose.yaml
 # `budgets:` / CLI flags; per-harness rationale in docs/context-budget.md.
 DEFAULT_BUDGETS = {"claude": 13_000, "codex": 6_000, "opencode": 5_000}
@@ -94,12 +96,6 @@ DEFAULT_SKILL_ROOTS = {
     "codex": ["~/.codex/skills", ".codex/skills"],
     "opencode": ["~/.agents/skills", ".agents/skills"],
 }
-
-
-def count_tokens(text: str) -> int:
-    """Estimate tokens for text. v1: deterministic chars/4 (ceil)."""
-    return -(-len(text) // CHARS_PER_TOKEN)
-
 
 class TierWalk(NamedTuple):
     """One clone's measured init-load context: file count, bytes, token proxy.
@@ -365,7 +361,7 @@ def _harness_block(
     lines.append(f"          skills {skill_total:6} tok  ({skill_count} skills, frontmatter only)")
     for name, tok in skill_top[:3]:
         lines.append(f"            top: {tok:6} tok  {name}")
-    mcp_label = f"{mcp_servers} servers (lazy/deferred, ~0 eager)" if mcp_servers is not None else "not measured"
+    mcp_label = f"{mcp_servers} servers (native/deferred, CLI fallback)" if mcp_servers is not None else "not measured"
     lines.append(f"          mcp       n/a       ({mcp_label})")
     lines.append("")
     return lines, is_over
@@ -444,8 +440,8 @@ def run(
         "Bodies load lazily, not counted."
     )
     lines.append(
-        "mcp eager surface is ~0: mcporter loads schemas on demand and ToolSearch "
-        "defers them. A non-lazy harness would carry the full schemas here."
+        "mcp eager surface is ~0: each native harness defers projected schemas. "
+        "mcporter remains the inventory, schema browser, and CLI call fallback."
     )
     lines.extend(tier_section(immediate or [], peripheral or []))
 
@@ -460,6 +456,48 @@ def run(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Report per-harness eager context budget.")
+    parser.add_argument("--role", help="role to measure with --seat")
+    parser.add_argument("--seat", help="agent-compose roster seat to measure with --role")
+    parser.add_argument(
+        "--provider",
+        type=Path,
+        default=Path(__file__).resolve().parents[2],
+        help="AOS provider root for role-seat measurement (defaults to this checkout)",
+    )
+    parser.add_argument(
+        "--repo",
+        type=Path,
+        default=Path(__file__).resolve().parents[2],
+        help="repository root whose AGENTS.md cascade role-seat mode measures",
+    )
+    parser.add_argument(
+        "--cwd",
+        type=Path,
+        default=Path(__file__).resolve().parents[2],
+        help="CWD inside --repo for the role-seat cascade",
+    )
+    parser.add_argument(
+        "--snapshot",
+        type=Path,
+        help="write the deterministic grouped role-seat YAML snapshot to this path",
+    )
+    parser.add_argument(
+        "--compare",
+        type=Path,
+        help="compare role-seat context against a prior snapshot",
+    )
+    parser.add_argument(
+        "--skill-root",
+        type=Path,
+        action="append",
+        default=[],
+        help="extra seat/plugin skill root to include; repeatable",
+    )
+    parser.add_argument(
+        "--agent-compose",
+        default="agent-compose",
+        help="agent-compose executable used to materialize and project the role-seat bundle",
+    )
     parser.add_argument(
         "--check",
         action="store_true",
@@ -470,7 +508,7 @@ def main() -> int:
         "--mcporter",
         type=Path,
         default=Path.home() / ".mcporter" / "mcporter.json",
-        help="merged mcporter config to read codex's exposed server inventory from",
+        help="shared mcporter inventory projected into each native harness registry",
     )
     parser.add_argument(
         "--immediate",
@@ -493,6 +531,40 @@ def main() -> int:
             f"--{harness}-budget", type=int, default=None, help=f"override the {harness} token budget"
         )
     args = parser.parse_args()
+    if bool(args.role) != bool(args.seat):
+        parser.error("--role and --seat must be provided together")
+    if args.role and args.seat:
+        from agentic_os.context_budget_role_seat import (
+            capture_snapshot,
+            load_snapshot,
+            render_delta,
+            render_snapshot,
+            write_snapshot,
+        )
+
+        try:
+            snapshot = capture_snapshot(
+                args.provider,
+                args.repo,
+                args.cwd,
+                role=args.role,
+                seat=args.seat,
+                agent_compose=args.agent_compose,
+                plugin_roots=args.skill_root,
+                mcporter_path=args.mcporter,
+            )
+            print(render_snapshot(snapshot))
+            if args.compare:
+                print()
+                print(render_delta(load_snapshot(args.compare), snapshot))
+            if args.snapshot:
+                write_snapshot(args.snapshot, snapshot)
+                print(f"\nsnapshot: {args.snapshot}")
+            return 0
+        except RuntimeError as exc:
+            sys.stderr.write(f"context-budget: {exc}\n")
+            return 1
+
     cli_budgets = {
         harness: getattr(args, f"{harness}_budget")
         for harness in DEFAULT_BUDGETS

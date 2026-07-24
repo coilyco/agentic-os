@@ -1,0 +1,23 @@
+role_source: coilyco-flight-deck/agent-compose:internal/person/person.kdl
+roles:
+  engineer:
+    intents: [autonomous-coding]
+    orchestrator: ward
+  director:
+    intents: [strategic-planning]
+  qa:
+    intents: [code-review]
+  advisor:
+    intents: [research-synthesis]
+  ops:
+    intents: [ops-investigation, operational-decision]
+  pm:
+    intents: [strategic-planning, project-coordination]
+  designer:
+    intents: [product-shaping, design-production]
+  social:
+    intents: [message-composition, channel-publishing]
+  sales:
+    intents: [research-synthesis, conversation-management]
+  customer-success:
+    intents: [knowledge-retrieval, conversation-management]

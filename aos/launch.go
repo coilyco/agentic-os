@@ -18,6 +18,7 @@ const (
 	containerCacheRoot     = "/var/cache/aos/git"
 	containerAuthRoot      = "/run/aos/auth"
 	substrateVolume        = "aos-substrate-cache"
+	runtimeTmpfsSize       = "512m"
 )
 
 var (
@@ -104,6 +105,8 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 		"--label", "aos.role="+opts.Role,
 		"--mount", "type=bind,source="+cwd+",target="+workspace,
 		"--mount", "type=volume,source="+substrateVolume+",target="+containerCacheRoot,
+		"--tmpfs", defaultAgentHome+":rw,exec,size="+runtimeTmpfsSize,
+		"--tmpfs", "/tmp:rw,exec,size="+runtimeTmpfsSize,
 		"--workdir", workspace,
 		"--env", "AOS_CONTAINER=1",
 	)

@@ -10,9 +10,11 @@
 #       - id: documentation-layout
 #       - id: context-load-points
 #       - id: code-comments
+#       - id: actions-run-one-line
 #       - id: source-doc-refs
 #       - id: catalog-block-present
 #       - id: check-skills
+#       - id: check-composed-skills
 #       - id: dead-cross-links
 #       - id: repo-pointer-skills
 #       - id: agents-pointer
@@ -93,6 +95,17 @@
   pass_filenames: false
   stages: [pre-commit]
 
+- id: actions-run-one-line
+  name: Actions run steps stay one line
+  description: "Reject multiline run commands in GitHub and Forgejo workflows and composite actions. Move script bodies into tracked language-native files. See docs/pre-commit-hygiene.md."
+  entry: check-actions-run-one-line
+  language: python
+  additional_dependencies: [pyyaml]
+  always_run: true
+  pass_filenames: false
+  files: '(^|/)(\.github/workflows/.*\.ya?ml|\.forgejo/workflows/.*\.ya?ml|action\.ya?ml)$'
+  stages: [pre-commit]
+
 - id: source-doc-refs
   name: source doc references
   description: Validate path-like documentation references in source comments so doc burndowns cannot leave stale pointers behind.
@@ -116,6 +129,16 @@
   name: skill conventions
   description: Validate the structure of .agents/skills/ against .agents/skills/categories.yaml.
   entry: check-skills
+  language: python
+  additional_dependencies: [pyyaml]
+  pass_filenames: false
+  always_run: true
+  stages: [pre-commit, pre-push]
+
+- id: check-composed-skills
+  name: composed skill conventions
+  description: Validate role-composed COMPOSED.md sources against the ordinary skill taxonomy while preventing native discovery and name collisions.
+  entry: check-composed-skills
   language: python
   additional_dependencies: [pyyaml]
   pass_filenames: false

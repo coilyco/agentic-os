@@ -76,6 +76,8 @@ Thumbs.db
 /dist
 /build
 /out
+.specgen/**/*.md
+!.specgen/README.md
 *.bundle.js
 *.min.js
 *.min.css

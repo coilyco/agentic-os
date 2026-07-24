@@ -2,10 +2,9 @@
 """Apply public-safe base preference keys into ~/.claude/settings.json.
 
 Holds the fleet-wide, public-safe Claude Code settings keys that every host
-gets regardless of whether the private bridge overlay is present. Today that is
-auto-memory off (point-in-time memory drifts and misleads, see the No
-auto-memory rule in AGENTS.md), so a host that never checks out the bridge repo
-still converges with auto-memory disabled.
+gets regardless of whether the private bridge overlay is present. Auto-memory
+is off because point-in-time memory drifts. Claude in Chrome is denied because
+browser computer-use should be an explicit session opt-in.
 
 Additive and key-scoped: it sets only the keys it owns and preserves every
 other key verbatim, so the harness, ward, and the bridge merge can all keep
@@ -32,6 +31,7 @@ SETTINGS_PATH = HOME / ".claude" / "settings.json"
 BASE_SETTINGS: dict = {
     "autoMemoryEnabled": False,
 }
+BASE_DENIED_MCP_SERVERS = [{"serverName": "claude-in-chrome"}]
 
 
 def load_settings(path: Path) -> dict:
@@ -47,6 +47,15 @@ def merge_base_settings(settings: dict) -> list[str]:
         if settings.get(key) != value:
             settings[key] = value
             changed.append(key)
+    denied = settings.get("deniedMcpServers")
+    if not isinstance(denied, list):
+        denied = []
+    for entry in BASE_DENIED_MCP_SERVERS:
+        if entry not in denied:
+            denied.append(entry)
+            if "deniedMcpServers" not in changed:
+                changed.append("deniedMcpServers")
+    settings["deniedMcpServers"] = denied
     return changed
 
 

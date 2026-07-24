@@ -64,6 +64,8 @@ func TestBuildLaunchPlanMountsCWDAndRunsInternalCompose(t *testing.T) {
 		"--tty",
 		"type=bind,source=" + cwd + ",target=/workspace/my-repo",
 		"type=volume,source=aos-substrate-cache,target=/var/cache/aos/git",
+		"--tmpfs\n" + defaultAgentHome + ":rw,exec,size=" + runtimeTmpfsSize,
+		"--tmpfs\n/tmp:rw,exec,size=" + runtimeTmpfsSize,
 		"--workdir\n/workspace/my-repo",
 		"--env\nAOS_CONTAINER=1",
 		"--env\nOPENAI_API_KEY",
@@ -80,6 +82,9 @@ func TestBuildLaunchPlanMountsCWDAndRunsInternalCompose(t *testing.T) {
 		if !strings.Contains(joined, want) {
 			t.Errorf("launch plan missing %q\n%s", want, joined)
 		}
+	}
+	if strings.Contains(joined, "--tmpfs\n/home:") {
+		t.Fatalf("launch plan hides the image-owned /home tree:\n%s", joined)
 	}
 	if strings.Contains(joined, "ward") {
 		t.Fatalf("Ward leaked into standalone launch plan:\n%s", joined)

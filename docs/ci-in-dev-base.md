@@ -5,9 +5,9 @@ through the same `ward exec` verbs the agents run**, so a green CI means "a
 headless agent can actually land this," not "it passed in some other
 environment" (agentic-os#328).
 
-The current contract still pins one `dev-base-full` image per app. The tiered
-split keeps that default but introduces narrower classes behind the same
-release tag. See [Tiered dev-base image split](dev-base-image-tiering.md).
+The current contract pins one `dev-base-full` image per app. Independent
+language images provide narrower classes behind the same release tag. See
+[independent language image topology](dev-base-image-tiering.md).
 
 ## The motivating failure
 
@@ -46,11 +46,11 @@ itself re-validates every app on the next rollout - not silent drift.
 ## The pinned-tag source of truth
 
 <!-- freshness: as-of=2026-07-05 decay-class=pointer half-life=slow -->
-The pin now derives from the tier folder layout through
+The pin derives from the declared image specifications through
 [`scripts/dev-base-build.py`](../scripts/dev-base-build.py). That helper turns
-`docker/dev-base/<tier>/Dockerfile` plus the release tag into the literal
-`agentic-os:<tier>-<tag>` ref (`agentic-os:<tag>` for `full`, the default
-surface), so there is no checked-in JSON map of identical refs to drift.
+the tier name plus release tag into the literal `agentic-os:<tier>-<tag>` ref
+(`agentic-os:<tag>` for `full`, the default surface), so there is no checked-in
+JSON map of identical refs to drift.
 [dev-base-image.md](dev-base-image.md) covers how those tags publish.
 
 ## Authoring vs rollout
@@ -72,6 +72,6 @@ ward verbs pass inside dev-base and parity holds green.
 
 - [dev-base container image](dev-base-image.md) - the image CI pins.
 - [dev-base auto-bump](dev-base-auto-bump.md) - how pinned tool `ARG`s refresh.
-- [Tiered dev-base image split](dev-base-image-tiering.md) - the implemented image
+- [Independent dev-base image topology](dev-base-image-tiering.md) - the image
   family and pinning evolution.
 - [FEATURES.md](FEATURES.md) - the feature inventory this lands in.

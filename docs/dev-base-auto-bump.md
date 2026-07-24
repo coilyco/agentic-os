@@ -1,6 +1,6 @@
 # dev-base auto-bump
 
-The dev-base tier Dockerfiles pin every tool as a hand-edited `ARG`
+The dev-base Dockerfiles pin every tool as a hand-edited `ARG`
 ([docs/dev-base-image.md](dev-base-image.md)). `promote.yml` republishes the
 image on every push to main before `release` moves, but nothing kept those pins
 current, so the image drifted behind upstream until a human edited an `ARG`.
@@ -43,7 +43,7 @@ before it pushes, so a bad pin leaves the run red and stops before `main`.
   candidate N against the real `.ward` bundle. `docker buildx` and `wasm-pack`
   stay job-local, so dev-base does not claim them.
 - **Fail-soft.** A resolver whose upstream is unreachable or has reshaped its API
-  drops from that run with a warning; it never blocks the other bumps.
+  drops from that run with a warning. It never blocks the other bumps.
 
 ## Running it locally
 

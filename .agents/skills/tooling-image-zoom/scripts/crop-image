@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  echo "usage: crop-image INPUT OUTPUT X1 Y1 X2 Y2"
+  echo "coordinates are normalized numbers from 0 to 1"
+}
+
+if [[ $# -ne 6 ]]; then
+  usage >&2
+  exit 2
+fi
+
+input_path=$1
+output_path=$2
+x1=$3
+y1=$4
+x2=$5
+y2=$6
+
+if [[ ! -f "$input_path" ]]; then
+  echo "crop-image: input file not found: $input_path" >&2
+  exit 2
+fi
+
+if [[ "$input_path" == "$output_path" ]]; then
+  echo "crop-image: input and output paths must differ" >&2
+  exit 2
+fi
+
+if [[ -e "$output_path" ]]; then
+  echo "crop-image: output already exists: $output_path" >&2
+  exit 2
+fi
+
+output_dir=$(dirname "$output_path")
+if [[ ! -d "$output_dir" ]]; then
+  echo "crop-image: output directory not found: $output_dir" >&2
+  exit 2
+fi
+
+if command -v magick >/dev/null 2>&1; then
+  identify_command=(magick identify)
+  crop_command=(magick)
+elif command -v convert >/dev/null 2>&1 && command -v identify >/dev/null 2>&1; then
+  identify_command=(identify)
+  crop_command=(convert)
+else
+  echo "crop-image: ImageMagick is required" >&2
+  exit 127
+fi
+
+dimensions=$("${identify_command[@]}" -format '%w %h' "$input_path")
+read -r image_width image_height <<<"$dimensions"
+
+if [[ ! "$image_width" =~ ^[0-9]+$ || ! "$image_height" =~ ^[0-9]+$ ]]; then
+  echo "crop-image: could not read image dimensions" >&2
+  exit 2
+fi
+
+if ! geometry=$(
+  awk \
+    -v x1="$x1" -v y1="$y1" -v x2="$x2" -v y2="$y2" \
+    -v width="$image_width" -v height="$image_height" '
+      function valid_number(value) {
+        return value ~ /^-?[0-9]*[.]?[0-9]+([eE][-+]?[0-9]+)?$/
+      }
+      function ceil(value, truncated) {
+        truncated = int(value)
+        return truncated < value ? truncated + 1 : truncated
+      }
+      BEGIN {
+        if (!valid_number(x1) || !valid_number(y1) ||
+            !valid_number(x2) || !valid_number(y2)) {
+          exit 1
+        }
+        if (x1 < 0 || y1 < 0 || x2 > 1 || y2 > 1 ||
+            x1 >= x2 || y1 >= y2) {
+          exit 1
+        }
+
+        left = int(x1 * width)
+        top = int(y1 * height)
+        right = ceil(x2 * width)
+        bottom = ceil(y2 * height)
+        if (right > width) right = width
+        if (bottom > height) bottom = height
+
+        crop_width = right - left
+        crop_height = bottom - top
+        if (crop_width < 1 || crop_height < 1) {
+          exit 1
+        }
+        printf "%dx%d+%d+%d", crop_width, crop_height, left, top
+      }
+    '
+); then
+  echo "crop-image: coordinates must satisfy 0 <= x1 < x2 <= 1 and 0 <= y1 < y2 <= 1" >&2
+  exit 2
+fi
+
+"${crop_command[@]}" "$input_path" -crop "$geometry" +repage "$output_path"
+output_dimensions=$("${identify_command[@]}" -format '%wx%h' "$output_path")
+printf '%s\t%s\n' "$output_path" "$output_dimensions"

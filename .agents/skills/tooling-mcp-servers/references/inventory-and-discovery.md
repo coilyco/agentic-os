@@ -2,7 +2,7 @@
 
 ## Inventorying servers
 
-This skill documents the **shape** of the lazy-MCP pattern. The actual server list belongs in the personal-OS repo and changes per user. Each entry in the index should be one line: name / category / what-it-does / auth-status / `Read <path>.d.ts`. Example:
+This skill documents the **shape** of the shared native-MCP pattern. The actual server list belongs in the personal-OS repo and changes per user. Each entry in the index should be one line: name / category / what-it-does / auth-status / `Read <path>.d.ts`. Example:
 
 ```
 * terraform / registry / latest provider + module versions, capabilities, details, search modules. No auth. Read mcp-servers/terraform.d.ts.

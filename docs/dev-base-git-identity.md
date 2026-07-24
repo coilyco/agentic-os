@@ -8,10 +8,10 @@ links the commit to the coilyco-ops account instead of an example fallback.
 
 ## What runs
 
-The image bakes the bot identity into git's system config in
-[`docker/dev-base/core/Dockerfile`](../docker/dev-base/core/Dockerfile), so
-every user inherits `coilyco-ops <coilyco-ops@coilysiren.me>` without a runtime
-write. The baked [`agent-name.sh`](../docker/dev-base/agent-name.sh) still
+Every language target bakes the bot identity into git's system config through
+[`install-common.sh`](../docker/dev-base/install-common.sh), so every user
+inherits `coilyco-ops <coilyco-ops@coilysiren.me>` without a runtime write. The
+baked [`agent-name.sh`](../docker/dev-base/agent-name.sh) still
 carries a `gitidentity` mode as a fallback for older or custom images, and the
 policy-tier [`managed-settings.json`](../docker/dev-base/claude-managed-settings.json)
 wires it as a second `SessionStart` hook, right after the self-name banner.

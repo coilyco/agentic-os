@@ -72,15 +72,15 @@ def _caps() -> list[tuple[str, str, str, str]]:
         ),
         (
             "documentation-layout",
-            "README/AGENTS lines",
+            "README overview lines",
             str(dl.TRIFECTA_MAX_LINES),
-            "non-blank lines for the root README.md and AGENTS.md",
+            "non-blank lines for the root README.md",
         ),
         (
             "documentation-layout",
-            "README/AGENTS chars",
+            "README overview chars",
             str(dl.TRIFECTA_MAX_CHARS),
-            "characters for the root README.md and AGENTS.md",
+            "characters for the root README.md",
         ),
         (
             "documentation-layout",
@@ -98,14 +98,14 @@ def _caps() -> list[tuple[str, str, str, str]]:
             "documentation-layout",
             "AGENTS.md lines (default)",
             str(dl.AGENTS_DEFAULT_MAX_LINES),
-            "AGENTS.md defaults to the trifecta line cap "
+            "AGENTS.md shared default "
             "(override per-repo with `agents_md_max_lines`)",
         ),
         (
             "documentation-layout",
             "AGENTS.md chars (default)",
             str(dl.AGENTS_DEFAULT_MAX_CHARS),
-            "AGENTS.md defaults to the trifecta char cap "
+            "AGENTS.md shared default "
             "(override per-repo with `agents_md_max_chars`)",
         ),
         (

@@ -81,8 +81,12 @@ BLOCK_COMMENT_EXTS = {
 }
 
 ROOT_DOCS = {"AGENTS.md", "CODE-REVIEW.md", "README.md", "SSM.md"}
-EXPLICIT_DOC = r"(?:/?(?:docs/[A-Za-z0-9][A-Za-z0-9_.-]*\.md|\.agents/skills/[A-Za-z0-9_.-]+/SKILL\.md))"
-RELATIVE_DOC = r"(?:\.\./)+(?:docs/[A-Za-z0-9][A-Za-z0-9_.-]*\.md|\.agents/skills/[A-Za-z0-9_.-]+/SKILL\.md)"
+SKILL_DOC = (
+    r"\.agents/(?:skills/[A-Za-z0-9_.-]+/SKILL"
+    r"|composed/[A-Za-z0-9_.-]+/COMPOSED)\.md"
+)
+EXPLICIT_DOC = rf"(?:/?(?:docs/[A-Za-z0-9][A-Za-z0-9_.-]*\.md|{SKILL_DOC}))"
+RELATIVE_DOC = rf"(?:\.\./)+(?:docs/[A-Za-z0-9][A-Za-z0-9_.-]*\.md|{SKILL_DOC})"
 ROOT_DOC = r"/?(?:AGENTS|CODE-REVIEW|README|SSM)\.md"
 BARE_DOC = r"[a-z0-9]+(?:-[a-z0-9]+)+\.md"
 DOC_REF_RE = re.compile(
@@ -186,7 +190,9 @@ def _candidate_paths(source: Path, ref: str) -> list[Path]:
     target = ref.split("#", 1)[0]
     if target.startswith("/"):
         return [REPO_ROOT / target.lstrip("/")]
-    if target.startswith("docs/") or target.startswith(".agents/skills/"):
+    if target.startswith("docs/") or target.startswith(
+        (".agents/skills/", ".agents/composed/")
+    ):
         return [REPO_ROOT / target]
     if target in ROOT_DOCS:
         return [REPO_ROOT / target]

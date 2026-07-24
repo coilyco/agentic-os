@@ -1,0 +1,39 @@
+roles {
+    role engineer {
+        guardfile "guardfile.example.kdl"
+        agent claude {
+            model claude-example
+            // name "old engineer"
+            // pronouns he
+            reasoning-effort high
+        }
+        agent codex {
+            model codex-example
+            reasoning-effort high
+        }
+    }
+    role director {
+        agent codex {
+            model codex-large
+            name "old director"
+            pronouns she
+            reasoning-effort xhigh
+        }
+    }
+    role qa {
+    }
+    role advisor {
+    }
+    role ops {
+    }
+    role pm {
+    }
+    role designer {
+    }
+    role social {
+    }
+    role sales {
+    }
+    role customer-success {
+    }
+}

@@ -46,24 +46,51 @@ commands:
   aos-dry-run:
     run: ./aos/aos --role engineer --dry-run acompose -- codex --version
     description: "Render the default standalone composed-container launch without starting Docker."
+  aguard-lock:
+    run: sh scripts/aguard-lock.sh
+    description: "Refresh aguard's vendored API snapshot and frozen cli-guard dependency graph with the packaged specgen driver."
+  aguard-build:
+    run: specgen --project-root .specgen build --out dist/aguard
+    description: "Materialize the standalone aguard operator CLI from the independent .specgen snapshot."
+  aguard-run:
+    run: specgen --project-root .specgen run --
+    description: "Materialize and run aguard from the independent .specgen snapshot, passing arguments after `--`."
   aos-image-build:
-    run: uv run python scripts/dev-base-build.py --registry agentic-os --tag aos-local build --tier core
-    description: "Build only the local core image as agentic-os:core-aos-local for standalone `aos` smoke testing."
+    run: uv run python scripts/dev-base-build.py --registry agentic-os --tag aos-local build --tier lang-node
+    description: "Build the local Node language image as agentic-os:lang-node-aos-local for standalone `aos` smoke testing."
   aos-container-smoke:
-    run: ./aos/aos --role engineer --image agentic-os:core-aos-local acompose -- codex --version
-    description: "Launch the local core image through `aos`, compose the engineer Codex HOME, hydrate substrate, and print the in-container Codex version."
+    run: ./aos/aos --role engineer --image agentic-os:lang-node-aos-local acompose -- codex --version
+    description: "Launch the local Node language image through `aos`, compose the engineer Codex HOME, hydrate substrate, and print the in-container Codex version."
+  aos-designer-smoke:
+    run: ./aos/aos --role designer --layout codex --image agentic-os:lang-node-aos-local --auth=false --no-substrate acompose -- sh scripts/aos-designer-smoke.sh
+    description: "Launch the local Node language image as the designer Codex variant and verify its projected AGENTS.md briefing, selected composed skill, entry-point promotion, and role isolation."
+  aos-role-question:
+    run: sh scripts/aos-role-question.sh
+    description: "Ask one composed role a real question through cloud Codex or Goose with a local model, enforce a bounded run, and require the response to confirm its loaded role. Usage: `ward exec aos-role-question -- cloud|local ROLE [MODEL]`."
   agent-compat:
     run: uv run python scripts/agent-compat.py
     description: "Run daily unittest smoke checks for local agent harness compatibility. The roster is read live from `ward agents list --json`, so it tracks ward's embedded fleet (Claude, Codex, OpenCode, Goose) instead of a private list; narrow with `-- --harness codex`. Uses unittest's native ok/FAIL/ERROR output and exit code. See docs/agent-compat.md."
   sync-local-models:
     run: uv run python -m agentic_os.local_model_sync
-    description: "Sync AOSH's generated OpenCode and Goose selections into `.ward/agents.kdl`. `-- --check` compares the AOS bundle with the selected, provisioned roster and fails on drift. See docs/ward-local-models.md."
+    description: "Sync AOSH's selected Goose route into `.ward/agents.kdl`. OpenCode remains AOS-local backend policy. `-- --check` compares the synced overlay with the selected, provisioned roster and fails on drift. See docs/ward-local-models.md."
+  sync-harness-board:
+    run: uv run python -m agentic_os.harness_board_sync
+    description: "Project AOSH's model-opaque role-intent harness selections into `.agents/roles.kdl`, plus the compiled `aos/role-harnesses.json` launcher view. `-- --check` reports drift without writing. See docs/ward-local-models.md."
+  sync-role-seats:
+    run: uv run python -m agentic_os.role_seat_sync
+    description: "Project AOSH's public-safe role-seat names and pronouns into marker-bounded agent identity blocks in `.ward/roles.kdl`. `-- --check` reports drift without writing. See docs/ward-local-models.md."
+  sync-role-personalities:
+    run: uv run python -m agentic_os.role_personality_sync
+    description: "Project AOSH's ordered role personalities into `aos/role-personalities.json` and validate every selected AOS full and brief personality body. `-- --check` reports drift without writing. See docs/ward-local-models.md."
   dev-base-build:
     run: uv run python scripts/dev-base-build.py --registry agentic-os --tag dev-base-local build
-    description: "Build the specialist dev-base image family in topological order locally under agentic-os:<tier>-dev-base-local (agentic-os:dev-base-local for full) for validating docker/dev-base/<tier>/Dockerfile changes before the release workflow publishes the multi-arch image."
+    description: "Build the independent Ubuntu-based language images and composed full image locally under agentic-os:<tier>-dev-base-local (agentic-os:dev-base-local for full) before the release workflow publishes the multi-arch family."
+  dev-base-check:
+    run: sh scripts/dev-base-check.sh
+    description: "Run Docker buildx static build checks against the independent language targets and the composed full image without building or publishing layers."
   dep-bump:
     run: uv run python scripts/dep-bump.py
-    description: "Resolve the dev-base tier Dockerfiles' pinned tool versions against upstream and bump them. `ward exec dep-bump -- check` reports drift (exit 1 if stale); `-- plan` emits the stale set as TSV (`--json` for machines); `-- apply --arg UV_VERSION --version X` rewrites one ARG. The scheduled .forgejo/workflows/dep-bump.yml runs this to auto-republish the image family. See docs/dev-base-image.md."
+    description: "Resolve the dev-base Dockerfiles' pinned tool versions against upstream and bump them. `ward exec dep-bump -- check` reports drift (exit 1 if stale); `-- plan` emits the stale set as TSV (`--json` for machines); `-- apply --arg UV_VERSION --version X` rewrites one ARG. The scheduled .forgejo/workflows/dep-bump.yml runs this to auto-republish the image family. See docs/dev-base-image.md."
   apply-agentic-os-hooks:
     run: uv run python scripts/apply-agentic-os-hooks.py
     description: "Roll out the canonical pre-commit hook block to every consumer repo under ~/projects/<org>/* (all org dirs). Idempotent."
@@ -106,12 +133,18 @@ commands:
   pre-commit-shellcheck:
     run: pre-commit run shellcheck --all-files
     description: "Run only the shellcheck hook across all shell files. Check-only."
+  pre-commit-shellcheck-files:
+    run: pre-commit run shellcheck --files
+    description: "Run only the shellcheck hook against paths passed after `--`, for focused validation when unrelated platform-specific files block the all-files hook."
   release:
     run: uv run python scripts/release.py
     description: "Cut a release: bump pyproject + FALLBACK_REV floor, create signed tag, push (consumer pin is tag-derived). --bump major|minor|patch to override; --dry-run to preview."
   test:
     run: uv run pytest
     description: "Run the agentic_os Python test suite (pytest)."
+  apply-base-claude-settings:
+    run: python3 scripts/apply-base-claude-settings.py
+    description: "Converge public-safe Claude Code preferences without clobbering local settings."
   gen-repo-pointer-skill:
     run: uv run python -m agentic_os.generators.generate_repo_pointer_skill
     description: "Generate a repo-<name> pointer skill from GitHub metadata. Pipe `ward ops gh repo view coilysiren/<name>` into it with `<name> --from-json -`, or pass --description/--topic. See docs/features-agents-pointer.md."
@@ -132,10 +165,16 @@ commands:
     description: "Lint ~/.aws/config (or $AWS_CONFIG_FILE) for the [profile default] trap the AWS SDK silently ignores, which surfaces later as a cryptic NoRegion from SSM/S3. No-op when the file is absent. A machine-env check, not repo content, so it is ward-fenced rather than a commit-path hook."
   context-budget:
     run: uv run python -m agentic_os.pre_commit.check_context_budget
-    description: "Report the eager startup-context budget each harness loads at session start vs a per-harness token budget, with per-source attribution. `-- --check` exits non-zero when any harness is over budget (for CI). `-- --immediate REPO` / `--peripheral REPO` (repeatable) walk working-dir/reference clones as the immediate/peripheral tiers (tracked-file count, bytes, chars/4 token proxy) for ward's role-aware probe. On-demand by design, not a pre-commit hook. See docs/context-budget.md."
+    description: "Report the eager startup-context budget each harness loads at session start vs a per-harness token budget, with per-source attribution. `-- --role ROLE --seat SEAT --snapshot FILE` captures a composed role-seat baseline without invoking the seat's agent; add `--compare FILE` after a refactor for a deterministic component delta. `-- --check` exits non-zero when any legacy harness is over budget (for CI). `-- --immediate REPO` / `--peripheral REPO` (repeatable) walk working-dir/reference clones as the immediate/peripheral tiers (tracked-file count, bytes, chars/4 token proxy) for ward's role-aware probe. On-demand by design, not a pre-commit hook. See docs/context-budget.md."
+  agents-context-inventory:
+    run: uv run python -m agentic_os.agents_context_inventory
+    description: "Inventory AGENTS-family sources across the committed substrate and an infrastructure-supplied managed-repo manifest. Emits stable Markdown or JSON with repository provenance, paragraph hashes, clipping candidates, and active role/harness cascades without copying doctrine text. See docs/agents-context-inventory.md."
   gen-ward-ops-reference:
     run: bash scripts/gen-ward-ops-reference.sh
     description: "Regenerate docs/ward-ops-forgejo-reference.md from `ward ops forgejo describe` with a provenance header (as-of date + ward version). The committed render keeps operator-verb names greppable off-disk so a cold agent never guesses the name. Run at converge time or when ward-kdl's forgejo surface changes."
+  gen-ward-ops-aws-reference:
+    run: uv run python -m agentic_os.generators.generate_ward_aws_reference
+    description: "Regenerate docs/ward-ops-aws-reference.md from the launch-selected AOS bundle. `-- --check` reports drift without writing."
   freshness:
     run: uv run python -m agentic_os.freshness
     description: "Knowledge-base freshness probe: parse `<!-- freshness: as-of= half-life= -->` provenance markers across tracked docs and grade each fact by age against its half-life horizon. `-- --check` exits non-zero when any fast-decay fact is past its horizon (the loud trigger a scheduled CI job fails on), `-- --lint` checks markers are well-formed. Hermetic, on-demand/scheduled, not a commit-path hook since rot is time-based. See docs/knowledge-base-freshness.md."

@@ -6,9 +6,14 @@ This is the operational walkthrough for drafting a new skill. The personal-OS-sp
 
 Start by understanding what the user wants. The current conversation often already contains the workflow (an investigation that worked, a recurring debug pattern, a checklist the user keeps redoing). Extract from history first: tools used, sequence of steps, corrections, input/output formats observed. Confirm with the user before drafting.
 
+Run the [admission test](admission.md) and
+[placement decision](placement.md) before drafting. Stop when the proposed
+content belongs in person context, `AGENTS.md`, docs, retrieval, tooling,
+validation, or authority configuration instead.
+
 Five questions to pin down before writing:
 
-1. What should this skill enable Claude to do?
+1. What should this skill enable the target agent to do?
 2. When should this skill trigger? (user phrasings, contexts, scheduled routines)
 3. What's the expected output format? (vault inbox file, GitHub issue, in-session report, terminal command, files on disk)
 4. Which prefix fits (see `categories.yaml` for the canonical list)? Or do we need a new category (require justification)?
@@ -27,7 +32,10 @@ Start by copying the appropriate template from [`../templates/`](../templates/) 
 Frontmatter rules (validator-enforced):
 
 * **name** must equal the directory name.
-* **description** non-empty, the primary triggering field. Include both what the skill does and concrete trigger phrasings. End with `Triggers - keyword1, keyword2, keyword3.`. Bias toward over-triggering since Claude under-triggers skills.
+* **description** non-empty, the primary triggering field. Include what the
+  skill does and concrete trigger conditions. Use a compact `Triggers - ...`
+  tail only when aliases earn their bytes. Test both positive and near-miss
+  prompts for accurate activation.
 
 Status line (where enforced - currently `ops-investigation-*` and `ops-investigation`): directly under the H1, format `Status: <emoji> <Kind> | Last <updated|tested>: YYYY-MM-DD`. See handbook §4.
 

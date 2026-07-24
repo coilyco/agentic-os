@@ -131,43 +131,6 @@ def test_version_sensitive_pins_are_excluded_from_auto_bump() -> None:
     assert "YQ_VERSION" in script.RESOLVERS
 
 
-def test_tier_ownership_declares_each_published_target_once() -> None:
-    script = _load_script()
-    assert script.PUBLISHED_TARGETS == (
-        "dev-base-core",
-        "dev-base-lang-node",
-        "dev-base-lang-go",
-        "dev-base-lang-dotnet",
-        "dev-base-lang-rust",
-        "dev-base-lang-python",
-        "dev-base-full",
-    )
-
-
-def test_tier_ownership_covers_each_managed_arg_once() -> None:
-    script = _load_script()
-    owned_args = tuple(script.ARG_TO_TARGET)
-    assert set(owned_args) == set(script.RESOLVERS)
-    assert script.ARG_TO_TARGET == {
-        "UV_VERSION": "dev-base-core",
-        "NODE_VERSION": "dev-base-core",
-        "GO_VERSION": "dev-base-lang-go",
-        "DOTNET_VERSION": "dev-base-lang-dotnet",
-        "AWSCLI_VERSION": "dev-base-core",
-        "GH_VERSION": "dev-base-core",
-        "DOCKER_VERSION": "dev-base-core",
-        "HELM_VERSION": "dev-base-core",
-        "KUBECTL_VERSION": "dev-base-core",
-        "YQ_VERSION": "dev-base-core",
-        "TAILSCALE_VERSION": "dev-base-core",
-        "CLAUDE_VERSION": "dev-base-core",
-        "MCPORTER_VERSION": "dev-base-core",
-        "CODEX_VERSION": "dev-base-core",
-        "GOOSE_VERSION": "dev-base-core",
-        "TRUFFLEHOG_VERSION": "dev-base-full",
-    }
-
-
 def test_mcporter_is_auto_bumped_from_npm_registry() -> None:
     # MCPorter is installed from npm, so the auto-bump tracks the npm registry's
     # latest published version like Claude does.

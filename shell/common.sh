@@ -423,12 +423,14 @@ ssm-get() {
     --query 'Parameter.Value' --output text
 }
 
-# Auto-cd a fresh interactive shell landing at $HOME into the projects root,
-# matching Warp's default new-tab directory.
+# Auto-cd a fresh interactive shell landing at $HOME into the configured
+# startup directory, matching Warp's default new-tab directory.
 case $- in
   *i*)
-    if [ "$PWD" = "$HOME" ] && [ -d "$HOME/projects" ]; then
-      cd "$HOME/projects"
+    _siren_startup_dir="${WARP_STARTUP_DIR:-$HOME/projects}"
+    if [ "$PWD" = "$HOME" ] && [ -d "$_siren_startup_dir" ]; then
+      cd "$_siren_startup_dir"
     fi
+    unset _siren_startup_dir
     ;;
 esac

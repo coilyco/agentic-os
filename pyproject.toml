@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agentic-os"
 version = "0.62.0"
-description = "Cross-repo pre-commit hooks and operating utilities for coilysiren/* repos: catalog-trifecta, code-review-contract, catalog-doc-size, documentation-layout, code-comments, catalog-block, check-skills, dead-cross-links."
+description = "Cross-repo pre-commit hooks and operating utilities for skill catalogs, documentation, code comments, links, and composed role sources."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Kai Siren" }]
@@ -41,16 +41,19 @@ check-agent-compose-size = "agentic_os.pre_commit.check_agent_compose_size:main"
 check-agent-compose-dedup = "agentic_os.pre_commit.check_agent_compose_dedup:main"
 check-agent-compose-drift = "agentic_os.pre_commit.check_agent_compose_drift:main"
 check-skills = "agentic_os.pre_commit.check_skill:main"
+check-composed-skills = "agentic_os.pre_commit.check_composed_skills:main"
 check-dead-links = "agentic_os.pre_commit.check_dead_links:main"
 check-catalog-block = "agentic_os.pre_commit.check_catalog_block:main"
 check-catalog-doc-size = "agentic_os.pre_commit.check_catalog_doc_size:main"
 check-catalog-trifecta = "agentic_os.pre_commit.check_catalog_trifecta:main"
 check-code-review-contract = "agentic_os.pre_commit.check_code_review_contract:main"
 check-code-comments = "agentic_os.pre_commit.check_code_comments:main"
+check-actions-run-one-line = "agentic_os.pre_commit.check_actions_run_one_line:main"
 check-source-doc-refs = "agentic_os.pre_commit.check_source_doc_refs:main"
 check-documentation-layout = "agentic_os.pre_commit.check_documentation_layout:main"
 check-context-load-points = "agentic_os.pre_commit.check_context_load_points:main"
 check-context-budget = "agentic_os.pre_commit.check_context_budget:main"
+agents-context-inventory = "agentic_os.agents_context_inventory:main"
 check-aws-config = "agentic_os.pre_commit.check_aws_config:main"
 check-ssm-path = "agentic_os.pre_commit.check_ssm_path:main"
 check-yaml-strict = "agentic_os.pre_commit.check_yaml_strict:main"
@@ -94,8 +97,10 @@ generate-caps-reference = "agentic_os.generators.generate_caps_reference:main"
 # Raised again from 14500 for the sealed engineer/QA live-deployment
 # prohibition, which must live beside the base doctrine as always-composed
 # guidance instead of being split into a detached doc.
-agents_md_max_lines = 160
-agents_md_max_chars = 17000
+# Doubled as selective skill organization moves task capability out of the
+# eager layer while baseline person and operating context remains universal.
+agents_md_max_lines = 320
+agents_md_max_chars = 34000
 # Subsystem dirs carry idiomatic co-located READMEs and config docs that the
 # root/docs/skills location rule does not model. Excluded per the root layout
 # hatch: warp (Go module).
@@ -106,6 +111,9 @@ excludes = [
     # Over-cap by design: the full operator-verb surface, committed so the names
     # stay greppable off-disk. Regenerate, do not hand-trim. See docs/ward-ops-forgejo-reference.md.
     "docs/ward-ops-forgejo-reference.md",
+    # Generated pre-rollout AGENTS inventory baseline. It preserves the full
+    # review surface and stays over-cap rather than splitting one point-in-time audit.
+    "docs/agents-context-inventory-snapshot.md",
     # Root SSM.md is a focused pointer to the SSM params aos code consumes,
     # mirroring the canonical SSM.md placement. See SSM.md.
     "SSM.md",

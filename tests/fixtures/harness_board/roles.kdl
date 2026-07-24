@@ -1,0 +1,22 @@
+roles {
+    role engineer {
+    }
+    role director {
+    }
+    role qa {
+    }
+    role advisor {
+    }
+    role ops {
+    }
+    role pm {
+    }
+    role designer {
+    }
+    role social {
+    }
+    role sales {
+    }
+    role customer-success {
+    }
+}

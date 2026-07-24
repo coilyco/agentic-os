@@ -255,9 +255,10 @@ def _build_plan(
             )
             continue
         cmd = _docker_base_command(push, platforms)
-        if entry["tier"] == "core" and not push:
+        is_language = str(entry["tier"]).startswith("lang-")
+        if is_language and not push:
             cmd.extend(["--build-arg", f"TARGETARCH={_host_targetarch()}"])
-        if entry["tier"] == "core":
+        if is_language:
             cmd.extend(
                 [
                     "--build-arg",
@@ -266,7 +267,7 @@ def _build_plan(
                     "aos-cli=aos",
                 ]
             )
-        elif entry["tier"] != "core":
+        elif entry["tier"] == "full":
             cmd.extend(["--build-arg", f"BASE_IMAGE={entry['base_image']}"])
         for arg_name, graft_ref in entry["graft_images"].items():
             cmd.extend(["--build-arg", f"{arg_name}={graft_ref}"])
@@ -276,11 +277,12 @@ def _build_plan(
         if push:
             for alias_image in entry.get("alias_images", []):
                 cmd.extend(["-t", alias_image])
+        cmd.extend(["--target", str(entry["stage"])])
         cmd.extend(["-f", str(dockerfile), str(context_dir)])
-        if push and entry["tier"] == "core":
+        if push and is_language:
             summary = "\n".join(
                 [
-                    "### core publish context",
+                    f"### {entry['tier']} publish context",
                     "",
                     f"- tier: {entry['tier']}",
                     f"- image: {entry['image']}",
@@ -292,7 +294,7 @@ def _build_plan(
                     "",
                 ]
             )
-            print("::group::core publish context")
+            print(f"::group::{entry['tier']} publish context")
             print(f"tier={entry['tier']}")
             print(f"image={entry['image']}")
             print(f"cache={entry['cache_image']}")

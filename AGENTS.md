@@ -22,7 +22,7 @@ Route every dev command through ward, which reads [`.ward/ward.yaml`](.ward/ward
 
 ## Validation
 
-This repo ships and dogfoods the catalog pre-commit suite (catalog-trifecta, documentation-layout, code-comments, catalog-block, check-skills, dead-cross-links, repo-pointer-skills, trufflehog). Run `pre-commit run --all-files` before committing. Per-repo opt-outs (excludes, cap overrides) live under `[tool.agentic-os.*]` in `pyproject.toml`.
+This repo ships and dogfoods the catalog pre-commit suite (catalog-trifecta, documentation-layout, code-comments, catalog-block, check-skills, check-composed-skills, dead-cross-links, repo-pointer-skills, trufflehog). Run `pre-commit run --all-files` before committing. Per-repo opt-outs (excludes, cap overrides) live under `[tool.agentic-os.*]` in `pyproject.toml`.
 
 **Tests never encode config values.** A tunable lives in one owning source. Config validity belongs to the loader (`ward doctor` gates `.ward` in ci and promote), so tests never assert guardfile or KDL content, and CI enumerates no list a wildcard can derive.
 
@@ -52,7 +52,11 @@ Config splits on three axes, each a distinct owner: **permission/surface** (ward
 
 ### Skills
 
-`.agents/skills/` ships the generalizable, public-safe skills - tooling docs for the configs that live here, plus cross-repo skills that help any agentic-os user, not just Kai. These directories are the canonical sources; harness-specific setup owns installation and discovery. Edit the SKILL.md here, not an installed copy.
+`.agents/skills/` ships generalizable, public-safe ordinary skills.
+`.agents/composed/` ships public-safe role-scoped sources that agent-compose
+promotes only after role selection. These directories are canonical.
+Harness-specific setup owns installation and discovery. Edit `SKILL.md` or
+`COMPOSED.md` here, not an installed copy.
 
 ## Release
 
@@ -82,9 +86,40 @@ A read-only clone cannot push itself, so push or merge workflows need a writable
 
 In every action sentence, name who performs it: "Kai commits them" or "the agent commits them", never "I'll commit them" (ambiguous). This matters most in user-input option labels - every choice presented to Kai says whose hands are on it.
 
+### Action-first communication
+
+Shape every response so the reader can act without retaining hidden state. This
+is baseline communication, not an opt-in mode.
+
+* Lead with the outcome or next action. Skip filler preambles.
+* Number human-executed multi-step work. Keep the immediate list to five bounded actions, then split later work.
+* Keep state visible across turns. Name what finished, the current step, and one next action without repeating a plan already visible in a task tool.
+* Finish the main thread before introducing tangents. State errors matter-of-factly, make completed work visible, and give concrete time ranges only when they help and the uncertainty is named.
+* End with one concrete next action when work remains. Otherwise end when the answer is complete, without a boilerplate closer.
+
+The task and safety rules outrank the output shape. Explain fully when asked,
+confirm before destructive action, ask one focused question when ambiguity is
+material, and stop a three-turn debug spiral to name the suspect assumption.
+Required harness announcements still happen.
+
+Adapted from [`i-have-adhd`](https://github.com/ayghri/i-have-adhd) (MIT), which
+frames the conventions as broadly useful without requiring a diagnosis.
+
 ### Finish the whole task
 
 Unless told otherwise, "done" includes the obvious follow-through, not the first reportable milestone. Finishing a task means committing, pushing to canonical main, and filing a follow-up issue for anything deferred - all of it, without returning between steps to ask. A task ends at a verifiable done-condition (tests green, the change landed, the exemption committed), not at the point where there is something to report. When the user hands off the **what**, the **what-comes-after** is part of the same job. Do not split it into separate turns that each wait on a human.
+
+### Native checkpoints must be remote
+
+A native host session writes into a long-lived checkout. Whenever an agent doing native work outside `warded` reaches a checkpoint with local repository changes, the agent **must commit the in-scope changes and push the commit to the canonical remote before pausing, reporting the checkpoint, switching tasks, or ending the turn**. A checkpoint includes a human decision wall, a blocked dependency, a handoff, a context boundary, and any point where the agent may not continue immediately.
+
+If the resolved workflow allows the work to land, the agent pushes it to `main` as usual. If the work should not yet land on `main`, the agent creates or reuses a task-specific branch and pushes the checkpoint there. The remote branch is the recovery artifact. Uncommitted changes, local-only commits, stashes, reflogs, and a clean local worktree without a remote ref **do not count**. Test failures or incomplete follow-up may keep a checkpoint off `main`, but they never justify leaving the only copy local. Never force-push to satisfy this rule. If an ordinary push cannot succeed, the agent preserves the local state and reports the exact blocker as the current wall.
+
+### Foreign work requires a worktree
+
+Before the first mutation in any native checkout, the agent inspects the worktree, current branch, and local divergence. If the checkout contains work the agent did not create for the current task, the agent **must not edit, format, stage, stash, reset, switch branches, commit, or otherwise mutate that checkout**. The agent creates a separate task-specific branch and linked worktree from the appropriate clean canonical base, then performs all current-task work inside that worktree. Pre-existing staged, unstaged, or untracked files, local commits, an in-progress Git operation, and a branch owned by another task all count as foreign work. Ambiguous ownership counts as foreign.
+
+The agent leaves the original checkout exactly as found. The agent never absorbs foreign changes into its commit or uses stash as a substitute for isolation. If the agent cannot create a separate worktree safely, the agent stops before any mutation and reports the exact blocker. The remote-checkpoint rule applies to the new worktree and its task branch.
 
 ### Run until a wall worth a human
 

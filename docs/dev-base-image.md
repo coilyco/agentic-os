@@ -1,80 +1,76 @@
-# dev-base container image
+# dev-base container images
 
-aos owns the agent dev env. ward consumes it by tag, so config cannot drift.
-
-This page covers the language specialists and the `dev-base-full` compatibility
-surface. See [tiering](dev-base-image-tiering.md).
+The dev-base family publishes independent language specialists plus the
+`dev-base-full` compatibility surface. See [image topology](dev-base-image-tiering.md).
 
 ## What ships
 
-[`docker/dev-base/core/Dockerfile`](../docker/dev-base/core/Dockerfile) layers
-the root runtime tier on `ubuntu:24.04`. The sibling tier Dockerfiles live in
-[`docker/dev-base/`](../docker/dev-base/) as one folder per tier.
+[`docker/dev-base/Dockerfile`](../docker/dev-base/Dockerfile) is a multi-target
+Dockerfile. Every `dev-base-lang-*` target starts with its own
+`FROM ubuntu:<version>` instruction. The language images do not inherit a
+repository-owned base image or another language target.
 
-* **core** - development tools, agent harnesses, operational CLIs, platform assets, `aos`, agent-compose, and ward.
-* **language specialists** - Node, Go, .NET 10 + ICU, Rust + wasm + `trunk`, and Python + pip + `pipenv`.
-* **shared CLIs** - `aos`, agent-compose/`acompose`, cloud, cluster, agent, and language CLIs inherited by every `lang-*` image.
-* **gate tools** - golangci-lint, trufflehog, and kdlfmt.
-* Rust native libs - `lang-rust` supplies native Bevy/Winit dependencies, and `full` inherits them.
-* **platform seed** - the public substrate manifest and mirrors, self-name/status assets, and the shell entrypoint.
+[`docker/dev-base/install-common.sh`](../docker/dev-base/install-common.sh)
+owns the repeated source-level setup for agent harnesses, operational CLIs,
+platform assets, `aos`, agent-compose, ward, and the substrate seed. Reusing
+that installer keeps the independently built images aligned without turning
+the common surface into a published image contract.
 
-Tools under `/usr/local`, `/home/linuxbrew/.linuxbrew`, or `/opt` run as any uid.
-The [AOS launcher](aos-cli.md) owns CWD, substrate, and composed HOME. Ward owns
-governed uid, credentials, clones, and lifecycle.
+The published specialists are Node, Go, .NET + ICU, Rust + wasm + `trunk`, and
+Python + pip + `pipenv`. `full` inherits the same-release Rust image and grafts
+the self-contained Go, .NET, and Python toolchain prefixes. Rust supplies the
+native Bevy/Winit development libraries.
 
 ## Naming and tags
 
-Published as `forgejo.coilysiren.me/coilyco-flight-deck/agentic-os`, with variants as tags.
-`full` is the plain default tag, and the folder name prefixes every other tier's
-tag. `full` uses `agentic-os:${TAG}`. Other refs use
-`agentic-os:<tier>-${TAG}` for `core`, `lang-node`, `lang-go`, `lang-dotnet`,
-`lang-rust`, and `lang-python`. The family publishes no `ops` or `agent` tag.
-`dev-base-publish.yml` first
-publishes draft tags (`agentic-os:draft-${sha}`, `agentic-os:core-draft-${sha}`,
-and so on) on the promoted SHA. Its manual dispatch path can resume one tier
-closure at a time. `release.yml` retags that family to `vX.Y.Z`, `:release`,
-and `:latest` after each draft tag appears. The `buildcache` tags hold the
-cache.
+One repository release tag drives the family:
+
+* `full` uses the plain `agentic-os:${TAG}` ref.
+* Language images use `agentic-os:<tier>-${TAG}`.
+* Draft, `release`, `latest`, and build-cache tags follow the same rule.
+* The family publishes no `core`, `ops`, or `agent` tag.
+
+The default AOS launcher image remains `agentic-os:release`.
 
 ## How it publishes
 
-The publish jobs in [`.forgejo/workflows/dev-base-publish.yml`](../.forgejo/workflows/dev-base-publish.yml)
-run after `release` already moved. They build one draft per tier with
-[`scripts/dev-base-build.py`](../scripts/dev-base-build.py); `needs:` carries
-the tier DAG (see the [tiering doc](dev-base-image-tiering.md)). The manual
-retry workflow in [`.forgejo/workflows/release.yml`](../.forgejo/workflows/release.yml)
-re-runs the same retag path. The core image
-sets its commit-pinned `WARD_CONFIG_REF` in the final validation layer. That
-lets `ward doctor` validate the bundled `.ward/` checkout without invalidating
-the cached toolchain layers on every commit.
+[`.forgejo/workflows/dev-base-publish.yml`](../.forgejo/workflows/dev-base-publish.yml)
+builds the language images through a matrix capped at one active export on the
+shared image builder. Every matrix row starts from Ubuntu and can rerun
+independently. The `full` job waits for the language matrix.
 
-See [publish resume](dev-base-publish-resume.md).
+[`release.yml`](../.forgejo/workflows/release.yml) retags the already-published
+draft manifests to the versioned tag plus `release` and `latest`. The helper
+checks target manifests before work, so a manual retry resumes at the selected
+tier without rebuilding completed outputs. See [publish resume](dev-base-publish-resume.md).
 
 ## Pinning a tool
 
-Versions pin as `ARG`s: hand-edit and push, else **auto-bump** refreshes stale
-pins ([auto-bump doc](dev-base-auto-bump.md)).
-`GOLANGCI_LINT_VERSION`, `KDLFMT_VERSION`, `TRUNK_VERSION`, and `WARD_VERSION` opt out. Ward stays
-manual while raw releases stage: aos advances prod/N-1 after real-bundle
-validation.
+Tool versions have one default declaration in the Dockerfile that owns the
+installation. Shared and language versions live in the multi-target Dockerfile.
+Full-only gate tools live in `full/Dockerfile`.
 
-## Pulling it
+`ward exec dep-bump -- check` compares managed pins with upstream releases.
+`ward exec dep-bump -- apply --arg NAME --version VERSION` rewrites one owning
+default. The scheduled dependency workflow performs the same operation and
+runs the repository gate before pushing.
 
-```bash
-docker pull forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
-```
+## Pulling an image
 
-Needs a `docker login`. `ward container up/exec` (ward#98) is the entry point.
+Consumers pin a versioned ref for reproducibility. Humans and AOS may use the
+moving `release` alias for the current promoted image. CI and deployment
+configuration own their exact pin. The image repository never reaches upward
+into a consumer repository for runtime configuration.
 
 ## Not here
 
-* Ward's fresh target clone, repo grants, reservations, reaper, and landing policy.
-* `coily` (retired, folded into `ward ops`) and running services - not shipped.
-* Standalone `ops` and `agent` images - capabilities live in each language specialist instead.
-* `docker buildx` and `wasm-pack` - job-local.
-* Infrastructure owns private-network startup/auth/sockets. AOS composes client access.
+* Fleet rollout belongs in infrastructure/ansible.
+* A repository-owned shared runtime image is intentionally absent.
+* Standalone `ops` and `agent` images are intentionally absent.
 
 ## See also
 
-* [release.md](release.md) - the pipeline this rides on. [FEATURES.md](FEATURES.md).
-* [Language-specialist dev-base images](dev-base-image-tiering.md) - the inheritance and compatibility fan-in model.
+* [Independent language image topology](dev-base-image-tiering.md)
+* [CI parity](ci-in-dev-base.md)
+* [Build cache](dev-base-build-cache.md)
+* [Release workflow](release.md)

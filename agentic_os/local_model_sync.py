@@ -17,7 +17,9 @@ DEFAULT_AOSH_ROOT = REPO_ROOT.parents[1] / "coilyco-bridge" / "agentic-os-hardwa
 PAIRINGS_PATH = Path(".agents/skills/leaderboard-agent-model-pairs/info/94-pairings.yaml")
 INVENTORY_PATH = Path(".agents/skills/leaderboard-agent-model-pairs/info/90-inventory.yaml")
 DEFAULT_BUNDLE = REPO_ROOT / ".ward" / "agents.kdl"
-LOCAL_HARNESSES = ("opencode", "goose")
+# Only harnesses whose deployment-wide model is selected by an AOSH route belong
+# here. OpenCode is an AOS-local backend overlay, not the engineer role's route.
+SYNCED_HARNESSES = ("goose",)
 
 
 class SyncError(RuntimeError):
@@ -54,7 +56,7 @@ def load_selections(aosh_root: Path) -> dict[str, Selection]:
     inventory = _entries(_load_yaml(inventory_file), inventory_file)
 
     selected: dict[str, Selection] = {}
-    for harness in LOCAL_HARNESSES:
+    for harness in SYNCED_HARNESSES:
         matches = [entry for entry in pairings if entry.get("agent") == harness]
         if len(matches) != 1:
             raise SyncError(
@@ -88,7 +90,7 @@ def _agent_block_pattern(harness: str) -> re.Pattern[str]:
 
 def bundle_models(text: str) -> dict[str, str | None]:
     models: dict[str, str | None] = {}
-    for harness in LOCAL_HARNESSES:
+    for harness in SYNCED_HARNESSES:
         match = _agent_block_pattern(harness).search(text)
         if match is None:
             raise SyncError(f".ward/agents.kdl: missing agent {harness} block")
@@ -99,7 +101,7 @@ def bundle_models(text: str) -> dict[str, str | None]:
 
 def render_bundle(text: str, selected: dict[str, Selection]) -> str:
     rendered = text
-    for harness in LOCAL_HARNESSES:
+    for harness in SYNCED_HARNESSES:
         pattern = _agent_block_pattern(harness)
         match = pattern.search(rendered)
         if match is None:
@@ -129,12 +131,12 @@ def run(aosh_root: Path, bundle: Path, *, check: bool) -> int:
     expected = render_bundle(current, selected)
 
     if current == expected:
-        pairs = ", ".join(f"{name}={selected[name].model}" for name in LOCAL_HARNESSES)
+        pairs = ", ".join(f"{name}={selected[name].model}" for name in SYNCED_HARNESSES)
         print(f"ok: AOS local harness models match the AOSH provisioned roster ({pairs})")
         return 0
     if check:
         actual = bundle_models(current)
-        for name in LOCAL_HARNESSES:
+        for name in SYNCED_HARNESSES:
             if actual[name] != selected[name].model:
                 print(
                     f"drift: {name} bundle={actual[name] or '<missing>'} "

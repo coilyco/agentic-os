@@ -54,6 +54,25 @@ def test_existing_root_relative_doc_passes(monkeypatch, tmp_path: Path) -> None:
     assert _run(monkeypatch, repo) == 0
 
 
+def test_composed_entrypoint_reference_is_validated(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    repo = _repo(tmp_path)
+    _write(repo, ".agents/composed/live/COMPOSED.md", "# Live\n")
+    _write(
+        repo,
+        "scripts/tool.sh",
+        "# See .agents/composed/live/COMPOSED.md.\n"
+        "# See .agents/composed/missing/COMPOSED.md.\n",
+    )
+    _git(repo, "add", "-A")
+
+    assert _run(monkeypatch, repo) == 1
+    err = capsys.readouterr().err
+    assert ".agents/composed/missing/COMPOSED.md" in err
+    assert ".agents/composed/live/COMPOSED.md" not in err
+
+
 def test_yaml_embedded_shell_comment_is_scanned(
     monkeypatch, tmp_path: Path, capsys
 ) -> None:

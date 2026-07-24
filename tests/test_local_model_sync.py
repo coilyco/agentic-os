@@ -8,20 +8,18 @@ import yaml
 from agentic_os import local_model_sync
 
 
-def _write_sources(
-    root: Path, *, opencode: str = "gpt-oss:120b", goose: str = "ministral-3:8b"
-) -> None:
+def _write_sources(root: Path, *, goose: str = "ministral-3:8b") -> None:
     info = root / ".agents/skills/leaderboard-agent-model-pairs/info"
     info.mkdir(parents=True)
     pairings = {
         "entries": [
             {"agent": "goose", "model": goose, "server": "model-host"},
-            {"agent": "opencode", "model": opencode, "server": "model-host"},
+            {"agent": "openhands", "model": "gpt-oss:120b", "server": "model-host"},
         ]
     }
     inventory = {
         "entries": [
-            {"model": opencode, "server": "model-host", "keep": True},
+            {"model": "gpt-oss:120b", "server": "model-host", "keep": True},
             {"model": goose, "server": "model-host", "keep": True},
         ]
     }
@@ -55,16 +53,15 @@ def test_load_selections_requires_provisioned_models(tmp_path: Path) -> None:
 
 def test_render_bundle_updates_only_selected_model_lines() -> None:
     selected = {
-        "opencode": local_model_sync.Selection("gpt-oss:120b", "model-host"),
         "goose": local_model_sync.Selection("ministral-3:8b", "model-host"),
     }
 
     rendered = local_model_sync.render_bundle(_bundle(), selected)
 
     assert local_model_sync.bundle_models(rendered) == {
-        "opencode": "gpt-oss:120b",
         "goose": "ministral-3:8b",
     }
+    assert "model old-code" in rendered
     assert "http://localhost:11434/v1" in rendered
     assert "http://host.docker.internal:8082/v1" in rendered
 
@@ -80,7 +77,6 @@ def test_check_reports_drift_without_writing(
     assert local_model_sync.run(tmp_path, bundle, check=True) == 1
     assert bundle.read_text(encoding="utf-8") == original
     captured = capsys.readouterr()
-    assert "drift: opencode" in captured.err
     assert "drift: goose" in captured.err
 
 

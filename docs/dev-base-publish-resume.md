@@ -17,5 +17,5 @@ package tag itself.
 See also:
 
 - [dev-base container image](dev-base-image.md)
-- [Tiered dev-base image split](dev-base-image-tiering.md)
+- [Independent dev-base image topology](dev-base-image-tiering.md)
 - [Release pipeline](release.md) for the retag path that adds `source-tag`.

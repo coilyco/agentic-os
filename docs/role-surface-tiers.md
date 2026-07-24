@@ -26,8 +26,8 @@ as drift against this map instead of silently disabling a role.
 
 * **guardfile bindings** - [.ward/roles.kdl](../.ward/roles.kdl), authored here - which guarded verb families a shipped role mounts. The Forgejo read/write tiers and the ops guardfiles under [aws](../.ward/guardfile.aws.kdl) are the clearest examples. Ward does not select a private network or proxy.
 * **role presets** - ward's tree - tagline, capabilities, modes, posture. Stripped from the aos overlay on 2026-07-10 (commit 566f42f) by design, never re-authored here.
-* **image binaries** - [docker/dev-base/](dev-base-image-tiering.md), authored here - whether `aws`, `kubectl`, `helm`, and the Docker client exist on disk. The `ops` role remains a permission and bring-up boundary, not an image tag.
-* **private live-observe composition** - [AOS](aos-private-network.md), authored here - advisor and director attach to the infrastructure-managed network and receive the remote-DNS proxy environment. Infrastructure converges the standing proxy and its reachability. Neither Ward nor the role guardfiles own a daemon, socket, TUN capability, network, proxy, or destination.
+* **image binaries** - [docker/dev-base/](dev-base-image-tiering.md), authored here - whether `aws`, `kubectl`, `helm`, `tailscale`, `tailscaled`, and the Docker client exist on disk. The common installer bakes them independently into every Ubuntu-based `lang-*` image, and `full` inherits them through `lang-rust`. The `ops` role remains a permission and bring-up boundary, not an image tag.
+* **container bring-up** - ward's tree - whether creds and daemons are live: the `~/.aws` dir, a kubeconfig, `tailscaled` process/auth/socket wiring, `FORGEJO_TOKEN`, and the `WARD_CONTEXT_LEVEL` context slice. A binary existing says nothing about this layer.
 
 The observable failure mode is a launch-time error for a missing AOS private
 network/proxy input, or a connection failure through that proxy after launch.
@@ -49,5 +49,6 @@ specgen also-grant convenience is agentic-os#446.
 ## See also
 
 * [ward-specs.md](ward-specs.md) - the bundle these guardfiles ship in.
-* [dev-base-image-tiering.md](dev-base-image-tiering.md) - the image tier split.
+* [dev-base-image-tiering.md](dev-base-image-tiering.md) - the image topology.
 * [ward-ops-forgejo-reference.md](ward-ops-forgejo-reference.md) - the committed forgejo surface render.
+* [ward-ops-aws-reference.md](ward-ops-aws-reference.md) - the committed AWS surface render.

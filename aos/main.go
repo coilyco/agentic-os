@@ -71,6 +71,17 @@ func main() {
 				},
 			},
 			{
+				Name:   "harness-default",
+				Usage:  "print the projected harness for a role-intent lane",
+				Action: runHarnessDefault,
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:  "intent",
+						Usage: "model-opaque task intent to resolve",
+					},
+				},
+			},
+			{
 				Name:      "acompose",
 				Usage:     "launch a composed agent in the AOS image",
 				ArgsUsage: "-- <harness> [args...]",

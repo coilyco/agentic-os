@@ -1,0 +1,12 @@
+# Long-lived native-host checkouts under $PROJECTS_ROOT/<owner>/<repo>.
+# This roster is independent of docker/dev-base/substrate-image-repos.txt,
+# which controls the read-only substrate baked into the dev-base image.
+#
+# Format: owner/name, one per line.
+coilysiren/coilysiren
+coilyco-flight-deck/agentic-os
+coilyco-flight-deck/infrastructure
+coilyco-bridge/deploy
+coilyco-bridge/agentic-os-kai
+coilyco-bridge/agentic-os-hardware
+coilyco-bridge/lore

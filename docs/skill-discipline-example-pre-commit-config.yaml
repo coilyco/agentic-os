@@ -5,9 +5,10 @@
 
 repos:
   - repo: https://forgejo.coilysiren.me/coilyco-flight-deck/agentic-os
-    rev: v0.21.0
+    rev: REPLACE_WITH_RELEASE_TAG
     hooks:
       - id: check-skills
+      - id: check-composed-skills
       - id: dead-cross-links
       - id: source-doc-refs
       - id: documentation-layout

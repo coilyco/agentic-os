@@ -1,4 +1,9 @@
 {
+  "deniedMcpServers": [
+    {
+      "serverName": "claude-in-chrome"
+    }
+  ],
   "statusLine": {
     "type": "command",
     "command": "/opt/agentic-os/statusline.sh",

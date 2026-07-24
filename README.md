@@ -13,7 +13,8 @@ Cross-platform shell + terminal setup plus cross-repo pre-commit hooks for coily
 - `aos-say/` - the `ward exec aos-say` Go module for the speech helper client and relay.
 - `karabiner/` - Karabiner-Elements complex modification assets (`brew install --cask karabiner-elements`), symlinked into the local Karabiner config tree.
 - `scripts/` - portable utilities (gpg-ssm wrapper, agent-name + session-pulse hooks, aws-config lint).
-- `.agents/skills/` - SKILL.md docs for the configs that live here. A private overlay repo's skill mount walks this dir as a peer skill source.
+- `.agents/skills/` - ordinary `SKILL.md` sources that every composed role can discover.
+- `.agents/composed/` - role-scoped `COMPOSED.md` sources that agent-compose promotes only for allowlisted roles.
 - `agentic_os/` - packaged hooks, generators, shared config/data, plus the hygiene guardrails that back the pre-commit suite.
 
 Full breakdown: [docs/repo-layout.md](docs/repo-layout.md).
@@ -51,6 +52,13 @@ agent role, and then runs the selected harness:
 aos --role engineer acompose -- codex
 ```
 
+The released binary also resolves the committed model-opaque default for a
+role-intent lane:
+
+```bash
+aos --role director harness-default --intent strategic-planning
+```
+
 Ward is not part of this path. See the [CLI and substrate contract](docs/aos-cli.md).
 Homebrew and Scoop installs plus direct release binaries are documented in the
 [CLI release walkthrough](docs/aos-cli-release.md).
@@ -68,7 +76,7 @@ No disk write at any point. Same call works on Mac, Linux, Windows. AWS profile 
 
 ## agent-compose
 
-Opt-in tooling that composes global agent context and symlinks each harness load point to it. Sources are shared unless optional `harnesses` frontmatter selects a harness-specific slice. AOS also publishes the [canonical personality provider](docs/personality-provider.md): one shared invariant plus sixteen full and brief role-neutral bodies for agent-compose. Host composition stays inert until `~/.config/agent-compose/agent-compose.yaml` exists.
+Opt-in tooling that composes global agent context and symlinks each harness load point to it. Sources are shared unless optional `harnesses` frontmatter selects a harness-specific slice. AOS also publishes the [canonical provider](docs/personality-provider.md): shared personalities, ordinary skills, and [role-composed skills](docs/role-composed-skills.md). Host composition stays inert until `~/.config/agent-compose/agent-compose.yaml` exists.
 
 **Prior art.** The idea is fresh in the agentic space but well-trodden in config management, and agent-compose is best understood as **Hiera-for-agent-doctrine, deployed Stow-style, scoped chezmoi-style**:
 

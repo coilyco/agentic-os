@@ -2,7 +2,9 @@
 
 ## 1. Layout
 
-A repo using these hooks ships skills under `.agents/skills/`, the location Claude Code reads from. The layout the hooks expect:
+A repo using these hooks ships ordinary skills under `.agents/skills/`.
+Role-scoped sources may live under `.agents/composed/`, where harnesses cannot
+discover them directly. The layout the hooks expect:
 
 ```
 <your-repo>/
@@ -13,10 +15,17 @@ A repo using these hooks ships skills under `.agents/skills/`, the location Clau
 │   │   └── references/        # optional, for content that overflows SKILL.md
 │   └── <another-skill>/
 │       └── SKILL.md
+├── .agents/composed/
+│   └── <role-scoped-skill>/
+│       └── COMPOSED.md        # promoted to SKILL.md only when selected
+├── .agents/roles.kdl          # role-to-composed-skill allowlist
 └── .pre-commit-config.yaml    # declares this repo's hook subscriptions
 ```
 
-Every skill is a peer directory directly under `.agents/skills/`. **Skills must be flat**, never nested inside another skill. Agent harnesses do not reliably discover sub-skills, and the validator only walks top-level directories.
+Every source is a peer directory directly under its owning root. **Sources
+must be flat**, never nested inside another source. Ordinary skills are
+globally discoverable. Composed sources are visible only after agent-compose
+selects the current role and promotes `COMPOSED.md` to `SKILL.md`.
 
 ## 2. Categories
 

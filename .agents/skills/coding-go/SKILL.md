@@ -39,5 +39,4 @@ Editing or writing Go. Inherit Kai's defaults before reaching for general Go pat
 
 ## See also
 
-- [`coding-shape-cli`](../coding-shape-cli/SKILL.md) - building CLIs (urfave/cli specifics live here too).
 - [`coding-shape-tui`](../coding-shape-tui/SKILL.md) - building TUIs (Charm stack).

@@ -10,6 +10,8 @@ from pathlib import Path
 import agentic_os.config as config
 import agentic_os.pre_commit.check_documentation_layout as docs_layout
 from agentic_os.pre_commit.check_documentation_layout import (
+    AGENTS_DEFAULT_MAX_CHARS,
+    AGENTS_DEFAULT_MAX_LINES,
     FEATURES_MAX_CHARS,
     FEATURES_MAX_LINES,
     MAX_MARKDOWN_CHARS,
@@ -32,16 +34,14 @@ def test_features_gets_the_tighter_cap() -> None:
     )
     assert FEATURES_MAX_LINES < TRIFECTA_MAX_LINES
     assert FEATURES_MAX_CHARS < TRIFECTA_MAX_CHARS
-    # README.md and AGENTS.md default to the broader overview cap but carry a
-    # per-repo opt-up, so with no config set they resolve to at least that cap.
+    # README.md uses the overview cap and carries a per-repo opt-up.
     readme_lines, readme_chars = caps_for(Path("README.md"))
     assert readme_lines >= TRIFECTA_MAX_LINES
     assert readme_chars >= TRIFECTA_MAX_CHARS
-    # AGENTS.md is at least the overview cap (its default); a per-repo config
-    # override may lift it further, so assert the floor rather than equality.
+    # AGENTS.md has a larger default and may opt higher per repo.
     agents_lines, agents_chars = caps_for(Path("AGENTS.md"))
-    assert agents_lines >= TRIFECTA_MAX_LINES
-    assert agents_chars >= MAX_MARKDOWN_CHARS
+    assert agents_lines >= AGENTS_DEFAULT_MAX_LINES
+    assert agents_chars >= AGENTS_DEFAULT_MAX_CHARS
 
 
 def test_non_trifecta_markdown_keeps_the_standard_cap() -> None:
@@ -108,6 +108,20 @@ def test_top_level_skill_md_is_clean(tmp_path: Path) -> None:
     for name in ("a", "b", "c"):
         write(tmp_path / ".agents" / "skills" / name / "SKILL.md")
     assert check_skill_flatness(tmp_path) == []
+
+
+def test_top_level_composed_md_is_clean(tmp_path: Path) -> None:
+    write(tmp_path / ".agents" / "composed" / "my-skill" / "COMPOSED.md")
+    assert check_skill_flatness(tmp_path) == []
+
+
+def test_nested_composed_md_is_flagged(tmp_path: Path) -> None:
+    skill = tmp_path / ".agents" / "composed" / "my-skill"
+    write(skill / "COMPOSED.md")
+    write(skill / "sub-skill" / "COMPOSED.md")
+    problems = check_skill_flatness(tmp_path)
+    assert len(problems) == 1
+    assert "nested COMPOSED.md" in problems[0]
 
 
 def test_nested_skill_md_can_be_excluded(tmp_path: Path) -> None:

@@ -70,11 +70,15 @@ def test_release_workflow_derives_assets_from_dist() -> None:
     workflow = (
         ROOT / ".forgejo" / "workflows" / "aos-cli-release.yml"
     ).read_text(encoding="utf-8")
+    workflow_script = (ROOT / "scripts" / "ci" / "aos-cli-release.sh").read_text(
+        encoding="utf-8"
+    )
     builder = (ROOT / "scripts" / "aos-release-build.sh").read_text(
         encoding="utf-8"
     )
 
-    assert "for asset in dist/*" in workflow
+    assert "for asset in dist/*" in workflow_script
     assert "release-targets.txt" in builder
-    assert "ward exec aos-release-build" in workflow
-    assert "ward exec aos-release-package" in workflow
+    assert "scripts/ci/aos-cli-release.sh" in workflow
+    assert "ward exec aos-release-build" in workflow_script
+    assert "ward exec aos-release-package" in workflow_script

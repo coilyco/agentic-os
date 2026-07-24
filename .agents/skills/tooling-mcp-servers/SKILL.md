@@ -1,6 +1,6 @@
 ---
 name: tooling-mcp-servers
-description: Lazy MCP discovery via mcporter. Hard-trigger before any curl, gh, or HTTP fallback.
+description: Shared native MCP inventory with mcporter discovery and CLI fallback. Hard-trigger before any curl, gh, or HTTP fallback.
 ---
 
 # mcp-servers
@@ -9,9 +9,9 @@ description: Lazy MCP discovery via mcporter. Hard-trigger before any curl, gh, 
 
 mcp, mcporter.
 
-The lazy-loaded MCP layer. Configured servers live in `<personal-os-repo>/config/mcporter.json` (symlinked from the workspace root so `mcporter` finds them via its default `./config/mcporter.json` lookup). Typed headers per server live in `<personal-os-repo>/mcp-servers/*.d.ts`.
+The shared MCP layer. Configured servers live in `<personal-os-repo>/config/mcporter.json`. Host and container convergence copy that inventory to `~/.mcporter/mcporter.json` and project the same server set into every supported harness's native user registry. Typed headers per server live in `<personal-os-repo>/mcp-servers/*.d.ts`.
 
-The point of this layout: discovery is cheap (this skill + the per-server index) and schema is paid only for the server actually needed. This is the **lazy** path - the only path on Codex, and the fallback anywhere. Note the harness split: on **Claude Code** the same merged inventory is *also* registered natively into user-scope (`mcp__<name>__*` tools) by `sync-claude-mcp.py`, since Claude's 1M window + on-demand schema deferral make native registration near-free. Both paths reach the same servers. See [Design notes](references/design-notes.md) ("Eager vs lazy is now a per-harness split").
+The point of this layout is one inventory and one projection contract. Claude Code and Codex both receive native registrations. `mcporter list` remains the flat discovery surface and `mcporter call` remains the portable fallback when a native tool is unavailable. Schemas stay deferred by each harness or by the explicit `.d.ts` read. See [Design notes](references/design-notes.md).
 
 ## Hard-trigger rule
 

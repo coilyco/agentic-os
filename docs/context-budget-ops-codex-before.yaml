@@ -1,0 +1,150 @@
+format: agentic-os.role-seat-context.v1
+subject:
+  role: ops
+  seat: codex
+provider: coilyco-flight-deck/agentic-os
+repository: coilyco-flight-deck/agentic-os
+cwd: .
+tokenizer: tokens = chars/4 proxy (v1, swap for the qwen tokenizer later)
+bundle:
+  format: agent-compose.bundle
+  density: full
+  sources:
+  - person:kai
+  - aos-public
+mcp:
+  delivery: deferred
+  server_count: 11
+  eager_schema_count: 0
+totals:
+  eager:
+    components: 70
+    bytes: 57992
+    tokens: 14524
+  lazy:
+    components: 244
+    bytes: 506923
+    tokens: 125699
+breakdown:
+  eager:
+    agents-cascade: {components: 3, bytes: 41372, tokens: 10343}
+    ordinary-skill-frontmatter: {components: 62, bytes: 14310, tokens: 3601}
+    personality-frontmatter: {components: 3, bytes: 482, tokens: 122}
+    role-composed-frontmatter: {components: 1, bytes: 194, tokens: 49}
+    role-instructions: {components: 1, bytes: 1634, tokens: 409}
+  lazy:
+    mcp-server-registration: {components: 1, bytes: 0, tokens: 0}
+    ordinary-skill-body: {components: 62, bytes: 134503, tokens: 33631}
+    ordinary-skill-resource: {components: 174, bytes: 368321, tokens: 91041}
+    personality-body: {components: 3, bytes: 1614, tokens: 404}
+    personality-resource: {components: 3, bytes: 523, tokens: 132}
+    role-composed-body: {components: 1, bytes: 1962, tokens: 491}
+components:
+  eager:
+    agents-cascade:
+    - id: agents:000:AGENTS.md
+      owner: coilyco-flight-deck/agentic-os
+      source: coilyco-flight-deck/agentic-os:AGENTS.md
+      delivery: global-composed
+      bytes: 20272
+      tokens: 5068
+      sha256: 83ee1f30b4a68c92f82457d7d73d200375aaa91d6524c7324eaf61ed05c96aa5
+    - id: agents:001:AGENTS.codex.md
+      owner: coilyco-flight-deck/agentic-os
+      source: coilyco-flight-deck/agentic-os:AGENTS.codex.md
+      delivery: global-harness-override
+      bytes: 828
+      tokens: 207
+      sha256: 7b8a00b537db0f74c18f956e07ac025d3e6376feec21fef0f36ff85215576b8a
+    - id: agents:002:AGENTS.md
+      owner: coilyco-flight-deck/agentic-os
+      source: coilyco-flight-deck/agentic-os:AGENTS.md
+      delivery: repo-cascade
+      bytes: 20272
+      tokens: 5068
+      sha256: 83ee1f30b4a68c92f82457d7d73d200375aaa91d6524c7324eaf61ed05c96aa5
+    role-instructions:
+    - id: instructions:role
+      owner: agent-compose+aos-public
+      source: bundle:content/instructions.md
+      delivery: .codex/AGENTS.md
+      bytes: 1634
+      tokens: 409
+      sha256: 969d8481010b0abf066659afee46e1768350b535723b8b8e7ed4c83bc9692f00
+  lazy:
+    mcp-server-registration:
+    - id: mcp:deferred
+      owner: mcporter
+      source: mcporter:inventory
+      delivery: deferred
+      bytes: 0
+      tokens: 0
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+skills:
+  aos-public/agents-aider: {class: ordinary, eager: 40, lazy: 185, resources: 0}
+  aos-public/agents-claude: {class: ordinary, eager: 69, lazy: 122, resources: 0}
+  aos-public/agents-codex: {class: ordinary, eager: 52, lazy: 155, resources: 0}
+  aos-public/agents-goose: {class: ordinary, eager: 38, lazy: 189, resources: 0}
+  aos-public/agents-opencode: {class: ordinary, eager: 60, lazy: 157, resources: 0}
+  aos-public/claude-code-render: {class: ordinary, eager: 79, lazy: 14185, resources: 12}
+  aos-public/coding-ansible: {class: ordinary, eager: 65, lazy: 1460, resources: 1}
+  aos-public/coding-aws: {class: ordinary, eager: 36, lazy: 394, resources: 0}
+  aos-public/coding-azure: {class: ordinary, eager: 45, lazy: 267, resources: 0}
+  aos-public/coding-cloudformation: {class: ordinary, eager: 42, lazy: 281, resources: 0}
+  aos-public/coding-csharp: {class: ordinary, eager: 49, lazy: 543, resources: 0}
+  aos-public/coding-discord-bot-architect: {class: ordinary, eager: 42, lazy: 11153, resources: 29}
+  aos-public/coding-gcp: {class: ordinary, eager: 33, lazy: 303, resources: 0}
+  aos-public/coding-git: {class: ordinary, eager: 63, lazy: 5326, resources: 13}
+  aos-public/coding-go: {class: ordinary, eager: 51, lazy: 318, resources: 0}
+  aos-public/coding-javascript: {class: ordinary, eager: 48, lazy: 332, resources: 0}
+  aos-public/coding-javascript-react: {class: ordinary, eager: 48, lazy: 419, resources: 0}
+  aos-public/coding-kubernetes: {class: ordinary, eager: 43, lazy: 423, resources: 0}
+  aos-public/coding-licenses: {class: ordinary, eager: 49, lazy: 766, resources: 0}
+  aos-public/coding-pulumi: {class: ordinary, eager: 47, lazy: 262, resources: 0}
+  aos-public/coding-python: {class: ordinary, eager: 52, lazy: 368, resources: 0}
+  aos-public/coding-ruby: {class: ordinary, eager: 42, lazy: 230, resources: 0}
+  aos-public/coding-rust: {class: ordinary, eager: 49, lazy: 643, resources: 0}
+  aos-public/coding-shape-cloud: {class: ordinary, eager: 54, lazy: 814, resources: 0}
+  aos-public/coding-shape-iac: {class: ordinary, eager: 68, lazy: 791, resources: 0}
+  aos-public/coding-shape-observability: {class: ordinary, eager: 52, lazy: 778, resources: 0}
+  aos-public/coding-shape-tui: {class: ordinary, eager: 51, lazy: 412, resources: 0}
+  aos-public/coding-terraform: {class: ordinary, eager: 46, lazy: 478, resources: 0}
+  aos-public/kai-gish: {class: ordinary, eager: 86, lazy: 1905, resources: 1}
+  aos-public/kai-git-workflow: {class: ordinary, eager: 26, lazy: 2440, resources: 3}
+  aos-public/kai-tech-prefs: {class: ordinary, eager: 51, lazy: 1952, resources: 5}
+  aos-public/personality-grounded: {class: personality, eager: 39, lazy: 178, resources: 1}
+  aos-public/personality-protective: {class: personality, eager: 43, lazy: 182, resources: 1}
+  aos-public/personality-reflective: {class: personality, eager: 40, lazy: 176, resources: 1}
+  aos-public/repo-agentic-os: {class: ordinary, eager: 56, lazy: 93, resources: 0}
+  aos-public/tooling-agent-workflows: {class: ordinary, eager: 53, lazy: 1642, resources: 4}
+  aos-public/tooling-claude-in-chrome: {class: ordinary, eager: 55, lazy: 1416, resources: 3}
+  aos-public/tooling-code-review: {class: ordinary, eager: 86, lazy: 711, resources: 1}
+  aos-public/tooling-elevenlabs-persona: {class: ordinary, eager: 52, lazy: 1081, resources: 1}
+  aos-public/tooling-ffmpeg: {class: ordinary, eager: 50, lazy: 559, resources: 0}
+  aos-public/tooling-gpg-ssm: {class: ordinary, eager: 78, lazy: 1376, resources: 3}
+  aos-public/tooling-honeycomb-ui: {class: ordinary, eager: 51, lazy: 2494, resources: 4}
+  aos-public/tooling-image-zoom: {class: ordinary, eager: 44, lazy: 975, resources: 1}
+  aos-public/tooling-imagemagick: {class: ordinary, eager: 50, lazy: 492, resources: 0}
+  aos-public/tooling-issue-prioritization: {class: ordinary, eager: 118, lazy: 3969, resources: 5}
+  aos-public/tooling-mcp-servers: {class: ordinary, eager: 36, lazy: 1793, resources: 3}
+  aos-public/tooling-ops-live-remediation: {class: role-composed, eager: 49, lazy: 491, resources: 0}
+  aos-public/tooling-product-brainstorming: {class: ordinary, eager: 80, lazy: 6646, resources: 10}
+  aos-public/tooling-scout-autonomy: {class: ordinary, eager: 62, lazy: 3441, resources: 6}
+  aos-public/tooling-scout-capability: {class: ordinary, eager: 74, lazy: 4007, resources: 7}
+  aos-public/tooling-scout-displacement: {class: ordinary, eager: 88, lazy: 1410, resources: 1}
+  aos-public/tooling-security-boundary-discipline: {class: ordinary, eager: 50, lazy: 2818, resources: 2}
+  aos-public/tooling-sidequest: {class: ordinary, eager: 40, lazy: 2322, resources: 3}
+  aos-public/tooling-skill-authoring: {class: ordinary, eager: 44, lazy: 12253, resources: 18}
+  aos-public/tooling-skillsmp: {class: ordinary, eager: 47, lazy: 4564, resources: 7}
+  aos-public/tooling-supply-chain-audit: {class: ordinary, eager: 50, lazy: 7567, resources: 11}
+  aos-public/tooling-tailscale: {class: ordinary, eager: 109, lazy: 1885, resources: 2}
+  aos-public/tooling-warp: {class: ordinary, eager: 44, lazy: 4404, resources: 6}
+  aos-public/tooling-zsh: {class: ordinary, eager: 114, lazy: 778, resources: 0}
+  aos-public/vault-obsidian-markdown: {class: ordinary, eager: 52, lazy: 2286, resources: 6}
+  aos-public/writing-observer-narrator: {class: ordinary, eager: 87, lazy: 1882, resources: 3}
+  aos-public/writing-public-repos: {class: ordinary, eager: 52, lazy: 208, resources: 0}
+  aos-public/writing-refactor-plan: {class: ordinary, eager: 111, lazy: 611, resources: 0}
+  aos-public/writing-system-improvement-vocab: {class: ordinary, eager: 70, lazy: 1105, resources: 1}
+  aos-public/writing-to-issues: {class: ordinary, eager: 69, lazy: 852, resources: 1}
+  aos-public/writing-voice-guide-linter: {class: ordinary, eager: 53, lazy: 981, resources: 1}
+payload_hash: 31345d4afbffd2cdacc235b703035e833b3963c5c5619202bc1faca573e3acb0

@@ -13,7 +13,25 @@ wrap aos-ward ops aws {
         deny-when name matches "*/prod/*" *secret*
     }
     can run ssm get-parameters-by-path
-    can run ssm put-parameter
+    can run ssm put-parameter {
+        // Values must come from an absolute file. The guarded argv and audit log
+        // carry only the file URI, never the parameter contents.
+        when name matches "/*"
+        when value matches "file:///*"
+        when type matches String StringList SecureString
+        allow-flag --name
+        allow-flag --value
+        allow-flag --type
+        allow-flag --overwrite
+        allow-flag --no-overwrite
+        allow-flag --description
+        allow-flag --allowed-pattern
+        allow-flag --key-id
+        allow-flag --tier
+        allow-flag --data-type
+        allow-flag --tags
+        describe "create or overwrite an SSM parameter from an absolute file source without placing its value in argv"
+    }
     // secrets manager - the --secret-id kwarg is the resource
     can run secretsmanager get-secret-value {
         deny-when secret-id matches *prod*

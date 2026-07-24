@@ -43,5 +43,4 @@ Designing a TUI, adding an interactive surface to an existing CLI, or styling te
 
 ## See also
 
-- [`coding-shape-cli`](../coding-shape-cli/SKILL.md) - if the TUI is wrapped in a CLI invocation.
 - [`coding-go`](../coding-go/SKILL.md) - host language for Charm.

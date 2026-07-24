@@ -1,24 +1,33 @@
-# Agent-compose personality provider
+# Agent-compose AOS provider
 
-AOS publishes the reusable personality bodies that agent-compose selects for
-Kai's synthetic company. The provider is local and deterministic. A consumer
-reads the checkout directly and fetches no context over the network.
+AOS publishes reusable skills and personality bodies for agent-compose. The
+provider is local and deterministic. A consumer reads the checkout directly
+and fetches no context over the network.
 
 ## Ownership boundary
 
-* **AOS** - owns the shared invariant plus full and brief role-neutral bodies.
-* **agent-compose** - owns roles, compatibility, seats, names, pronouns, colors, and selection.
+* **AOS** - owns ordinary skills, role-scoped skills, role bindings, and the shared personality bodies.
+* **agent-compose** - owns roles, compatibility, seats, names, pronouns, colors, selection, and materialization.
 * **Ward** - owns executable authority, permissions, credentials, and runtime risk controls.
 
-The shared slugs join the first two layers without moving authority into
-personality content.
+Shared role and skill names join the first two layers without moving authority
+into knowledge content.
 
 ## Provider contract
 
-Agent-compose infers one `personality-invariant` instruction and every
-`personality-*` skill from the AOS root's `.agents/skills` directory. The
-compose request supplies the stable source id `aos-public`, so adding a
-personality body needs no parallel provider inventory.
+Agent-compose infers every ordinary skill from `.agents/skills/`. Every role
+receives those skills, apart from inactive personality bodies. It separately
+reads `.agents/roles.kdl` and selects only the current role's sources from
+`.agents/composed/`.
+
+Composed sources use `COMPOSED.md`, never `SKILL.md`. Agent-compose renames the
+selected entrypoint to `SKILL.md` while building the role's isolated bundle.
+Unselected role sources leave no catalog metadata or trace in that bundle.
+See [role-composed skills](role-composed-skills.md) for the complete contract.
+
+The compose request supplies the stable source id `aos-public`, so adding an
+ordinary skill or role binding needs no parallel hand-authored provider
+inventory.
 
 Each personality directory carries two densities:
 
@@ -27,6 +36,10 @@ Each personality directory carries two densities:
 
 Agent-compose activates the complete ordered personality meld for a selected
 role. A request cannot select an arbitrary trait or change compatibility.
+Agent-compose owns canonical role-to-personality bindings. AOS commits a narrow
+alignment board that verifies each selected full and brief body and the actual
+bundle manifest without selecting runtime behavior. See
+[role-orientation projections](role-orientation-projections.md).
 
 ## Local consumer use
 

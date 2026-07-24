@@ -20,12 +20,16 @@ composite now **reuses** the builder: it creates it only when absent (with a
 it only when the existing one genuinely fails to bootstrap. The crash-collision
 case still self-heals; the warm cache stops being collateral.
 
-The core image assigns its commit-pinned `WARD_CONFIG_REF` only after the
-package and toolchain layers. That ref must change on every aos commit so the
-final `ward doctor` validates the exact bundled `.ward/` source, but placing it
-in the core stage's initial environment invalidates every later layer. Keeping
-the stamp beside the final validation gate preserves the expensive layers
-across commits while still making the gate commit-specific.
+Each language target assigns its commit-pinned `WARD_CONFIG_REF` only after the
+shared package and language-toolchain layers. That ref changes on every aos
+commit so the final `ward doctor` validates the exact bundled `.ward/` source.
+Keeping the stamp beside the final validation gate preserves the expensive
+layers across commits while still making every independent language image
+commit-specific.
+
+The language targets use identical common setup instructions over the same
+Ubuntu parent. BuildKit can reuse those layers across targets without a
+published shared runtime image.
 
 ## The registry cache is secondary, and loud when broken
 
@@ -47,6 +51,6 @@ visible as a cache event, not just as a slow or failed build.
 
 ## See also
 
-- [dev-base image tiering](dev-base-image-tiering.md) - the tier DAG these
+- [dev-base image topology](dev-base-image-tiering.md) - the graph these
   cached builds flow through.
 - [release.md](release.md) - the per-tier publish jobs.

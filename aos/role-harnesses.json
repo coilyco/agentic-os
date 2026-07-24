@@ -1,0 +1,122 @@
+{
+  "format": "agentic-os.role-harness-board.v1",
+  "role_source": "coilyco-flight-deck/agent-compose:internal/person/person.kdl",
+  "role_count": 10,
+  "lane_count": 16,
+  "roles": [
+    {
+      "role": "engineer",
+      "intents": [
+        {
+          "intent": "autonomous-coding",
+          "harness": "openhands"
+        }
+      ]
+    },
+    {
+      "role": "director",
+      "intents": [
+        {
+          "intent": "strategic-planning",
+          "harness": "plandex"
+        }
+      ]
+    },
+    {
+      "role": "qa",
+      "intents": [
+        {
+          "intent": "code-review",
+          "harness": "aider"
+        }
+      ]
+    },
+    {
+      "role": "advisor",
+      "intents": [
+        {
+          "intent": "research-synthesis",
+          "harness": "hermes"
+        }
+      ]
+    },
+    {
+      "role": "ops",
+      "intents": [
+        {
+          "intent": "ops-investigation",
+          "harness": "holmesgpt"
+        },
+        {
+          "intent": "operational-decision",
+          "harness": "goose"
+        }
+      ]
+    },
+    {
+      "role": "pm",
+      "intents": [
+        {
+          "intent": "strategic-planning",
+          "harness": "hermes"
+        },
+        {
+          "intent": "project-coordination",
+          "harness": "plane"
+        }
+      ]
+    },
+    {
+      "role": "designer",
+      "intents": [
+        {
+          "intent": "product-shaping",
+          "harness": "penpot"
+        },
+        {
+          "intent": "design-production",
+          "harness": "aosx"
+        }
+      ]
+    },
+    {
+      "role": "social",
+      "intents": [
+        {
+          "intent": "message-composition",
+          "harness": "mixpost"
+        },
+        {
+          "intent": "channel-publishing",
+          "harness": "elizaos"
+        }
+      ]
+    },
+    {
+      "role": "sales",
+      "intents": [
+        {
+          "intent": "research-synthesis",
+          "harness": "hermes"
+        },
+        {
+          "intent": "conversation-management",
+          "harness": "elizaos"
+        }
+      ]
+    },
+    {
+      "role": "customer-success",
+      "intents": [
+        {
+          "intent": "knowledge-retrieval",
+          "harness": "rasa"
+        },
+        {
+          "intent": "conversation-management",
+          "harness": "rasa"
+        }
+      ]
+    }
+  ]
+}

@@ -27,14 +27,23 @@
 │       │   ├── handbook.md                     # YOU ARE HERE
 │       │   └── authoring-walkthrough.md        # how to draft a skill
 │       └── templates/                          # one template per shaped category
+├── .agents/composed/
+│   └── <role-scoped-topic>/
+│       └── COMPOSED.md                         # promoted only for selected roles
+├── .agents/roles.kdl                           # composed-skill allowlists
 ├── scripts/
 │   ├── check-em-dashes.py                      # local voice-rule hook
 │   └── leak-check.py                           # local private-string denylist
 └── .pre-commit-config.yaml                     # subscribes to coilyco-flight-deck/agentic-os hooks + local hooks
 ```
 
-**No skills outside `.agents/skills/`.** No skills inside other skills' directories. Flat is the only shape the loader supports.
+Ordinary sources live only under `.agents/skills/`. Role-scoped sources live
+only under `.agents/composed/` and use `COMPOSED.md` so a harness cannot
+discover them before composition. No source lives inside another source.
+Agent-compose promotes selected composed entrypoints to `SKILL.md`.
 
 ## 2. Categories
 
-The eleven prefix families, the exact-name skills, and how to pick a category for a new skill live in [`handbook-categories.md`](handbook-categories.md).
+The configured prefix families, exact-name skills, and how to pick a category
+for a new source live in
+[`handbook-categories.md`](handbook-categories.md).

@@ -13,7 +13,7 @@ Canonical files live at `~/projects/coilyco-flight-deck/agentic-os/shell/`, syml
 
 Files:
 
-- `common.sh` - the shared core (bash/zsh common subset). Sets env, per-OS PATH (via `uname -s`), aliases, git helpers, the `rg` wrapper, `ssm-load`/`ssm-get`, and auto-cd to `~/projects`. The env + PATH block runs once per terminal tree, gated by the exported `_SIREN_SHELL_ENV` guard; a nested shell inherits the env and skips it but still defines the aliases/functions.
+- `common.sh` - the shared core (bash/zsh common subset). Sets env, per-OS PATH (via `uname -s`), aliases, git helpers, the `rg` wrapper, `ssm-load`/`ssm-get`, and auto-cd to `$WARP_STARTUP_DIR` with a `~/projects` fallback. The env + PATH block runs once per terminal tree, gated by the exported `_SIREN_SHELL_ENV` guard; a nested shell inherits the env and skips it but still defines the aliases/functions.
 - `zshrc` - zsh entry. Sources `common.sh`, then zsh-only: `compinit`, the `vcs_info` siren prompt, `warp.zsh`.
 - `bashrc` - bash entry. Sources `common.sh`, then bash-only: completion, the `PROMPT_COMMAND` siren prompt.
 - `warp.zsh` - the zsh-only `warp` dispatcher + completion.

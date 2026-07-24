@@ -50,5 +50,4 @@ Designing instrumentation, building dashboards, configuring alerts, debugging vi
 
 ## See also
 
-- [`coding-shape-web-server`](../coding-shape-web-server/SKILL.md) - `/metrics` endpoint conventions.
 - `agentic-os-kai/SSM.md` - `/sentry-dsn/*` parameter inventory.

@@ -41,6 +41,7 @@ HOOK_ID = "check-skills"
 REPO_ROOT = Path.cwd()
 SKILLS_DIR = REPO_ROOT / ".claude" / "skills"
 SPEC_PATH = SKILLS_DIR / "categories.yaml"
+ENTRYPOINT_NAME = "SKILL.md"
 
 # Skill directory layout, canonical first. .agents/skills is the current home.
 SKILLS_DIR_CANDIDATES = (".agents/skills", ".claude/skills", "skills")
@@ -281,9 +282,9 @@ def check_stale_skill_refs(
         # cross-link, so it is not an intent signal for the stale-rename check.
         if not (md_path.parent / path_part).resolve().is_relative_to(REPO_ROOT):
             continue
-        # Pull the basename if the target ends in /SKILL.md, else the last segment.
+        # Pull the basename for either source entry point, else the last segment.
         seg = path_part.rstrip("/").split("/")[-1]
-        if seg == "SKILL.md":
+        if seg in {"SKILL.md", "COMPOSED.md"}:
             parts = path_part.rstrip("/").split("/")
             if len(parts) >= 2:
                 seg = parts[-2]
@@ -328,19 +329,19 @@ def validate_skill(
         )
         return
 
-    skill_md = skill_dir / "SKILL.md"
+    skill_md = skill_dir / ENTRYPOINT_NAME
     if not skill_md.is_file():
-        report.fail(f"skill {name!r} is missing SKILL.md")
+        report.fail(f"skill {name!r} is missing {ENTRYPOINT_NAME}")
         return
 
     text = skill_md.read_text(encoding="utf-8")
     try:
         fm, body = parse_frontmatter(text)
     except ValueError as exc:
-        report.fail(f"{name}/SKILL.md: {exc}")
+        report.fail(f"{name}/{ENTRYPOINT_NAME}: {exc}")
         return
     if fm is None:
-        report.fail(f"{name}/SKILL.md: missing or malformed YAML frontmatter")
+        report.fail(f"{name}/{ENTRYPOINT_NAME}: missing or malformed YAML frontmatter")
         return
 
     # Repo-pointer skills are generated and owned by the repo-pointer-skills hook,
@@ -351,12 +352,12 @@ def validate_skill(
     fm_name = fm.get("name")
     if fm_name != name:
         report.fail(
-            f"{name}/SKILL.md: frontmatter `name: {fm_name!r}` does not match "
+            f"{name}/{ENTRYPOINT_NAME}: frontmatter `name: {fm_name!r}` does not match "
             f"directory name {name!r}"
         )
     description = fm.get("description")
     if not description or not str(description).strip():
-        report.fail(f"{name}/SKILL.md: frontmatter `description` is empty")
+        report.fail(f"{name}/{ENTRYPOINT_NAME}: frontmatter `description` is empty")
         description = ""
     description = str(description).strip()
 
@@ -371,7 +372,7 @@ def validate_skill(
         if desc_bytes > effective_cap:
             role_note = " (2x router/meta cap)" if role in {"router", "meta"} else ""
             report.fail(
-                f"{name}/SKILL.md: description is {desc_bytes} bytes, over the "
+                f"{name}/{ENTRYPOINT_NAME}: description is {desc_bytes} bytes, over the "
                 f"{effective_cap}-byte cap{role_note}. Every skill's description "
                 f"is loaded into every agent session, so descriptions are pure "
                 f"context burn. Tighten by moving procedure into the body, dropping "
@@ -384,7 +385,7 @@ def validate_skill(
         head = re.sub(r"\s+", " ", description).strip()
         if not re.match(desc_pat, head):
             report.fail(
-                f"{name}/SKILL.md: description does not match required prefix "
+                f"{name}/{ENTRYPOINT_NAME}: description does not match required prefix "
                 f"for category {cat['id']!r}. Pattern: {desc_pat!r}. "
                 f"Description starts: {head[:100]!r}"
             )
@@ -394,16 +395,16 @@ def validate_skill(
 
     h1, status_line, _ = extract_h1_and_status(body)
     if h1 is None:
-        report.fail(f"{name}/SKILL.md: missing H1 heading")
+        report.fail(f"{name}/{ENTRYPOINT_NAME}: missing H1 heading")
         return
     if status_line is None:
-        report.fail(f"{name}/SKILL.md: missing status line under the H1")
+        report.fail(f"{name}/{ENTRYPOINT_NAME}: missing status line under the H1")
         return
 
     m = STATUS_LINE_RE.match(status_line)
     if not m:
         report.fail(
-            f"{name}/SKILL.md: status line does not match required format. "
+            f"{name}/{ENTRYPOINT_NAME}: status line does not match required format. "
             f"Expected: 'Status: <emoji> <Kind> | Last <updated|tested>: YYYY-MM-DD'. "
             f"Got: {status_line!r}"
         )
@@ -416,21 +417,21 @@ def validate_skill(
     expected_freshness = cat.get("status_freshness")
     if freshness != expected_freshness:
         report.fail(
-            f"{name}/SKILL.md: status line uses 'Last {freshness}' but category "
+            f"{name}/{ENTRYPOINT_NAME}: status line uses 'Last {freshness}' but category "
             f"{cat['id']!r} requires 'Last {expected_freshness}'"
         )
 
     status_kinds = cat.get("status_kinds") or {}
     if kind not in status_kinds:
         report.fail(
-            f"{name}/SKILL.md: status kind {kind!r} not in allowed kinds for "
+            f"{name}/{ENTRYPOINT_NAME}: status kind {kind!r} not in allowed kinds for "
             f"category {cat['id']!r}: {sorted(status_kinds)}"
         )
         return
     expected_emoji = status_kinds[kind]
     if emoji != expected_emoji:
         report.fail(
-            f"{name}/SKILL.md: status emoji {emoji!r} does not match required "
+            f"{name}/{ENTRYPOINT_NAME}: status emoji {emoji!r} does not match required "
             f"{expected_emoji!r} for kind {kind!r} (category {cat['id']!r})"
         )
 
@@ -438,7 +439,7 @@ def validate_skill(
     h1_pat = h1_by_status.get(kind)
     if h1_pat and not re.match(h1_pat, h1):
         report.fail(
-            f"{name}/SKILL.md: H1 {h1!r} does not match required pattern "
+            f"{name}/{ENTRYPOINT_NAME}: H1 {h1!r} does not match required pattern "
             f"{h1_pat!r} for status kind {kind!r}"
         )
 
@@ -450,7 +451,7 @@ def validate_skill(
         missing = [s for s in required if normalize_section(s) not in present]
         if missing:
             report.fail(
-                f"{name}/SKILL.md: missing required sections for Status: {kind} "
+                f"{name}/{ENTRYPOINT_NAME}: missing required sections for Status: {kind} "
                 f"-> {missing}"
             )
 
@@ -461,7 +462,7 @@ def validate_skill(
         lead = section_lead_line(body, section_name)
         if lead is None or not re.match(lead_pat, lead):
             report.fail(
-                f"{name}/SKILL.md: section '## {section_name}' first line "
+                f"{name}/{ENTRYPOINT_NAME}: section '## {section_name}' first line "
                 f"does not match required pattern {lead_pat!r}. Got: {lead!r}"
             )
 
@@ -495,18 +496,20 @@ def check_size_caps(
         )
 
 
-def gather_current_skills() -> set[str]:
+def gather_current_skills(extra_dirs: list[Path] | None = None) -> set[str]:
     out = set()
-    for p in SKILLS_DIR.iterdir():
-        if p.name.startswith("."):
+    for root in [SKILLS_DIR, *(extra_dirs or [])]:
+        if not root.is_dir():
             continue
-        if p.is_symlink():
-            # Symlinks are skipped from validation
-            # but still register as known names so cross-link checks can resolve.
-            out.add(p.name)
-            continue
-        if p.is_dir():
-            out.add(p.name)
+        for p in root.iterdir():
+            if p.name.startswith("."):
+                continue
+            if p.is_symlink():
+                # Symlinks are skipped from validation but remain known names.
+                out.add(p.name)
+                continue
+            if p.is_dir():
+                out.add(p.name)
     return out
 
 
@@ -527,7 +530,7 @@ def run_global_checks(
     for entry in iter_skill_dirs():
         if selected is not None and entry.name not in selected:
             continue
-        skill_md = entry / "SKILL.md"
+        skill_md = entry / ENTRYPOINT_NAME
         if not skill_md.is_file():
             continue
         body = skill_md.read_text(encoding="utf-8")
@@ -538,9 +541,9 @@ def run_global_checks(
         check_size_caps(skill_md, spec, report, role=role)
 
 
-def main(argv: list[str] | None = None) -> int:
-    if not is_enabled(HOOK_ID):
-        print(f"{HOOK_ID}: disabled by repo config")
+def main(argv: list[str] | None = None, hook_id: str = HOOK_ID) -> int:
+    if not is_enabled(hook_id):
+        print(f"{hook_id}: disabled by repo config")
         return 0
     if argv is None:
         argv = sys.argv
@@ -554,6 +557,23 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Path to the skills directory (relative to the repo root). "
         "Default: autodetect .agents/skills, .claude/skills, skills.",
+    )
+    parser.add_argument(
+        "--entrypoint",
+        choices=("SKILL.md", "COMPOSED.md"),
+        default="SKILL.md",
+        help="Entrypoint filename required in each skill directory.",
+    )
+    parser.add_argument(
+        "--spec-path",
+        default=None,
+        help="Category spec path relative to the repo root. Defaults to categories.yaml under --skills-dir.",
+    )
+    parser.add_argument(
+        "--reference-skills-dir",
+        action="append",
+        default=[],
+        help="Additional skill root whose names satisfy cross-references.",
     )
     parser.add_argument(
         "--report-only",
@@ -570,9 +590,14 @@ def main(argv: list[str] | None = None) -> int:
 
     # Mutate the module globals so the rest of the validator's call graph
     # (which references SKILLS_DIR / SPEC_PATH directly) sees the override.
-    global SKILLS_DIR, SPEC_PATH
+    global SKILLS_DIR, SPEC_PATH, ENTRYPOINT_NAME
     SKILLS_DIR = (REPO_ROOT / (ns.skills_dir or detect_skills_dir())).resolve()
-    SPEC_PATH = SKILLS_DIR / "categories.yaml"
+    SPEC_PATH = (
+        (REPO_ROOT / ns.spec_path).resolve()
+        if ns.spec_path
+        else SKILLS_DIR / "categories.yaml"
+    )
+    ENTRYPOINT_NAME = ns.entrypoint
 
     if not SKILLS_DIR.is_dir():
         # No-op for repos without a skills surface.
@@ -586,7 +611,10 @@ def main(argv: list[str] | None = None) -> int:
 
     spec = load_spec()
     report = Report()
-    current_skills = gather_current_skills()
+    reference_dirs = [
+        (REPO_ROOT / path).resolve() for path in ns.reference_skills_dir
+    ]
+    current_skills = gather_current_skills(reference_dirs)
 
     selected = set(args) if args else None
 

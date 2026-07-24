@@ -7,18 +7,24 @@ roles {
         // guardfiles for dev
         guardfile "guardfile.forgejo.write.kdl"
         guardfile "guardfile.forgejo.merge.kdl"
-        guardfile "guardfile.aws.engineer.kdl"
+        // Keep the role-only overlay after the public AWS source in lexical
+        // order. Ward's public exec mount keeps the first shared command path.
+        guardfile "guardfile.aws.role-engineer.kdl"
         // make the agents average everyday fellows
         agent claude {
             model claude-opus-4-8
-            // name "opal engineer"
-            // pronouns she
+            // BEGIN generated AOSH role-seat identity
+            name "opal engineer"
+            pronouns she
+            // END generated AOSH role-seat identity
             reasoning-effort high
         }
         agent codex {
             model gpt-5.6-terra
-            // name "terran engineer"
-            // pronouns he
+            // BEGIN generated AOSH role-seat identity
+            name "terran engineer"
+            pronouns he
+            // END generated AOSH role-seat identity
             reasoning-effort high
         }
     }
@@ -38,14 +44,18 @@ roles {
         // make the agents as smart as they come
         agent claude {
             model claude-fable-5
-            // name "fabled director"
-            // pronouns she
+            // BEGIN generated AOSH role-seat identity
+            name "fabled director"
+            pronouns she
+            // END generated AOSH role-seat identity
             reasoning-effort xhigh
         }
         agent codex {
             model gpt-5.6-sol
-            // name "solar director"
-            // pronouns he
+            // BEGIN generated AOSH role-seat identity
+            name "solar director"
+            pronouns he
+            // END generated AOSH role-seat identity
             reasoning-effort xhigh
         }
     }
@@ -57,14 +67,18 @@ roles {
         // make the agents average everyday fellows
         agent claude {
             model claude-opus-4-8
-            // name "opal tester"
-            // pronouns she
+            // BEGIN generated AOSH role-seat identity
+            name "opal tester"
+            pronouns she
+            // END generated AOSH role-seat identity
             reasoning-effort high
         }
         agent codex {
             model gpt-5.6-terra
-            // name "terran tester"
-            // pronouns he
+            // BEGIN generated AOSH role-seat identity
+            name "terran tester"
+            pronouns he
+            // END generated AOSH role-seat identity
             reasoning-effort high
         }
     }
@@ -79,14 +93,18 @@ roles {
         // make the agents lil bit smart
         agent claude {
             model claude-fable-5
-            // name "fabled advisor"
-            // pronouns she
+            // BEGIN generated AOSH role-seat identity
+            name "fabled advisor"
+            pronouns she
+            // END generated AOSH role-seat identity
             reasoning-effort xhigh
         }
         agent codex {
             model gpt-5.6-sol
-            // name "solar advisor"
-            // pronouns he
+            // BEGIN generated AOSH role-seat identity
+            name "solar advisor"
+            pronouns he
+            // END generated AOSH role-seat identity
             reasoning-effort xhigh
         }
     }
@@ -103,14 +121,18 @@ roles {
         // make the agents as smart as they come
         agent claude {
             model claude-fable-5
-            // name "fabled SRE"
-            // pronouns she
+            // BEGIN generated AOSH role-seat identity
+            name "fabled SRE"
+            pronouns she
+            // END generated AOSH role-seat identity
             reasoning-effort xhigh
         }
         agent codex {
             model gpt-5.6-sol
-            // name "solar SRE"
-            // pronouns he
+            // BEGIN generated AOSH role-seat identity
+            name "solar SRE"
+            pronouns he
+            // END generated AOSH role-seat identity
             reasoning-effort xhigh
         }
     }
@@ -125,19 +147,27 @@ roles {
         // make the agents average everyday fellows
         agent claude {
             model claude-opus-4-8
-            // name "opal planner"
-            // pronouns she
+            // BEGIN generated AOSH role-seat identity
+            name "opal planner"
+            pronouns she
+            // END generated AOSH role-seat identity
             reasoning-effort high
         }
         agent codex {
             model gpt-5.6-terra
-            // name "terran planner"
-            // pronouns he
+            // BEGIN generated AOSH role-seat identity
+            name "terran planner"
+            pronouns he
+            // END generated AOSH role-seat identity
             reasoning-effort high
         }
     }
+    // designer: shape product interactions and produce design artifacts
+    role designer {}
     // social: social media leads and analysis
     role social {}
     // sales: brings in the money
-    role saled {}
+    role sales {}
+    // customer-success: onboarding, support, retention, and customer research
+    role customer-success {}
 }

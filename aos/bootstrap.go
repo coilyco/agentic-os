@@ -18,6 +18,7 @@ const (
 	defaultSubstrateSeed     = "/opt/substrate-seed"
 	defaultSubstrateRoot     = "/substrate"
 	defaultAgentHome         = "/home/aos"
+	noSubstrateProviderRoot  = "/tmp/aos-provider"
 	aosProviderRef           = "coilyco-flight-deck/agentic-os"
 )
 
@@ -209,7 +210,7 @@ func prepareSubstrate(
 			continue
 		}
 		if opts.NoSubstrate {
-			destination = filepath.Join(filepath.Dir(opts.AgentHome), ".aos-provider")
+			destination = noSubstrateProviderRoot
 		}
 		if err := materializeSubstrateRepo(ctx, opts, repo, destination, runner); err != nil {
 			return "", err

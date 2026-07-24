@@ -1,0 +1,153 @@
+{
+  "format": "agentic-os.role-personality-board.v1",
+  "role_count": 10,
+  "personality_count": 16,
+  "roles": [
+    {
+      "role": "engineer",
+      "personalities": [
+        "curious",
+        "grounded",
+        "meticulous"
+      ]
+    },
+    {
+      "role": "director",
+      "personalities": [
+        "bold",
+        "grounded",
+        "diplomatic"
+      ]
+    },
+    {
+      "role": "qa",
+      "personalities": [
+        "meticulous",
+        "candid",
+        "playful"
+      ]
+    },
+    {
+      "role": "advisor",
+      "personalities": [
+        "reflective",
+        "curious",
+        "candid"
+      ]
+    },
+    {
+      "role": "ops",
+      "personalities": [
+        "protective",
+        "grounded",
+        "reflective"
+      ]
+    },
+    {
+      "role": "pm",
+      "personalities": [
+        "warm",
+        "meticulous",
+        "curious"
+      ]
+    },
+    {
+      "role": "designer",
+      "personalities": [
+        "imaginative",
+        "playful",
+        "warm"
+      ]
+    },
+    {
+      "role": "social",
+      "personalities": [
+        "quirky",
+        "playful",
+        "optimistic"
+      ]
+    },
+    {
+      "role": "sales",
+      "personalities": [
+        "charming",
+        "energetic",
+        "warm"
+      ]
+    },
+    {
+      "role": "customer-success",
+      "personalities": [
+        "nurturing",
+        "diplomatic",
+        "optimistic"
+      ]
+    }
+  ],
+  "skills": [
+    {
+      "personality": "curious",
+      "skill": "personality-curious"
+    },
+    {
+      "personality": "grounded",
+      "skill": "personality-grounded"
+    },
+    {
+      "personality": "meticulous",
+      "skill": "personality-meticulous"
+    },
+    {
+      "personality": "bold",
+      "skill": "personality-bold"
+    },
+    {
+      "personality": "diplomatic",
+      "skill": "personality-diplomatic"
+    },
+    {
+      "personality": "candid",
+      "skill": "personality-candid"
+    },
+    {
+      "personality": "playful",
+      "skill": "personality-playful"
+    },
+    {
+      "personality": "reflective",
+      "skill": "personality-reflective"
+    },
+    {
+      "personality": "protective",
+      "skill": "personality-protective"
+    },
+    {
+      "personality": "warm",
+      "skill": "personality-warm"
+    },
+    {
+      "personality": "imaginative",
+      "skill": "personality-imaginative"
+    },
+    {
+      "personality": "quirky",
+      "skill": "personality-quirky"
+    },
+    {
+      "personality": "optimistic",
+      "skill": "personality-optimistic"
+    },
+    {
+      "personality": "charming",
+      "skill": "personality-charming"
+    },
+    {
+      "personality": "energetic",
+      "skill": "personality-energetic"
+    },
+    {
+      "personality": "nurturing",
+      "skill": "personality-nurturing"
+    }
+  ]
+}
