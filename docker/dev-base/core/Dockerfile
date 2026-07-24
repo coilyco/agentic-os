@@ -131,7 +131,7 @@ RUN set -eux; \
       if apt-get update -o Acquire::Retries=3 \
         && apt-get install -y --no-install-recommends \
           ca-certificates curl wget git git-lfs gnupg jq ripgrep less unzip xz-utils socat \
-          build-essential openssh-client procps shellcheck file patch \
+          build-essential openssh-client procps shellcheck file patch imagemagick \
           passwd \
           python3 python3-pip python3-venv \
           libicu74; then \
@@ -142,7 +142,8 @@ RUN set -eux; \
         exit 1; \
       fi; \
       sleep 5; \
-    done
+    done; \
+    convert -version
 
 # Git LFS is a Git-side capability, not just a client binary, so install the
 # system filter config alongside the package. That makes `git lfs version`
