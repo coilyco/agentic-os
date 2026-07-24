@@ -15,6 +15,7 @@ text hygiene that are too disruptive to flip on everywhere at once.
 - `check-json`
 - `check-toml`
 - `actionlint` on `.forgejo/workflows/*.yml` and `.yaml`. `.github/actionlint.yaml` teaches it the Forgejo runner label `docker`
+- `actions-run-one-line` rejects block, folded, escaped-newline, and physically split `run:` commands in GitHub and Forgejo workflows plus composite actions. A tracked script or `ward exec` verb owns the implementation while YAML invokes it from one line
 - `forgejo-runner-validate` for Forgejo-native workflow and local-action semantics
 - `shellcheck` on shell scripts
 - `typos` with repo-specific words in [`.typos.toml`](../.typos.toml)

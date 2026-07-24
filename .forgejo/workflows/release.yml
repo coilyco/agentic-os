@@ -107,77 +107,18 @@ jobs:
 
       - id: draft
         name: Derive the draft image tag
-        run: |
-          set -euo pipefail
-          sha="${{ github.event.inputs.sha || github.sha }}"
-          source_tag="${{ github.event.inputs['source-tag'] || '' }}"
-          if [ -n "$source_tag" ]; then
-            echo "draft_tag=$source_tag" >> "$GITHUB_OUTPUT"
-          else
-            echo "draft_tag=draft-${sha}" >> "$GITHUB_OUTPUT"
-          fi
+        env:
+          SHA: ${{ github.event.inputs.sha || github.sha }}
+          DRAFT_TAG_OVERRIDE: ${{ github.event.inputs['source-tag'] || '' }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/derive-draft-tag.sh"
 
       - name: Alert Telegram on main failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
         continue-on-error: true
-        env:
-          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-          REPO: ${{ github.repository }}
-          WORKFLOW: ${{ github.workflow }}
-          JOB: ${{ github.job }}
-          REF: ${{ github.ref }}
-          SHA: ${{ github.sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          API_BASE: https://api.telegram.org
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os
-          import urllib.error
-          import urllib.parse
-          import urllib.request
-
-          def build_message(repo, workflow, job, ref, sha, run_url):
-              return "\n".join([
-                  "CI failed on main",
-                  f"repo: {repo}",
-                  f"workflow: {workflow}",
-                  f"job: {job}",
-                  f"ref: {ref}",
-                  f"sha: {sha}",
-                  f"run: {run_url}",
-              ])
-
-          def main():
-              bot_token = os.environ["BOT_TOKEN"]
-              chat_id = os.environ["CHAT_ID"]
-              message = build_message(
-                  os.environ["REPO"],
-                  os.environ["WORKFLOW"],
-                  os.environ["JOB"],
-                  os.environ["REF"],
-                  os.environ["SHA"],
-                  os.environ["RUN_URL"],
-              )
-              payload = urllib.parse.urlencode(
-                  {
-                      "chat_id": chat_id,
-                      "text": message,
-                      "disable_web_page_preview": "true",
-                  }
-              ).encode("utf-8")
-              url = f"{os.environ['API_BASE'].rstrip('/')}/bot{bot_token}/sendMessage"
-              req = urllib.request.Request(url, data=payload, method="POST")
-              try:
-                  with urllib.request.urlopen(req, timeout=15) as resp:
-                      resp.read()
-              except urllib.error.URLError as exc:
-                  print(f"telegram alert failed: {exc}")
-                  raise SystemExit(1)
-
-          main()
-          PY
+        uses: ./actions/telegram-alert
+        with:
+          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
   retag-core:
     needs: [plan-release]
     if: ${{ needs.plan-release.outputs.tag != '' && (github.event_name != 'workflow_dispatch' || contains('all,core,lang-node,lang-go,lang-dotnet,lang-rust,lang-python,full', github.event.inputs.tier)) }}
@@ -405,113 +346,11 @@ jobs:
           FORGEJO_API: https://forgejo.coilysiren.me/api/v1/repos/${{ github.repository }}
           REL_ID: ${{ steps.create.outputs.release_id }}
           TAG: ${{ needs.plan-release.outputs.tag }}
-        run: |
-          set -euo pipefail
-          # FORGEJO_TOKEN is the auto-issued job token that just created the
-          # release (contents: write) - the same token create-release used, so
-          # asset upload needs no extra secret. If this instance ever denies the
-          # built-in token asset scope, this step fails loud and the fix is a PAT
-          # secret, mirroring ward's publish-binaries CI_RELEASE_TOKEN.
-          # ward's build input is homed here in .ward/ (flattened, aos#330.
-          # aos#315 first landed it at top-level ward-specs/). ward's build
-          # sites pin + overlay THIS asset so ward's own tree can go neutral
-          # without breaking the fleet's brew-from-source install. Pinning to a
-          # dedicated tarball asset (not a raw tracked path) gives ward a stable,
-          # checksummable URL. See docs/ward-specs.md and ward#503.
-          if [ -z "${REL_ID:-}" ]; then
-            echo "::error::no release_id from create-release. Cannot attach ward-specs asset" >&2
-            exit 1
-          fi
-          asset="ward-specs-${TAG}.tar.gz"
-          # Deterministic tarball: sort entries, zero mtime/owner, no gzip name/time
-          # header, so the checksum a downstream pins is reproducible from the tag.
-          # The bundle lives in .ward/ beside ward.yaml, so walk the directory and
-          # exclude ward.yaml explicitly. That keeps the flat `./`-prefixed member
-          # layout ward#503 expects while avoiding a hand-maintained file list.
-          tar --sort=name --mtime='UTC 1970-01-01' --owner=0 --group=0 --numeric-owner \
-            -C .ward --exclude=./ward.yaml -cf ward-specs.tar .
-          gzip -n -9 -c ward-specs.tar > "${asset}"
-          sha256sum "${asset}" | awk '{print $1}' > "${asset}.sha256"
-          echo "ward-specs asset sha256: $(cat "${asset}.sha256")"
-          # Delete same-named assets first so a workflow_dispatch re-run for an
-          # existing tag replaces rather than 400s on a duplicate (ward release.yml
-          # convention).
-          existing=$(curl -fsSL -H "Authorization: token ${FORGEJO_TOKEN}" \
-            "${FORGEJO_API}/releases/${REL_ID}/assets" || echo '[]')
-          for name in "${asset}" "${asset}.sha256"; do
-            old=$(printf '%s' "$existing" | ASSET="$name" node -e '
-              const a = JSON.parse(require("fs").readFileSync(0, "utf8") || "[]");
-              const m = (a || []).find(x => x.name === process.env.ASSET);
-              if (m) process.stdout.write(String(m.id));
-            ')
-            if [ -n "$old" ]; then
-              curl -fsSL -X DELETE -H "Authorization: token ${FORGEJO_TOKEN}" \
-                "${FORGEJO_API}/releases/${REL_ID}/assets/${old}" || true
-            fi
-            curl -fsSL -X POST -H "Authorization: token ${FORGEJO_TOKEN}" \
-              -H "Content-Type: application/octet-stream" \
-              --data-binary @"${name}" \
-              "${FORGEJO_API}/releases/${REL_ID}/assets?name=${name}"
-            echo "uploaded ${name}"
-          done
+        run: bash scripts/ci/publish-ward-specs.sh
       - name: Alert Telegram on main failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
         continue-on-error: true
-        env:
-          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-          REPO: ${{ github.repository }}
-          WORKFLOW: ${{ github.workflow }}
-          JOB: ${{ github.job }}
-          REF: ${{ github.ref }}
-          SHA: ${{ github.sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          API_BASE: https://api.telegram.org
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os
-          import urllib.error
-          import urllib.parse
-          import urllib.request
-
-          def build_message(repo, workflow, job, ref, sha, run_url):
-              return "\n".join([
-                  "CI failed on main",
-                  f"repo: {repo}",
-                  f"workflow: {workflow}",
-                  f"job: {job}",
-                  f"ref: {ref}",
-                  f"sha: {sha}",
-                  f"run: {run_url}",
-              ])
-
-          def main():
-              bot_token = os.environ["BOT_TOKEN"]
-              chat_id = os.environ["CHAT_ID"]
-              message = build_message(
-                  os.environ["REPO"],
-                  os.environ["WORKFLOW"],
-                  os.environ["JOB"],
-                  os.environ["REF"],
-                  os.environ["SHA"],
-                  os.environ["RUN_URL"],
-              )
-              payload = urllib.parse.urlencode(
-                  {
-                      "chat_id": chat_id,
-                      "text": message,
-                      "disable_web_page_preview": "true",
-                  }
-              ).encode("utf-8")
-              url = f"{os.environ['API_BASE'].rstrip('/')}/bot{bot_token}/sendMessage"
-              req = urllib.request.Request(url, data=payload, method="POST")
-              try:
-                  with urllib.request.urlopen(req, timeout=15) as resp:
-                      resp.read()
-              except urllib.error.URLError as exc:
-                  print(f"telegram alert failed: {exc}")
-                  raise SystemExit(1)
-
-          main()
-          PY
+        uses: ./actions/telegram-alert
+        with:
+          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}

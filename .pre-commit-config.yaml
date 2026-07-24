@@ -61,6 +61,15 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
+      - id: actions-run-one-line
+        name: Actions run steps stay one line
+        entry: python -m agentic_os.pre_commit.check_actions_run_one_line
+        language: python
+        additional_dependencies: [pyyaml]
+        always_run: true
+        pass_filenames: false
+        files: '(^|/)(\.github/workflows/.*\.ya?ml|\.forgejo/workflows/.*\.ya?ml|action\.ya?ml)$'
+        stages: [pre-commit]
       - id: source-doc-refs
         name: source doc references
         entry: python -m agentic_os.pre_commit.check_source_doc_refs

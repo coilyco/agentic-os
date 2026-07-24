@@ -10,6 +10,7 @@
 #       - id: documentation-layout
 #       - id: context-load-points
 #       - id: code-comments
+#       - id: actions-run-one-line
 #       - id: source-doc-refs
 #       - id: catalog-block-present
 #       - id: check-skills
@@ -92,6 +93,17 @@
   language: python
   always_run: true
   pass_filenames: false
+  stages: [pre-commit]
+
+- id: actions-run-one-line
+  name: Actions run steps stay one line
+  description: "Reject multiline run commands in GitHub and Forgejo workflows and composite actions. Move script bodies into tracked language-native files. See docs/pre-commit-hygiene.md."
+  entry: check-actions-run-one-line
+  language: python
+  additional_dependencies: [pyyaml]
+  always_run: true
+  pass_filenames: false
+  files: '(^|/)(\.github/workflows/.*\.ya?ml|\.forgejo/workflows/.*\.ya?ml|action\.ya?ml)$'
   stages: [pre-commit]
 
 - id: source-doc-refs
