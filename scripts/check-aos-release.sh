@@ -18,6 +18,7 @@ bare=${version#aos-v}
 
 target_count=$(awk '!/^[[:space:]]*(#|$)/ { count++ } END { print count+0 }' \
     "$repo_root/aos/release-targets.txt")
+target_count=$((target_count * 2))
 checksum_count=$(wc -l < "$dist/SHA256SUMS" | tr -d ' ')
 if [ "$target_count" -ne "$checksum_count" ]; then
     echo "checksum count does not match release target count" >&2
@@ -32,17 +33,26 @@ grep -F "version \"${bare}\"" "$dist/aos.rb" >/dev/null
 grep -F "\"version\": \"${bare}\"" "$dist/aos.json" >/dev/null
 
 case "$(uname -s)/$(uname -m)" in
-    Darwin/arm64) native="$dist/aos-darwin-arm64" ;;
-    Linux/x86_64) native="$dist/aos-linux-amd64" ;;
-    Linux/aarch64 | Linux/arm64) native="$dist/aos-linux-arm64" ;;
-    *) native="" ;;
+    Darwin/arm64) native_aos="$dist/aos-darwin-arm64"; native_aguard="$dist/aguard-darwin-arm64" ;;
+    Linux/x86_64) native_aos="$dist/aos-linux-amd64"; native_aguard="$dist/aguard-linux-amd64" ;;
+    Linux/aarch64 | Linux/arm64) native_aos="$dist/aos-linux-arm64"; native_aguard="$dist/aguard-linux-arm64" ;;
+    *) native_aos=""; native_aguard="" ;;
 esac
-if [ -n "$native" ]; then
-    actual=$("$native" version)
+if [ -n "$native_aos" ]; then
+    actual=$("$native_aos" version)
     if [ "$actual" != "$version" ]; then
         echo "native binary reports $actual, expected $version" >&2
         exit 1
     fi
+    smoke_dir=$(mktemp -d)
+    trap 'rm -rf "$smoke_dir"' EXIT HUP INT TERM
+    (
+        cd "$smoke_dir"
+        "$native_aguard" --help >/dev/null
+        "$native_aguard" --version | grep -Fx "$version" >/dev/null
+        "$native_aguard" ops aws --help >/dev/null
+        "$native_aguard" ops actions runs --help >/dev/null
+    )
 fi
 
-echo "verified aos release $version"
+echo "verified aos and aguard release $version"

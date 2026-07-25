@@ -27,6 +27,10 @@ darwin_arm64=$(sha "$dist/aos-darwin-arm64")
 linux_amd64=$(sha "$dist/aos-linux-amd64")
 linux_arm64=$(sha "$dist/aos-linux-arm64")
 windows_amd64=$(sha "$dist/aos-windows-amd64.exe")
+aguard_darwin_arm64=$(sha "$dist/aguard-darwin-arm64")
+aguard_linux_amd64=$(sha "$dist/aguard-linux-amd64")
+aguard_linux_arm64=$(sha "$dist/aguard-linux-arm64")
+aguard_windows_amd64=$(sha "$dist/aguard-windows-amd64.exe")
 
 cat > "$dist/aos.rb" <<EOF
 class Aos < Formula
@@ -39,25 +43,39 @@ class Aos < Formula
     on_arm do
       url "${base}/aos-darwin-arm64"
       sha256 "${darwin_arm64}"
+      resource "aguard" do
+        url "${base}/aguard-darwin-arm64"
+        sha256 "${aguard_darwin_arm64}"
+      end
     end
   end
   on_linux do
     on_intel do
       url "${base}/aos-linux-amd64"
       sha256 "${linux_amd64}"
+      resource "aguard" do
+        url "${base}/aguard-linux-amd64"
+        sha256 "${aguard_linux_amd64}"
+      end
     end
     on_arm do
       url "${base}/aos-linux-arm64"
       sha256 "${linux_arm64}"
+      resource "aguard" do
+        url "${base}/aguard-linux-arm64"
+        sha256 "${aguard_linux_arm64}"
+      end
     end
   end
 
   def install
     bin.install Dir["aos-*"].first => "aos"
+    resource("aguard").stage { bin.install Dir["aguard-*"].first => "aguard" }
   end
 
   test do
     assert_match version.to_s, shell_output("#{bin}/aos version")
+    assert_match version.to_s, shell_output("#{bin}/aguard --version")
   end
 end
 EOF
@@ -72,9 +90,15 @@ cat > "$dist/aos.json" <<EOF
         "64bit": {
             "url": "${base}/aos-windows-amd64.exe",
             "hash": "${windows_amd64}",
-            "bin": [["aos-windows-amd64.exe", "aos"]]
+            "bin": [
+                ["aos-windows-amd64.exe", "aos"],
+                ["aguard-windows-amd64.exe", "aguard"]
+            ]
         }
-    }
+    },
+    "pre_install": [
+        "Invoke-WebRequest -Uri '${base}/aguard-windows-amd64.exe' -OutFile \"\$dir/aguard-windows-amd64.exe\"; if ((Get-FileHash \"\$dir/aguard-windows-amd64.exe\" -Algorithm SHA256).Hash -ne '${aguard_windows_amd64}') { throw 'aguard checksum mismatch' }"
+    ]
 }
 EOF
 

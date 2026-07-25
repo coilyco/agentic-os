@@ -76,6 +76,9 @@ commands:
   aguard-build:
     run: specgen --project-root .specgen build --out dist/aguard
     description: "Materialize the standalone aguard operator CLI from the independent .specgen snapshot."
+  aguard-release-fmt:
+    run: gofmt -w aguard-release
+    description: "Format the native Aguard release wrapper."
   aguard-run:
     run: specgen --project-root .specgen run --
     description: "Materialize and run aguard from the independent .specgen snapshot, passing arguments after `--`."

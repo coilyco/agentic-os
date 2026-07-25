@@ -72,8 +72,8 @@ aos --role director harness-default --intent strategic-planning
 ```
 
 Ward is not part of this path. See the [CLI and substrate contract](docs/aos-cli.md).
-Homebrew and Scoop installs plus direct release binaries are documented in the
-[CLI release walkthrough](docs/aos-cli-release.md).
+Homebrew and Scoop install both `aos` and `aguard`. Direct release binaries and
+the paired native update path are documented in the [CLI release walkthrough](docs/aos-cli-release.md).
 
 ## Secrets pattern
 

@@ -3,8 +3,8 @@
 `aguard` is AOS's canonical guarded operator CLI. Packaged `specgen` discovers
 the [`.specgen/`](../.specgen/README.md) project, materializes generated Go
 out-of-band, and emits the `aguard` binary without committed Go build glue.
-The [full dev-base image](dev-base-image.md) builds and installs that binary.
-There is no smaller image or alternate operator CLI.
+The [full dev-base image](dev-base-image.md) and native AOS releases build from
+the same source and lock. Homebrew and Scoop install it beside `aos`.
 
 ## Authority boundary
 
@@ -43,8 +43,9 @@ passes subsequent arguments to the generated command. `ward exec aguard-lock`
 is the only lock-writing step and uses the packaged `specgen` executable.
 
 Actions log, list, and rerun leaves call packaged `agentic_os` Python modules.
-The full image sets their module path, so `aguard` works from any mounted
-repository.
+The full image sets their module path. Native Aguard releases embed the same
+bridge and set its module path at launch, so every leaf works outside a source
+checkout without Ward, ward-kdl, or specgen at runtime.
 
 ## See also
 
