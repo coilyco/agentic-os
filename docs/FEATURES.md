@@ -7,7 +7,7 @@ This lists shipped capabilities, not files.
 ## Inventory
 
 - [Shell and secrets](features-shell-secrets.md) - shared shell setup, Warp, SSM, GPG, and repo gate.
-- [Branded director terminal](alacritty-directors.md) - Sombra Alacritty director with a projects-root default and explicit cwd override.
+- [Branded director terminal](alacritty-directors.md) - Sombra Alacritty director, projects-root default, and cwd override.
 - [Alacritty workspace](zellij-workspace.md) - persistent Zellij, vertical tabs, panes, and direct shortcuts.
 - [Speech helper](aos-say.md) - `aos-say` client plus relay for status speech.
 - **Karabiner key bindings** - complex modifications for the external keyboard and Remote Desktop.
@@ -24,7 +24,7 @@ This lists shipped capabilities, not files.
 - [Forgejo Actions log bridge](forgejo-actions-logs.md) - plaintext helper for live workflow logs, plus fetch mirror.
 - [Forgejo Actions list bridge](forgejo-actions-listing.md) - safe first-page helper for Actions run/task inspection.
 - [Forgejo runner-token fetch overlay](forgejo-runner-token.md) - guarded runner registration-token minting via fetch leaves.
-- [Forgejo Actions rerun bridge](forgejo-actions-rerun.md) - guarded run-id rerun helper that falls back to dispatch, plus fetch mirror.
+- [Forgejo Actions rerun bridge](forgejo-actions-rerun.md) - guarded reruns with dispatch fallback and fetch mirror.
 - [ward bundle](ward-specs.md) - guarded surfaces, AOSH seat identity and Goose routing, AOS-local OpenCode policy.
 - [Ward profile assets home](ward-profile-assets.md) - AOS profile/config inputs for Ward's `ProfileProvider`.
 - [Role surface tiers](role-surface-tiers.md) - guarded Engineer/QA observation and wider Director/Ops tiers.
