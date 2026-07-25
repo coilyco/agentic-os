@@ -26,10 +26,10 @@ def _run_helper(tmp_path: Path, *, read_token: str = "read-token") -> subprocess
     bash_env = tmp_path / "bash-env"
     bash_env.write_text(
         """\
-aguard() {
-  if [[ "${1:-}" == ops && "${2:-}" == aws && "${3:-}" == ssm && "${4:-}" == get-parameter ]]; then
+aws() {
+  if [[ "${1:-}" == ssm && "${2:-}" == get-parameter ]]; then
     local name=""
-    shift 4
+    shift 2
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --name)

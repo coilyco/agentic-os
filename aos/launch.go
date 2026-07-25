@@ -95,6 +95,9 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 	workspace := containerWorkspaceRoot + "/" + name
 
 	args := []string{"run", "--rm", "--interactive"}
+	if opts.Image == defaultImage {
+		args = append(args, "--pull", "always")
+	}
 	if opts.TTY {
 		args = append(args, "--tty")
 	}
