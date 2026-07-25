@@ -98,6 +98,8 @@ def test_release_workflow_derives_assets_from_dist() -> None:
     assert "aguard-*" in builder
     assert 'host_suffix=".exe"' in builder
     assert "shasum -a 256 -c -" in builder
+    assert "go env GOOS | tr -d" in builder
+    assert 'target=$(printf' in builder
     assert "scripts/ci/aos-cli-release.sh" in workflow
     assert "ward exec aos-release-build" in workflow_script
     assert "ward exec aos-release-package" in workflow_script

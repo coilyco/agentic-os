@@ -8,6 +8,7 @@ version=${AOS_RELEASE_VERSION:-$(
     git -C "$repo_root" describe --tags --exact-match --match 'aos-v*' 2>/dev/null ||
         git -C "$repo_root" rev-parse --short HEAD
 )}
+version=$(printf '%s' "$version" | tr -d '\r')
 if [ -n "${AOS_RELEASE_DIST:-}" ]; then
     dist=$AOS_RELEASE_DIST
 else
@@ -33,9 +34,12 @@ verify_checksum() {
 }
 
 download_specgen() {
-    host_os=$(go env GOOS)
-    host_arch=$(go env GOARCH)
-    specgen_version=$(sed -n 's/^ARG SPECGEN_VERSION=//p' "$repo_root/docker/dev-base/Dockerfile")
+    host_os=$(go env GOOS | tr -d '\r')
+    host_arch=$(go env GOARCH | tr -d '\r')
+    specgen_version=$(
+        sed -n 's/^ARG SPECGEN_VERSION=//p' \
+            "$repo_root/docker/dev-base/Dockerfile" | tr -d '\r'
+    )
     asset="specgen-${host_os}-${host_arch}"
     host_suffix=""
     if [ "$host_os" = "windows" ]; then
@@ -116,6 +120,7 @@ trap 'rm -rf "$release_build"' EXIT HUP INT TERM
 download_specgen
 
 while IFS= read -r target || [ -n "$target" ]; do
+    target=$(printf '%s' "$target" | tr -d '\r')
     case "$target" in
         ""|\#*) continue ;;
     esac
