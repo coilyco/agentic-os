@@ -88,6 +88,30 @@ func TestBuildLaunchPlanMountsCWDAndRunsInternalCompose(t *testing.T) {
 	if strings.Contains(joined, "ward") {
 		t.Fatalf("Ward leaked into standalone launch plan:\n%s", joined)
 	}
+	if containsArg(plan.DockerArgs, "--pull") {
+		t.Fatalf("custom image unexpectedly forced a registry pull:\n%s", joined)
+	}
+}
+
+func TestBuildLaunchPlanPullsMovingReleaseImage(t *testing.T) {
+	t.Parallel()
+	plan, err := buildLaunchPlan(launchOptions{
+		Image:    defaultImage,
+		Role:     "director",
+		Layout:   "codex",
+		Delivery: "native-skills",
+		CWD:      t.TempDir(),
+		Command:  []string{"codex"},
+		UID:      1000,
+		GID:      1000,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(plan.DockerArgs, "\n")
+	if !strings.Contains(joined, "--pull\nalways") {
+		t.Fatalf("moving release image did not force a fresh pull:\n%s", joined)
+	}
 }
 
 func TestBuildLaunchPlanCanSkipSubstrate(t *testing.T) {

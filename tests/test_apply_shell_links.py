@@ -25,6 +25,12 @@ def _make_repo(root: Path) -> None:
     (root / "scripts" / "gpg-ssm.cmd").write_text("gpg\n", encoding="utf-8")
     (root / "scripts" / "git-credential-forgejo-ssm.sh").write_text("git\n", encoding="utf-8")
     (root / "scripts" / "git-credential-forgejo-ssm.cmd").write_text("git\n", encoding="utf-8")
+    (root / "scripts" / "docker-credential-forgejo-ssm").write_text(
+        "docker\n", encoding="utf-8"
+    )
+    (root / "scripts" / "docker-credential-forgejo-ssm.cmd").write_text(
+        "docker\n", encoding="utf-8"
+    )
 
 
 def test_repoints_stale_symlink(tmp_path: Path) -> None:
@@ -100,4 +106,12 @@ def test_windows_skips_bashrc(monkeypatch, tmp_path: Path) -> None:
 
     names = [spec.name for spec in script.link_specs(home, repo)]
 
-    assert names == ["zshrc", "gpg-ssm", "git-credential-forgejo-ssm"]
+    assert names == [
+        "zshrc",
+        "gpg-ssm",
+        "git-credential-forgejo-ssm",
+        "docker-credential-forgejo-ssm",
+        "gpg-ssm-bash",
+        "git-credential-forgejo-ssm-bash",
+        "docker-credential-forgejo-ssm-bash",
+    ]

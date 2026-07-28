@@ -19,6 +19,7 @@ The container accepts and ignores legacy `--density full` from an old launcher. 
 
 Every launch supplies the same runtime base:
 
+* The moving default image is pulled before each launch. Custom images keep Docker's local behavior.
 * CWD mounts read-write at `/workspace/<cwd-name>` and becomes the workdir.
 * `aos-substrate-cache` mounts at `/var/cache/aos/git`.
 * The image hydrates fresh reference trees under `/substrate/<owner>/<repo>`.
