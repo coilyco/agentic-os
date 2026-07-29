@@ -252,7 +252,7 @@ wrap aosguard ops forgejo {
     // op-pinned - the bare convention misses the pulls sub-resources.
     can view pr {
         op repoGetPullRequest
-        describe "single PR read (GET /repos/{owner}/{repo}/pulls/{index}). The lifecycle beside it (files/commits/create/edit/close/reopen/update, agentic-os#488) deliberately stops short of merge: merge rides forgejo.merge.kdl as director-completion authority (agentic-os#446), so the merge gate is unchanged by the lifecycle set."
+        describe "single PR read (GET /repos/{owner}/{repo}/pulls/{index}). The lifecycle beside it (files/commits/create/edit/close/reopen/update, agentic-os#488) deliberately stops short of merge: merge rides Ward's compiled PR workflow gate (agentic-os#446), so the merge gate is unchanged by the lifecycle set."
     }
     can list pr {
         op repoListPullRequests

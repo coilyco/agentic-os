@@ -8,7 +8,7 @@ directly and fetches no context over the network.
 
 * **AOS** - owns ordinary skills, role-scoped skills, role bindings, and the public agent and harness capability registry.
 * **agent-compose** - owns roles, personality compatibility, seats, identity, colors, the personality invariant and definitions, selection, and materialization.
-* **Ward** - owns executable authority, permissions, credentials, and runtime risk controls.
+* **Ward and AOSguard** - Ward owns fixed workflow lifecycle and its broker. AOSguard owns the separately selected operator permissions and credentials.
 
 Shared role and skill names join the first two layers without moving authority
 into knowledge content.

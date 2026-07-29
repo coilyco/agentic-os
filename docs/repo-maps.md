@@ -11,7 +11,7 @@ The maps are search-first, not frozen inventories. They point at the commands th
 - [Ward PR workflow and director merge paths](repo-map-ward-pr-workflow.md)
 - [Forgejo ops surface discovery](repo-map-forgejo-ops-surface.md)
 - [Container startup and broker dispatch](repo-map-container-startup.md)
-- [Ward spec overlay and role-tier bundle](repo-map-ward-spec-overlay.md)
+- [Ward integration boundary](repo-map-ward-spec-overlay.md)
 - [Ward burndown containment and restoration evidence](ward-burndown-policy.md)
 
 Each map stays small on purpose. Read the entry points first, then run the first check.

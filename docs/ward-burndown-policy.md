@@ -12,7 +12,8 @@ Autonomous triage can only run where a repo is explicitly opted in.
 
 ## Rollout order
 
-1. Keep deny-by-default containment in `.ward/repos.kdl`.
+1. Keep deny-by-default containment in Ward's actor-aware queue filter, with
+   the candidate set selected through host-local `director.default-scope`.
 2. Add a repo-level external issue-admission setting in Ward.
 3. Require the setting to name the approval mode and configured automation actors.
 4. Fail closed when the setting is missing or unknown.

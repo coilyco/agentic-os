@@ -40,7 +40,7 @@ before it pushes, so a bad pin leaves the run red and stops before `main`.
   `WARD_VERSION` have no resolver, so auto-bump never touches them
   (agentic-os#292). Lint/format pins must match consumer CI. Ward is manual while
   raw releases are staging: aos should advance prod/N-1 only after validating
-  candidate N against the real `.ward` bundle. `docker buildx` and `wasm-pack`
+  candidate N against the real released AOS launch surface. `docker buildx` and `wasm-pack`
   stay job-local, so dev-base does not claim them.
 - **Fail-soft.** A resolver whose upstream is unreachable or has reshaped its API
   drops from that run with a warning. It never blocks the other bumps.

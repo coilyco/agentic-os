@@ -57,7 +57,7 @@ aos --agent codex --role engineer --warded --composed --guarded -- owner/repo#26
 ```
 
 AOS translates the shared role and selected capabilities. Ward remains the
-Docker Compose and authority owner, agent-compose remains the context producer,
+fixed workflow and container lifecycle owner, agent-compose remains the context producer,
 and cli-guard/specgen remains the guarded-tool generator. The role name selects
 context in each layer and never unions authority.
 

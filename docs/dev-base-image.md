@@ -21,7 +21,7 @@ toolchain:
 Every image carries Node because the common agent harnesses require it. The
 specialist name identifies the additional development toolchain.
 
-The common surface also carries `aos`, Ward for role-scoped orchestration,
+The common surface also carries `aos`, Ward for fixed workflow orchestration,
 `aosguard` for operator commands, agent-compose with its embedded `person:kai`
 source, and the repository's packaged aosguard Python bridges. Each image build renders
 aosguard's native agent skill, renders an agent-compose roster, and checks the
