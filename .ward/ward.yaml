@@ -74,7 +74,7 @@ commands:
     run: ./aos/aos --agent codex --role engineer --warded --composed --guarded --dry-run --
     description: "Render the unified Ward, agent-compose, and aosguard launch without starting Docker. Pass the Ward issue or freeform arguments after `--`."
   aos-composition-smoke:
-    run: sh scripts/aos-composition-smoke.sh
+    run: bash scripts/aos-composition-smoke.sh
     description: "Materialize the full local context bundle and render Ward's launch without starting an agent container. Pass the Ward issue or freeform arguments after `--`."
   qa-verification-fixture:
     run: bash scripts/qa-verification-fixture.sh
@@ -116,7 +116,7 @@ commands:
     run: uv run python scripts/dev-base-build.py --registry agentic-os --tag dev-base-local build
     description: "Build the Ubuntu-based language-image family locally, ending at agentic-os:dev-base-local, before the release workflow publishes it for both architectures."
   dev-base-check:
-    run: sh scripts/dev-base-check.sh
+    run: bash scripts/dev-base-check.sh
     description: "Run Docker buildx static checks against every language image and the full fan-in image without building or publishing layers."
   dep-bump:
     run: uv run python scripts/dep-bump.py
