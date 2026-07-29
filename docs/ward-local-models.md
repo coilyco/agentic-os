@@ -32,10 +32,11 @@ AOS-owned deployment source for model, reasoning-effort, verbosity, and local
 endpoint values. Its role overrides preserve the launch tuning formerly stored
 under `.ward`, while its defaults preserve harness-wide values.
 
-For a Ward launch, `aos` resolves one role and harness profile and passes it
-through Ward's typed `--config` inputs. Ward does not load the registry and the
-profile grants no authority. Standalone Codex bootstrap reads the same embedded
-registry, so the two launch paths cannot silently choose different tuning.
+For a Ward launch, `aos` resolves only the harness default and passes it through
+Ward's typed `--config` inputs. Director, engineer, and QA therefore receive
+identical inputs for the same harness. Standalone Codex bootstrap may apply the
+registry's role-specific tuning without projecting that choice into Ward. Ward
+does not load the registry and no profile grants authority.
 
 ## Personality alignment
 

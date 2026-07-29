@@ -279,7 +279,7 @@ func buildWardLaunchPlan(opts integratedLaunchOptions, bundlePath string) (wardL
 	if bundlePath != "" {
 		args = append(args, "--context-bundle", bundlePath)
 	}
-	inputs, err := wardLaunchInputsFor(opts.Role, opts.Agent)
+	inputs, err := wardLaunchInputsFor(opts.Agent)
 	if err != nil {
 		return wardLaunchPlan{}, err
 	}

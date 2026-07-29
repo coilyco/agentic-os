@@ -13,9 +13,9 @@ const harnessLaunchProfilesFormat = "agentic-os.harness-launch-profiles.v1"
 var embeddedHarnessLaunchProfiles []byte
 
 type harnessLaunchProfileDocument struct {
-	Format   string                                     `json:"format"`
-	Defaults map[string]harnessLaunchProfile            `json:"defaults"`
-	Roles    map[string]map[string]harnessLaunchProfile `json:"roles"`
+	Format          string                                     `json:"format"`
+	Defaults        map[string]harnessLaunchProfile            `json:"defaults"`
+	StandaloneRoles map[string]map[string]harnessLaunchProfile `json:"standalone_roles"`
 }
 
 type harnessLaunchProfile struct {
@@ -49,7 +49,7 @@ func loadHarnessLaunchProfiles(data []byte) (harnessLaunchProfileDocument, error
 			return harnessLaunchProfileDocument{}, err
 		}
 	}
-	for role, profiles := range document.Roles {
+	for role, profiles := range document.StandaloneRoles {
 		if !safeRoleSlug(role) {
 			return harnessLaunchProfileDocument{}, fmt.Errorf(
 				"harness launch profile registry has unsafe role %q",
@@ -77,7 +77,7 @@ func validateHarnessLaunchProfile(role, harness string, profile harnessLaunchPro
 	return nil
 }
 
-func harnessLaunchProfileFor(role, harness string) (harnessLaunchProfile, error) {
+func harnessLaunchDefaultFor(harness string) (harnessLaunchProfile, error) {
 	document, err := loadHarnessLaunchProfiles(embeddedHarnessLaunchProfiles)
 	if err != nil {
 		return harnessLaunchProfile{}, err
@@ -86,7 +86,19 @@ func harnessLaunchProfileFor(role, harness string) (harnessLaunchProfile, error)
 	if !ok {
 		return harnessLaunchProfile{}, fmt.Errorf("AOS has no default launch profile for %s", harness)
 	}
-	if override, ok := document.Roles[role][harness]; ok {
+	return profile, nil
+}
+
+func standaloneHarnessLaunchProfileFor(role, harness string) (harnessLaunchProfile, error) {
+	document, err := loadHarnessLaunchProfiles(embeddedHarnessLaunchProfiles)
+	if err != nil {
+		return harnessLaunchProfile{}, err
+	}
+	profile, ok := document.Defaults[harness]
+	if !ok {
+		return harnessLaunchProfile{}, fmt.Errorf("AOS has no default launch profile for %s", harness)
+	}
+	if override, ok := document.StandaloneRoles[role][harness]; ok {
 		if override.Model != "" {
 			profile.Model = override.Model
 		}
@@ -103,8 +115,8 @@ func harnessLaunchProfileFor(role, harness string) (harnessLaunchProfile, error)
 	return profile, nil
 }
 
-func wardLaunchInputsFor(role, harness string) ([]string, error) {
-	profile, err := harnessLaunchProfileFor(role, harness)
+func wardLaunchInputsFor(harness string) ([]string, error) {
+	profile, err := harnessLaunchDefaultFor(harness)
 	if err != nil {
 		return nil, err
 	}

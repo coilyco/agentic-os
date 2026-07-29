@@ -178,7 +178,7 @@ func TestPrepareContainerHydratesSubstrateAndProjectsHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Codex container defaults are absent: %v", err)
 	}
-	profile, err := harnessLaunchProfileFor("engineer", "codex")
+	profile, err := standaloneHarnessLaunchProfileFor("engineer", "codex")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -33,8 +33,9 @@ follows:
   `defaults.kdl` and `repos.kdl` to `.ward/ward.yaml`.
 * Models, reasoning effort, verbosity, and local harness defaults moved from
   `agents.kdl` and `roles.kdl` to the embedded AOS launch-profile registry.
-  AOS passes the resolved values through Ward's explicit `--config` seam and
-  uses the same registry for standalone Codex bootstrap.
+  Standalone AOS launches may select its role tuning. Ward-bound launches
+  receive only the registry's harness-level defaults through Ward's explicit
+  `--config` seam, so a Ward workflow role cannot change those inputs.
 * Role behavior and composed skills remain in `.agents/roles.kdl`.
 * Seat names and pronouns remain canonical in agent-compose. AOS does not
   duplicate its person registry.

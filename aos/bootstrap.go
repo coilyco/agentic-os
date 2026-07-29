@@ -449,7 +449,7 @@ func stageHarnessDefaults(role, layout, home, workspace string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create codex config directory: %w", err)
 	}
-	profile, err := harnessLaunchProfileFor(role, layout)
+	profile, err := standaloneHarnessLaunchProfileFor(role, layout)
 	if err != nil {
 		return err
 	}

@@ -41,10 +41,11 @@ aos --agent codex --role engineer --guarded
 ## Routing
 
 In warded mode, arguments after `--` are Ward launch arguments. AOS passes the
-selected image, agent, role, workspace request, and optional generic context
-bundle. Agent-compose carries behavioral identity, seat, model, and reasoning
-to the selected harness through composed context, never a Ward role overlay.
-See [the context-bundle adapter](aos-context-bundle.md).
+selected image, agent, role, workspace request, optional generic context
+bundle, and harness-level model inputs. Agent-compose carries behavioral
+identity and seat context. A Ward workflow role cannot change the model inputs
+or privileged surface. See [the context-bundle
+adapter](aos-context-bundle.md).
 
 Ward ships `director`, `qa`, and `engineer`. Other agent-compose roles remain
 available on the standalone composed path. AOS rejects incompatible roles,
