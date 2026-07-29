@@ -45,9 +45,9 @@ aos --role engineer acompose -- codex
 
 ## Routing
 
-In warded mode, arguments after `--` are Ward launch arguments. AOS passes only
-the selected image, agent, role, workspace request, and optional generic
-context bundle. See [the context-bundle adapter](aos-context-bundle.md).
+In warded mode, arguments after `--` are Ward launch arguments. AOS passes the selected image, agent, role, workspace request, optional generic context bundle, and resolved launch inputs.
+For Codex, `--config agent.codex.*` carries model, reasoning effort, and verbosity. AOS owns those defaults, not Ward role overlays or permissions.
+See [the context-bundle adapter](aos-context-bundle.md).
 
 Ward ships `director`, `qa`, and `engineer`. Other agent-compose roles remain
 available on the standalone composed path. AOS rejects incompatible roles,

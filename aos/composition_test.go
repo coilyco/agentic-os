@@ -98,16 +98,51 @@ func TestValidateIntegratedLaunchMatrix(t *testing.T) {
 
 func TestBuildWardLaunchPlanOwnsSiblingTranslation(t *testing.T) {
 	t.Parallel()
-	plan := buildWardLaunchPlan(integratedLaunchOptions{
+	plan, err := buildWardLaunchPlan(integratedLaunchOptions{
 		Image:     "aos:test",
 		Role:      "engineer",
 		Agent:     "codex",
 		Arguments: []string{"owner/repo#267", "--print"},
 	}, "/cache/context")
+	if err != nil {
+		t.Fatal(err)
+	}
 	got := strings.Join(append([]string{plan.Command}, plan.Args...), " ")
-	want := "ward agent engineer owner/repo#267 --print --agent codex --image aos:test --context-bundle /cache/context"
+	want := "ward agent engineer owner/repo#267 --print --agent codex --image aos:test --context-bundle /cache/context --config agent.codex.model=gpt-5.6-terra --config agent.codex.effort=high --config agent.codex.verbosity=low"
 	if got != want {
 		t.Fatalf("Ward launch = %q, want %q", got, want)
+	}
+}
+
+func TestIntegratedWardedDirectorCodexDryRunForwardsResolvedInputs(t *testing.T) {
+	t.Parallel()
+	command := newCommand()
+	var output bytes.Buffer
+	command.Writer = &output
+	command.ErrWriter = &output
+	err := command.Run(context.Background(), []string{
+		"aos",
+		"--agent", "codex",
+		"--role", "director",
+		"--image", "aos:test",
+		"--warded",
+		"--composed",
+		"--guarded",
+		"--dry-run",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rendered := output.String()
+	for _, want := range []string{
+		"ward agent director",
+		"--config agent.codex.model=gpt-5.6-sol",
+		"--config agent.codex.effort=xhigh",
+		"--config agent.codex.verbosity=low",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("dry run missing %q:\n%s", want, rendered)
+		}
 	}
 }
 
