@@ -13,7 +13,6 @@ trap cleanup EXIT
 git -c advice.detachedHead=false clone --depth 1 --branch "${ref}" \
   https://forgejo.coilysiren.me/coilyco-flight-deck/ward.git "${tmpdir}/ward"
 cd "${tmpdir}/ward"
-make sync-defaults-assets
 go build -trimpath -ldflags "-s -w -X main.Version=${ref}" -o "${out}" ./cmd/ward
 chmod 0755 "${out}"
 "${out}" --version
