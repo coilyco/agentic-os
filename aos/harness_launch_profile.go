@@ -115,7 +115,7 @@ func standaloneHarnessLaunchProfileFor(role, harness string) (harnessLaunchProfi
 	return profile, nil
 }
 
-func wardLaunchInputsFor(harness string) ([]string, error) {
+func wardLaunchEnvironmentFor(harness string) ([]string, error) {
 	profile, err := harnessLaunchDefaultFor(harness)
 	if err != nil {
 		return nil, err
@@ -124,29 +124,29 @@ func wardLaunchInputsFor(harness string) ([]string, error) {
 	switch harness {
 	case "claude":
 		pairs = [][2]string{
-			{"agent.claude.model", profile.Model},
-			{"agent.claude.effort", profile.ReasoningEffort},
+			{"WARD_CLAUDE_MODEL", profile.Model},
+			{"WARD_CLAUDE_REASONING_EFFORT", profile.ReasoningEffort},
 		}
 	case "codex":
 		pairs = [][2]string{
-			{"agent.codex.model", profile.Model},
-			{"agent.codex.effort", profile.ReasoningEffort},
-			{"agent.codex.verbosity", profile.Verbosity},
+			{"WARD_CODEX_MODEL", profile.Model},
+			{"WARD_CODEX_REASONING_EFFORT", profile.ReasoningEffort},
+			{"WARD_CODEX_VERBOSITY", profile.Verbosity},
 		}
 	case "goose":
-		pairs = [][2]string{{"agent.goose.model", profile.Model}}
+		pairs = [][2]string{{"WARD_GOOSE_MODEL", profile.Model}}
 	case "opencode":
 		pairs = [][2]string{
-			{"agent.opencode.model", profile.Model},
-			{"agent.opencode.endpoint", profile.Endpoint},
+			{"WARD_OPENCODE_MODEL", profile.Model},
+			{"WARD_OLLAMA_URL", profile.Endpoint},
 		}
 	}
-	inputs := make([]string, 0, len(pairs)*2)
+	environment := make([]string, 0, len(pairs))
 	for _, pair := range pairs {
 		if strings.TrimSpace(pair[1]) == "" {
 			continue
 		}
-		inputs = append(inputs, "--config", pair[0]+"="+pair[1])
+		environment = append(environment, pair[0]+"="+pair[1])
 	}
-	return inputs, nil
+	return environment, nil
 }

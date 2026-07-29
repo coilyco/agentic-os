@@ -19,9 +19,9 @@ YAML through Ward's loader.
   [`harness_launch_profiles.json`](../aos/harness_launch_profiles.json), image,
   deployment defaults, and the immutable context-bundle adapter.
 * Ward receives the fixed workflow role, selected harness and image, original
-  work request, explicit harness config, broker credential, and optional
-  context bundle. A role slug selects AOS launch tuning and composition. It
-  grants no permissions.
+  work request, explicit harness environment, broker credential, and optional
+  context bundle. A role slug selects composition. Standalone AOS may also use
+  it for launch tuning. It grants no permissions.
 * AOSguard owns the independent generated operator surface and its credential
   mounts. Ward neither imports nor configures it.
 
@@ -35,7 +35,8 @@ follows:
   `agents.kdl` and `roles.kdl` to the embedded AOS launch-profile registry.
   Standalone AOS launches may select its role tuning. Ward-bound launches
   receive only the registry's harness-level defaults through Ward's explicit
-  `--config` seam, so a Ward workflow role cannot change those inputs.
+  `WARD_*` environment seam, so a Ward workflow role cannot change those
+  inputs.
 * Role behavior and composed skills remain in `.agents/roles.kdl`.
 * Seat names and pronouns remain canonical in agent-compose. AOS does not
   duplicate its person registry.

@@ -33,8 +33,9 @@ type integratedLaunchOptions struct {
 }
 
 type wardLaunchPlan struct {
-	Command string
-	Args    []string
+	Command     string
+	Environment []string
+	Args        []string
 }
 
 func runIntegratedLaunch(ctx context.Context, cmd *cli.Command) error {
@@ -260,7 +261,7 @@ func runWardedLaunch(
 	if opts.DryRun {
 		fmt.Fprintln(
 			cmd.Root().Writer,
-			shellJoin(append([]string{plan.Command}, plan.Args...)),
+			shellJoin(append(plan.Environment, append([]string{plan.Command}, plan.Args...)...)),
 		)
 		return nil
 	}
@@ -269,6 +270,13 @@ func runWardedLaunch(
 		return fmt.Errorf("--warded needs Ward on the host PATH: %w", err)
 	}
 	plan.Command = wardPath
+	for _, entry := range plan.Environment {
+		key, value, ok := strings.Cut(entry, "=")
+		if !ok {
+			return fmt.Errorf("invalid Ward launch environment entry %q", entry)
+		}
+		launchEnvironment = replaceEnvironment(launchEnvironment, key, value)
+	}
 	return hostCommand(ctx, plan.Command, launchEnvironment, plan.Args...)
 }
 
@@ -279,12 +287,11 @@ func buildWardLaunchPlan(opts integratedLaunchOptions, bundlePath string) (wardL
 	if bundlePath != "" {
 		args = append(args, "--context-bundle", bundlePath)
 	}
-	inputs, err := wardLaunchInputsFor(opts.Agent)
+	environment, err := wardLaunchEnvironmentFor(opts.Agent)
 	if err != nil {
 		return wardLaunchPlan{}, err
 	}
-	args = append(args, inputs...)
-	return wardLaunchPlan{Command: "ward", Args: args}, nil
+	return wardLaunchPlan{Command: "ward", Environment: environment, Args: args}, nil
 }
 
 func resolveWardWithContextContract(ctx context.Context) (string, error) {

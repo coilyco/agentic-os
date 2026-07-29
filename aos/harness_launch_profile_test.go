@@ -53,30 +53,30 @@ func TestLoadHarnessLaunchProfilesRejectsMalformedRegistry(t *testing.T) {
 	}
 }
 
-func TestEmbeddedHarnessLaunchProfilesProduceExplicitWardInputs(t *testing.T) {
+func TestEmbeddedHarnessLaunchProfilesProduceExplicitWardEnvironment(t *testing.T) {
 	t.Parallel()
-	inputs, err := wardLaunchInputsFor("codex")
+	environment, err := wardLaunchEnvironmentFor("codex")
 	if err != nil {
 		t.Fatal(err)
 	}
-	rendered := strings.Join(inputs, " ")
+	rendered := strings.Join(environment, " ")
 	for _, key := range []string{
-		"agent.codex.model=",
-		"agent.codex.effort=",
-		"agent.codex.verbosity=",
+		"WARD_CODEX_MODEL=",
+		"WARD_CODEX_REASONING_EFFORT=",
+		"WARD_CODEX_VERBOSITY=",
 	} {
 		if !strings.Contains(rendered, key) {
-			t.Fatalf("Ward inputs %q do not contain %q", rendered, key)
+			t.Fatalf("Ward environment %q does not contain %q", rendered, key)
 		}
 	}
-	for _, input := range inputs {
-		if strings.HasSuffix(input, "=") {
-			t.Fatalf("Ward input %q has an empty value", input)
+	for _, entry := range environment {
+		if strings.HasSuffix(entry, "=") {
+			t.Fatalf("Ward environment entry %q has an empty value", entry)
 		}
 	}
 }
 
-func TestStandaloneRoleTuningDoesNotChangeWardInputs(t *testing.T) {
+func TestStandaloneRoleTuningDoesNotChangeWardEnvironment(t *testing.T) {
 	t.Parallel()
 	director, err := standaloneHarnessLaunchProfileFor("director", "codex")
 	if err != nil {
@@ -90,7 +90,7 @@ func TestStandaloneRoleTuningDoesNotChangeWardInputs(t *testing.T) {
 		t.Fatal("embedded standalone role tuning collapsed to one profile")
 	}
 
-	want, err := wardLaunchInputsFor("codex")
+	want, err := wardLaunchEnvironmentFor("codex")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,9 +101,12 @@ func TestStandaloneRoleTuningDoesNotChangeWardInputs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		got := plan.Args[len(plan.Args)-len(want):]
+		got := plan.Environment
 		if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
-			t.Fatalf("%s Ward inputs = %v, want harness defaults %v", role, got, want)
+			t.Fatalf("%s Ward environment = %v, want harness defaults %v", role, got, want)
+		}
+		if strings.Contains(strings.Join(plan.Args, " "), "--config") {
+			t.Fatalf("%s Ward args contain a role-local config flag: %v", role, plan.Args)
 		}
 	}
 }

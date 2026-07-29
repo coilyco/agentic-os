@@ -33,10 +33,11 @@ endpoint values. Its role overrides preserve the launch tuning formerly stored
 under `.ward`, while its defaults preserve harness-wide values.
 
 For a Ward launch, `aos` resolves only the harness default and passes it through
-Ward's typed `--config` inputs. Director, engineer, and QA therefore receive
-identical inputs for the same harness. Standalone Codex bootstrap may apply the
-registry's role-specific tuning without projecting that choice into Ward. Ward
-does not load the registry and no profile grants authority.
+Ward's explicit `WARD_*` environment seam. Director, engineer, and QA therefore
+receive identical inputs for the same harness, including workflows without
+local config flags. Standalone Codex bootstrap may apply the registry's
+role-specific tuning without projecting that choice into Ward. Ward does not
+load the registry and no profile grants authority.
 
 ## Personality alignment
 
