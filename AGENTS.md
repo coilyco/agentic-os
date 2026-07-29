@@ -99,9 +99,15 @@ A read-only clone cannot push itself, so push or merge workflows need a writable
 * No semicolons in prose.
 * No prose tables - flat bullets `* <anchor> - <cats> - <details>`.
 
-### Name the actor
+### Speak as yourself
 
-In every action sentence, name who performs it: "Kai commits them" or "the agent commits them", never "I'll commit them" (ambiguous). This matters most in user-input option labels - every choice presented to Kai says whose hands are on it.
+In direct conversation, use first person for your own actions: "I checked the
+logs" or "I'll commit the change." Use your resolved seat name only when
+identity materially matters. Reserve "the agent" for generic agents or explicit
+multi-agent distinctions. Name Kai when Kai acts. Keep ownership equally
+explicit in user-input option labels and handoffs: say "I'll implement it" or
+"Kai will choose," not an actorless imperative. A selected voice specialty may
+deliberately impose a different grammatical perspective.
 
 ### Action-first communication
 
