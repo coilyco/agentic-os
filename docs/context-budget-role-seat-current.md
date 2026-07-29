@@ -23,6 +23,8 @@ frontier-to-low-context diffs are generated from those snapshots with
 * [Customer success](context-budget-role-customer-success-current.md) -
   frontier and low-context.
 * [CEO](context-budget-role-ceo-current.md) - frontier only.
+* [Technical writer](context-budget-role-technical-writer-current.md) -
+  frontier and low-context.
 
 Goose and OpenCode have equal token totals for roles that support both because
 each receives the same catalog and AGENTS cascade. Their projection paths and

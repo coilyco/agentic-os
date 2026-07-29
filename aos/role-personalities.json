@@ -1,7 +1,7 @@
 {
   "format": "agentic-os.role-personality-board.v1",
-  "role_count": 12,
-  "personality_count": 16,
+  "role_count": 13,
+  "personality_count": 17,
   "roles": [
     {
       "role": "engineer",
@@ -98,6 +98,14 @@
         "grounded",
         "protective"
       ]
+    },
+    {
+      "role": "technical-writer",
+      "personalities": [
+        "editorial",
+        "meticulous",
+        "curious"
+      ]
     }
   ],
   "skills": [
@@ -164,6 +172,10 @@
     {
       "personality": "energetic",
       "skill": "personality-energetic"
+    },
+    {
+      "personality": "editorial",
+      "skill": "personality-editorial"
     }
   ]
 }

@@ -28,6 +28,7 @@ from agentic_os.generators.generate_agent_compose import _split_frontmatter
 from agentic_os.role_personality_sync import (
     PROJECTION_PATH as ROLE_PERSONALITY_PROJECTION,
     RolePersonalitySyncError,
+    load_person_snapshot,
     load_projection as load_personality_projection,
     personality_skill_id,
 )
@@ -37,10 +38,6 @@ SOURCE_ID = "aos-public"
 PERSON_SOURCE_ID = "person:kai"
 PERSON_SOURCE_SEGMENT = urllib.parse.quote(PERSON_SOURCE_ID, safe="")
 SLUG_RE = re.compile(r"^[a-z][a-z0-9-]*$")
-ROSTER_SEAT_RE = re.compile(
-    r"(?m)^- If you are (?P<seat>[a-z][a-z0-9-]*) "
-    r"running the (?P<role>[a-z][a-z0-9-]*) role:"
-)
 AOS_LAYOUT_MODEL_CLASSES_PATH = (
     Path(__file__).resolve().parents[1] / "aos" / "layout-model-classes.json"
 )
@@ -66,6 +63,11 @@ SKILL_CLASS_KINDS = {
         "role-composed-frontmatter",
         "role-composed-body",
         "role-composed-resource",
+    ),
+    "role": (
+        "role-skill-frontmatter",
+        "role-skill-body",
+        "role-skill-resource",
     ),
 }
 
@@ -202,20 +204,19 @@ def model_class_for_seat(seat: str) -> str:
         ) from exc
 
 
-def validate_role_seat(roster_path: Path, role: str, seat: str) -> None:
+def validate_role_seat(person_snapshot_path: Path, role: str, seat: str) -> None:
     """Fail unless the role exists and the seat is an AOS projection layout."""
     _validate_slug(role, "role")
     model_class_for_seat(seat)
-    try:
-        text = roster_path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise RuntimeError(f"read agent-compose roster {roster_path}: {exc}") from exc
-    roles = {match.group("role") for match in ROSTER_SEAT_RE.finditer(text)}
+    snapshot = load_person_snapshot(person_snapshot_path)
+    roles = {entry.role for entry in snapshot.roles}
     if not roles:
-        raise RuntimeError(f"{roster_path}: generated roster contains no role seats")
+        raise RuntimeError(
+            f"{person_snapshot_path}: generated person snapshot contains no roles"
+        )
     if role not in roles:
         raise RuntimeError(
-            f"{roster_path}: role {role} is absent, found {sorted(roles)}"
+            f"{person_snapshot_path}: role {role} is absent, found {sorted(roles)}"
         )
 
 
@@ -441,11 +442,11 @@ def _canonical_skill(
     provider: Path, source_id: str, skill_id: str
 ) -> tuple[str, str, Path | None]:
     if urllib.parse.unquote(source_id) == PERSON_SOURCE_ID:
-        if not skill_id.startswith("personality-"):
-            raise RuntimeError(
-                f"bundle person source contains non-personality skill {skill_id}"
-            )
-        return "personality", PERSON_SOURCE_ID, None
+        if skill_id.startswith("personality-"):
+            return "personality", PERSON_SOURCE_ID, None
+        if skill_id.startswith("role-"):
+            return "role-skill", PERSON_SOURCE_ID, None
+        raise RuntimeError(f"bundle person source contains unknown skill {skill_id}")
     if source_id != SOURCE_ID:
         return "external-skill", source_id, None
     ordinary = provider / ".agents" / "skills" / skill_id
@@ -938,7 +939,7 @@ def capture_snapshot(
                 encoding="utf-8",
                 check=True,
             )
-            validate_role_seat(roster / "AGENTS.COMPOSE.md", role, seat)
+            validate_role_seat(roster / "person.json", role, seat)
             process = subprocess.run(
                 [executable, "compose", "--out", str(output), str(request)],
                 capture_output=True,

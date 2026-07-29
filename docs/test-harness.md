@@ -30,7 +30,7 @@ Keep it public-safe: no tower FQDN or opaque ids (use placeholders, resolve at r
 ## Index
 
 - [test-harness-composed-roles](test-harness-composed-roles.md) - authenticated
-  Codex plus the twelve-role local Goose question matrix. **Landed.**
+  Codex plus the thirteen-role local Goose question matrix. **Landed.**
 - [test-harness-goose](test-harness-goose.md) - Goose driving `qwen3-coder:30b` on the tower. **Landed.**
 - `test-harness-codex` - Codex on `gpt-5.5` (ChatGPT auth). Authored by Codex.
 - `test-harness-opencode`, `test-harness-aider`, `test-harness-claude` - planned.

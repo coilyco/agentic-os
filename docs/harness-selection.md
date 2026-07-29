@@ -5,7 +5,7 @@ Harness selection answers which work surface receives a task. Backend model, ser
 
 ## Confirmed board
 
-The committed board contains twelve roles and nineteen lanes:
+The committed board contains thirteen roles and twenty-one lanes:
 
 * **engineer** - `autonomous-coding` uses `openhands`.
 * **director** - `strategic-planning` uses `plandex`.
@@ -19,6 +19,7 @@ The committed board contains twelve roles and nineteen lanes:
 * **sales** - `research-synthesis` uses `hermes`. `conversation-management` uses `elizaos`.
 * **customer-success** - `knowledge-retrieval` and `conversation-management` both use `rasa`.
 * **ceo** - `strategic-planning` uses `hermes`.
+* **technical-writer** - `knowledge-retrieval` uses `anythingllm`. `message-composition` uses `openwebui`.
 
 Engineer is the sole unattended lane. Every role declares one or two intents,
 and every lane has exactly one selected harness.

@@ -29,7 +29,7 @@ The snapshot separates:
 
 * **Eager context** - the projected role instructions, the
   [AGENTS inventory](agents-context-inventory.md) global and root-to-CWD
-  cascade for the selected seat, and selected ordinary, personality,
+  cascade for the selected seat, and selected ordinary, role, personality,
   role-composed, and optional plugin skill frontmatter.
 * **Lazy context** - selected skill bodies and resources, optional plugin
   bodies and resources, and the count of deferred mcporter registrations.

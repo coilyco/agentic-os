@@ -1,0 +1,93 @@
+format: agentic-os.role-seat-context.v1
+subject:
+  role: technical-writer
+  seat: goose
+provider: coilyco-flight-deck/agentic-os
+repository: coilyco-flight-deck/agentic-os
+cwd: .
+tokenizer: tokens = chars/4 proxy (v1, swap for the qwen tokenizer later)
+bundle:
+  format: agent-compose.bundle
+  model_class: low-context
+  personalities:
+  - editorial
+  - meticulous
+  - curious
+  sources:
+  - person:kai
+  - aos-public
+mcp:
+  delivery: deferred
+  server_count: 10
+  eager_schema_count: 0
+totals:
+  eager:
+    components: 19
+    bytes: 27633
+    tokens: 6910
+  lazy:
+    components: 31
+    bytes: 48227
+    tokens: 12061
+breakdown:
+  eager:
+    agents-cascade: {components: 1, bytes: 21496, tokens: 5374}
+    ordinary-skill-frontmatter: {components: 10, bytes: 2549, tokens: 641}
+    personality-frontmatter: {components: 3, bytes: 508, tokens: 128}
+    role-composed-frontmatter: {components: 3, bytes: 695, tokens: 174}
+    role-instructions: {components: 1, bytes: 2201, tokens: 547}
+    role-skill-frontmatter: {components: 1, bytes: 184, tokens: 46}
+  lazy:
+    mcp-server-registration: {components: 1, bytes: 0, tokens: 0}
+    ordinary-skill-body: {components: 10, bytes: 16267, tokens: 4064}
+    ordinary-skill-resource: {components: 11, bytes: 17801, tokens: 4454}
+    personality-body: {components: 3, bytes: 4236, tokens: 1060}
+    role-composed-body: {components: 3, bytes: 5283, tokens: 1322}
+    role-composed-resource: {components: 2, bytes: 3187, tokens: 797}
+    role-skill-body: {components: 1, bytes: 1453, tokens: 364}
+components:
+  eager:
+    agents-cascade:
+    - id: agents:000:AGENTS.md
+      owner: coilyco-flight-deck/agentic-os
+      source: coilyco-flight-deck/agentic-os:AGENTS.md
+      delivery: repo-cascade
+      bytes: 21496
+      tokens: 5374
+      sha256: eb04474ec325228c5af5120c42476bc5e3d6f42c3c1a92c6eb8fedeaf6037f0d
+    role-instructions:
+    - id: instructions:role
+      owner: agent-compose+person:kai+aos-public
+      source: bundle:content/instructions.md
+      delivery: .config/goose/.goosehints
+      bytes: 2201
+      tokens: 547
+      sha256: 2e9d8300b1bf0a480cec46b6b5a4e183edaa352cda672866afe8c4386d998d27
+  lazy:
+    mcp-server-registration:
+    - id: mcp:deferred
+      owner: mcporter
+      source: mcporter:inventory
+      delivery: deferred
+      bytes: 0
+      tokens: 0
+      sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+skills:
+  aos-public/kai-tech-prefs: {class: ordinary, eager: 51, lazy: 1969, resources: 5}
+  aos-public/repo-agentic-os: {class: ordinary, eager: 50, lazy: 93, resources: 0}
+  aos-public/repo-infrastructure: {class: ordinary, eager: 56, lazy: 93, resources: 0}
+  aos-public/tooling-ffmpeg: {class: ordinary, eager: 50, lazy: 559, resources: 0}
+  aos-public/tooling-gpg-ssm: {class: ordinary, eager: 78, lazy: 1373, resources: 3}
+  aos-public/tooling-image-zoom: {class: ordinary, eager: 44, lazy: 949, resources: 1}
+  aos-public/tooling-imagemagick: {class: ordinary, eager: 50, lazy: 492, resources: 0}
+  aos-public/tooling-tailscale: {class: ordinary, eager: 109, lazy: 1887, resources: 2}
+  aos-public/tooling-warp: {class: ordinary, eager: 39, lazy: 317, resources: 0}
+  aos-public/tooling-zsh: {class: ordinary, eager: 114, lazy: 786, resources: 0}
+  aos-public/writing-public-repos: {class: role-composed, eager: 52, lazy: 208, resources: 0}
+  aos-public/writing-to-issues: {class: role-composed, eager: 69, lazy: 879, resources: 1}
+  aos-public/writing-voice-guide-linter: {class: role-composed, eager: 53, lazy: 1032, resources: 1}
+  person:kai/personality-curious: {class: personality, eager: 39, lazy: 337, resources: 0}
+  person:kai/personality-editorial: {class: personality, eager: 48, lazy: 364, resources: 0}
+  person:kai/personality-meticulous: {class: personality, eager: 41, lazy: 359, resources: 0}
+  person:kai/role-technical-writer: {class: role, eager: 46, lazy: 364, resources: 0}
+payload_hash: aeb185783840d418bd84d37fd1d4772318e1365d52707c0697e345c3dd93a742

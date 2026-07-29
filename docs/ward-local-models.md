@@ -8,11 +8,12 @@ authoring repository at launch.
 
 ## Role-intent harness board
 
-AOS's [`.agents/harnesses.yaml`](../.agents/harnesses.yaml) defines public
-harness identity and intent compatibility. AOSH's `roles.yaml` and
-`agent-selections.yaml` define the model-opaque role joins and lane choices.
-`ward exec sync-harness-board` validates the joined inputs, updates generated
-`intent` children in [`.agents/roles.kdl`](../.agents/roles.kdl), and rewrites
+AOS's hand-owned [`.agents/harnesses.yaml`](../.agents/harnesses.yaml) defines
+public harness identity and intent compatibility. AOSH's hand-owned
+`roles.yaml` and `agent-selections.yaml` define the model-opaque role joins and
+lane choices. `ward exec sync-harness-board` validates the joined inputs,
+updates generated `intent` children inside the agent-compose provider roles in
+[`.agents/roles.kdl`](../.agents/roles.kdl), and rewrites
 [`role-harnesses.json`](../aos/role-harnesses.json) as the compiled launcher
 view.
 

@@ -263,4 +263,18 @@ roles {
         }
         // END generated role-intent harness routes
     }
+    role technical-writer {
+        composed-skill writing-public-repos
+        composed-skill writing-system-improvement-vocab
+        composed-skill writing-to-issues
+        composed-skill writing-voice-guide-linter
+        // BEGIN generated role-intent harness routes
+        intent knowledge-retrieval {
+            harness anythingllm
+        }
+        intent message-composition {
+            harness openwebui
+        }
+        // END generated role-intent harness routes
+    }
 }
