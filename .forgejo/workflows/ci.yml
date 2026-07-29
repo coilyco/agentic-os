@@ -5,11 +5,8 @@
 # promote.yml already ran the suite on the exact sha it fast-forwarded, so a
 # flaky rerun cannot fail a vouched promotion (Kai's call, 2026-07-12).
 #
-# The ward-doctor job is the standalone guardfile-load gate: guardfiles are
-# config, so their validity check is ward loading them, never repo tests
-# re-encoding their content. It is the same doctor every language image runs
-# (the aos#452 fail-closed path), moved up to commit time so a broken bundle
-# cannot reach main.
+# The Ward doctor job validates only Ward's supported YAML contract. Role
+# policy and operator grants are intentionally absent from this repository.
 
 name: ci
 
@@ -35,10 +32,10 @@ jobs:
     container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
     steps:
       - uses: actions/checkout@v6
-      - name: Install validated ward for workflow bundle support
+      - name: Install validated Ward
         run: scripts/install-workflow-ward.sh "${WARD_WORKFLOW_VERSION}"
-      - name: Load the .ward bundle with the updated ward
-        run: WARD_CONFIG_REF="file://${PWD}/.ward" CLIGUARD_NO_SANDBOX=1 ward doctor
+      - name: Validate the supported Ward YAML contract
+        run: CLIGUARD_NO_SANDBOX=1 ward doctor
 
       - name: Alert Telegram on main failure
         if: ${{ failure() && github.ref == 'refs/heads/main' }}

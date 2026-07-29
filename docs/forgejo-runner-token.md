@@ -1,21 +1,17 @@
 # Forgejo runner-token fetch overlay
 
-`aosguard ops forgejo actions generate-runner-token` mints a Forgejo Actions runner
-registration token from the guarded surface. The HTTP request itself lives in
-[`.ward/forgejo.runnertoken.kdl`](../.ward/forgejo.runnertoken.kdl)
-as three declarative fetch leaves, one per scope:
+`aosguard ops forgejo actions generate-runner-token` mints a Forgejo Actions
+runner registration token from AOSguard's standalone generated surface. Its
+three scoped leaves are:
 
 - `global` - `/admin/runners/registration-token`
 - `org <org>` - `/orgs/{org}/actions/runners/registration-token`
 - `repo <owner> <repo>` - `/repos/{owner}/{repo}/actions/runners/registration-token`
 
-The thin exec bridge in
-[`.ward/forgejo.runnertoken.exec.kdl`](../.ward/forgejo.runnertoken.exec.kdl)
-routes the scope form through
-[`.ward/forgejo-runner-token.py`](../.ward/forgejo-runner-token.py) onto the
-right fetch leaf. It does not reimplement auth or HTTP.
+The generated AOSguard command owns request routing, authentication, and HTTP.
+Ward does not consume this surface or mount its credentials.
 
 See also:
 
-- [Role surface tiers](role-surface-tiers.md)
-- [Ward spec bundle](ward-specs.md)
+- [aosguard](aosguard.md)
+- [AOS and Ward boundary](ward-specs.md)

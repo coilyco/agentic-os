@@ -10,6 +10,7 @@ set -u
 # defaults before Ward bootstraps Git in the container.
 export WARD_GIT_NAME="${AOS_GIT_NAME:?AOS_GIT_NAME is required}"
 export WARD_GIT_EMAIL="${AOS_GIT_EMAIL:?AOS_GIT_EMAIL is required}"
+unset WARD_CONFIG_REF
 
 _siren_aos_root=${AOS_REPO_ROOT:-${FORGEJO_WORKSPACE:-${GITHUB_WORKSPACE:-/workspace/agentic-os}}}
 if ! git -C "$_siren_aos_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -26,9 +27,6 @@ if ! git -C "$_siren_aos_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; 
 fi
 if git -C "$_siren_aos_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   export AOS_REPO_ROOT="$_siren_aos_root"
-  # file:// reads the seeded checkout live: no in-container gitsync, creds, or
-  # bundle cache (the ward#1086 FETCH_HEAD class). The checkout IS the pinned tree.
-  export WARD_CONFIG_REF="file://$_siren_aos_root/.ward"
 fi
 
 if [ "$#" -gt 0 ]; then

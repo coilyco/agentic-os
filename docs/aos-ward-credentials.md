@@ -39,4 +39,4 @@ environment override. AOS never asks the operator to paste the token.
 
 * [AOS launch CLI](aos-cli.md) - integrated capability flags and routing.
 * [Shell and secret handling](features-shell-secrets.md) - on-demand SSM reads.
-* [Ward spec bundle](ward-specs.md) - deployment configuration ownership.
+* [AOS and Ward boundary](ward-specs.md) - deployment configuration ownership.

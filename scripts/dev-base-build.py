@@ -221,12 +221,6 @@ def _target_matches_source(
     return all(alias is not None and alias == source for alias in aliases)
 
 
-def _ward_config_ref_commit() -> str:
-    return (
-        subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-    )
-
-
 def _append_step_summary(text: str) -> None:
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
@@ -257,7 +251,6 @@ def _build_plan(
         plan = [entry for entry in plan if entry["tier"] == only_tier]
         if not plan:
             raise SystemExit(f"unknown tier: {only_tier}")
-    ward_config_ref_commit = _ward_config_ref_commit()
     for entry in plan:
         dockerfile = Path(entry["dockerfile"])
         context_dir = Path(entry["context_dir"])
@@ -277,8 +270,6 @@ def _build_plan(
         if is_language:
             cmd.extend(
                 [
-                    "--build-arg",
-                    f"WARD_CONFIG_REF_COMMIT={ward_config_ref_commit}",
                     "--build-context",
                     "aos-cli=aos",
                     "--build-context",
@@ -307,7 +298,6 @@ def _build_plan(
                     f"- image: {entry['image']}",
                     f"- cache: {entry['cache_image']}",
                     f"- context: {entry['context_dir']}",
-                    f"- ward_config_ref_commit: {ward_config_ref_commit}",
                     f"- command: {shlex.join(cmd)}",
                     "",
                 ]
@@ -316,7 +306,6 @@ def _build_plan(
             print(f"image={entry['image']}")
             print(f"cache={entry['cache_image']}")
             print(f"context={entry['context_dir']}")
-            print(f"ward_config_ref_commit={ward_config_ref_commit}")
             print(f"command={shlex.join(cmd)}")
             print("::endgroup::")
             _append_step_summary(summary + "\n")

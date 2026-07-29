@@ -48,4 +48,4 @@ and
 
 * [Role-composed skills](role-composed-skills.md) - source layout and
   composition contract.
-* [Role surface tiers](role-surface-tiers.md) - runtime authority.
+* [AOS and Ward boundary](ward-specs.md) - runtime authority.

@@ -98,23 +98,20 @@ func TestValidateIntegratedLaunchMatrix(t *testing.T) {
 
 func TestBuildWardLaunchPlanOwnsSiblingTranslation(t *testing.T) {
 	t.Parallel()
-	plan, err := buildWardLaunchPlan(integratedLaunchOptions{
+	plan := buildWardLaunchPlan(integratedLaunchOptions{
 		Image:     "aos:test",
 		Role:      "engineer",
 		Agent:     "codex",
 		Arguments: []string{"owner/repo#267", "--print"},
 	}, "/cache/context")
-	if err != nil {
-		t.Fatal(err)
-	}
 	got := strings.Join(append([]string{plan.Command}, plan.Args...), " ")
-	want := "ward agent engineer owner/repo#267 --print --agent codex --image aos:test --context-bundle /cache/context --config agent.codex.model=gpt-5.6-terra --config agent.codex.effort=high --config agent.codex.verbosity=low"
+	want := "ward agent engineer owner/repo#267 --print --agent codex --image aos:test --context-bundle /cache/context"
 	if got != want {
 		t.Fatalf("Ward launch = %q, want %q", got, want)
 	}
 }
 
-func TestIntegratedWardedDirectorCodexDryRunForwardsResolvedInputs(t *testing.T) {
+func TestIntegratedWardedDirectorCodexDryRunUsesOpaqueCompositionMetadata(t *testing.T) {
 	t.Parallel()
 	command := newCommand()
 	var output bytes.Buffer
@@ -134,15 +131,13 @@ func TestIntegratedWardedDirectorCodexDryRunForwardsResolvedInputs(t *testing.T)
 		t.Fatal(err)
 	}
 	rendered := output.String()
-	for _, want := range []string{
-		"ward agent director",
-		"--config agent.codex.model=gpt-5.6-sol",
-		"--config agent.codex.effort=xhigh",
-		"--config agent.codex.verbosity=low",
-	} {
+	for _, want := range []string{"ward agent director", "--agent codex", "--context-bundle '<AOS_CONTEXT_BUNDLE>'"} {
 		if !strings.Contains(rendered, want) {
 			t.Errorf("dry run missing %q:\n%s", want, rendered)
 		}
+	}
+	if strings.Contains(rendered, "--config agent.codex.") {
+		t.Fatalf("Ward launch projected a role-keyed harness overlay:\n%s", rendered)
 	}
 }
 
@@ -222,5 +217,35 @@ func TestIntegratedStandaloneDryRunUsesSelectedAgent(t *testing.T) {
 	}
 	if strings.Contains(rendered, substrateVolume) {
 		t.Fatalf("guard-only launch mounted the composition cache:\n%s", rendered)
+	}
+}
+
+func TestIntegratedStandaloneComposedDryRunUsesNoWard(t *testing.T) {
+	t.Parallel()
+	command := newCommand()
+	var output bytes.Buffer
+	command.Writer = &output
+	command.ErrWriter = &output
+	err := command.Run(context.Background(), []string{
+		"aos",
+		"--agent", "codex",
+		"--role", "engineer",
+		"--image", "aos:test",
+		"--composed",
+		"--dry-run",
+		"--",
+		"--version",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rendered := output.String()
+	for _, want := range []string{"docker run", "_container-acompose", "--composed"} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("standalone composed dry run missing %q:\n%s", want, rendered)
+		}
+	}
+	if strings.Contains(rendered, "ward agent") {
+		t.Fatalf("standalone composed dry run invoked Ward:\n%s", rendered)
 	}
 }

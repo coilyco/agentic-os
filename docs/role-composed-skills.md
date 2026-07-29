@@ -75,6 +75,6 @@ composed layout and content. `documentation-layout`, `dead-cross-links`, and
 ## See also
 
 * [Agent-compose AOS provider](personality-provider.md) - provider inference and delivery.
-* [Role surface tiers](role-surface-tiers.md) - the separate authority model.
+* [AOS and Ward boundary](ward-specs.md) - the separate authority model.
 * [Skill discipline](skill-discipline.md) - authoring and validator catalog.
 * [docs/FEATURES.md](FEATURES.md) - shipped AOS capability inventory.

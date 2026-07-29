@@ -51,11 +51,21 @@ The **trigger** for a rollout is a push, not a hand-run publish, keeping it in a
 
 **Corollary** - a reference-implementation repo authors zero config that a shipped tool consumes at runtime. Fleet config that every user of the tool melds to their own values belongs down in the tool's build-time authoring layer (authored, compiled, embedded), not up in the reference repo. The reference repo may hold a clearly-marked reference copy of a config file as documentation, never a thing the tool fetches.
 
-**Deployment boundary (aos#332).** The coilyco [`.ward/`](.ward/) spec bundle and dev-base identity are authored here for Kai's single deployment. The AOS image exposes them through Ward's provider-neutral runtime seams. Ward source and releases never import or bake this deployment config. Full reasoning: [docs/ward-specs.md](docs/ward-specs.md).
+**Deployment boundary (aos#778).** AOS owns agent-compose inputs, harness
+selection, deployment identity, and standalone AOSguard policy. Ward owns fixed
+workflows and its broker. AOS does not ship a Ward role-policy or KDL bundle.
+Only the supported YAML in [`.ward/ward.yaml`](.ward/ward.yaml) remains for
+repository command and fixture declaration. Full reasoning:
+[docs/ward-specs.md](docs/ward-specs.md).
 
-The layer gradient this keys off (churn and host-awareness rising together, a clone/use breakpoint at each): cli-guard and specgen (generic engines, external contributors, no upstream knowledge), then Ward (the product and native role policy), then aos (AOSguard policy, Kai's Ward deployment bundle, and public docs), then infra (nobody clones it but Kai).
+The layer gradient this keys off (churn and host-awareness rising together, a clone/use breakpoint at each): cli-guard and specgen (generic engines, external contributors, no upstream knowledge), then Ward (fixed workflows and broker), then aos (AOSguard policy, composition inputs, and public docs), then infra (nobody clones it but Kai).
 
-Config splits on three axes, each a distinct owner: **permission/surface** (AOSguard specs and Ward role bindings), **deployment tuning** (identity, model, endpoint, attribution, roster defaults - AOS bundle and image environment), and **operator-local preference** (per-host, hand-edited, not embedded, parsed from a local source). One parser may serve two sources. The axes stay distinct owners.
+Config splits on three axes, each a distinct owner: **permission/surface**
+(AOSguard specs and Ward's fixed broker), **deployment tuning** (identity,
+model, endpoint, attribution, roster defaults - AOS and agent-compose launch
+inputs), and **operator-local preference** (per-host, hand-edited, not
+embedded, parsed from a local source). One parser may serve two sources. The
+axes stay distinct owners.
 
 ### Skills
 

@@ -1,6 +1,0 @@
-defaults {
-    // AOS owns the coilyco deployment image. Ward's embedded fallback stays
-    // neutral and this launch-selected bundle supplies the deployed runtime.
-    agent-image "forgejo.coilysiren.me/coilyco-flight-deck/agentic-os"
-    agent-tag "release"
-}

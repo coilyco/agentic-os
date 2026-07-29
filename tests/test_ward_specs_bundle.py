@@ -9,12 +9,6 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _run_ward_doctor() -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
-    env.update(
-        {
-            "WARD_CONFIG_REF": f"file://{ROOT}/.ward",
-            "WARD_DOCTOR_ALLOW_PLACEHOLDERS": "1",
-        }
-    )
     return subprocess.run(
         ["ward", "doctor"],
         cwd=ROOT,
@@ -25,10 +19,10 @@ def _run_ward_doctor() -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_repos_bundle_is_accepted_by_ward_doctor() -> None:
+def test_yaml_configuration_is_accepted_by_ward_doctor() -> None:
     result = _run_ward_doctor()
     assert "ward doctor: all checks passed" in result.stdout
 
 
-def test_repos_bundle_does_not_ship_a_separate_workflow_overlay() -> None:
-    assert not (ROOT / ".ward" / "workflow.kdl").exists()
+def test_ward_directory_has_no_retired_kdl_configuration() -> None:
+    assert not list((ROOT / ".ward").glob("*.kdl"))

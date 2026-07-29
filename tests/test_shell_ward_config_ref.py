@@ -1,4 +1,4 @@
-"""Smoke coverage for the WARD_CONFIG_REF propagation path."""
+"""Smoke coverage for the AOS checkout and identity propagation path."""
 from __future__ import annotations
 
 import os
@@ -7,13 +7,6 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-
-
-def _bundle_dir_of(ref: str) -> Path:
-    """Resolve a file:// WARD_CONFIG_REF back to the checkout it points into."""
-    assert ref.startswith("file://"), ref
-    assert ref.endswith("/.ward"), ref
-    return Path(ref[len("file://"):].removesuffix("/.ward")).resolve()
 
 
 def _foreign_repo(tmp_path: Path) -> Path:
@@ -40,7 +33,7 @@ def _foreign_repo(tmp_path: Path) -> Path:
     return repo
 
 
-def test_common_shell_uses_the_canonical_checkout_instead_of_cwd(tmp_path: Path) -> None:
+def test_common_shell_does_not_set_retired_ward_config_reference(tmp_path: Path) -> None:
     foreign = _foreign_repo(tmp_path)
     env = os.environ.copy()
     env.update(
@@ -55,7 +48,7 @@ def test_common_shell_uses_the_canonical_checkout_instead_of_cwd(tmp_path: Path)
         [
             "bash",
             "-lc",
-            f'source "{REPO_ROOT / "shell" / "common.sh"}"; printf "%s" "$WARD_CONFIG_REF"',
+            f'source "{REPO_ROOT / "shell" / "common.sh"}"; printf "%s" "${{WARD_CONFIG_REF-}}"',
         ],
         cwd=foreign,
         check=True,
@@ -64,9 +57,7 @@ def test_common_shell_uses_the_canonical_checkout_instead_of_cwd(tmp_path: Path)
         env=env,
     )
 
-    # Host shells point at the canonical checkout's bundle live (file://), so a
-    # pull is immediately effective and launch needs no gitsync or credentials.
-    assert _bundle_dir_of(proc.stdout) == REPO_ROOT.resolve()
+    assert proc.stdout == ""
 
 
 def test_container_entrypoint_seeds_the_read_only_surface_env(tmp_path: Path) -> None:
@@ -92,7 +83,7 @@ def test_container_entrypoint_seeds_the_read_only_surface_env(tmp_path: Path) ->
             str(entrypoint),
             "bash",
             "-lc",
-            'printf "%s\n%s\n%s\n%s" "$AOS_REPO_ROOT" "$WARD_CONFIG_REF" "$WARD_GIT_NAME" "$WARD_GIT_EMAIL"',
+            'printf "%s\n%s\n%s" "$AOS_REPO_ROOT" "$WARD_GIT_NAME" "$WARD_GIT_EMAIL"',
         ],
         cwd=foreign,
         check=True,
@@ -101,10 +92,7 @@ def test_container_entrypoint_seeds_the_read_only_surface_env(tmp_path: Path) ->
         env=env,
     )
 
-    root, ref, git_name, git_email = proc.stdout.splitlines()
+    root, git_name, git_email = proc.stdout.splitlines()
     assert root == str(REPO_ROOT)
-    # The entrypoint reads the seeded checkout's bundle live too - no in-container
-    # gitsync, credentials, or config-bundle cache (the ward#1086 FETCH_HEAD class).
-    assert ref == f"file://{root}/.ward"
     assert git_name == env["AOS_GIT_NAME"]
     assert git_email == env["AOS_GIT_EMAIL"]

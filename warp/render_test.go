@@ -23,9 +23,6 @@ func TestProfileUsesNativePowerShellEnvironment(t *testing.T) {
 	if !strings.Contains(got, "$_commonShellPath = 'X:/projects/coilyco-flight-deck/agentic-os/shell/common.sh'") {
 		t.Fatalf("profile should read shared exports from RepoRoot, got:\n%s", got)
 	}
-	if !strings.Contains(got, "$env:WARD_CONFIG_REF = 'file://X:/projects/coilyco-flight-deck/agentic-os/.ward'") {
-		t.Fatalf("profile should point WARD_CONFIG_REF at RepoRoot")
-	}
 	if !strings.Contains(got, "$env:WARD_LOCKDOWN_ROOT = 'X:/projects'") {
 		t.Fatalf("profile should keep lockdown at ProjectsDir")
 	}

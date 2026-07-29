@@ -131,25 +131,9 @@ repos:
         always_run: true
         pass_filenames: false
         stages: [pre-commit]
-      - id: local-model-roster
-        name: AOS local models match the AOSH provisioned roster
-        entry: python -m agentic_os.local_model_sync --check --if-present
-        language: python
-        additional_dependencies: [pyyaml]
-        always_run: true
-        pass_filenames: false
-        stages: [pre-commit]
       - id: role-harness-board
         name: AOS harness registry and AOSH selections match projections
         entry: python -m agentic_os.harness_board_sync --check --if-present
-        language: python
-        additional_dependencies: [pyyaml]
-        always_run: true
-        pass_filenames: false
-        stages: [pre-commit]
-      - id: role-seat-agent-config
-        name: AOS Ward role-seat agent identities match AOSH
-        entry: python -m agentic_os.role_seat_sync --check --if-present
         language: python
         additional_dependencies: [pyyaml]
         always_run: true

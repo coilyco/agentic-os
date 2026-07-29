@@ -76,5 +76,5 @@ personality theater.
 ## See also
 
 * [Agents and sessions](features-agents-sessions.md) - host context composition.
-* [Role surface tiers](role-surface-tiers.md) - the authority boundary.
+* [AOS and Ward boundary](ward-specs.md) - the authority boundary.
 * [docs/FEATURES.md](FEATURES.md) - shipped AOS capability inventory.

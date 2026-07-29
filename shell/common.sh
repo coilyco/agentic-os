@@ -20,6 +20,9 @@ export SAVEHIST=100000
 # release alias.
 export WARD_AGENT_IMAGE="forgejo.coilysiren.me/coilyco-flight-deck/agentic-os"
 export WARD_AGENT_TAG="release"
+# Ward no longer consumes checkout-derived KDL references. Clear an inherited
+# value from a pre-#1615 shell or image before launching a harness.
+unset WARD_CONFIG_REF
 # shared-environment: end
 
 _siren_aos_repo_root() {
@@ -70,20 +73,6 @@ _siren_projects_root() {
 }
 
 export PROJECTS_ROOT="$(_siren_projects_root)"
-
-# Host shells read the bundle live from the checkout (file://): a pull applies
-# immediately, and launch needs no pin, gitsync, or credential. See docs/ward-specs.md.
-_siren_ward_config_ref() {
-  local repo
-  repo=$(_siren_aos_repo_root) || return 1
-  # Native Windows ward.exe cannot stat an MSYS /x/... path; -m emits X:/...
-  if command -v cygpath >/dev/null 2>&1; then
-    repo=$(cygpath -m "$repo") || return 1
-  fi
-  printf 'file://%s/.ward' "$repo"
-}
-
-export WARD_CONFIG_REF="$(_siren_ward_config_ref)"
 
 # Env + PATH are inherited, so run once per terminal tree: the exported guard is
 # the "has this run in this terminal yet?" check. Aliases/functions always define.

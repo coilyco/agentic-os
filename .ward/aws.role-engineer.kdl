@@ -1,9 +1,0 @@
-wrap aos-ward ops aws {
-    exec aws
-    can run ssm get-parameter {
-        when name matches "*coilyco-ops*"
-    }
-    can run ssm get-parameters-by-path {
-        when path matches "*coilyco-ops*"
-    }
-}

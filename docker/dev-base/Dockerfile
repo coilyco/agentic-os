@@ -168,8 +168,6 @@ COPY --from=dev-base-tool-builder /usr/local/bin/aos /usr/local/bin/aos
 COPY --from=dev-base-tool-builder /usr/local/bin/aosguard /usr/local/bin/aosguard
 COPY --from=dev-base-tool-builder /opt/agentic-os/aosguard-skill /opt/agentic-os/aosguard-skill
 COPY --from=aosguard-python . /opt/agentic-os/python/agentic_os/
-ARG WARD_CONFIG_REF_COMMIT
-ENV WARD_CONFIG_REF=forgejo.coilysiren.me/coilyco-flight-deck/agentic-os@${WARD_CONFIG_REF_COMMIT}//.ward
 RUN --mount=type=bind,source=verify-common.sh,target=/tmp/verify-common.sh \
     node --version && bash /tmp/verify-common.sh
 WORKDIR /workspace
@@ -219,8 +217,6 @@ COPY --from=dev-base-tool-builder /usr/local/bin/aos /usr/local/bin/aos
 COPY --from=dev-base-tool-builder /usr/local/bin/aosguard /usr/local/bin/aosguard
 COPY --from=dev-base-tool-builder /opt/agentic-os/aosguard-skill /opt/agentic-os/aosguard-skill
 COPY --from=aosguard-python . /opt/agentic-os/python/agentic_os/
-ARG WARD_CONFIG_REF_COMMIT
-ENV WARD_CONFIG_REF=forgejo.coilysiren.me/coilyco-flight-deck/agentic-os@${WARD_CONFIG_REF_COMMIT}//.ward
 RUN --mount=type=bind,source=verify-common.sh,target=/tmp/verify-common.sh \
     go version && bash /tmp/verify-common.sh
 WORKDIR /workspace
@@ -275,8 +271,6 @@ COPY --from=dev-base-tool-builder /usr/local/bin/aos /usr/local/bin/aos
 COPY --from=dev-base-tool-builder /usr/local/bin/aosguard /usr/local/bin/aosguard
 COPY --from=dev-base-tool-builder /opt/agentic-os/aosguard-skill /opt/agentic-os/aosguard-skill
 COPY --from=aosguard-python . /opt/agentic-os/python/agentic_os/
-ARG WARD_CONFIG_REF_COMMIT
-ENV WARD_CONFIG_REF=forgejo.coilysiren.me/coilyco-flight-deck/agentic-os@${WARD_CONFIG_REF_COMMIT}//.ward
 RUN --mount=type=bind,source=verify-common.sh,target=/tmp/verify-common.sh \
     dotnet --list-sdks && bash /tmp/verify-common.sh
 WORKDIR /workspace
@@ -341,8 +335,6 @@ COPY --from=dev-base-tool-builder /usr/local/bin/aos /usr/local/bin/aos
 COPY --from=dev-base-tool-builder /usr/local/bin/aosguard /usr/local/bin/aosguard
 COPY --from=dev-base-tool-builder /opt/agentic-os/aosguard-skill /opt/agentic-os/aosguard-skill
 COPY --from=aosguard-python . /opt/agentic-os/python/agentic_os/
-ARG WARD_CONFIG_REF_COMMIT
-ENV WARD_CONFIG_REF=forgejo.coilysiren.me/coilyco-flight-deck/agentic-os@${WARD_CONFIG_REF_COMMIT}//.ward
 RUN --mount=type=bind,source=verify-common.sh,target=/tmp/verify-common.sh \
     cargo --version && trunk --version && bash /tmp/verify-common.sh
 WORKDIR /workspace
@@ -390,8 +382,6 @@ COPY --from=dev-base-tool-builder /usr/local/bin/aos /usr/local/bin/aos
 COPY --from=dev-base-tool-builder /usr/local/bin/aosguard /usr/local/bin/aosguard
 COPY --from=dev-base-tool-builder /opt/agentic-os/aosguard-skill /opt/agentic-os/aosguard-skill
 COPY --from=aosguard-python . /opt/agentic-os/python/agentic_os/
-ARG WARD_CONFIG_REF_COMMIT
-ENV WARD_CONFIG_REF=forgejo.coilysiren.me/coilyco-flight-deck/agentic-os@${WARD_CONFIG_REF_COMMIT}//.ward
 RUN --mount=type=bind,source=verify-common.sh,target=/tmp/verify-common.sh \
     python --version && pipenv --version && bash /tmp/verify-common.sh
 WORKDIR /workspace

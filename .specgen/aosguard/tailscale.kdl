@@ -6,7 +6,7 @@
 // design: status/ping/netcheck and friends mount, while the state-changing
 // verbs (up/down/login/logout/set/serve/funnel/ssh/file) stay denied - joining
 // or reshaping the tailnet is ward's container bring-up axis, never an agent
-// verb. Per-role bindings live in roles.kdl; tiers: docs/role-surface-tiers.md.
+// verb. AOSguard stays independent from Ward's fixed broker surface.
 wrap aosguard ops tailscale {
     exec "/usr/local/bin/tailscale"
     can run status {

@@ -113,9 +113,6 @@ func validateIntegratedLaunch(opts integratedLaunchOptions) error {
 				forbidden,
 			)
 		}
-		if _, err := wardLaunchInputsFor(opts.Role, opts.Agent); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -256,10 +253,7 @@ func runWardedLaunch(
 			}
 		}
 	}
-	plan, err := buildWardLaunchPlan(opts, bundlePath)
-	if err != nil {
-		return err
-	}
+	plan := buildWardLaunchPlan(opts, bundlePath)
 	if opts.DryRun {
 		fmt.Fprintln(
 			cmd.Root().Writer,
@@ -275,19 +269,14 @@ func runWardedLaunch(
 	return hostCommand(ctx, plan.Command, launchEnvironment, plan.Args...)
 }
 
-func buildWardLaunchPlan(opts integratedLaunchOptions, bundlePath string) (wardLaunchPlan, error) {
+func buildWardLaunchPlan(opts integratedLaunchOptions, bundlePath string) wardLaunchPlan {
 	args := []string{"agent", opts.Role}
 	args = append(args, opts.Arguments...)
 	args = append(args, "--agent", opts.Agent, "--image", opts.Image)
 	if bundlePath != "" {
 		args = append(args, "--context-bundle", bundlePath)
 	}
-	inputs, err := wardLaunchInputsFor(opts.Role, opts.Agent)
-	if err != nil {
-		return wardLaunchPlan{}, err
-	}
-	args = append(args, inputs...)
-	return wardLaunchPlan{Command: "ward", Args: args}, nil
+	return wardLaunchPlan{Command: "ward", Args: args}
 }
 
 func resolveWardWithContextContract(ctx context.Context) (string, error) {

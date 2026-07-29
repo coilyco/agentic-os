@@ -213,7 +213,6 @@ def test_local_language_build_sets_architecture_and_named_contexts(monkeypatch) 
     commands: list[list[str]] = []
     monkeypatch.setattr(script, "_run", lambda cmd: commands.append(cmd))
     monkeypatch.setattr(script, "_host_targetarch", lambda: "amd64")
-    monkeypatch.setattr(script, "_ward_config_ref_commit", lambda: "commit")
 
     script._build_plan(
         REGISTRY_BASE,
@@ -227,7 +226,6 @@ def test_local_language_build_sets_architecture_and_named_contexts(monkeypatch) 
     build = commands[0]
     assert build[:3] == ["docker", "build", "--build-arg"]
     assert "TARGETARCH=amd64" in build
-    assert "WARD_CONFIG_REF_COMMIT=commit" in build
     assert "aos-cli=aos" in build
     assert "aosguard-spec=.specgen" in build
     assert "aosguard-python=agentic_os" in build
@@ -239,7 +237,6 @@ def test_full_build_consumes_only_language_image_refs(monkeypatch) -> None:
     script = _load_script()
     commands: list[list[str]] = []
     monkeypatch.setattr(script, "_run", lambda cmd: commands.append(cmd))
-    monkeypatch.setattr(script, "_ward_config_ref_commit", lambda: "commit")
 
     script._build_plan(
         REGISTRY_BASE,
@@ -267,7 +264,6 @@ def test_pushed_build_skips_an_existing_checkpoint(monkeypatch) -> None:
     commands: list[list[str]] = []
     monkeypatch.setattr(script, "_has_target_checkpoint", lambda *_args: True)
     monkeypatch.setattr(script, "_run", lambda cmd: commands.append(cmd))
-    monkeypatch.setattr(script, "_ward_config_ref_commit", lambda: "commit")
 
     script._build_plan(
         REGISTRY_BASE,

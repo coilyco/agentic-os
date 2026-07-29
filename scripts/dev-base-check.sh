@@ -24,7 +24,6 @@ fi
 while IFS= read -r language_target; do
   docker buildx build \
     --check \
-    --build-arg WARD_CONFIG_REF_COMMIT=0000000000000000000000000000000000000000 \
     --build-context aos-cli=aos \
     --build-context aosguard-spec=.specgen \
     --build-context aosguard-python=agentic_os \

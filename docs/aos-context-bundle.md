@@ -58,7 +58,7 @@ and appends Ward-owned authority context. Ward keeps bundle tools after the
 image's existing PATH, so bundled tools cannot shadow image tools.
 
 The manifest cannot name permissions, credentials, mounts, network access, or
-other capabilities. Ward computes authority from its embedded role policy.
+other capabilities. Ward's broker surface is fixed and role-independent.
 
 ## Ownership
 

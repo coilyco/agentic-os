@@ -40,7 +40,6 @@ if (Test-Path -LiteralPath $_commonShellPath) {
 }
 
 # Host-derived values stay native so PowerShell receives Windows paths.
-$env:WARD_CONFIG_REF = 'file://{{ .RepoRoot }}/.ward'
 $env:WARD_LOCKDOWN_ROOT = '{{ .ProjectsDir }}'
 $env:_SIREN_SHELL_ENV = '1'
 

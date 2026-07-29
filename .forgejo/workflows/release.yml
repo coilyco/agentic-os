@@ -167,14 +167,6 @@ jobs:
           name: ${{ needs.plan-release.outputs.tag }}
           body: ${{ needs.plan-release.outputs.changelog }}
 
-      - name: Publish the ward-specs bundle as a pinned, checksummed release asset
-        env:
-          FORGEJO_TOKEN: ${{ github.token }}
-          FORGEJO_API: https://forgejo.coilysiren.me/api/v1/repos/${{ github.repository }}
-          REL_ID: ${{ steps.create.outputs.release_id }}
-          TAG: ${{ needs.plan-release.outputs.tag }}
-        run: bash scripts/ci/publish-ward-specs.sh
-
       - name: Alert Telegram on main failure
         if: ${{ failure() && github.ref == 'refs/heads/main' }}
         continue-on-error: true

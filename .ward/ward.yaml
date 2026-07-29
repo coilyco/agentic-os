@@ -103,15 +103,9 @@ commands:
   aos-role-question:
     run: sh scripts/aos-role-question.sh
     description: "Ask one composed role a real question through cloud Codex or Goose with a local model, enforce a bounded run, and require the response to confirm its loaded role. Usage: `ward exec aos-role-question -- cloud|local ROLE [MODEL]`."
-  sync-local-models:
-    run: uv run python -m agentic_os.local_model_sync
-    description: "Sync AOSH's selected Goose route into `.ward/agents.kdl`. OpenCode remains AOS-local backend policy. `-- --check` compares the synced overlay with the selected, provisioned roster and fails on drift. See docs/ward-local-models.md."
   sync-harness-board:
     run: uv run python -m agentic_os.harness_board_sync
     description: "Join AOS's canonical `.agents/harnesses.yaml` capability registry with AOSH's model-opaque role-intent selections, then project `.agents/roles.kdl` and the compiled `aos/role-harnesses.json` launcher view. `-- --check` reports drift without writing. See docs/ward-local-models.md."
-  sync-role-seats:
-    run: uv run python -m agentic_os.role_seat_sync
-    description: "Project AOSH's public-safe role-seat names and pronouns into marker-bounded agent identity blocks in `.ward/roles.kdl`. `-- --check` reports drift without writing. See docs/ward-local-models.md."
   sync-role-personalities:
     run: uv run python -m agentic_os.role_personality_sync
     description: "Project agent-compose's emitted person snapshot into `aos/role-personalities.json` for measurement alignment. `-- --check` reports drift without writing. See docs/role-orientation-projections.md."

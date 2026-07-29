@@ -27,10 +27,9 @@ This lists shipped capabilities, not files.
 - [Forgejo Actions list bridge](forgejo-actions-listing.md) - safe first-page helper for Actions run/task inspection.
 - [Forgejo runner-token fetch overlay](forgejo-runner-token.md) - guarded runner registration-token minting via fetch leaves.
 - [Forgejo Actions rerun bridge](forgejo-actions-rerun.md) - guarded reruns with dispatch fallback and fetch mirror.
-- [ward bundle](ward-specs.md) - AOS runtime policy and identity, never baked into Ward.
+- [Ward integration boundary](ward-specs.md) - fixed Ward workflows, opaque
+  composition metadata, and no AOS role-policy bundle.
 - [QA verification fixture](qa-verification-fixture.md) - bounded live director, engineer, and QA proof with terminal cleanup.
-- [Ward profile assets home](ward-profile-assets.md) - AOS profile/config inputs for Ward's `ProfileProvider`.
-- [Role surface tiers](role-surface-tiers.md) - guarded Engineer/QA observation and wider Director/Ops tiers.
 - [Cross-repo tooling and release](features-release-tooling.md) - hooks, diagnostics, promotion, retries, reruns.
 - [Telegram CI failure alerts](telegram-ci-alerts.md) - reusable red-channel alerting for failing jobs.
 - [dev-base image family](dev-base-image.md) - parallel Ubuntu language images plus the full fan-in surface.

@@ -88,11 +88,9 @@ generate-caps-reference = "agentic_os.generators.generate_caps_reference:main"
 # the lowest determining layer, never fetched downward) lands beside the
 # authoring-vs-rollout contract as always-composed doctrine, same in-context
 # rationale as the earlier bump - a docs/*.md split would drop the law out of load.
-# Raised again from 14200 when the config-placement law gained a carved
-# exception (aos authors the coilyco ward-specs bundle ward consumes at build
-# time), which must ride beside the law it amends as always-composed doctrine -
-# same in-context rationale. The full reasoning lives in docs/ward-specs.md; the
-# exception here is the terse named pointer that keeps the law self-consistent.
+# Raised again from 14200 when the config-placement law gained its AOS to Ward
+# deployment-boundary pointer, which must ride beside the law it amends as
+# always-composed doctrine. The full reasoning lives in docs/ward-specs.md.
 # Raised again from 14500 for the sealed engineer/QA live-deployment
 # prohibition, which must live beside the base doctrine as always-composed
 # guidance instead of being split into a detached doc.
@@ -152,15 +150,7 @@ slow_days = 365
 
 [tool.agentic-os.issue-reference-guard]
 enabled = true
-excludes = [
-    ".ward/aws*.kdl",
-    ".ward/forgejo*.kdl",
-    ".ward/kubectl.kdl",
-    ".ward/observe.kdl",
-    ".ward/tailscale.kdl",
-    ".ward/*.lock.json",
-    "agentic_os.egg-info/**",
-]
+excludes = ["agentic_os.egg-info/**"]
 
 [dependency-groups]
 dev = ["pytest>=9"]

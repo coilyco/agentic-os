@@ -78,5 +78,5 @@ wrap aosguard ops kubectl {
     // Back-link footer: doc-link regenerates a `## See also` section
     // into this guardfile's reference doc, so it survives every rebuild wipe-proof.
     doc-link "../../docs/aosguard.md" aosguard.md "the standalone CLI source and authority boundary"
-    doc-link "../../docs/role-surface-tiers.md" role-surface-tiers.md "the Ward role boundary excluded from this static operator CLI"
+    doc-link "../../docs/ward-specs.md" ward-specs.md "the Ward boundary excluded from this static operator CLI"
 }

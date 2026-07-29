@@ -19,10 +19,9 @@ Forgejo metadata includes
 `repo-topic replace-all <owner> <repo>`, whose repeated `--topics` values
 become the repository's complete topic set.
 
-Ward selects role policy dynamically. Specgen merges every member with the same
-`wrap` identity into one static binary. Copying every Ward role source into
-`aosguard` would silently union role authority, so the two policies stay
-separate.
+Ward's fixed broker and AOSguard's static operator surface are independent.
+Specgen merges AOSguard policy into one static binary. Neither surface imports
+role-derived grants from the other.
 
 ## Generated skill
 
@@ -43,10 +42,9 @@ help, and `describe` surfaces remain authoritative.
 
 ## Source ownership
 
-`.specgen/aosguard/` owns the operator policy. `.ward/` owns the role-scoped
-Ward bundle described in [ward specs](ward-specs.md). Neither tree is generated
-from the other, and no drift check forces them to match. A policy that agents
-and operators both need is reviewed in both authority contexts.
+`.specgen/aosguard/` owns the operator policy. Ward owns its broker internally.
+Neither product reads policy from the other, and no drift check forces them to
+match.
 
 The Forgejo source is vendored from the pruned deployment contract, so
 `aosguard-lock` refreshes the dependency graph without reaching a live Forgejo
@@ -77,4 +75,4 @@ implementation in [agentic-os#755](https://forgejo.coilysiren.me/coilyco-flight-
 
 * [AOS launch CLI](aos-cli.md)
 * [Feature inventory](FEATURES.md)
-* [Ward bundle](ward-specs.md)
+* [AOS and Ward boundary](ward-specs.md)
