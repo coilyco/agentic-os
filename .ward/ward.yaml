@@ -65,7 +65,7 @@ commands:
     run: sh scripts/check-aos-release.sh
     description: "Verify `aos` release checksums, package metadata, and the native version-stamped binary."
   workflow-ward-install-check:
-    run: sh scripts/install-workflow-ward.sh
+    run: bash scripts/install-workflow-ward.sh
     description: "Build the Ward version used by Actions from its canonical tag. Pass the tag and a temporary output path after `--`."
   aos-dry-run:
     run: ./aos/aos --role engineer --dry-run acompose -- codex --version
