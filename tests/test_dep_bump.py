@@ -268,13 +268,19 @@ def test_compute_plan_skips_unresolved_pins(monkeypatch) -> None:
     assert script.compute_plan(DOCKERFILE_SNIPPET) == []
 
 
-def test_tree_plan_reads_the_split_dev_base_layout(monkeypatch) -> None:
+def test_tree_plan_reads_the_split_dev_base_layout(
+    monkeypatch, tmp_path: Path
+) -> None:
     script = _load_script()
     monkeypatch.setitem(script.RESOLVERS, "UV_VERSION", lambda: "0.12.0")
     for name in list(script.RESOLVERS):
         if name != "UV_VERSION":
             monkeypatch.delitem(script.RESOLVERS, name)
+    (tmp_path / "Dockerfile").write_text(
+        "ARG UV_VERSION=0.11.26\n",
+        encoding="utf-8",
+    )
 
-    assert script._compute_tree_plan(script.DOCKERFILE) == [
+    assert script._compute_tree_plan(tmp_path) == [
         {"arg": "UV_VERSION", "current": "0.11.26", "latest": "0.12.0"}
     ]

@@ -119,7 +119,7 @@ func prepareContainer(
 			return execSpec{}, err
 		}
 	}
-	if err := stageHarnessDefaults(opts.Layout, opts.AgentHome, opts.Workspace); err != nil {
+	if err := stageHarnessDefaults(opts.Role, opts.Layout, opts.AgentHome, opts.Workspace); err != nil {
 		return execSpec{}, err
 	}
 	if err := stageMCPProjection(ctx, opts, runner); err != nil {
@@ -438,7 +438,7 @@ func findSingleBundle(root string) (string, error) {
 
 // stageHarnessDefaults carries container-boundary settings that the selected harness
 // cannot infer from projected role context (agentic-os#723, agentic-os#724).
-func stageHarnessDefaults(layout, home, workspace string) error {
+func stageHarnessDefaults(role, layout, home, workspace string) error {
 	if layout != "codex" {
 		return nil
 	}
@@ -449,9 +449,14 @@ func stageHarnessDefaults(layout, home, workspace string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create codex config directory: %w", err)
 	}
+	profile, err := harnessLaunchProfileFor(role, layout)
+	if err != nil {
+		return err
+	}
 	body := "# Written by the AOS container bootstrap: the container is the security boundary.\n" +
-		"model = \"gpt-5.6-terra\"\n" +
-		"model_reasoning_effort = \"medium\"\n" +
+		"model = " + tomlBasicString(profile.Model) + "\n" +
+		"model_reasoning_effort = " + tomlBasicString(profile.ReasoningEffort) + "\n" +
+		"model_verbosity = " + tomlBasicString(profile.Verbosity) + "\n" +
 		"approval_policy = \"never\"\n" +
 		"sandbox_mode = \"danger-full-access\"\n\n" +
 		"[notice]\n" +

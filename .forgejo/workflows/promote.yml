@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 env:
-  WARD_WORKFLOW_VERSION: v0.775.0-tmp
+  WARD_WORKFLOW_VERSION: v0.856.0
 
 jobs:
   gate:

@@ -1,0 +1,93 @@
+{
+  "format": "agentic-os.harness-launch-profiles.v1",
+  "defaults": {
+    "claude": {
+      "model": "claude-sonnet-4-6",
+      "reasoning_effort": "high"
+    },
+    "codex": {
+      "model": "gpt-5.5",
+      "reasoning_effort": "high",
+      "verbosity": "low"
+    },
+    "goose": {
+      "model": "ministral-3:8b"
+    },
+    "opencode": {
+      "model": "qwen3.6:35b",
+      "endpoint": "http://host.docker.internal:8082/v1"
+    }
+  },
+  "roles": {
+    "advisor": {
+      "claude": {
+        "model": "claude-fable-5",
+        "reasoning_effort": "xhigh"
+      },
+      "codex": {
+        "model": "gpt-5.6-sol",
+        "reasoning_effort": "xhigh"
+      }
+    },
+    "ceo": {
+      "claude": {
+        "model": "claude-fable-5",
+        "reasoning_effort": "xhigh"
+      },
+      "codex": {
+        "model": "gpt-5.6-sol",
+        "reasoning_effort": "xhigh"
+      }
+    },
+    "director": {
+      "claude": {
+        "model": "claude-fable-5",
+        "reasoning_effort": "xhigh"
+      },
+      "codex": {
+        "model": "gpt-5.6-sol",
+        "reasoning_effort": "xhigh"
+      }
+    },
+    "engineer": {
+      "claude": {
+        "model": "claude-opus-4-8",
+        "reasoning_effort": "high"
+      },
+      "codex": {
+        "model": "gpt-5.6-terra",
+        "reasoning_effort": "high"
+      }
+    },
+    "ops": {
+      "claude": {
+        "model": "claude-fable-5",
+        "reasoning_effort": "xhigh"
+      },
+      "codex": {
+        "model": "gpt-5.6-sol",
+        "reasoning_effort": "xhigh"
+      }
+    },
+    "pm": {
+      "claude": {
+        "model": "claude-opus-4-8",
+        "reasoning_effort": "high"
+      },
+      "codex": {
+        "model": "gpt-5.6-terra",
+        "reasoning_effort": "high"
+      }
+    },
+    "qa": {
+      "claude": {
+        "model": "claude-opus-4-8",
+        "reasoning_effort": "high"
+      },
+      "codex": {
+        "model": "gpt-5.6-terra",
+        "reasoning_effort": "high"
+      }
+    }
+  }
+}

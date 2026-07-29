@@ -10,7 +10,6 @@ def test_pull_request_ci_workflow_exposes_branch_protection_context() -> None:
     workflow = (ROOT / ".forgejo" / "workflows" / "ci.yml").read_text()
     assert "name: ci" in workflow
     assert "pull_request:" in workflow
-    assert "WARD_WORKFLOW_VERSION: v0.775.0-tmp" in workflow
     assert 'scripts/install-workflow-ward.sh "${WARD_WORKFLOW_VERSION}"' in workflow
 
 

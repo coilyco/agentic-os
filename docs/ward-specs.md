@@ -7,25 +7,39 @@ Ward owns fixed workflow commands, container isolation, lifecycle, repository
 workflow mechanics, and its fixed broker. AOS does not ship a Ward role bundle.
 
 The only Ward-consumed AOS file is [`.ward/ward.yaml`](../.ward/ward.yaml). It
-declares repository development commands and the supported verification fixture
-input. `ward doctor` validates that YAML through Ward's loader.
+declares repository development commands, the AOS image and release channel,
+and the supported verification fixture input. `ward doctor` validates that
+YAML through Ward's loader.
 
 ## Ownership
 
 * Agent-compose owns behavioral roles, seats, identity, personalities, and
   composed skills in [`.agents/roles.kdl`](../.agents/roles.kdl).
-* AOS owns the selected harness, image, deployment defaults, and the immutable
-  context-bundle adapter.
+* AOS owns the selected harness, concrete launch tuning in
+  [`harness_launch_profiles.json`](../aos/harness_launch_profiles.json), image,
+  deployment defaults, and the immutable context-bundle adapter.
 * Ward receives the fixed workflow role, selected harness and image, original
-  work request, broker credential, and optional context bundle. A role slug is
-  composition metadata only. It grants no permissions.
+  work request, explicit harness config, broker credential, and optional
+  context bundle. A role slug selects AOS launch tuning and composition. It
+  grants no permissions.
 * AOSguard owns the independent generated operator surface and its credential
   mounts. Ward neither imports nor configures it.
 
-There are no AOS Ward role guardfiles, KDL defaults, role-seat projections,
-broker grants, topology, network reach, or release-bundle assets. Image and
-harness behavior reaches the selected harness through AOS and agent-compose,
-not a Ward role overlay.
+There are no AOS Ward role guardfiles, KDL defaults, broker grants, topology,
+network reach, or release-bundle assets. The former `.ward` concerns moved as
+follows:
+
+* Image, release channel, and this repository's landing workflow moved from
+  `defaults.kdl` and `repos.kdl` to `.ward/ward.yaml`.
+* Models, reasoning effort, verbosity, and local harness defaults moved from
+  `agents.kdl` and `roles.kdl` to the embedded AOS launch-profile registry.
+  AOS passes the resolved values through Ward's explicit `--config` seam and
+  uses the same registry for standalone Codex bootstrap.
+* Role behavior and composed skills remain in `.agents/roles.kdl`.
+* Seat names and pronouns remain canonical in agent-compose. AOS does not
+  duplicate its person registry.
+* Role-derived grants were retired rather than moved. Ward workflows and the
+  separately selected AOSguard surface now determine executable authority.
 
 ## Release and validation
 

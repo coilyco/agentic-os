@@ -98,16 +98,28 @@ func TestValidateIntegratedLaunchMatrix(t *testing.T) {
 
 func TestBuildWardLaunchPlanOwnsSiblingTranslation(t *testing.T) {
 	t.Parallel()
-	plan := buildWardLaunchPlan(integratedLaunchOptions{
+	plan, err := buildWardLaunchPlan(integratedLaunchOptions{
 		Image:     "aos:test",
 		Role:      "engineer",
 		Agent:     "codex",
 		Arguments: []string{"owner/repo#267", "--print"},
 	}, "/cache/context")
+	if err != nil {
+		t.Fatal(err)
+	}
 	got := strings.Join(append([]string{plan.Command}, plan.Args...), " ")
-	want := "ward agent engineer owner/repo#267 --print --agent codex --image aos:test --context-bundle /cache/context"
-	if got != want {
-		t.Fatalf("Ward launch = %q, want %q", got, want)
+	for _, want := range []string{
+		"ward agent engineer owner/repo#267 --print",
+		"--agent codex",
+		"--image aos:test",
+		"--context-bundle /cache/context",
+		"--config agent.codex.model=",
+		"--config agent.codex.effort=",
+		"--config agent.codex.verbosity=",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("Ward launch %q does not contain %q", got, want)
+		}
 	}
 }
 
@@ -136,8 +148,14 @@ func TestIntegratedWardedDirectorCodexDryRunUsesOpaqueCompositionMetadata(t *tes
 			t.Errorf("dry run missing %q:\n%s", want, rendered)
 		}
 	}
-	if strings.Contains(rendered, "--config agent.codex.") {
-		t.Fatalf("Ward launch projected a role-keyed harness overlay:\n%s", rendered)
+	for _, want := range []string{
+		"--config agent.codex.model=",
+		"--config agent.codex.effort=",
+		"--config agent.codex.verbosity=",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Fatalf("Ward launch did not receive AOS-owned harness input %q:\n%s", want, rendered)
+		}
 	}
 }
 

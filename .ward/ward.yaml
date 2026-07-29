@@ -222,6 +222,9 @@ commands:
     description: "Canonical short agent-id generator over the dictatable alphabet (lowercase 2-letter+2-digit, e.g. `ab85`). Bare invocation prints a fresh `secrets`-backed id (`-- -n 5` for more); `-- --seed <s>` prints the deterministic contract id for a seed, `-- --org <forgejo-org>` prints the short container token, `-- --emit-vectors` regenerates agent_id_vectors.json. The cross-repo naming primitive ward and cli-guard's Go port build against. See docs/dictatable-id-alphabet.md."
 
 agent:
+  image: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os
+  release-channel: release
+  workflow: pull-request-and-merge
   verification:
     fixtures:
       - repository: coilyco-flight-deck/ward-qa-fixture

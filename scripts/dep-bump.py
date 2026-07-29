@@ -43,7 +43,7 @@ import urllib.request
 from pathlib import Path
 from typing import Callable
 
-from agentic_os.dev_base import DEV_BASE_ROOT, TIER_SPECS
+from agentic_os.dev_base import DEV_BASE_ROOT
 
 DOCKERFILE = DEV_BASE_ROOT
 
@@ -67,8 +67,7 @@ def load_pins(dockerfile: Path) -> dict[str, str]:
     if dockerfile.is_file():
         return parse_args_block(dockerfile.read_text(encoding="utf-8"))
     pins: dict[str, str] = {}
-    dockerfiles = dict.fromkeys(tier.dockerfile for tier in TIER_SPECS)
-    for path in dockerfiles:
+    for path in sorted(dockerfile.rglob("Dockerfile")):
         pins.update(parse_args_block(path.read_text(encoding="utf-8")))
     return pins
 

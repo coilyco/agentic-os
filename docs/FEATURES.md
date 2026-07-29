@@ -27,8 +27,8 @@ This lists shipped capabilities, not files.
 - [Forgejo Actions list bridge](forgejo-actions-listing.md) - safe first-page helper for Actions run/task inspection.
 - [Forgejo runner-token fetch overlay](forgejo-runner-token.md) - guarded runner registration-token minting via fetch leaves.
 - [Forgejo Actions rerun bridge](forgejo-actions-rerun.md) - guarded reruns with dispatch fallback and fetch mirror.
-- [Ward integration boundary](ward-specs.md) - fixed Ward workflows, opaque
-  composition metadata, and no AOS role-policy bundle.
+- [Ward integration boundary](ward-specs.md) - fixed Ward workflows,
+  AOS-owned harness launch tuning, and no role-derived permission bundle.
 - [QA verification fixture](qa-verification-fixture.md) - bounded live director, engineer, and QA proof with terminal cleanup.
 - [Cross-repo tooling and release](features-release-tooling.md) - hooks, diagnostics, promotion, retries, reruns.
 - [Telegram CI failure alerts](telegram-ci-alerts.md) - reusable red-channel alerting for failing jobs.

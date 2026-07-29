@@ -178,9 +178,14 @@ func TestPrepareContainerHydratesSubstrateAndProjectsHome(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Codex container defaults are absent: %v", err)
 	}
+	profile, err := harnessLaunchProfileFor("engineer", "codex")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, want := range []string{
-		`model = "gpt-5.6-terra"`,
-		`model_reasoning_effort = "medium"`,
+		"model = " + tomlBasicString(profile.Model),
+		"model_reasoning_effort = " + tomlBasicString(profile.ReasoningEffort),
+		"model_verbosity = " + tomlBasicString(profile.Verbosity),
 		`approval_policy = "never"`,
 		`sandbox_mode = "danger-full-access"`,
 		`[notice]`,
@@ -191,9 +196,6 @@ func TestPrepareContainerHydratesSubstrateAndProjectsHome(t *testing.T) {
 		if !strings.Contains(string(config), want) {
 			t.Errorf("Codex config missing %q:\n%s", want, config)
 		}
-	}
-	if strings.Contains(string(config), "model_verbosity") {
-		t.Errorf("Codex config must leave model verbosity unset:\n%s", config)
 	}
 	for _, path := range []string{
 		filepath.Join(substrate, "coilyco-flight-deck", "agentic-os"),
@@ -281,7 +283,7 @@ func TestStageHarnessDefaultsEscapesCodexWorkspaceAndIgnoresOtherLayouts(t *test
 	t.Parallel()
 	home := t.TempDir()
 	workspace := `/workspace/repo\"quoted`
-	if err := stageHarnessDefaults("codex", home, workspace); err != nil {
+	if err := stageHarnessDefaults("engineer", "codex", home, workspace); err != nil {
 		t.Fatal(err)
 	}
 	config, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml"))
@@ -289,8 +291,9 @@ func TestStageHarnessDefaultsEscapesCodexWorkspaceAndIgnoresOtherLayouts(t *test
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		`model = "gpt-5.6-terra"`,
-		`model_reasoning_effort = "medium"`,
+		`model = "`,
+		`model_reasoning_effort = "`,
+		`model_verbosity = "`,
 		`hide_rate_limit_model_nudge = true`,
 		`[projects."/workspace/repo\\\"quoted"]`,
 	} {
@@ -300,7 +303,7 @@ func TestStageHarnessDefaultsEscapesCodexWorkspaceAndIgnoresOtherLayouts(t *test
 	}
 
 	otherHome := t.TempDir()
-	if err := stageHarnessDefaults("claude", otherHome, workspace); err != nil {
+	if err := stageHarnessDefaults("engineer", "claude", otherHome, workspace); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(otherHome, ".codex", "config.toml")); !os.IsNotExist(err) {
