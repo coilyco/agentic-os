@@ -4,6 +4,9 @@ set -euo pipefail
 set -x
 
 substrate_repos=${1:?substrate repository list is required}
+git_lfs_version=${2:?Git LFS version is required}
+git_lfs_sha256_amd64=${3:?Git LFS amd64 SHA-256 is required}
+git_lfs_sha256_arm64=${4:?Git LFS arm64 SHA-256 is required}
 export DEBIAN_FRONTEND=noninteractive
 
 case "${TARGETARCH:?TARGETARCH is required}" in
@@ -77,7 +80,6 @@ for attempt in 1 2 3; do
       ffmpeg \
       file \
       git \
-      git-lfs \
       gnupg \
       imagemagick \
       jq \
@@ -107,6 +109,20 @@ convert -version
 ffmpeg -version
 ffprobe -version
 
+git_lfs_asset="git-lfs-linux-${GH_ARCH}-v${git_lfs_version}.tar.gz"
+git_lfs_base="https://github.com/git-lfs/git-lfs/releases/download/v${git_lfs_version}"
+case "$TARGETARCH" in
+  amd64) git_lfs_sha256=$git_lfs_sha256_amd64 ;;
+  arm64) git_lfs_sha256=$git_lfs_sha256_arm64 ;;
+esac
+curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
+  "${git_lfs_base}/${git_lfs_asset}" -o "/tmp/${git_lfs_asset}"
+printf '%s  %s\n' "$git_lfs_sha256" "$git_lfs_asset" \
+  | (cd /tmp && sha256sum -c -)
+install -d /tmp/git-lfs
+tar -xzf "/tmp/${git_lfs_asset}" -C /tmp/git-lfs --strip-components=1
+install -m 0755 /tmp/git-lfs/git-lfs /usr/local/bin/git-lfs
+rm -rf /tmp/git-lfs "/tmp/${git_lfs_asset}"
 git lfs install --system --skip-repo
 git lfs version
 

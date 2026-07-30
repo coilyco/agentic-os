@@ -23,6 +23,9 @@ ARG HELM_VERSION=4.2.3
 ARG KUBECTL_VERSION=1.36.3
 ARG YQ_VERSION=4.53.3
 ARG TAILSCALE_VERSION=1.98.10
+ARG GIT_LFS_VERSION=3.7.1
+ARG GIT_LFS_SHA256_AMD64=1c0b6ee5200ca708c5cebebb18fdeb0e1c98f1af5c1a9cba205a4c0ab5a5ec08
+ARG GIT_LFS_SHA256_ARM64=73a9c90eeb4312133a63c3eaee0c38c019ea7bfa0953d174809d25b18588dd8d
 ARG TARGETARCH
 
 FROM ubuntu:24.04 AS dev-base-tool-builder
@@ -132,6 +135,9 @@ RUN set -eux; \
 
 FROM ubuntu:24.04 AS dev-base-lang-node
 ARG UV_VERSION
+ARG GIT_LFS_VERSION
+ARG GIT_LFS_SHA256_AMD64
+ARG GIT_LFS_SHA256_ARM64
 ARG AGENT_COMPOSE_VERSION
 ARG NODE_VERSION
 ARG CLAUDE_VERSION
@@ -158,7 +164,8 @@ LABEL org.opencontainers.image.source="https://forgejo.coilysiren.me/coilyco-fli
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN --mount=type=bind,source=install-common.sh,target=/tmp/install-common.sh \
     --mount=type=bind,source=substrate-image-repos.txt,target=/tmp/substrate-repos.txt \
-    bash /tmp/install-common.sh /tmp/substrate-repos.txt
+    bash /tmp/install-common.sh /tmp/substrate-repos.txt "${GIT_LFS_VERSION}" \
+      "${GIT_LFS_SHA256_AMD64}" "${GIT_LFS_SHA256_ARM64}"
 COPY --chmod=0755 agent-name.sh statusline.sh ward-shell-entrypoint.sh /opt/agentic-os/
 COPY --chmod=0755 statusline.d/ /opt/agentic-os/statusline.d/
 COPY --chmod=0644 claude-managed-settings.json /etc/claude-code/managed-settings.json
@@ -176,6 +183,9 @@ CMD ["bash"]
 
 FROM ubuntu:24.04 AS dev-base-lang-go
 ARG UV_VERSION
+ARG GIT_LFS_VERSION
+ARG GIT_LFS_SHA256_AMD64
+ARG GIT_LFS_SHA256_ARM64
 ARG GO_VERSION
 ARG AGENT_COMPOSE_VERSION
 ARG NODE_VERSION
@@ -203,7 +213,8 @@ LABEL org.opencontainers.image.source="https://forgejo.coilysiren.me/coilyco-fli
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN --mount=type=bind,source=install-common.sh,target=/tmp/install-common.sh \
     --mount=type=bind,source=substrate-image-repos.txt,target=/tmp/substrate-repos.txt \
-    bash /tmp/install-common.sh /tmp/substrate-repos.txt
+    bash /tmp/install-common.sh /tmp/substrate-repos.txt "${GIT_LFS_VERSION}" \
+      "${GIT_LFS_SHA256_AMD64}" "${GIT_LFS_SHA256_ARM64}"
 RUN set -eux; . /opt/agentic-os/arch.env; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
       "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -o /tmp/go.tar.gz; \
@@ -225,6 +236,9 @@ CMD ["bash"]
 
 FROM ubuntu:24.04 AS dev-base-lang-dotnet
 ARG UV_VERSION
+ARG GIT_LFS_VERSION
+ARG GIT_LFS_SHA256_AMD64
+ARG GIT_LFS_SHA256_ARM64
 ARG DOTNET_VERSION
 ARG AGENT_COMPOSE_VERSION
 ARG NODE_VERSION
@@ -254,7 +268,8 @@ LABEL org.opencontainers.image.source="https://forgejo.coilysiren.me/coilyco-fli
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN --mount=type=bind,source=install-common.sh,target=/tmp/install-common.sh \
     --mount=type=bind,source=substrate-image-repos.txt,target=/tmp/substrate-repos.txt \
-    bash /tmp/install-common.sh /tmp/substrate-repos.txt
+    bash /tmp/install-common.sh /tmp/substrate-repos.txt "${GIT_LFS_VERSION}" \
+      "${GIT_LFS_SHA256_AMD64}" "${GIT_LFS_SHA256_ARM64}"
 RUN set -eux; . /opt/agentic-os/arch.env; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
       https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh; \
@@ -279,6 +294,9 @@ CMD ["bash"]
 
 FROM ubuntu:24.04 AS dev-base-lang-rust
 ARG UV_VERSION
+ARG GIT_LFS_VERSION
+ARG GIT_LFS_SHA256_AMD64
+ARG GIT_LFS_SHA256_ARM64
 ARG TRUNK_VERSION
 ARG AGENT_COMPOSE_VERSION
 ARG NODE_VERSION
@@ -307,7 +325,8 @@ LABEL org.opencontainers.image.source="https://forgejo.coilysiren.me/coilyco-fli
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN --mount=type=bind,source=install-common.sh,target=/tmp/install-common.sh \
     --mount=type=bind,source=substrate-image-repos.txt,target=/tmp/substrate-repos.txt \
-    bash /tmp/install-common.sh /tmp/substrate-repos.txt
+    bash /tmp/install-common.sh /tmp/substrate-repos.txt "${GIT_LFS_VERSION}" \
+      "${GIT_LFS_SHA256_AMD64}" "${GIT_LFS_SHA256_ARM64}"
 RUN set -eux; apt-get update; apt-get install -y --no-install-recommends \
       libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev pkg-config; \
     rm -rf /var/lib/apt/lists/*; \
@@ -343,6 +362,9 @@ CMD ["bash"]
 
 FROM ubuntu:24.04 AS dev-base-lang-python
 ARG UV_VERSION
+ARG GIT_LFS_VERSION
+ARG GIT_LFS_SHA256_AMD64
+ARG GIT_LFS_SHA256_ARM64
 ARG AGENT_COMPOSE_VERSION
 ARG NODE_VERSION
 ARG CLAUDE_VERSION
@@ -369,7 +391,8 @@ LABEL org.opencontainers.image.source="https://forgejo.coilysiren.me/coilyco-fli
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN --mount=type=bind,source=install-common.sh,target=/tmp/install-common.sh \
     --mount=type=bind,source=substrate-image-repos.txt,target=/tmp/substrate-repos.txt \
-    bash /tmp/install-common.sh /tmp/substrate-repos.txt
+    bash /tmp/install-common.sh /tmp/substrate-repos.txt "${GIT_LFS_VERSION}" \
+      "${GIT_LFS_SHA256_AMD64}" "${GIT_LFS_SHA256_ARM64}"
 RUN set -eux; ln -sf /usr/bin/python3 /usr/local/bin/python; \
     ln -sf /usr/bin/pip3 /usr/local/bin/pip; uv tool install pipenv; \
     chmod -R a+rX /opt/uv; python --version; pip --version; pipenv --version
