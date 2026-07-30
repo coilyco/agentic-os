@@ -77,17 +77,21 @@ def test_full_run_spans_env_root(monkeypatch, tmp_path: Path, capsys) -> None:
 
 
 def test_default_rev_resolves_from_latest_tag(monkeypatch) -> None:
-    """default_rev() picks the highest v* tag the checkout reports (agentic-os#238)."""
+    """default_rev() picks the highest aos-precommit-v* tag."""
     script = _load_script()
 
     class _Out:
-        stdout = "v0.61.0\nv0.60.0\nv0.5.0\n"
+        stdout = (
+            "aos-precommit-v0.61.0\n"
+            "aos-precommit-v0.60.0\n"
+            "aos-precommit-v0.5.0\n"
+        )
 
     monkeypatch.setattr(
         script.subprocess, "run", lambda *a, **k: _Out(), raising=True
     )
-    assert script.latest_release_tag() == "v0.61.0"
-    assert script.default_rev() == "v0.61.0"
+    assert script.latest_release_tag() == "aos-precommit-v0.61.0"
+    assert script.default_rev() == "aos-precommit-v0.61.0"
 
 
 def test_default_rev_falls_back_without_tags(monkeypatch) -> None:

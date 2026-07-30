@@ -34,7 +34,7 @@ Major shipped capabilities, not files.
 - [Ward integration boundary](ward-specs.md) - fixed Ward workflows,
   AOS-owned harness launch tuning, and no role-derived permission bundle.
 - [QA verification fixture](qa-verification-fixture.md) - bounded live role proof.
-- [Cross-repo tooling and release](features-release-tooling.md) - hooks, diagnostics, promotion, retries, reruns.
+- [Cross-repo tooling and release](features-release-tooling.md) - aos-precommit and release operations.
 - [Telegram CI failure alerts](telegram-ci-alerts.md) - reusable red-channel alerting for failing jobs.
 - [dev-base image family](dev-base-image.md) - parallel Ubuntu language images plus the full fan-in surface.
 - [CI parity in dev-base](ci-in-dev-base.md) - CI runs inside the moving :release dev-base image.

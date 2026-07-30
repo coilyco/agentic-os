@@ -4,8 +4,9 @@ doc_goal: Explain the standalone aos CLI release, artifact, and package-manager 
 # aos CLI release
 
 The portable CLI has an independent `aos-vMAJOR.MINOR.PATCH` clock inside the
-agentic-os Forgejo repository. Root `v*` tags remain owned by hook pins and the
-full dev-base image, so CLI delivery never waits on image promotion.
+agentic-os Forgejo repository. Root `v*` tags remain owned by the full
+dev-base image, while hooks use `aos-precommit-v*`, so CLI delivery never waits
+on either train.
 
 ## Automatic release
 
@@ -15,8 +16,7 @@ sources and manifests, AOSguard specs and bridges, the Specgen pin, or release
 build/package scripts. Docs, tests, Alacritty, and workflow-only changes skip
 it. Manual dispatch overrides the decision. The release job:
 
-1. installs the validated workflow Ward, then runs Python, Go, and pre-commit
-   validation
+1. installs the validated workflow Ward, then runs Python, Go, and pre-commit validation
 2. bumps the CLI minor version without reading commit-message signals
 3. cross-compiles matching `aos`, `aosguard`, and `agent-terminal` binaries for
    every target in `aos/release-targets.txt`

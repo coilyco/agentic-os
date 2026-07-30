@@ -31,6 +31,22 @@ _AOS_EMBEDDED_INPUTS = frozenset(
         "aos/role-harnesses.json",
     }
 )
+_AOS_PRECOMMIT_EXACT_INPUTS = frozenset(
+    {
+        ".pre-commit-hooks.yaml",
+        "agentic_os/__init__.py",
+        "agentic_os/config.py",
+        "agentic_os/generators/__init__.py",
+        "agentic_os/generators/generate_agent_compose.py",
+        "agentic_os/generators/generate_agents_pointer.py",
+        "agentic_os/generators/generate_repo_pointer_skill.py",
+        "agentic_os/generators/generate_seed_skills.py",
+        "agentic_os/seed_skills_data.py",
+        "pyproject.toml",
+        "scripts/apply-agentic-os-hooks.py",
+        "scripts/trufflehog-scan.sh",
+    }
+)
 
 
 def _normalize_repo_path(path: str | Path) -> str:
@@ -66,12 +82,24 @@ def is_aos_cli_release_input(path: str | Path) -> bool:
     )
 
 
+def is_aos_precommit_release_input(path: str | Path) -> bool:
+    """Return whether a path changes an installed aos-precommit hook."""
+
+    normalized = _normalize_repo_path(path)
+    return (
+        normalized in _AOS_PRECOMMIT_EXACT_INPUTS
+        or normalized.startswith("agentic_os/pre_commit/")
+    )
+
+
 def release_required(surface: str, changed_paths: Iterable[str | Path]) -> bool:
     """Return whether the selected artifact surface has a relevant change."""
 
     paths = tuple(_normalize_repo_path(path) for path in changed_paths)
     if surface == "aos-cli":
         return any(is_aos_cli_release_input(path) for path in paths)
+    if surface == "aos-precommit":
+        return any(is_aos_precommit_release_input(path) for path in paths)
     if surface == "dev-base":
         return bool(affected_tiers(paths))
     raise ValueError(f"unknown release surface: {surface}")
@@ -98,7 +126,11 @@ def _changed_paths(base: str, head: str) -> tuple[str, ...]:
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--surface", choices=("aos-cli", "dev-base"), required=True)
+    parser.add_argument(
+        "--surface",
+        choices=("aos-cli", "aos-precommit", "dev-base"),
+        required=True,
+    )
     parser.add_argument("--base", default="", help="Base revision for the change.")
     parser.add_argument("--head", default="HEAD", help="Head revision for the change.")
     parser.add_argument(

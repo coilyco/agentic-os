@@ -66,7 +66,7 @@ commands:
     description: "Verify `aos` release checksums, package metadata, and the native version-stamped binary."
   release-impact:
     run: uv run python -m agentic_os.release_impact
-    description: "Decide whether changed paths require an AOS CLI or dev-base artifact release. Pass `--surface aos-cli|dev-base` plus `--base REF`, repeated `--changed-path PATH`, or `--force` after `--`."
+    description: "Decide whether changed paths require an AOS CLI, aos-precommit, or dev-base artifact release. Pass `--surface aos-cli|aos-precommit|dev-base` plus `--base REF`, repeated `--changed-path PATH`, or `--force` after `--`."
   workflow-ward-install-check:
     run: bash scripts/install-workflow-ward.sh
     description: "Build the Ward version used by Actions from the generated tag at the production release branch. Pass an explicit ref and temporary output path after `--` to override."
@@ -180,7 +180,7 @@ commands:
     description: "Run only the shellcheck hook against paths passed after `--`, for focused validation when unrelated platform-specific files block the all-files hook."
   release:
     run: uv run python scripts/release.py
-    description: "Cut a release: bump pyproject + FALLBACK_REV floor, create signed tag, push (consumer pin is tag-derived). --bump major|minor|patch to override; --dry-run to preview."
+    description: "Hand-cut an aos-precommit release: bump pyproject + FALLBACK_REV floor, create a signed aos-precommit-v* tag, and push. --bump major|minor|patch to override; --dry-run to preview."
   test:
     run: uv run pytest
     description: "Run the agentic_os Python test suite (pytest)."

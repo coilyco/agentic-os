@@ -1,74 +1,67 @@
 # Release pipeline
 
-Three-stage Forgejo-canonical release (ward#1117 / aos#469). Stage 1:
 `promote.yml` gates every `main` push and fast-forwards `release` with
-`CI_RELEASE_TOKEN`. Stage 2: `dev-base-publish.yml` publishes the five draft
-language images and full fan-in under `draft-${sha}` only when the affected-tier
-classifier finds work. Manual dispatch overrides the decision and can resume
-one tier or the whole graph. Stage 3: `release.yml`
-is manual retry only under a no-cancel queue, so retries stay sequenced and
-never gate the branch. `main` stays yolo-able. `release` is last-known-good.
-Forgejo owns the release and tag per [forgejo-github-mirror-contract.md](forgejo-github-mirror-contract.md).
+`CI_RELEASE_TOKEN`. Two affected-surface workflows react to that diff.
+`aos-precommit-release.yml` cuts an `aos-precommit-v*` release only for
+installed hook changes. `dev-base-publish.yml` publishes draft images under
+`draft-${sha}` only when its tier classifier finds work. Manual dispatch
+overrides either decision and can resume the image graph. `release.yml` is a
+no-cancel manual retry queue and never gates the branch. `main` stays
+yolo-able, while `release` is last-known-good. Forgejo owns releases per
+[forgejo-github-mirror-contract.md](forgejo-github-mirror-contract.md).
 
-`promote.yml` only computes the repo gate and advances the branch. The draft
-publish workflow keeps image availability separate from branch promotion.
-Non-image merges advance `release` without producing draft images.
+Promotion only gates and advances the branch. Non-artifact merges produce no
+package tag or draft image.
 `release.yml` is the manual retry path and no longer runs on push. Its language
 and full retag jobs wait for the draft source tags. Dispatches can override
 `sha`, `tag`, and `source-tag` to resume the publish or retag.
 `draft-*` tags are commit-scoped staging refs for Forgejo package cleanup
 rules. `:latest` is a compatibility alias for `:release`.
 
-The root `v*` train serves hook pins and the dev-base image. The standalone CLI
-publishes binaries and packages on its independent `aos-v*` train. See
-[aos-cli-release.md](aos-cli-release.md).
-
-## Why not release-please
-release-please is PR-driven, and `coilysiren/agentic-os` disables GitHub PRs. Rather than port it to Forgejo, agentic-os reuses its forgejo-API-only release actions.
+The root `v*` train serves the dev-base image. Hook consumers pin the
+independent `aos-precommit-v*` train. The standalone CLI publishes binaries and
+packages on its `aos-v*` train. See [aos-cli-release.md](aos-cli-release.md).
 
 ## Version bump
 
-`actions/tag-bump` defaults to minor and never parses commits. The `aos-v*`
-train invokes it only when `release-impact` finds a shipped CLI input. Root
-majors remain hand-cut with `scripts/release.py --bump major`. Manual workflow
-dispatch overrides both classifiers.
+`actions/tag-bump` defaults to minor and never parses commits. `aos-v*`
+requires a shipped CLI input. `aos-precommit-v*` requires an installed hook
+input. Pre-commit majors use `scripts/release.py --bump major`. Other trains
+use workflow dispatch, which also overrides each classifier.
 
 `actions/tag-bump` also has a compute-only mode: derive the next semver first,
 create the public tag and Forgejo release only at the end.
 
 ## Manual re-run (enqueue-miss recovery)
 
-A `workflow_dispatch` re-fires the publication retry stage by hand, no dummy
-commit - dispatch against the `release` ref when the draft images already
-exist and the release publication needs a retry. It is the recovery lever for
-agentic-os#240 (missed enqueue). Its `bump` input defaults to `minor`, and the
-image controls can resume one release closure at a time.
+A `workflow_dispatch` retries publication without a dummy commit. Dispatch
+against `release`. Image controls resume one closure at a time.
+
+Dispatch `aos-precommit-release.yml` against `release` to retry or override a
+package release. An explicit tag reuses that version idempotently. An empty tag
+uses the selected bump.
 
 ## Consumer pin (derived from the tag)
 
-The tag every consumer repo inherits when `apply-agentic-os-hooks` rolls out the
-hook block is resolved from the **latest git tag at read time**, not a committed
-constant. `default_rev()` in `scripts/apply-agentic-os-hooks.py` reads
-`git tag --list 'v*'` and falls back to `FALLBACK_REV` only when no tag is
-fetched.
+`apply-agentic-os-hooks` resolves the latest `aos-precommit-v*` tag at read
+time. Its `default_rev()` falls back to `FALLBACK_REV` only without a fetched
+package tag.
 
-Deriving the pin from the tag is the point of agentic-os#238: tags are refs,
-not tracked files, so cutting a release needs no followup bump commit. That
-removed the old `bump-pin` job and its `CI_RELEASE_TOKEN` push. Now the release
-is just the tag.
+Tags are refs, so automatic releases need no follow-up pin commit.
 
-pyproject `version`, `uv.lock`, and the `FALLBACK_REV` floor are reconciled on
-hand-cut releases by `scripts/release.py`, so they track major bumps and may
-lag the tag between majors. That lag is cosmetic: consumers pin by git rev, and
-`FALLBACK_REV` is only read when no tag is present.
+The `aos-precommit` pyproject `version`, `uv.lock`, and the `FALLBACK_REV`
+floor are reconciled on hand-cut package releases by `scripts/release.py`, so
+they track major bumps and may lag automatic tags between majors. That lag is
+cosmetic. Consumers pin by git rev, and `FALLBACK_REV` is only read when no
+package tag is present.
 
 ## Mirror to GitHub
 
-`.forgejo/workflows/mirror-to-github.yml` fast-forwards Forgejo `main` and
-`v*` tags onto the read-only GitHub mirror (`coilysiren/agentic-os`) where the
-fleet's `uses:` refs resolve. It is fast-forward-only, never `--force`, and
-no-ops without the PAT. See [mirror-to-github.md](mirror-to-github.md) for the
-mirror-side detail.
+`.forgejo/workflows/mirror-to-github.yml` fast-forwards Forgejo `main`, root
+`v*`, and `aos-precommit-v*` tags onto the read-only GitHub mirror
+(`coilysiren/agentic-os`) where downstream refs resolve. It is
+fast-forward-only, never `--force`, and no-ops without the PAT. See
+[mirror-to-github.md](mirror-to-github.md) for the mirror-side detail.
 
 ## Skip markers
 

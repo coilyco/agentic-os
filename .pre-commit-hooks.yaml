@@ -1,8 +1,8 @@
-# Cross-repo pre-commit hooks shipped by coilyco-flight-deck/agentic-os.
+# aos-precommit hooks shipped by coilyco-flight-deck/agentic-os.
 # Consumers reference via:
 #
 #   - repo: https://forgejo.coilysiren.me/coilyco-flight-deck/agentic-os
-#     rev: v0.1.0
+#     rev: aos-precommit-v0.1.0
 #     hooks:
 #       - id: catalog-doc-size
 #       - id: catalog-trifecta

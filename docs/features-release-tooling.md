@@ -4,7 +4,12 @@ Pre-commit baseline, diagnostics, and Forgejo-canonical release actions.
 
 ## Cross-repo pre-commit baseline
 
-Each `coilysiren/*` repo pins canonical hook IDs via `rev:`. The active set covers Actions policy, contracts, `actionlint`, Forgejo validation, `shellcheck`, and `typos`. `dead-cross-links` checks Markdown links; `source-doc-refs` checks source-comment paths. `shfmt`, placeholders, and issue refs stay opt-in in [pre-commit hygiene](pre-commit-hygiene.md). Manual guards live in [`.pre-commit-hooks.yaml`](../.pre-commit-hooks.yaml).
+Managed repos pin `aos-precommit-v*` via `rev:`. The distribution keeps the
+`agentic_os` namespace but releases independently from dev-base and AOS.
+The suite covers Actions policy, contracts, links, source-doc refs,
+`actionlint`, Forgejo, `shellcheck`, and `typos`. `shfmt`, placeholders, and
+issue refs stay opt-in in [pre-commit hygiene](pre-commit-hygiene.md). See the
+[hook manifest](../.pre-commit-hooks.yaml).
 
 ## Seed-skill propagation
 
@@ -36,8 +41,8 @@ Forgejo imports use a fully qualified canonical URL:
 `uses: https://forgejo.coilysiren.me/coilyco-flight-deck/agentic-os/actions/<name>@main`.
 GitHub uses the mirror.
 
-agentic-os dogfoods these actions with local `uses:` refs. `promote.yml` gates
-main and advances `release`. `dev-base-publish.yml` publishes the language
-matrix and full fan-in image. `release.yml` is the manual retry path. Consumer
-pins are tag-derived (agentic-os#238), and major bumps stay hand-cut. See
-[docs/release.md](release.md).
+agentic-os dogfoods local `uses:` refs. `promote.yml` advances `release`.
+`aos-precommit-release.yml` tags installed-hook changes.
+`dev-base-publish.yml` publishes affected images, while `release.yml` retries
+retags. Consumer pins derive from `aos-precommit-v*`. See
+[release.md](release.md).

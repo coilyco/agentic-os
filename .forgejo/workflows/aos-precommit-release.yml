@@ -1,0 +1,77 @@
+# Release aos-precommit only when its installed hook surface changes. The
+# promoted release branch is already repository-gated, matching dev-base.
+
+name: aos-precommit-release
+
+on:
+  push:
+    branches: [release]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing or explicit aos-precommit tag for a retry."
+        required: false
+        default: ""
+      bump:
+        description: "Version bump when tag is empty."
+        required: false
+        default: "minor"
+        type: choice
+        options: [minor, patch, major]
+
+concurrency:
+  group: aos-precommit-release-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  impact:
+    runs-on: docker
+    timeout-minutes: 10
+    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
+    outputs:
+      release_required: ${{ steps.impact.outputs.release_required }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - id: impact
+        name: Decide whether installed hooks changed
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/release-impact.sh" aos-precommit "${{ github.event_name }}" "${{ github.event.before }}" "${{ github.sha }}"
+
+  release:
+    needs: [impact]
+    if: ${{ needs.impact.outputs.release_required == 'true' }}
+    runs-on: docker
+    timeout-minutes: 20
+    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - id: tag
+        uses: ./actions/tag-bump
+        with:
+          bump: ${{ github.event.inputs.bump || 'minor' }}
+          tag_name: ${{ github.event.inputs.tag || '' }}
+          tag_prefix: aos-precommit-v
+          create_tag: true
+          release_sha: ${{ github.sha }}
+
+      - uses: ./actions/create-release
+        with:
+          tag: ${{ steps.tag.outputs.new_tag }}
+          name: aos-precommit ${{ steps.tag.outputs.new_tag }}
+          body: ${{ steps.tag.outputs.changelog }}
+
+      - name: Alert Telegram on release failure
+        if: ${{ failure() && github.ref == 'refs/heads/release' }}
+        continue-on-error: true
+        uses: ./actions/telegram-alert
+        with:
+          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}

@@ -22,7 +22,7 @@ Warp configuration remains available.
 - `.agents/composed/` - role-scoped `COMPOSED.md` sources that agent-compose promotes only for allowlisted roles.
 - `.specgen/guardfiles/` - recursive specgen project for AOSguard policy and
   reproducible build locks.
-- `agentic_os/` - packaged hooks, generators, shared config/data, plus the hygiene guardrails that back the pre-commit suite.
+- `agentic_os/` - the `aos-precommit` package, generators, shared config/data, and hygiene guardrails behind the independently released hook suite.
 
 Full breakdown: [docs/repo-layout.md](docs/repo-layout.md).
 

@@ -3,8 +3,8 @@ revision = 3
 requires-python = ">=3.10"
 
 [[package]]
-name = "agentic-os"
-version = "0.62.0"
+name = "aos-precommit"
+version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "pyyaml" },

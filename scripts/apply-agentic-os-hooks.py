@@ -19,14 +19,14 @@ For each repo checked out under ~/projects/<org>/<name> across every org dir
   4. Run `pre-commit install --hook-type pre-commit --hook-type commit-msg
      --hook-type prepare-commit-msg`.
 
-Pin a release tag with `--rev`. Default tracks the latest known release.
+Pin a package tag with `--rev`. Default tracks the latest aos-precommit release.
 
 Usage:
     python3 scripts/apply-agentic-os-hooks.py             # apply to all
     python3 scripts/apply-agentic-os-hooks.py --dry-run   # show plan
     python3 scripts/apply-agentic-os-hooks.py --repo X    # one repo
     python3 scripts/apply-agentic-os-hooks.py --skip X Y  # exclude
-    python3 scripts/apply-agentic-os-hooks.py --rev v0.2.0  # pin a different tag
+    python3 scripts/apply-agentic-os-hooks.py --rev aos-precommit-v0.2.0
 
 A repo carrying a .agentic-os-ignore file at its root is skipped entirely
 (declarative, repo-owned opt-out). Use --skip for one-off exclusions, the
@@ -54,15 +54,15 @@ from agentic_os import config as cfg  # noqa: E402
 
 # Consumer pin is tag-derived at read time (see default_rev), not committed.
 # FALLBACK_REV is the floor for tag-less checkouts. See docs/release.md.
-FALLBACK_REV = "v0.62.0"
+FALLBACK_REV = "aos-precommit-v0.1.0"
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-VERSION_TAG_GLOB = "v[0-9]*.[0-9]*.[0-9]*"
-_VERSION_TAG_RE = re.compile(r"^v\d+\.\d+\.\d+$")
+VERSION_TAG_GLOB = "aos-precommit-v[0-9]*.[0-9]*.[0-9]*"
+_VERSION_TAG_RE = re.compile(r"^aos-precommit-v\d+\.\d+\.\d+$")
 
 
 def latest_release_tag() -> str | None:
-    """Most recent v<MAJOR>.<MINOR>.<PATCH> tag in this checkout, or None.
+    """Most recent aos-precommit-v<MAJOR>.<MINOR>.<PATCH> tag, or None.
 
     Reads git tags from the agentic-os checkout (REPO_ROOT), independent of the
     caller's cwd. Returns None when git is unavailable or no release tag is
@@ -160,7 +160,7 @@ LEGACY_BLOCK_MARKERS = [
      "# END managed by agentic-os-kai/scripts/apply-commit-msg-hook.py"),
 ]
 
-# Legacy stamped scripts to delete; validators ship from the agentic_os package now.
+# Legacy stamped scripts to delete; validators ship from aos-precommit now.
 LEGACY_STAMPED_SCRIPTS = [
     "scripts/check-catalog-block.py",
     "scripts/check-catalog-doc-size.py",
@@ -435,7 +435,7 @@ def main(argv=None) -> int:
     ap.add_argument(
         "--rev",
         default=None,
-        help="agentic-os release tag to pin (default: latest git tag, "
+        help="aos-precommit release tag to pin (default: latest package tag, "
         f"else {FALLBACK_REV})",
     )
     args = ap.parse_args(argv)
@@ -456,7 +456,7 @@ def main(argv=None) -> int:
         repos = [d for d in all_dirs if d.name not in skip]
 
     print(
-        f"Rolling out agentic-os pre-commit suite "
+        f"Rolling out aos-precommit suite "
         f"(rev={args.rev}) to {len(repos)} repo(s)"
     )
     if args.dry_run:

@@ -1,11 +1,11 @@
 # Example .pre-commit-config.yaml entry.
 #
-# These hooks ship from the agentic-os Python package through the managed
+# These hooks ship from the aos-precommit Python distribution through the managed
 # coilyco-flight-deck/agentic-os pre-commit block.
 
 repos:
   - repo: https://forgejo.coilysiren.me/coilyco-flight-deck/agentic-os
-    rev: REPLACE_WITH_RELEASE_TAG
+    rev: aos-precommit-v0.1.0
     hooks:
       - id: check-skills
       - id: check-composed-skills

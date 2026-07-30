@@ -6,13 +6,14 @@ version and the `FALLBACK_REV` floor in
 `scripts/apply-agentic-os-hooks.py`, commits the bump, creates a signed
 annotated tag, and pushes both.
 
-This is the HAND-CUT path for the root `v*` train. The automatic standalone
-CLI train uses independent `aos-v*` tags and never calls this helper. The
+This is the HAND-CUT path for the `aos-precommit-v*` train. The automatic
+release workflow normally cuts that train only when installed hook inputs
+change. The
 version-bump commit here carries a `[skip ci]` marker so it does not start
-the main-push workflows. The consumer pin resolves from root git tags at read
-time (agentic-os#238), with no per-push pin commit. This path additionally
+the main-push workflows. The consumer pin resolves from package tags at read
+time, with no per-push pin commit. This path additionally
 reconciles pyproject `version` + `uv.lock` and refreshes the `FALLBACK_REV`
-floor, so run it whenever those drift behind the root tags.
+floor, so run it for a hand-driven package major or whenever those drift.
 
 Usage:
     python3 scripts/release.py [--bump {major|minor|patch}] [--dry-run]
@@ -32,10 +33,13 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PYPROJECT = REPO_ROOT / "pyproject.toml"
 APPLY_HOOKS = REPO_ROOT / "scripts" / "apply-agentic-os-hooks.py"
-TAG_PREFIX = "v"
+TAG_PREFIX = "aos-precommit-v"
 VERSION_RE = re.compile(rf"^{TAG_PREFIX}(\d+)\.(\d+)\.(\d+)$")
 PYPROJECT_VERSION_RE = re.compile(r'^version = "(\d+\.\d+\.\d+)"$', re.MULTILINE)
-FALLBACK_REV_RE = re.compile(r'^FALLBACK_REV = "v\d+\.\d+\.\d+"$', re.MULTILINE)
+FALLBACK_REV_RE = re.compile(
+    r'^FALLBACK_REV = "aos-precommit-v\d+\.\d+\.\d+"$',
+    re.MULTILINE,
+)
 DEFAULT_BUMP = "minor"
 
 
@@ -44,7 +48,7 @@ def run(cmd: list[str], **kwargs) -> subprocess.CompletedProcess:
 
 
 def latest_tag() -> str | None:
-    """Most recent tag matching v<MAJOR>.<MINOR>.<PATCH>, sorted by version."""
+    """Most recent aos-precommit semver tag, sorted by version."""
     out = run(["git", "tag", "--list", f"{TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*", "--sort=-v:refname"])
     for line in out.stdout.splitlines():
         if VERSION_RE.match(line.strip()):
@@ -169,7 +173,7 @@ def main() -> int:
 
     if changed_files:
         run(["git", "add", *changed_files])
-        # [skip ci] keeps the hand-cut root release out of main-push workflows.
+        # [skip ci] keeps the hand-cut package release out of main workflows.
         run(["git", "commit", "-m", f"chore: bump version to {new_tag} [skip ci]"])
         print(f"Committed version bump touching: {', '.join(changed_files)}")
 
