@@ -50,9 +50,10 @@ follows:
 ## Release and validation
 
 AOS releases do not attach a Ward-spec archive. The dev-base image carries the
-released `ward`, `aos`, and `aosguard` binaries without a checkout-derived
-Ward configuration reference. The declared Go and Python suites include the
-standalone composed, standalone guarded, and combined context-bundle paths.
+released `ward`, `aos`, `aosward`, and `aosguard` binaries without a
+checkout-derived Ward configuration reference. The declared Go and Python
+suites cover the always-composed, always-guarded standalone path and the Ward
+context-bundle path.
 
 ## See also
 

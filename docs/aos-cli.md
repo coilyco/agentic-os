@@ -3,41 +3,41 @@ doc_goal: Define AOS as the composition root for standalone and Ward-governed ag
 ---
 # AOS launch CLI
 
-AOS exposes one launch shape for three independently useful capabilities:
+AOS exposes one launch shape with composed context and guarded tools always present:
 
 ```bash
-aos \
-  --agent codex \
-  --role engineer \
-  --warded \
-  --composed \
-  --guarded \
-  -- owner/repo#267
+aos --agent codex --role engineer -- --version
 ```
 
 The shared role slug selects context across enabled capabilities and never
 transfers authority between tools. Standalone AOS separately applies bounded
 access gates such as [kubeconfig projection](aos-kubeconfig.md).
 
-## Capability flags
+## Launch modes
 
-* `--warded` - AOS invokes Ward for Compose, lifecycle, and
-  [credential handoff](aos-ward-credentials.md).
-* `--composed` - agent-compose verifies and projects the selected role into a
-  private staged home.
-* `--guarded` - AOS attaches standalone `aosguard`, which keeps its specgen credential mounts.
+Every AOS agent launch has these two contexts:
 
-The flags stay independent. `--warded` uses Ward's fixed workflow and broker
-surface. Either context capability can join it. All three flags enable the full
-launch.
+* Agent-compose verifies and projects the selected role into a private staged home.
+* AOS attaches standalone `aosguard`, which keeps its specgen credential mounts.
 
-Without `--warded`, AOS owns one standalone container. Arguments after `--`
-become arguments to the selected agent:
+The compatibility flags `--composed` and `--guarded` remain accepted, including
+explicit false values, but cannot disable either context.
+
+`aos` owns one standalone container. Arguments after `--` become arguments to
+the selected agent:
 
 ```bash
-aos --agent codex --role engineer --composed -- --version
-aos --agent codex --role engineer --guarded
+aos --agent codex --role engineer -- --version
 ```
+
+`aosward` is the same executable with warded mode forced. It is equivalent to
+`aos --warded`, but `--warded=false` cannot disable its Ward delegation:
+
+```bash
+aosward --agent codex --role engineer -- owner/repo#267
+```
+
+Warded mode invokes Ward for Compose, lifecycle, and [credential handoff](aos-ward-credentials.md).
 
 ## Routing
 
@@ -49,7 +49,7 @@ workflow role cannot change the model inputs or privileged surface. See [the con
 adapter](aos-context-bundle.md).
 
 Ward ships `director`, `qa`, and `engineer`. Other agent-compose roles remain
-available on the standalone composed path. AOS rejects incompatible roles,
+available on the standalone path. AOS rejects incompatible roles,
 agents, and translated Ward flags before starting a container.
 
 ## Standalone contract

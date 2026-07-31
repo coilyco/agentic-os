@@ -27,6 +27,10 @@ darwin_arm64=$(sha "$dist/aos-darwin-arm64")
 linux_amd64=$(sha "$dist/aos-linux-amd64")
 linux_arm64=$(sha "$dist/aos-linux-arm64")
 windows_amd64=$(sha "$dist/aos-windows-amd64.exe")
+aosward_darwin_arm64=$(sha "$dist/aosward-darwin-arm64")
+aosward_linux_amd64=$(sha "$dist/aosward-linux-amd64")
+aosward_linux_arm64=$(sha "$dist/aosward-linux-arm64")
+aosward_windows_amd64=$(sha "$dist/aosward-windows-amd64.exe")
 aosguard_darwin_arm64=$(sha "$dist/aosguard-darwin-arm64")
 aosguard_linux_amd64=$(sha "$dist/aosguard-linux-amd64")
 aosguard_linux_arm64=$(sha "$dist/aosguard-linux-arm64")
@@ -47,6 +51,10 @@ class Aos < Formula
     on_arm do
       url "${base}/aos-darwin-arm64"
       sha256 "${darwin_arm64}"
+      resource "aosward" do
+        url "${base}/aosward-darwin-arm64"
+        sha256 "${aosward_darwin_arm64}"
+      end
       resource "aosguard" do
         url "${base}/aosguard-darwin-arm64"
         sha256 "${aosguard_darwin_arm64}"
@@ -61,6 +69,10 @@ class Aos < Formula
     on_intel do
       url "${base}/aos-linux-amd64"
       sha256 "${linux_amd64}"
+      resource "aosward" do
+        url "${base}/aosward-linux-amd64"
+        sha256 "${aosward_linux_amd64}"
+      end
       resource "aosguard" do
         url "${base}/aosguard-linux-amd64"
         sha256 "${aosguard_linux_amd64}"
@@ -73,6 +85,10 @@ class Aos < Formula
     on_arm do
       url "${base}/aos-linux-arm64"
       sha256 "${linux_arm64}"
+      resource "aosward" do
+        url "${base}/aosward-linux-arm64"
+        sha256 "${aosward_linux_arm64}"
+      end
       resource "aosguard" do
         url "${base}/aosguard-linux-arm64"
         sha256 "${aosguard_linux_arm64}"
@@ -86,12 +102,14 @@ class Aos < Formula
 
   def install
     bin.install Dir["aos-*"].first => "aos"
+    resource("aosward").stage { bin.install Dir["aosward-*"].first => "aosward" }
     resource("aosguard").stage { bin.install Dir["aosguard-*"].first => "aosguard" }
     resource("agent-terminal").stage { bin.install Dir["agent-terminal-*"].first => "agent-terminal" }
   end
 
   test do
     assert_match version.to_s, shell_output("#{bin}/aos version")
+    assert_match version.to_s, shell_output("#{bin}/aosward version")
     assert_match version.to_s, shell_output("#{bin}/aosguard --version")
     assert_match version.to_s, shell_output("#{bin}/agent-terminal --version")
   end
@@ -110,12 +128,14 @@ cat > "$dist/aos.json" <<EOF
             "hash": "${windows_amd64}",
             "bin": [
                 ["aos-windows-amd64.exe", "aos"],
+                ["aosward-windows-amd64.exe", "aosward"],
                 ["aosguard-windows-amd64.exe", "aosguard"],
                 ["agent-terminal-windows-amd64.exe", "agent-terminal"]
             ]
         }
     },
     "pre_install": [
+        "Invoke-WebRequest -Uri '${base}/aosward-windows-amd64.exe' -OutFile \"\$dir/aosward-windows-amd64.exe\"; if ((Get-FileHash \"\$dir/aosward-windows-amd64.exe\" -Algorithm SHA256).Hash -ne '${aosward_windows_amd64}') { throw 'aosward checksum mismatch' }",
         "Invoke-WebRequest -Uri '${base}/aosguard-windows-amd64.exe' -OutFile \"\$dir/aosguard-windows-amd64.exe\"; if ((Get-FileHash \"\$dir/aosguard-windows-amd64.exe\" -Algorithm SHA256).Hash -ne '${aosguard_windows_amd64}') { throw 'aosguard checksum mismatch' }",
         "Invoke-WebRequest -Uri '${base}/agent-terminal-windows-amd64.exe' -OutFile \"\$dir/agent-terminal-windows-amd64.exe\"; if ((Get-FileHash \"\$dir/agent-terminal-windows-amd64.exe\" -Algorithm SHA256).Hash -ne '${agent_terminal_windows_amd64}') { throw 'agent-terminal checksum mismatch' }"
     ]

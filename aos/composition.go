@@ -39,7 +39,11 @@ type wardLaunchPlan struct {
 	Args        []string
 }
 
-func runIntegratedLaunch(ctx context.Context, cmd *cli.Command) error {
+func runIntegratedLaunch(
+	ctx context.Context,
+	cmd *cli.Command,
+	defaults launchDefaults,
+) error {
 	if err := validateLegacyDensity(cmd.String("density")); err != nil {
 		return err
 	}
@@ -49,16 +53,16 @@ func runIntegratedLaunch(ctx context.Context, cmd *cli.Command) error {
 		Agent:       strings.TrimSpace(cmd.String("agent")),
 		Layout:      strings.TrimSpace(cmd.String("layout")),
 		Delivery:    strings.TrimSpace(cmd.String("delivery")),
-		Warded:      cmd.Bool("warded"),
-		Composed:    cmd.Bool("composed"),
-		Guarded:     cmd.Bool("guarded"),
+		Warded:      defaults.Warded || cmd.Bool("warded"),
+		Composed:    true,
+		Guarded:     true,
 		NoSubstrate: cmd.Bool("no-substrate"),
 		Auth:        cmd.Bool("auth"),
 		Kubeconfig:  cmd.String("kubeconfig"),
 		DryRun:      cmd.Bool("dry-run"),
 		Arguments:   cmd.Args().Slice(),
 	}
-	if !opts.Warded && !opts.Composed && !opts.Guarded {
+	if opts.Role == "" && opts.Agent == "" && len(opts.Arguments) == 0 {
 		return cli.ShowAppHelp(cmd)
 	}
 	if err := validateIntegratedLaunch(opts); err != nil {

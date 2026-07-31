@@ -221,7 +221,7 @@ func TestIntegratedWardedDryRunStartsNoProcess(t *testing.T) {
 	}
 }
 
-func TestIntegratedStandaloneDryRunUsesSelectedAgent(t *testing.T) {
+func TestIntegratedStandaloneDryRunAlwaysUsesComposedAndGuardedContexts(t *testing.T) {
 	t.Parallel()
 	command := newCommand()
 	var output bytes.Buffer
@@ -232,7 +232,6 @@ func TestIntegratedStandaloneDryRunUsesSelectedAgent(t *testing.T) {
 		"--agent", "codex",
 		"--role", "engineer",
 		"--image", "aos:test",
-		"--guarded",
 		"--dry-run",
 		"--",
 		"--version",
@@ -243,9 +242,11 @@ func TestIntegratedStandaloneDryRunUsesSelectedAgent(t *testing.T) {
 	rendered := output.String()
 	for _, want := range []string{
 		"docker run",
+		"--composed",
 		"--guarded",
 		"_container-acompose",
 		"-- codex --version",
+		substrateVolume,
 	} {
 		if !strings.Contains(rendered, want) {
 			t.Errorf("standalone dry run missing %q:\n%s", want, rendered)
@@ -254,12 +255,9 @@ func TestIntegratedStandaloneDryRunUsesSelectedAgent(t *testing.T) {
 	if strings.Contains(rendered, "ward agent") {
 		t.Fatalf("standalone dry run invoked Ward:\n%s", rendered)
 	}
-	if strings.Contains(rendered, substrateVolume) {
-		t.Fatalf("guard-only launch mounted the composition cache:\n%s", rendered)
-	}
 }
 
-func TestIntegratedStandaloneComposedDryRunUsesNoWard(t *testing.T) {
+func TestIntegratedStandaloneCompatibilityFlagsCannotDisableContexts(t *testing.T) {
 	t.Parallel()
 	command := newCommand()
 	var output bytes.Buffer
@@ -270,7 +268,8 @@ func TestIntegratedStandaloneComposedDryRunUsesNoWard(t *testing.T) {
 		"--agent", "codex",
 		"--role", "engineer",
 		"--image", "aos:test",
-		"--composed",
+		"--composed=false",
+		"--guarded=false",
 		"--dry-run",
 		"--",
 		"--version",
@@ -279,13 +278,51 @@ func TestIntegratedStandaloneComposedDryRunUsesNoWard(t *testing.T) {
 		t.Fatal(err)
 	}
 	rendered := output.String()
-	for _, want := range []string{"docker run", "_container-acompose", "--composed"} {
+	for _, want := range []string{
+		"docker run",
+		"_container-acompose",
+		"--composed",
+		"--guarded",
+	} {
 		if !strings.Contains(rendered, want) {
-			t.Errorf("standalone composed dry run missing %q:\n%s", want, rendered)
+			t.Errorf("standalone dry run missing forced context %q:\n%s", want, rendered)
 		}
 	}
 	if strings.Contains(rendered, "ward agent") {
 		t.Fatalf("standalone composed dry run invoked Ward:\n%s", rendered)
+	}
+}
+
+func TestAOSWardInvocationAlwaysUsesWardAndBothContexts(t *testing.T) {
+	t.Parallel()
+	command := newCommandForInvocation("/usr/local/bin/aosward-windows-amd64.exe")
+	var output bytes.Buffer
+	command.Writer = &output
+	command.ErrWriter = &output
+	err := command.Run(context.Background(), []string{
+		"aosward",
+		"--agent", "codex",
+		"--role", "director",
+		"--image", "aos:test",
+		"--warded=false",
+		"--composed=false",
+		"--guarded=false",
+		"--dry-run",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rendered := output.String()
+	for _, want := range []string{
+		"_container-context-bundle",
+		"--composed",
+		"--guarded",
+		"ward agent director",
+		"--context-bundle '<AOS_CONTEXT_BUNDLE>'",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("aosward dry run missing %q:\n%s", want, rendered)
+		}
 	}
 }
 

@@ -53,25 +53,28 @@ Agent self-name + session-pulse hooks, per-host steps, and gpg wiring: [docs/ins
 
 ## aos CLI
 
-AOS composes independent Ward, agent-compose, and aosguard capabilities behind
-one launch surface:
+AOS always composes the selected role and attaches generated `aosguard`:
 
 ```bash
-aos --agent codex --role engineer --warded --composed --guarded -- owner/repo#267
+aos --agent codex --role engineer -- --version
 ```
 
-AOS translates the shared role and selected capabilities. Ward remains the
-fixed workflow and container lifecycle owner, agent-compose remains the context producer,
-and cli-guard/specgen remains the guarded-tool generator. Matching role names
-never union authority between those layers. AOS applies its own bounded
-standalone runtime gates, including
-[kubeconfig projection](docs/aos-kubeconfig.md).
+A warded launch uses the dedicated command:
+
+```bash
+aosward --agent codex --role engineer -- owner/repo#267
+```
+
+`aosward` is the same AOS launcher with `--warded` forced. Ward remains the fixed
+workflow and container lifecycle owner, agent-compose remains the context
+producer, and cli-guard/specgen remains the guarded-tool generator. Matching
+role names never union authority between those layers. AOS applies its own
+bounded standalone runtime gates, including [kubeconfig projection](docs/aos-kubeconfig.md).
 
 AOS also converges host-aware runtime inputs with `aos converge`, while
 `aos converge --check` detects drift. That surface owns verified remote
 catalogue caching, a deterministic local manifest, native MCP projection, and
-per-server Codex approval policy. See the
-[environment convergence contract](docs/aos-convergence.md).
+per-server Codex approval policy. See the [environment convergence contract](docs/aos-convergence.md).
 
 The original standalone composed-container command remains available:
 
@@ -101,11 +104,10 @@ aos --role director harness-default --intent strategic-planning
 aos --role director lane-default --intent strategic-planning
 ```
 
-Ward is not part of that standalone path. See the
-[launch and handoff contract](docs/aos-cli.md).
-Homebrew and Scoop install `aos`, `aosguard`, and `agent-terminal`. Direct
-release binaries and the aligned native update path are documented in the
-[CLI release walkthrough](docs/aos-cli-release.md).
+Ward is not part of that standalone path. See the [launch and handoff contract](docs/aos-cli.md).
+Homebrew and Scoop install `aos`, `aosward`, `aosguard`, and `agent-terminal`. Direct
+release binaries and the aligned native update path are documented in
+the [CLI release walkthrough](docs/aos-cli-release.md).
 
 ## Secrets pattern
 

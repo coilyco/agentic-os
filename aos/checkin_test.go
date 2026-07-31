@@ -71,6 +71,8 @@ func TestAcomposeCheckinCodexDryRun(t *testing.T) {
 		"agentic-os:test",
 		"--role engineer",
 		"--layout codex",
+		"--composed",
+		"--guarded",
 		"--no-substrate",
 		"-- bash -o pipefail -c",
 		"aos-acompose-checkin exec --ephemeral --sandbox read-only",

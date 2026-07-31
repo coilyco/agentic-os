@@ -80,8 +80,8 @@ commands:
     run: ./aos/aos --role engineer --dry-run acompose -- codex --version
     description: "Render the default standalone composed-container launch without starting Docker."
   aos-composition-dry-run:
-    run: ./aos/aos --agent codex --role engineer --warded --composed --guarded --dry-run --
-    description: "Render the unified Ward, agent-compose, and aosguard launch without starting Docker. Pass the Ward issue or freeform arguments after `--`."
+    run: ./aos/aos --agent codex --role engineer --warded --dry-run --
+    description: "Render the always-composed, always-guarded Ward launch without starting Docker. Pass the Ward issue or freeform arguments after `--`."
   aos-composition-smoke:
     run: bash scripts/aos-composition-smoke.sh
     description: "Materialize the full local context bundle and render Ward's launch without starting an agent container. Pass the Ward issue or freeform arguments after `--`."
@@ -89,7 +89,7 @@ commands:
     run: bash scripts/qa-verification-fixture.sh
     description: "Run one disposable, admitted director-to-engineer-to-QA proof in coilyco-flight-deck/ward-qa-fixture, then stop the run, delete its issue branch, and close its issue. Pass `--preserve-on-failure` only when QA needs the failed branch and issue retained as evidence."
   aos-standalone-composition-smoke:
-    run: ./aos/aos --agent codex --role engineer --composed --guarded --image agentic-os:aos-local --auth=false -- --version
+    run: ./aos/aos --agent codex --role engineer --image agentic-os:aos-local --auth=false -- --version
     description: "Launch the selected agent in one standalone AOS container with composed context and the aosguard skill, then print the agent version."
   aosguard-lock:
     run: sh scripts/aosguard-lock.sh

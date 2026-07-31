@@ -17,21 +17,39 @@ const (
 	defaultDelivery = "native-skills"
 )
 
+type launchDefaults struct {
+	Warded bool
+}
+
 func main() {
-	cmd := newCommand()
+	cmd := newCommandForInvocation(os.Args[0])
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		fmt.Fprintf(os.Stderr, "aos: %v\n", err)
+		fmt.Fprintf(os.Stderr, "%s: %v\n", cmd.Name, err)
 		os.Exit(1)
 	}
 }
 
 func newCommand() *cli.Command {
+	return newCommandWithDefaults("aos", launchDefaults{})
+}
+
+func newCommandForInvocation(executable string) *cli.Command {
+	name := strings.TrimSuffix(strings.ToLower(filepath.Base(executable)), ".exe")
+	if name == "aosward" || strings.HasPrefix(name, "aosward-") {
+		return newCommandWithDefaults("aosward", launchDefaults{Warded: true})
+	}
+	return newCommand()
+}
+
+func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 	return &cli.Command{
-		Name:      "aos",
-		Usage:     "compose independent agent runtime capabilities",
+		Name:      name,
+		Usage:     "launch composed agents with guarded tools",
 		ArgsUsage: "[-- <launch arguments...>]",
 		Version:   version,
-		Action:    runIntegratedLaunch,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return runIntegratedLaunch(ctx, cmd, defaults)
+		},
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:  "role",
@@ -47,11 +65,11 @@ func newCommand() *cli.Command {
 			},
 			&cli.BoolFlag{
 				Name:  "composed",
-				Usage: "materialize the selected agent-compose role context",
+				Usage: "compatibility flag; AOS always materializes agent-compose role context",
 			},
 			&cli.BoolFlag{
 				Name:  "guarded",
-				Usage: "attach the AOS-specific aosguard binary and generated skill",
+				Usage: "compatibility flag; AOS always attaches aosguard and its generated skill",
 			},
 			&cli.StringFlag{
 				Name:  "image",
@@ -313,6 +331,7 @@ func runComposedLaunch(
 		NoSubstrate:     noSubstrate,
 		AuthMounts:      authMounts,
 		ForwardedEnvs:   forwardedEnvironment(),
+		Guarded:         true,
 		Kubeconfig:      cmd.String("kubeconfig"),
 		MCPInventory:    mcp.Inventory,
 		TailnetNetwork:  mcp.TailnetNetwork,
