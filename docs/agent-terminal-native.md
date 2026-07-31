@@ -5,7 +5,7 @@ doc_goal: Explain native agent-terminal installation and version lifecycle.
 
 `agent-terminal` ships on the AOS `aos-vMAJOR.MINOR.PATCH` release train. The
 same release defines its `agent-compose.overlay.v1` renderer contract and
-stamps `aos`, `aosward`, `aosguard`, and `agent-terminal` with one version.
+stamps `aos`, `aoscomposed`, `aosward`, `aosguard`, and `agent-terminal` with one version.
 
 ## Requirements
 
@@ -33,8 +33,8 @@ scoop bucket add coilyco https://forgejo.coilysiren.me/coilyco-flight-deck/scoop
 scoop install coilyco/aos
 ```
 
-Both packages place `agent-terminal` on `PATH` beside `aos`, `aosward`, and
-`aosguard`.
+Both packages place `agent-terminal` on `PATH` beside `aos`, `aoscomposed`,
+`aosward`, and `aosguard`.
 A clean installation can run `agent-terminal --help` without an agentic-os
 checkout. A dry run additionally needs `agent-compose` to return the selected
 overlay, but does not need Alacritty.
@@ -45,13 +45,13 @@ Every versioned binary and `SHA256SUMS` is also available from the
 ## Upgrade
 
 `brew upgrade aos` upgrades the Homebrew installation. `scoop update aos`
-upgrades the Scoop installation. Each update replaces all four AOS tools as
+upgrades the Scoop installation. Each update replaces all five AOS tools as
 one version-aligned set.
 
 ## Rollback
 
-Select an earlier `aos-v*` release and install its matching `aos`, `aosward`,
-`aosguard`, and `agent-terminal` artifacts together. Verify all four against that
+Select an earlier `aos-v*` release and install its matching `aos`, `aoscomposed`,
+`aosward`, `aosguard`, and `agent-terminal` artifacts together. Verify all five against that
 release's `SHA256SUMS` before replacing the binaries on `PATH`. Do not mix
 launcher and AOS versions because the AOS release defines the renderer
 contract.
@@ -60,12 +60,13 @@ contract.
 
 ```text
 aos version
+aoscomposed version
 aosward version
 aosguard --version
 agent-terminal --version
 ```
 
-All four outputs must name the same `aos-vMAJOR.MINOR.PATCH` release.
+All five outputs must name the same `aos-vMAJOR.MINOR.PATCH` release.
 
 ## See also
 

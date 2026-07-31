@@ -38,6 +38,9 @@ func newCommandForInvocation(executable string) *cli.Command {
 	if name == "aosward" || strings.HasPrefix(name, "aosward-") {
 		return newCommandWithDefaults("aosward", launchDefaults{Warded: true})
 	}
+	if name == "aoscomposed" || strings.HasPrefix(name, "aoscomposed-") {
+		return newCommandWithDefaults("aoscomposed", launchDefaults{})
+	}
 	return newCommand()
 }
 

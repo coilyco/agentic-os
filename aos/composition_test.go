@@ -326,6 +326,42 @@ func TestAOSWardInvocationAlwaysUsesWardAndBothContexts(t *testing.T) {
 	}
 }
 
+func TestAOSComposedInvocationUsesBothContextsWithoutWard(t *testing.T) {
+	t.Parallel()
+	command := newCommandForInvocation("/usr/local/bin/aoscomposed-linux-amd64")
+	var output bytes.Buffer
+	command.Writer = &output
+	command.ErrWriter = &output
+	err := command.Run(context.Background(), []string{
+		"aoscomposed",
+		"--agent", "codex",
+		"--role", "engineer",
+		"--image", "aos:test",
+		"--composed=false",
+		"--guarded=false",
+		"--dry-run",
+		"--",
+		"--version",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rendered := output.String()
+	for _, want := range []string{
+		"_container-acompose",
+		"--composed",
+		"--guarded",
+		"-- codex --version",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("aoscomposed dry run missing %q:\n%s", want, rendered)
+		}
+	}
+	if strings.Contains(rendered, "ward agent") {
+		t.Fatalf("aoscomposed dry run invoked Ward:\n%s", rendered)
+	}
+}
+
 func TestIntegratedStandaloneKubeconfigDryRun(t *testing.T) {
 	t.Parallel()
 	kubeconfig := writeTestKubeconfig(

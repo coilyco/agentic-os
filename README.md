@@ -57,6 +57,7 @@ AOS always composes the selected role and attaches generated `aosguard`:
 
 ```bash
 aos --agent codex --role engineer -- --version
+aoscomposed --agent codex --role engineer -- --version
 ```
 
 A warded launch uses the dedicated command:
@@ -65,8 +66,8 @@ A warded launch uses the dedicated command:
 aosward --agent codex --role engineer -- owner/repo#267
 ```
 
-`aosward` is the same AOS launcher with `--warded` forced. Ward remains the fixed
-workflow and container lifecycle owner, agent-compose remains the context
+`aoscomposed` is an exact alias of `aos`. `aosward` adds `--warded`. Ward remains
+the fixed workflow and container lifecycle owner, agent-compose remains the context
 producer, and cli-guard/specgen remains the guarded-tool generator. Matching
 role names never union authority between those layers. AOS applies its own
 bounded standalone runtime gates, including [kubeconfig projection](docs/aos-kubeconfig.md).
@@ -105,9 +106,8 @@ aos --role director lane-default --intent strategic-planning
 ```
 
 Ward is not part of that standalone path. See the [launch and handoff contract](docs/aos-cli.md).
-Homebrew and Scoop install `aos`, `aosward`, `aosguard`, and `agent-terminal`. Direct
-release binaries and the aligned native update path are documented in
-the [CLI release walkthrough](docs/aos-cli-release.md).
+Homebrew and Scoop install `aos`, `aoscomposed`, `aosward`, `aosguard`, and `agent-terminal`.
+Direct release binaries and the aligned native update path are documented in the [CLI release walkthrough](docs/aos-cli-release.md).
 
 ## Secrets pattern
 

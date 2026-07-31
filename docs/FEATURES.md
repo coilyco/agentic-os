@@ -14,9 +14,9 @@ Major shipped capabilities, not files.
 - [Agent-compose provider](personality-provider.md) - scoped skills and personality alignment.
 - [Agent tool evaluation](../.agents/skills/tooling-agent-tool-evaluation/SKILL.md) - cross-harness tool evals.
 - [Role-composed skills](role-composed-skills.md) - role-gated methods and behavioral evaluation.
-- [AOS launcher](aos-cli.md) - `aos` and `aosward`,
+- [AOS launcher](aos-cli.md) - `aos`, `aoscomposed`, and `aosward`,
   [convergence](aos-convergence.md),
-  [MCP and tailnet](aos-standalone-connectivity.md),
+  [MCP](aos-standalone-connectivity.md),
   [role-gated kubeconfig](aos-kubeconfig.md), and
   [check-ins](aos-acompose-checkin.md).
 - [aosguard](aosguard.md) - AOS-specific guarded CLI and generated skill,

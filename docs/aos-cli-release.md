@@ -18,14 +18,14 @@ it. Manual dispatch overrides the decision. The release job:
 
 1. installs the validated workflow Ward, then runs Python, Go, and pre-commit validation
 2. bumps the CLI minor version without reading commit-message signals
-3. cross-compiles matching `aos`, `aosward`, `aosguard`, and `agent-terminal` binaries for every declared target
-4. stamps the same tag into all four binaries
+3. cross-compiles matching `aos`, `aoscomposed`, `aosward`, `aosguard`, and `agent-terminal` binaries for every declared target
+4. stamps the same tag into all five binaries
 5. renders checksums, Homebrew, and Scoop metadata
 6. creates or reuses the Forgejo release
 7. replaces every release asset from the clean `dist/` directory
 8. updates the tap and bucket when their write tokens are present
 
-Release assets group `aos-*`, `aosward-*`, `aosguard-*`, and
+Release assets group `aos-*`, `aoscomposed-*`, `aosward-*`, `aosguard-*`, and
 `agent-terminal-*` on Darwin arm64, Linux amd64 and arm64, and Windows amd64.
 `SHA256SUMS`, `aos.rb`, and `aos.json` cover the whole version-aligned set.
 
@@ -45,8 +45,8 @@ scoop bucket add coilyco https://forgejo.coilysiren.me/coilyco-flight-deck/scoop
 scoop install coilyco/aos
 ```
 
-Both package managers install `aos`, `aosward`, `aosguard`, and `agent-terminal`
-on `PATH`. The `aosward` binary is byte-identical to `aos` and
+Both package managers install `aos`, `aoscomposed`, `aosward`, `aosguard`, and `agent-terminal`
+on `PATH`. The two aliases are byte-identical to `aos`, while `aosward`
 forces warded launch mode from its executable name. The `aosguard` release
 binary contains its generated operator CLI and the Forgejo Actions bridge. The
 `agent-terminal` binary contains the Alacritty renderer only. Agent-compose

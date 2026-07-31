@@ -10,8 +10,7 @@ aos --agent codex --role engineer -- --version
 ```
 
 The shared role slug selects context across enabled capabilities and never
-transfers authority between tools. Standalone AOS separately applies bounded
-access gates such as [kubeconfig projection](aos-kubeconfig.md).
+transfers authority between tools. Standalone AOS applies bounded access gates such as [kubeconfig projection](aos-kubeconfig.md).
 
 ## Launch modes
 
@@ -23,11 +22,12 @@ Every AOS agent launch has these two contexts:
 The compatibility flags `--composed` and `--guarded` remain accepted, including
 explicit false values, but cannot disable either context.
 
-`aos` owns one standalone container. Arguments after `--` become arguments to
-the selected agent:
+`aos` and its explicit `aoscomposed` alias own one standalone container.
+Arguments after `--` become arguments to the selected agent:
 
 ```bash
 aos --agent codex --role engineer -- --version
+aoscomposed --agent codex --role engineer -- --version
 ```
 
 `aosward` is the same executable with warded mode forced. It is equivalent to
