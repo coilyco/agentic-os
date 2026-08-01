@@ -1,6 +1,6 @@
 # Assignment method (the part that actually works)
 
-Distributed per-repo judgment cannot hit a global ratio on its own - it overshoots. So **carve P0 by rule, then let judgment provide the ordering and percentile enforce the shape** on the rest:
+Distributed per-repo judgment cannot hit a global ratio on its own - it overshoots. Here, global means the resolved priority pool from the skill entrypoint: one repository by default, or an explicitly declared organization portfolio. So **carve P0 by rule, then let judgment provide the ordering and percentile enforce the shape** on the rest:
 
 1. **Carve P0 first**: run the content rules (net) over title+body, then judgment-confirm each candidate (see Target shape in the skill entrypoint). The confirmed set is P0 and leaves the pool.
 2. Score the remaining pool by urgency. Robust signal: run two independent judgment passes (a triage cascade twice, or two rubrics), map `P1=3 P2=2 P3=1 P4=0`, sum. Unsure -> P3 (the default).

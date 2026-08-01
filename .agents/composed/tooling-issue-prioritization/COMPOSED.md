@@ -8,6 +8,9 @@ low-context: required
 
 How to put a priority on every open issue and keep the backlog honest. Trackers without a native priority field express priority as per-issue labels `P0`/`P1`/`P2`/`P3`/`P4` (exactly one per open issue) - agents apply them, humans sort and read. Define the labels once at org scope so every repo shares one set.
 
+Resolve ranking scope before labels. See
+[pool rules](references/priority-pool.md).
+
 ## Tier definitions
 
 - **P0** - urgent AND blocking now. Active breakage/outage, security holes, data-loss risk, or blocks other committed work. Assigned by **a content-rule net, then a judgment confirm** (see Target shape), never a quota - whatever genuinely matches is P0.
@@ -25,7 +28,14 @@ How to put a priority on every open issue and keep the backlog honest. Trackers 
 
 You never force a P0 percentage - urgent is whatever genuinely is (a re-triage of ~750 issues confirmed ~19).
 
-The **non-P0 remainder** splits to a global distribution (across the whole backlog, NOT per repo), as equal-width ranges so the cut lands on a natural break, not a forced percentage: **P1 0-20%, P2 10-30%, P3 20-40%, P4 30-50%** - same 20-point width, centers at **10 / 20 / 30 / 40**, summing to 100. Treat the band, not a single number, as the target. P1 floors at zero on purpose: a backlog with nothing important-and-near-term has an empty P1, and that is correct. Small or urgent repos may deviate past a band edge; the shape holds on the total.
+The **non-P0 remainder** splits to a global distribution across the resolved
+priority pool, as equal-width ranges so the cut lands on a natural break, not a
+forced percentage: **P1 0-20%, P2 10-30%, P3 20-40%, P4 30-50%** - same
+20-point width, centers at **10 / 20 / 30 / 40**, summing to 100. Treat the
+band, not a single number, as the target. P1 floors at zero on purpose: a
+backlog with nothing important-and-near-term has an empty P1, and that is
+correct. Small or urgent repositories may deviate past a band edge. The shape
+holds on the resolved pool.
 
 ## Second axis: automation mode
 
