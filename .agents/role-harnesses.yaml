@@ -50,8 +50,8 @@ selections:
     message-composition: {agent: mixpost}
     channel-publishing: {agent: elizaos}
   community:
-    knowledge-retrieval: {agent: sirens-discord-ops}
-    conversation-management: {agent: sirens-discord-ops}
+    knowledge-retrieval: {agent: sirens-echo}
+    conversation-management: {agent: sirens-echo}
   sales:
     research-synthesis: {agent: hermes}
     conversation-management: {agent: elizaos}

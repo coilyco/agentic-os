@@ -87,8 +87,8 @@ func TestCommunityLaneProjections(t *testing.T) {
 		t.Fatal(err)
 	}
 	for intent, harness := range map[string]string{
-		"knowledge-retrieval":     "sirens-discord-ops",
-		"conversation-management": "sirens-discord-ops",
+		"knowledge-retrieval":     "sirens-echo",
+		"conversation-management": "sirens-echo",
 	} {
 		lane, resolveErr := resolveLaneDefault(board, "community", intent)
 		if resolveErr != nil {
@@ -124,7 +124,7 @@ func TestLaneDefaultCommandEmitsOnlyModelOpaqueControlData(t *testing.T) {
 	}
 	if projection["role"] != "community" ||
 		projection["intent"] != "knowledge-retrieval" ||
-		projection["harness"] != "sirens-discord-ops" ||
+		projection["harness"] != "sirens-echo" ||
 		projection["route"] != "community/knowledge-retrieval" {
 		t.Fatalf("lane-default projection = %#v", projection)
 	}

@@ -210,10 +210,10 @@ roles {
     role community {
         // BEGIN generated role-intent harness routes
         intent knowledge-retrieval {
-            harness sirens-discord-ops
+            harness sirens-echo
         }
         intent conversation-management {
-            harness sirens-discord-ops
+            harness sirens-echo
         }
         // END generated role-intent harness routes
 

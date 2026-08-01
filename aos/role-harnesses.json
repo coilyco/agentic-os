@@ -97,11 +97,11 @@
       "intents": [
         {
           "intent": "knowledge-retrieval",
-          "harness": "sirens-discord-ops"
+          "harness": "sirens-echo"
         },
         {
           "intent": "conversation-management",
-          "harness": "sirens-discord-ops"
+          "harness": "sirens-echo"
         }
       ]
     },

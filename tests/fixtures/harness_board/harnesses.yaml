@@ -1,6 +1,6 @@
 role_eligibility:
   community:
-    allowed_harnesses: [sirens-discord-ops]
+    allowed_harnesses: [sirens-echo]
 harnesses:
   aider:
     intents: [code-review]
@@ -29,6 +29,6 @@ harnesses:
     intents: [project-coordination]
   rasa:
     intents: [knowledge-retrieval, conversation-management]
-  sirens-discord-ops:
+  sirens-echo:
     intents: [knowledge-retrieval, conversation-management]
     roles: [community]

@@ -15,7 +15,7 @@ The committed board contains thirteen roles and twenty-one lanes:
 * **pm** - `strategic-planning` uses `hermes`. `project-coordination` uses `plane`.
 * **designer** - `product-shaping` uses `penpot`. `design-production` uses `aosx`.
 * **social** - `message-composition` uses `mixpost`. `channel-publishing` uses `elizaos`.
-* **community** - Both intents use the exclusive `sirens-discord-ops` harness.
+* **community** - Both intents use the exclusive `sirens-echo` harness.
 * **sales** - `research-synthesis` uses `hermes`. `conversation-management` uses `elizaos`.
 * **customer-success** - `knowledge-retrieval` and `conversation-management` both use `rasa`.
 * **ceo** - `strategic-planning` uses `hermes`.
@@ -48,7 +48,7 @@ harness or product surface. A launcher or profile invokes the selected adapter.
 AOS owns the public
 [agent and harness capability registry](../.agents/harnesses.yaml), including
 descriptions, links, intents, optional roles, and role eligibility. The
-Community allowlist admits only `sirens-discord-ops` without changing shared
+Community allowlist admits only `sirens-echo` without changing shared
 intents. AOS also owns the hand-maintained
 [role-intent-harness board](../.agents/role-harnesses.yaml). Role semantics and
 harness choice are launcher policy, independent of model scoring and hardware.

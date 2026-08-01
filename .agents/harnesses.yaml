@@ -2,7 +2,7 @@
 max_options_per_intent: 4
 role_eligibility:
   community:
-    allowed_harnesses: [sirens-discord-ops]
+    allowed_harnesses: [sirens-echo]
 harnesses:
   aider:
     description: >-
@@ -212,13 +212,13 @@ harnesses:
       of only free-form generation.
     url: "https://rasa.com/docs/"
     intents: [conversation-management, knowledge-retrieval]
-  sirens-discord-ops:
+  sirens-echo:
     description: >-
-      Sirens Discord Ops is the exclusive Community harness for the Sirens Discord.
+      Sirens Echo is the exclusive Community harness for the Sirens Discord.
       It owns Discord invocation and delivery, Community context, tool use,
       structured responses, evaluation, and observability while keeping inference
       behind a model-opaque logical route.
-    url: "https://forgejo.coilysiren.me/coilyco-gaming/sirens-discord-ops"
+    url: "https://forgejo.coilysiren.me/coilyco-gaming/sirens-echo"
     intents: [knowledge-retrieval, conversation-management]
     roles: [community]
   vtcode:
