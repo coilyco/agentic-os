@@ -1,6 +1,6 @@
 # Test harnesses
 
-A **test harness** probes one agent+model pairing before it is trusted with real work: what the agent *claims* about itself (often wrong) versus what it can *actually* do (tool use, file/shell reach, instruction-following). Each of the five harnesses in [harness-selection.md](harness-selection.md) gets its own doc in this family, named `test-harness-<agent>`.
+A **test harness** probes one agent and model pairing before it is trusted with real work: what the agent claims about itself versus what it can actually do. Each documented probe gets its own `test-harness-<agent>` page. These probes are evidence, not production routing defaults.
 
 This is the parent. Author one child per agent.
 
@@ -22,8 +22,7 @@ Name it `test-harness-<agent>.md`, link it from this parent's index, and follow 
 - **Mechanism** - exactly how to invoke this agent for one-shot probing, with the gotchas (auth, flags, host).
 - **Usage** - the concrete commands, single and batch.
 - **First prod-test findings** - run the probe battery once and record what it surfaced, organized by: tool use (what fires, what returns real output), iteration discipline (does it thrash), self-knowledge (model/host self-report accuracy), instruction-following (brevity, format), context window (claimed vs real).
-- **Related** - the harness-selection authority, runtime configuration, and
-  this parent.
+- **Related** - the explicit launch path, runtime configuration, and this parent.
 
 Keep it public-safe: no tower FQDN or opaque ids (use placeholders, resolve at runtime). Findings are point-in-time - date the model/version they were taken against.
 
@@ -35,6 +34,5 @@ Keep it public-safe: no tower FQDN or opaque ids (use placeholders, resolve at r
 - `test-harness-codex` - Codex on `gpt-5.5` (ChatGPT auth). Authored by Codex.
 - `test-harness-opencode`, `test-harness-aider`, `test-harness-claude` - planned.
 
-## Related
-
-- [harness-selection.md](harness-selection.md) - picking a harness and model tier.
+Goose is the only currently proven local-model production launch. Other entries
+remain exploratory until their own evidence supports production use.

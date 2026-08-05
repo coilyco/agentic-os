@@ -6,7 +6,7 @@ directly and fetches no context over the network.
 
 ## Ownership boundary
 
-* **AOS** - owns ordinary skills, role-scoped skills, role bindings, and the public agent and harness capability registry.
+* **AOS** - owns ordinary skills, role-scoped skills, and role bindings.
 * **agent-compose** - owns roles, personality compatibility, seats, identity, colors, the personality invariant and definitions, selection, and materialization.
 * **Ward and AOSguard** - Ward owns fixed workflow lifecycle and its broker. AOSguard owns the separately selected operator permissions and credentials.
 
@@ -29,13 +29,6 @@ ordinary skill or role binding needs no parallel provider inventory.
 
 Skill frontmatter owns the [model-class decision](skill-model-classes.md).
 Role selection runs first, so pruning never widens the role boundary.
-
-The provider also publishes `.agents/harnesses.yaml` as the canonical
-model-opaque registry of agent and harness identity, source links, and
-compatible intents. AOSH consumes a generated mirror for offline scoring while
-retaining role joins, lane selections, models, and backend routes.
-Harness identity remains registry data rather than ordinary skill entries, so
-every role does not pay a duplicate catalog routing cost.
 
 Agent-compose activates the complete ordered personality meld for a selected
 role. A request cannot select an arbitrary trait or change compatibility.

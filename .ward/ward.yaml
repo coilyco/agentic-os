@@ -112,9 +112,6 @@ commands:
   aos-role-question:
     run: sh scripts/aos-role-question.sh
     description: "Ask one composed role a real question through cloud Codex or Goose with a local model, enforce a bounded run, and require the response to confirm its loaded role. Usage: `ward exec aos-role-question -- cloud|local ROLE [MODEL]`."
-  sync-harness-board:
-    run: uv run python -m agentic_os.harness_board_sync
-    description: "Validate AOS's role-intent-harness source against its harness registry, then project `.agents/roles.kdl` and the compiled `aos-cli/role-harnesses.json` launcher view. `-- --check` reports drift without writing. See docs/harness-selection.md."
   sync-role-personalities:
     run: uv run python -m agentic_os.role_personality_sync
     description: "Project agent-compose's emitted person snapshot into `aos-cli/role-personalities.json` for measurement alignment. `-- --check` reports drift without writing. See docs/role-orientation-projections.md."

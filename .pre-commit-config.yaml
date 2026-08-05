@@ -131,14 +131,6 @@ repos:
         always_run: true
         pass_filenames: false
         stages: [pre-commit]
-      - id: role-harness-board
-        name: AOS harness registry and AOSH selections match projections
-        entry: python -m agentic_os.harness_board_sync --check --if-present
-        language: python
-        additional_dependencies: [pyyaml]
-        always_run: true
-        pass_filenames: false
-        stages: [pre-commit]
       - id: role-personality-board
         name: AOS role personalities match agent-compose
         entry: python -m agentic_os.role_personality_sync --check --if-present

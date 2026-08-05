@@ -105,9 +105,6 @@ agents_md_max_chars = 34000
 excludes = [
     "warp/launch_configurations/**",
     "warp/tab_configs/**",
-    # Generated pre-rollout AGENTS inventory baseline. It preserves the full
-    # review surface and stays over-cap rather than splitting one point-in-time audit.
-    "docs/agents-context-inventory-snapshot.md",
     # Root SSM.md is a focused pointer to the SSM params aos code consumes,
     # mirroring the canonical SSM.md placement. See SSM.md.
     "SSM.md",

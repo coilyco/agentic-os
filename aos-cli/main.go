@@ -146,32 +146,6 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 				Action: runEnvironmentConverge,
 			},
 			{
-				Name:   "harness-default",
-				Usage:  "print the projected harness for a role-intent lane",
-				Action: runHarnessDefault,
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:  "intent",
-						Usage: "model-opaque task intent to resolve",
-					},
-				},
-			},
-			{
-				Name:   "lane-default",
-				Usage:  "print the model-opaque harness and route for a role-intent lane",
-				Action: runLaneDefault,
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:  "intent",
-						Usage: "model-opaque task intent to resolve",
-					},
-					&cli.StringFlag{
-						Name:  "profile",
-						Usage: "atomically update an AOS-owned local lane profile",
-					},
-				},
-			},
-			{
 				Name:      "acompose",
 				Usage:     "launch a composed agent in the AOS image",
 				ArgsUsage: "-- <harness> [args...]",

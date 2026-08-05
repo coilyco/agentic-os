@@ -2,7 +2,7 @@
 
 The context-budget report measures a requested `(role, seat)` pair. The role selects the composed briefing and role-scoped skills. The seat selects one of
 AOS's four agent-compose projection layouts and its AGENTS-family cascade.
-Harness routing and intent selection are not measurement inputs.
+No model route selector is a measurement input.
 
 The command asks the local `agent-compose` binary to perform three operations:
 
@@ -62,8 +62,8 @@ the policy is applied, so excluded snapshots remain independently loadable and
 refreshable evidence.
 
 Aggregate measurement scope is separate from runtime compatibility. The policy
-does not change role composition, harness eligibility, lane selection, layout
-classification, or native and container launch behavior.
+does not change role composition, seat layouts, or native and container launch
+behavior.
 
 ## Capture and compare
 

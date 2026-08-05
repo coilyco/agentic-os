@@ -19,8 +19,8 @@ from typing import Iterable, Iterator, Mapping
 import yaml
 
 from agentic_os.agents_context_inventory import (
+    ContextSelection,
     InventoryError,
-    Scenario,
     active_cascade,
     discover_repositories,
 )
@@ -301,7 +301,7 @@ def _agents_components(
     provider: Path,
     repo: Path,
     cwd: Path,
-    scenario: Scenario,
+    selection: ContextSelection,
     provider_identity: str,
     repo_identity: str,
 ) -> list[Component]:
@@ -348,7 +348,7 @@ def _agents_components(
             )
             cascade = active_cascade(
                 repositories,
-                scenario,
+                selection,
                 current_repo=repo_identity,
                 cwd=cwd_label,
                 include_global_composed=False,
@@ -799,7 +799,7 @@ def build_snapshot(
     }
     repo_identity = repository_identity(repo)
     model_class = model_class_for_seat(seat)
-    scenario = Scenario(role=role, intent="context-measurement", harness=seat)
+    selection = ContextSelection(role=role, harness=seat)
     manifest, instructions, skills_root = _load_manifest(
         bundle.resolve(), role, model_class
     )
@@ -824,7 +824,7 @@ def build_snapshot(
             provider,
             repo,
             cwd,
-            scenario,
+            selection,
             provider_identity,
             repo_identity,
         )

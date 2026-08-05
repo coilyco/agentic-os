@@ -3,7 +3,7 @@
 Part of the [test-harness](test-harness.md) doc family - one per agent.
 
 `scripts/goose-ask.sh` (ward verb `goose-ask`) is a minimal probe harness for
-the [Goose](harness-selection.md) agent. It runs one-shot questions through
+Goose. It runs one-shot questions through
 `goose run --no-session`, strips the startup banner, times each call, and tees
 a full raw transcript under
 `~/.cache/agentic-os/goose-ask/<timestamp>.log`. The goal is to interrogate a
@@ -42,4 +42,4 @@ Run against `qwen3-coder:30b` via Ollama on `kai-tower-3026` over tailnet, Goose
 
 - [test-harness](test-harness.md) - the parent doc family and authoring convention.
 - `models-qwen-coder` - the bound model tier.
-- [harness-selection.md](harness-selection.md) - picking a harness and model tier.
+- [AOS launch CLI](aos-cli.md) - selecting Goose and a role explicitly.

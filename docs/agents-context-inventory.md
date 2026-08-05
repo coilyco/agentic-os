@@ -2,10 +2,10 @@
 
 `agents-context-inventory` inventories AGENTS-family context across the public AOS
 substrate and a supplied managed fleet. It separates the aggregate duplication
-corpus from files that a specific role and harness would receive.
+corpus from product-specific clipping candidates.
 
-It is the discovery contract shared with the [context budget](context-budget.md).
-Harness adapters still decide which discovered sources a harness ingests.
+The [context budget](context-budget.md) reuses its repository discovery and
+explicit role-seat cascade helpers without relying on a routing board.
 
 ## Inputs
 
@@ -26,28 +26,20 @@ AOS reads the supplied file and never imports private fleet config.
 
 ```bash
 ward exec agents-context-inventory -- \
-  --fleet-manifest /path/to/managed-repos.txt \
-  --current-repo example/product \
-  --cwd services/api
+  --fleet-manifest /path/to/managed-repos.txt
 ```
 
 Markdown is the default. `-- --format json` emits the machine contract and
 `-- --output PATH` writes either render. `-- --check` fails on absent checkouts,
 unknown visibility, or missing root `AGENTS.md`, while retaining the entry.
-Scenarios default to `aos-cli/role-harnesses.json`. `-- --board PATH` overrides it.
 
-## Repository and cascade boundaries
+## Repository boundaries
 
-The report keeps four surfaces distinct:
+The report keeps three surfaces distinct:
 
 * **Substrate corpus** - AGENTS files named by the committed substrate manifest.
 * **Product corpus** - the supplied managed fleet minus the substrate set.
 * **AOSH** - separate, with `global_load: false`, never an implicit global source.
-* **Active cascade** - composed base, harness override, and root-to-CWD chain.
-
-An active source can occur through two delivery paths. The report preserves both
-occurrences and hashes the ordered source set.
-
 ## Paragraph attribution
 
 The tool hashes normalized paragraphs and emits no bodies. Duplicate ownership
@@ -63,17 +55,15 @@ Every paragraph receives one deterministic classification and destination:
 * **duplicate** - deletion candidate.
 * **documentation-only** - repository docs.
 
-The [committed baseline](agents-context-inventory-snapshot.md) is a pre-rollout
-audit. Infrastructure #607 lands each reviewed product change through its owner.
+Infrastructure #607 lands each reviewed product change through its owner.
 
 ## Machine contract
 
 JSON format `agentic-os.agents-context-inventory.v1` is stable and timestamp-free:
 
 * repository aggregates, provenance, presence, root state, and document hashes;
-* selected role-intent-harness cascades and ordered source-set hashes;
 * product clipping candidates and recommended destinations;
 * an explicit AOSH non-global marker.
 
-Context budgeting can import `discover_repositories`, `load_scenarios`, and
+Context budgeting can import `discover_repositories`, `ContextSelection`, and
 `active_cascade`. Adapters still own ingestion and non-AGENTS surfaces.

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -13,36 +12,11 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
-def _board(path: Path) -> None:
-    _write(
-        path,
-        json.dumps(
-            {
-                "roles": [
-                    {
-                        "role": "engineer",
-                        "intents": [
-                            {"intent": "autonomous-coding", "harness": "codex"}
-                        ],
-                    },
-                    {
-                        "role": "strats",
-                        "intents": [
-                            {"intent": "research", "harness": "claude"}
-                        ],
-                    },
-                ]
-            }
-        ),
-    )
-
-
 @pytest.fixture
 def context_fleet(tmp_path: Path) -> dict[str, Path]:
     projects = tmp_path / "projects"
     substrate = tmp_path / "substrate.txt"
     fleet = tmp_path / "fleet.txt"
-    board = tmp_path / "board.json"
     _write(
         substrate,
         "\n".join(
@@ -65,8 +39,6 @@ def context_fleet(tmp_path: Path) -> dict[str, Path]:
         )
         + "\n",
     )
-    _board(board)
-
     shared = "Every action sentence names the actor.\n"
     _write(
         projects / "coilyco-flight-deck" / "agentic-os" / "AGENTS.md",
@@ -100,7 +72,6 @@ def context_fleet(tmp_path: Path) -> dict[str, Path]:
         "projects": projects,
         "substrate": substrate,
         "fleet": fleet,
-        "board": board,
     }
 
 
@@ -109,9 +80,6 @@ def _report(context_fleet: dict[str, Path]) -> dict:
         context_fleet["substrate"],
         context_fleet["fleet"],
         context_fleet["projects"],
-        board=context_fleet["board"],
-        current_repo="coilyco-bridge/product",
-        cwd="service",
     )
 
 
@@ -134,12 +102,17 @@ def test_repository_sets_include_missing_roots_and_separate_aosh(
 def test_active_cascade_orders_global_override_bridge_root_and_nested(
     context_fleet: dict[str, Path],
 ) -> None:
-    report = _report(context_fleet)
-    cascades = {
-        (row["role"], row["harness"]): row for row in report["active_cascades"]
-    }
-
-    codex = cascades[("engineer", "codex")]
+    repositories = inventory.discover_repositories(
+        context_fleet["substrate"],
+        context_fleet["fleet"],
+        context_fleet["projects"],
+    )
+    codex = inventory.active_cascade(
+        repositories,
+        inventory.ContextSelection(role="engineer", harness="codex"),
+        current_repo="coilyco-bridge/product",
+        cwd="service",
+    )
     assert [source["delivery_path"] for source in codex["sources"]] == [
         "global-composed",
         "global-harness-override",
@@ -151,7 +124,12 @@ def test_active_cascade_orders_global_override_bridge_root_and_nested(
         "coilyco-bridge/product:service/AGENTS.md",
     ]
 
-    claude = cascades[("strats", "claude")]
+    claude = inventory.active_cascade(
+        repositories,
+        inventory.ContextSelection(role="strats", harness="claude"),
+        current_repo="coilyco-bridge/product",
+        cwd="service",
+    )
     assert [source["delivery_path"] for source in claude["sources"]] == [
         "global-composed",
         "repo-cascade-bridge",
@@ -213,26 +191,9 @@ def test_report_is_stable_and_markdown_uses_flat_prose(
 
     assert inventory.render_json(first) == inventory.render_json(second)
     markdown = inventory.render_markdown(first)
-    assert "## Active cascades" in markdown
+    assert "## Product clipping candidates" in markdown
     assert "| --- |" not in markdown
     assert "coilyco-bridge/missing" in markdown
-    assert first["active_cascades"][0]["payload_hash"][:12] not in markdown
-
-
-def test_build_report_rejects_current_repo_outside_inventory(
-    context_fleet: dict[str, Path],
-) -> None:
-    with pytest.raises(
-        inventory.InventoryError,
-        match="current repository 'example/not-managed' is not present",
-    ):
-        inventory.build_report(
-            context_fleet["substrate"],
-            context_fleet["fleet"],
-            context_fleet["projects"],
-            board=context_fleet["board"],
-            current_repo="example/not-managed",
-        )
 
 
 def test_bare_manifest_entry_resolves_only_a_named_repo(tmp_path: Path) -> None:
@@ -275,12 +236,6 @@ def test_cli_check_reports_incomplete_inventory(
             str(context_fleet["substrate"]),
             "--projects-root",
             str(context_fleet["projects"]),
-            "--board",
-            str(context_fleet["board"]),
-            "--current-repo",
-            "coilyco-bridge/product",
-            "--cwd",
-            "service",
             "--format",
             "json",
             "--check",
@@ -291,35 +246,6 @@ def test_cli_check_reports_incomplete_inventory(
     captured = capsys.readouterr()
     assert '"format": "agentic-os.agents-context-inventory.v1"' in captured.out
     assert "incomplete: coilyco-bridge/missing" in captured.err
-
-
-def test_cli_rejects_current_repo_outside_inventory(
-    context_fleet: dict[str, Path], capsys: pytest.CaptureFixture[str]
-) -> None:
-    rc = inventory.main(
-        [
-            "--fleet-manifest",
-            str(context_fleet["fleet"]),
-            "--substrate-manifest",
-            str(context_fleet["substrate"]),
-            "--projects-root",
-            str(context_fleet["projects"]),
-            "--board",
-            str(context_fleet["board"]),
-            "--current-repo",
-            "example/not-managed",
-        ]
-    )
-
-    assert rc == 2
-    captured = capsys.readouterr()
-    assert captured.out == ""
-    assert (
-        "current repository 'example/not-managed' is not present in the inventory"
-        in captured.err
-    )
-
-
 def test_manifest_rejects_conflicting_visibility(tmp_path: Path) -> None:
     manifest = tmp_path / "repos.txt"
     _write(manifest, "org/repo public\norg/repo private\n")

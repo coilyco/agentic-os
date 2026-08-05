@@ -16,7 +16,6 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SUBSTRATE_MANIFEST = (
     REPO_ROOT / "aos-cli" / "repositories" / "substrate-repos.txt"
 )
-DEFAULT_BOARD = REPO_ROOT / "aos-cli" / "role-harnesses.json"
 DEFAULT_PROJECTS_ROOT = Path.home() / "projects"
 DEFAULT_AOSH_REPO = "coilyco-bridge/agentic-os-hardware"
 GLOBAL_BASE_REPO = "coilyco-flight-deck/agentic-os"
@@ -154,9 +153,8 @@ class RepositoryRecord:
 
 
 @dataclass(frozen=True)
-class Scenario:
+class ContextSelection:
     role: str
-    intent: str
     harness: str
 
 
@@ -440,36 +438,6 @@ def _mark_duplicates(repositories: list[RepositoryRecord]) -> None:
                 paragraph.basis = "exact normalized paragraph hash"
 
 
-def load_scenarios(path: Path) -> tuple[Scenario, ...]:
-    """Read the model-opaque role-harness projection produced by AOS #650."""
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise InventoryError(f"read board {path}: {exc}") from exc
-    if not isinstance(payload, dict) or not isinstance(payload.get("roles"), list):
-        raise InventoryError(f"{path}: expected a role-harness board")
-    scenarios: list[Scenario] = []
-    for role_entry in payload["roles"]:
-        if not isinstance(role_entry, dict) or not isinstance(
-            role_entry.get("intents"), list
-        ):
-            raise InventoryError(f"{path}: malformed role entry")
-        role = role_entry.get("role")
-        if not isinstance(role, str):
-            raise InventoryError(f"{path}: role must be text")
-        for lane in role_entry["intents"]:
-            if not isinstance(lane, dict):
-                raise InventoryError(f"{path}: malformed lane for {role}")
-            intent = lane.get("intent")
-            harness = lane.get("harness")
-            if not isinstance(intent, str) or not isinstance(harness, str):
-                raise InventoryError(f"{path}: lane fields must be text")
-            scenarios.append(Scenario(role=role, intent=intent, harness=harness))
-    if not scenarios:
-        raise InventoryError(f"{path}: board has no lanes")
-    return tuple(scenarios)
-
-
 def _document_map(
     repositories: Iterable[RepositoryRecord],
 ) -> dict[str, DocumentRecord]:
@@ -499,13 +467,13 @@ def _active_repo_paths(cwd: str) -> tuple[str, ...]:
 
 def active_cascade(
     repositories: list[RepositoryRecord],
-    scenario: Scenario,
+    selection: ContextSelection,
     *,
     current_repo: str,
     cwd: str,
     include_global_composed: bool = True,
 ) -> dict[str, Any]:
-    """Return source references for one role/harness lane in delivery order."""
+    """Return source references for one explicit role and harness."""
     by_repo = {repo.full_name: repo for repo in repositories}
     if current_repo not in by_repo:
         raise InventoryError(
@@ -531,11 +499,11 @@ def active_cascade(
     if include_global_composed:
         append(f"{GLOBAL_BASE_REPO}:AGENTS.md", "global-composed")
         append(
-            f"{GLOBAL_BASE_REPO}:AGENTS.{scenario.harness}.md",
+            f"{GLOBAL_BASE_REPO}:AGENTS.{selection.harness}.md",
             "global-harness-override",
         )
     active_paths = _active_repo_paths(cwd)
-    if scenario.harness == "claude":
+    if selection.harness == "claude":
         for agents_path in active_paths:
             parent = Path(agents_path).parent
             bridge = (
@@ -551,9 +519,8 @@ def active_cascade(
         f"{source['delivery_path']}:{source['content_hash']}" for source in sources
     )
     return {
-        "role": scenario.role,
-        "intent": scenario.intent,
-        "harness": scenario.harness,
+        "role": selection.role,
+        "harness": selection.harness,
         "current_repo": current_repo,
         "cwd": cwd,
         "bytes": sum(source["bytes"] for source in sources),
@@ -590,9 +557,6 @@ def build_report(
     fleet_manifest: Path,
     projects_root: Path,
     *,
-    board: Path = DEFAULT_BOARD,
-    current_repo: str = GLOBAL_BASE_REPO,
-    cwd: str = ".",
     aosh_repo: str = DEFAULT_AOSH_REPO,
 ) -> dict[str, Any]:
     repositories = discover_repositories(
@@ -601,16 +565,6 @@ def build_report(
         projects_root,
         aosh_repo=aosh_repo,
     )
-    scenarios = load_scenarios(board)
-    cascades = [
-        active_cascade(
-            repositories,
-            scenario,
-            current_repo=current_repo,
-            cwd=cwd,
-        )
-        for scenario in scenarios
-    ]
     candidates = [
         {
             "paragraph": paragraph.id,
@@ -637,7 +591,6 @@ def build_report(
             "global_load": False,
         },
         "repositories": [repo.as_dict() for repo in repositories],
-        "active_cascades": cascades,
         "clipping_candidates": candidates,
     }
 
@@ -673,17 +626,6 @@ def render_markdown(report: dict[str, Any]) -> str:
             f"{repo['visibility']} - root AGENTS {repo['root_agents']} - "
             f"{len(repo['documents'])} context documents"
         )
-    lines.extend(["", "## Active cascades", ""])
-    for cascade in report["active_cascades"]:
-        lines.append(
-            f"* **{cascade['role']}/{cascade['intent']}** - "
-            f"{cascade['harness']} - {len(cascade['sources'])} sources - "
-            f"{cascade['tokens']} tokens"
-        )
-        for source in cascade["sources"]:
-            lines.append(
-                f"  * `{source['delivery_path']}` - `{source['source']}`"
-            )
     lines.extend(["", "## Product clipping candidates", ""])
     candidates = report["clipping_candidates"]
     if not candidates:
@@ -710,9 +652,6 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         default=DEFAULT_SUBSTRATE_MANIFEST,
     )
     parser.add_argument("--projects-root", type=Path, default=DEFAULT_PROJECTS_ROOT)
-    parser.add_argument("--board", type=Path, default=DEFAULT_BOARD)
-    parser.add_argument("--current-repo", default=GLOBAL_BASE_REPO)
-    parser.add_argument("--cwd", default=".")
     parser.add_argument("--aosh-repo", default=DEFAULT_AOSH_REPO)
     parser.add_argument(
         "--format", choices=("json", "markdown"), default="markdown"
@@ -733,9 +672,6 @@ def main(argv: list[str] | None = None) -> int:
             args.substrate_manifest,
             args.fleet_manifest,
             args.projects_root,
-            board=args.board,
-            current_repo=args.current_repo,
-            cwd=args.cwd,
             aosh_repo=args.aosh_repo,
         )
     except InventoryError as exc:

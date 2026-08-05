@@ -4,11 +4,6 @@ roles {
         composed-skill design-system
         composed-skill writing-public-repos
         composed-skill writing-system-improvement-vocab
-        // BEGIN generated role-intent harness routes
-        intent autonomous-coding {
-            harness openhands
-        }
-        // END generated role-intent harness routes
     }
     role director {
         composed-skill "coding-core-*"
@@ -20,11 +15,6 @@ roles {
         composed-skill tooling-skill-authoring
         composed-skill writing-system-improvement-vocab
         composed-skill "writing-voice-*"
-        // BEGIN generated role-intent harness routes
-        intent strategic-planning {
-            harness plandex
-        }
-        // END generated role-intent harness routes
     }
     role qa {
         composed-skill "coding-*"
@@ -32,50 +22,21 @@ roles {
         composed-skill tooling-code-review
         composed-skill "tooling-qa-*"
         composed-skill writing-public-repos
-        // BEGIN generated role-intent harness routes
-        intent code-review {
-            harness aider
-        }
-        // END generated role-intent harness routes
     }
     role ops {
         composed-skill "coding-*"
         composed-skill "tooling-ops-*"
         composed-skill writing-system-improvement-vocab
-        // BEGIN generated role-intent harness routes
-        intent ops-investigation {
-            harness holmesgpt
-        }
-        intent operational-decision {
-            harness goose
-        }
-        // END generated role-intent harness routes
     }
     role design {
         composed-skill "coding-javascript*"
         composed-skill "*design*"
         composed-skill "tooling-pm-*"
-        // BEGIN generated role-intent harness routes
-        intent product-shaping {
-            harness penpot
-        }
-        intent design-production {
-            harness penpot
-        }
-        // END generated role-intent harness routes
     }
     role community {
         composed-skill "*discord*"
         composed-skill "tooling-customer-success-*"
         composed-skill "writing-social-*"
-        // BEGIN generated role-intent harness routes
-        intent knowledge-retrieval {
-            harness sirens-echo
-        }
-        intent conversation-management {
-            harness sirens-echo
-        }
-        // END generated role-intent harness routes
     }
     role strats {
         composed-skill "tooling-advisor-*"
@@ -86,24 +47,8 @@ roles {
         composed-skill "tooling-scout-*"
         composed-skill tooling-skill-authoring
         composed-skill "writing-voice-*"
-        // BEGIN generated role-intent harness routes
-        intent strategic-planning {
-            harness hermes
-        }
-        intent research-synthesis {
-            harness hermes
-        }
-        // END generated role-intent harness routes
     }
     role content {
         composed-skill "writing-*"
-        // BEGIN generated role-intent harness routes
-        intent knowledge-retrieval {
-            harness anythingllm
-        }
-        intent message-composition {
-            harness mixpost
-        }
-        // END generated role-intent harness routes
     }
 }

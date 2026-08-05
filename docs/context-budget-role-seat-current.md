@@ -7,8 +7,8 @@ The 8 canonical Agent Compose Core Roster roles use an AOS-owned policy to selec
 model classes enter aggregate context reports. Every checked-in current snapshot is
 validated before that policy is applied, so excluded snapshots remain loadable evidence.
 
-Aggregate measurement scope is separate from runtime compatibility. Role, harness, lane,
-and layout registries remain the runtime sources of truth.
+Aggregate measurement scope is separate from runtime compatibility. Role composition and
+seat layouts remain the runtime sources of truth.
 
 Every entry uses the deterministic characters-divided-by-four token proxy. The role
 reports and available class deltas are generated with `ward exec

@@ -472,8 +472,7 @@ def render_inventory_index(
     lines.extend(
         _wrapped_lines(
             "Aggregate measurement scope is separate from runtime compatibility. "
-            "Role, harness, lane, and layout registries remain the runtime sources "
-            "of truth."
+            "Role composition and seat layouts remain the runtime sources of truth."
         )
     )
     lines.append("")

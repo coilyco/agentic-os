@@ -76,5 +76,5 @@ publishes checksummed binaries plus Homebrew and Scoop metadata.
 
 ## See also
 
-* [Context bundle](aos-context-bundle.md) and [local lane profiles](local-lane-profiles.md) - runtime adapters.
+* [Context bundle](aos-context-bundle.md) - runtime adapter.
 * [aosguard.md](aosguard.md) - guarded tool and generated skill.

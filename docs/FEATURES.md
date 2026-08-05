@@ -24,8 +24,6 @@ Major shipped capabilities, not files.
   [SigNoz MCP reads](signoz.md) and fixed-target issue pins.
 - [Code review skill](../.agents/composed/tooling-code-review/COMPOSED.md) - QA-only in-container review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
-- [Harness selection](harness-selection.md) - v2 role routing and
-  [profiles](local-lane-profiles.md).
 - [Test harnesses](test-harness.md) - agent/model smokes and composed-role probes.
 - [Issue-corpus discovery index](issue-corpus.md) - offline corpus and live Forgejo lookup.
 - [Forgejo Actions logs](forgejo-actions-logs.md) - job logs and run ZIPs.
@@ -43,7 +41,7 @@ Major shipped capabilities, not files.
 - [AGENTS pointer](features-agents-pointer.md) - generated sibling-repo workspace pointer.
 - [Encoded leak guard](leak-guard.md) - hex-encoded leak-term detector.
 - [Context budget](context-budget.md) - role-seat budgets, multi-provider attribution, and generated class diffs.
-- [AGENTS inventory](agents-context-inventory.md) - fleet corpus and cascades.
+- [AGENTS inventory](agents-context-inventory.md) - fleet corpus and clipping candidates.
 - [Mount eligibility](mount-eligibility-manifest.md) - per-harness repository allowlist.
 - [Catalog caps reference](catalog-caps-reference.md) - generated numeric caps for validators.
 - [Canonical agent-id generator](dictatable-id-alphabet.md) - short lowercase agent IDs.
