@@ -56,8 +56,8 @@ Agent self-name and composition hooks, per-host steps, and gpg wiring: [docs/ins
 AOS always composes the selected role and attaches generated `aosguard`:
 
 ```bash
-aos --agent codex --role engineer -- --version
-aoscompose --agent codex --role engineer -- --version
+aos --auth=false --agent codex --role engineer -- --version
+aoscompose --auth=false --agent codex --role engineer -- --version
 ```
 
 A warded launch uses the dedicated command:

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,6 +36,151 @@ func TestResolveLayout(t *testing.T) {
 	}
 	if _, err := resolveLayout("", "bash"); err == nil {
 		t.Fatal("unknown command inferred a layout")
+	}
+}
+
+func TestCodexAuthPipelineUsesCodexHomeAndStagesPrivateFile(t *testing.T) {
+	clearCodexAuthEnvironment(t)
+	hostHome := filepath.Join(t.TempDir(), "host-codex")
+	t.Setenv("CODEX_HOME", hostHome)
+	t.Setenv("HOME", filepath.Join(t.TempDir(), "unselected-home"))
+	payload := []byte(`{"tokens":{"access_token":"synthetic"}}`)
+	hostAuth := filepath.Join(hostHome, "auth.json")
+	if err := os.MkdirAll(hostHome, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(hostAuth, payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	mounts, err := authMountsForLaunch(true, "codex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mounts) != 1 || mounts[0].HostPath != hostAuth ||
+		mounts[0].ContainerPath != containerAuthRoot+"/codex.json" {
+		t.Fatalf("Codex auth mounts = %#v", mounts)
+	}
+	plan, err := buildLaunchPlan(launchOptions{
+		Image: "agentic-os:test", Role: "engineer", Layout: "codex",
+		Delivery: "native-skills", Composed: true, CWD: t.TempDir(),
+		Command: []string{"codex", "exec", "probe"}, UID: 1000, GID: 1000,
+		AuthMounts: mounts,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantMount := "type=bind,source=" + hostAuth + ",target=" + containerAuthRoot + "/codex.json,readonly"
+	if !containsArg(plan.DockerArgs, wantMount) {
+		t.Fatalf("launch plan omitted read-only Codex auth projection:\n%s", strings.Join(plan.DockerArgs, "\n"))
+	}
+
+	authRoot := filepath.Join(t.TempDir(), "container-auth")
+	if err := os.MkdirAll(authRoot, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(authRoot, "codex.json"), payload, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	agentHome := filepath.Join(t.TempDir(), "agent-home")
+	if err := stageHarnessAuthFromRoot("codex", agentHome, authRoot); err != nil {
+		t.Fatal(err)
+	}
+	staged := filepath.Join(agentHome, ".codex", "auth.json")
+	got, err := os.ReadFile(staged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(payload) {
+		t.Fatal("staged Codex auth differs from the synthetic source")
+	}
+	info, err := os.Stat(staged)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("staged Codex auth mode = %o, want 600", info.Mode().Perm())
+	}
+}
+
+func TestCodexAuthFailsBeforeLaunch(t *testing.T) {
+	t.Run("missing", func(t *testing.T) {
+		clearCodexAuthEnvironment(t)
+		codexHome := t.TempDir()
+		t.Setenv("CODEX_HOME", codexHome)
+		_, err := authMountsForLaunch(true, "codex")
+		if err == nil || !strings.Contains(err.Error(), "file-backed credentials not found") {
+			t.Fatalf("missing Codex auth error = %v", err)
+		}
+	})
+
+	t.Run("unreadable", func(t *testing.T) {
+		err := validateCodexAuthFile("/private/auth.json", func(string) (io.ReadCloser, error) {
+			return nil, errors.New("permission denied")
+		})
+		if err == nil || !strings.Contains(err.Error(), "are unreadable") {
+			t.Fatalf("unreadable Codex auth error = %v", err)
+		}
+	})
+
+	t.Run("unsupported source", func(t *testing.T) {
+		clearCodexAuthEnvironment(t)
+		codexHome := t.TempDir()
+		t.Setenv("CODEX_HOME", codexHome)
+		if err := os.Mkdir(filepath.Join(codexHome, "auth.json"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		_, err := authMountsForLaunch(true, "codex")
+		if err == nil || !strings.Contains(err.Error(), "unsupported credential source") {
+			t.Fatalf("unsupported Codex auth source error = %v", err)
+		}
+	})
+
+	t.Run("unsupported payload", func(t *testing.T) {
+		clearCodexAuthEnvironment(t)
+		codexHome := t.TempDir()
+		t.Setenv("CODEX_HOME", codexHome)
+		if err := os.WriteFile(filepath.Join(codexHome, "auth.json"), []byte(`{"unknown":true}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, err := authMountsForLaunch(true, "codex")
+		if err == nil || !strings.Contains(err.Error(), "unsupported credentials") {
+			t.Fatalf("unsupported Codex auth payload error = %v", err)
+		}
+	})
+
+	t.Run("disabled", func(t *testing.T) {
+		clearCodexAuthEnvironment(t)
+		t.Setenv("CODEX_HOME", t.TempDir())
+		mounts, err := authMountsForLaunch(false, "codex")
+		if err != nil || len(mounts) != 0 {
+			t.Fatalf("disabled Codex auth mounts = %#v, error = %v", mounts, err)
+		}
+	})
+}
+
+func TestCodexEnvironmentAuthAndDisabledAuthForwarding(t *testing.T) {
+	clearCodexAuthEnvironment(t)
+	t.Setenv("CODEX_API_KEY", "synthetic")
+	t.Setenv("ANTHROPIC_API_KEY", "synthetic")
+	t.Setenv("GOOSE_MODEL", "synthetic-model")
+
+	mounts, err := authMountsForLaunch(true, "codex")
+	if err != nil || len(mounts) != 0 {
+		t.Fatalf("Codex environment auth mounts = %#v, error = %v", mounts, err)
+	}
+	withAuth := forwardedEnvironment(true)
+	for _, want := range []string{"CODEX_API_KEY", "ANTHROPIC_API_KEY", "GOOSE_MODEL"} {
+		if !containsArg(withAuth, want) {
+			t.Errorf("authenticated environment omitted %s: %v", want, withAuth)
+		}
+	}
+	withoutAuth := forwardedEnvironment(false)
+	if containsArg(withoutAuth, "CODEX_API_KEY") || containsArg(withoutAuth, "ANTHROPIC_API_KEY") {
+		t.Fatalf("--auth=false forwarded authentication variables: %v", withoutAuth)
+	}
+	if !containsArg(withoutAuth, "GOOSE_MODEL") {
+		t.Fatalf("--auth=false omitted non-secret harness tuning: %v", withoutAuth)
 	}
 }
 
@@ -328,7 +475,7 @@ func TestShellJoinDoesNotExposeForwardedEnvironmentValues(t *testing.T) {
 		Command:       []string{"codex"},
 		UID:           1000,
 		GID:           1000,
-		ForwardedEnvs: forwardedEnvironment(),
+		ForwardedEnvs: forwardedEnvironment(true),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -339,6 +486,13 @@ func TestShellJoinDoesNotExposeForwardedEnvironmentValues(t *testing.T) {
 	}
 	if !strings.Contains(rendered, "--env OPENAI_API_KEY") {
 		t.Fatalf("dry-run omitted environment name: %s", rendered)
+	}
+}
+
+func clearCodexAuthEnvironment(t *testing.T) {
+	t.Helper()
+	for _, key := range []string{"CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "OPENAI_API_KEY"} {
+		t.Setenv(key, "")
 	}
 }
 

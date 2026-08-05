@@ -7,8 +7,10 @@ the role loaded from harness instructions.
 
 ## Mechanisms
 
-* **Cloud** - Codex receives the host auth file read-only, copies it into the
-  ephemeral HOME, and runs read-only with no persisted session.
+* **Cloud** - AOS validates Codex file auth before launch, projects the host
+  file read-only, copies it into the ephemeral HOME with private permissions,
+  and runs Codex read-only with no persisted session. This probe exercises
+  authenticated inference rather than only harness startup.
 * **Local** - Goose receives its host connection config read-only and runs the
   selected Ollama model without a session.
 * **Storage** - the composed agent HOME and `/tmp` are bounded tmpfs mounts. The

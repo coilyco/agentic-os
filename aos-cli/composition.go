@@ -199,9 +199,9 @@ func runStandaloneIntegratedLaunch(
 	}
 	command := append([]string{opts.Agent}, opts.Arguments...)
 	uid, gid := hostIdentity()
-	authMounts := []authMount{}
-	if opts.Auth {
-		authMounts = discoverAuthMounts(opts.Agent)
+	authMounts, err := authMountsForLaunch(opts.Auth, opts.Agent)
+	if err != nil {
+		return err
 	}
 	mcp, err := discoverMCPLaunch(ctx)
 	if err != nil {
@@ -221,7 +221,7 @@ func runStandaloneIntegratedLaunch(
 		TTY:             isTerminal(os.Stdin),
 		NoSubstrate:     opts.NoSubstrate,
 		AuthMounts:      authMounts,
-		ForwardedEnvs:   forwardedEnvironment(),
+		ForwardedEnvs:   forwardedEnvironment(opts.Auth),
 		Kubeconfig:      opts.Kubeconfig,
 		MCPInventory:    mcp.Inventory,
 		TailnetNetwork:  mcp.TailnetNetwork,

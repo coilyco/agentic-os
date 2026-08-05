@@ -110,7 +110,7 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 			&cli.BoolFlag{
 				Name:  "auth",
 				Value: true,
-				Usage: "stage the selected harness's known host auth file when present",
+				Usage: "require and stage the selected harness's supported host auth",
 			},
 			&cli.StringFlag{
 				Name:  "kubeconfig",
@@ -305,9 +305,9 @@ func runComposedLaunch(
 		return fmt.Errorf("resolve current working directory: %w", err)
 	}
 	uid, gid := hostIdentity()
-	authMounts := []authMount{}
-	if cmd.Bool("auth") {
-		authMounts = discoverAuthMounts(layout)
+	authMounts, err := authMountsForLaunch(cmd.Bool("auth"), layout)
+	if err != nil {
+		return err
 	}
 	mcp, err := discoverMCPLaunch(ctx)
 	if err != nil {
@@ -326,7 +326,7 @@ func runComposedLaunch(
 		TTY:             isTerminal(os.Stdin),
 		NoSubstrate:     noSubstrate,
 		AuthMounts:      authMounts,
-		ForwardedEnvs:   forwardedEnvironment(),
+		ForwardedEnvs:   forwardedEnvironment(cmd.Bool("auth")),
 		Guarded:         true,
 		Kubeconfig:      cmd.String("kubeconfig"),
 		MCPInventory:    mcp.Inventory,

@@ -147,10 +147,11 @@ func TestAcomposeCheckinStagesCodexAuthByDefault(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
 	auth := filepath.Join(home, ".codex", "auth.json")
+	t.Setenv("CODEX_HOME", filepath.Dir(auth))
 	if err := os.MkdirAll(filepath.Dir(auth), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(auth, []byte("{}"), 0o600); err != nil {
+	if err := os.WriteFile(auth, []byte(`{"tokens":{"access_token":"synthetic"}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

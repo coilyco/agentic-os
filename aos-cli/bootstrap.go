@@ -485,6 +485,10 @@ func tomlBasicString(value string) string {
 }
 
 func stageHarnessAuth(layout, home string) error {
+	return stageHarnessAuthFromRoot(layout, home, containerAuthRoot)
+}
+
+func stageHarnessAuthFromRoot(layout, home, authRoot string) error {
 	type authCopy struct {
 		source string
 		target string
@@ -493,17 +497,17 @@ func stageHarnessAuth(layout, home string) error {
 	switch layout {
 	case "codex":
 		candidate = authCopy{
-			source: containerAuthRoot + "/codex.json",
+			source: filepath.Join(authRoot, "codex.json"),
 			target: filepath.Join(home, ".codex", "auth.json"),
 		}
 	case "claude":
 		candidate = authCopy{
-			source: containerAuthRoot + "/claude.json",
+			source: filepath.Join(authRoot, "claude.json"),
 			target: filepath.Join(home, ".claude", ".credentials.json"),
 		}
 	case "goose":
 		candidate = authCopy{
-			source: containerAuthRoot + "/goose.yaml",
+			source: filepath.Join(authRoot, "goose.yaml"),
 			target: filepath.Join(home, ".config", "goose", "config.yaml"),
 		}
 	default:
@@ -536,6 +540,10 @@ func copyFile(source, target string, mode fs.FileMode) error {
 	defer input.Close()
 	output, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, mode)
 	if err != nil {
+		return err
+	}
+	if err := output.Chmod(mode); err != nil {
+		output.Close()
 		return err
 	}
 	if _, err := io.Copy(output, input); err != nil {

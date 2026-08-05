@@ -270,6 +270,7 @@ func TestIntegratedStandaloneDryRunAlwaysUsesComposedAndGuardedContexts(t *testi
 		"--agent", "codex",
 		"--role", "engineer",
 		"--image", "aos:test",
+		"--auth=false",
 		"--dry-run",
 		"--",
 		"--version",
@@ -295,6 +296,30 @@ func TestIntegratedStandaloneDryRunAlwaysUsesComposedAndGuardedContexts(t *testi
 	}
 }
 
+func TestIntegratedStandaloneCodexAuthFailurePrecedesDockerPlan(t *testing.T) {
+	clearCodexAuthEnvironment(t)
+	t.Setenv("CODEX_HOME", t.TempDir())
+	command := newCommand()
+	var output bytes.Buffer
+	command.Writer = &output
+	command.ErrWriter = &output
+	err := command.Run(context.Background(), []string{
+		"aos",
+		"--agent", "codex",
+		"--role", "engineer",
+		"--image", "aos:test",
+		"--dry-run",
+		"--",
+		"exec", "probe",
+	})
+	if err == nil || !strings.Contains(err.Error(), "file-backed credentials not found") {
+		t.Fatalf("missing Codex auth error = %v", err)
+	}
+	if output.Len() != 0 {
+		t.Fatalf("missing Codex auth rendered a Docker plan:\n%s", output.String())
+	}
+}
+
 func TestIntegratedStandaloneCompatibilityFlagsCannotDisableContexts(t *testing.T) {
 	t.Parallel()
 	command := newCommand()
@@ -308,6 +333,7 @@ func TestIntegratedStandaloneCompatibilityFlagsCannotDisableContexts(t *testing.
 		"--image", "aos:test",
 		"--composed=false",
 		"--guarded=false",
+		"--auth=false",
 		"--dry-run",
 		"--",
 		"--version",
@@ -380,6 +406,7 @@ func TestAOSComposeAliasesUseBothContextsWithoutWard(t *testing.T) {
 				"--image", "aos:test",
 				"--composed=false",
 				"--guarded=false",
+				"--auth=false",
 				"--dry-run",
 				"--",
 				"--version",
@@ -421,6 +448,7 @@ func TestIntegratedStandaloneKubeconfigDryRun(t *testing.T) {
 		"--role", "ops",
 		"--image", "aos:test",
 		"--composed",
+		"--auth=false",
 		"--kubeconfig", kubeconfig,
 		"--dry-run",
 		"--",

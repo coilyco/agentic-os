@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -204,16 +206,23 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 	return launchPlan{DockerArgs: args, Workspace: workspace}, nil
 }
 
-func discoverAuthMounts(layout string) []authMount {
+func authMountsForLaunch(enabled bool, layout string) ([]authMount, error) {
+	if !enabled {
+		return nil, nil
+	}
+	return discoverAuthMounts(layout)
+}
+
+func discoverAuthMounts(layout string) ([]authMount, error) {
+	if layout == "codex" {
+		return discoverCodexAuthMounts()
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	var source, target string
 	switch layout {
-	case "codex":
-		source = filepath.Join(home, ".codex", "auth.json")
-		target = containerAuthRoot + "/codex.json"
 	case "claude":
 		source = filepath.Join(home, ".claude", ".credentials.json")
 		target = containerAuthRoot + "/claude.json"
@@ -221,22 +230,114 @@ func discoverAuthMounts(layout string) []authMount {
 		source = filepath.Join(home, ".config", "goose", "config.yaml")
 		target = containerAuthRoot + "/goose.yaml"
 	default:
-		return nil
+		return nil, nil
 	}
 	info, err := os.Stat(source)
 	if err != nil || !info.Mode().IsRegular() {
-		return nil
+		return nil, nil
 	}
-	return []authMount{{HostPath: source, ContainerPath: target}}
+	return []authMount{{HostPath: source, ContainerPath: target}}, nil
 }
 
-func forwardedEnvironment() []string {
+func discoverCodexAuthMounts() ([]authMount, error) {
+	if codexEnvironmentAuthPresent() {
+		return nil, nil
+	}
+	codexHome := strings.TrimSpace(os.Getenv("CODEX_HOME"))
+	if codexHome == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("codex auth: resolve host home: %w", err)
+		}
+		codexHome = filepath.Join(home, ".codex")
+	}
+	absHome, err := filepath.Abs(codexHome)
+	if err != nil {
+		return nil, fmt.Errorf("codex auth: resolve CODEX_HOME: %w", err)
+	}
+	source := filepath.Join(absHome, "auth.json")
+	info, err := os.Stat(source)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf(
+				"codex auth: file-backed credentials not found at %s; AOS cannot project keyring-only credentials (use --auth=false for unauthenticated commands)",
+				source,
+			)
+		}
+		return nil, fmt.Errorf("codex auth: credentials at %s are unreadable: %w", source, err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("codex auth: unsupported credential source at %s: want a regular auth.json file", source)
+	}
+	if err := validateCodexAuthFile(source, func(path string) (io.ReadCloser, error) {
+		return os.Open(path)
+	}); err != nil {
+		return nil, err
+	}
+	return []authMount{{HostPath: source, ContainerPath: containerAuthRoot + "/codex.json"}}, nil
+}
+
+func validateCodexAuthFile(path string, openFile func(string) (io.ReadCloser, error)) error {
+	input, err := openFile(path)
+	if err != nil {
+		return fmt.Errorf("codex auth: credentials at %s are unreadable: %w", path, err)
+	}
+	defer input.Close()
+
+	var payload map[string]json.RawMessage
+	decoder := json.NewDecoder(input)
+	if err := decoder.Decode(&payload); err != nil || ensureJSONEnd(decoder) != nil ||
+		!supportedCodexAuthPayload(payload) {
+		return fmt.Errorf(
+			"codex auth: unsupported credentials at %s: want a Codex auth.json containing file-backed API-key or token data",
+			path,
+		)
+	}
+	return nil
+}
+
+func supportedCodexAuthPayload(payload map[string]json.RawMessage) bool {
+	if raw := payload["OPENAI_API_KEY"]; len(raw) > 0 {
+		var value string
+		if json.Unmarshal(raw, &value) == nil && strings.TrimSpace(value) != "" {
+			return true
+		}
+	}
+	if raw := payload["tokens"]; len(raw) > 0 {
+		var tokens map[string]json.RawMessage
+		if json.Unmarshal(raw, &tokens) == nil {
+			for _, value := range tokens {
+				if trimmed := bytes.TrimSpace(value); len(trimmed) > 0 && !bytes.Equal(trimmed, []byte("null")) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func codexEnvironmentAuthPresent() bool {
+	for _, key := range []string{"CODEX_API_KEY", "CODEX_ACCESS_TOKEN", "OPENAI_API_KEY"} {
+		if value, ok := os.LookupEnv(key); ok && strings.TrimSpace(value) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func forwardedEnvironment(includeAuth bool) []string {
 	keys := []string{
-		"ANTHROPIC_API_KEY",
-		"OPENAI_API_KEY",
 		"GOOSE_PROVIDER",
 		"GOOSE_MODEL",
 		"OLLAMA_HOST",
+	}
+	if includeAuth {
+		keys = append(keys,
+			"ANTHROPIC_API_KEY",
+			"CODEX_API_KEY",
+			"CODEX_ACCESS_TOKEN",
+			"OPENAI_API_KEY",
+		)
 	}
 	var present []string
 	for _, key := range keys {
