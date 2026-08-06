@@ -199,6 +199,10 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 				Name:  "kubeconfig",
 				Usage: "operator-selected host kubeconfig for an authorized standalone role",
 			},
+			&cli.StringSliceFlag{
+				Name:  "local-service",
+				Usage: "publish a container HTTP port on host 127.0.0.1 for browser access",
+			},
 		},
 		Commands: []*cli.Command{
 			{

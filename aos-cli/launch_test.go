@@ -373,6 +373,65 @@ func TestBuildLaunchPlanNamesAgentContainerForRole(t *testing.T) {
 	}
 }
 
+func TestBuildLaunchPlanPublishesLocalServiceOnLoopback(t *testing.T) {
+	t.Parallel()
+	plan, err := buildLaunchPlan(launchOptions{
+		Image:         "agentic-os:test",
+		Role:          "engineer",
+		Layout:        "codex",
+		Delivery:      "native-skills",
+		Composed:      true,
+		CWD:           t.TempDir(),
+		Command:       []string{"codex"},
+		UID:           1000,
+		GID:           1000,
+		LocalServices: []localServiceRoute{{Port: 4173}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(plan.DockerArgs, "\n")
+	for _, want := range []string{
+		"--publish\n127.0.0.1:4173:4173",
+		"--env\nAOS_LOCAL_SERVICE_URLS=http://127.0.0.1:4173",
+		"--env\nAOS_LOCAL_SERVICE_URL=http://127.0.0.1:4173",
+	} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("local service launch plan missing %q:\n%s", want, joined)
+		}
+	}
+}
+
+func TestLocalServiceRoutesValidatePorts(t *testing.T) {
+	t.Parallel()
+	for _, values := range [][]string{
+		{""},
+		{"0"},
+		{"65536"},
+		{"abc"},
+		{"4173", "4173"},
+	} {
+		if _, err := parseLocalServiceRoutes(values); err == nil {
+			t.Fatalf("parseLocalServiceRoutes(%v) succeeded", values)
+		}
+	}
+}
+
+func TestLocalServiceRoutesAreStandaloneOnly(t *testing.T) {
+	t.Parallel()
+	err := validateIntegratedLaunch(integratedLaunchOptions{
+		Role:         "director",
+		Agent:        "codex",
+		Image:        "agentic-os:test",
+		Delivery:     "native-skills",
+		Warded:       true,
+		LocalService: []string{"4173"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "--local-service") {
+		t.Fatalf("warded local service error = %v", err)
+	}
+}
+
 func TestBuildLaunchPlanPullsMovingReleaseImage(t *testing.T) {
 	t.Parallel()
 	plan, err := buildLaunchPlan(launchOptions{

@@ -17,7 +17,7 @@ Major shipped capabilities, not files.
 - [Role-composed skills](role-composed-skills.md) - v2 Core Roster method slices.
 - [AOS launcher](aos-cli.md) - role and context with
   [convergence](aos-convergence.md),
-  [MCP and tailnet](aos-standalone-connectivity.md),
+  [MCP, tailnet, and local services](aos-standalone-connectivity.md),
   [role-gated kubeconfig](aos-kubeconfig.md), and
   [check-ins](aos-acompose-checkin.md).
 - [aosguard](aosguard.md) - guarded CLI with fixed one-tool

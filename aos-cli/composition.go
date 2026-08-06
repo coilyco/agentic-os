@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/urfave/cli/v3"
@@ -19,20 +20,21 @@ var (
 )
 
 type integratedLaunchOptions struct {
-	Image       string
-	Role        string
-	AgentID     string
-	Agent       string
-	Layout      string
-	Delivery    string
-	Warded      bool
-	Composed    bool
-	Guarded     bool
-	NoSubstrate bool
-	Auth        bool
-	Kubeconfig  string
-	DryRun      bool
-	Arguments   []string
+	Image        string
+	Role         string
+	AgentID      string
+	Agent        string
+	Layout       string
+	Delivery     string
+	Warded       bool
+	Composed     bool
+	Guarded      bool
+	NoSubstrate  bool
+	Auth         bool
+	Kubeconfig   string
+	LocalService []string
+	DryRun       bool
+	Arguments    []string
 }
 
 type wardLaunchPlan struct {
@@ -50,20 +52,21 @@ func runIntegratedLaunch(
 		return err
 	}
 	opts := integratedLaunchOptions{
-		Image:       strings.TrimSpace(cmd.String("image")),
-		Role:        strings.TrimSpace(cmd.String("role")),
-		AgentID:     strings.TrimSpace(cmd.String("agent-id")),
-		Agent:       strings.TrimSpace(cmd.String("agent")),
-		Layout:      strings.TrimSpace(cmd.String("layout")),
-		Delivery:    strings.TrimSpace(cmd.String("delivery")),
-		Warded:      defaults.Warded || cmd.Bool("warded"),
-		Composed:    true,
-		Guarded:     true,
-		NoSubstrate: cmd.Bool("no-substrate"),
-		Auth:        cmd.Bool("auth"),
-		Kubeconfig:  cmd.String("kubeconfig"),
-		DryRun:      cmd.Bool("dry-run"),
-		Arguments:   cmd.Args().Slice(),
+		Image:        strings.TrimSpace(cmd.String("image")),
+		Role:         strings.TrimSpace(cmd.String("role")),
+		AgentID:      strings.TrimSpace(cmd.String("agent-id")),
+		Agent:        strings.TrimSpace(cmd.String("agent")),
+		Layout:       strings.TrimSpace(cmd.String("layout")),
+		Delivery:     strings.TrimSpace(cmd.String("delivery")),
+		Warded:       defaults.Warded || cmd.Bool("warded"),
+		Composed:     true,
+		Guarded:      true,
+		NoSubstrate:  cmd.Bool("no-substrate"),
+		Auth:         cmd.Bool("auth"),
+		Kubeconfig:   cmd.String("kubeconfig"),
+		LocalService: cmd.StringSlice("local-service"),
+		DryRun:       cmd.Bool("dry-run"),
+		Arguments:    cmd.Args().Slice(),
 	}
 	if defaults.RoleShortcut {
 		if err := applyStandaloneRoleShortcut(&opts); err != nil {
@@ -109,6 +112,25 @@ func applyStandaloneRoleShortcut(opts *integratedLaunchOptions) error {
 	return nil
 }
 
+func parseLocalServiceRoutes(values []string) ([]localServiceRoute, error) {
+	routes := make([]localServiceRoute, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return nil, fmt.Errorf("--local-service must name a port")
+		}
+		port, err := strconv.Atoi(value)
+		if err != nil {
+			return nil, fmt.Errorf("--local-service %q is not a port", value)
+		}
+		routes = append(routes, localServiceRoute{Port: port})
+	}
+	if err := validateLocalServiceRoutes(routes); err != nil {
+		return nil, err
+	}
+	return routes, nil
+}
+
 func validateIntegratedLaunch(opts integratedLaunchOptions) error {
 	if opts.Role == "" {
 		return fmt.Errorf("integrated launch needs --role")
@@ -139,6 +161,9 @@ func validateIntegratedLaunch(opts integratedLaunchOptions) error {
 		return fmt.Errorf("--no-substrate needs --composed")
 	}
 	if opts.Warded {
+		if len(opts.LocalService) > 0 {
+			return fmt.Errorf("--local-service is available only for standalone launches")
+		}
 		if opts.Kubeconfig != "" {
 			return fmt.Errorf(
 				"--kubeconfig is available only for standalone launches because Ward owns warded runtime mounts",
@@ -164,6 +189,9 @@ func validateIntegratedLaunch(opts integratedLaunchOptions) error {
 	}
 	if opts.AgentID != "" && !opts.Warded {
 		return fmt.Errorf("--agent-id needs --warded")
+	}
+	if _, err := parseLocalServiceRoutes(opts.LocalService); err != nil {
+		return err
 	}
 	return nil
 }
@@ -250,6 +278,10 @@ func runStandaloneIntegratedLaunch(
 	if err != nil {
 		return err
 	}
+	localServices, err := parseLocalServiceRoutes(opts.LocalService)
+	if err != nil {
+		return err
+	}
 	plan, err := buildLaunchPlan(launchOptions{
 		Image:           opts.Image,
 		Role:            opts.Role,
@@ -269,6 +301,7 @@ func runStandaloneIntegratedLaunch(
 		MCPInventory:    mcp.Inventory,
 		TailnetNetwork:  mcp.TailnetNetwork,
 		TailnetForwards: mcp.Forwards,
+		LocalServices:   localServices,
 	})
 	if err != nil {
 		return err

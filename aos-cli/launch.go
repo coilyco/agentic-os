@@ -85,11 +85,16 @@ type launchOptions struct {
 	MCPInventory    string
 	TailnetNetwork  string
 	TailnetForwards []tailnetForward
+	LocalServices   []localServiceRoute
 }
 
 type launchPlan struct {
 	DockerArgs []string
 	Workspace  string
+}
+
+type localServiceRoute struct {
+	Port int
 }
 
 func resolveLayout(explicit, command string) (string, error) {
@@ -136,6 +141,9 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 	}
 	if len(opts.TailnetForwards) > 0 && opts.TailnetNetwork == "" {
 		return launchPlan{}, fmt.Errorf("tailnet MCP forwarding needs a Docker network")
+	}
+	if err := validateLocalServiceRoutes(opts.LocalServices); err != nil {
+		return launchPlan{}, err
 	}
 	kubeconfig, err := resolveKubeconfigMount(opts.Role, opts.Kubeconfig)
 	if err != nil {
@@ -192,6 +200,21 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 			"--env", "AOS_TAILNET_SOCKS5="+tailnetSOCKS5URL,
 		)
 	}
+	if len(opts.LocalServices) > 0 {
+		urls := make([]string, 0, len(opts.LocalServices))
+		for _, service := range opts.LocalServices {
+			url := fmt.Sprintf("http://127.0.0.1:%d", service.Port)
+			urls = append(urls, url)
+			args = append(
+				args,
+				"--publish", fmt.Sprintf("127.0.0.1:%d:%d", service.Port, service.Port),
+			)
+		}
+		args = append(args, "--env", "AOS_LOCAL_SERVICE_URLS="+strings.Join(urls, ","))
+		if len(urls) == 1 {
+			args = append(args, "--env", "AOS_LOCAL_SERVICE_URL="+urls[0])
+		}
+	}
 	args = append(args,
 		"--tmpfs", defaultAgentHome+":rw,exec,size="+runtimeTmpfsSize,
 		"--tmpfs", "/tmp:rw,exec,size="+runtimeTmpfsSize,
@@ -240,6 +263,20 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 	args = append(args, "--")
 	args = append(args, opts.Command...)
 	return launchPlan{DockerArgs: args, Workspace: workspace}, nil
+}
+
+func validateLocalServiceRoutes(services []localServiceRoute) error {
+	seen := map[int]bool{}
+	for _, service := range services {
+		if service.Port < 1 || service.Port > 65535 {
+			return fmt.Errorf("local service port %d is outside 1..65535", service.Port)
+		}
+		if seen[service.Port] {
+			return fmt.Errorf("local service port %d is duplicated", service.Port)
+		}
+		seen[service.Port] = true
+	}
+	return nil
 }
 
 func authForLaunch(ctx context.Context, enabled bool, layout string) (authProjection, error) {

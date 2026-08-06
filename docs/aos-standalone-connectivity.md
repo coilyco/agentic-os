@@ -39,6 +39,13 @@ URLs and do not use the bridge.
 Tailnet MCP bridging currently supports `http` URLs. AOS rejects a detected
 tailnet `https` endpoint instead of silently breaking TLS hostname validation.
 
+## Local service routes
+
+`--local-service <port>` publishes that container port only on host loopback as
+`http://127.0.0.1:<port>`. AOS also exports `AOS_LOCAL_SERVICE_URLS` inside the
+container, plus `AOS_LOCAL_SERVICE_URL` when one port is selected. Port
+collisions fail at Docker startup. AOS never adds public ingress.
+
 ## Outage behavior
 
 MCP registration remains visible when the standing proxy is cycling. Calls to
