@@ -3,7 +3,7 @@
 
 # Current design context budget
 
-Aggregate inventory scope measures all AOS-supported model classes.
+The aggregate includes every checked-in current snapshot for this role.
 
 * **Frontier design** -
   [Claude 7,763](context-budget-design-claude-current.yaml),

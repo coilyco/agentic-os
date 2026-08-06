@@ -3,7 +3,7 @@
 
 # Current community context budget
 
-Aggregate inventory scope measures all AOS-supported model classes.
+The aggregate includes every checked-in current snapshot for this role.
 
 * **Frontier community** -
   [Claude 7,688](context-budget-community-claude-current.yaml),

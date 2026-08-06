@@ -54,6 +54,34 @@ func useStandaloneWorkspaceFixture(t *testing.T) (nativeRuntime, string) {
 	return runtime, repository
 }
 
+func useStandaloneWorkspaceWithoutRepositoryPlanFixture(t *testing.T) nativeRuntime {
+	t.Helper()
+	root := t.TempDir()
+	runtime := nativeTestRuntime(t, root)
+	scratch := filepath.Join(root, "scratch")
+	if err := os.MkdirAll(scratch, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	profiles := filepath.Join(root, "harness-launch-profiles.yaml")
+	if err := os.WriteFile(profiles, []byte(`roles:
+  engineer:
+    agent: codex
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runtime.CWD = scratch
+	t.Setenv("AOS_HARNESS_LAUNCH_PROFILES", profiles)
+	t.Setenv("AOS_REPOSITORY_PLAN", runtime.PlanFile)
+	t.Setenv("PROJECTS_ROOT", runtime.ProjectsRoot)
+	t.Setenv("AOS_NATIVE_STATE_DIR", runtime.StateRoot)
+	t.Setenv("AOS_NATIVE_SESSIONS_DIR", runtime.SessionsRoot)
+	t.Setenv("HOME", runtime.Home)
+	t.Setenv("USERPROFILE", runtime.Home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(runtime.Home, ".config"))
+	t.Chdir(scratch)
+	return runtime
+}
+
 func addNativeTestDirectory(t *testing.T, repository, relative string) string {
 	t.Helper()
 	directory := filepath.Join(repository, filepath.FromSlash(relative))
@@ -348,6 +376,45 @@ func TestIntegratedStandaloneDryRunAlwaysUsesComposedAndGuardedContexts(t *testi
 	}
 	if strings.Contains(rendered, "ward agent") {
 		t.Fatalf("standalone dry run invoked Ward:\n%s", rendered)
+	}
+}
+
+func TestIntegratedStandaloneDryRunWithoutRepositoryPlanUsesCallerWorkspace(t *testing.T) {
+	runtime := useStandaloneWorkspaceWithoutRepositoryPlanFixture(t)
+	command := newCommandForInvocation("/usr/local/bin/aoscompose")
+	var output bytes.Buffer
+	command.Writer = &output
+	command.ErrWriter = &output
+	args := normalizeRoleShortcutArgs(commandDefaultsForInvocation("/usr/local/bin/aoscompose"), []string{
+		"aoscompose",
+		"--image", "aos:test",
+		"--auth=false",
+		"--dry-run",
+		"engineer",
+	})
+	if err := command.Run(context.Background(), args); err != nil {
+		t.Fatal(err)
+	}
+	rendered := output.String()
+	for _, want := range []string{
+		"source=" + runtime.CWD + ",target=/workspace",
+		"--workdir /workspace",
+		"--workspace /workspace",
+		",target=" + defaultAgentHome,
+		"--role engineer",
+		"--layout codex",
+		"-- codex",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("missing-plan standalone dry run missing %q:\n%s", want, rendered)
+		}
+	}
+	_, lease := onlyNativeLease(t, runtime)
+	if len(lease.Artifacts) != 0 {
+		t.Fatalf("missing-plan launch created worktree artifacts: %#v", lease.Artifacts)
+	}
+	if lease.SessionHome == "" {
+		t.Fatalf("missing-plan launch did not keep standalone home: %#v", lease)
 	}
 }
 

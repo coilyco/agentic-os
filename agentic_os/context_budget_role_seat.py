@@ -26,11 +26,8 @@ from agentic_os.agents_context_inventory import (
 )
 from agentic_os.context_budget_tokens import TOKENIZER_NOTE, count_tokens
 from agentic_os.frontmatter import split_frontmatter
-from agentic_os.role_personality_sync import (
-    PROJECTION_PATH as ROLE_PERSONALITY_PROJECTION,
-    RolePersonalitySyncError,
+from agentic_os.agent_compose_person import (
     load_person_snapshot,
-    load_projection as load_personality_projection,
     personality_skill_id,
 )
 
@@ -214,20 +211,22 @@ def model_class_for_seat(seat: str) -> str:
         ) from exc
 
 
-def validate_role_seat(person_snapshot_path: Path, role: str, seat: str) -> None:
-    """Fail unless the role exists and the seat is an AOS projection layout."""
+def validate_role_seat(
+    person_snapshot_path: Path,
+    role: str,
+    seat: str,
+) -> tuple[str, ...]:
+    """Return the canonical meld after validating the role and AOS seat."""
     _validate_slug(role, "role")
     model_class_for_seat(seat)
     snapshot = load_person_snapshot(person_snapshot_path)
-    roles = {entry.role for entry in snapshot.roles}
-    if not roles:
-        raise RuntimeError(
-            f"{person_snapshot_path}: generated person snapshot contains no roles"
-        )
-    if role not in roles:
+    roles = {entry.role: entry.personalities for entry in snapshot.roles}
+    try:
+        return roles[role]
+    except KeyError as exc:
         raise RuntimeError(
             f"{person_snapshot_path}: role {role} is absent, found {sorted(roles)}"
-        )
+        ) from exc
 
 
 def _load_projection(projected_root: Path, seat: str) -> ProjectedLayout:
@@ -417,22 +416,10 @@ def _load_manifest(
 
 
 def _validate_manifest_personalities(
-    provider: Path,
     manifest: dict[str, object],
     role: str,
+    expected: tuple[str, ...],
 ) -> tuple[str, ...]:
-    projection_path = provider / ROLE_PERSONALITY_PROJECTION
-    try:
-        role_personalities = load_personality_projection(projection_path)
-    except RolePersonalitySyncError as exc:
-        raise RuntimeError(
-            f"read AOS role personality projection: {exc}"
-        ) from exc
-    expected = role_personalities.get(role)
-    if expected is None:
-        raise RuntimeError(
-            f"{projection_path}: role personality projection lacks role {role}"
-        )
     actual = manifest.get("personalities")
     if (
         not isinstance(actual, list)
@@ -442,8 +429,8 @@ def _validate_manifest_personalities(
         raise RuntimeError("agent-compose bundle manifest has malformed personalities")
     if tuple(actual) != expected:
         raise RuntimeError(
-            "agent-compose bundle personalities differ from the AOS projection "
-            f"for role {role}: bundle={actual}, aos={list(expected)}"
+            "agent-compose bundle personalities differ from the canonical person "
+            f"snapshot for role {role}: bundle={actual}, person={list(expected)}"
         )
     return expected
 
@@ -781,6 +768,7 @@ def build_snapshot(
     *,
     role: str,
     seat: str,
+    expected_personalities: Iterable[str],
     additional_providers: Mapping[str, Path] | None = None,
     plugin_roots: Iterable[Path] = (),
     mcp_servers: Iterable[str] = (),
@@ -803,7 +791,11 @@ def build_snapshot(
     manifest, instructions, skills_root = _load_manifest(
         bundle.resolve(), role, model_class
     )
-    personalities = _validate_manifest_personalities(provider, manifest, role)
+    personalities = _validate_manifest_personalities(
+        manifest,
+        role,
+        tuple(expected_personalities),
+    )
     projection = _load_projection(projected_root.resolve(), seat)
     if projection.instructions.read_bytes() != instructions.read_bytes():
         raise RuntimeError("projected role instructions differ from the verified bundle")
@@ -845,9 +837,9 @@ def build_snapshot(
     }
     if selected_personality_skills != expected_personality_skills:
         raise RuntimeError(
-            "agent-compose bundle personality skills differ from the AOS "
-            f"projection: bundle={sorted(selected_personality_skills)}, "
-            f"aos={sorted(expected_personality_skills)}"
+            "agent-compose bundle personality skills differ from the canonical "
+            f"person snapshot: bundle={sorted(selected_personality_skills)}, "
+            f"person={sorted(expected_personality_skills)}"
         )
     components.extend(bundle_components)
     components.extend(
@@ -1044,7 +1036,7 @@ def capture_snapshot(
                 encoding="utf-8",
                 check=True,
             )
-            validate_role_seat(roster / "person.json", role, seat)
+            personalities = validate_role_seat(roster / "person.json", role, seat)
             process = subprocess.run(
                 [executable, "compose", "--out", str(output), str(request)],
                 capture_output=True,
@@ -1092,6 +1084,7 @@ def capture_snapshot(
             cwd,
             role=role,
             seat=seat,
+            expected_personalities=personalities,
             additional_providers={
                 source_id: source_root
                 for source_id, source_root in providers.items()

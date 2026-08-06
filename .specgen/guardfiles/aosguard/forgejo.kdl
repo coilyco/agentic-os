@@ -614,9 +614,4 @@ wrap aosguard ops forgejo {
         output "raw"
         header "Accept" "application/json"
     }
-
-    // Back-link footer: doc-link regenerates a `## See also` section
-    // into this guardfile's reference doc, so it survives every rebuild wipe-proof.
-    doc-link "../../../docs/aosguard.md" aosguard.md "the standalone CLI source and authority boundary"
-    doc-link "../../../AGENTS.md" AGENTS.md "the workflow rules that keep read access and merge authority separate"
 }

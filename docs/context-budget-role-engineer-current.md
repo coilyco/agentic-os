@@ -3,7 +3,7 @@
 
 # Current engineer context budget
 
-Aggregate inventory scope measures all AOS-supported model classes.
+The aggregate includes every checked-in current snapshot for this role.
 
 * **Frontier engineer** -
   [Claude 8,617](context-budget-engineer-claude-current.yaml),

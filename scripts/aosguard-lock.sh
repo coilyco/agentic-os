@@ -9,4 +9,5 @@ specgen_bin=${SPECGEN_BIN:-specgen}
 "$specgen_bin" \
     --project-root .specgen/guardfiles \
     --skills-out dist/skills \
-    lock
+    lock \
+    "$@"

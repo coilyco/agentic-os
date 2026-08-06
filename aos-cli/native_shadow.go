@@ -910,8 +910,28 @@ func createNativeSession(
 		created[filepath.Join(repository.Owner, repository.Name)] = target
 	}
 	if len(artifacts) == 0 {
-		_ = os.RemoveAll(sessionRoot)
-		return nativeLaunchWorkspace{CWD: runtime.CWD}, nil
+		if sessionHome == "" {
+			_ = os.RemoveAll(sessionRoot)
+			return nativeLaunchWorkspace{CWD: runtime.CWD}, nil
+		}
+		if err := writeNativeJSON(nativeStatePath(runtime, "leases", id+".json"), nativeLease{
+			Format:          "agentic-os.native-lease.v1",
+			ID:              id,
+			Harness:         harness,
+			PID:             runtime.PID,
+			ProcessStart:    runtime.ProcessStart,
+			OriginalCWD:     runtime.CWD,
+			SessionRoot:     sessionRoot,
+			SessionProjects: sessionProjects,
+			SessionHome:     sessionHome,
+			Artifacts:       artifacts,
+		}); err != nil {
+			return nativeLaunchWorkspace{}, fmt.Errorf("write native lease: %w", err)
+		}
+		if err := os.Setenv(agentComposeRuntimeHomeEnv, sessionHome); err != nil {
+			return nativeLaunchWorkspace{}, fmt.Errorf("set agent-compose runtime home: %w", err)
+		}
+		return nativeLaunchWorkspace{CWD: runtime.CWD, SessionHome: sessionHome}, nil
 	}
 	lease := nativeLease{
 		Format:          "agentic-os.native-lease.v1",
@@ -1133,6 +1153,12 @@ func resolveExpectedRepositories(
 ) ([]nativeRepository, nativeExpected, error) {
 	plan, err := loadAOSRepositoryPlan(runtime.PlanFile)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nativeExpected{
+				Full:      map[string]bool{},
+				FleetOrgs: readNativeListSet(runtime.FleetFile),
+			}, nil
+		}
 		return nil, nativeExpected{}, err
 	}
 	if plan.ProjectsRoot == "" || !samePath(plan.ProjectsRoot, runtime.ProjectsRoot) {

@@ -131,13 +131,6 @@ repos:
         always_run: true
         pass_filenames: false
         stages: [pre-commit]
-      - id: role-personality-board
-        name: AOS role personalities match agent-compose
-        entry: python -m agentic_os.role_personality_sync --check --if-present
-        language: python
-        always_run: true
-        pass_filenames: false
-        stages: [pre-commit]
       - id: agent-compose-size
         name: agent-compose source size budget
         entry: python -m agentic_os.pre_commit.check_agent_compose_size

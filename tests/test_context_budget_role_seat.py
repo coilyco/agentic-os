@@ -10,7 +10,7 @@ import pytest
 import yaml
 
 from agentic_os import context_budget_role_seat as context
-from agentic_os import role_personality_sync
+from agentic_os import agent_compose_person
 
 
 FIXTURE_PERSONALITIES = ("protective", "grounded", "reflective")
@@ -26,19 +26,23 @@ def write_person_snapshot(path: Path) -> None:
         path,
         json.dumps(
             {
-                "format": "agent-compose.person-snapshot.v3",
-                "schema_version": 3,
+                "format": agent_compose_person.PERSON_SNAPSHOT_FORMAT,
+                "schema_version": agent_compose_person.PERSON_SNAPSHOT_SCHEMA_VERSION,
                 "source": "person:fixture",
                 "person": "fixture",
                 "role_order": ["ops"],
                 "roles": {
                     "ops": {
-                        "personalities": ["protective", "grounded"],
+                        "personalities": list(FIXTURE_PERSONALITIES),
                     }
                 },
                 "personalities": {
-                    "protective": {"skill": "personality-protective"},
-                    "grounded": {"skill": "personality-grounded"},
+                    personality: {
+                        "skill": agent_compose_person.personality_skill_id(
+                            personality
+                        )
+                    }
+                    for personality in FIXTURE_PERSONALITIES
                 },
             },
             indent=2,
@@ -76,31 +80,6 @@ def provider_fixture(root: Path) -> Path:
         "description: Bounded remediation.\n"
         "---\n"
         "# Remediate\n",
-    )
-    write(
-        provider / role_personality_sync.PROJECTION_PATH,
-        json.dumps(
-            {
-                "format": role_personality_sync.FORMAT,
-                "role_count": 1,
-                "personality_count": len(FIXTURE_PERSONALITIES),
-                "roles": [
-                    {
-                        "role": "ops",
-                        "personalities": list(FIXTURE_PERSONALITIES),
-                    }
-                ],
-                "skills": [
-                    {
-                        "personality": personality,
-                        "skill": role_personality_sync.personality_skill_id(
-                            personality
-                        ),
-                    }
-                    for personality in FIXTURE_PERSONALITIES
-                ],
-            }
-        ),
     )
     return provider
 
@@ -145,7 +124,7 @@ def bundle_fixture(root: Path, *, model_tier: str | None = None) -> Path:
         "# Remediate\n",
     )
     for personality in FIXTURE_PERSONALITIES:
-        skill_id = role_personality_sync.personality_skill_id(personality)
+        skill_id = agent_compose_person.personality_skill_id(personality)
         write(
             bundle
             / "content"
@@ -253,6 +232,7 @@ def build_fixture_snapshot(
         cwd,
         role="ops",
         seat=seat,
+        expected_personalities=FIXTURE_PERSONALITIES,
         plugin_roots=plugin_roots or [],
         mcp_servers=mcp_servers or [],
     )
@@ -275,8 +255,12 @@ def test_validate_role_seat_requires_generated_role_and_aos_layout(
     person_snapshot = tmp_path / "person.json"
     write_person_snapshot(person_snapshot)
 
-    context.validate_role_seat(person_snapshot, "ops", "codex")
-    context.validate_role_seat(person_snapshot, "ops", "goose")
+    assert context.validate_role_seat(person_snapshot, "ops", "codex") == (
+        FIXTURE_PERSONALITIES
+    )
+    assert context.validate_role_seat(person_snapshot, "ops", "goose") == (
+        FIXTURE_PERSONALITIES
+    )
 
     with pytest.raises(RuntimeError, match="role qa is absent"):
         context.validate_role_seat(person_snapshot, "qa", "goose")
@@ -298,6 +282,7 @@ def test_agents_inventory_rejects_outside_cwd(tmp_path: Path) -> None:
             tmp_path,
             role="ops",
             seat="codex",
+            expected_personalities=FIXTURE_PERSONALITIES,
         )
 
 
@@ -326,6 +311,7 @@ def test_agents_inventory_omits_global_context_already_measured_by_projection(
         cwd,
         role="ops",
         seat="codex",
+        expected_personalities=FIXTURE_PERSONALITIES,
     )
     components = [
         item for item in component_rows(snapshot) if item["kind"] == "agents-cascade"
@@ -395,7 +381,7 @@ def test_build_snapshot_separates_eager_and_lazy_components(tmp_path: Path) -> N
     assert isinstance(skills, dict)
     expected_personality_skills = [
         "roster:core/"
-        + role_personality_sync.personality_skill_id(personality)
+        + agent_compose_person.personality_skill_id(personality)
         for personality in FIXTURE_PERSONALITIES
     ]
     assert list(skills) == sorted(
@@ -493,6 +479,7 @@ def test_build_snapshot_attributes_additional_provider_skills(
         cwd,
         role="ops",
         seat="codex",
+        expected_personalities=FIXTURE_PERSONALITIES,
         additional_providers={"aosk": private_provider},
     )
 
@@ -543,6 +530,7 @@ def test_snapshot_rejects_wrong_model_tier(tmp_path: Path) -> None:
             cwd,
             role="ops",
             seat="goose",
+            expected_personalities=FIXTURE_PERSONALITIES,
         )
 
 
@@ -564,6 +552,7 @@ def test_snapshot_rejects_wrong_bundle_role(tmp_path: Path) -> None:
             cwd,
             role="ops",
             seat="codex",
+            expected_personalities=FIXTURE_PERSONALITIES,
         )
 
 
@@ -589,6 +578,7 @@ def test_snapshot_rejects_personality_drift_from_agent_compose(
             cwd,
             role="ops",
             seat="codex",
+            expected_personalities=FIXTURE_PERSONALITIES,
         )
 
 
@@ -599,7 +589,7 @@ def test_snapshot_rejects_missing_personality_skill_body(
     bundle = bundle_fixture(tmp_path)
     projected = projection_fixture(tmp_path, bundle)
     repo, cwd = repo_fixture(tmp_path)
-    missing = role_personality_sync.personality_skill_id(
+    missing = agent_compose_person.personality_skill_id(
         FIXTURE_PERSONALITIES[0]
     )
     shutil.rmtree(
@@ -619,6 +609,7 @@ def test_snapshot_rejects_missing_personality_skill_body(
             cwd,
             role="ops",
             seat="codex",
+            expected_personalities=FIXTURE_PERSONALITIES,
         )
 
 
@@ -635,6 +626,7 @@ def test_snapshot_round_trip_and_delta(tmp_path: Path) -> None:
         cwd,
         role="ops",
         seat="codex",
+        expected_personalities=FIXTURE_PERSONALITIES,
     )
     snapshot_path = tmp_path / "before.yaml"
     context.write_snapshot(snapshot_path, before)
@@ -654,6 +646,7 @@ def test_snapshot_round_trip_and_delta(tmp_path: Path) -> None:
         cwd,
         role="ops",
         seat="codex",
+        expected_personalities=FIXTURE_PERSONALITIES,
     )
     rendered = context.render_delta(context.load_snapshot(snapshot_path), after)
 

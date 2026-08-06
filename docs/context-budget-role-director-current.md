@@ -3,13 +3,17 @@
 
 # Current director context budget
 
-Aggregate inventory scope intentionally measures frontier seats only. This reporting
-scope is separate from runtime compatibility, and excluded snapshots remain
-independently valid evidence.
+The aggregate includes every checked-in current snapshot for this role.
 
 * **Frontier director** -
   [Claude 8,749](context-budget-director-claude-current.yaml),
   [Codex 8,746](context-budget-director-codex-current.yaml), lazy 75,321, 24 composed.
+* **Low-context director** -
+  [Goose 7,848](context-budget-director-goose-current.yaml),
+  [OpenCode 7,848](context-budget-director-opencode-current.yaml), lazy 37,613, 11 composed.
+* **Low-context diff** - eager saves 898 to 901 tokens, lazy saves 37,708 tokens, composed sources 24 -> 11.
+
+The programmatic diff compares every frontier seat with every low-context seat.
 
 ## See also
 

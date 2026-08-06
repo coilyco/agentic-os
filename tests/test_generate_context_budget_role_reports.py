@@ -1,4 +1,5 @@
-"""Tests for policy-scoped role context-budget reports."""
+"""Tests for role context-budget reports."""
+
 from __future__ import annotations
 
 import json
@@ -54,9 +55,8 @@ def _write_snapshots(
     *,
     wrong_class_seat: str | None = None,
 ) -> dict[str, str]:
-    layouts = TEST_LAYOUTS
     frontier_index = 0
-    for seat, model_class in layouts.items():
+    for seat, model_class in TEST_LAYOUTS.items():
         if model_class == "frontier":
             eager = 100 + frontier_index * 10
             frontier_index += 1
@@ -77,7 +77,17 @@ def _write_snapshots(
         )
         path = docs_dir / f"context-budget-content-{seat}-current.yaml"
         path.write_text(json.dumps(snapshot), encoding="utf-8")
-    return layouts
+    return TEST_LAYOUTS
+
+
+def test_loads_canonical_roles_from_launch_profiles(tmp_path: Path) -> None:
+    profiles = tmp_path / "harness-launch-profiles.yaml"
+    profiles.write_text(
+        "roles:\n  engineer:\n    agent: codex\n  ops:\n    agent: claude\n",
+        encoding="utf-8",
+    )
+
+    assert reports.load_canonical_roles(profiles) == ("engineer", "ops")
 
 
 def test_render_computes_class_envelope_diff(tmp_path: Path) -> None:
@@ -90,7 +100,7 @@ def test_render_computes_class_envelope_diff(tmp_path: Path) -> None:
     assert "eager saves 20 to 30 tokens" in rendered
     assert "lazy saves 80 tokens" in rendered
     assert "composed sources 5 -> 3" in rendered
-    assert "all AOS-supported model classes" in rendered
+    assert "every checked-in current snapshot" in rendered
 
 
 def test_generate_then_check_drift(tmp_path: Path) -> None:
@@ -103,107 +113,41 @@ def test_generate_then_check_drift(tmp_path: Path) -> None:
     assert reports.check_drift(tmp_path, roles=("content",), layouts=layouts) == 1
 
 
-def test_rejects_excluded_snapshot_model_class_drift(tmp_path: Path) -> None:
-    layouts = TEST_LAYOUTS
+def test_rejects_snapshot_model_class_drift(tmp_path: Path) -> None:
     low_context_seat = next(
-        seat for seat, model_class in layouts.items() if model_class == "low-context"
+        seat
+        for seat, model_class in TEST_LAYOUTS.items()
+        if model_class == "low-context"
     )
-    _write_snapshots(tmp_path, wrong_class_seat=low_context_seat)
+    layouts = _write_snapshots(tmp_path, wrong_class_seat=low_context_seat)
 
     with pytest.raises(RuntimeError, match="expected model class"):
-        reports.build_reports(
-            tmp_path,
-            roles=("content",),
-            layouts=layouts,
-            inventory_model_classes={"content": ["frontier"]},
-        )
+        reports.build_reports(tmp_path, roles=("content",), layouts=layouts)
 
 
-def test_rejects_malformed_excluded_snapshot(tmp_path: Path) -> None:
+def test_rejects_malformed_snapshot(tmp_path: Path) -> None:
     layouts = _write_snapshots(tmp_path)
-    excluded = tmp_path / "context-budget-content-oss-a-current.yaml"
-    excluded.write_text("{}\n", encoding="utf-8")
+    malformed = tmp_path / "context-budget-content-oss-a-current.yaml"
+    malformed.write_text("{}\n", encoding="utf-8")
 
     with pytest.raises(RuntimeError, match="unsupported role-seat context snapshot"):
-        reports.build_reports(
-            tmp_path,
-            roles=("content",),
-            layouts=layouts,
-            inventory_model_classes={"content": ["frontier"]},
-        )
+        reports.build_reports(tmp_path, roles=("content",), layouts=layouts)
 
 
-def test_frontier_only_policy_omits_valid_low_context_snapshots(
-    tmp_path: Path,
-) -> None:
+def test_available_classes_are_derived_from_snapshots(tmp_path: Path) -> None:
     layouts = _write_snapshots(tmp_path)
-    built = reports.build_reports(
-        tmp_path,
-        roles=("content",),
-        layouts=layouts,
-        inventory_model_classes={"content": ["frontier"]},
-    )
+    for seat, model_class in layouts.items():
+        if model_class == "low-context":
+            (tmp_path / f"context-budget-content-{seat}-current.yaml").unlink()
+
+    built = reports.build_reports(tmp_path, roles=("content",), layouts=layouts)
     rendered = built[tmp_path / "context-budget-role-content-current.md"]
+    inventory = built[tmp_path / "context-budget-role-seat-current.md"]
 
     assert "**Frontier Content Manager**" in rendered
     assert "**Low-context Content Manager**" not in rendered
-    assert "Low-context diff" not in rendered
-    assert "intentionally measures frontier seats only" in rendered
-    assert "Only frontier snapshots are available" not in rendered
-    assert (tmp_path / "context-budget-content-oss-a-current.yaml").exists()
-
-    inventory = built[tmp_path / "context-budget-role-seat-current.md"]
-    assert (
-        "Aggregate measurement scope is separate from runtime compatibility"
-        in inventory
-    )
-    assert "context-budget-role-content-current.md" in inventory
+    assert "Only frontier snapshots are available" in rendered
     assert "frontier only." in inventory
-
-
-@pytest.mark.parametrize(
-    ("policy", "message"),
-    [
-        ({"unknown": ["frontier"]}, "unknown role"),
-        ({"content": ["unknown"]}, "unsupported classes"),
-        ({"content": []}, "at least one class"),
-        ({"content": ["frontier", "frontier"]}, "duplicate classes"),
-    ],
-)
-def test_inventory_policy_fails_closed(
-    tmp_path: Path,
-    policy: dict[str, list[str]],
-    message: str,
-) -> None:
-    policy_path = tmp_path / "policy.json"
-    policy_path.write_text(
-        json.dumps(
-            {
-                "format": reports.INVENTORY_POLICY_FORMAT,
-                "inventory_model_classes": policy,
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(RuntimeError, match=message):
-        reports.load_inventory_model_classes(
-            policy_path,
-            roles=("content",),
-            model_classes=reports.MODEL_CLASSES,
-        )
-
-
-def test_inventory_scope_requires_a_frontier_snapshot(tmp_path: Path) -> None:
-    layouts = _write_snapshots(tmp_path)
-
-    with pytest.raises(RuntimeError, match="no frontier snapshot after inventory"):
-        reports.build_reports(
-            tmp_path,
-            roles=("content",),
-            layouts=layouts,
-            inventory_model_classes={"content": ["low-context"]},
-        )
 
 
 def test_committed_role_reports_are_current() -> None:

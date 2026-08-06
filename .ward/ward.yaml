@@ -87,7 +87,7 @@ commands:
     description: "Launch the selected agent in one standalone AOS container with composed context and the aosguard skill, then print the agent version."
   aosguard-lock:
     run: sh scripts/aosguard-lock.sh
-    description: "Refresh aosguard's vendored API snapshot and frozen cli-guard dependency graph with the packaged specgen driver."
+    description: "Refresh aosguard's vendored API snapshot and frozen cli-guard dependency graph with the packaged specgen driver. Pass specgen lock flags after `--`."
   aosguard-build:
     run: specgen --project-root .specgen/guardfiles --skills-out dist/skills build --out dist/aosguard
     description: "Materialize the standalone aosguard operator CLI and native generated skill from the independent .specgen snapshot."
@@ -109,9 +109,6 @@ commands:
   aos-role-question:
     run: sh scripts/aos-role-question.sh
     description: "Ask one composed role a real question through cloud Codex or Goose with a local model, enforce a bounded run, and require the response to confirm its loaded role. Usage: `ward exec aos-role-question -- cloud|local ROLE [MODEL]`."
-  sync-role-personalities:
-    run: uv run python -m agentic_os.role_personality_sync
-    description: "Project agent-compose's emitted person snapshot into `aos-cli/role-personalities.json` for measurement alignment. `-- --check` reports drift without writing. See docs/role-orientation-projections.md."
   dev-base-build:
     run: env TAG=dev-base-local docker buildx bake --progress=plain --file docker/dev-base/docker-bake.hcl
     description: "Build the parallel Ubuntu language payloads and full fan-in locally, loading agentic-os:dev-base-local. Language outputs remain cache-only build artifacts."

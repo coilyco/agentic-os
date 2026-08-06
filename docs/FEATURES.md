@@ -20,8 +20,9 @@ Major shipped capabilities, not files.
   [convergence](aos-convergence.md), [connectivity](aos-standalone-connectivity.md),
   [kubeconfig](aos-kubeconfig.md), [issue pins](aos-issue-pin-context.md), and
   [check-ins](aos-acompose-checkin.md).
-- [aosguard](aosguard.md) - guarded CLI with fixed one-tool
-  [SigNoz MCP reads](signoz.md) and fixed-target issue pins.
+- [aosguard](aosguard.md) - guarded CLI with fixed
+  [SigNoz MCP reads](signoz.md), issue pins, and sealed
+  [Forgejo storage measurement](forgejo-storage-measurement.md).
 - [Code review skill](../.agents/composed/tooling-code-review/COMPOSED.md) - QA-only in-container review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
 - [Test harnesses](test-harness.md) - agent/model smokes and composed-role probes.

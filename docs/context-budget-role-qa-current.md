@@ -3,7 +3,7 @@
 
 # Current QA context budget
 
-Aggregate inventory scope measures all AOS-supported model classes.
+The aggregate includes every checked-in current snapshot for this role.
 
 * **Frontier QA** -
   [Claude 8,766](context-budget-qa-claude-current.yaml),

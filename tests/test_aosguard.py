@@ -106,6 +106,7 @@ def test_aosguard_has_one_static_binary_group() -> None:
         assert "wrap aos-agent " not in text
         assert "wrap aos-ward " not in text
         assert 'argv ".ward/' not in text
+        assert "doc-link" not in text
 
     assert wraps == {"aosguard"}
 
@@ -122,6 +123,17 @@ def test_aosguard_actions_use_packaged_python_modules() -> None:
     ):
         assert f'"agentic_os.{module}"' in text
         assert (ROOT / "agentic_os" / f"{module}.py").is_file()
+
+
+def test_aosguard_forgejo_storage_measurement_is_sealed() -> None:
+    text = (SOURCE / "forgejo-storage.kdl").read_text(encoding="utf-8")
+
+    assert "wrap aosguard ops forgejo-storage" in text
+    assert 'argv "-I"' in text
+    assert 'embed "forgejo_storage_measure.py"' in text
+    assert "agentic_os.forgejo_storage_measure" not in text
+    assert "sealed" in text
+    assert (SOURCE / "forgejo_storage_measure.py").is_file()
 
 
 def test_aosguard_vendored_forgejo_contract_is_encoded_json() -> None:
@@ -185,6 +197,21 @@ def test_native_release_wrapper_embeds_the_actions_bridge() -> None:
         "forgejo_actions_web.py",
     ):
         assert f'"$repo_root/agentic_os/{module}"' in build
+    assert '"$repo_root/agentic_os/forgejo_storage_measure.py"' not in build
+
+
+def test_aosguard_forgejo_storage_measurement_mounts_exec_group(
+    aosguard_binary: Path,
+) -> None:
+    result = subprocess.run(
+        [str(aosguard_binary), "ops", "forgejo-storage", "--help"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "measure" in result.stdout
+    assert "bounded read-only Forgejo" in result.stdout
 
 
 def test_repo_topic_replace_all_dry_run_builds_put_body(

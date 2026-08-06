@@ -33,10 +33,9 @@ Role selection runs first, so pruning never widens the role boundary.
 Agent-compose activates the complete ordered personality meld for a selected
 role. A request cannot select an arbitrary trait or change compatibility.
 Agent-compose embeds the invariant and all 16 canonical definition trees under
-its `roster:core` source. AOS commits a deployed-role alignment board that
-verifies the ordered meld and skill ids in measured bundles without selecting
-runtime behavior. See
-[role-orientation projections](role-orientation-projections.md).
+its `roster:core` source. Context-budget capture verifies each measured
+bundle's ordered meld and skill ids directly against Agent Compose's generated
+person snapshot without creating an AOS-owned role or personality copy.
 
 ## Local consumer use
 

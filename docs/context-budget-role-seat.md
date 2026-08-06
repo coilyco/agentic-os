@@ -12,13 +12,12 @@ The command asks the local `agent-compose` binary to perform three operations:
 * `project` materializes that bundle into the seat's home-scope load points.
 
 The measurement compares the bundle's ordered personality meld and selected
-personality skill ids with the committed
-[AOS role-personality projection](../aos-cli/role-personalities.json), then reads
-the generated files. The snapshot records that validated meld under
-`bundle.personalities`. Personality skills are attributed to `roster:core`.
-The seat's agent executable does not need to be installed. The command never
-invokes an agent, inference, a backend model, hardware, an endpoint, or another
-live service.
+personality skill ids directly with the person snapshot emitted by the same
+`agent-compose roster` call, then reads the generated files. The snapshot
+records that validated meld under `bundle.personalities`. Personality skills
+are attributed to `roster:core`. The seat's agent executable does not need to
+be installed. The command never invokes an agent, inference, a backend model,
+hardware, an endpoint, or another live service.
 
 The AOS checkout is the default provider, repository, and CWD. `--provider`,
 `--repo`, and `--cwd` make those inputs explicit for fixtures or reproduction.
@@ -51,19 +50,14 @@ omit projected global context and retain the repository root-to-CWD AGENTS casca
 
 Snapshots use `context-budget-<role>-<seat>-<phase>.yaml`. Every current
 role-seat snapshot remains individually addressable by that stable filename.
-Aggregate role reports link the snapshots selected by measurement policy.
+Aggregate role reports link every checked-in current snapshot.
 
 The [current role-class inventory](context-budget-role-seat-current.md) links
-one report per canonical role. The AOS-owned
-[inventory policy](../agentic_os/context_budget_inventory_policy.json) selects
-which model classes enter each aggregate report. Unlisted roles default to all
-AOS-supported classes. Every checked-in current snapshot is validated before
-the policy is applied, so excluded snapshots remain independently loadable and
-refreshable evidence.
-
-Aggregate measurement scope is separate from runtime compatibility. The policy
-does not change role composition, seat layouts, or native and container launch
-behavior.
+one report per role in
+[the AOS launch profiles](../.agents/harness-launch-profiles.yaml). The report
+generator derives available model classes from the checked-in snapshots and
+validates every snapshot before including its measurements. Snapshot
+availability remains measurement evidence, not a runtime compatibility rule.
 
 ## Capture and compare
 

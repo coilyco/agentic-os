@@ -3,12 +3,9 @@
 
 # Current role-class context inventory
 
-The 9 canonical Agent Compose Core Roster roles use an AOS-owned policy to select which
-model classes enter aggregate context reports. Every checked-in current snapshot is
-validated before that policy is applied, so excluded snapshots remain loadable evidence.
-
-Aggregate measurement scope is separate from runtime compatibility. Role composition and
-seat layouts remain the runtime sources of truth.
+The 9 AOS launch-profile roles have aggregate context reports derived from every
+checked-in current snapshot. Every snapshot is validated before its measurements enter a
+report.
 
 Every entry uses the deterministic characters-divided-by-four token proxy. The role
 reports and available class deltas are generated with `ward exec
@@ -16,24 +13,24 @@ gen-context-budget-role-reports`.
 
 ## Roles
 
-* [Engineer](context-budget-role-engineer-current.md) - aggregate measurement scope:
+* [Engineer](context-budget-role-engineer-current.md) - available model classes:
   frontier and low-context.
-* [Director](context-budget-role-director-current.md) - aggregate measurement scope:
-  frontier only.
-* [QA](context-budget-role-qa-current.md) - aggregate measurement scope: frontier and
+* [Director](context-budget-role-director-current.md) - available model classes:
+  frontier and low-context.
+* [QA](context-budget-role-qa-current.md) - available model classes: frontier and
   low-context.
-* [Ops](context-budget-role-ops-current.md) - aggregate measurement scope: frontier
+* [Ops](context-budget-role-ops-current.md) - available model classes: frontier and
+  low-context.
+* [Design](context-budget-role-design-current.md) - available model classes: frontier
+  and low-context.
+* [Community](context-budget-role-community-current.md) - available model classes:
+  frontier and low-context.
+* [Portfolio Strategist](context-budget-role-strats-current.md) - available model
+  classes: frontier only.
+* [Content Manager](context-budget-role-content-current.md) - available model classes:
+  frontier and low-context.
+* [AI Engineer](context-budget-role-ai-current.md) - available model classes: frontier
   only.
-* [Design](context-budget-role-design-current.md) - aggregate measurement scope:
-  frontier and low-context.
-* [Community](context-budget-role-community-current.md) - aggregate measurement scope:
-  frontier and low-context.
-* [Portfolio Strategist](context-budget-role-strats-current.md) - aggregate measurement
-  scope: frontier only.
-* [Content Manager](context-budget-role-content-current.md) - aggregate measurement
-  scope: frontier and low-context.
-* [AI Engineer](context-budget-role-ai-current.md) - aggregate measurement scope:
-  frontier only.
 
 Goose and OpenCode snapshots have equal token totals where both are checked in because
 each receives the same catalog and AGENTS cascade. Their projection paths and payload
