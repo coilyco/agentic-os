@@ -24,7 +24,7 @@ ward exec context-budget -- --role ops --seat codex \
   --snapshot /path/to/private/context-budget-ops-codex-current.yaml
 ```
 
-Agent Compose performs ordinary, role-composed, model-class, collision, and
+Agent Compose performs ordinary, role-composed, model-tier, collision, and
 shadowing decisions across the complete source set. The snapshot preserves each
 source id, attributes selected skills to that provider, and records the provider
 identity map without copying private source content into AOS.
@@ -41,7 +41,7 @@ ward exec context-budget -- --role ops --seat codex \
 
 `--skill-root` remains the separate input for seat or plugin skills declared
 outside the verified bundle. Duplicate skill ids, an unknown role or seat, a
-model-class mismatch, personality drift, an unnamed or malformed provider, a
+model-tier mismatch, personality drift, an unnamed or malformed provider, a
 wrong bundle role, an unsafe projected entry point, or a mismatched comparison
 subject fails closed.
 

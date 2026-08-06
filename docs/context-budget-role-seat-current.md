@@ -3,7 +3,7 @@
 
 # Current role-class context inventory
 
-The 8 canonical Agent Compose Core Roster roles use an AOS-owned policy to select which
+The 9 canonical Agent Compose Core Roster roles use an AOS-owned policy to select which
 model classes enter aggregate context reports. Every checked-in current snapshot is
 validated before that policy is applied, so excluded snapshots remain loadable evidence.
 
@@ -32,6 +32,8 @@ gen-context-budget-role-reports`.
   scope: frontier only.
 * [Content Manager](context-budget-role-content-current.md) - aggregate measurement
   scope: frontier and low-context.
+* [AI Engineer](context-budget-role-ai-current.md) - aggregate measurement scope:
+  frontier only.
 
 Goose and OpenCode snapshots have equal token totals where both are checked in because
 each receives the same catalog and AGENTS cascade. Their projection paths and payload

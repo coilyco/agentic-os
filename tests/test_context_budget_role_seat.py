@@ -105,9 +105,9 @@ def provider_fixture(root: Path) -> Path:
     return provider
 
 
-def bundle_fixture(root: Path, *, model_class: str | None = None) -> Path:
-    if model_class is None:
-        model_class = context.model_class_for_seat("codex")
+def bundle_fixture(root: Path, *, model_tier: str | None = None) -> Path:
+    if model_tier is None:
+        model_tier = context.model_class_for_seat("codex")
     bundle = root / "bundle"
     write(
         bundle / "manifest.json",
@@ -115,7 +115,7 @@ def bundle_fixture(root: Path, *, model_class: str | None = None) -> Path:
             {
                 "format": "agent-compose.bundle",
                 "role": "ops",
-                "model_class": model_class,
+                "model_tier": model_tier,
                 "personalities": list(FIXTURE_PERSONALITIES),
                 "sources": ["roster:core", "aos"],
                 "delivery": {
@@ -242,7 +242,7 @@ def build_fixture_snapshot(
     mcp_servers: list[str] | None = None,
 ) -> dict[str, object]:
     provider = provider_fixture(root)
-    bundle = bundle_fixture(root, model_class=context.model_class_for_seat(seat))
+    bundle = bundle_fixture(root, model_tier=context.model_class_for_seat(seat))
     projected = projection_fixture(root, bundle, seat=seat)
     repo, cwd = repo_fixture(root)
     return context.build_snapshot(
@@ -526,15 +526,15 @@ def test_projection_changes_seat_specific_load_points(
     assert components["instructions:role"]["delivery"] == delivery
 
 
-def test_snapshot_rejects_wrong_model_class(tmp_path: Path) -> None:
+def test_snapshot_rejects_wrong_model_tier(tmp_path: Path) -> None:
     provider = provider_fixture(tmp_path)
     bundle = bundle_fixture(
-        tmp_path, model_class=context.model_class_for_seat("codex")
+        tmp_path, model_tier=context.model_class_for_seat("codex")
     )
     projected = projection_fixture(tmp_path, bundle, seat="goose")
     repo, cwd = repo_fixture(tmp_path)
 
-    with pytest.raises(RuntimeError, match="expected model class low-context"):
+    with pytest.raises(RuntimeError, match="expected model tier low-context"):
         context.build_snapshot(
             bundle,
             projected,
@@ -734,10 +734,11 @@ def test_capture_requires_only_agent_compose_executable(
     assert operations == ["roster", "compose", "project"]
 
 
-def test_request_uses_aos_layout_model_class() -> None:
-    for seat, model_class in context.load_aos_layout_model_classes().items():
+def test_request_uses_aos_layout_model_tier() -> None:
+    for seat, model_tier in context.load_aos_layout_model_classes().items():
         request = context._request_text("provider", "ops", seat)
-        assert f'model-class "{model_class}"' in request
+        assert f'model-tier "{model_tier}"' in request
+        assert "model-class" not in request
 
 
 def test_request_includes_named_additional_providers() -> None:

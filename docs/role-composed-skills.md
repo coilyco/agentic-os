@@ -36,8 +36,8 @@ roles {
 ```
 
 Each binding names an existing directory under `.agents/composed/`. Duplicate roles,
-duplicate bindings, unknown roles, and missing sources fail composition. Every canonical
-agent-compose role has a block and at least one composed source.
+duplicate bindings, unknown roles, and missing sources fail composition. Every
+AOS-deployed role has a block and at least one composed source.
 
 A binding may use a quoted shell-style glob for a semantically homogeneous family,
 such as `composed-skill "coding-*"`. Keep unrelated sources exact. Agent-compose expands

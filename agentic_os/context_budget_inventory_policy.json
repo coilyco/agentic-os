@@ -9,6 +9,9 @@
     ],
     "ops": [
       "frontier"
+    ],
+    "ai": [
+      "frontier"
     ]
   }
 }

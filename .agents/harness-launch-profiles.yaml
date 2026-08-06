@@ -15,3 +15,5 @@ roles:
     agent: claude
   content:
     agent: codex
+  ai:
+    agent: codex

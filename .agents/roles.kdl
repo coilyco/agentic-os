@@ -51,4 +51,7 @@ roles {
     role content {
         composed-skill "writing-*"
     }
+    role ai {
+        composed-skill "coding-*"
+    }
 }

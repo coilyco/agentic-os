@@ -222,6 +222,8 @@ def _role_label(role: str) -> str:
         return "Portfolio Strategist"
     if role == "content":
         return "Content Manager"
+    if role == "ai":
+        return "AI Engineer"
     return role.replace("-", " ")
 
 
@@ -232,6 +234,8 @@ def _role_title(role: str) -> str:
         return "Portfolio Strategist"
     if role == "content":
         return "Content Manager"
+    if role == "ai":
+        return "AI Engineer"
     return role.replace("-", " ").title()
 
 

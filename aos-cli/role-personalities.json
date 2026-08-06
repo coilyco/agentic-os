@@ -1,6 +1,6 @@
 {
   "format": "agentic-os.role-personality-board.v1",
-  "role_count": 8,
+  "role_count": 9,
   "personality_count": 16,
   "roles": [
     {
@@ -73,6 +73,15 @@
         "meticulous",
         "playful",
         "bold"
+      ]
+    },
+    {
+      "role": "ai",
+      "personalities": [
+        "curious",
+        "meticulous",
+        "skeptical",
+        "tenacious"
       ]
     }
   ],

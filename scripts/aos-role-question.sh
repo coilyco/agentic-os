@@ -21,7 +21,7 @@ question_for() {
             echo "Request latency doubled after a deployment with no error-rate change. Name the first three non-destructive checks and a rollback threshold."
             ;;
         design)
-            echo "An eight-role agent launcher must hide backend model identity. Shape the smallest clear role-selection interaction, including its default and failure state."
+            echo "A role-based agent launcher must hide backend model identity. Shape the smallest clear role-selection interaction, including its default and failure state."
             ;;
         community)
             echo "A Discord newcomer asks a repeated setup question in a busy channel. Give a welcoming grounded answer, one useful next step, and the condition for a human handoff."
@@ -31,6 +31,9 @@ question_for() {
             ;;
         content)
             echo "Draft a restrained launch note for role-scoped agent skills and name one signal that would show the message helped."
+            ;;
+        ai)
+            echo "A tool-calling model regressed on one benchmark after a prompt change. Define the smallest controlled evaluation, the provenance to preserve, and the condition for changing the prompt."
             ;;
         *)
             echo "aos role question: unknown role $1" >&2

@@ -389,7 +389,7 @@ def _safe_child_path(root: Path, relative: object, label: str) -> Path:
 
 
 def _load_manifest(
-    bundle: Path, role: str, model_class: str
+    bundle: Path, role: str, model_tier: str
 ) -> tuple[dict[str, object], Path, Path]:
     manifest_path = bundle / "manifest.json"
     try:
@@ -400,8 +400,8 @@ def _load_manifest(
         raise RuntimeError(f"{manifest_path}: unsupported bundle format")
     if document.get("role") != role:
         raise RuntimeError(f"{manifest_path}: expected role {role}")
-    if document.get("model_class") != model_class:
-        raise RuntimeError(f"{manifest_path}: expected model class {model_class}")
+    if document.get("model_tier") != model_tier:
+        raise RuntimeError(f"{manifest_path}: expected model tier {model_tier}")
     delivery = document.get("delivery")
     if not isinstance(delivery, dict) or delivery.get("mode") != "native-skills":
         raise RuntimeError(f"{manifest_path}: expected native-skills delivery")
@@ -961,12 +961,12 @@ def _request_text(
     seat: str,
     additional_provider_roots: Mapping[str, str] | None = None,
 ) -> str:
-    model_class = model_class_for_seat(seat)
+    model_tier = model_class_for_seat(seat)
     lines = [
         "compose {",
         f'    role "{role}"',
         '    delivery "native-skills"',
-        f'    model-class "{model_class}"',
+        f'    model-tier "{model_tier}"',
         (
             f'    source "{SOURCE_ID}" root={json.dumps(provider_root)} '
             "required=#true"
