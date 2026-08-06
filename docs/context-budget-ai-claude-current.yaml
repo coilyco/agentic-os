@@ -23,19 +23,19 @@ mcp:
   eager_schema_count: 0
 totals:
   eager:
-    components: 42
-    bytes: 34350
-    tokens: 8600
+    components: 44
+    bytes: 34802
+    tokens: 8714
   lazy:
-    components: 119
-    bytes: 211786
-    tokens: 52916
+    components: 121
+    bytes: 217892
+    tokens: 54443
 breakdown:
   eager:
     agents-cascade: {components: 2, bytes: 23437, tokens: 5860}
     ordinary-skill-frontmatter: {components: 12, bytes: 3016, tokens: 758}
     personality-frontmatter: {components: 4, bytes: 673, tokens: 170}
-    role-composed-frontmatter: {components: 22, bytes: 4388, tokens: 1108}
+    role-composed-frontmatter: {components: 24, bytes: 4840, tokens: 1222}
     role-instructions: {components: 1, bytes: 2656, tokens: 659}
     role-skill-frontmatter: {components: 1, bytes: 180, tokens: 45}
   lazy:
@@ -43,7 +43,7 @@ breakdown:
     ordinary-skill-body: {components: 12, bytes: 22688, tokens: 5670}
     ordinary-skill-resource: {components: 21, bytes: 32147, tokens: 8045}
     personality-body: {components: 4, bytes: 4870, tokens: 1220}
-    role-composed-body: {components: 22, bytes: 50521, tokens: 12632}
+    role-composed-body: {components: 24, bytes: 56627, tokens: 14159}
     role-composed-resource: {components: 58, bytes: 98102, tokens: 24484}
     role-skill-body: {components: 1, bytes: 3458, tokens: 865}
 components:
@@ -103,6 +103,8 @@ skills:
   aos/coding-shape-tui: {class: role-composed, eager: 51, lazy: 401, resources: 0}
   aos/coding-shape-web-server: {class: role-composed, eager: 55, lazy: 475, resources: 0}
   aos/coding-terraform: {class: role-composed, eager: 46, lazy: 464, resources: 0}
+  aos/eval-role-comms: {class: role-composed, eager: 58, lazy: 728, resources: 0}
+  aos/eval-role-live-ops: {class: role-composed, eager: 56, lazy: 799, resources: 0}
   aos/kai-tech-prefs: {class: ordinary, eager: 51, lazy: 2068, resources: 5}
   aos/repo-agentic-os: {class: ordinary, eager: 47, lazy: 93, resources: 0}
   aos/tooling-agent-tool-evaluation: {class: ordinary, eager: 68, lazy: 2181, resources: 3}
@@ -120,4 +122,4 @@ skills:
   roster:core/personality-skeptical: {class: personality, eager: 43, lazy: 276, resources: 0}
   roster:core/personality-tenacious: {class: personality, eager: 47, lazy: 283, resources: 0}
   roster:core/role-ai: {class: role, eager: 45, lazy: 865, resources: 0}
-payload_hash: 1978f81876f357a6a4042f63c336fe7a6475aba79bd1536b643397b6d2a56203
+payload_hash: 1065209d7a683e2d52c54b3fb00a3f5c6f1e020218f25b26db9ad3325eafdcd3

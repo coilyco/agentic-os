@@ -11,6 +11,8 @@ Pick the prefix up front. The validator rejects unknown prefixes.
 * `writing-*` - prose / voice / issue authoring surface
   (`writing-voice-guide-linter`, `writing-voice-observer-narrator`,
   `tooling-issue-decomposition`, and the social writing family).
+* `eval-*` - AI-engineering methods that curate executable behavioral
+  evaluations for one recurring concern without owning its policy or authority.
 * `personality-*` - role-neutral presence, attention, tempo, and voice for agent-compose personality providers.
 * `home-*` - smart-home control at My House (hue, sonos, cast).
 * `tooling-*` - agent-ecosystem meta (the scout family,

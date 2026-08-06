@@ -14,7 +14,8 @@ Major shipped capabilities, not files.
 - [Agent-compose provider](personality-provider.md) - scoped skills,
   personality, and nine deployed roles including AI Engineer.
 - [Agent tool evaluation](../.agents/skills/tooling-agent-tool-evaluation/SKILL.md) - cross-harness tool evals.
-- [Role-composed skills](role-composed-skills.md) - v2 Core Roster method slices.
+- [Role-composed skills](role-composed-skills.md) - role methods with
+  [AI concern evaluation](role-concern-evaluation.md).
 - [AOS launcher](aos-cli.md) - role context with
   [convergence](aos-convergence.md), [connectivity](aos-standalone-connectivity.md),
   [kubeconfig](aos-kubeconfig.md), [issue pins](aos-issue-pin-context.md), and

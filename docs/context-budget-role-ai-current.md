@@ -8,8 +8,8 @@ scope is separate from runtime compatibility, and excluded snapshots remain
 independently valid evidence.
 
 * **Frontier AI Engineer** -
-  [Claude 8,600](context-budget-ai-claude-current.yaml),
-  [Codex 8,597](context-budget-ai-codex-current.yaml), lazy 52,916, 22 composed.
+  [Claude 8,714](context-budget-ai-claude-current.yaml),
+  [Codex 8,711](context-budget-ai-codex-current.yaml), lazy 54,443, 24 composed.
 
 ## See also
 

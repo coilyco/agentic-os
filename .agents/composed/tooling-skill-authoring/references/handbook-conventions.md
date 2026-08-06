@@ -22,7 +22,7 @@ To author a new shaped skill: copy the template, fill in. The validator catches 
 
 ## 9. Rules for adding a new category
 
-You almost never should. Most asks fit one of the eleven families. If you genuinely have a new shape:
+You almost never should. Most asks fit a configured family. If you genuinely have a new shape:
 
 1. Open a draft of `categories.yaml` with the new category. Pick `kind: prefix` or `kind: exact`. Decide whether to enforce status and sections.
 2. Update this handbook (§2 list, plus a per-category subsection in §5 if sections are enforced).

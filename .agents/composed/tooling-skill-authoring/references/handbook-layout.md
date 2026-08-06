@@ -16,6 +16,7 @@
 │   ├── gaming-steam/                           # Steam library
 │   ├── gaming-factorio/                        # placeholder
 │   ├── writing-<topic>/                        # prose / voice / issue authoring
+│   ├── eval-role-<concern>/                    # cross-role behavior evaluation
 │   ├── home-<system>/                          # smart-home control
 │   ├── tooling-<topic>/                        # agent-ecosystem meta
 │   ├── categories.yaml                         # machine-readable spec (root)

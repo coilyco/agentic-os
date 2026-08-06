@@ -25,6 +25,8 @@ the role allowlists in [`.agents/roles.kdl`](../.agents/roles.kdl).
 * **Content Manager** - the complete writing family for public-repository
   writing, editorial work, channel context, and voice, excluding issue
   decomposition after its move into the tooling taxonomy.
+* **AI Engineer** - coding methods for AI measurement artifacts plus the
+  `eval-role-*` family for cross-role behavioral concern curation.
 
 ## Handoffs
 
