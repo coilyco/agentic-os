@@ -18,17 +18,17 @@ The release job:
 
 1. installs the validated workflow Ward, then runs Python, Go, and pre-commit validation
 2. bumps the CLI minor version without reading commit-message signals
-3. cross-compiles matching `aos`, `aoscompose`, `aosward`, `aosguard`, and `agent-terminal` binaries for every declared target
-4. stamps the same tag into all five binaries
+3. cross-compiles matching `aos`, `aoscompose`, `aosward`, `aosguard`, `agent-terminal`, and `aosterm` binaries
+4. stamps the same tag into every native binary
 5. packages `aos`, `aosguard`, the skill, bridges, and manifests into each target bundle
 6. renders checksums, Homebrew, and Scoop metadata
 7. creates or reuses the Forgejo release
 8. replaces every release asset from the clean `dist/` directory
 9. updates the tap and bucket when their write tokens are present
 
-Release assets group `aos-*`, `aos-bundle-*`, `aoscompose-*`, `aosward-*`, `aosguard-*`,
-and `agent-terminal-*` on Darwin arm64, Linux amd64 and arm64, and Windows amd64.
-`SHA256SUMS`, `aos.rb`, and `aos.json` cover the whole version-aligned set.
+Release assets group `aos-*`, `aos-bundle-*`, `aoscompose-*`, `aosward-*`,
+`aosguard-*`, `agent-terminal-*`, and `aosterm-*` on every target.
+`SHA256SUMS`, `aos.rb`, and `aos.json` cover the version-aligned set.
 
 ## Install
 
@@ -47,13 +47,12 @@ scoop install coilyco/aos
 ```
 
 Both package managers install `aos`, `aoscompose`, `aoscomposed`, `aosward`,
-`aosguard`, and `agent-terminal` on `PATH`. `aoscomposed` is a package alias for
-the canonical `aoscompose` artifact, while `aosward` forces warded launch
-mode from its executable name. The `aosguard` release
-binary contains its generated operator CLI and the Forgejo Actions bridge. The
-`agent-terminal` binary contains the Alacritty renderer only. Agent-compose
-remains the provider of `agent-compose.overlay.v1` and must be installed separately on native director
-hosts. See the [native launcher walkthrough](agent-terminal-native.md) for its
+`aosguard`, `agent-terminal`, and `aosterm` on `PATH`. `aoscomposed` is a
+package alias for the canonical `aoscompose` artifact, while `aosward` forces
+warded launch mode from its executable name. The `aosguard` release binary
+contains its generated operator CLI and the Forgejo Actions bridge. `aosterm`
+is the Alacritty wrapper around `aoscompose`. `agent-terminal` is compatible.
+See the [native launcher walkthrough](agent-terminal-native.md) for runtime
 dependencies, upgrades, rollback, and version reporting.
 
 Forgejo also serves every checksummed binary from the [agentic-os releases](https://forgejo.coilysiren.me/coilyco-flight-deck/agentic-os/releases).
@@ -75,6 +74,6 @@ assets are reused and replaced, making a retry idempotent.
 `ward exec aos-release-build` creates the binaries and `SHA256SUMS`. With
 `AOS_RELEASE_VERSION` set, `aos-release-package` renders local metadata and
 `aos-release-check` verifies checksums, versions, `--help`, and an
-`agent-terminal --dry-run` against a renderer-neutral overlay fixture. The
+`aosterm --dry-run` against a renderer-neutral overlay fixture. The
 ordinary Go tests, repository test, and pre-commit verbs remain the release gate.
 Forgejo evaluates release paths directly from the promoted diff.

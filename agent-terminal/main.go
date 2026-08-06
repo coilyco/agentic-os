@@ -17,12 +17,13 @@ import (
 var version = "dev"
 
 const (
-	overlayFormat       = "agent-compose.overlay.v1"
-	overlaySchema       = 1
-	launchFormat        = "agent-terminal.launch.v1"
-	defaultExpression   = "acting"
-	defaultOverlayBin   = "agent-compose"
-	defaultAlacrittyBin = "alacritty"
+	overlayFormat        = "agent-compose.overlay.v1"
+	overlaySchema        = 1
+	launchFormat         = "agent-terminal.launch.v1"
+	defaultExpression    = "acting"
+	defaultOverlayBin    = "agent-compose"
+	defaultAOSComposeBin = "aoscompose"
+	defaultAlacrittyBin  = "alacritty"
 )
 
 type commandDeps struct {
@@ -56,11 +57,27 @@ func systemDeps() commandDeps {
 }
 
 func main() {
-	cmd := newCommand(systemDeps())
+	name := commandName(os.Args)
+	cmd := newCommand(systemDeps(), name)
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, "agent-terminal:", err)
+		fmt.Fprintln(os.Stderr, name+":", err)
 		os.Exit(1)
 	}
+}
+
+func commandName(argv []string) string {
+	if len(argv) == 0 {
+		return "agent-terminal"
+	}
+	base := filepath.Base(argv[0])
+	if index := strings.LastIndex(base, `\`); index >= 0 {
+		base = base[index+1:]
+	}
+	name := strings.TrimSuffix(strings.ToLower(base), ".exe")
+	if name == "aosterm" || strings.HasPrefix(name, "aosterm-") {
+		return "aosterm"
+	}
+	return "agent-terminal"
 }
 
 func defaultWorkingDirectory() string {
@@ -74,15 +91,15 @@ func defaultWorkingDirectory() string {
 	return filepath.Join(home, "projects")
 }
 
-func newCommand(deps commandDeps) *cli.Command {
+func newCommand(deps commandDeps, name string) *cli.Command {
 	return &cli.Command{
-		Name:      "agent-terminal",
-		Usage:     "launch one agent-compose branded Alacritty window",
-		ArgsUsage: "-- <command> [arguments...]",
+		Name:      name,
+		Usage:     "launch one aoscompose session in a branded Alacritty window",
+		ArgsUsage: "[role] [seat] [aoscompose arguments...]",
 		Version:   version,
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "role", Required: true, Usage: "canonical agent-compose role"},
-			&cli.StringFlag{Name: "seat", Required: true, Usage: "canonical harness seat"},
+			&cli.StringFlag{Name: "role", Usage: "canonical agent-compose role"},
+			&cli.StringFlag{Name: "seat", Usage: "canonical harness seat"},
 			&cli.StringFlag{
 				Name:  "expression",
 				Value: defaultExpression,
@@ -100,6 +117,11 @@ func newCommand(deps commandDeps) *cli.Command {
 				Sources: cli.EnvVars("AGENT_COMPOSE_BIN"),
 			},
 			&cli.StringFlag{
+				Name:    "aoscompose-bin",
+				Value:   defaultAOSComposeBin,
+				Sources: cli.EnvVars("AOSCOMPOSE_BIN"),
+			},
+			&cli.StringFlag{
 				Name:    "alacritty-bin",
 				Value:   defaultAlacrittyBin,
 				Sources: cli.EnvVars("ALACRITTY_BIN"),
@@ -110,16 +132,24 @@ func newCommand(deps commandDeps) *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			child := argvAfterDash(os.Args)
+			role, seat, args, err := resolveAOSComposeInvocation(
+				cmd.String("role"),
+				cmd.String("seat"),
+				cmd.Args().Slice(),
+			)
+			if err != nil {
+				return err
+			}
 			return runLaunch(ctx, launchRequest{
-				Role:             cmd.String("role"),
-				Seat:             cmd.String("seat"),
+				Role:             role,
+				Seat:             seat,
 				Expression:       cmd.String("expression"),
 				TaskTitle:        cmd.String("task-title"),
 				WorkingDirectory: cmd.String("working-directory"),
 				AgentComposeBin:  cmd.String("agent-compose-bin"),
+				AOSComposeBin:    cmd.String("aoscompose-bin"),
 				AlacrittyBin:     cmd.String("alacritty-bin"),
-				Child:            child,
+				Child:            args,
 				DryRun:           cmd.Bool("dry-run"),
 			}, deps, cmd.Root().Writer)
 		},
@@ -132,9 +162,6 @@ func runLaunch(
 	deps commandDeps,
 	stdout io.Writer,
 ) error {
-	if len(request.Child) == 0 {
-		return fmt.Errorf("a child command is required after `--`")
-	}
 	cwd, err := validateWorkingDirectory(request.WorkingDirectory)
 	if err != nil {
 		return err
@@ -142,6 +169,10 @@ func runLaunch(
 	agentCompose, err := requireBinary(deps.lookPath, request.AgentComposeBin)
 	if err != nil {
 		return fmt.Errorf("agent-compose binary: %w", err)
+	}
+	aosCompose, err := requireBinary(deps.lookPath, request.AOSComposeBin)
+	if err != nil {
+		return fmt.Errorf("aoscompose binary: %w", err)
 	}
 	raw, err := deps.output(ctx, agentCompose, overlayArgs(request)...)
 	if err != nil {
@@ -151,6 +182,7 @@ func runLaunch(
 	if err != nil {
 		return err
 	}
+	request.Child = aoscomposeCommand(request, aosCompose)
 	plan, err := buildLaunchPlan(identity, request, cwd)
 	if err != nil {
 		return err
@@ -171,6 +203,53 @@ func runLaunch(
 		return fmt.Errorf("launch Alacritty: %w", err)
 	}
 	return nil
+}
+
+func resolveAOSComposeInvocation(role, seat string, args []string) (string, string, []string, error) {
+	role = strings.TrimSpace(role)
+	seat = strings.TrimSpace(seat)
+	args = append([]string(nil), args...)
+	if role == "" && len(args) > 0 {
+		candidate := strings.TrimSpace(args[0])
+		if candidate != "" && !strings.HasPrefix(candidate, "-") {
+			role = candidate
+			args = args[1:]
+		}
+	}
+	if seat == "" && len(args) > 0 {
+		candidate := strings.TrimSpace(args[0])
+		if isSupportedHarness(candidate) {
+			seat = candidate
+			args = args[1:]
+		}
+	}
+	if role == "" {
+		return "", "", nil, fmt.Errorf("a role is required")
+	}
+	if !safeRoleSlug(role) {
+		return "", "", nil, fmt.Errorf("role %q is not a safe shared role slug", role)
+	}
+	if seat == "" {
+		defaultSeat, err := defaultSeatForRole(role)
+		if err != nil {
+			return "", "", nil, err
+		}
+		seat = defaultSeat
+	}
+	if !isSupportedHarness(seat) {
+		return "", "", nil, fmt.Errorf("seat %q is not a supported harness", seat)
+	}
+	return role, seat, args, nil
+}
+
+func aoscomposeCommand(request launchRequest, binary string) []string {
+	args := []string{
+		binary,
+		strings.TrimSpace(request.Role),
+		strings.TrimSpace(request.Seat),
+	}
+	args = append(args, request.Child...)
+	return args
 }
 
 func overlayArgs(request launchRequest) []string {
@@ -212,13 +291,4 @@ func validateWorkingDirectory(value string) (string, error) {
 		return "", fmt.Errorf("working directory %q is not a directory", absolute)
 	}
 	return absolute, nil
-}
-
-func argvAfterDash(argv []string) []string {
-	for index, arg := range argv {
-		if arg == "--" {
-			return append([]string(nil), argv[index+1:]...)
-		}
-	}
-	return nil
 }

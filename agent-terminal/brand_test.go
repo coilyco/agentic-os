@@ -23,6 +23,7 @@ func directorRequest() launchRequest {
 		TaskTitle:        "agentic-os#730",
 		WorkingDirectory: ".",
 		AgentComposeBin:  defaultOverlayBin,
+		AOSComposeBin:    defaultAOSComposeBin,
 		AlacrittyBin:     defaultAlacrittyBin,
 		Child:            []string{"ward", "agent", "director", "--repo", "coilyco-flight-deck/agentic-os"},
 	}
@@ -34,7 +35,7 @@ func TestVersionFlagReportsReleaseVersion(t *testing.T) {
 	t.Cleanup(func() { version = original })
 
 	var output strings.Builder
-	command := newCommand(commandDeps{})
+	command := newCommand(commandDeps{}, "agent-terminal")
 	command.Writer = &output
 	if err := command.Run(
 		context.Background(),
@@ -44,6 +45,37 @@ func TestVersionFlagReportsReleaseVersion(t *testing.T) {
 	}
 	if got := strings.TrimSpace(output.String()); got != "agent-terminal version aos-v1.2.3" {
 		t.Fatalf("version output = %q", got)
+	}
+}
+
+func TestAOSTermVersionFlagReportsInvocationName(t *testing.T) {
+	original := version
+	version = "aos-v1.2.3"
+	t.Cleanup(func() { version = original })
+
+	var output strings.Builder
+	command := newCommand(commandDeps{}, "aosterm")
+	command.Writer = &output
+	if err := command.Run(
+		context.Background(),
+		[]string{"aosterm", "--version"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(output.String()); got != "aosterm version aos-v1.2.3" {
+		t.Fatalf("version output = %q", got)
+	}
+}
+
+func TestCommandNameRecognizesAOSTermReleaseAssets(t *testing.T) {
+	for _, argv := range [][]string{
+		{"/usr/local/bin/aosterm"},
+		{"/usr/local/bin/aosterm-darwin-arm64"},
+		{`C:\Users\kai\scoop\apps\aos\aosterm-windows-amd64.exe`},
+	} {
+		if got := commandName(argv); got != "aosterm" {
+			t.Fatalf("commandName(%#v) = %q", argv, got)
+		}
 	}
 }
 
@@ -174,6 +206,9 @@ func TestRunLaunchDryRunDoesNotRequireAlacritty(t *testing.T) {
 			if name == defaultOverlayBin {
 				return "/bin/agent-compose", nil
 			}
+			if name == defaultAOSComposeBin {
+				return "/bin/aoscompose", nil
+			}
 			return "", errors.New("missing")
 		},
 		output: func(_ context.Context, name string, args ...string) ([]byte, error) {
@@ -191,7 +226,7 @@ func TestRunLaunchDryRunDoesNotRequireAlacritty(t *testing.T) {
 	if err := runLaunch(context.Background(), request, deps, &output); err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(lookedUp, []string{defaultOverlayBin}) {
+	if !reflect.DeepEqual(lookedUp, []string{defaultOverlayBin, defaultAOSComposeBin}) {
 		t.Fatalf("binary lookups = %#v", lookedUp)
 	}
 	var plan launchPlan
@@ -201,16 +236,58 @@ func TestRunLaunchDryRunDoesNotRequireAlacritty(t *testing.T) {
 	if plan.Identity.Name != "solar director" || plan.Executable != defaultAlacrittyBin {
 		t.Fatalf("dry-run plan = %+v", plan)
 	}
+	wantTail := []string{
+		"-e", "/bin/aoscompose", "director", "codex", "ward", "agent",
+		"director", "--repo", "coilyco-flight-deck/agentic-os",
+	}
+	if !reflect.DeepEqual(plan.Arguments[len(plan.Arguments)-len(wantTail):], wantTail) {
+		t.Fatalf("arguments tail = %#v", plan.Arguments)
+	}
+}
+
+func TestAOSComposeCommandCollapsesRoleSeatAndChild(t *testing.T) {
+	request := directorRequest()
+	request.Child = []string{"--version"}
+
+	got := aoscomposeCommand(request, "/bin/aoscompose")
+	want := []string{"/bin/aoscompose", "director", "codex", "--version"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("aoscompose command = %#v, want %#v", got, want)
+	}
+}
+
+func TestResolveAOSComposeInvocationAcceptsPositionals(t *testing.T) {
+	role, seat, args, err := resolveAOSComposeInvocation(
+		"",
+		"",
+		[]string{"director", "codex", "--version"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if role != "director" || seat != "codex" || !reflect.DeepEqual(args, []string{"--version"}) {
+		t.Fatalf("resolved role=%q seat=%q args=%#v", role, seat, args)
+	}
+}
+
+func TestResolveAOSComposeInvocationUsesDefaultSeat(t *testing.T) {
+	profiles := filepath.Join(t.TempDir(), "profiles.yaml")
+	if err := os.WriteFile(profiles, []byte("roles:\n  engineer:\n    agent: codex\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AOS_HARNESS_LAUNCH_PROFILES", profiles)
+
+	role, seat, args, err := resolveAOSComposeInvocation("", "", []string{"engineer"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if role != "engineer" || seat != "codex" || len(args) != 0 {
+		t.Fatalf("resolved role=%q seat=%q args=%#v", role, seat, args)
+	}
 }
 
 func TestRunLaunchValidatesChildDirectoryAndBinaries(t *testing.T) {
 	request := directorRequest()
-	request.Child = nil
-	if err := runLaunch(context.Background(), request, commandDeps{}, &strings.Builder{}); err == nil {
-		t.Fatal("empty child command was accepted")
-	}
-
-	request = directorRequest()
 	file := filepath.Join(t.TempDir(), "not-a-directory")
 	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
@@ -227,13 +304,5 @@ func TestRunLaunchValidatesChildDirectoryAndBinaries(t *testing.T) {
 	err := runLaunch(context.Background(), request, deps, &strings.Builder{})
 	if err == nil || !strings.Contains(err.Error(), "agent-compose binary") {
 		t.Fatalf("missing binary error = %v", err)
-	}
-}
-
-func TestArgvAfterDash(t *testing.T) {
-	got := argvAfterDash([]string{"agent-terminal", "--role", "director", "--", "ward", "agent"})
-	want := []string{"ward", "agent"}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("argvAfterDash = %#v", got)
 	}
 }

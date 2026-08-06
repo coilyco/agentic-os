@@ -18,7 +18,7 @@ bare=${version#aos-v}
 
 target_count=$(awk '!/^[[:space:]]*(#|$)/ { count++ } END { print count+0 }' \
     "$repo_root/aos-cli/release-targets.txt")
-target_count=$((target_count * 6))
+target_count=$((target_count * 7))
 checksum_count=$(wc -l < "$dist/SHA256SUMS" | tr -d ' ')
 if [ "$target_count" -ne "$checksum_count" ]; then
     echo "checksum count does not match release target count" >&2
@@ -56,6 +56,7 @@ case "$(uname -s)/$(uname -m)" in
         native_aosward="$dist/aosward-darwin-arm64"
         native_aosguard="$dist/aosguard-darwin-arm64"
         native_agent_terminal="$dist/agent-terminal-darwin-arm64"
+        native_aosterm="$dist/aosterm-darwin-arm64"
         ;;
     Linux/x86_64)
         native_aos="$dist/aos-linux-amd64"
@@ -63,6 +64,7 @@ case "$(uname -s)/$(uname -m)" in
         native_aosward="$dist/aosward-linux-amd64"
         native_aosguard="$dist/aosguard-linux-amd64"
         native_agent_terminal="$dist/agent-terminal-linux-amd64"
+        native_aosterm="$dist/aosterm-linux-amd64"
         ;;
     Linux/aarch64 | Linux/arm64)
         native_aos="$dist/aos-linux-arm64"
@@ -70,6 +72,7 @@ case "$(uname -s)/$(uname -m)" in
         native_aosward="$dist/aosward-linux-arm64"
         native_aosguard="$dist/aosguard-linux-arm64"
         native_agent_terminal="$dist/agent-terminal-linux-arm64"
+        native_aosterm="$dist/aosterm-linux-arm64"
         ;;
     *)
         native_aos=""
@@ -77,6 +80,7 @@ case "$(uname -s)/$(uname -m)" in
         native_aosward=""
         native_aosguard=""
         native_agent_terminal=""
+        native_aosterm=""
         ;;
 esac
 if [ -n "$native_aos" ]; then
@@ -149,6 +153,9 @@ if [ -n "$native_aos" ]; then
         "$native_agent_terminal" --help >/dev/null
         "$native_agent_terminal" --version |
             grep -Fx "agent-terminal version $version" >/dev/null
+        "$native_aosterm" --help >/dev/null
+        "$native_aosterm" --version |
+            grep -Fx "aosterm version $version" >/dev/null
 
         cp "$repo_root/agent-terminal/testdata/agent-compose" .
         cp "$repo_root/agent-terminal/testdata/director-overlay.json" .
@@ -160,9 +167,18 @@ if [ -n "$native_aos" ]; then
             --task-title agentic-os-release-smoke \
             --working-directory "$smoke_dir" \
             --agent-compose-bin "$smoke_dir/agent-compose" \
+            --aoscompose-bin "$native_aoscompose" \
             --dry-run \
             -- printf ready > launch.json
-        python3 - "$smoke_dir/launch.json" "$smoke_dir" <<'PY'
+        "$native_aosterm" \
+            --expression acting \
+            --task-title agentic-os-release-smoke \
+            --working-directory "$smoke_dir" \
+            --agent-compose-bin "$smoke_dir/agent-compose" \
+            --aoscompose-bin "$native_aoscompose" \
+            --dry-run \
+            director codex -- printf ready > aosterm-launch.json
+        python3 - "$smoke_dir/launch.json" "$smoke_dir" "$native_aoscompose" <<'PY'
 import json
 import pathlib
 import sys
@@ -171,9 +187,20 @@ plan = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 assert plan["format"] == "agent-terminal.launch.v1"
 assert plan["working_directory"] == sys.argv[2]
 assert plan["executable"] == "alacritty"
-assert plan["arguments"][-3:] == ["-e", "printf", "ready"]
+assert plan["arguments"][-6:] == ["-e", sys.argv[3], "director", "codex", "printf", "ready"]
+PY
+        python3 - "$smoke_dir/aosterm-launch.json" "$smoke_dir" "$native_aoscompose" <<'PY'
+import json
+import pathlib
+import sys
+
+plan = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
+assert plan["format"] == "agent-terminal.launch.v1"
+assert plan["working_directory"] == sys.argv[2]
+assert plan["executable"] == "alacritty"
+assert plan["arguments"][-6:] == ["-e", sys.argv[3], "director", "codex", "printf", "ready"]
 PY
     )
 fi
 
-echo "verified aos, aoscompose, aosward, aosguard, and agent-terminal release $version"
+echo "verified aos, aoscompose, aosward, aosguard, agent-terminal, and aosterm release $version"

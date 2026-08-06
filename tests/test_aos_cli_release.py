@@ -12,7 +12,14 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGETS = ROOT / "aos-cli" / "release-targets.txt"
-RELEASE_BINARIES = ("aos", "aoscompose", "aosward", "aosguard", "agent-terminal")
+RELEASE_BINARIES = (
+    "aos",
+    "aoscompose",
+    "aosward",
+    "aosguard",
+    "agent-terminal",
+    "aosterm",
+)
 
 
 def release_targets() -> list[str]:
@@ -75,6 +82,7 @@ def test_packaging_covers_every_release_binary(tmp_path: Path) -> None:
     assert ["aosward-windows-amd64.exe", "aosward"] in bins
     assert ["aosguard-windows-amd64.exe", "aosguard"] in bins
     assert ["agent-terminal-windows-amd64.exe", "agent-terminal"] in bins
+    assert ["aosterm-windows-amd64.exe", "aosterm"] in bins
     assert 'bin.install_symlink bin/"aoscompose" => "aoscomposed"' in formula
     for program in RELEASE_BINARIES[1:]:
         assert f'resource("{program}")' in formula
@@ -102,6 +110,7 @@ def test_release_workflow_derives_assets_from_dist() -> None:
     assert "specverb.lock" in builder
     assert "aosguard-*" in builder
     assert "agent-terminal-*" in builder
+    assert "aosterm-*" in builder
     assert 'host_suffix=".exe"' in builder
     assert "shasum -a 256 -c -" in builder
     assert "go env GOOS | tr -d" in builder
@@ -113,7 +122,9 @@ def test_release_workflow_derives_assets_from_dist() -> None:
     release_check = (ROOT / "scripts" / "check-aos-release.sh").read_text(encoding="utf-8")
     assert 'grep -Fx "aosguard version $version"' in release_check
     assert 'grep -Fx "agent-terminal version $version"' in release_check
+    assert 'grep -Fx "aosterm version $version"' in release_check
     assert "share/aos/aosguard-skill/aosguard/SKILL.md" in release_check
     assert "--dry-run" in release_check
     assert "agent-compose" in release_check
+    assert "--aoscompose-bin" in release_check
     assert "ops actions --help" in release_check

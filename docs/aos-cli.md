@@ -18,14 +18,13 @@ Every AOS launch has two contexts:
 The compatibility flags `--composed` and `--guarded` remain accepted, including
 explicit false values, but cannot disable either context.
 
-`aos` and `aoscompose` name the standalone container `<role>-<suffix>`. `aoscomposed` stays compatible. For `aoscompose`, the first positional arg can select the role, and a second harness overrides that role's default agent:
+`aos` and `aoscompose` name the standalone container `<role>-<suffix>`.
+`aoscomposed` stays compatible. For `aoscompose`, first positional selects
+role. A second harness overrides that role default. Auth is default-on. Use
+`--auth=false` only for startup checks. Examples: `aoscompose engineer --version`
+and `aoscompose engineer goose --version`.
 
-```bash
-aoscompose --auth=false engineer --version
-aoscompose --auth=false engineer goose --version
-```
-
-`aosward` is the same executable with warded mode forced. It is equivalent to
+`aosward` is the same executable with warded mode forced. It equals
 `aos --warded`, but `--warded=false` cannot disable its Ward delegation:
 
 ```bash

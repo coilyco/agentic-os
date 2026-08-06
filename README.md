@@ -12,7 +12,7 @@ Warp configuration remains available.
 
 - `shell/` - shared `common.sh` plus thin `zshrc` + `bashrc`, so bash and zsh match. `warp.zsh` is the zsh-only Warp dispatcher.
 - `alacritty/` - portable Sombra appearance and terminal security defaults, with host preferences left to the local wrapper.
-- `agent-terminal/` - static agent-compose identity branding for one Alacritty director window.
+- `agent-terminal/` - `aosterm` and compatibility branding for one Alacritty window.
 - `warp/` - transitional Warp config (`settings.toml`, `tab_configs/`) plus the `ward exec warp` Go module.
 - `aos-cli/` - the Go composition root for standalone and Ward-governed agent launches.
 - `aos-say/` - the `ward exec aos-say` Go module for the speech helper client and relay.
@@ -56,8 +56,8 @@ Agent self-name and composition hooks, per-host steps, and gpg wiring: [docs/ins
 AOS always composes the selected role and attaches generated `aosguard`:
 
 ```bash
-aoscompose --auth=false engineer --version
-aoscompose --auth=false engineer goose --version
+aoscompose engineer --version
+aoscompose engineer goose --version
 aosward --agent codex --role engineer -- owner/repo#267
 ```
 
@@ -66,6 +66,7 @@ spelling remains as a compatibility alias. As a standalone convenience,
 `aoscompose <role>` selects the role's default agent from
 [`.agents/harness-launch-profiles.yaml`](.agents/harness-launch-profiles.yaml),
 and `aoscompose <role> <harness>` overrides that default.
+Auth is default-on, with `--auth=false` for startup checks that should not require a harness credential.
 `aosward` adds `--warded`. Ward remains the fixed workflow and container
 lifecycle owner, agent-compose remains the context producer, and
 cli-guard/specgen remains the guarded-tool generator. Matching
@@ -105,7 +106,7 @@ aos --agent goose --role ops -- --version
 ```
 
 Ward is not part of that standalone path. See the [launch and handoff contract](docs/aos-cli.md).
-Homebrew and Scoop install `aos`, `aoscompose`, `aoscomposed`, `aosward`, `aosguard`, and `agent-terminal`.
+Homebrew and Scoop install `aos`, `aoscompose`, `aoscomposed`, `aosward`, `aosguard`, `agent-terminal`, and `aosterm`.
 Direct release binaries and the aligned native update path are documented in the [CLI release walkthrough](docs/aos-cli-release.md).
 
 ## Secrets pattern

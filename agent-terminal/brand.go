@@ -55,6 +55,7 @@ type launchRequest struct {
 	TaskTitle        string
 	WorkingDirectory string
 	AgentComposeBin  string
+	AOSComposeBin    string
 	AlacrittyBin     string
 	Child            []string
 	DryRun           bool

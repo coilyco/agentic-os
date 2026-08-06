@@ -5,7 +5,7 @@ Major shipped capabilities, not files.
 ## Inventory
 
 - [Shell and secrets](features-shell-secrets.md) - shared shells, Warp, SSM, and GPG.
-- [Branded director terminal](alacritty-directors.md) - native Sombra Alacritty launcher.
+- [Branded agent terminal](alacritty-directors.md) - `aosterm` wraps `aoscompose` in native Sombra Alacritty.
 - [Speech helper](aos-say.md) - `aos-say` client plus relay for status speech.
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.
 - [Agents and sessions](features-agents-sessions.md) - self-name, composition status, and harness policy.

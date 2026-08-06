@@ -1,18 +1,19 @@
 ---
-doc_goal: Explain native agent-terminal installation and version lifecycle.
+doc_goal: Explain native aosterm installation and version lifecycle.
 ---
-# Native `agent-terminal`
+# Native `aosterm`
 
-`agent-terminal` ships on the AOS `aos-vMAJOR.MINOR.PATCH` release train. The
-same release defines its `agent-compose.overlay.v1` renderer contract and
-stamps `aos`, `aoscompose`, `aosward`, `aosguard`, and `agent-terminal` with
-one version. Packages also expose `aoscomposed` as an alias of `aoscompose`.
+`aosterm` ships on the AOS `aos-vMAJOR.MINOR.PATCH` release train beside its
+compatibility name, `agent-terminal`. The same release defines its
+`agent-compose.overlay.v1` renderer contract and stamps every native binary
+with one version.
 
 ## Requirements
 
 The launcher needs these separate native dependencies on `PATH`:
 
 * `agent-compose` supplies the renderer-neutral identity overlay
+* `aoscompose` supplies the composed standalone launch
 * Alacritty receives the translated title, color, and child command arguments
 
 Neither dependency is bundled into the launcher. Packages contain no
@@ -34,11 +35,10 @@ scoop bucket add coilyco https://forgejo.coilysiren.me/coilyco-flight-deck/scoop
 scoop install coilyco/aos
 ```
 
-Both packages place `agent-terminal` on `PATH` beside `aos`, `aoscompose`,
-`aoscomposed`, `aosward`, and `aosguard`.
-A clean installation can run `agent-terminal --help` without an agentic-os
-checkout. A dry run additionally needs `agent-compose` to return the selected
-overlay, but does not need Alacritty.
+Both packages place `aosterm` and `agent-terminal` on `PATH` beside `aos`,
+`aoscompose`, `aoscomposed`, `aosward`, and `aosguard`. A clean installation
+can run either terminal command's `--help` without an agentic-os checkout. A dry
+run additionally needs `agent-compose` and `aoscompose`, but not Alacritty.
 
 Every versioned binary and `SHA256SUMS` is also available from the
 [agentic-os releases](https://forgejo.coilysiren.me/coilyco-flight-deck/agentic-os/releases).
@@ -46,16 +46,15 @@ Every versioned binary and `SHA256SUMS` is also available from the
 ## Upgrade
 
 `brew upgrade aos` upgrades the Homebrew installation. `scoop update aos`
-upgrades the Scoop installation. Each update replaces the five release
-binaries and their six installed commands as one version-aligned set.
+upgrades the Scoop installation. Each update replaces the version-aligned
+native command set together.
 
 ## Rollback
 
-Select an earlier `aos-v*` release and install its matching `aos`, `aoscompose`,
-`aosward`, `aosguard`, and `agent-terminal` artifacts together. Verify all five against that
-release's `SHA256SUMS` before replacing the binaries on `PATH`. Do not mix
-launcher and AOS versions because the AOS release defines the renderer
-contract.
+Select an earlier `aos-v*` release and install its matching artifacts together.
+Verify them against that release's `SHA256SUMS` before replacing binaries on
+`PATH`. Do not mix launcher and AOS versions because the AOS release defines
+the renderer contract.
 
 ## Version reporting
 
@@ -66,9 +65,10 @@ aoscomposed version
 aosward version
 aosguard --version
 agent-terminal --version
+aosterm --version
 ```
 
-All six outputs must name the same `aos-vMAJOR.MINOR.PATCH` release.
+All outputs must name the same `aos-vMAJOR.MINOR.PATCH` release.
 
 ## See also
 

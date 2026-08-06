@@ -178,21 +178,28 @@ build_agent_terminal() {
     target=$1
     goos=${target%%/*}
     goarch=${target#*/}
+    suffix=""
     out="$dist/agent-terminal-${goos}-${goarch}"
+    alias_out="$dist/aosterm-${goos}-${goarch}"
     if [ "$goos" = "windows" ]; then
-        out="${out}.exe"
+        suffix=".exe"
+        out="${out}${suffix}"
+        alias_out="${alias_out}${suffix}"
     fi
-    if [ -e "$out" ]; then
-        echo "duplicate release output: $out" >&2
+    if [ -e "$out" ] || [ -e "$alias_out" ]; then
+        echo "duplicate release output: $out or $alias_out" >&2
         exit 1
     fi
     (
         cd "$repo_root/agent-terminal"
         GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
-            go build -trimpath -ldflags "-s -w -X main.version=${version}" \
+            go build -trimpath \
+            -ldflags "-s -w -X main.version=${version} -X main.compiledHarnessLaunchProfilesBase64=${launch_profiles_b64}" \
             -o "$out" .
     )
+    cp "$out" "$alias_out"
     echo "$out"
+    echo "$alias_out"
 }
 
 mkdir -p "$dist"
@@ -250,7 +257,7 @@ done < "$targets"
 
 (
     cd "$dist"
-    for asset in agent-terminal-* aos-* aoscompose-* aosguard-* aosward-*; do
+    for asset in agent-terminal-* aos-* aoscompose-* aosguard-* aosward-* aosterm-*; do
         checksum "$asset"
     done > SHA256SUMS
 )

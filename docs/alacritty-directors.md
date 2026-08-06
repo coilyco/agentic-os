@@ -1,8 +1,9 @@
 # Branded Alacritty directors
 
-`agent-terminal` launches one warded director in one statically branded
-Alacritty window. Agent-compose supplies canonical identity, agentic-os renders
-the terminal brand, and Ward remains the terminal-agnostic child command.
+`aosterm` launches one composed session in one statically branded Alacritty
+window. Agent-compose supplies canonical identity, agentic-os renders the
+terminal brand, and `aoscompose` remains the child process. `agent-terminal`
+stays as the compatibility command name.
 
 ## Base configuration
 
@@ -21,27 +22,25 @@ across native director hosts.
 The repository-scoped entry point is:
 
 ```text
-ward exec agent-terminal -- \
-  --role director \
-  --seat codex \
+aosterm \
   --expression acting \
   --task-title agentic-os#730 \
   --working-directory . \
-  -- ward agent director \
-  --repo coilyco-flight-deck/agentic-os
+  director codex -- --version
 ```
 
-Homebrew and Scoop install the versioned `agent-terminal` binary on `PATH`
-beside `aos` and `aosguard`. Installation, upgrades, rollbacks, direct release
-assets, and version checks are documented in the
+Homebrew and Scoop install `aosterm` and `agent-terminal` on `PATH` beside the
+other AOS commands. Installation, upgrades, rollbacks, direct release assets,
+and version checks are documented in the
 [native launcher walkthrough](agent-terminal-native.md).
 
 `--working-directory` defaults to `$PROJECTS_ROOT`, with `~/projects` as the
 portable fallback. A caller passes the flag explicitly when one director should
 open inside a specific checkout.
 
-The launcher calls `agent-compose overlay --json`, validates
-`agent-compose.overlay.v1`, and derives:
+The launcher calls `agent-compose overlay --json`, validates the overlay, then
+launches Alacritty with `aoscompose <role> <seat> ...` as its executable tail.
+It derives:
 
 * a title from personality glyphs, the named seat, expression, and task
 * the canonical melded favorite color as the cursor and selection accent
@@ -53,13 +52,13 @@ shell and emits no terminal control sequences into the director process.
 
 ## Inspect
 
-Add `--dry-run` before the child-command separator to print
+Add `--dry-run` before the `aoscompose` arguments to print
 `agent-terminal.launch.v1` JSON without requiring Alacritty. The document
 contains the selected identity, derived brand, working directory, and complete
 Alacritty argument vector.
 
-`AGENT_COMPOSE_BIN` and `ALACRITTY_BIN` may select non-default executable
-locations. The defaults are `agent-compose` and `alacritty` on `PATH`.
+`AGENT_COMPOSE_BIN`, `AOSCOMPOSE_BIN`, and `ALACRITTY_BIN` may select
+non-default executable locations.
 
 ## Ownership
 
