@@ -53,6 +53,5 @@ roles {
     }
     role ai {
         composed-skill "coding-*"
-        composed-skill "eval-role-*"
     }
 }

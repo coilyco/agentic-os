@@ -25,8 +25,7 @@ the career or portfolio-investment boundary closely enough to burden Strats.
 * **Content** - drops issue decomposition because converting plans into tracker
   work belongs with decision and strategy roles rather than content production.
 * **AI Engineer** - receives the coding family used to build benchmark runners,
-  probes, aggregation tools, and other AI-measurement artifacts, plus the
-  concern-specific `eval-role-*` curation family.
+  probes, aggregation tools, and other AI-measurement artifacts.
 
 `.agents/roles.kdl` remains the authoritative selection configuration. This page
 records rationale only, so it does not become a second role matrix.
