@@ -3,6 +3,7 @@
 !Dockerfile
 !agent-name.sh
 !claude-managed-settings.json
+!fleet-precommit-hooks.yaml
 !install-common.sh
 !statusline.sh
 !statusline.d
