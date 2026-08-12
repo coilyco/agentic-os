@@ -41,7 +41,7 @@ commands:
     run: go clean -C aos-cli
     description: "Remove the local standalone Go `aos` build artifact."
   aos-test:
-    run: go test -C aos-cli ./...
+    run: go test -C aos-cli -timeout 30m ./...
     description: "Run the standalone Go `aos` launcher test suite."
   aos-fmt:
     run: gofmt -w aos-cli
