@@ -88,6 +88,7 @@ ENV PATH=/usr/local/go/bin:/usr/local/dotnet:/usr/local/node/bin:/usr/local/carg
     UV_PYTHON_INSTALL_DIR=/opt/uv/python AWS_DEFAULT_REGION=us-east-1 \
     AWS_REGION=us-east-1 DOTNET_ROOT=/usr/local/dotnet \
     DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 \
+    PRE_COMMIT_HOME=/opt/pre-commit \
     AOS_GIT_NAME=coilyco-ops AOS_GIT_EMAIL=coilyco-ops@coilysiren.me
 LABEL org.opencontainers.image.source="https://forgejo.coilysiren.me/coilyco-flight-deck/agentic-os" \
       org.opencontainers.image.licenses="MIT" \
@@ -128,6 +129,18 @@ RUN set -eux; \
     python3 -c 'import agentic_os; print(agentic_os.__file__)'
 RUN --mount=type=bind,source=verify-common.sh,target=/tmp/verify-common.sh \
     bash /tmp/verify-common.sh
+
+# install-hooks needs a work tree, so it gets a throwaway one. Consumer repos
+# read this cache through PRE_COMMIT_HOME and never write a pin back into it.
+RUN --mount=type=bind,source=fleet-precommit-hooks.yaml,target=/tmp/fleet-precommit-hooks.yaml \
+    set -eux; \
+    warm="$(mktemp -d)"; cd "${warm}"; \
+    git init -q .; \
+    cp /tmp/fleet-precommit-hooks.yaml .pre-commit-config.yaml; \
+    pre-commit install-hooks; \
+    cd /; rm -rf "${warm}"; \
+    chmod -R a+rX "${PRE_COMMIT_HOME}"; \
+    test -d "${PRE_COMMIT_HOME}"
 
 ARG GOLANGCI_LINT_VERSION=2.12.2
 ARG TRUFFLEHOG_VERSION=3.96.0
