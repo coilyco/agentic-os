@@ -44,7 +44,7 @@ and seat context. Ward cannot change privileged surface. See the
 [context-bundle adapter](aos-context-bundle.md).
 
 Ward ships the `director`, `qa`, and `engineer` repository workflows. Other safe
-roles use its [generic read-only command](aos-generic-warded-roles.md). AOS rejects
+roles use its [generic read-only command](aos-roles-and-voice.md). AOS rejects
 incompatible agents and translated Ward flags before starting a container.
 
 ## Standalone contract
@@ -53,7 +53,7 @@ incompatible agents and translated Ward flags before starting a container.
 * Standalone uses native shadow: worktrees mount at `/workspace`, mapped CWD is workdir.
 * HOME is copied to `/home/aos` from an allowlist.
 * Composition hydrates the baked provider through `aos-substrate-cache`.
-* [Codex authentication](aos-codex-auth.md) fails closed before Docker, projects
+* [Codex authentication](aos-auth.md) fails closed before Docker, projects
   file-backed or direct macOS Keychain credentials read-only, and preserves
   `--auth=false` for startup checks.
 * [Standalone connectivity](aos-standalone-connectivity.md) keeps host networking, MCP, and tailnet behavior.
@@ -71,7 +71,7 @@ Composition verifies the immutable role bundle with `project --scope home`.
 `aos-composition-smoke`, and `aos-standalone-composition-smoke` Ward verbs
 cover both lifecycle shapes. The standalone smoke uses `--auth=false` and a
 version command, so it proves startup rather than authenticated inference. The
-[Codex auth contract](aos-codex-auth.md) names the inference probe. The [CLI release
+[Codex auth contract](aos-auth.md) names the inference probe. The [CLI release
 pipeline](aos-cli-release.md) publishes checksummed binaries and package metadata.
 
 ## See also

@@ -40,7 +40,7 @@ AOS writes the strict `ward.context-bundle.v1` manifest last:
 }
 ```
 
-The manifest seals verified repository identities. See [repository residency](repository-residency.md).
+The manifest seals verified repository identities. See [repository residency](repo-layout.md).
 
 ## Lifetime
 
@@ -59,7 +59,7 @@ revalidates it during bootstrap, copies accepted files into private agent HOME,
 and appends Ward-owned authority context. Ward keeps bundle tools after the
 image's existing PATH, so bundled tools cannot shadow image tools.
 
-Ward maps sealed repositories read-only. See [repository residency](repository-residency.md).
+Ward maps sealed repositories read-only. See [repository residency](repo-layout.md).
 
 The manifest cannot name permissions, credentials, host source paths, mount
 modes, network access, or other capabilities. Ward's broker surface is fixed

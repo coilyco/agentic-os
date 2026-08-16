@@ -33,5 +33,5 @@ docs own platform layout, settings, and failure details.
   sharp edges.
 * [`docs/warp-host-setup.md`](../../../docs/warp-host-setup.md) - channel
   installation and host setup.
-* [`docs/warp-mouse-tracking.md`](../../../docs/warp-mouse-tracking.md) -
+* [`docs/warp-host-setup.md`](../../../docs/warp-host-setup.md) -
   recovery from a stuck mouse-tracking flood.

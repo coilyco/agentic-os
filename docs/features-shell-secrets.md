@@ -1,5 +1,7 @@
 # Features: shell and secret handling
 
+## Features: shell and secret handling
+
 Cross-platform shell, terminal, and secret-handling capabilities.
 
 ## Cross-platform shell

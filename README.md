@@ -124,7 +124,7 @@ cleartext-on-disk dump (`~/.cache/ssm-env.sh`) are removed.
 
 ## agent-compose
 
-Opt-in tooling that composes global agent context and symlinks each harness load point to it. Sources are shared unless optional `harnesses` frontmatter selects a harness-specific slice. Agent-compose embeds the canonical personalities. AOS publishes the [capability provider](docs/personality-provider.md): ordinary skills and [role-composed skills](docs/role-composed-skills.md). Host composition stays inert until `~/.config/agent-compose/agent-compose.yaml` exists.
+Opt-in tooling that composes global agent context and symlinks each harness load point to it. Sources are shared unless optional `harnesses` frontmatter selects a harness-specific slice. Agent-compose embeds the canonical personalities. AOS publishes the [capability provider](docs/agent-sdk-patterns.md): ordinary skills and [role-composed skills](docs/role-composed-skills.md). Host composition stays inert until `~/.config/agent-compose/agent-compose.yaml` exists.
 
 **Prior art.** The idea is fresh in the agentic space but well-trodden in config management, and agent-compose is best understood as **Hiera-for-agent-doctrine, deployed Stow-style, scoped chezmoi-style**:
 

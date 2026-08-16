@@ -21,7 +21,7 @@ payload. The CLI reads that JSON from stdin:
 `--from-json` also accepts the GitHub `gh repo view --json
 description,repositoryTopics` shape, so non-Forgejo callers still work.
 
-Schema and rollout: see docs/features-agents-pointer.md.
+Schema and rollout: see docs/features-agents.md.
 """
 
 from __future__ import annotations

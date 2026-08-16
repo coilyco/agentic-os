@@ -14,7 +14,7 @@ description: |
   skips that setup and lands on the `docker` runner instead of `docker-build`,
   so it inherits no handler from a build-mode run. The full-tier verification
   runs one container per published platform in both modes, so promote installs
-  binfmt on its own before that step. See docs/dev-base-publish-resume.md.
+  binfmt on its own before that step. See docs/dev-base-build.md.
 
 inputs:
   tier:

@@ -46,10 +46,10 @@ A future source matching the family is intentionally admitted without another ro
 
 Role slices follow the complete coding, design, community, strategy, content,
 verification, and operations boundaries recorded in `.agents/roles.kdl`. The
-[role-skill coverage audit](role-skill-coverage-audit.md) records the second-pass
+[role-skill coverage audit](role-composed-methods.md) records the second-pass
 placement rationale and deliberate exclusions without duplicating that config.
 
-The [principal workflow matrix](role-composed-principal-methods.md) records the broader role-gated method catalog and handoffs.
+The [principal workflow matrix](role-composed-methods.md) records the broader role-gated method catalog and handoffs.
 
 ## Composition
 
@@ -72,7 +72,7 @@ composed layout and content. `documentation-layout`, `dead-cross-links`, and
 
 ## See also
 
-* [Agent-compose AOS provider](personality-provider.md) - provider inference and delivery.
+* [Agent-compose AOS provider](agent-sdk-patterns.md) - provider inference and delivery.
 * [AOS and Ward boundary](ward-specs.md) - the separate authority model.
 * [Skill discipline](skill-discipline.md) - authoring and validator catalog.
 * [docs/FEATURES.md](FEATURES.md) - shipped AOS capability inventory.

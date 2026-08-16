@@ -29,7 +29,7 @@ every role. A native director has no Ward broker. Dispatch and credentials
 need a warded launch. Native AOS clears deprecated model selectors, so every
 harness receives the complete selected role composition. User skills stay empty.
 Claude auto-updates cannot replace the host launcher, and both harnesses trust
-the workspace. Assigned launches apply [Codex hook trust](native-codex-hook-trust.md).
+the workspace. Assigned launches apply [Codex hook trust](native-harness-config.md).
 
 ## Startup leases
 
@@ -76,5 +76,5 @@ qualifying startups span at least twenty minutes.
 Leases and the pass cache use the platform cache at `agentic-os/native-shadow`. AOS
 groups temporary state under platform `aos`: worktrees in `native`, requests in
 `compose`, bundles in `bundles`. `AOS_NATIVE_STATE_DIR` and `AOS_NATIVE_SESSIONS_DIR`
-override. See [session shadow](native-session-shadow.md), [shadow home](native-shadow-home.md),
-[narration](native-startup-narration.md), [shell owner](features-shell-secrets.md), and [Claude config](native-claude-config.md).
+override. See [session shadow](native-shadow.md), [shadow home](native-shadow.md),
+[narration](native-session-start.md), [shell owner](features-shell-secrets.md), and [Claude config](native-harness-config.md).

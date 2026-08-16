@@ -76,5 +76,5 @@ helper remains only for reruns. `agentic-os#415` is closed and superseded.
 ## See also
 
 * [aosguard](aosguard.md)
-* [Forgejo Actions rerun bridge](forgejo-actions-rerun.md)
-* [Forgejo Actions list bridge](forgejo-actions-listing.md)
+* [Forgejo Actions rerun bridge](forgejo-actions-runs.md)
+* [Forgejo Actions list bridge](forgejo-actions-runs.md)

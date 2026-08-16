@@ -22,7 +22,7 @@ A skill is flagged when its folder name matches a ``deny`` glob and no ``allow``
 glob. Symlinked skill folders are skipped - a symlink is sourced from another
 repo, not hosted here.
 
-Schema and rollout: see docs/skill-discipline-authoring-shipping.md.
+Schema and rollout: see docs/skill-discipline-authoring.md.
 """
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from typing import Iterable, NoReturn
 from agentic_os.config import is_enabled, load_str_list
 
 HOOK_ID = "misplaced-skills"
-TRACKER = "docs/skill-discipline-authoring-shipping.md"
+TRACKER = "docs/skill-discipline-authoring.md"
 
 SKILLS_DIR_CANDIDATES = (".agents/skills", ".claude/skills", "skills")
 

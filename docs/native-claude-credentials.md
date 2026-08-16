@@ -6,7 +6,7 @@ launch. This page records why, and what the launcher does about it.
 
 ## Why the symlink farm cannot cover it
 
-[The Claude configuration projection](native-claude-config.md) links
+[The Claude configuration projection](native-harness-config.md) links
 `.claude.json` into the session home, so folder trust, the MCP registry, and
 onboarding state all carry forward. Credentials do not travel that path. On
 macOS the OAuth token lives in the login Keychain, and no file in the projected
@@ -66,7 +66,7 @@ onto the host service would make the later harvest delete the host login.
 
 ## Related
 
-* [Claude configuration projection](native-claude-config.md) - the `.claude.json`
+* [Claude configuration projection](native-harness-config.md) - the `.claude.json`
   link and folder trust seeding.
 * [Native agent workspaces](native-agent-workspaces.md) - session home and lease
   lifecycle.

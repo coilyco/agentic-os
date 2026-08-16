@@ -1,5 +1,7 @@
 # Warp default-shell layer
 
+## Warp default-shell layer
+
 On Windows, "which shell Warp launches for new tabs" (Settings > Features > Session, choosing among PowerShell / Git Bash / WSL / Cmd) is stored only in `warp.sqlite`. It has no `settings.toml` surface, so before this layer it drifted across machines and stayed invisible to `warp doctor`. The `warp/` module now manages it alongside the other SQLite keys (see [warp.md](warp.md)).
 
 ## Behaviour

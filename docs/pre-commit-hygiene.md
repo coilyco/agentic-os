@@ -69,7 +69,7 @@ allow_globs = [
 [tool.agentic-os.issue-reference-guard]
 enabled = true
 excludes = [
-  "docs/skill-discipline-handbook-hooks.md",
+  "docs/skill-discipline-hooks.md",
 ]
 ```
 

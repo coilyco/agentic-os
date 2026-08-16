@@ -11,7 +11,7 @@ ARG NODE_VERSION=22.23.2
 ARG WASM_PACK_VERSION=0.15.0
 ARG BINARYEN_VERSION=119
 # Toolchains consumers pin in rust-toolchain.toml, baked so a pinned repo
-# never fetches a channel at build time. See docs/dev-base-rust-pins.md.
+# never fetches a channel at build time. See docs/dev-base-build.md.
 ARG RUST_PINNED_VERSIONS="1.90.0"
 
 FROM ubuntu:24.04 AS dev-base-lang-node

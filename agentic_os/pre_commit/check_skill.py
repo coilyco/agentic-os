@@ -57,7 +57,7 @@ DEFAULT_MAX_LINES = 500
 DEFAULT_MAX_BYTES = 10_000
 DEFAULT_MAX_DESCRIPTION_BYTES = 500
 # Thin skills (role: thin) must fit a small-local-model catalog budget. Cap is
-# 1/4 the 4000-char / 80-line cap. See docs/skill-discipline-handbook-size-caps.md.
+# 1/4 the 4000-char / 80-line cap. See docs/skill-discipline-conventions.md.
 THIN_MAX_LINES = 20
 THIN_MAX_BYTES = 1_000
 

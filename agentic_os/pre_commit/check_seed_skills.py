@@ -26,7 +26,7 @@ Config (pyproject.toml):
     enabled = true                     # presence alone opts in; this is explicit
     excludes = ["vendor/", "**/generated/**"]   # paths ignored during detection
 
-Schema and rollout: see docs/skill-discipline-authoring-shipping.md.
+Schema and rollout: see docs/skill-discipline-authoring.md.
 """
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ from agentic_os.generators.generate_seed_skills import (
 )
 
 HOOK_ID = "seed-skills"
-TRACKER = "docs/skill-discipline-authoring-shipping.md"
+TRACKER = "docs/skill-discipline-authoring.md"
 
 # Only these files are scanned for a skill reference - the references live in
 # agent-context docs, so reading code/binaries would be wasted work.

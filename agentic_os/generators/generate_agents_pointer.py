@@ -29,7 +29,7 @@ those repos are hand-maintained per-repo rather than templated - extending
 generator management over a public org would fire the drift hook across it for
     little gain.
 
-Schema and rollout: see docs/features-agents-pointer.md.
+Schema and rollout: see docs/features-agents.md.
 """
 
 from __future__ import annotations

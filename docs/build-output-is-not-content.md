@@ -58,5 +58,5 @@ exempt content git does carry. The two are independent.
 ## See also
 
 - [pre-commit hygiene](pre-commit-hygiene.md) - the per-repo config schema.
-- [documentation layout exceptions](documentation-layout-exceptions.md) - the
+- [documentation layout exceptions](documentation-bands.md) - the
   hand-maintained escape hatch this rule makes unnecessary for build output.

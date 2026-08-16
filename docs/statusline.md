@@ -39,7 +39,7 @@ pre-acompose `<harness>-<os>-<host>-<tag>-<pronouns>` self-name row, which
 duplicated the identity `acompose statusline` already renders. `20-repos.sh`
 rendered a stray-checkout count, which is residency scanning rather than
 session state. `agent-name.sh` itself is now retired: the
-[SessionStart banner](dev-base-self-name.md) reads `acompose whoami`.
+[SessionStart banner](dev-base-agent-identity.md) reads `acompose whoami`.
 
 Agent Compose owns the row's content and bundle semantics. AOS only
 discovers the provider and passes the project directory, so the status line
@@ -62,7 +62,7 @@ provider - **no fork** of the composer. Use 2-digit prefixes (lexical sort puts
 ## Why it auto-mounts everywhere
 
 Every warded container runs dev-base, and the baked policy-tier
-[`managed-settings.json`](dev-base-self-name.md) points `statusLine` at the
+[`managed-settings.json`](dev-base-agent-identity.md) points `statusLine` at the
 composer. ward injects no `statusLine` of its own, so the baked one is
 authoritative. A new base provider rides the next image build to **all**
 containers at once, with no per-container edit. On hosts,
@@ -73,7 +73,7 @@ installer, keeping rollout separate from the provider authored here.
 
 ## See also
 
-- [docs/dev-base-self-name.md](dev-base-self-name.md) - the agent self-name script + the baked managed settings.
-- [docs/features-agents-sessions.md](features-agents-sessions.md) - the host self-name feature.
+- [docs/dev-base-agent-identity.md](dev-base-agent-identity.md) - the agent self-name script + the baked managed settings.
+- [docs/features-agents.md](features-agents.md) - the host self-name feature.
 - [docs/dev-base-image.md](dev-base-image.md) - the image this rides in.
 - [docs/FEATURES.md](FEATURES.md) - feature inventory.
