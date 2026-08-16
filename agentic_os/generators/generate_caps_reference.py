@@ -62,19 +62,19 @@ def _caps() -> list[tuple[str, str, str, str]]:
             "documentation-layout",
             "markdown lines (small band)",
             str(dl.BAND_CAPS["small"][0]),
-            "non-blank lines for most `.md` files, default band",
+            'non-blank lines where `band = "small"` is declared',
         ),
         (
             "documentation-layout",
             "markdown chars (small band)",
             str(dl.BAND_CAPS["small"][1]),
-            "characters for most `.md` files, default band",
+            'characters where `band = "small"` is declared',
         ),
         (
             "documentation-layout",
             "docs count (small band)",
             str(dl.BAND_CAPS["small"][2]),
-            "`docs/*.md` files, default band",
+            '`docs/*.md` files where `band = "small"` is declared',
         ),
         (
             "documentation-layout",

@@ -40,10 +40,11 @@ README that links a docs/*.md file is an outpost, otherwise it is a
 homestead.
 
 Most Markdown shares one size cap, and how big it is depends on the repo's
-declared band. A repo sets `band = "small"` or `band = "large"` under the
-hook config and gets that band's line, char, and docs-count caps. Small is
-the default, so a repo opts up deliberately or stays tight. There is no
-per-file escape from a size or count cap: `excludes` still govern placement
+declared band. Every repo sets `band = "small"` or `band = "large"` under the
+hook config and gets that band's line, char, and docs-count caps. Declaring
+is mandatory in both directions: silence is a missing decision rather than a
+small repo. There is no per-file escape from a size or count cap: `excludes`
+still govern placement
 and flatness, and no longer reach either cap. SKILL.md and COMPOSED.md are
 not special, and neither is docs/FEATURES.md. CLAUDE.md is expected to be a
 one-line `@AGENTS.md` pointer.
@@ -100,7 +101,9 @@ BAND_CAPS = {
     "small": (40, 3_000, 20),
     "large": (120, 8_000, 40),
 }
-DEFAULT_BAND = "small"
+# Declaring is mandatory in both directions (docs/documentation-bands.md).
+# This is only what the caps resolve to while a repo is red for not declaring.
+UNDECLARED_BAND = "small"
 
 # Co-located module README.md caps (outpost / homestead shapes; see docstring).
 # Non-blank lines per README, and prose chars per line (pointer line exempt).
@@ -418,9 +421,9 @@ def check_skill_flatness(repo_root: Path | None = None) -> list[str]:
 
 
 def band(repo_root: Path | None = None) -> str:
-    """Return the repo's declared size band, defaulting to the tighter one."""
-    declared = get_str_option(HOOK_ID, "band", DEFAULT_BAND, repo_root)
-    return declared if declared in BAND_CAPS else DEFAULT_BAND
+    """Return the repo's declared band, or the tight one when it has none."""
+    declared = get_str_option(HOOK_ID, "band", "", repo_root)
+    return declared if declared in BAND_CAPS else UNDECLARED_BAND
 
 
 def markdown_caps(repo_root: Path | None = None) -> tuple[int, int]:
@@ -433,13 +436,17 @@ def docs_cap(repo_root: Path | None = None) -> int:
 
 
 def check_band_declaration() -> list[str]:
-    declared = get_str_option(HOOK_ID, "band", DEFAULT_BAND)
+    declared = get_str_option(HOOK_ID, "band", "")
     if declared in BAND_CAPS:
         return []
-    return [
-        f"pyproject.toml: band = \"{declared}\" is not a band. "
-        f"Declare one of {', '.join(sorted(BAND_CAPS))}."
-    ]
+    names = ", ".join(sorted(BAND_CAPS))
+    if not declared:
+        return [
+            f"pyproject.toml: no documentation band declared. Every repo "
+            f"declares one of {names} under "
+            f"[tool.agentic-os.{HOOK_ID}], small included."
+        ]
+    return [f'pyproject.toml: band = "{declared}" is not a band. Declare one of {names}.']
 
 
 def check_docs_count() -> list[str]:
