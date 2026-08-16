@@ -12,10 +12,6 @@ import agentic_os.pre_commit.check_documentation_layout as docs_layout
 from agentic_os.pre_commit.check_documentation_layout import (
     AGENTS_DEFAULT_MAX_CHARS,
     AGENTS_DEFAULT_MAX_LINES,
-    FEATURES_MAX_CHARS,
-    FEATURES_MAX_LINES,
-    MAX_MARKDOWN_CHARS,
-    MAX_MARKDOWN_LINES,
     ROOT_MARKDOWN_ALLOWLIST,
     TRIFECTA_MAX_CHARS,
     TRIFECTA_MAX_LINES,
@@ -38,14 +34,11 @@ def _point_repo_root_at(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(config, "REPO_ROOT", tmp_path)
 
 
-def test_features_gets_the_tighter_cap() -> None:
-    # docs/FEATURES.md gets the tighter inventory cap.
-    assert caps_for(Path("docs/FEATURES.md")) == (
-        FEATURES_MAX_LINES,
-        FEATURES_MAX_CHARS,
-    )
-    assert FEATURES_MAX_LINES < TRIFECTA_MAX_LINES
-    assert FEATURES_MAX_CHARS < TRIFECTA_MAX_CHARS
+def test_features_rides_the_band_like_any_docs_page(tmp_path: Path, monkeypatch) -> None:
+    # FEATURES.md carried its own constant that happened to equal the ordinary
+    # cap, so it was a special case in name only. It now takes the band.
+    _point_repo_root_at(tmp_path, monkeypatch)
+    assert caps_for(Path("docs/FEATURES.md")) == docs_layout.markdown_caps()
 
 
 def test_overview_caps_fall_back_to_the_shared_defaults(
@@ -84,15 +77,12 @@ def test_overview_caps_take_the_declared_value_in_either_direction(
 def test_non_trifecta_markdown_keeps_the_standard_cap() -> None:
     # Only the root README breathes; a co-located module README and ordinary
     # docs/*.md stay on the tight cap.
-    assert caps_for(Path("docs/o11y.md")) == (MAX_MARKDOWN_LINES, MAX_MARKDOWN_CHARS)
-    assert caps_for(Path("services/x/README.md")) == (
-        MAX_MARKDOWN_LINES,
-        MAX_MARKDOWN_CHARS,
-    )
+    assert caps_for(Path("docs/o11y.md")) == docs_layout.markdown_caps()
+    assert caps_for(Path("services/x/README.md")) == docs_layout.markdown_caps()
 
 
 def test_code_review_md_keeps_the_standard_cap() -> None:
-    assert caps_for(Path("CODE-REVIEW.md")) == (MAX_MARKDOWN_LINES, MAX_MARKDOWN_CHARS)
+    assert caps_for(Path("CODE-REVIEW.md")) == docs_layout.markdown_caps()
 
 
 def test_agents_compose_md_is_an_allowed_root_file() -> None:
@@ -293,7 +283,9 @@ def _write_generated_docs(tmp_path: Path) -> None:
         write(tmp_path / "cmd" / "generated" / f"generated.{gen}.md", big)
 
 
-def test_wildcard_exclude_clears_generated_guardfiles(tmp_path: Path, monkeypatch) -> None:
+def test_wildcard_exclude_clears_placement_but_never_size(
+    tmp_path: Path, monkeypatch
+) -> None:
     _write_generated_docs(tmp_path)
     write(
         tmp_path / "pyproject.toml",
@@ -301,10 +293,12 @@ def test_wildcard_exclude_clears_generated_guardfiles(tmp_path: Path, monkeypatc
         'excludes = ["generated.*.md"]\n',
     )
     _point_repo_root_at(tmp_path, monkeypatch)
-    # One slash-less wildcard silences both the location rule (for the cmd/
-    # copies) and the size cap (for every copy), with no per-generator lines.
+    # A wildcard still silences the location rule for the cmd/ copies, because
+    # where a generated file lands is a layout decision.
     assert docs_layout.check_markdown_locations() == []
-    assert docs_layout.check_markdown_sizes() == []
+    # It never reaches the size cap: an oversized generated doc is a generator
+    # emitting too much, and the generator is the fix.
+    assert docs_layout.check_markdown_sizes() != []
 
 
 def test_generated_guardfiles_flagged_without_exclude(tmp_path: Path, monkeypatch) -> None:
@@ -316,3 +310,61 @@ def test_generated_guardfiles_flagged_without_exclude(tmp_path: Path, monkeypatc
     sizes = docs_layout.check_markdown_sizes()
     assert any("cmd/generated/generated.aws.md" in v for v in locations)
     assert len(sizes) >= len(("aws", "open-webui", "forgejo")) * 2
+
+
+# Size bands: a repo declares small or large and gets that band's three caps.
+
+def test_band_defaults_to_small(tmp_path: Path, monkeypatch) -> None:
+    # No declaration means the tighter band, so a repo opts up deliberately.
+    _point_repo_root_at(tmp_path, monkeypatch)
+    assert docs_layout.band() == "small"
+    assert docs_layout.markdown_caps() == (40, 3_000)
+    assert docs_layout.docs_cap() == 20
+
+
+def test_declared_large_band_raises_all_three_caps(tmp_path: Path, monkeypatch) -> None:
+    write(
+        tmp_path / "pyproject.toml",
+        '[tool.agentic-os.documentation-layout]\nband = "large"\n',
+    )
+    _point_repo_root_at(tmp_path, monkeypatch)
+    assert docs_layout.markdown_caps() == (120, 8_000)
+    assert docs_layout.docs_cap() == 40
+
+
+def test_unknown_band_is_a_violation_not_a_silent_default(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # A typo must fail loudly. Falling back to small silently would let a repo
+    # believe it declared large while being measured against small.
+    write(
+        tmp_path / "pyproject.toml",
+        '[tool.agentic-os.documentation-layout]\nband = "medium"\n',
+    )
+    _point_repo_root_at(tmp_path, monkeypatch)
+    assert docs_layout.check_band_declaration() != []
+
+
+def test_docs_count_cap_fires_past_the_band(tmp_path: Path, monkeypatch) -> None:
+    for i in range(21):
+        write(tmp_path / "docs" / f"page-{i}.md", "# Page\n")
+    _point_repo_root_at(tmp_path, monkeypatch)
+    assert docs_layout.check_docs_count() != []
+    write(
+        tmp_path / "pyproject.toml",
+        '[tool.agentic-os.documentation-layout]\nband = "large"\n',
+    )
+    assert docs_layout.check_docs_count() == []
+
+
+def test_excludes_cannot_shrink_the_docs_count(tmp_path: Path, monkeypatch) -> None:
+    # An exclude that hid pages from the count would make the cap a formality.
+    for i in range(21):
+        write(tmp_path / "docs" / f"page-{i}.md", "# Page\n")
+    write(
+        tmp_path / "pyproject.toml",
+        "[tool.agentic-os.documentation-layout]\n"
+        'excludes = ["docs/page-*.md"]\n',
+    )
+    _point_repo_root_at(tmp_path, monkeypatch)
+    assert docs_layout.check_docs_count() != []

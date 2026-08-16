@@ -76,6 +76,7 @@ generate-caps-reference = "agentic_os.generators.generate_caps_reference:main"
 
 # Self-compliance config for the hooks this repo ships. See docs/features-release-tooling.md.
 [tool.agentic-os.documentation-layout]
+band = "large"
 # AGENTS.md here is the canonical operating-doctrine base, always composed into
 # every session, so the cap is deliberate back-pressure rather than headroom.
 # Lowered from 320/34000 once role-scoped doctrine moved out to the

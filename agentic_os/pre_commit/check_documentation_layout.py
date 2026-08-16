@@ -39,19 +39,27 @@ lines never count toward the line ceiling. The discriminator is simple: a
 README that links a docs/*.md file is an outpost, otherwise it is a
 homestead.
 
-Most Markdown shares one size cap: MAX_MARKDOWN_LINES / MAX_MARKDOWN_CHARS.
-SKILL.md and COMPOSED.md are not special. CLAUDE.md is expected to be a
+Most Markdown shares one size cap, and how big it is depends on the repo's
+declared band. A repo sets `band = "small"` or `band = "large"` under the
+hook config and gets that band's line, char, and docs-count caps. Small is
+the default, so a repo opts up deliberately or stays tight. There is no
+per-file escape from a size or count cap: `excludes` still govern placement
+and flatness, and no longer reach either cap. SKILL.md and COMPOSED.md are
+not special, and neither is docs/FEATURES.md. CLAUDE.md is expected to be a
 one-line `@AGENTS.md` pointer.
+
+The count cap exists because a per-doc cap on its own does not bound a docs
+folder, it reshapes it. A repo that caps length and not count answers every
+over-long doc by splitting it, which is how one reached 156 files with not a
+single one over the char cap.
 
 The root README.md and AGENTS.md carry each project's living overview (intro
 and operating doctrine), so both get more room than ordinary Markdown.
 README.md uses TRIFECTA_MAX_LINES / TRIFECTA_MAX_CHARS. AGENTS.md gets a larger
 default because universal person and operating context must fire eagerly while
 selective capability detail moves into ordinary and composed skills.
-docs/FEATURES.md is a coarse inventory of major shipped capabilities, so it
-gets the tighter FEATURES_MAX_LINES / FEATURES_MAX_CHARS cap. Bounded, not
-infinite: durable detail still belongs in docs/*.md. README.md only at repo
-root; a co-located module README stays on the tight outpost / homestead shape.
+README.md only at repo root; a co-located module README stays on the tight
+outpost / homestead shape.
 
 AGENTS.md sets its own cap, per-repo, via config keys `agents_md_max_lines` /
 `agents_md_max_chars` under the documentation-layout hook section. The declared
@@ -77,6 +85,7 @@ from pathlib import Path, PurePosixPath
 
 from agentic_os.config import (
     get_int_option,
+    get_str_option,
     is_build_output,
     is_enabled,
     is_excluded,
@@ -85,8 +94,13 @@ from agentic_os.config import (
 
 REPO_ROOT = Path.cwd()
 HOOK_ID = "documentation-layout"
-MAX_MARKDOWN_LINES = 80
-MAX_MARKDOWN_CHARS = 4_000
+# Per-repo size bands: lines, chars, and docs count. Rationale and the
+# measured chars-per-line behind the pairs: docs/documentation-bands.md.
+BAND_CAPS = {
+    "small": (40, 3_000, 20),
+    "large": (120, 8_000, 40),
+}
+DEFAULT_BAND = "small"
 
 # Co-located module README.md caps (outpost / homestead shapes; see docstring).
 # Non-blank lines per README, and prose chars per line (pointer line exempt).
@@ -101,11 +115,6 @@ MD_LINK_RE = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 # bounded, not infinite. See the module docstring.
 TRIFECTA_MAX_LINES = 160
 TRIFECTA_MAX_CHARS = 12_500
-
-# FEATURES.md is the inventory-shaped exception: tighter than the overview
-# files so it stays a major-capability index, not a changelog.
-FEATURES_MAX_LINES = 80
-FEATURES_MAX_CHARS = 4_000
 
 # AGENTS.md carries universal-fire context after selective capability detail
 # moves into ordinary and composed skills. Repos may set their own via config.
@@ -185,8 +194,8 @@ def is_under_skill_path(rel: Path) -> bool:
     return False
 
 
-def markdown_files() -> list[Path]:
-    excludes = load_excludes(HOOK_ID)
+def markdown_files(apply_excludes: bool = True) -> list[Path]:
+    excludes = load_excludes(HOOK_ID) if apply_excludes else []
     out: list[Path] = []
     for path in REPO_ROOT.rglob("*.md"):
         rel = path.relative_to(REPO_ROOT)
@@ -408,6 +417,57 @@ def check_skill_flatness(repo_root: Path | None = None) -> list[str]:
     return violations
 
 
+def band(repo_root: Path | None = None) -> str:
+    """Return the repo's declared size band, defaulting to the tighter one."""
+    declared = get_str_option(HOOK_ID, "band", DEFAULT_BAND, repo_root)
+    return declared if declared in BAND_CAPS else DEFAULT_BAND
+
+
+def markdown_caps(repo_root: Path | None = None) -> tuple[int, int]:
+    lines, chars, _ = BAND_CAPS[band(repo_root)]
+    return lines, chars
+
+
+def docs_cap(repo_root: Path | None = None) -> int:
+    return BAND_CAPS[band(repo_root)][2]
+
+
+def check_band_declaration() -> list[str]:
+    declared = get_str_option(HOOK_ID, "band", DEFAULT_BAND)
+    if declared in BAND_CAPS:
+        return []
+    return [
+        f"pyproject.toml: band = \"{declared}\" is not a band. "
+        f"Declare one of {', '.join(sorted(BAND_CAPS))}."
+    ]
+
+
+def check_docs_count() -> list[str]:
+    """Cap how many docs/*.md a repo carries.
+
+    Excludes do not apply. A per-doc size cap with no count cap turns every
+    over-long doc into two docs, which is how a docs/ folder reaches 156 files
+    with none of them over the cap.
+    """
+    docs = REPO_ROOT / "docs"
+    if not docs.is_dir():
+        return []
+    present = sorted(
+        p.relative_to(REPO_ROOT)
+        for p in docs.glob("*.md")
+        if not should_skip(p.relative_to(REPO_ROOT))
+        and not is_build_output(p.relative_to(REPO_ROOT), REPO_ROOT)
+    )
+    cap = docs_cap()
+    if len(present) <= cap:
+        return []
+    return [
+        f"docs/: {len(present)} docs exceeds the {cap}-doc cap for the "
+        f"{band()} band. Merge related pages; splitting one doc into two to "
+        f"clear the size cap trades one violation for another."
+    ]
+
+
 def caps_for(rel: Path) -> tuple[int, int]:
     if rel.name == "AGENTS.md":
         max_lines = get_int_option(
@@ -425,9 +485,7 @@ def caps_for(rel: Path) -> tuple[int, int]:
             HOOK_ID, "readme_max_chars", README_DEFAULT_MAX_CHARS
         )
         return max_lines, max_chars
-    if rel.as_posix() == "docs/FEATURES.md":
-        return FEATURES_MAX_LINES, FEATURES_MAX_CHARS
-    return MAX_MARKDOWN_LINES, MAX_MARKDOWN_CHARS
+    return markdown_caps()
 
 
 def strip_frontmatter(text: str) -> str:
@@ -446,7 +504,7 @@ def strip_frontmatter(text: str) -> str:
 
 def check_markdown_sizes() -> list[str]:
     violations: list[str] = []
-    for rel in markdown_files():
+    for rel in markdown_files(apply_excludes=False):
         if rel.name in SIZE_CAP_EXEMPT_BASENAMES:
             continue
         path = REPO_ROOT / rel
@@ -471,8 +529,11 @@ def main() -> int:
     if not is_enabled(HOOK_ID):
         print(f"{HOOK_ID}: disabled by repo config")
         return 0
+    # check_docs_count lands unwired: a strict cap cannot ship from inside a
+    # repo that violates it. Wire it with this repo's migration (aos#1085).
     violations = (
-        check_docs_flatness()
+        check_band_declaration()
+        + check_docs_flatness()
         + check_markdown_locations()
         + check_markdown_sizes()
         + check_skill_flatness()

@@ -14,12 +14,14 @@ Constants live in [`agentic_os/pre_commit/check_code_comments.py`](../agentic_os
 
 ## documentation-layout
 
-* **markdown lines** - 80 - non-blank lines for most `.md` files.
-* **markdown chars** - 4000 - characters for most `.md` files.
+* **markdown lines (small band)** - 40 - non-blank lines for most `.md` files, default band.
+* **markdown chars (small band)** - 3000 - characters for most `.md` files, default band.
+* **docs count (small band)** - 20 - `docs/*.md` files, default band.
+* **markdown lines (large band)** - 120 - non-blank lines where `band = "large"` is declared.
+* **markdown chars (large band)** - 8000 - characters where `band = "large"` is declared.
+* **docs count (large band)** - 40 - `docs/*.md` files where `band = "large"` is declared.
 * **README overview lines** - 160 - non-blank lines for the root README.md.
 * **README overview chars** - 12500 - characters for the root README.md.
-* **FEATURES.md lines** - 80 - non-blank lines for docs/FEATURES.md.
-* **FEATURES.md chars** - 4000 - characters for docs/FEATURES.md.
 * **AGENTS.md lines (default)** - 320 - AGENTS.md shared default (override per-repo with `agents_md_max_lines`).
 * **AGENTS.md chars (default)** - 25000 - AGENTS.md shared default (override per-repo with `agents_md_max_chars`).
 * **README.md lines (default)** - 160 - the root README.md defaults to the trifecta line cap (override per-repo with `readme_max_lines`).
