@@ -35,7 +35,7 @@ Major shipped capabilities, not files.
 - [Ward integration boundary](ward-specs.md) - one generic runner for every
   [composed role](aos-roles-and-voice.md), and no role-derived authority.
 - [Cross-repo tooling and release](features-release-tooling.md) - aos-precommit and release operations.
-- [Telegram CI failure alerts](telegram-ci-alerts.md) - reusable red-channel alerting for failing jobs.
+- [Telegram CI failure alerts](telegram-ci-alerts.md) - one sealed verb, no alert program in any repo.
 - [dev-base image](dev-base-image.md) - parallel cached language payloads feeding one automatically released full development surface.
 - [CI parity in dev-base](ci-in-dev-base.md) - CI runs inside the moving :release dev-base image.
 - [Pull-request CI gate](pr-dev-base-build-validation.md) - fast tests and Docker-only image validation.

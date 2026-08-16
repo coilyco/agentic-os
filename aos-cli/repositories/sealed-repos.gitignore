@@ -7,15 +7,15 @@ coilyco-flight-deck/agent-compose
 coilyco-flight-deck/agent-proxy
 coilyco-flight-deck/agentic-os
 coilyco-flight-deck/bluesky-mcp
-coilyco-flight-deck/umbra
 coilyco-flight-deck/homebrew-tap
 coilyco-flight-deck/infrastructure
 coilyco-flight-deck/lunch-money-k8s
+coilyco-flight-deck/mcp-beaver
 coilyco-flight-deck/node-stats-mcp
 coilyco-flight-deck/reddit-mcp
 coilyco-flight-deck/scoop-bucket
+coilyco-flight-deck/umbra
 coilyco-flight-deck/ward
-coilyco-flight-deck/ward-mcp
 coilyco-flight-deck/ward-qa-fixture
 coilyco-bridge/.github
 coilyco-bridge/agentic-os-hardware

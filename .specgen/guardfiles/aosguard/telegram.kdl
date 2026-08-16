@@ -1,0 +1,16 @@
+// CI failure alerting as one verb, so no repository carries a copy of the alert
+// program. The mapper holds the Telegram identity, so this leaf reaches a fixed
+// cluster-local endpoint with no credential and takes no caller input: every
+// field comes from the runner's own GITHUB_* environment. Sealed for the same
+// reason `forgejo-storage measure` is - a caller cannot turn a fixed POST into
+// an arbitrary one. See ../../../docs/telegram-ci-alerts.md.
+wrap aosguard ops telegram {
+    exec python3
+
+    can run alert {
+        argv "-I"
+        embed "alert_telegram.py"
+        sealed
+        describe "post this job's CI or CD failure to the signoz-telegram mapper; every field is read from the runner's own GITHUB_* environment"
+    }
+}
