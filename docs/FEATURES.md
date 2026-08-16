@@ -27,7 +27,6 @@ Major shipped capabilities, not files.
 - [Code review skill](../.agents/composed/tooling-code-review/COMPOSED.md) - QA-only in-container review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
 - [Test harnesses](test-harness.md) - agent/model smokes and composed-role probes.
-- [Issue-corpus discovery index](issue-corpus.md) - offline corpus and live Forgejo lookup.
 - [Forgejo Actions logs](forgejo-actions-logs.md) - job logs and run ZIPs.
 - [Forgejo Actions list bridge](forgejo-actions-runs.md) - safe run/task listing.
 - [Forgejo runner tokens](forgejo-ops.md) - guarded registration-token minting.
