@@ -12,7 +12,7 @@ FROM ${LANG_PYTHON_IMAGE} AS dev-base-lang-python-graft
 FROM ubuntu:24.04 AS dev-base-tool-builder
 ARG WARD_VERSION=0.884.0
 ARG SPECGEN_VERSION=0.142.0
-ARG AOS_VERSION=0.202.0
+ARG AOS_VERSION=0.212.0
 ARG TARGETARCH
 ARG DEBIAN_FRONTEND=noninteractive
 ENV PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
@@ -33,8 +33,10 @@ RUN set -eux; \
       | (cd /tmp && sha256sum -c -); \
     install -m 0755 "/tmp/${ward_asset}" /usr/local/bin/ward; \
     rm "/tmp/${ward_asset}" /tmp/ward-SHA256SUMS; ward --version
+# The bundle carries aos, aosguard, the generated aosguard skill, the operator
+# Python package, and the repo lists. See ../../../docs/dev-base-image.md.
 RUN set -eux; \
-    aos_asset="aos-linux-${TARGETARCH}"; \
+    aos_asset="aos-bundle-linux-${TARGETARCH}.tar.gz"; \
     aos_base="https://forgejo.coilysiren.me/coilyco-flight-deck/agentic-os/releases/download/aos-v${AOS_VERSION}"; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
       "${aos_base}/${aos_asset}" -o "/tmp/${aos_asset}"; \
@@ -42,8 +44,18 @@ RUN set -eux; \
       "${aos_base}/SHA256SUMS" -o /tmp/aos-SHA256SUMS; \
     grep "[[:space:]]${aos_asset}$" /tmp/aos-SHA256SUMS \
       | (cd /tmp && sha256sum -c -); \
-    install -m 0755 "/tmp/${aos_asset}" /usr/local/bin/aos; \
-    rm "/tmp/${aos_asset}" /tmp/aos-SHA256SUMS; aos --version
+    mkdir -p /tmp/aos-bundle /opt/agentic-os; \
+    tar -xzf "/tmp/${aos_asset}" -C /tmp/aos-bundle; \
+    install -m 0755 /tmp/aos-bundle/bin/aos /usr/local/bin/aos; \
+    install -m 0755 /tmp/aos-bundle/bin/aosguard /usr/local/bin/aosguard; \
+    cp -R /tmp/aos-bundle/share/aos/aosguard-skill /opt/agentic-os/aosguard-skill; \
+    cp -R /tmp/aos-bundle/share/aos/python/agentic_os /opt/agentic-os/agentic_os; \
+    install -m 0644 /tmp/aos-bundle/share/aos/repositories/substrate-repos.txt \
+      /opt/agentic-os/substrate-repos.txt; \
+    test -s /opt/agentic-os/aosguard-skill/aosguard/SKILL.md; \
+    test -s /opt/agentic-os/aosguard-skill/aosguard/references/commands.yaml; \
+    rm -rf "/tmp/${aos_asset}" /tmp/aos-SHA256SUMS /tmp/aos-bundle; \
+    aos --version; aosguard --version
 RUN set -eux; \
     specgen_asset="specgen-linux-${TARGETARCH}"; \
     specgen_base="https://forgejo.coilysiren.me/coilyco-flight-deck/umbra/releases/download/v${SPECGEN_VERSION}"; \
@@ -55,15 +67,6 @@ RUN set -eux; \
       | (cd /tmp && sha256sum -c -); \
     install -m 0755 "/tmp/${specgen_asset}" /usr/local/bin/specgen; \
     rm "/tmp/${specgen_asset}" /tmp/specgen-SHA256SUMS; specgen --version
-COPY --from=aosguard-spec . /tmp/aosguard-spec
-RUN set -eux; \
-    specgen --project-root /tmp/aosguard-spec/guardfiles \
-      --skills-out /opt/agentic-os/aosguard-skill build \
-      --set-version "dev-base" --out /usr/local/bin/aosguard; \
-    chmod 0755 /usr/local/bin/aosguard; \
-    test -s /opt/agentic-os/aosguard-skill/aosguard/SKILL.md; \
-    test -s /opt/agentic-os/aosguard-skill/aosguard/references/commands.yaml; \
-    rm -rf /tmp/aosguard-spec; aosguard --version
 
 FROM ${BASE_IMAGE} AS dev-base-full
 ARG AGENT_COMPOSE_VERSION=2.22.0
@@ -103,7 +106,7 @@ COPY --from=dev-base-lang-python-graft /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=dev-base-lang-python-graft /usr/local/bin/pipenv /usr/local/bin/pipenv
 COPY --from=dev-base-lang-python-graft /opt/uv /opt/uv
 RUN --mount=type=bind,source=install-common.sh,target=/tmp/install-common.sh \
-    --mount=from=repo-lists,source=substrate-repos.txt,target=/tmp/substrate-repos.txt \
+    --mount=from=dev-base-tool-builder,source=/opt/agentic-os/substrate-repos.txt,target=/tmp/substrate-repos.txt \
     bash /tmp/install-common.sh /tmp/substrate-repos.txt "${GIT_LFS_VERSION}" \
       "${GIT_LFS_SHA256_AMD64}" "${GIT_LFS_SHA256_ARM64}"
 RUN set -eux; ln -sf /usr/bin/python3 /usr/local/bin/python; \
@@ -112,14 +115,14 @@ RUN set -eux; ln -sf /usr/bin/python3 /usr/local/bin/python; \
 COPY --chmod=0755 session-name.sh git-identity.sh statusline.sh ward-shell-entrypoint.sh /opt/agentic-os/
 COPY --chmod=0755 statusline.d/ /opt/agentic-os/statusline.d/
 COPY --chmod=0644 claude-managed-settings.json /etc/claude-code/managed-settings.json
-COPY --from=repo-lists --chmod=0644 substrate-repos.txt /opt/agentic-os/substrate-repos.txt
+COPY --from=dev-base-tool-builder --chmod=0644 /opt/agentic-os/substrate-repos.txt /opt/agentic-os/substrate-repos.txt
 COPY --from=dev-base-tool-builder /usr/local/bin/ward /usr/local/bin/ward
 COPY --from=dev-base-tool-builder /usr/local/bin/aos /usr/local/bin/aos
 COPY --from=dev-base-tool-builder /usr/local/bin/aosguard /usr/local/bin/aosguard
 COPY --from=dev-base-tool-builder /opt/agentic-os/aosguard-skill /opt/agentic-os/aosguard-skill
 # aos#771: the system interpreter carries the operator modules. A global
 # PYTHONPATH would also reach every isolated venv and void a pinned hook rev.
-COPY --from=aosguard-python . /tmp/agentic-os-python/agentic_os/
+COPY --from=dev-base-tool-builder /opt/agentic-os/agentic_os /tmp/agentic-os-python/agentic_os/
 # Ask site where this interpreter looks rather than hardcoding a distribution
 # path, then prove the import in the same layer.
 RUN set -eux; \

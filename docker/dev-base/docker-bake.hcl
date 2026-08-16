@@ -77,8 +77,5 @@ target "full" {
     "agentic-os:lang-go-${TAG}"     = "target:lang-go"
     "agentic-os:lang-dotnet-${TAG}" = "target:lang-dotnet"
     "agentic-os:lang-python-${TAG}" = "target:lang-python"
-    aosguard-spec                     = ".specgen"
-    aosguard-python                   = "agentic_os"
-    repo-lists                        = "aos-cli/repositories"
   }
 }

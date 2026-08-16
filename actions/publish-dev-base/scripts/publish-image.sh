@@ -43,9 +43,6 @@ if [ "$MODE" = build ]; then
       --build-arg "LANG_GO_IMAGE=${IMAGE_BASE}:lang-go-${TAG}"
       --build-arg "LANG_DOTNET_IMAGE=${IMAGE_BASE}:lang-dotnet-${TAG}"
       --build-arg "LANG_PYTHON_IMAGE=${IMAGE_BASE}:lang-python-${TAG}"
-      --build-context aosguard-spec=.specgen
-      --build-context aosguard-python=agentic_os
-      --build-context repo-lists=aos-cli/repositories
       --target dev-base-full
       --file docker/dev-base/full/Dockerfile
       docker/dev-base

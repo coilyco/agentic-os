@@ -63,11 +63,10 @@ def test_full_image_owns_the_common_and_internal_tool_surface() -> None:
 
     assert text.count("source=install-common.sh,target=/tmp/install-common.sh") == 1
     assert text.count("source=verify-common.sh,target=/tmp/verify-common.sh") == 1
-    assert "from=repo-lists,source=substrate-repos.txt" in text
+    assert "source=/opt/agentic-os/substrate-repos.txt" in text
     assert '["/opt/agentic-os/ward-shell-entrypoint.sh"]' in text
-    assert "COPY --from=aosguard-spec" in text
-    assert "COPY --from=aosguard-python" in text
-    assert "--skills-out /opt/agentic-os/aosguard-skill" in text
+    assert "COPY --from=dev-base-tool-builder /opt/agentic-os/aosguard-skill" in text
+    assert "COPY --from=dev-base-tool-builder /opt/agentic-os/agentic_os" in text
     for name in ("AGENT_COMPOSE_VERSION", "WARD_VERSION", "SPECGEN_VERSION", "AOS_VERSION"):
         assert f"ARG {name}=" in text
 
@@ -77,9 +76,32 @@ def test_aos_is_installed_from_a_versioned_release() -> None:
 
     assert re.search(r"^ARG AOS_VERSION=\d+\.\d+\.\d+$", text, re.MULTILINE)
     assert "releases/download/aos-v${AOS_VERSION}" in text
-    assert 'aos_asset="aos-linux-${TARGETARCH}"' in text
+    assert 'aos_asset="aos-bundle-linux-${TARGETARCH}.tar.gz"' in text
     assert "go build -trimpath -ldflags \"-s -w -X main.version=dev-base\"" not in text
     assert "COPY --from=aos-cli" not in text
+
+
+def test_aosguard_is_pinned_rather_than_compiled_from_the_tree() -> None:
+    """The image builds nothing from this repo, so `docker/**` is an honest filter.
+
+    aosguard used to be compiled in-image from `.specgen`, which made three
+    build contexts image inputs that the path filter never watched. See
+    docs/dev-base-image.md.
+    """
+    text = FULL_DOCKERFILE.read_text(encoding="utf-8")
+    bake = (DEV_BASE_ROOT / "docker-bake.hcl").read_text(encoding="utf-8")
+
+    for gone in ("aosguard-spec", "aosguard-python", "repo-lists"):
+        assert gone not in text, f"{gone} is still a Dockerfile build context"
+        assert gone not in bake, f"{gone} is still a bake build context"
+
+    assert "specgen --project-root" not in text, "aosguard is compiled in-image again"
+    assert '--set-version "dev-base"' not in text
+    # Everything the compile used to produce now arrives in one verified bundle.
+    assert "/tmp/aos-bundle/bin/aosguard" in text
+    assert "/tmp/aos-bundle/share/aos/aosguard-skill" in text
+    assert "/tmp/aos-bundle/share/aos/python/agentic_os" in text
+    assert "/tmp/aos-bundle/share/aos/repositories/substrate-repos.txt" in text
 
 
 def test_ward_is_installed_from_a_checksummed_release_not_built_from_source() -> None:

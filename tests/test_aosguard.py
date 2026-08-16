@@ -174,9 +174,18 @@ def test_aosguard_builds_a_native_skill_out_of_band() -> None:
         ROOT / "docker" / "dev-base" / "full" / "Dockerfile"
     ).read_text(encoding="utf-8")
 
+    release_build = (ROOT / "scripts" / "aos-release-build.sh").read_text(
+        encoding="utf-8"
+    )
+
     assert "--skills-out dist/skills" in lock_script
     assert "--skills-out dist/skills" in ward
-    assert "--skills-out /opt/agentic-os/aosguard-skill" in dockerfile
+    # The release build generates the skill once and ships it in the bundle.
+    # The image consumes that rather than rendering its own copy.
+    assert "--skills-out" in release_build
+    assert "specgen --project-root" not in dockerfile
+    assert "/tmp/aos-bundle/share/aos/aosguard-skill" in dockerfile
+    assert "/opt/agentic-os/aosguard-skill" in dockerfile
 
 
 def test_native_release_wrapper_embeds_the_actions_bridge() -> None:

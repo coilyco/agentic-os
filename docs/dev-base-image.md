@@ -18,19 +18,19 @@ independent Ubuntu payload targets:
 Each payload contains only its language toolchain and the architecture metadata
 needed by the full build. The Forgejo matrix builds all five in parallel, with
 four runners active at once. Stable per-language registry cache refs preserve
-BuildKit layers across runners and across days. Commit-scoped payload manifests
-transport one exact build into the full-image job.
+BuildKit layers across runners and across days.
 
 [`docker/dev-base/full/Dockerfile`](../docker/dev-base/full/Dockerfile) starts
 from the same-commit Rust payload and grafts Node, Go, .NET, and Python from the
-other payloads. It installs the shared agent and operator surface once. Only
-the full image carries the entrypoint, common verification, release-pinned
-`aos`, Ward, `aosguard`, agent-compose, harnesses, operator CLIs, and full-only
-gate tools such as `golangci-lint`, `trufflehog`, and `kdlfmt`.
+others. Only the full image carries the entrypoint, common verification,
+release-pinned `aos`, Ward, `aosguard`, agent-compose, harnesses, operator CLIs,
+and gate tools such as `golangci-lint`, `trufflehog`, and `kdlfmt`.
 
-The full image includes `kubectl`, but image builds own no host mounts,
-kubeconfig, or cluster transport. The standalone AOS launcher may add an
-[operator-selected kubeconfig](aos-kubeconfig.md) for an authorized role.
+`AOS_VERSION` pins one `aos-bundle` release carrying `aos`, `aosguard`, its
+skill, the operator Python modules, and the repo lists, so the image builds
+nothing from this tree and `docker/**` is a complete path filter. Image builds
+own no host mounts, kubeconfig, or cluster transport. The AOS launcher may add
+an [operator kubeconfig](aos-kubeconfig.md) for a role.
 
 ## Build and publication
 
