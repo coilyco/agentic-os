@@ -2,7 +2,7 @@
 // before the harness takes the terminal. nativeProgress narrates that work so
 // the wait is never a silent hang: every step announces itself before it
 // begins, reports its own elapsed time when it ends, and the run closes with a
-// total plus the steps that dominated it. See docs/native-startup-narration.md.
+// total plus the steps that dominated it. See docs/native-session-start.md.
 
 package main
 

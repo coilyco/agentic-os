@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Backfill a user-scoped git identity from the Ward transport seam.
-# See docs/dev-base-git-identity.md.
+# See docs/dev-base-agent-identity.md.
 #
 # Split out of the retired agent-name.sh, which carried this alongside naming
 # for no reason beyond both running at SessionStart. Container-only: the seam

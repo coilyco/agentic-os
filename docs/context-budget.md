@@ -5,7 +5,7 @@ harness. It measures token cost without assigning a harness-specific threshold
 or changing what Agent Compose selects. The on-demand `ward context-budget`
 verb stays outside the universal commit path.
 
-The [role snapshot mode](context-budget-role.md) measures any Agent Compose role
+The [role snapshot mode](context-budget-roles.md) measures any Agent Compose role
 without selecting or requiring a harness executable.
 
 ## What it measures
@@ -26,7 +26,7 @@ axes, each with a different growth lever:
 These axes form the **proactive** tier. The `immediate_walk` and
 `peripheral_walk` primitives, plus the repeatable `--immediate` and
 `--peripheral` flags, measure reachable working-directory and reference-repo
-tiers. See [context tiers](context-tiers.md).
+tiers. See [context tiers](agents-context-inventory.md).
 
 ### Skill scope follows the CWD
 
@@ -60,7 +60,7 @@ exit mode.
 
 ## See also
 
-* [Agents and sessions](features-agents-sessions.md) - Agent Compose, the
+* [Agents and sessions](features-agents.md) - Agent Compose, the
   composer this measures.
 * [Role-composed skills](role-composed-skills.md) - role-gated skills selected
   into a role bundle.

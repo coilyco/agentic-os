@@ -13,7 +13,7 @@ agentic-os-kai - a base does not point at itself), a repo with no root AGENTS.md
 or a symlinked AGENTS.md (the cross-harness sharing mechanism). So it fires in
 every managed consumer repo and stays silent everywhere else.
 
-Schema and rollout: see docs/features-agents-pointer.md.
+Schema and rollout: see docs/features-agents.md.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ from agentic_os.generators.generate_agents_pointer import (
 )
 
 HOOK_ID = "agents-pointer"
-TRACKER = "docs/features-agents-pointer.md"
+TRACKER = "docs/features-agents.md"
 
 REGEN_HINT = "  regenerate: python3 scripts/apply-agents-pointer.py --repo <name>"
 

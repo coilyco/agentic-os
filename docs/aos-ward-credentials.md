@@ -1,7 +1,10 @@
+# AOS ward credentials
+
+## AOS to Ward credential handoff
+
 ---
 doc_goal: Define the provider-neutral credential handoff from AOS to Ward.
 ---
-# AOS to Ward credential handoff
 
 AOS owns the coilyco deployment source for Ward's Forgejo broker credential.
 Ward owns the broker, its authorization policy, lifecycle, and agent isolation.

@@ -25,7 +25,7 @@ Usage:
     python3 scripts/apply-agents-pointer.py             # apply to all managed repos
     python3 scripts/apply-agents-pointer.py --repo luca # one repo by name
 
-See docs/features-agents-pointer.md.
+See docs/features-agents.md.
 """
 
 from __future__ import annotations

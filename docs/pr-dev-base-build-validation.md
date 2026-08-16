@@ -42,6 +42,6 @@ protection context.
 ## See also
 
 * [dev-base image](dev-base-image.md)
-* [dev-base build cache](dev-base-build-cache.md)
+* [dev-base build cache](dev-base-build.md)
 * [CI parity](ci-in-dev-base.md)
 * [release pipeline](release.md)

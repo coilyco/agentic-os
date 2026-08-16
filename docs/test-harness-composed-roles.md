@@ -67,5 +67,5 @@ operational local one-shot harness for this matrix.
 ## Related
 
 * [aos-cli.md](aos-cli.md) - composed-container launch contract.
-* [test-harness-goose.md](test-harness-goose.md) - general Goose probe mechanics.
+* [test-harness.md](test-harness.md) - general Goose probe mechanics.
 * [role-composed-skills.md](role-composed-skills.md) - role-gated skill delivery.

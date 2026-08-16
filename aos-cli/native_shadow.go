@@ -409,7 +409,7 @@ func prepareNativeLaunchWorkspaceWithOptions(
 }
 
 // withNativeStartupLock serializes startup cleanup. The lock names its owner,
-// so an interrupted launch is reclaimed at once. docs/native-startup-narration.md
+// so an interrupted launch is reclaimed at once. docs/native-session-start.md
 func withNativeStartupLock(runtime nativeRuntime, action func() error) error {
 	lock := filepath.Join(runtime.StateRoot, "startup.lock")
 	began := time.Now()
@@ -501,7 +501,7 @@ var errNativePathAbsent = errors.New("native path does not exist")
 func (live *nativeLiveWorktrees) add(path string) {
 	key, err := nativePathKey(path)
 	if err != nil {
-		// Absence is an answer, not uncertainty. docs/native-default-branch.md
+		// Absence is an answer, not uncertainty. docs/native-session-start.md
 		if errors.Is(err, errNativePathAbsent) {
 			return
 		}
@@ -671,7 +671,7 @@ func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error)
 			continue
 		}
 		// A second dead reading confirms the first, so a worktree holding no
-		// local-only state is released now. docs/native-default-branch.md
+		// local-only state is released now. docs/native-session-start.md
 		expired := !runtime.Now.Before(lease.DeadSince.Add(nativeDeadSessionGrace))
 		remaining := make([]nativeArtifact, 0, len(lease.Artifacts))
 		for _, artifact := range lease.Artifacts {
@@ -965,7 +965,7 @@ func normalizeNativeRepository(
 }
 
 // reapNativeMergedBranches deletes local branches already wholly on origin.
-// Rationale and the safety test: docs/native-default-branch.md
+// Rationale and the safety test: docs/native-session-start.md
 func reapNativeMergedBranches(runtime nativeRuntime, repository nativeRepository) error {
 	worktrees, err := listNativeWorktrees(repository.Path)
 	if err != nil {
@@ -1010,7 +1010,7 @@ func reapNativeMergedBranches(runtime nativeRuntime, repository nativeRepository
 }
 
 // repairNativeMainUpstream puts `main` back on `origin/main` after a squatting
-// worktree repointed it. docs/native-default-branch.md
+// worktree repointed it. docs/native-session-start.md
 func repairNativeMainUpstream(runtime nativeRuntime, repository nativeRepository) error {
 	merge, err := nativeGit(repository.Path, "config", "--get", "branch.main.merge")
 	if err != nil || merge == "refs/heads/main" {
@@ -1027,7 +1027,7 @@ func repairNativeMainUpstream(runtime nativeRuntime, repository nativeRepository
 }
 
 // releaseNativeDefaultBranch detaches a worktree squatting on `main`, live ones
-// included. Detaching at HEAD leaves files alone. docs/native-default-branch.md
+// included. Detaching at HEAD leaves files alone. docs/native-session-start.md
 func releaseNativeDefaultBranch(runtime nativeRuntime, repository nativeRepository) error {
 	worktrees, err := listNativeWorktrees(repository.Path)
 	if err != nil {
@@ -1364,7 +1364,7 @@ func stageNativeRoleHome(source, target, projectsRoot string) error {
 	for _, entry := range entries {
 		name := entry.Name()
 		// Left absent so ~/projects fails instead of resolving past the session
-		// worktrees. See docs/native-default-branch.md.
+		// worktrees. See docs/native-session-start.md.
 		if projectsRoot != "" && samePath(filepath.Join(source, name), projectsRoot) {
 			continue
 		}
@@ -1468,7 +1468,7 @@ func copyStandaloneHomeDirectory(source, target string, blocked map[string]bool)
 }
 
 // nativeStagedConfigPaths are the home-relative directories the session owns
-// outright, so projection cannot write through. See docs/native-shadow-home.md.
+// outright, so projection cannot write through. See docs/native-shadow.md.
 var nativeStagedConfigPaths = map[string]bool{
 	".agents":          true,
 	".claude":          true,

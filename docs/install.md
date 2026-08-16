@@ -1,5 +1,7 @@
 # Install details
 
+## Install details
+
 Quickstart is in [the README](../README.md). This covers per-host steps and the git gpg wiring.
 
 ## What the host install wires

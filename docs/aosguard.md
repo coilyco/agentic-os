@@ -14,7 +14,7 @@ The snapshot carries Forgejo, AWS, kubectl, Tailscale, Actions, SigNoz, and
 runner-token leaves. AWS SSM permits single reads, file-backed writes, and
 named deletions. Actions lives at `aosguard ops actions` so its exec transport
 does not shadow `aosguard ops forgejo`. The sibling
-[`forgejo-storage measure` bridge](forgejo-storage-measurement.md) uses fixed
+[`forgejo-storage measure` bridge](forgejo-ops.md) uses fixed
 `kubectl exec` operations from an embedded script invoked by absolute path.
 `aosguard ops signoz` reads only the converged SigNoz MCP server. The snapshot
 excludes Ward role policy.

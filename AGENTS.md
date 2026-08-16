@@ -188,7 +188,7 @@ If the resolved workflow allows the work to land, the agent pushes it to `main` 
 
 ### Native session shadow
 
-A native AOS launch runs the agent in a per-session shadow, not the canonical checkout. `AOS_NATIVE_SESSION` and `AOS_NATIVE_SESSION_PROJECTS` are set exactly when it exists, so the agent reads them rather than guessing. The shadow shares canonical Git objects, so a commit is durable at once while its working tree stays exposed to temporary-root purges, the mechanism behind the rule above. Placement and mechanics: [session shadow](docs/native-session-shadow.md).
+A native AOS launch runs the agent in a per-session shadow, not the canonical checkout. `AOS_NATIVE_SESSION` and `AOS_NATIVE_SESSION_PROJECTS` are set exactly when it exists, so the agent reads them rather than guessing. The shadow shares canonical Git objects, so a commit is durable at once while its working tree stays exposed to temporary-root purges, the mechanism behind the rule above. Placement and mechanics: [session shadow](docs/native-shadow.md).
 
 ### Foreign work requires a worktree
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SessionStart announcement: tell the agent what it is called.
-# See docs/features-agents-sessions.md.
+# See docs/features-agents.md.
 set -euo pipefail
 
 payload="$(cat)"
@@ -15,7 +15,7 @@ project_dir="$(printf '%s' "$payload_flat" \
 [ -z "$project_dir" ] && project_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
 
 # Agent Compose is the single authority; this never derives a name of its own.
-# See docs/dev-base-self-name.md.
+# See docs/dev-base-agent-identity.md.
 command -v acompose >/dev/null 2>&1 || exit 0
 name="$(acompose whoami --target "$project_dir" 2>/dev/null || true)"
 

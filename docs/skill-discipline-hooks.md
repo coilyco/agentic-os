@@ -1,5 +1,7 @@
 # Skill Discipline Handbook - The Hooks
 
+Section 10 of the [handbook](skill-discipline-handbook.md).
+
 ## 10. The hooks
 
 `.pre-commit-hooks.yaml` exposes the repo-authored discipline hooks. Wire each one explicitly in your repo's `.pre-commit-config.yaml`.

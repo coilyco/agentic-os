@@ -26,7 +26,7 @@ check also accepts the canonical composed source path. ``canonical_ref`` builds
 the delivered path tail, ``source_ref`` builds the source path tail, and
 ``suggested_url`` builds the full Forgejo URL shown in guidance.
 
-Schema and rollout: see docs/skill-discipline-authoring-shipping.md.
+Schema and rollout: see docs/skill-discipline-authoring.md.
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ from typing import NoReturn
 
 from agentic_os.pre_commit.check_skill import parse_frontmatter
 
-TRACKER = "docs/skill-discipline-authoring-shipping.md"
+TRACKER = "docs/skill-discipline-authoring.md"
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSED_SKILLS_DIR = _REPO_ROOT / ".agents" / "composed"

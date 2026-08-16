@@ -1,7 +1,10 @@
+# AOS kubeconfig
+
+## AOS kubeconfig projection
+
 ---
 doc_goal: Define host kubeconfig projection for standalone AOS containers.
 ---
-# AOS kubeconfig projection
 
 AOS can project one operator-selected host kubeconfig into the full compatibility
 container when AOS owns the standalone runtime:

@@ -48,7 +48,7 @@ and a resumed full closure finishes the same release chain.
 [`release.yml`](../.forgejo/workflows/release.yml) promotes only the full
 manifest to its next minor tag, `release`, and `latest`. Manual dispatch reuses
 it for retries and version overrides. Payload drafts and cache refs are internal
-build transport with no release alias or compatibility contract. See [publish resume](dev-base-publish-resume.md).
+build transport with no release alias or compatibility contract. See [publish resume](dev-base-build.md).
 
 Pull requests with a `docker/` change build the complete source graph through
 [`actions/dev-base-build`](../actions/dev-base-build/action.yml). PR validation
@@ -65,7 +65,7 @@ them reuses cached language payloads instead of rebuilding their toolchains.
 Every pin is manual. Nothing resolves these versions against upstream and
 nothing fails when one falls behind, so a pin is only as current as the last
 person who checked it - an explicit inventory responsibility. Rust also bakes
-the channels consumers pin, see [pinned toolchains](dev-base-rust-pins.md).
+the channels consumers pin, see [pinned toolchains](dev-base-build.md).
 
 Source ownership follows the tool boundary. The image owns this deployment's
 Git identity and maps it onto Ward's provider-neutral `WARD_GIT_*` environment
@@ -75,6 +75,6 @@ source data.
 ## See also
 
 * [CI parity](ci-in-dev-base.md)
-* [Build cache](dev-base-build-cache.md)
+* [Build cache](dev-base-build.md)
 * [PR build validation](pr-dev-base-build-validation.md)
 * [Release workflow](release.md)

@@ -9,7 +9,7 @@ draft succeeds, it calls `release.yml` to publish the next root minor release.
 Manual dispatch overrides the path filter and can resume the image graph.
 `release.yml` is also a no-cancel retry and override queue. It never gates the
 branch. `main` stays yolo-able, while `release` is last-known-good. Forgejo owns releases per
-[forgejo-github-mirror-contract.md](forgejo-github-mirror-contract.md).
+[mirror-to-github.md](mirror-to-github.md).
 
 Promotion only gates and advances the branch. Non-artifact merges produce no
 package tag or draft image.

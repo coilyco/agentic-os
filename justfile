@@ -189,11 +189,11 @@ gen-agents-pointer *ARGS:
 gen-caps-reference *ARGS:
     @uv run python -m agentic_os.generators.generate_caps_reference "$@"
 
-# Generate a repo-<name> pointer skill from repository metadata. Pipe `aosguard ops forgejo repo view --repo coilysiren/<name> --json` into it with `<name> --from-json -`, or pass --description/--topic. See docs/features-agents-pointer.md.
+# Generate a repo-<name> pointer skill from repository metadata. Pipe `aosguard ops forgejo repo view --repo coilysiren/<name> --json` into it with `<name> --from-json -`, or pass --description/--topic. See docs/features-agents.md.
 gen-repo-pointer-skill *ARGS:
     @uv run python -m agentic_os.generators.generate_repo_pointer_skill "$@"
 
-# Regenerate agentic_os/seed_skills_data.py from seed: frontmatter on the composed coding-<lang> sources. Run after editing a seed block; check-seed-skills-drift fails on staleness. See docs/skill-discipline-authoring-shipping.md.
+# Regenerate agentic_os/seed_skills_data.py from seed: frontmatter on the composed coding-<lang> sources. Run after editing a seed block; check-seed-skills-drift fails on staleness. See docs/skill-discipline-authoring.md.
 gen-seed-skills *ARGS:
     @uv run python -m agentic_os.generators.generate_seed_skills "$@"
 

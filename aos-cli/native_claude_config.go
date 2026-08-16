@@ -1,5 +1,5 @@
 // Claude Code reads its config from CLAUDE_CONFIG_DIR, which sits one level
-// below the home-root .claude.json most installs use. See docs/native-claude-config.md.
+// below the home-root .claude.json most installs use. See docs/native-harness-config.md.
 
 package main
 

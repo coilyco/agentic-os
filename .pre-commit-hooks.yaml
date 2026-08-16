@@ -156,7 +156,7 @@
 
 - id: repo-pointer-skills
   name: repo-pointer skills auto-generated
-  description: Regenerate every repo-<name> pointer skill offline and fail on drift from generator output. See docs/features-agents-pointer.md.
+  description: Regenerate every repo-<name> pointer skill offline and fail on drift from generator output. See docs/features-agents.md.
   entry: check-repo-pointer-skills
   language: python
   additional_dependencies: [pyyaml]
@@ -166,7 +166,7 @@
 
 - id: agents-pointer
   name: AGENTS.md pointer block auto-generated
-  description: Regenerate the managed workspace-pointer block in AGENTS.md offline and fail on drift. No-ops for unmanaged orgs and the canonical base repos. See docs/features-agents-pointer.md.
+  description: Regenerate the managed workspace-pointer block in AGENTS.md offline and fail on drift. No-ops for unmanaged orgs and the canonical base repos. See docs/features-agents.md.
   entry: check-agents-pointer
   language: python
   always_run: true
@@ -175,7 +175,7 @@
 
 - id: misplaced-skills
   name: no foreign repo-specific skills
-  description: "Assert a repo does not host skills owned by another repo. Opt in via [tool.agentic-os.misplaced-skills] deny/allow globs; no-ops otherwise. See docs/skill-discipline-authoring-shipping.md."
+  description: "Assert a repo does not host skills owned by another repo. Opt in via [tool.agentic-os.misplaced-skills] deny/allow globs; no-ops otherwise. See docs/skill-discipline-authoring.md."
   entry: check-misplaced-skills
   language: python
   always_run: true
@@ -184,7 +184,7 @@
 
 - id: seed-skills
   name: code present implies seed-skill references
-  description: "Assert a repo references the seed skills its code requires (always-set plus one per detected language) so qwen-opencode ingests the right context. Opt in via [tool.agentic-os.seed-skills]; no-ops otherwise. Ansible enables it fleet-wide. See docs/skill-discipline-authoring-shipping.md."
+  description: "Assert a repo references the seed skills its code requires (always-set plus one per detected language) so qwen-opencode ingests the right context. Opt in via [tool.agentic-os.seed-skills]; no-ops otherwise. Ansible enables it fleet-wide. See docs/skill-discipline-authoring.md."
   entry: check-seed-skills
   language: python
   additional_dependencies: [pyyaml]

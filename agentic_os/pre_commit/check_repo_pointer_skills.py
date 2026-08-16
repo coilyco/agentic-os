@@ -12,7 +12,7 @@ Prefix-driven and categories.yaml-independent, so it fires in every consumer
 repo, not just the ones that ship a skill categories spec. No-ops when the repo
 has no skills surface.
 
-Schema and rollout: see docs/features-agents-pointer.md.
+Schema and rollout: see docs/features-agents.md.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from agentic_os.generators.generate_repo_pointer_skill import (
 )
 
 HOOK_ID = "repo-pointer-skills"
-TRACKER = "docs/features-agents-pointer.md"
+TRACKER = "docs/features-agents.md"
 
 SKILLS_DIR_CANDIDATES = (".agents/skills", ".claude/skills", "skills")
 

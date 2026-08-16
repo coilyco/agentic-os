@@ -1,6 +1,6 @@
 # Claude settings guardrails
 
-Back to [features-agents-sessions.md](features-agents-sessions.md).
+Back to [features-agents.md](features-agents.md).
 
 The fleet guardrails that live in `~/.claude/settings.json`. Both are authored
 here and converged by the `claude-hooks` ansible role in `infrastructure`, per

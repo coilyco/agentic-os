@@ -1,4 +1,17 @@
-# Skill Discipline Handbook - Size Caps
+# Skill Discipline Handbook - Conventions
+
+Sections 6 to 9 of the [handbook](skill-discipline-handbook.md): how to
+write a skill once its shape is settled.
+
+## 6. Voice rules (project standard, honor-system)
+
+These are the writing conventions the rest of this handbook follows. The validator does not enforce them. Adopt them in your project's handbook if they fit; drop or replace if your project has different voice.
+
+* **No italics.** Use bold for structural anchors at the start of bullets, or for terms of art on first mention. Italics for emphasis tends to read as performative.
+* **No semicolons in prose.** Split into two sentences. Code is fine.
+* **No prose tables.** Use flat bullets: `* anchor - category - detail`. Tables are correct when the structure is genuinely tabular (a machine-readable spec, a matrix of cases). They are wrong when you reach for one because the prose is getting hard to read - fix the prose instead.
+* **Imperative voice in procedure.** "Run X. Check Y." beats "you should run X and then you might want to check Y."
+* **Explain the why, not just the what.** Every rule should carry the reason it exists. Future readers need the why to judge edge cases. See section 9.
 
 ## 7. Size caps
 
@@ -32,3 +45,22 @@ The motivation: investigation writeups, per-incident case libraries, and ticket-
 archive_path_components:
   - results
 ```
+
+## 8. Cross-links
+
+Two valid forms for in-prose references to other skills:
+
+* **Bare backticks** `` `skill-name` `` for passing mentions in prose. Not navigable.
+* **Markdown link** `` [`skill-name`](../skill-name/SKILL.md) `` for navigable references.
+
+Either form: if the name does not resolve to a real skill in the repo, `check_dead_links.py` flags it. A cross-repo reference (a skill or file living in a sibling repo) cannot be a navigable link - it would escape the repo root, which is now a hard violation - so use the bare-backtick form with a parenthetical, e.g. `` `kai-aws-auth` (in agentic-os-kai) ``.
+
+External URLs, mailto links, and bare anchors (`#section`) are out of scope for the dead-link check. A `../` link is no longer skipped: an internal one is existence-checked, and one that escapes the repo root fails.
+
+## 9. Encode the why, not just the what
+
+Every agent session starts cold. There is no human in the loop to ask "why was this rule written?" Undocumented reasoning gets re-derived badly, or the rule gets deleted by an agent who cannot see why it mattered.
+
+When you write a rule, lead with the rule, then write a **Why:** line (the incident, constraint, or prior failure mode that produced it), then a **How to apply:** line (when the rule fires). Date-stamp the flag where useful so future readers can judge whether the why is still load-bearing.
+
+Framing reference: [The end of "just ask Sarah"](https://simme.dev/posts/the-end-of-just-ask-sarah/).
