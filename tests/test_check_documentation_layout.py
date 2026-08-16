@@ -314,10 +314,25 @@ def test_generated_guardfiles_flagged_without_exclude(tmp_path: Path, monkeypatc
 
 # Size bands: a repo declares small or large and gets that band's three caps.
 
-def test_band_defaults_to_small(tmp_path: Path, monkeypatch) -> None:
-    # No declaration means the tighter band, so a repo opts up deliberately.
+def test_no_declaration_is_a_violation(tmp_path: Path, monkeypatch) -> None:
+    # Small is not the silent default. An undeclared repo is a repo whose band
+    # nobody decided, which reads identically to a deliberate small.
     _point_repo_root_at(tmp_path, monkeypatch)
+    assert docs_layout.check_band_declaration() != []
+    # Caps still resolve to the tight band while the repo is red, so the size
+    # checks stay meaningful rather than crashing or passing everything.
     assert docs_layout.band() == "small"
+    assert docs_layout.markdown_caps() == (40, 3_000)
+    assert docs_layout.docs_cap() == 20
+
+
+def test_declared_small_band_is_accepted(tmp_path: Path, monkeypatch) -> None:
+    write(
+        tmp_path / "pyproject.toml",
+        '[tool.agentic-os.documentation-layout]\nband = "small"\n',
+    )
+    _point_repo_root_at(tmp_path, monkeypatch)
+    assert docs_layout.check_band_declaration() == []
     assert docs_layout.markdown_caps() == (40, 3_000)
     assert docs_layout.docs_cap() == 20
 

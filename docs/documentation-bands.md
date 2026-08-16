@@ -5,16 +5,21 @@ file, and how many `docs/*.md` files it may carry.
 
 | band | lines | chars | docs |
 | --- | --- | --- | --- |
-| `small` (default) | 40 | 3,000 | 20 |
+| `small` | 40 | 3,000 | 20 |
 | `large` | 120 | 8,000 | 40 |
-
-Declared under the hook config. No declaration means `small`, so a repo opts up
-deliberately rather than drifting up.
 
 ```toml
 [tool.agentic-os.documentation-layout]
-band = "large"
+band = "small"
 ```
+
+Every repo declares, small included. There is no default to fall into: an
+undeclared repo and a deliberately small one would otherwise be the same file,
+and only one of them has had the decision made. A repo outgrowing `small`
+should hit a cap and argue for `large`, not find out it was never on a band.
+A typo fails the same way a missing declaration does, so nothing is measured
+against a band it did not name. Non-Python repos declare the same key in
+`.agentic-os.toml`.
 
 ## Why a count cap exists at all
 

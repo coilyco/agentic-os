@@ -41,6 +41,12 @@ def _checkout(root: Path, ignore: str | None) -> None:
     """A real git checkout, because the answer here comes from git itself."""
     _git(root, "init", "-q")
     _write(root, "README.md", "# Repo\n")
+    # Every repo declares a band, a fixture repo included.
+    _write(
+        root,
+        "pyproject.toml",
+        '[tool.agentic-os.documentation-layout]\nband = "small"\n',
+    )
     if ignore is not None:
         _write(root, ".gitignore", f"{ignore}\n")
     _write(root, BAKED, BAKED_BODY)
