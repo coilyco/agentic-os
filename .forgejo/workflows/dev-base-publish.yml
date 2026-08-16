@@ -9,6 +9,9 @@ on:
     branches: [release]
     paths:
       - "docker/**"
+      - ".specgen/**"
+      - "agentic_os/**"
+      - "aos-cli/repositories/**"
   workflow_dispatch:
     inputs:
       sha:

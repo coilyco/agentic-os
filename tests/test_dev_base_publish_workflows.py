@@ -8,6 +8,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PUBLISH = ROOT / ".forgejo" / "workflows" / "dev-base-publish.yml"
+DEV_BASE_PR = ROOT / ".forgejo" / "workflows" / "dev-base-pr.yml"
+BAKE = ROOT / "docker" / "dev-base" / "docker-bake.hcl"
 RELEASE = ROOT / ".forgejo" / "workflows" / "release.yml"
 PUBLISH_ACTION = ROOT / "actions" / "publish-dev-base" / "action.yml"
 PUBLISH_IMAGE = (
@@ -254,3 +256,44 @@ def test_publish_action_verifies_every_toolchain_and_aosguard() -> None:
         "test -s /opt/agentic-os/aosguard-skill/aosguard/references/commands.yaml",
     ):
         assert command in script
+
+
+def _bake_contexts_outside_docker() -> set[str]:
+    """Build contexts the bake file pulls from outside `docker/`.
+
+    docker-bake.hcl owns this list. Reading its `contexts` blocks rather than
+    restating them is what keeps a new context from silently escaping the path
+    filters. `target:` entries are inter-target references, not source paths.
+    """
+    import re
+
+    text = BAKE.read_text(encoding="utf-8")
+    paths: set[str] = set()
+    for block in re.findall(r"contexts\s*=\s*\{(.*?)\n  \}", text, re.S):
+        for value in re.findall(r'=\s*"([^"]+)"', block):
+            if "${" in value or value.startswith("target:"):
+                continue
+            if value.startswith("docker/") or value == ".":
+                continue
+            paths.add(value)
+    return paths
+
+
+def test_image_path_filters_cover_every_build_context() -> None:
+    """A build input outside `docker/` must still trigger a build.
+
+    The filters watched only `docker/**` while the full image also builds from
+    `.specgen`, `agentic_os`, and `aos-cli/repositories`, so a guardfile change
+    promoted to release without ever rebuilding the image that ships it.
+    """
+    contexts = _bake_contexts_outside_docker()
+    assert contexts, "bake contexts did not parse; the filter check would pass vacuously"
+
+    missing: list[str] = []
+    for workflow in (PUBLISH, DEV_BASE_PR):
+        text = workflow.read_text(encoding="utf-8")
+        for context in contexts:
+            if f'- "{context}/**"' not in text:
+                missing.append(f"{workflow.name}: {context}")
+
+    assert not missing, f"build contexts absent from the path filter: {missing}"

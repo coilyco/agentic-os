@@ -6,6 +6,9 @@ on:
   pull_request:
     paths:
       - "docker/**"
+      - ".specgen/**"
+      - "agentic_os/**"
+      - "aos-cli/repositories/**"
 
 permissions:
   contents: read
