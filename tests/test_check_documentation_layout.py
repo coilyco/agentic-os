@@ -312,7 +312,7 @@ def test_generated_guardfiles_flagged_without_exclude(tmp_path: Path, monkeypatc
     assert len(sizes) >= len(("aws", "open-webui", "forgejo")) * 2
 
 
-# Size bands: a repo declares small or large and gets that band's three caps.
+# Size bands: a repo declares one and gets that band's three caps.
 
 def test_no_declaration_is_a_violation(tmp_path: Path, monkeypatch) -> None:
     # Small is not the silent default. An undeclared repo is a repo whose band
@@ -345,6 +345,33 @@ def test_declared_large_band_raises_all_three_caps(tmp_path: Path, monkeypatch) 
     _point_repo_root_at(tmp_path, monkeypatch)
     assert docs_layout.markdown_caps() == (120, 8_000)
     assert docs_layout.docs_cap() == 40
+
+
+def test_declared_xlarge_band_raises_the_size_caps_not_the_count(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # The escalation path large already offers small. A repo outgrowing large
+    # hits the cap and argues for this rather than deleting prose to fit.
+    write(
+        tmp_path / "pyproject.toml",
+        '[tool.agentic-os.documentation-layout]\nband = "xlarge"\n',
+    )
+    _point_repo_root_at(tmp_path, monkeypatch)
+    assert docs_layout.check_band_declaration() == []
+    assert docs_layout.markdown_caps() == (180, 12_000)
+    # The count is deliberately unchanged. The count cap exists for folder
+    # readability, which more pages would spend and longer pages do not.
+    assert docs_layout.docs_cap() == 40
+
+
+def test_xlarge_keeps_the_chars_per_line_ratio_large_is_built_on() -> None:
+    # Lines bind before chars, and the char cap is the backstop for a dense
+    # page. A band that broke the ratio would fire on ordinary prose or never.
+    large_lines, large_chars, _ = docs_layout.BAND_CAPS["large"]
+    lines, chars, _ = docs_layout.BAND_CAPS["xlarge"]
+    assert lines == large_lines * 3 // 2
+    assert chars == large_chars * 3 // 2
+    assert chars / lines == large_chars / large_lines
 
 
 def test_unknown_band_is_a_violation_not_a_silent_default(

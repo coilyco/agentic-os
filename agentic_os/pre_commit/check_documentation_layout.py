@@ -40,8 +40,8 @@ README that links a docs/*.md file is an outpost, otherwise it is a
 homestead.
 
 Most Markdown shares one size cap, and how big it is depends on the repo's
-declared band. Every repo sets `band = "small"` or `band = "large"` under the
-hook config and gets that band's line, char, and docs-count caps. Declaring
+declared band. Every repo sets `band` to one of `small`, `large`, or `xlarge`
+under the hook config and gets that band's line, char, and docs-count caps. Declaring
 is mandatory in both directions: silence is a missing decision rather than a
 small repo. There is no per-file escape from a size or count cap: `excludes`
 still govern placement
@@ -108,6 +108,9 @@ HOOK_ID = "documentation-layout"
 BAND_CAPS = {
     "small": (40, 3_000, 20),
     "large": (120, 8_000, 40),
+    # Exactly 1.5x large on both size caps, count unchanged, so the
+    # chars-per-line ratio the pair is built on carries over.
+    "xlarge": (180, 12_000, 40),
 }
 # Declaring is mandatory in both directions (docs/documentation-bands.md).
 # This is only what the caps resolve to while a repo is red for not declaring.

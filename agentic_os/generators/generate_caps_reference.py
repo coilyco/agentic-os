@@ -96,6 +96,24 @@ def _caps() -> list[tuple[str, str, str, str]]:
         ),
         (
             "documentation-layout",
+            "markdown lines (xlarge band)",
+            str(dl.BAND_CAPS["xlarge"][0]),
+            'non-blank lines where `band = "xlarge"` is declared',
+        ),
+        (
+            "documentation-layout",
+            "markdown chars (xlarge band)",
+            str(dl.BAND_CAPS["xlarge"][1]),
+            'characters where `band = "xlarge"` is declared',
+        ),
+        (
+            "documentation-layout",
+            "docs count (xlarge band)",
+            str(dl.BAND_CAPS["xlarge"][2]),
+            '`docs/*.md` files where `band = "xlarge"` is declared',
+        ),
+        (
+            "documentation-layout",
             "README overview lines",
             str(dl.TRIFECTA_MAX_LINES),
             "non-blank lines for the root README.md",

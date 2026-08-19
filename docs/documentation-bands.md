@@ -7,6 +7,7 @@ file, and how many `docs/*.md` files it may carry.
 | --- | --- | --- | --- |
 | `small` | 40 | 3,000 | 20 |
 | `large` | 120 | 8,000 | 40 |
+| `xlarge` | 180 | 12,000 | 40 |
 
 ```toml
 [tool.agentic-os.documentation-layout]
@@ -14,20 +15,21 @@ band = "small"
 ```
 
 Every repo declares, small included. There is no default to fall into: an
-undeclared repo and a deliberately small one would otherwise be the same file,
-and only one has had the decision made. A repo outgrowing `small` should hit a
-cap and argue for `large`, not find out it was never on a band. A typo fails
-the same way a missing declaration does. Non-Python repos declare the same key
-in `.agentic-os.toml`.
+undeclared repo and a deliberately small one would otherwise be the same file, and
+only one has had the decision made. A repo outgrowing `small` hits a cap and argues
+for `large`, and one outgrowing `large` argues for `xlarge`, rather than finding out
+it was never on a band. A typo fails as a missing declaration does, and non-Python
+repos declare the same key in `.agentic-os.toml`.
 
 ## Why a count cap exists at all
 
-A per-doc size cap does not bound a docs folder, it reshapes it. A repo that
-caps length and not count answers every over-long doc by splitting it, and the
-folder grows without any single file ever failing.
+A per-doc size cap does not bound a docs folder, it reshapes it. A repo capping
+length and not count answers every over-long doc by splitting it, and the folder
+grows without any single file ever failing.
 
 `sirens-echo` was the proof: 156 docs, median 2,935 chars, largest 3,989
 against a 4,000 cap. Not one file over the limit, and a folder nobody can read.
+It later proved the other end, which `xlarge` answers: on `large` it hit 40 docs of 40 and 312,057 chars of 320,000, smallest page 6,821, so nothing merged.
 
 ## Why lines bind before chars
 
@@ -43,13 +45,11 @@ it would never fire at all.
 ## The two caps multiply
 
 Count times lines is a total documentation budget, and it is the number worth
-arguing about rather than either cap alone.
-
-* `small` - 20 x 40 = 800 lines. `large` - 40 x 120 = 4,800 lines.
-
-A repo cannot escape the budget by trading one cap against the other. Merging
-two docs to clear the count spends the line cap, and splitting one to clear the
-line cap spends the count.
+arguing about rather than either cap alone. `small` is 20 x 40 = 800 lines,
+`large` 40 x 120 = 4,800, `xlarge` 40 x 180 = 7,200. A repo cannot escape the
+budget by trading one cap against the other: merging two docs to clear the count
+spends the line cap, and splitting one to clear the line cap spends the count.
+**`xlarge` raises the size caps and not the count**, which answers folder size.
 
 ## No per-file escape
 
