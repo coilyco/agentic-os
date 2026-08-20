@@ -21,6 +21,7 @@
 #       - id: yaml-strict
 #       - id: seed-skills
 #       - id: trufflehog
+#       - id: pr-guard
 #       - id: unresolved-placeholder-guard  # manual opt-in
 #       - id: issue-reference-guard         # manual opt-in
 #
@@ -39,6 +40,15 @@
 #                           file, not repo content)
 #   - check_context_budget -> ward context-budget (on-demand by design; see
 #                           docs/context-budget.md)
+
+- id: pr-guard
+  name: pre-push PR guard
+  description: "Refuse pushes whose destination is the remote default branch, and refuse to update an already-published branch that has no open PR. The PR half needs FORGEJO_TOKEN and degrades to a notice without it. Client-side only; git push --no-verify bypasses it."
+  entry: scripts/pr-guard-pre-push.sh
+  language: script
+  always_run: true
+  pass_filenames: false
+  stages: [pre-push]
 
 - id: catalog-doc-size
   name: Markdown size caps

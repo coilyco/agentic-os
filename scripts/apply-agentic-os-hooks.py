@@ -189,6 +189,7 @@ DEFAULT_HOOK_IDS = [
     "agent-compose-size",
     "agent-compose-dedup",
     "trufflehog",
+    "pr-guard",
 ]
 
 # Per-repo hook opt-outs. eco-* repos vendor the Strange Loop Games Unity SDK,
