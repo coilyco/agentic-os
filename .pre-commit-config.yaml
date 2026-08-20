@@ -85,6 +85,14 @@ repos:
         always_run: true
         pass_filenames: false
         stages: [pre-commit]
+      - id: git-workflow
+        name: AGENTS.md git-workflow block auto-generated
+        entry: python -m agentic_os.pre_commit.check_git_workflow
+        language: python
+        additional_dependencies: [pyyaml]
+        always_run: true
+        pass_filenames: false
+        stages: [pre-commit]
       - id: misplaced-skills
         name: no foreign repo-specific skills
         entry: python -m agentic_os.pre_commit.check_misplaced_skills

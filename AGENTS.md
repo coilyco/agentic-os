@@ -109,7 +109,23 @@ A read-only clone cannot push itself, so push or merge workflows need a writable
 
 ## Agent rules
 
-**Git workflow** - `pull-request-and-merge`, declared as `ward.workflow` in this file's frontmatter. Agents push a branch and open a Forgejo pull request. Nothing lands straight on `main`, and the merge stays director-gated. Byte-identical across the five PR-lane repos (agentic-os, deploy, infrastructure, sirens-echo, ward) per agentic-os#994. Ward honors it only after ward#1661.
+<!-- BEGIN managed by agentic-os/scripts/apply-git-workflow.py -->
+### Git workflow
+
+**This repo runs the `pull-request-and-merge` lane**, declared as `ward.workflow` in this file's frontmatter. The agent commits to a task branch, pushes the branch, and opens a Forgejo pull request. Nothing lands straight on `main`, and the merge stays director-gated.
+
+The fleet runs two lanes, and both authorize the same core actions:
+
+* `merge-remote-main` - the agent commits, pushes to `main`, and closes the issue. No branch and no pull request.
+* `pull-request-and-merge` - the agent commits to a task branch, pushes it, and opens a pull request. The human merges.
+
+**These actions are pre-authorized on every lane, and the agent MUST take them without asking first.** Committing, creating a branch, pushing a branch, pushing the lane's own destination, and opening a pull request are ordinary reversible work, not the destructive wall that earns a question. Stopping to ask is how a turn ends with the work stranded in a dirty worktree.
+
+* **ALWAYS commit** in-scope work and **ALWAYS push** it to the canonical remote before pausing, reporting a checkpoint, handing off, or ending a turn. A local-only commit is not a checkpoint.
+* **ALWAYS open the pull request** in the same turn as the branch's first push, on every lane except `remote-branch-only`. A pushed branch with no pull request is litter nobody reviews.
+* **NEVER `--no-verify`** and **NEVER force-push**. Those two are the real walls, and they stay closed.
+* **NEVER merge** beyond what the lane grants. `merge-remote-main` lands its own push, and `pull-request-and-merge` leaves the merge to the human.
+<!-- END managed by agentic-os/scripts/apply-git-workflow.py -->
 
 ### Who you are talking to
 

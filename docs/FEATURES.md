@@ -42,6 +42,7 @@ Major shipped capabilities, not files.
 - [CI parity in dev-base](ci-in-dev-base.md) - CI runs inside the moving :release dev-base image.
 - [Pull-request CI gate](ci-in-dev-base.md) - fast tests and Docker-only image validation.
 - [AGENTS pointer](features-agents.md) - generated sibling-repo workspace pointer.
+- [AGENTS git-workflow block](features-agents.md) - generated per-lane standing authorization to commit, branch, push, and open a PR.
 - [Encoded leak guard](pre-commit-hygiene.md) - hex-encoded leak-term detector.
 - [Context measurement](context-budget.md) - reusable harness-neutral role
   capture, multi-provider attribution, and deterministic component diffs.

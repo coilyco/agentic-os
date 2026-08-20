@@ -57,6 +57,7 @@ check-ssm-path = "agentic_os.pre_commit.check_ssm_path:main"
 check-yaml-strict = "agentic_os.pre_commit.check_yaml_strict:main"
 check-repo-pointer-skills = "agentic_os.pre_commit.check_repo_pointer_skills:main"
 check-agents-pointer = "agentic_os.pre_commit.check_agents_pointer:main"
+check-git-workflow = "agentic_os.pre_commit.check_git_workflow:main"
 check-misplaced-skills = "agentic_os.pre_commit.check_misplaced_skills:main"
 check-seed-skills = "agentic_os.pre_commit.check_seed_skills:main"
 check-seed-skills-drift = "agentic_os.pre_commit.check_seed_skills_drift:main"
@@ -69,6 +70,7 @@ agent-id = "agentic_os.agent_id:main"
 prod-install-ref = "agentic_os.prod_install_ref:main"
 
 generate-agents-pointer = "agentic_os.generators.generate_agents_pointer:main"
+generate-git-workflow = "agentic_os.generators.generate_git_workflow:main"
 generate-repo-pointer-skill = "agentic_os.generators.generate_repo_pointer_skill:main"
 generate-seed-skills = "agentic_os.generators.generate_seed_skills:main"
 generate-caps-reference = "agentic_os.generators.generate_caps_reference:main"
@@ -94,14 +96,22 @@ band = "large"
 # not to shadow before it takes its first action, and every role source and skill
 # fires conditionally. The exemption is host-scoped rather than role-scoped, so
 # no role meld is the right owner. The set itself stays in docs, not here.
-agents_md_max_lines = 300
+# Raised 300 to 316 for the generated git-workflow block, which replaces the
+# one-line lane stamp it used to carry. The stamp named the lane without ever
+# saying the lane is a standing authorization, so agents kept stopping to ask
+# before a commit, a branch, a push, or a pull request and ended turns with the
+# work stranded in a dirty worktree. It cannot move to a role source: an agent
+# needs the authorization before its first action, and every role source fires
+# conditionally. It cannot be reworded per-repo either, since the generator
+# owns every byte.
+agents_md_max_lines = 316
 # The +400 over 26000 carries the byte-identical PR-lane git-workflow stamp
 # shared with deploy, infrastructure, sirens-echo, and ward (agentic-os#994).
 # Same parity argument as the engineer/QA live-deploy block: it cannot be
 # reworded or split per-repo without breaking the five-repo match.
 # Raised 27400 to 28200 alongside the line cap, for the same carve-out and the
 # same reason. The margin over the current file stays one section, not five.
-agents_md_max_chars = 28150
+agents_md_max_chars = 29460
 # Subsystem dirs carry idiomatic co-located READMEs and config docs that the
 # root/docs/skills location rule does not model. Excluded per the root layout
 # hatch: warp (Go module).

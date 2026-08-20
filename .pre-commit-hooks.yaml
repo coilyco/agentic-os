@@ -17,6 +17,7 @@
 #       - id: dead-cross-links
 #       - id: repo-pointer-skills
 #       - id: agents-pointer
+#       - id: git-workflow
 #       - id: misplaced-skills
 #       - id: yaml-strict
 #       - id: seed-skills
@@ -167,6 +168,15 @@
   name: AGENTS.md pointer block auto-generated
   description: Regenerate the managed workspace-pointer block in AGENTS.md offline and fail on drift. No-ops for unmanaged orgs and the canonical base repos. See docs/features-agents.md.
   entry: check-agents-pointer
+  language: python
+  always_run: true
+  pass_filenames: false
+  stages: [pre-commit]
+
+- id: git-workflow
+  name: AGENTS.md git-workflow block auto-generated
+  description: "Regenerate the managed git-workflow block in AGENTS.md offline and fail on drift. The block renders from the lane the same file declares as ward.workflow and states it as a standing authorization. Org-agnostic, no base repo exempt. See docs/features-agents.md."
+  entry: check-git-workflow
   language: python
   always_run: true
   pass_filenames: false
