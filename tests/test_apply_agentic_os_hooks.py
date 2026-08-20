@@ -162,7 +162,7 @@ def test_managed_block_includes_standard_hygiene_hooks() -> None:
         "forgejo-runner-validate",
         "https://github.com/shellcheck-py/shellcheck-py",
         "https://github.com/crate-ci/typos",
-        "args: []",
+        "args: [--force-exclude]",
     ):
         assert needle in block
 

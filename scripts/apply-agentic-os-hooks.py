@@ -276,7 +276,8 @@ def managed_block(
     rev: {TYPOS_REV}
     hooks:
       - id: typos
-        args: []
+        # Report, do not rewrite. --force-exclude keeps _typos.toml binding.
+        args: [--force-exclude]
   {END_MARKER}
 """
 
