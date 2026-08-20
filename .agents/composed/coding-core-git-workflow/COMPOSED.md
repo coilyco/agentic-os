@@ -10,9 +10,10 @@ Default across `~/projects/coilyco-*/*` and `~/projects/coilysiren/*`:
 <!-- TODO: a different ruleset for bridge -->
 
 - Follow the resolved workflow for the repo and run:
+- Every slug names what **you, the author** do. `-and-merge` means you merge, not that someone else will get to it.
 - `merge-remote-main` - commit to `main` directly, then push. Ward's default lane.
-- `pull-request` - push a branch and open a human-gated Forgejo PR.
-- `pull-request-and-merge` - push a branch and mark the PR for the director merge lane.
+- `pull-request` - push a branch and open a Forgejo PR, then stop. You do not merge. The director merge lane takes it from there, which is exactly why this lane has no `-and-merge`.
+- `pull-request-and-merge` - push a branch, open the PR, and merge it yourself once it is green. The PR is the record and the CI gate, not a wait state. Leaving one open and reporting it as awaiting someone is the failure this lane exists to prevent.
 - `remote-branch-only` - push a branch and stop. No PR and no merge.
 - A pushed branch always gets a PR. Only `remote-branch-only` stops at the branch, and only when the caller resolved that lane. Unassigned work defaults to `pull-request`. A branch with no PR is litter nobody reviews.
 - Run tests, linters, builds without asking. Fix failures.

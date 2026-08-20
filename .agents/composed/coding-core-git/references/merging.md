@@ -2,6 +2,12 @@
 
 Merge the PR, with both the `gh` and `git` + `curl` paths plus auto-merge.
 
+**Check the lane first.** These are mechanics, not authority.
+`merge-remote-main` and `pull-request-and-merge` both land the author's own
+work, the second one through a PR it merges itself. `pull-request` stops at the
+PR for the director merge lane, and `remote-branch-only` never merges. See the
+`coding-core-git-workflow` sibling for which lane a repo declares.
+
 ## Merge
 
 **With gh:**

@@ -23,12 +23,21 @@ committing or pushing is allowed here. The two genuine walls, `--no-verify` and
 force-push, stay closed in the same breath, so the block reads as a boundary
 rather than a blanket.
 
+Every slug names what the AGENT does, and the block says so outright because
+the first two drafts of this generator got it backwards. `pull-request-and-merge`
+carries the merge because the agent that authored the code merges its own pull
+request, which makes it the fully autonomous lane rather than the gated one.
+`pull-request` drops `-and-merge` because the author stops at the pull request
+and the director merge lane takes over. Ward's `agent_director_merge` currently
+gates director merges on the opposite slug, so its behavior contradicts this
+until someone reconciles it.
+
 Every repo with a root AGENTS.md gets the block, org-agnostic and with no base
 repo exempt. A lane binds the agent in the canonical base exactly as it binds
 one in a consumer, unlike the workspace pointer, which a base does not owe
-itself. A repo that declares no lane renders the undeclared variant, which
-holds the agent to the branch-and-pull-request shape rather than guessing that
-a direct push to `main` was intended.
+itself. A repo that declares no lane renders the `pull-request` variant, the
+one lane that neither pushes `main` nor merges, rather than guessing at an
+authority the repo never granted.
 
 Schema and rollout: see docs/features-agents.md.
 """
@@ -66,15 +75,16 @@ _LEAD: dict[str | None, str] = {
     ),
     PR_AND_MERGE: (
         f"**This repo runs the `{PR_AND_MERGE}` lane**, {_DECLARED}. The agent "
-        "commits to a task branch, pushes the branch, and opens a Forgejo pull "
-        "request. Nothing lands straight on `main`, and the merge stays "
-        "director-gated."
+        "commits to a task branch, pushes it, opens a Forgejo pull request, "
+        "and **merges that pull request itself** once it is green. The author "
+        "of the code is the one who merges it. Opening the pull request is a "
+        "step, never the stopping point."
     ),
     PULL_REQUEST: (
         f"**This repo runs the `{PULL_REQUEST}` lane**, {_DECLARED}. The agent "
-        "commits to a task branch, pushes the branch, and opens a human-gated "
-        "Forgejo pull request. Nothing lands straight on `main`, and the agent "
-        "never merges."
+        "commits to a task branch, pushes it, opens a Forgejo pull request, "
+        "and stops there. The author does not merge on this lane. The director "
+        "merge lane takes it from the pull request onward."
     ),
     BRANCH_ONLY: (
         f"**This repo runs the `{BRANCH_ONLY}` lane**, {_DECLARED}. The agent "
@@ -83,23 +93,26 @@ _LEAD: dict[str | None, str] = {
     ),
     None: (
         "**This repo declares no `ward.workflow` lane.** Until it declares one "
-        f"in this file's frontmatter, the agent MUST work the `{PR_AND_MERGE}` "
-        "shape: task branch, push, pull request, and never a direct push to "
-        "`main`."
+        f"in this file's frontmatter, the agent MUST work the `{PULL_REQUEST}` "
+        "shape: task branch, push, pull request, then stop. No direct push to "
+        "`main`, and no agent merge."
     ),
 }
 
 _BODY = f"""The fleet runs two lanes, and both authorize the same core actions:
 
 * `{MERGE_MAIN}` - the agent commits, pushes to `main`, and closes the issue. No branch and no pull request.
-* `{PR_AND_MERGE}` - the agent commits to a task branch, pushes it, and opens a pull request. The human merges.
+* `{PR_AND_MERGE}` - the agent commits to a task branch, pushes it, opens a pull request, and merges that pull request itself once it is green.
+
+**Every lane slug names what the AGENT does, never what someone else does.** `{PR_AND_MERGE}` carries the merge because the agent that authored the code merges its own pull request. `{PULL_REQUEST}` drops `-and-merge` because the author stops at the pull request and the director merge lane takes over. Reading `{PR_AND_MERGE}` as "someone else merges it later" inverts the two lanes and leaves finished work sitting unmerged.
 
 **These actions are pre-authorized on every lane, and the agent MUST take them without asking first.** Committing, creating a branch, pushing a branch, pushing the lane's own destination, and opening a pull request are ordinary reversible work, not the destructive wall that earns a question. Stopping to ask is how a turn ends with the work stranded in a dirty worktree.
 
 * **ALWAYS commit** in-scope work and **ALWAYS push** it to the canonical remote before pausing, reporting a checkpoint, handing off, or ending a turn. A local-only commit is not a checkpoint.
 * **ALWAYS open the pull request** in the same turn as the branch's first push, on every lane except `{BRANCH_ONLY}`. A pushed branch with no pull request is litter nobody reviews.
 * **NEVER `--no-verify`** and **NEVER force-push**. Those two are the real walls, and they stay closed.
-* **NEVER merge** beyond what the lane grants. `{MERGE_MAIN}` lands its own push, and `{PR_AND_MERGE}` leaves the merge to the human."""
+* **ALWAYS merge your own pull request on `{PR_AND_MERGE}`**, in the same turn, as soon as it is green. Reporting it as open and awaiting someone is the failure this lane exists to prevent.
+* **NEVER merge on `{PULL_REQUEST}` or `{BRANCH_ONLY}`.** Those two stop where they stop, and the director merge lane carries a `{PULL_REQUEST}` from there."""
 
 # Existing managed block, matched non-greedily for replacement / drift checks.
 BLOCK_RE = re.compile(re.escape(BEGIN) + r".*?" + re.escape(END), re.DOTALL)

@@ -69,10 +69,11 @@ def test_every_lane_renders_a_marker_delimited_block(lane):
     assert f"**This repo runs the `{lane}` lane**" in block
 
 
-def test_undeclared_lane_never_grants_a_direct_push_to_main():
+def test_undeclared_lane_grants_neither_a_main_push_nor_a_merge():
     body = render_body(None)
     assert "declares no `ward.workflow` lane" in body
-    assert "never a direct push to `main`" in body
+    assert f"MUST work the `{PULL_REQUEST}` shape" in body
+    assert "No direct push to `main`, and no agent merge." in body
     # An unknown slug is undeclared, not a lane of its own.
     assert render_body("invented-lane") == body
 
@@ -138,6 +139,43 @@ def test_apply_reaches_a_file_with_no_frontmatter():
     out = apply_to_text(NO_FRONTMATTER)
     assert "declares no `ward.workflow` lane" in out
     assert check_drift(out) == []
+
+
+# The slug names AGENT behavior, and two drafts inverted the PR lanes.
+# These pin the direction rather than the wording.
+
+
+def test_and_merge_lane_makes_the_author_merge_its_own_pull_request():
+    block = render_block(PR_AND_MERGE)
+    assert "**merges that pull request itself**" in block
+    assert "The author of the code is the one who merges it." in block
+    assert "Opening the pull request is a step, never the stopping point." in block
+
+
+def test_plain_pull_request_lane_stops_at_the_pull_request():
+    block = render_block(PULL_REQUEST)
+    assert "The author does not merge on this lane." in block
+    assert "director merge lane takes it from the pull request onward" in block
+
+
+def test_block_states_the_slug_names_agent_behavior():
+    block = render_block(PR_AND_MERGE)
+    assert "names what the AGENT does, never what someone else does" in block
+    assert f'Reading `{PR_AND_MERGE}` as "someone else merges it later" inverts' in block
+
+
+def test_every_lane_carries_both_merge_directions():
+    for lane in LANES:
+        block = render_block(lane)
+        assert f"**ALWAYS merge your own pull request on `{PR_AND_MERGE}`**" in block
+        assert f"**NEVER merge on `{PULL_REQUEST}` or `{BRANCH_ONLY}`.**" in block
+
+
+def test_no_lane_hands_the_and_merge_pull_request_to_someone_else():
+    for lane in LANES:
+        block = render_block(lane)
+        for inversion in ("director-gated", "The human merges", "human-gated"):
+            assert inversion not in block
 
 
 def test_check_drift_reports_a_missing_block():
