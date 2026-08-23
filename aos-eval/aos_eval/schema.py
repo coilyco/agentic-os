@@ -104,7 +104,7 @@ class Profile:
         )
 
 
-# Below 50 words the suggest-human-comms out-half drops the factual handoff,
+# Below 50 words the suggest-external-comms out-half drops the factual handoff,
 # which the boundary requires. Measured against written example responses.
 AGENT_COMPOSE = Profile(
     name="agent-compose",

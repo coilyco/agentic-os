@@ -109,7 +109,7 @@ func TestIssuePinHydratorCacheFreshnessStaleFallbackAndFailClosed(t *testing.T) 
 	}))
 	defer server.Close()
 	config := resolvedIssuePinConfig{
-		Role: "exec", BaseURL: server.URL, Owner: "owner", Repo: "inbox",
+		Role: "tpm", BaseURL: server.URL, Owner: "owner", Repo: "inbox",
 		MaxBytes: 4096, Freshness: time.Hour,
 	}
 	hydrator := issuePinHydrator{
@@ -149,7 +149,7 @@ func TestIssuePinHydratorCacheFreshnessStaleFallbackAndFailClosed(t *testing.T) 
 
 func TestIssuePinHydratorClipsBodiesAndSkipsRoleMismatch(t *testing.T) {
 	snapshot := issuePinSnapshot{
-		Format: issuePinSnapshotFormat, Role: "exec", BaseURL: "https://forgejo.example.test",
+		Format: issuePinSnapshotFormat, Role: "tpm", BaseURL: "https://forgejo.example.test",
 		Owner: "owner", Repo: "inbox", HydratedAt: time.Date(2026, 8, 6, 1, 0, 0, 0, time.UTC),
 		Issues: []issuePinIssue{{
 			Number: 302, Title: "Campaign", HTMLURL: serverIssueURL("302"),
@@ -165,7 +165,7 @@ func TestIssuePinHydratorClipsBodiesAndSkipsRoleMismatch(t *testing.T) {
 	config := filepath.Join(t.TempDir(), "issue-pin-context.yaml")
 	writeIssuePinConfig(t, config, "https://forgejo.example.test", false, 4096, "5m")
 	t.Setenv("AOS_ISSUE_PIN_CONTEXT", config)
-	if _, ok, err := loadIssuePinConfigForRole("engineer"); err != nil || ok {
+	if _, ok, err := loadIssuePinConfigForRole("platform"); err != nil || ok {
 		t.Fatalf("role mismatch config = ok %v err %v", ok, err)
 	}
 }

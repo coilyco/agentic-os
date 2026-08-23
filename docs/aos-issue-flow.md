@@ -10,7 +10,7 @@ requiring the operator to repeat an agent's non-interactive invocation policy.
 ## Invocation
 
 ```bash
-aos --role engineer --agent codex acompose-checkin
+aos --role platform --agent codex acompose-checkin
 ```
 
 `--role` selects the agent-compose role. `--agent` selects the executable

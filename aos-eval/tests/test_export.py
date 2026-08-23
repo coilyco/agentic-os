@@ -20,7 +20,7 @@ def pair_dataset(output="a plain answer"):
                 test_type="boundary",
                 prompt="p",
                 target="t",
-                attribute="modify-live-system",
+                attribute="modify-live-backend",
                 half=half,
                 pair_id="live",
             ),

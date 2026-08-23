@@ -63,8 +63,8 @@ Compose but never projects to or launches a harness, agent, or model.
 Capture the default AOS provider:
 
 ```sh
-just context-budget --role ops \
-  --snapshot /tmp/context-budget-ops-current.yaml
+just context-budget --role sysadmin \
+  --snapshot /tmp/context-budget-sysadmin-current.yaml
 ```
 
 ## Multiple providers
@@ -73,9 +73,9 @@ Repeatable `--additional-provider ID=PATH` arguments admit other capability
 providers into the same verified bundle:
 
 ```sh
-just context-budget --role ops \
+just context-budget --role sysadmin \
   --additional-provider private-context=/path/to/provider \
-  --snapshot /path/to/private/context-budget-ops-current.yaml
+  --snapshot /path/to/private/context-budget-sysadmin-current.yaml
 ```
 
 Agent Compose performs ordinary, role-composed, collision, and shadowing
@@ -88,9 +88,9 @@ map without copying private source content into AOS.
 Copy the current snapshot to a task-scoped baseline, then capture and compare:
 
 ```sh
-just context-budget --role ops \
+just context-budget --role sysadmin \
   --compare /tmp/context-budget-ops-baseline.yaml \
-  --snapshot /tmp/context-budget-ops-current.yaml
+  --snapshot /tmp/context-budget-sysadmin-current.yaml
 ```
 
 `--skill-root` remains the separate input for plugin skills declared outside the

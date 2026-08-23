@@ -1,66 +1,32 @@
 roles {
-    role engineer {
+    role platform {
         composed-skill writing-system-improvement-vocab
         composed-skill design-system
         composed-skill "coding-*"
     }
 
-    role director {
-        composed-skill tooling-director-decision-architecture
+    role sysadmin {
         composed-skill writing-system-improvement-vocab
-        composed-skill tooling-skill-authoring
-        composed-skill "tooling-issue-*"
-        composed-skill "tooling-scout-*"
-        composed-skill "writing-voice-*"
-        composed-skill "coding-shape-*"
-        composed-skill "coding-core-*"
-        composed-skill "tooling-pm-*"
-    }
-
-    role qa {
-        composed-skill tooling-code-review
-        composed-skill design-system
-        composed-skill "tooling-qa-*"
+        composed-skill "tooling-sysadmin-*"
         composed-skill "coding-*"
     }
 
-    role ops {
-        composed-skill writing-system-improvement-vocab
-        composed-skill "tooling-ops-*"
+    role eval {
+        composed-skill design-system
+        composed-skill "tooling-eval-*"
         composed-skill "coding-*"
     }
 
-    role design {
+    role frontend {
         composed-skill design-system
+        composed-skill tooling-tpm-product-brainstorming
+        composed-skill tooling-tpm-product-signal-triangulation
+        composed-skill tooling-tpm-program-decomposition
         composed-skill "coding-javascript*"
-        composed-skill "tooling-pm-*"
-        composed-skill "tooling-designer-*"
+        composed-skill "tooling-frontend-*"
         composed-skill "personal-preference-*"
         composed-skill "personal-preferences"
         composed-skill "writing-*-voice"
-    }
-
-    role exec {
-        composed-skill tooling-director-decision-architecture
-        composed-skill tooling-skill-authoring
-        composed-skill "tooling-advisor-*"
-        composed-skill "writing-voice-*"
-        composed-skill "tooling-issue-*"
-        composed-skill "tooling-scout-*"
-        composed-skill "tooling-ceo-*"
-        composed-skill "tooling-pm-*"
-    }
-
-    role creator {
-        composed-skill "writing-*"
-        composed-skill "personal-preference-*"
-        composed-skill "personal-preferences"
-        composed-skill "tooling-customer-success-*"
-        composed-skill tooling-discord-community-host
-    }
-
-    role ai {
-        composed-skill "coding-*"
     }
 
     role gamedev {
@@ -70,7 +36,27 @@ roles {
         composed-skill coding-python
         composed-skill coding-javascript
         composed-skill "coding-core-*"
-        composed-skill "tooling-designer-*"
+        composed-skill "tooling-frontend-*"
+        composed-skill "personal-preference-*"
+        composed-skill "personal-preferences"
+    }
+
+    role tpm {
+        composed-skill tooling-code-review
+        composed-skill tooling-skill-authoring
+        composed-skill writing-system-improvement-vocab
+        composed-skill "tooling-tpm-*"
+        composed-skill "tooling-issue-*"
+        composed-skill "tooling-scout-*"
+        composed-skill "writing-voice-*"
+        composed-skill "coding-shape-*"
+        composed-skill "coding-core-*"
+    }
+
+    role devrel {
+        composed-skill tooling-discord-community-host
+        composed-skill "writing-*"
+        composed-skill "tooling-devrel-*"
         composed-skill "personal-preference-*"
         composed-skill "personal-preferences"
     }

@@ -30,9 +30,9 @@ def write_person_snapshot(path: Path) -> None:
                 "schema_version": agent_compose_person.PERSON_SNAPSHOT_SCHEMA_VERSION,
                 "source": "person:fixture",
                 "person": "fixture",
-                "role_order": ["ops"],
+                "role_order": ["sysadmin"],
                 "roles": {
-                    "ops": {
+                    "sysadmin": {
                         "personalities": list(FIXTURE_PERSONALITIES),
                         "supported_model_tiers": ["frontier", "commodity"],
                     }
@@ -61,8 +61,8 @@ def provider_fixture(root: Path) -> Path:
     write(
         provider / ".agents" / "roles.kdl",
         "roles {\n"
-        "    role ops {\n"
-        "        composed-skill tooling-ops-live-remediation\n"
+        "    role sysadmin {\n"
+        "        composed-skill tooling-sysadmin-live-remediation\n"
         "    }\n"
         "}\n",
     )
@@ -74,10 +74,10 @@ def provider_fixture(root: Path) -> Path:
         provider
         / ".agents"
         / "composed"
-        / "tooling-ops-live-remediation"
+        / "tooling-sysadmin-live-remediation"
         / "COMPOSED.md",
         "---\n"
-        "name: tooling-ops-live-remediation\n"
+        "name: tooling-sysadmin-live-remediation\n"
         "description: Bounded remediation.\n"
         "---\n"
         "# Remediate\n",
@@ -92,7 +92,7 @@ def bundle_fixture(root: Path) -> Path:
         json.dumps(
             {
                 "format": "agent-compose.bundle",
-                "role": "ops",
+                "role": "sysadmin",
                 "personalities": list(FIXTURE_PERSONALITIES),
                 "sources": ["roster:core", "aos"],
                 "delivery": {
@@ -113,10 +113,10 @@ def bundle_fixture(root: Path) -> Path:
         / "content"
         / "skills"
         / "aos"
-        / "tooling-ops-live-remediation"
+        / "tooling-sysadmin-live-remediation"
         / "SKILL.md",
         "---\n"
-        "name: tooling-ops-live-remediation\n"
+        "name: tooling-sysadmin-live-remediation\n"
         "description: Bounded remediation.\n"
         "---\n"
         "# Remediate\n",
@@ -141,10 +141,10 @@ def bundle_fixture(root: Path) -> Path:
         / "content"
         / "skills"
         / context.PERSON_SOURCE_SEGMENT
-        / "role-ops"
+        / "role-sysadmin"
         / "SKILL.md",
         "---\n"
-        "name: role-ops\n"
+        "name: role-sysadmin\n"
         "description: Adopt the Ops charter.\n"
         "---\n"
         "# Ops\n",
@@ -185,7 +185,7 @@ def build_fixture_snapshot(
         provider,
         repo,
         cwd,
-        role="ops",
+        role="sysadmin",
         expected_personalities=FIXTURE_PERSONALITIES,
         plugin_roots=plugin_roots or [],
         mcp_servers=mcp_servers or [],
@@ -210,15 +210,15 @@ def test_validate_role_requires_generated_role(
     write_person_snapshot(person_snapshot)
 
     assert context.validate_role(
-        person_snapshot, "ops"
+        person_snapshot, "sysadmin"
     ).personalities == FIXTURE_PERSONALITIES
-    assert context.validate_role(person_snapshot, "ops").model_tiers == (
+    assert context.validate_role(person_snapshot, "sysadmin").model_tiers == (
         "frontier",
         "commodity",
     )
 
-    with pytest.raises(RuntimeError, match="role qa is absent"):
-        context.validate_role(person_snapshot, "qa")
+    with pytest.raises(RuntimeError, match="role eval is absent"):
+        context.validate_role(person_snapshot, "eval")
     with pytest.raises(RuntimeError, match="role must be a lowercase slug"):
         context.validate_role(person_snapshot, "QA")
 
@@ -233,7 +233,7 @@ def test_agents_inventory_rejects_outside_cwd(tmp_path: Path) -> None:
             provider,
             repo,
             tmp_path,
-            role="ops",
+            role="sysadmin",
             expected_personalities=FIXTURE_PERSONALITIES,
         )
 
@@ -259,7 +259,7 @@ def test_agents_inventory_measures_harness_neutral_repo_cascade(
         provider,
         provider,
         cwd,
-        role="ops",
+        role="sysadmin",
         expected_personalities=FIXTURE_PERSONALITIES,
     )
     components = [
@@ -306,7 +306,7 @@ def test_build_snapshot_separates_eager_and_lazy_components(tmp_path: Path) -> N
     )
 
     assert first == second
-    assert first["subject"] == {"role": "ops"}
+    assert first["subject"] == {"role": "sysadmin"}
     assert "model_class" not in first["bundle"]
     assert first["bundle"]["personalities"] == list(FIXTURE_PERSONALITIES)
     assert first["cwd"] == "nested/deeper"
@@ -336,8 +336,8 @@ def test_build_snapshot_separates_eager_and_lazy_components(tmp_path: Path) -> N
     assert list(skills) == sorted(
         [
             "aos/alpha",
-            "aos/tooling-ops-live-remediation",
-            "roster:core/role-ops",
+            "aos/tooling-sysadmin-live-remediation",
+            "roster:core/role-sysadmin",
             *expected_personality_skills,
             "skill-root-0/plugin-tool",
         ]
@@ -348,8 +348,8 @@ def test_build_snapshot_separates_eager_and_lazy_components(tmp_path: Path) -> N
     assert alpha["eager"] > 0
     assert alpha["lazy"] > 0
     assert alpha["resources"] == 1
-    assert skills["aos/tooling-ops-live-remediation"]["class"] == "role-composed"
-    assert skills["roster:core/role-ops"]["class"] == "role"
+    assert skills["aos/tooling-sysadmin-live-remediation"]["class"] == "role-composed"
+    assert skills["roster:core/role-sysadmin"]["class"] == "role"
     assert all(
         skills[skill_id]["class"] == "personality"
         for skill_id in expected_personality_skills
@@ -424,7 +424,7 @@ def test_build_snapshot_attributes_additional_provider_skills(
         provider,
         repo,
         cwd,
-        role="ops",
+        role="sysadmin",
         expected_personalities=FIXTURE_PERSONALITIES,
         additional_providers={"aosk": private_provider},
     )
@@ -443,16 +443,16 @@ def test_snapshot_rejects_wrong_bundle_role(tmp_path: Path) -> None:
     bundle = bundle_fixture(tmp_path)
     repo, cwd = repo_fixture(tmp_path)
     manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
-    manifest["role"] = "engineer"
+    manifest["role"] = "platform"
     write(bundle / "manifest.json", json.dumps(manifest))
 
-    with pytest.raises(RuntimeError, match="expected role ops"):
+    with pytest.raises(RuntimeError, match="expected role sysadmin"):
         context.build_snapshot(
             bundle,
             provider,
             repo,
             cwd,
-            role="ops",
+            role="sysadmin",
             expected_personalities=FIXTURE_PERSONALITIES,
         )
 
@@ -475,7 +475,7 @@ def test_snapshot_rejects_personality_drift_from_agent_compose(
             provider,
             repo,
             cwd,
-            role="ops",
+            role="sysadmin",
             expected_personalities=FIXTURE_PERSONALITIES,
         )
 
@@ -503,7 +503,7 @@ def test_snapshot_rejects_missing_personality_skill_body(
             provider,
             repo,
             cwd,
-            role="ops",
+            role="sysadmin",
             expected_personalities=FIXTURE_PERSONALITIES,
         )
 
@@ -531,7 +531,7 @@ def test_snapshot_accepts_additional_roster_owned_skill(tmp_path: Path) -> None:
         provider,
         repo,
         cwd,
-        role="ops",
+        role="sysadmin",
         expected_personalities=FIXTURE_PERSONALITIES,
     )
 
@@ -547,7 +547,7 @@ def test_snapshot_round_trip_and_delta(tmp_path: Path) -> None:
         provider,
         repo,
         cwd,
-        role="ops",
+        role="sysadmin",
         expected_personalities=FIXTURE_PERSONALITIES,
     )
     snapshot_path = tmp_path / "before.yaml"
@@ -565,7 +565,7 @@ def test_snapshot_round_trip_and_delta(tmp_path: Path) -> None:
         provider,
         repo,
         cwd,
-        role="ops",
+        role="sysadmin",
         expected_personalities=FIXTURE_PERSONALITIES,
     )
     rendered = context.render_delta(context.load_snapshot(snapshot_path), after)
@@ -581,7 +581,7 @@ def test_snapshot_round_trip_and_delta(tmp_path: Path) -> None:
 def test_delta_rejects_different_role(tmp_path: Path) -> None:
     before = build_fixture_snapshot(tmp_path / "before")
     after = build_fixture_snapshot(tmp_path / "after")
-    after["subject"] = {"role": "qa"}
+    after["subject"] = {"role": "eval"}
     after["repository"] = before["repository"]
     after["cwd"] = before["cwd"]
 
@@ -616,7 +616,7 @@ def test_capture_requires_only_agent_compose_executable(
             roster = Path(command[command.index("--out") + 1])
             write(
                 roster / "AGENTS.COMPOSE.md",
-                "- If you are codex running the ops role: your name is solar SRE.\n",
+                "- If you are codex running the sysadmin role: your name is solar SRE.\n",
             )
             write_person_snapshot(roster / "person.json")
         elif operation == "compose":
@@ -631,18 +631,18 @@ def test_capture_requires_only_agent_compose_executable(
         provider,
         repo,
         cwd,
-        role="ops",
+        role="sysadmin",
         agent_compose="agent-compose",
         mcporter_path=tmp_path / "missing-mcporter.json",
     )
 
-    assert snapshot["subject"] == {"role": "ops"}
+    assert snapshot["subject"] == {"role": "sysadmin"}
     assert executable_lookups == ["agent-compose"]
     assert operations == ["roster", "compose"]
 
 
 def test_request_uses_role_compatibility_tier_without_model_class() -> None:
-    request = context._request_text("provider", "ops", "frontier")
+    request = context._request_text("provider", "sysadmin", "frontier")
     assert 'model-tier "frontier"' in request
     assert "model-class" not in request
 
@@ -650,7 +650,7 @@ def test_request_uses_role_compatibility_tier_without_model_class() -> None:
 def test_request_includes_named_additional_providers() -> None:
     request = context._request_text(
         "providers/aos",
-        "ops",
+        "sysadmin",
         "frontier",
         {"aosk": "providers/aosk"},
     )

@@ -51,8 +51,8 @@ them.
 
 Usage:
     check-context-budget                  # report installed harness context
-    check-context-budget --role ops --snapshot context-budget-ops-before.yaml
-    check-context-budget --role ops --compare context-budget-ops-before.yaml \
+    check-context-budget --role sysadmin --snapshot context-budget-ops-before.yaml
+    check-context-budget --role sysadmin --compare context-budget-ops-before.yaml \
         --snapshot context-budget-ops-after.yaml
 """
 from __future__ import annotations

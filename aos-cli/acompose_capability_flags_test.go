@@ -33,7 +33,7 @@ func assertRefused(t *testing.T, err error, wantFlags ...string) {
 func TestAcomposeRefusesCapabilityFlagsAfterTheToken(t *testing.T) {
 	err := runAOS(t,
 		"acompose", "--warded", "--guarded", "--composed",
-		"--role", "director", "--agent", "codex", "--", "codex")
+		"--role", "tpm", "--agent", "codex", "--", "codex")
 
 	assertRefused(t, err, "--warded", "--guarded", "--agent")
 }
@@ -42,18 +42,18 @@ func TestAcomposeRefusesCapabilityFlagsBeforeTheToken(t *testing.T) {
 	// Parser ordering must not reopen the bypass.
 	err := runAOS(t,
 		"--warded", "--guarded", "--composed",
-		"--role", "director", "--agent", "codex", "acompose", "--", "codex")
+		"--role", "tpm", "--agent", "codex", "acompose", "--", "codex")
 
 	assertRefused(t, err, "--warded", "--guarded", "--agent")
 }
 
 func TestAcomposeRefusesEachCapabilityFlagAlone(t *testing.T) {
 	for _, flag := range []string{"--warded", "--guarded"} {
-		if err := runAOS(t, "acompose", flag, "--role", "director", "--", "codex"); err == nil {
+		if err := runAOS(t, "acompose", flag, "--role", "tpm", "--", "codex"); err == nil {
 			t.Fatalf("acompose accepted %s alone", flag)
 		}
 	}
-	err := runAOS(t, "acompose", "--agent", "codex", "--role", "director", "--", "codex")
+	err := runAOS(t, "acompose", "--agent", "codex", "--role", "tpm", "--", "codex")
 	assertRefused(t, err, "--agent")
 }
 

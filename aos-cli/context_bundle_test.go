@@ -17,7 +17,7 @@ func TestBuildContextBundlePlanUsesAOSImageAsMaterializer(t *testing.T) {
 	digest := strings.Repeat("a", 64)
 	plan, err := buildContextBundlePlan(contextBundlePlanOptions{
 		Image:    "aos:test",
-		Role:     "engineer",
+		Role:     "platform",
 		Agent:    "codex",
 		Delivery: "native-skills",
 		Composed: true,
@@ -41,7 +41,7 @@ func TestBuildContextBundlePlanUsesAOSImageAsMaterializer(t *testing.T) {
 		"type=bind,source=" + issuePins + ",target=" + containerIssuePinContext + ",readonly",
 		"--entrypoint\n/usr/local/bin/aos",
 		"aos:test",
-		"--role\nengineer",
+		"--role\nplatform",
 		"--agent\ncodex",
 		"--composed",
 		"--guarded",
@@ -65,21 +65,21 @@ func TestValidateContextBundleAcceptsIssuePinProvenance(t *testing.T) {
 		t.Fatal(err)
 	}
 	digest := strings.Repeat("a", 64)
-	manifest := `{"format":"ward.context-bundle.v1","role":"engineer","agent":"codex","repositories":["owner/one"],"issue_pins":{"digest":"` + digest + `"}}`
+	manifest := `{"format":"ward.context-bundle.v1","role":"platform","agent":"codex","repositories":["owner/one"],"issue_pins":{"digest":"` + digest + `"}}`
 	if err := os.WriteFile(filepath.Join(root, contextBundleManifestName), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateContextBundleOutput(root, contextBundleMaterializeOptions{
-		Role: "engineer", Agent: "codex", Composed: true,
+		Role: "platform", Agent: "codex", Composed: true,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	manifest = `{"format":"ward.context-bundle.v1","role":"engineer","agent":"codex","repositories":["owner/one"],"issue_pins":{"digest":"not-hex"}}`
+	manifest = `{"format":"ward.context-bundle.v1","role":"platform","agent":"codex","repositories":["owner/one"],"issue_pins":{"digest":"not-hex"}}`
 	if err := os.WriteFile(filepath.Join(root, contextBundleManifestName), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateContextBundleOutput(root, contextBundleMaterializeOptions{
-		Role: "engineer", Agent: "codex", Composed: true,
+		Role: "platform", Agent: "codex", Composed: true,
 	}); err == nil {
 		t.Fatal("invalid issue-pin digest passed validation")
 	}
@@ -90,7 +90,7 @@ func TestContainerContextBundleAcceptsVerifiedBundleFlag(t *testing.T) {
 	command := newCommand()
 	err := command.Run(context.Background(), []string{
 		"aos",
-		"--role", "engineer",
+		"--role", "platform",
 		"--agent", "codex",
 		"--layout", "codex",
 		"--composed",
@@ -119,7 +119,7 @@ func TestStageAOSGuardContextCreatesOnlySelectedLoadPoints(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(source, "references", "commands.yaml"), []byte("commands: []\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := stageAOSGuardContext("codex", "engineer", home, source); err != nil {
+	if err := stageAOSGuardContext("codex", "platform", home, source); err != nil {
 		t.Fatal(err)
 	}
 	if err := validateStagedHome(home, "codex"); err != nil {
@@ -170,18 +170,18 @@ func TestValidateContextBundleOutputBindsRoleAndAgent(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(root, contextBundleManifestName),
-		[]byte("{\"format\":\"ward.context-bundle.v1\",\"role\":\"engineer\",\"agent\":\"codex\",\"repositories\":[\"coilyco-flight-deck/agentic-os\"]}\n"),
+		[]byte("{\"format\":\"ward.context-bundle.v1\",\"role\":\"platform\",\"agent\":\"codex\",\"repositories\":[\"coilyco-flight-deck/agentic-os\"]}\n"),
 		0o644,
 	); err != nil {
 		t.Fatal(err)
 	}
 	expected := contextBundleMaterializeOptions{
-		Role: "engineer", Agent: "codex", Composed: true,
+		Role: "platform", Agent: "codex", Composed: true,
 	}
 	if err := validateContextBundleOutput(root, expected); err != nil {
 		t.Fatal(err)
 	}
-	expected.Role = "qa"
+	expected.Role = "eval"
 	if err := validateContextBundleOutput(root, expected); err == nil {
 		t.Fatal("role-mismatched context bundle passed")
 	}
@@ -190,11 +190,11 @@ func TestValidateContextBundleOutputBindsRoleAndAgent(t *testing.T) {
 func TestReadBundleRepositoriesRejectsUnsortedSelection(t *testing.T) {
 	t.Parallel()
 	bundle := t.TempDir()
-	manifest := `{"format":"agent-compose.bundle","role":"engineer","repositories":[{"identity":"owner/two"},{"identity":"owner/one"}]}`
+	manifest := `{"format":"agent-compose.bundle","role":"platform","repositories":[{"identity":"owner/two"},{"identity":"owner/one"}]}`
 	if err := os.WriteFile(filepath.Join(bundle, "manifest.json"), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err := readBundleRepositories(bundle, "engineer")
+	_, err := readBundleRepositories(bundle, "platform")
 	if err == nil || !strings.Contains(err.Error(), "sorted") {
 		t.Fatalf("unsorted repository error = %v", err)
 	}
@@ -209,12 +209,12 @@ func TestValidateContextBundleRejectsRepositoriesWithoutComposition(t *testing.T
 	if err := os.WriteFile(filepath.Join(root, "home", ".codex", "AGENTS.md"), []byte("context\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	manifest := `{"format":"ward.context-bundle.v1","role":"engineer","agent":"codex","repositories":["owner/one"]}`
+	manifest := `{"format":"ward.context-bundle.v1","role":"platform","agent":"codex","repositories":["owner/one"]}`
 	if err := os.WriteFile(filepath.Join(root, contextBundleManifestName), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	err := validateContextBundleOutput(root, contextBundleMaterializeOptions{
-		Role: "engineer", Agent: "codex", Composed: false,
+		Role: "platform", Agent: "codex", Composed: false,
 	})
 	if err == nil || !strings.Contains(err.Error(), "uncomposed") {
 		t.Fatalf("uncomposed repository error = %v", err)

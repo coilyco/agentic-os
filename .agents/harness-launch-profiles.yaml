@@ -1,17 +1,15 @@
 roles:
-  engineer:
+  platform:
     agent: claude
-  director:
+  sysadmin:
     agent: claude
-  qa:
+  eval:
     agent: claude
-  ops:
+  frontend:
     agent: claude
-  design:
+  gamedev:
     agent: claude
-  exec:
+  tpm:
     agent: claude
-  creator:
-    agent: claude
-  ai:
+  devrel:
     agent: claude

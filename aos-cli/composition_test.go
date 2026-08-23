@@ -18,15 +18,15 @@ func useStandaloneWorkspaceFixture(t *testing.T) (nativeRuntime, string) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(profiles, []byte(`roles:
-  engineer:
+  platform:
     agent: codex
-  director:
+  tpm:
     agent: claude
-  qa:
+  eval:
     agent: codex
   ops:
     agent: claude
-  design:
+  frontend:
     agent: claude
   community:
     agent: claude
@@ -64,7 +64,7 @@ func useStandaloneWorkspaceWithoutRepositoryPlanFixture(t *testing.T) nativeRunt
 	}
 	profiles := filepath.Join(root, "harness-launch-profiles.yaml")
 	if err := os.WriteFile(profiles, []byte(`roles:
-  engineer:
+  platform:
     agent: codex
 `), 0o644); err != nil {
 		t.Fatal(err)
@@ -101,25 +101,25 @@ func TestValidateIntegratedLaunchMatrix(t *testing.T) {
 	t.Parallel()
 	valid := []integratedLaunchOptions{
 		{
-			Image: "aos:test", Role: "engineer", Agent: "codex",
+			Image: "aos:test", Role: "platform", Agent: "codex",
 			Delivery: "native-skills", Composed: true,
 		},
 		{
-			Image: "aos:test", Role: "design", Agent: "claude",
+			Image: "aos:test", Role: "frontend", Agent: "claude",
 			Delivery: "native-skills", Guarded: true,
 		},
 		{
-			Image: "aos:test", Role: "director", Agent: "goose",
+			Image: "aos:test", Role: "tpm", Agent: "goose",
 			Delivery: "compiled", Warded: true,
 			Arguments: []string{"supervise the queue"},
 		},
 		{
-			Image: "aos:test", Role: "engineer", Agent: "codex",
+			Image: "aos:test", Role: "platform", Agent: "codex",
 			Delivery: "compiled", Warded: true, Composed: true,
-			AgentID: "engineer-one", Arguments: []string{"owner/repo#1"},
+			AgentID: "platform-one", Arguments: []string{"owner/repo#1"},
 		},
 		{
-			Image: "aos:test", Role: "qa", Agent: "opencode",
+			Image: "aos:test", Role: "eval", Agent: "opencode",
 			Delivery: "compiled", Warded: true, Composed: true,
 			Arguments: []string{"owner/repo#123"},
 		},
@@ -150,28 +150,28 @@ func TestValidateIntegratedLaunchMatrix(t *testing.T) {
 		{
 			name: "unknown agent",
 			opts: integratedLaunchOptions{
-				Image: "aos:test", Role: "engineer", Agent: "other", Composed: true,
+				Image: "aos:test", Role: "platform", Agent: "other", Composed: true,
 			},
 			want: "unsupported --agent",
 		},
 		{
 			name: "generic role missing work",
 			opts: integratedLaunchOptions{
-				Image: "aos:test", Role: "design", Agent: "codex", Warded: true,
+				Image: "aos:test", Role: "frontend", Agent: "codex", Warded: true,
 			},
 			want: "needs work text",
 		},
 		{
 			name: "missing work",
 			opts: integratedLaunchOptions{
-				Image: "aos:test", Role: "engineer", Agent: "codex", Warded: true,
+				Image: "aos:test", Role: "platform", Agent: "codex", Warded: true,
 			},
 			want: "needs work text",
 		},
 		{
 			name: "authority translation override",
 			opts: integratedLaunchOptions{
-				Image: "aos:test", Role: "qa", Agent: "codex", Warded: true,
+				Image: "aos:test", Role: "eval", Agent: "codex", Warded: true,
 				Arguments: []string{"owner/repo#1", "--context-bundle", "other"},
 			},
 			want: "conflicts with AOS-owned Ward translation",
@@ -179,7 +179,7 @@ func TestValidateIntegratedLaunchMatrix(t *testing.T) {
 		{
 			name: "substrate without composition",
 			opts: integratedLaunchOptions{
-				Image: "aos:test", Role: "engineer", Agent: "codex",
+				Image: "aos:test", Role: "platform", Agent: "codex",
 				Guarded: true, NoSubstrate: true,
 			},
 			want: "needs --composed",
@@ -187,7 +187,7 @@ func TestValidateIntegratedLaunchMatrix(t *testing.T) {
 		{
 			name: "warded kubeconfig",
 			opts: integratedLaunchOptions{
-				Image: "aos:test", Role: "director", Agent: "codex",
+				Image: "aos:test", Role: "tpm", Agent: "codex",
 				Warded: true, Kubeconfig: "/host/config",
 			},
 			want: "only for standalone launches",
@@ -234,7 +234,7 @@ func TestBuildWardLaunchPlanOwnsSiblingTranslation(t *testing.T) {
 	t.Parallel()
 	plan, err := buildWardLaunchPlan(integratedLaunchOptions{
 		Image:     "aos:test",
-		Role:      "engineer",
+		Role:      "platform",
 		Agent:     "codex",
 		Arguments: []string{"owner/repo#267", "--print"},
 	}, "/cache/context")
@@ -243,7 +243,7 @@ func TestBuildWardLaunchPlanOwnsSiblingTranslation(t *testing.T) {
 	}
 	got := strings.Join(append([]string{plan.Command}, plan.Args...), " ")
 	for _, want := range []string{
-		"ward agent run --role engineer owner/repo#267 --print",
+		"ward agent run --role platform owner/repo#267 --print",
 		"--agent codex",
 		"--image aos:test",
 		"--context-bundle /cache/context",
@@ -269,7 +269,7 @@ func TestIntegratedWardedDirectorCodexDryRunUsesOpaqueCompositionMetadata(t *tes
 	err := command.Run(context.Background(), []string{
 		"aos",
 		"--agent", "codex",
-		"--role", "director",
+		"--role", "tpm",
 		"--image", "aos:test",
 		"--warded",
 		"--composed",
@@ -282,7 +282,7 @@ func TestIntegratedWardedDirectorCodexDryRunUsesOpaqueCompositionMetadata(t *tes
 		t.Fatal(err)
 	}
 	rendered := output.String()
-	for _, want := range []string{"ward agent run --role director", "--agent codex", "--context-bundle '<AOS_CONTEXT_BUNDLE>'"} {
+	for _, want := range []string{"ward agent run --role tpm", "--agent codex", "--context-bundle '<AOS_CONTEXT_BUNDLE>'"} {
 		if !strings.Contains(rendered, want) {
 			t.Errorf("dry run missing %q:\n%s", want, rendered)
 		}
@@ -310,7 +310,7 @@ func TestIntegratedWardedDryRunStartsNoProcess(t *testing.T) {
 	err := command.Run(context.Background(), []string{
 		"aos",
 		"--agent", "codex",
-		"--role", "engineer",
+		"--role", "platform",
 		"--image", "aos:test",
 		"--warded",
 		"--composed",
@@ -329,7 +329,7 @@ func TestIntegratedWardedDryRunStartsNoProcess(t *testing.T) {
 		"_container-context-bundle",
 		"--composed",
 		"--guarded",
-		"ward agent run --role engineer",
+		"ward agent run --role platform",
 		"--agent codex",
 		"--image aos:test",
 		"--context-bundle '<AOS_CONTEXT_BUNDLE>'",
@@ -351,7 +351,7 @@ func TestIntegratedStandaloneDryRunAlwaysUsesComposedAndGuardedContexts(t *testi
 	err := command.Run(context.Background(), []string{
 		"aos",
 		"--agent", "codex",
-		"--role", "engineer",
+		"--role", "platform",
 		"--image", "aos:test",
 		"--auth=false",
 		"--dry-run",
@@ -390,7 +390,7 @@ func TestIntegratedStandaloneDryRunWithoutRepositoryPlanUsesCallerWorkspace(t *t
 		"--image", "aos:test",
 		"--auth=false",
 		"--dry-run",
-		"engineer",
+		"platform",
 	})
 	if err := command.Run(context.Background(), args); err != nil {
 		t.Fatal(err)
@@ -401,7 +401,7 @@ func TestIntegratedStandaloneDryRunWithoutRepositoryPlanUsesCallerWorkspace(t *t
 		"--workdir /workspace",
 		"--workspace /workspace",
 		",target=" + defaultAgentHome,
-		"--role engineer",
+		"--role platform",
 		"--layout codex",
 		"-- codex",
 	} {
@@ -431,7 +431,7 @@ func TestIntegratedStandaloneDryRunUsesNativeShadowWorkspace(t *testing.T) {
 		"--image", "aos:test",
 		"--auth=false",
 		"--dry-run",
-		"engineer",
+		"platform",
 		"--version",
 	})
 	if err := command.Run(context.Background(), args); err != nil {
@@ -466,7 +466,7 @@ func TestIntegratedStandaloneDryRunFromProjectsRootMountsFleetSurface(t *testing
 	if err := command.Run(context.Background(), []string{
 		"aos",
 		"--agent", "codex",
-		"--role", "engineer",
+		"--role", "platform",
 		"--image", "aos:test",
 		"--auth=false",
 		"--dry-run",
@@ -532,7 +532,7 @@ func TestIntegratedStandaloneDryRunMountsSafeHomeProjection(t *testing.T) {
 	if err := command.Run(context.Background(), []string{
 		"aos",
 		"--agent", "codex",
-		"--role", "engineer",
+		"--role", "platform",
 		"--image", "aos:test",
 		"--auth=false",
 		"--dry-run",
@@ -594,7 +594,7 @@ func TestIntegratedStandaloneCodexAuthFailurePrecedesDockerLaunch(t *testing.T) 
 	err := command.Run(context.Background(), []string{
 		"aos",
 		"--agent", "codex",
-		"--role", "engineer",
+		"--role", "platform",
 		"--image", "aos:test",
 		"--",
 		"exec", "probe",
@@ -620,7 +620,7 @@ func TestIntegratedStandaloneDryRunReportsUnusableAuthAndStillRendersPlan(t *tes
 	err := command.Run(context.Background(), []string{
 		"aos",
 		"--agent", "codex",
-		"--role", "engineer",
+		"--role", "platform",
 		"--image", "aos:test",
 		"--dry-run",
 		"--",
@@ -649,7 +649,7 @@ func TestIntegratedStandaloneCompatibilityFlagsCannotDisableContexts(t *testing.
 	err := command.Run(context.Background(), []string{
 		"aos",
 		"--agent", "codex",
-		"--role", "engineer",
+		"--role", "platform",
 		"--image", "aos:test",
 		"--composed=false",
 		"--guarded=false",
@@ -686,7 +686,7 @@ func TestAOSWardInvocationAlwaysUsesWardAndBothContexts(t *testing.T) {
 	err := command.Run(context.Background(), []string{
 		"aosward",
 		"--agent", "codex",
-		"--role", "director",
+		"--role", "tpm",
 		"--image", "aos:test",
 		"--warded=false",
 		"--composed=false",
@@ -703,7 +703,7 @@ func TestAOSWardInvocationAlwaysUsesWardAndBothContexts(t *testing.T) {
 		"_container-context-bundle",
 		"--composed",
 		"--guarded",
-		"ward agent run --role director",
+		"ward agent run --role tpm",
 		"--context-bundle '<AOS_CONTEXT_BUNDLE>'",
 	} {
 		if !strings.Contains(rendered, want) {
@@ -724,7 +724,7 @@ func TestAOSComposeAliasesUseBothContextsWithoutWard(t *testing.T) {
 			err := command.Run(context.Background(), []string{
 				alias,
 				"--agent", "codex",
-				"--role", "engineer",
+				"--role", "platform",
 				"--image", "aos:test",
 				"--composed=false",
 				"--guarded=false",
@@ -769,7 +769,7 @@ func TestAOSComposeAliasesAcceptRoleShortcutWithDefaultAgent(t *testing.T) {
 				"--image", "aos:test",
 				"--auth=false",
 				"--dry-run",
-				"engineer",
+				"platform",
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -777,7 +777,7 @@ func TestAOSComposeAliasesAcceptRoleShortcutWithDefaultAgent(t *testing.T) {
 			rendered := output.String()
 			for _, want := range []string{
 				"_container-acompose",
-				"--role engineer",
+				"--role platform",
 				"-- codex",
 			} {
 				if !strings.Contains(rendered, want) {
@@ -799,7 +799,7 @@ func TestAOSComposeAliasRoleShortcutAcceptsPositionalHarnessOverride(t *testing.
 		"--image", "aos:test",
 		"--auth=false",
 		"--dry-run",
-		"engineer",
+		"platform",
 		"goose",
 		"--version",
 	})
@@ -809,7 +809,7 @@ func TestAOSComposeAliasRoleShortcutAcceptsPositionalHarnessOverride(t *testing.
 	rendered := output.String()
 	for _, want := range []string{
 		"_container-acompose",
-		"--role engineer",
+		"--role platform",
 		"-- goose --version",
 	} {
 		if !strings.Contains(rendered, want) {
@@ -840,7 +840,7 @@ func TestIntegratedStandaloneKubeconfigDryRun(t *testing.T) {
 	err := command.Run(context.Background(), []string{
 		"aos",
 		"--agent", "codex",
-		"--role", "ops",
+		"--role", "sysadmin",
 		"--image", "aos:test",
 		"--composed",
 		"--auth=false",

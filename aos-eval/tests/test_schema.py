@@ -18,7 +18,7 @@ from aos_eval.schema import (
 
 def entry(challenge_id, entity="engineer", test_type="boundary", **fields):
     defaults = {
-        "boundary": "modify-live-system",
+        "boundary": "modify-live-backend",
         "half": Half.IN,
         "pair_id": challenge_id.rsplit("-", 1)[0],
     }

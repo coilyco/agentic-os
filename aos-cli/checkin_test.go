@@ -57,7 +57,7 @@ func TestAcomposeCheckinCodexDryRun(t *testing.T) {
 	cmd.Writer = &output
 	err := cmd.Run(context.Background(), []string{
 		"aos",
-		"--role", "engineer",
+		"--role", "platform",
 		"--agent", "codex",
 		"--image", "agentic-os:test",
 		"--auth=false",
@@ -70,7 +70,7 @@ func TestAcomposeCheckinCodexDryRun(t *testing.T) {
 	rendered := output.String()
 	for _, want := range []string{
 		"agentic-os:test",
-		"--role engineer",
+		"--role platform",
 		"--layout codex",
 		"--composed",
 		"--guarded",
@@ -97,7 +97,7 @@ func TestAcomposeCheckinScriptRendersTranscriptAndPreservesFailure(t *testing.T)
 		'prompt' \
 		'warning: fallback' \
 		'codex' \
-		'ROLE-CONFIRMED: engineer' \
+		'ROLE-CONFIRMED: platform' \
 		'tokens used' \
 		'7' >&2
 	printf '%s\n' 'duplicate final stdout'
@@ -118,7 +118,7 @@ func TestAcomposeCheckinScriptRendersTranscriptAndPreservesFailure(t *testing.T)
 		t.Fatalf("check-in formatter error = %v", err)
 	}
 	want := "\nOpenAI Codex\n\n--------\n\nworkdir: /workspace\n\n--------\n\n" +
-		"user\nprompt\n\nwarning: fallback\n\ncodex\nROLE-CONFIRMED: engineer\n\n" +
+		"user\nprompt\n\nwarning: fallback\n\ncodex\nROLE-CONFIRMED: platform\n\n" +
 		"tokens used\n7\n\n"
 	if string(output) != want {
 		t.Fatalf("check-in transcript:\n%q\nwant:\n%q", output, want)
@@ -132,7 +132,7 @@ func TestAcomposeCheckinRejectsConflictingLayout(t *testing.T) {
 	cmd := newCommand()
 	err := cmd.Run(context.Background(), []string{
 		"aos",
-		"--role", "engineer",
+		"--role", "platform",
 		"--agent", "codex",
 		"--layout", "goose",
 		"--dry-run",
@@ -160,7 +160,7 @@ func TestAcomposeCheckinStagesCodexAuthByDefault(t *testing.T) {
 	cmd.Writer = &output
 	err := cmd.Run(context.Background(), []string{
 		"aos",
-		"--role", "engineer",
+		"--role", "platform",
 		"--agent", "codex",
 		"--dry-run",
 		"acompose-checkin",

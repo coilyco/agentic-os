@@ -11,18 +11,18 @@ func TestLoadHarnessLaunchProfilesUsesRoleAgents(t *testing.T) {
 	t.Parallel()
 	document, err := loadHarnessLaunchProfiles([]byte(`
 roles:
-  engineer:
+  platform:
     agent: codex
-  director:
+  tpm:
     agent: claude
 `))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if document.Roles["engineer"].Agent != "codex" {
-		t.Fatalf("engineer role was not decoded: %+v", document.Roles["engineer"])
+	if document.Roles["platform"].Agent != "codex" {
+		t.Fatalf("platform role was not decoded: %+v", document.Roles["platform"])
 	}
-	if document.DefaultAgents["director"] != "claude" {
+	if document.DefaultAgents["tpm"] != "claude" {
 		t.Fatalf("default agent was not decoded: %+v", document.DefaultAgents)
 	}
 }
@@ -33,9 +33,9 @@ func TestLoadHarnessLaunchProfilesRejectsMalformedRegistry(t *testing.T) {
 		[]byte(`{}`),
 		[]byte("roles: {}\n"),
 		[]byte("roles:\n  bad/role:\n    agent: codex\n"),
-		[]byte("roles:\n  engineer: {}\n"),
-		[]byte("roles:\n  engineer:\n    agent: other\n"),
-		[]byte("roles:\n  engineer:\n    agent: codex\n    model: gpt-5\n"),
+		[]byte("roles:\n  platform: {}\n"),
+		[]byte("roles:\n  platform:\n    agent: other\n"),
+		[]byte("roles:\n  platform:\n    agent: codex\n    model: gpt-5\n"),
 		[]byte("defaults:\n  codex: {model: gpt-5}\n"),
 	} {
 		if _, err := loadHarnessLaunchProfiles(data); err == nil {
@@ -80,7 +80,7 @@ func TestConfiguredHarnessLaunchProfilesReadsAgentsFile(t *testing.T) {
 	path := filepath.Join(root, harnessLaunchProfilesRelativePath)
 	if err := os.WriteFile(path, []byte(`
 roles:
-  engineer:
+  platform:
     agent: goose
 `), 0o644); err != nil {
 		t.Fatal(err)
@@ -93,17 +93,17 @@ roles:
 	oldCompiled := compiledHarnessLaunchProfilesBase64
 	compiledHarnessLaunchProfilesBase64 = base64.StdEncoding.EncodeToString([]byte(`
 roles:
-  engineer:
+  platform:
     agent: codex
 `))
 	t.Cleanup(func() { compiledHarnessLaunchProfilesBase64 = oldCompiled })
 
-	agent, err := standaloneDefaultAgentForRole("engineer")
+	agent, err := standaloneDefaultAgentForRole("platform")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if agent != "goose" {
-		t.Fatalf("standaloneDefaultAgentForRole(engineer) = %q, want goose", agent)
+		t.Fatalf("standaloneDefaultAgentForRole(platform) = %q, want goose", agent)
 	}
 }
 
@@ -112,16 +112,16 @@ func TestConfiguredHarnessLaunchProfilesUsesCompiledFallback(t *testing.T) {
 	oldCompiled := compiledHarnessLaunchProfilesBase64
 	compiledHarnessLaunchProfilesBase64 = base64.StdEncoding.EncodeToString([]byte(`
 roles:
-  engineer:
+  platform:
     agent: opencode
 `))
 	t.Cleanup(func() { compiledHarnessLaunchProfilesBase64 = oldCompiled })
 
-	agent, err := standaloneDefaultAgentForRole("engineer")
+	agent, err := standaloneDefaultAgentForRole("platform")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if agent != "opencode" {
-		t.Fatalf("standaloneDefaultAgentForRole(engineer) = %q, want opencode", agent)
+		t.Fatalf("standaloneDefaultAgentForRole(platform) = %q, want opencode", agent)
 	}
 }

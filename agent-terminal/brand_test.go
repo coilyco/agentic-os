@@ -12,12 +12,12 @@ import (
 	"testing"
 )
 
-//go:embed testdata/director-overlay.json
-var directorOverlay string
+//go:embed testdata/tpm-overlay.json
+var tpmOverlay string
 
-func directorRequest() launchRequest {
+func tpmRequest() launchRequest {
 	return launchRequest{
-		Role:             "director",
+		Role:             "tpm",
 		Seat:             "codex",
 		Expression:       "acting",
 		TaskTitle:        "agentic-os#730",
@@ -25,7 +25,7 @@ func directorRequest() launchRequest {
 		AgentComposeBin:  defaultOverlayBin,
 		AOSComposeBin:    defaultAOSComposeBin,
 		AlacrittyBin:     defaultAlacrittyBin,
-		Child:            []string{"ward", "agent", "director", "--repo", "coilyco-flight-deck/agentic-os"},
+		Child:            []string{"ward", "agent", "tpm", "--repo", "coilyco-flight-deck/agentic-os"},
 	}
 }
 
@@ -102,9 +102,9 @@ func TestDefaultWorkingDirectoryFallsBackToHomeProjects(t *testing.T) {
 }
 
 func TestBuildLaunchPlanUsesCanonicalIdentity(t *testing.T) {
-	request := directorRequest()
+	request := tpmRequest()
 	request.AlacrittyBin = "alacritty-preview"
-	document, err := parseOverlay([]byte(directorOverlay), request)
+	document, err := parseOverlay([]byte(tpmOverlay), request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,14 +115,14 @@ func TestBuildLaunchPlanUsesCanonicalIdentity(t *testing.T) {
 	if plan.Format != launchFormat {
 		t.Fatalf("format = %q", plan.Format)
 	}
-	if plan.Identity.Name != "solar director" || plan.Identity.FavoriteColor != "#94974a" ||
-		plan.Identity.Annotation != "solar director [she] (Director)" {
+	if plan.Identity.Name != "Saiya" || plan.Identity.FavoriteColor != "#e36966" ||
+		plan.Identity.Annotation != "Saiya [they] (Technical Program Manager)" {
 		t.Fatalf("identity = %+v", plan.Identity)
 	}
-	if plan.Brand.Title != "▲ ◆ ⇄ solar director [she] (Director) // acting // agentic-os#730" {
+	if plan.Brand.Title != "✂ ↗ Saiya [they] (Technical Program Manager) // acting // agentic-os#730" {
 		t.Fatalf("title = %q", plan.Brand.Title)
 	}
-	if plan.Brand.Background != "#1b1d1a" || plan.Brand.SelectionText != baseBackground {
+	if plan.Brand.Background != "#21191c" || plan.Brand.SelectionText != baseBackground {
 		t.Fatalf("brand = %+v", plan.Brand)
 	}
 	if plan.Executable != "alacritty-preview" {
@@ -132,7 +132,7 @@ func TestBuildLaunchPlanUsesCanonicalIdentity(t *testing.T) {
 		t.Fatal("launch arguments contain an escape sequence")
 	}
 	wantTail := []string{
-		"-e", "ward", "agent", "director", "--repo", "coilyco-flight-deck/agentic-os",
+		"-e", "ward", "agent", "tpm", "--repo", "coilyco-flight-deck/agentic-os",
 	}
 	if !reflect.DeepEqual(plan.Arguments[len(plan.Arguments)-len(wantTail):], wantTail) {
 		t.Fatalf("arguments tail = %#v", plan.Arguments)
@@ -142,15 +142,15 @@ func TestBuildLaunchPlanUsesCanonicalIdentity(t *testing.T) {
 // TestSeatAnnotationFallsBackForOlderAgentCompose covers the release window
 // where agent-compose predates the composed field.
 func TestSeatAnnotationFallsBackForOlderAgentCompose(t *testing.T) {
-	request := directorRequest()
+	request := tpmRequest()
 	raw := strings.Replace(
 		strings.Replace(
-			directorOverlay,
-			"  \"annotation\": \"solar director [she] (Director)\",\n",
+			tpmOverlay,
+			"  \"annotation\": \"Saiya [they] (Technical Program Manager)\",\n",
 			"",
 			1,
 		),
-		"  \"role_display_name\": \"Director\",\n",
+		"  \"role_display_name\": \"Technical Program Manager\",\n",
 		"",
 		1,
 	)
@@ -162,7 +162,7 @@ func TestSeatAnnotationFallsBackForOlderAgentCompose(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The role slug stands in for the label an older document never carried.
-	if got := seatAnnotation(document); got != "solar director [she] (director)" {
+	if got := seatAnnotation(document); got != "Saiya [they] (tpm)" {
 		t.Fatalf("fallback annotation = %q", got)
 	}
 }
@@ -170,30 +170,30 @@ func TestSeatAnnotationFallsBackForOlderAgentCompose(t *testing.T) {
 // TestSeatAnnotationDegradesWithoutPronouns keeps an external person package
 // that omits pronouns launchable instead of rendering an empty bracket.
 func TestSeatAnnotationDegradesWithoutPronouns(t *testing.T) {
-	request := directorRequest()
-	raw := strings.Replace(directorOverlay, `"pronouns": "she"`, `"pronouns": ""`, 1)
-	raw = strings.Replace(raw, `"annotation": "solar director [she] (Director)",`, "", 1)
+	request := tpmRequest()
+	raw := strings.Replace(tpmOverlay, `"pronouns": "they"`, `"pronouns": ""`, 1)
+	raw = strings.Replace(raw, `"annotation": "Saiya [they] (Technical Program Manager)",`, "", 1)
 	document, err := parseOverlay([]byte(raw), request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := seatAnnotation(document); got != "solar director (Director)" {
+	if got := seatAnnotation(document); got != "Saiya (Technical Program Manager)" {
 		t.Fatalf("annotation without pronouns = %q", got)
 	}
 }
 
 func TestParseOverlayRejectsContractAndSelectionDrift(t *testing.T) {
-	request := directorRequest()
+	request := tpmRequest()
 	for name, replace := range map[string][2]string{
 		"format":     {`"agent-compose.overlay.v1"`, `"other"`},
 		"schema":     {`"schema_version": 1`, `"schema_version": 2`},
-		"role":       {`"role": "director"`, `"role": "engineer"`},
+		"role":       {`"role": "tpm"`, `"role": "platform"`},
 		"seat":       {`"harness": "codex"`, `"harness": "claude"`},
 		"expression": {`"expression": "acting"`, `"expression": "blocked"`},
-		"color":      {`"#94974a"`, `"olive"`},
+		"color":      {`"#e36966"`, `"olive"`},
 	} {
 		t.Run(name, func(t *testing.T) {
-			raw := strings.Replace(directorOverlay, replace[0], replace[1], 1)
+			raw := strings.Replace(tpmOverlay, replace[0], replace[1], 1)
 			if _, err := parseOverlay([]byte(raw), request); err == nil {
 				t.Fatal("invalid overlay was accepted")
 			}
@@ -202,8 +202,8 @@ func TestParseOverlayRejectsContractAndSelectionDrift(t *testing.T) {
 }
 
 func TestBuildTitleRejectsControlCharactersAndTruncates(t *testing.T) {
-	request := directorRequest()
-	document, err := parseOverlay([]byte(directorOverlay), request)
+	request := tpmRequest()
+	document, err := parseOverlay([]byte(tpmOverlay), request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,15 +220,15 @@ func TestBuildTitleRejectsControlCharactersAndTruncates(t *testing.T) {
 }
 
 func TestColorDerivationIsDeterministicAndReadable(t *testing.T) {
-	first, err := mixHex(baseBackground, "#94974a", backgroundTint)
+	first, err := mixHex(baseBackground, "#e36966", backgroundTint)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := mixHex(baseBackground, "#94974a", backgroundTint)
+	second, err := mixHex(baseBackground, "#e36966", backgroundTint)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first != "#1b1d1a" || second != first {
+	if first != "#21191c" || second != first {
 		t.Fatalf("mixed colors = %q, %q", first, second)
 	}
 	text, err := mostReadable("#222222", baseBackground, lightForeground)
@@ -241,7 +241,7 @@ func TestColorDerivationIsDeterministicAndReadable(t *testing.T) {
 }
 
 func TestRunLaunchDryRunDoesNotRequireAlacritty(t *testing.T) {
-	request := directorRequest()
+	request := tpmRequest()
 	request.DryRun = true
 	var lookedUp []string
 	deps := commandDeps{
@@ -259,7 +259,7 @@ func TestRunLaunchDryRunDoesNotRequireAlacritty(t *testing.T) {
 			if name != "/bin/agent-compose" || len(args) == 0 {
 				t.Fatalf("overlay command = %q %#v", name, args)
 			}
-			return []byte(directorOverlay), nil
+			return []byte(tpmOverlay), nil
 		},
 		run: func(context.Context, string, ...string) error {
 			t.Fatal("dry-run launched Alacritty")
@@ -277,12 +277,12 @@ func TestRunLaunchDryRunDoesNotRequireAlacritty(t *testing.T) {
 	if err := json.Unmarshal([]byte(output.String()), &plan); err != nil {
 		t.Fatalf("dry-run output: %v\n%s", err, output.String())
 	}
-	if plan.Identity.Name != "solar director" || plan.Executable != defaultAlacrittyBin {
+	if plan.Identity.Name != "Saiya" || plan.Executable != defaultAlacrittyBin {
 		t.Fatalf("dry-run plan = %+v", plan)
 	}
 	wantTail := []string{
-		"-e", "/bin/aoscompose", "director", "codex", "ward", "agent",
-		"director", "--repo", "coilyco-flight-deck/agentic-os",
+		"-e", "/bin/aoscompose", "tpm", "codex", "ward", "agent",
+		"tpm", "--repo", "coilyco-flight-deck/agentic-os",
 	}
 	if !reflect.DeepEqual(plan.Arguments[len(plan.Arguments)-len(wantTail):], wantTail) {
 		t.Fatalf("arguments tail = %#v", plan.Arguments)
@@ -290,11 +290,11 @@ func TestRunLaunchDryRunDoesNotRequireAlacritty(t *testing.T) {
 }
 
 func TestAOSComposeCommandCollapsesRoleSeatAndChild(t *testing.T) {
-	request := directorRequest()
+	request := tpmRequest()
 	request.Child = []string{"--version"}
 
 	got := aoscomposeCommand(request, "/bin/aoscompose")
-	want := []string{"/bin/aoscompose", "director", "codex", "--version"}
+	want := []string{"/bin/aoscompose", "tpm", "codex", "--version"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("aoscompose command = %#v, want %#v", got, want)
 	}
@@ -304,34 +304,34 @@ func TestResolveAOSComposeInvocationAcceptsPositionals(t *testing.T) {
 	role, seat, args, err := resolveAOSComposeInvocation(
 		"",
 		"",
-		[]string{"director", "codex", "--version"},
+		[]string{"tpm", "codex", "--version"},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if role != "director" || seat != "codex" || !reflect.DeepEqual(args, []string{"--version"}) {
+	if role != "tpm" || seat != "codex" || !reflect.DeepEqual(args, []string{"--version"}) {
 		t.Fatalf("resolved role=%q seat=%q args=%#v", role, seat, args)
 	}
 }
 
 func TestResolveAOSComposeInvocationUsesDefaultSeat(t *testing.T) {
 	profiles := filepath.Join(t.TempDir(), "profiles.yaml")
-	if err := os.WriteFile(profiles, []byte("roles:\n  engineer:\n    agent: codex\n"), 0o600); err != nil {
+	if err := os.WriteFile(profiles, []byte("roles:\n  platform:\n    agent: codex\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("AOS_HARNESS_LAUNCH_PROFILES", profiles)
 
-	role, seat, args, err := resolveAOSComposeInvocation("", "", []string{"engineer"})
+	role, seat, args, err := resolveAOSComposeInvocation("", "", []string{"platform"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if role != "engineer" || seat != "codex" || len(args) != 0 {
+	if role != "platform" || seat != "codex" || len(args) != 0 {
 		t.Fatalf("resolved role=%q seat=%q args=%#v", role, seat, args)
 	}
 }
 
 func TestRunLaunchValidatesChildDirectoryAndBinaries(t *testing.T) {
-	request := directorRequest()
+	request := tpmRequest()
 	file := filepath.Join(t.TempDir(), "not-a-directory")
 	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
@@ -341,7 +341,7 @@ func TestRunLaunchValidatesChildDirectoryAndBinaries(t *testing.T) {
 		t.Fatal("file working directory was accepted")
 	}
 
-	request = directorRequest()
+	request = tpmRequest()
 	deps := commandDeps{
 		lookPath: func(string) (string, error) { return "", errors.New("missing") },
 	}

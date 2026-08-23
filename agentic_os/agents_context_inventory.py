@@ -40,14 +40,13 @@ SKIP_DIRS = {
 HEADING_RE = re.compile(r"^#{1,6}\s+(.+?)\s*$")
 HARNESS_OVERRIDE_RE = re.compile(r"^AGENTS\.([a-z0-9-]+)\.md$")
 ROLE_TERMS = {
-    "community",
-    "content",
-    "design",
-    "director",
-    "engineer",
-    "ops",
-    "qa",
-    "exec",
+    "devrel",
+    "eval",
+    "frontend",
+    "gamedev",
+    "platform",
+    "sysadmin",
+    "tpm",
 }
 TASK_TERMS = {
     "ci/cd",

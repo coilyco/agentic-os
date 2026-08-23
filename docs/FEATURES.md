@@ -14,7 +14,7 @@ Major shipped capabilities, not files.
 - [Native agent workspaces](native-agent-workspaces.md) - fleet worktrees,
   leases, cleanup, the `aos` temp namespace, and standalone launches.
 - [Agent-compose provider](context-budget.md) - scoped skills,
-  personality, and eight deployed roles including AI Engineer.
+  personality, and seven deployed roles across the Agent Compose v3 roster.
 - [Agent tool evaluation](../.agents/skills/tooling-agent-tool-evaluation/SKILL.md) - cross-harness tool evals.
 - [Shared eval grading](aos-eval.md) - the `aos-eval` CLI and package on its own
   release train: schema, boundary pairing, human annotation, failure taxonomy,
@@ -28,7 +28,7 @@ Major shipped capabilities, not files.
 - [aosguard](aosguard.md) - guarded CLI with fixed
   [SigNoz MCP reads](signoz.md), issue pins, PR merge, and sealed
   [Forgejo storage measurement](forgejo-ops.md).
-- [Code review skill](../.agents/composed/tooling-code-review/COMPOSED.md) - QA-only in-container review stance.
+- [Code review skill](../.agents/composed/tooling-code-review/COMPOSED.md) - Technical Program Manager gate-decision review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
 - [Forgejo Actions logs](forgejo-actions-runs.md) - job logs and run ZIPs.
 - [Forgejo Actions list bridge](forgejo-actions-runs.md) - safe run/task listing.

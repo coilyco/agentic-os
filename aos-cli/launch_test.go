@@ -69,7 +69,7 @@ func TestCodexAuthPipelineUsesCodexHomeAndStagesPrivateFile(t *testing.T) {
 		t.Fatalf("Codex auth mounts = %#v", projection.Mounts)
 	}
 	plan, err := buildLaunchPlan(launchOptions{
-		Image: "agentic-os:test", Role: "engineer", Layout: "codex",
+		Image: "agentic-os:test", Role: "platform", Layout: "codex",
 		Delivery: "native-skills", Composed: true, CWD: t.TempDir(),
 		Command: []string{"codex", "exec", "probe"}, UID: 1000, GID: 1000,
 		AuthMounts: projection.Mounts,
@@ -158,7 +158,7 @@ func TestCodexAuthPipelineProjectsDirectMacOSKeyringPrivately(t *testing.T) {
 		t.Fatalf("temporary Codex auth directory mode = %o, want 700", directoryInfo.Mode().Perm())
 	}
 	plan, err := buildLaunchPlan(launchOptions{
-		Image: "agentic-os:test", Role: "engineer", Layout: "codex",
+		Image: "agentic-os:test", Role: "platform", Layout: "codex",
 		Delivery: "native-skills", Composed: true, CWD: t.TempDir(),
 		Command: []string{"codex", "exec", "probe"}, UID: 1000, GID: 1000,
 		AuthMounts: projection.Mounts,
@@ -314,7 +314,7 @@ func TestBuildLaunchPlanMountsCWDAndRunsInternalCompose(t *testing.T) {
 	cwd := filepath.Join(t.TempDir(), "my repo")
 	plan, err := buildLaunchPlan(launchOptions{
 		Image:         "agentic-os:test",
-		Role:          "engineer",
+		Role:          "platform",
 		Layout:        "codex",
 		Delivery:      "native-skills",
 		Composed:      true,
@@ -345,7 +345,7 @@ func TestBuildLaunchPlanMountsCWDAndRunsInternalCompose(t *testing.T) {
 		"type=bind,source=/host/auth.json,target=/run/aos/auth/codex.json,readonly",
 		"--entrypoint\n/usr/local/bin/aos",
 		"agentic-os:test",
-		"--role\nengineer",
+		"--role\nplatform",
 		"_container-acompose",
 		"--workspace\n/workspace/my-repo",
 		"--uid\n501",
@@ -377,7 +377,7 @@ func TestBuildLaunchPlanMountsWorkspaceSourceAndNestedCWD(t *testing.T) {
 	}
 	plan, err := buildLaunchPlan(launchOptions{
 		Image:           "agentic-os:test",
-		Role:            "engineer",
+		Role:            "platform",
 		Layout:          "codex",
 		Delivery:        "native-skills",
 		Composed:        true,
@@ -410,7 +410,7 @@ func TestBuildLaunchPlanMountsHomeSource(t *testing.T) {
 	home := t.TempDir()
 	plan, err := buildLaunchPlan(launchOptions{
 		Image:      "agentic-os:test",
-		Role:       "engineer",
+		Role:       "platform",
 		Layout:     "codex",
 		Delivery:   "native-skills",
 		Composed:   true,
@@ -446,7 +446,7 @@ func TestBuildLaunchPlanMountsIssuePinContext(t *testing.T) {
 	digest := strings.Repeat("a", 64)
 	plan, err := buildLaunchPlan(launchOptions{
 		Image:    "agentic-os:test",
-		Role:     "exec",
+		Role:     "tpm",
 		Layout:   "codex",
 		Delivery: "native-skills",
 		Composed: true,
@@ -479,7 +479,7 @@ func TestBuildLaunchPlanNamesAgentContainerForRole(t *testing.T) {
 	t.Parallel()
 	plan, err := buildLaunchPlan(launchOptions{
 		Image:    "agentic-os:test",
-		Role:     "engineer",
+		Role:     "platform",
 		Layout:   "codex",
 		Delivery: "native-skills",
 		Composed: true,
@@ -495,7 +495,7 @@ func TestBuildLaunchPlanNamesAgentContainerForRole(t *testing.T) {
 	if !ok {
 		t.Fatalf("launch plan omitted Docker container name:\n%s", strings.Join(plan.DockerArgs, "\n"))
 	}
-	suffix, ok := strings.CutPrefix(name, "engineer-")
+	suffix, ok := strings.CutPrefix(name, "platform-")
 	if !ok {
 		t.Fatalf("container name = %q, want role-prefixed name", name)
 	}
@@ -511,7 +511,7 @@ func TestBuildLaunchPlanUsesHostNetwork(t *testing.T) {
 	t.Parallel()
 	plan, err := buildLaunchPlan(launchOptions{
 		Image:       "agentic-os:test",
-		Role:        "engineer",
+		Role:        "platform",
 		Layout:      "codex",
 		Delivery:    "native-skills",
 		Composed:    true,
@@ -534,7 +534,7 @@ func TestBuildLaunchPlanRejectsConflictingNetworks(t *testing.T) {
 	t.Parallel()
 	_, err := buildLaunchPlan(launchOptions{
 		Image:          "agentic-os:test",
-		Role:           "engineer",
+		Role:           "platform",
 		Layout:         "codex",
 		Delivery:       "native-skills",
 		Composed:       true,
@@ -554,7 +554,7 @@ func TestBuildLaunchPlanPullsMovingReleaseImage(t *testing.T) {
 	t.Parallel()
 	plan, err := buildLaunchPlan(launchOptions{
 		Image:    defaultImage,
-		Role:     "director",
+		Role:     "tpm",
 		Layout:   "codex",
 		Delivery: "native-skills",
 		Composed: true,
@@ -576,7 +576,7 @@ func TestBuildLaunchPlanCanSkipSubstrate(t *testing.T) {
 	t.Parallel()
 	plan, err := buildLaunchPlan(launchOptions{
 		Image:       "agentic-os:test",
-		Role:        "exec",
+		Role:        "tpm",
 		Layout:      "claude",
 		Delivery:    "compiled",
 		Composed:    true,
@@ -604,7 +604,7 @@ func TestBuildLaunchPlanProjectsMCPAndJoinsTailnet(t *testing.T) {
 	}
 	plan, err := buildLaunchPlan(launchOptions{
 		Image:           "agentic-os:test",
-		Role:            "engineer",
+		Role:            "platform",
 		Layout:          "codex",
 		Delivery:        "native-skills",
 		Composed:        true,
@@ -649,7 +649,7 @@ func TestBuildLaunchPlanMountsKubeconfigWithTailnet(t *testing.T) {
 	)
 	plan, err := buildLaunchPlan(launchOptions{
 		Image:          "agentic-os:test",
-		Role:           "ops",
+		Role:           "sysadmin",
 		Layout:         "codex",
 		Delivery:       "native-skills",
 		Composed:       true,
@@ -682,7 +682,7 @@ func TestBuildLaunchPlanRejectsInvalidKubeconfig(t *testing.T) {
 	t.Run("missing", func(t *testing.T) {
 		t.Parallel()
 		_, err := buildLaunchPlan(launchOptions{
-			Image: "agentic-os:test", Role: "director", Layout: "codex",
+			Image: "agentic-os:test", Role: "tpm", Layout: "codex",
 			Delivery: "native-skills", Composed: true, CWD: t.TempDir(),
 			Command: []string{"codex"}, UID: 1000, GID: 1000,
 			Kubeconfig: filepath.Join(t.TempDir(), "missing.yaml"),
@@ -698,7 +698,7 @@ func TestBuildLaunchPlanRejectsInvalidKubeconfig(t *testing.T) {
 			t.Fatal(err)
 		}
 		_, err := buildLaunchPlan(launchOptions{
-			Image: "agentic-os:test", Role: "ops", Layout: "codex",
+			Image: "agentic-os:test", Role: "sysadmin", Layout: "codex",
 			Delivery: "native-skills", Composed: true, CWD: t.TempDir(),
 			Command: []string{"codex"}, UID: 1000, GID: 1000,
 			Kubeconfig: path,
@@ -711,7 +711,7 @@ func TestBuildLaunchPlanRejectsInvalidKubeconfig(t *testing.T) {
 		t.Parallel()
 		path := t.TempDir()
 		_, err := buildLaunchPlan(launchOptions{
-			Image: "agentic-os:test", Role: "ops", Layout: "codex",
+			Image: "agentic-os:test", Role: "sysadmin", Layout: "codex",
 			Delivery: "native-skills", Composed: true, CWD: t.TempDir(),
 			Command: []string{"codex"}, UID: 1000, GID: 1000,
 			Kubeconfig: path,
@@ -728,7 +728,7 @@ func TestBuildLaunchPlanRejectsInvalidKubeconfig(t *testing.T) {
 			t.Fatal(err)
 		}
 		_, err := buildLaunchPlan(launchOptions{
-			Image: "agentic-os:test", Role: "ops", Layout: "codex",
+			Image: "agentic-os:test", Role: "sysadmin", Layout: "codex",
 			Delivery: "native-skills", Composed: true, CWD: t.TempDir(),
 			Command: []string{"codex"}, UID: 1000, GID: 1000,
 			Kubeconfig: path,
@@ -741,7 +741,7 @@ func TestBuildLaunchPlanRejectsInvalidKubeconfig(t *testing.T) {
 
 func TestBuildLaunchPlanMountsKubeconfigForEveryRole(t *testing.T) {
 	t.Parallel()
-	for _, role := range []string{"director", "ops", "engineer", "qa", "design"} {
+	for _, role := range []string{"tpm", "ops", "platform", "eval", "frontend"} {
 		role := role
 		t.Run(role, func(t *testing.T) {
 			t.Parallel()
@@ -765,7 +765,7 @@ func TestBuildLaunchPlanMountsKubeconfigForEveryRole(t *testing.T) {
 
 func TestArgvAfterDash(t *testing.T) {
 	t.Parallel()
-	got := argvAfterDash([]string{"aos", "--role", "engineer", "acompose", "--", "codex", "exec"})
+	got := argvAfterDash([]string{"aos", "--role", "platform", "acompose", "--", "codex", "exec"})
 	if strings.Join(got, " ") != "codex exec" {
 		t.Fatalf("argvAfterDash() = %q", got)
 	}
@@ -775,7 +775,7 @@ func TestShellJoinDoesNotExposeForwardedEnvironmentValues(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "do-not-print")
 	plan, err := buildLaunchPlan(launchOptions{
 		Image:         "agentic-os:test",
-		Role:          "engineer",
+		Role:          "platform",
 		Layout:        "codex",
 		Delivery:      "native-skills",
 		Composed:      true,

@@ -11,17 +11,17 @@ import (
 
 func TestNativeAssignedComposeRoleAcceptsOnlyTheAssignedHarnessLaunch(t *testing.T) {
 	role, binary, ok := nativeAssignedComposeRole(
-		[]string{"/usr/local/bin/agent-compose", "launch", "engineer", "codex", "--model", "gpt"},
+		[]string{"/usr/local/bin/agent-compose", "launch", "platform", "codex", "--model", "gpt"},
 		"codex",
 	)
-	if !ok || role != "engineer" || binary != "/usr/local/bin/agent-compose" {
+	if !ok || role != "platform" || binary != "/usr/local/bin/agent-compose" {
 		t.Fatalf("nativeAssignedComposeRole() = %q, %q, %t", role, binary, ok)
 	}
 	for _, command := range [][]string{
 		{"agent-compose", "compose", "--", "codex"},
-		{"agent-compose", "launch", "engineer", "claude"},
+		{"agent-compose", "launch", "platform", "claude"},
 		{"agent-compose", "launch", "Engineer", "codex"},
-		{"other", "launch", "engineer", "codex"},
+		{"other", "launch", "platform", "codex"},
 	} {
 		if _, _, ok := nativeAssignedComposeRole(command, "codex"); ok {
 			t.Fatalf("nativeAssignedComposeRole(%q) accepted an unrelated command", command)
@@ -36,7 +36,7 @@ func TestLoadNativeTerminalAnnotationUsesTheOverlayContract(t *testing.T) {
 	if err := os.WriteFile(agentCompose, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	annotation, err := loadNativeTerminalAnnotation(context.Background(), agentCompose, "engineer", "codex")
+	annotation, err := loadNativeTerminalAnnotation(context.Background(), agentCompose, "platform", "codex")
 	if err != nil {
 		t.Fatal(err)
 	}

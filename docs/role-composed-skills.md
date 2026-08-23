@@ -79,27 +79,27 @@ the role allowlists in [`.agents/roles.kdl`](../.agents/roles.kdl).
 
 ## Matrix
 
-`.agents/roles.kdl` is authoritative. In summary: **Director** takes core Git,
-licensing, supply-chain, and architecture guidance plus decision architecture,
-PM methods, prioritization, scouts, observer voice, voice linting,
-system-improvement vocabulary, issue decomposition, and skill authoring.
-**Engineer**, **QA**, and **Ops** share Git workflow and supply-chain audit,
-with QA adding code review, Engineer and Content Creator adding
-public-repository writing, and Engineer and Ops adding system-improvement
-vocabulary. **Designer** takes the PM family, design methods, and the frontend
-coding pair. **Executive Strategist** takes deduplicated advisor, PM, and CEO
-methods. **Content Creator** takes the whole writing family plus the Discord
-and customer-success methods it inherited from Community. **AI Engineer**
-takes the coding family whole. **Game Developer** narrows it to C#, Rust,
-Python, JavaScript, and `coding-core-*`, plus design methods and preferences.
+`.agents/roles.kdl` is authoritative. In summary:
+
+* **Technical Program Manager** - `tooling-tpm-*`, scouts, issue decomposition,
+  skill authoring, voice linting, code review as a gate, decision-relevant coding.
+* **Developer Platform Engineer** - the coding family whole, vocabulary, design system.
+* **Systems Administrator** - `tooling-sysadmin-*`, coding family, vocabulary.
+* **Agent Evaluation Engineer** - `tooling-eval-*`, coding family, design system.
+* **Frontend Design Engineer** - `tooling-frontend-*`, the frontend coding pair,
+  three product methods pinned by name, preferences, voice family.
+* **Game Developer** - C#, Rust, Python, JavaScript, `coding-core-*`,
+  `tooling-frontend-*`, preferences.
+* **Developer Advocate** - the writing family, Discord host, `tooling-devrel-*`.
 
 ## Handoffs
 
-Executive Strategist owns scout discovery, ranking, and portfolio
+Technical Program Manager owns scout discovery, ranking, and portfolio
 recommendations, recording returned evidence without inheriting execution
-authority. Engineer or ops owns verification, implementation, validation, and
-landing. Content Creator owns routine member interaction and a clean handoff,
-and human stewards retain moderation.
+authority, and owns code review as a gate decision. Developer Platform Engineer
+or Systems Administrator owns verification, implementation, validation, and
+landing. Developer Advocate owns routine member interaction, and human stewards
+retain moderation.
 
 Composition grants knowledge only. Ward's fixed workflow and the separately
 selected AOSguard surface still control tools, credentials, and write
@@ -113,8 +113,8 @@ evaluation offered for admission decisions.
 
 ## Coverage audit
 
-A 2026-08 pass moved a handful: Director narrowed to decision-relevant coding
-while gaining the PM family, Design gained signal triangulation, Content Creator
-took the social editorial loop and gave issue decomposition to the decision
-roles, and AI Engineer received the coding family behind benchmark runners.
-`.agents/roles.kdl` stays the authoritative selection.
+The Agent Compose v3 reflow took the roster from nine seats to seven. Director
+and Executive Strategist merged into Technical Program Manager. QA was cut,
+sending verification to Agent Evaluation Engineer and code review to Technical
+Program Manager as a gate decision. Every seat received exactly what its
+predecessors did, verified selector by selector.

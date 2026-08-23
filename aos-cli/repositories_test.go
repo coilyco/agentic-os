@@ -28,7 +28,7 @@ func writeRepositoryPlan(t *testing.T, root string, identities ...string) string
 			Identity: "owner/policy", Revision: "0123456789abcdef",
 			Policy: aosRepositoryPolicyInput{Path: ".agents/roles.kdl", SHA256: "sha256:test"},
 		}},
-		Roles:     map[string][]aosRepositorySelection{"engineer": selections},
+		Roles:     map[string][]aosRepositorySelection{"platform": selections},
 		Residency: selections,
 	}
 	raw, err := yaml.Marshal(plan)

@@ -135,11 +135,11 @@ func TestNativeProgressSummaryKeepsOnlyTheTotal(t *testing.T) {
 
 func TestNativeProgressDebugAddsDetail(t *testing.T) {
 	progress, _, out := newTestProgress(t, "debug")
-	progress.Begin("claude", []string{"agent-compose", "launch", "engineer"})
+	progress.Begin("claude", []string{"agent-compose", "launch", "platform"})
 	progress.Note("plan %s", "missing")
 
 	text := out.String()
-	if !strings.Contains(text, "agent-compose launch engineer") {
+	if !strings.Contains(text, "agent-compose launch platform") {
 		t.Fatalf("debug level dropped the command:\n%s", text)
 	}
 	if !strings.Contains(text, "aos: note     plan missing") {

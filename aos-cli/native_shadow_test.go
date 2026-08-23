@@ -409,7 +409,7 @@ func TestStageStandaloneRoleHomeCopiesSafeConfigAndDeniesSensitivePaths(t *testi
 	}
 	for _, path := range []string{
 		filepath.Join(source, ".agents", "settings.json"),
-		filepath.Join(source, ".agents", "profiles", "engineer.yaml"),
+		filepath.Join(source, ".agents", "profiles", "platform.yaml"),
 		filepath.Join(source, ".agents", "skills", "role-other", "SKILL.md"),
 		filepath.Join(source, ".claude", "settings.json"),
 		filepath.Join(source, ".claude", ".credentials.json"),
@@ -429,7 +429,7 @@ func TestStageStandaloneRoleHomeCopiesSafeConfigAndDeniesSensitivePaths(t *testi
 
 	for _, path := range []string{
 		filepath.Join(target, ".agents", "settings.json"),
-		filepath.Join(target, ".agents", "profiles", "engineer.yaml"),
+		filepath.Join(target, ".agents", "profiles", "platform.yaml"),
 		filepath.Join(target, ".claude", "settings.json"),
 	} {
 		info, err := os.Lstat(path)
@@ -551,8 +551,8 @@ func TestNativeCodexWorkspaceTrustIsScopedToGeneratedProject(t *testing.T) {
 	}{
 		{
 			name:    "assigned role",
-			command: []string{"agent-compose", "launch", "engineer", "codex", "--model", "gpt"},
-			want:    []string{"agent-compose", "launch", "engineer", "codex", "--config", override, "--model", "gpt"},
+			command: []string{"agent-compose", "launch", "platform", "codex", "--model", "gpt"},
+			want:    []string{"agent-compose", "launch", "platform", "codex", "--config", override, "--model", "gpt"},
 		},
 		{
 			name:    "inferred role",
@@ -595,7 +595,7 @@ func TestNativeCodexProjectResolvesWorkspaceSymlinks(t *testing.T) {
 }
 
 func TestNativeWorkspaceTrustDoesNotChangeOtherHarnesses(t *testing.T) {
-	command := []string{"agent-compose", "launch", "engineer", "claude"}
+	command := []string{"agent-compose", "launch", "platform", "claude"}
 	got := trustNativeCodexWorkspace(command, "claude", "/tmp/aos/native/session/projects")
 	if strings.Join(got, "\x00") != strings.Join(command, "\x00") {
 		t.Fatalf("command = %#v, want unchanged %#v", got, command)

@@ -117,7 +117,7 @@ if [ -n "$native_aos" ]; then
     fi
     aos_plan=$("$native_aos" \
         --agent codex \
-        --role engineer \
+        --role platform \
         --image agentic-os:test \
         --auth=false \
         --dry-run \
@@ -127,7 +127,7 @@ if [ -n "$native_aos" ]; then
     printf '%s\n' "$aos_plan" | grep -F -- "--guarded" >/dev/null
     aoscompose_plan=$("$native_aoscompose" \
         --agent codex \
-        --role engineer \
+        --role platform \
         --image agentic-os:test \
         --auth=false \
         --dry-run \
@@ -137,38 +137,38 @@ if [ -n "$native_aos" ]; then
     printf '%s\n' "$aoscompose_plan" | grep -F -- "--guarded" >/dev/null
     aosward_plan=$("$native_aosward" \
         --agent codex \
-        --role director \
+        --role tpm \
         --image agentic-os:test \
         --dry-run \
         -- \
         "aos release smoke")
     printf '%s\n' "$aosward_plan" | grep -F -- "--composed" >/dev/null
     printf '%s\n' "$aosward_plan" | grep -F -- "--guarded" >/dev/null
-    printf '%s\n' "$aosward_plan" | grep -F "ward agent run --role director" >/dev/null
+    printf '%s\n' "$aosward_plan" | grep -F "ward agent run --role tpm" >/dev/null
     smoke_dir=$(mktemp -d)
     trap 'rm -rf "$smoke_dir"' EXIT HUP INT TERM
     # The launch profiles own which agent a role defaults to, so read the
     # expected agent from them rather than restating it here.
-    engineer_agent=$(role_default_agent engineer)
-    director_agent=$(role_default_agent director)
+    platform_agent=$(role_default_agent platform)
+    tpm_agent=$(role_default_agent tpm)
     (
         cd "$smoke_dir"
         aoscompose_default_plan=$("$native_aoscompose" \
             --image agentic-os:test \
             --auth=false \
             --dry-run \
-            engineer)
-        printf '%s\n' "$aoscompose_default_plan" | grep -F -- "--role engineer" >/dev/null
-        printf '%s\n' "$aoscompose_default_plan" | grep -F -- "--layout $engineer_agent" >/dev/null
-        printf '%s\n' "$aoscompose_default_plan" | grep -F -- "-- $engineer_agent" >/dev/null
-        aoscompose_director_plan=$("$native_aoscompose" \
+            platform)
+        printf '%s\n' "$aoscompose_default_plan" | grep -F -- "--role platform" >/dev/null
+        printf '%s\n' "$aoscompose_default_plan" | grep -F -- "--layout $platform_agent" >/dev/null
+        printf '%s\n' "$aoscompose_default_plan" | grep -F -- "-- $platform_agent" >/dev/null
+        aoscompose_tpm_plan=$("$native_aoscompose" \
             --image agentic-os:test \
             --auth=false \
             --dry-run \
-            director)
-        printf '%s\n' "$aoscompose_director_plan" | grep -F -- "--role director" >/dev/null
-        printf '%s\n' "$aoscompose_director_plan" | grep -F -- "--layout $director_agent" >/dev/null
-        printf '%s\n' "$aoscompose_director_plan" | grep -F -- "-- $director_agent" >/dev/null
+            tpm)
+        printf '%s\n' "$aoscompose_tpm_plan" | grep -F -- "--role tpm" >/dev/null
+        printf '%s\n' "$aoscompose_tpm_plan" | grep -F -- "--layout $tpm_agent" >/dev/null
+        printf '%s\n' "$aoscompose_tpm_plan" | grep -F -- "-- $tpm_agent" >/dev/null
         "$native_aosguard" --help >/dev/null
         "$native_aosguard" --version | grep -Fx "aosguard version $version" >/dev/null
         "$native_aosguard" ops aws --help >/dev/null
@@ -181,10 +181,10 @@ if [ -n "$native_aos" ]; then
             grep -Fx "aosterm version $version" >/dev/null
 
         cp "$repo_root/agent-terminal/testdata/agent-compose" .
-        cp "$repo_root/agent-terminal/testdata/director-overlay.json" .
+        cp "$repo_root/agent-terminal/testdata/tpm-overlay.json" .
         chmod 0755 agent-compose
         "$native_agent_terminal" \
-            --role director \
+            --role tpm \
             --seat codex \
             --expression acting \
             --task-title agentic-os-release-smoke \
@@ -200,7 +200,7 @@ if [ -n "$native_aos" ]; then
             --agent-compose-bin "$smoke_dir/agent-compose" \
             --aoscompose-bin "$native_aoscompose" \
             --dry-run \
-            director codex -- printf ready > aosterm-launch.json
+            tpm codex -- printf ready > aosterm-launch.json
         python3 - "$smoke_dir/launch.json" "$smoke_dir" "$native_aoscompose" <<'PY'
 import json
 import pathlib
@@ -210,7 +210,7 @@ plan = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 assert plan["format"] == "agent-terminal.launch.v1"
 assert plan["working_directory"] == sys.argv[2]
 assert plan["executable"] == "alacritty"
-assert plan["arguments"][-6:] == ["-e", sys.argv[3], "director", "codex", "printf", "ready"]
+assert plan["arguments"][-6:] == ["-e", sys.argv[3], "tpm", "codex", "printf", "ready"]
 PY
         python3 - "$smoke_dir/aosterm-launch.json" "$smoke_dir" "$native_aoscompose" <<'PY'
 import json
@@ -221,7 +221,7 @@ plan = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 assert plan["format"] == "agent-terminal.launch.v1"
 assert plan["working_directory"] == sys.argv[2]
 assert plan["executable"] == "alacritty"
-assert plan["arguments"][-6:] == ["-e", sys.argv[3], "director", "codex", "printf", "ready"]
+assert plan["arguments"][-6:] == ["-e", sys.argv[3], "tpm", "codex", "printf", "ready"]
 PY
     )
 fi

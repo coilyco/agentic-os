@@ -56,9 +56,9 @@ Agent self-name and composition hooks, per-host steps, and gpg wiring: [docs/ins
 AOS always composes the selected role and attaches generated `aosguard`:
 
 ```bash
-aoscompose engineer --version
-aoscompose engineer goose --version
-aosward --agent codex --role engineer -- owner/repo#267
+aoscompose platform --version
+aoscompose platform goose --version
+aosward --agent codex --role platform -- owner/repo#267
 ```
 
 `aoscompose` is the canonical explicit alias of `aos`. The earlier `aoscomposed`
@@ -81,7 +81,7 @@ per-server Codex approval policy. See the [environment convergence contract](doc
 The original standalone composed-container command remains available:
 
 ```bash
-aos --role engineer acompose -- codex
+aos --role platform acompose -- codex
 ```
 
 The `aos` prefix is the container boundary. Bare
@@ -95,14 +95,14 @@ those endpoints through the standing proxy without invoking Ward. See the
 For a bounded role check-in, AOS owns the agent's non-interactive defaults:
 
 ```bash
-aos --role engineer --agent codex acompose-checkin
+aos --role platform --agent codex acompose-checkin
 ```
 
 Goose is the proven local-model launch path. Select it explicitly with the
 role whose context Agent Compose should materialize:
 
 ```bash
-aos --agent goose --role ops -- --version
+aos --agent goose --role sysadmin -- --version
 ```
 
 Ward is not part of that standalone path. See the [launch and handoff contract](docs/aos-cli.md).
@@ -137,7 +137,7 @@ Opt-in tooling that composes global agent context and symlinks each harness load
 The native assigned-role form is:
 
 ```bash
-acompose design codex
+acompose frontend codex
 ```
 
 The shared shell places that launch in a leased native workspace, then Agent

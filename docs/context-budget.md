@@ -98,7 +98,7 @@ An agent-compose request stored under the provider root admits that root:
 
 ```kdl
 compose {
-    role "engineer"
+    role "platform"
     delivery "native-skills"
     source "aos" root="." required=#true
 }

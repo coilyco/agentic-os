@@ -2,7 +2,7 @@ from aos_eval.schema import Annotation, DatasetEntry, Fit, Half, Challenge, Verd
 from aos_eval.taxonomy import axis_of, build, render, salient_terms
 
 
-def boundary_entry(challenge_id, attribute="modify-live-system"):
+def boundary_entry(challenge_id, attribute="modify-live-backend"):
     return DatasetEntry(
         challenge=Challenge(
             id=challenge_id,
@@ -19,7 +19,7 @@ def boundary_entry(challenge_id, attribute="modify-live-system"):
 
 
 def test_the_axis_is_structural_before_any_prose():
-    assert axis_of(boundary_entry("a")) == "boundary:modify-live-system:out"
+    assert axis_of(boundary_entry("a")) == "boundary:modify-live-backend:out"
 
 
 def test_a_personality_case_keys_off_its_trait():

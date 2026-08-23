@@ -24,7 +24,7 @@ func (f *fakeCommandRunner) Run(_ context.Context, name string, args ...string) 
 		if err := os.MkdirAll(out, 0o755); err != nil {
 			return err
 		}
-		person := []byte(`{"roles":{"engineer":{"supported_model_tiers":["frontier","commodity"]},"exec":{"supported_model_tiers":["frontier"]}}}`)
+		person := []byte(`{"roles":{"platform":{"supported_model_tiers":["frontier","commodity"]},"tpm":{"supported_model_tiers":["frontier"]}}}`)
 		return os.WriteFile(filepath.Join(out, "person.json"), person, 0o644)
 	}
 	if name == "git" && len(args) >= 4 && args[0] == "clone" && args[1] == "--mirror" {
@@ -71,14 +71,14 @@ func TestComposeHomeSurfacesComposeFailureWithRoleCompatibilityTier(t *testing.T
 		composeErr: errors.New("compose failed"),
 	}
 	opts := bootstrapOptions{
-		Role:            "exec",
+		Role:            "tpm",
 		Layout:          "goose",
 		Delivery:        "native-skills",
 		AgentHome:       t.TempDir(),
 		AgentComposeBin: "agent-compose",
 	}
 	err := composeHome(context.Background(), opts, t.TempDir(), runner)
-	if err == nil || !strings.Contains(err.Error(), "compose role exec: compose failed") {
+	if err == nil || !strings.Contains(err.Error(), "compose role tpm: compose failed") {
 		t.Fatalf("compose error = %v", err)
 	}
 	if !strings.Contains(runner.request, `model-tier "frontier"`) {
@@ -159,7 +159,7 @@ func TestPrepareContainerHydratesSubstrateAndProjectsHome(t *testing.T) {
 	runner := &fakeCommandRunner{}
 	uid, gid := hostIdentity()
 	spec, err := prepareContainer(context.Background(), bootstrapOptions{
-		Role:              "engineer",
+		Role:              "platform",
 		Layout:            "codex",
 		Delivery:          "native-skills",
 		Composed:          true,
@@ -221,7 +221,7 @@ func TestPrepareContainerHydratesSubstrateAndProjectsHome(t *testing.T) {
 	}
 	provider := filepath.Join(substrate, "coilyco-flight-deck", "agentic-os")
 	for _, want := range []string{
-		`role "engineer"`,
+		`role "platform"`,
 		`delivery "native-skills"`,
 		`model-tier "frontier"`,
 		`source "aos" root="." required=#true`,
@@ -274,7 +274,7 @@ func TestStageHarnessDefaultsEscapesCodexWorkspaceAndIgnoresOtherLayouts(t *test
 	t.Parallel()
 	home := t.TempDir()
 	workspace := `/workspace/repo\"quoted`
-	if err := stageHarnessDefaults("engineer", "codex", home, workspace); err != nil {
+	if err := stageHarnessDefaults("platform", "codex", home, workspace); err != nil {
 		t.Fatal(err)
 	}
 	config, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml"))
@@ -300,7 +300,7 @@ func TestStageHarnessDefaultsEscapesCodexWorkspaceAndIgnoresOtherLayouts(t *test
 	}
 
 	otherHome := t.TempDir()
-	if err := stageHarnessDefaults("engineer", "claude", otherHome, workspace); err != nil {
+	if err := stageHarnessDefaults("platform", "claude", otherHome, workspace); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(otherHome, ".codex", "config.toml")); !os.IsNotExist(err) {
@@ -331,7 +331,7 @@ func TestPrepareContainerWithoutSubstrateStillMaterializesProvider(t *testing.T)
 	runner := &fakeCommandRunner{}
 	uid, gid := hostIdentity()
 	_, err := prepareContainer(context.Background(), bootstrapOptions{
-		Role:              "exec",
+		Role:              "tpm",
 		Layout:            "codex",
 		Delivery:          "compiled",
 		Composed:          true,

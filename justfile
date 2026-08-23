@@ -61,23 +61,23 @@ aos-clean *ARGS:
 
 # Render the always-composed, always-guarded Ward launch without starting Docker. Pass the Ward issue or freeform arguments as trailing arguments.
 aos-composition-dry-run *ARGS:
-    @./aos-cli/aos --agent codex --role engineer --warded --dry-run -- "$@"
+    @./aos-cli/aos --agent codex --role platform --warded --dry-run -- "$@"
 
 # Materialize the full local context bundle and render Ward's launch without starting an agent container. Pass the Ward issue or freeform arguments as trailing arguments.
 aos-composition-smoke *ARGS:
     @bash scripts/aos-composition-smoke.sh "$@"
 
-# Launch the full local image through `aos`, compose the engineer Codex HOME, verify its container-boundary defaults, hydrate substrate, and print the in-container Codex version.
+# Launch the full local image through `aos`, compose the platform Codex HOME, verify its container-boundary defaults, hydrate substrate, and print the in-container Codex version.
 aos-container-smoke *ARGS:
-    @go run -C aos-cli . --role engineer --layout codex --image agentic-os:aos-local acompose -- sh testdata/codex-smoke.sh "$@"
+    @go run -C aos-cli . --role platform --layout codex --image agentic-os:aos-local acompose -- sh testdata/codex-smoke.sh "$@"
 
-# Launch the full local image as the design Codex variant and verify its projected AGENTS.md briefing, selected composed skill, entry-point promotion, and role isolation.
-aos-design-smoke *ARGS:
-    @./aos-cli/aos --role design --layout codex --image agentic-os:aos-local --auth=false --no-substrate acompose -- sh scripts/aos-design-smoke.sh "$@"
+# Launch the full local image as the frontend Codex variant and verify its projected AGENTS.md briefing, selected composed skill, entry-point promotion, and role isolation.
+aos-frontend-smoke *ARGS:
+    @./aos-cli/aos --role frontend --layout codex --image agentic-os:aos-local --auth=false --no-substrate acompose -- sh scripts/aos-frontend-smoke.sh "$@"
 
 # Render the default standalone composed-container launch without starting Docker.
 aos-dry-run *ARGS:
-    @./aos-cli/aos --role engineer --dry-run acompose -- codex --version "$@"
+    @./aos-cli/aos --role platform --dry-run acompose -- codex --version "$@"
 
 # Format the standalone Go `aos` launcher.
 aos-fmt *ARGS:
@@ -129,7 +129,7 @@ aos-say-test *ARGS:
 
 # Launch the selected agent in one standalone AOS container with composed context and the aosguard skill, then print the agent version.
 aos-standalone-composition-smoke *ARGS:
-    @./aos-cli/aos --agent codex --role engineer --image agentic-os:aos-local --auth=false -- --version "$@"
+    @./aos-cli/aos --agent codex --role platform --image agentic-os:aos-local --auth=false -- --version "$@"
 
 # Run the standalone Go `aos` launcher test suite.
 aos-test *ARGS:

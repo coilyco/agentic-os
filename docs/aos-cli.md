@@ -18,7 +18,7 @@ neither.
 `aoscomposed` stays compatible. `aoscompose` uses Docker host networking. First
 positional selects role, a second harness overrides the default, and auth is
 default-on: use `--auth=false` only for startup checks such as `aoscompose
-engineer --version`.
+platform --version`.
 
 `aosward` is the same executable with warded mode forced, equal to `aos
 --warded` and not disablable by `--warded=false`. It takes the ordinary flags

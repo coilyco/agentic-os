@@ -109,7 +109,7 @@ func newCommand(deps commandDeps, name string) *cli.Command {
 			&cli.StringFlag{
 				Name:  "working-directory",
 				Value: defaultWorkingDirectory(),
-				Usage: "director working directory (defaults to the projects root)",
+				Usage: "agent working directory (defaults to the projects root)",
 			},
 			&cli.StringFlag{
 				Name:    "agent-compose-bin",
