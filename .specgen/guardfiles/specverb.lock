@@ -1,14 +1,14 @@
 {
   "version": 2,
   "go": "1.25.5",
-  "cliGuard": "v0.161.0",
+  "cliGuard": "v0.167.0",
   "goMod": [
     "module specverbgen.local/build",
     "",
     "go 1.25.5",
     "",
     "require (",
-    "\tforgejo.coilysiren.me/coilyco-flight-deck/umbra v0.161.0",
+    "\tforgejo.coilysiren.me/coilyco-flight-deck/umbra v0.167.0",
     "\tgithub.com/urfave/cli/v3 v3.9.0",
     ")",
     "",
@@ -41,8 +41,8 @@
     ")"
   ],
   "goSum": [
-    "forgejo.coilysiren.me/coilyco-flight-deck/umbra v0.161.0 h1:k0+pbTnqaefkbYTyd5/G4aqWP5aXs5YalFV+iAN1cjo=",
-    "forgejo.coilysiren.me/coilyco-flight-deck/umbra v0.161.0/go.mod h1:rfHU8RP3VyMoFOGbfH7gyuSszxNpWFPExo+sDaeoPg4=",
+    "forgejo.coilysiren.me/coilyco-flight-deck/umbra v0.167.0 h1:m8GWdn4g1az8kVjM+1lbTLhFCYeioAo16yZAN36vECI=",
+    "forgejo.coilysiren.me/coilyco-flight-deck/umbra v0.167.0/go.mod h1:rfHU8RP3VyMoFOGbfH7gyuSszxNpWFPExo+sDaeoPg4=",
     "github.com/calico32/kdl-go v0.14.1 h1:aZWwk/tAG3psn2J992KJciUu+0S999L078YiQLa5R9E=",
     "github.com/calico32/kdl-go v0.14.1/go.mod h1:KXQM2fSZFMRDsjNrmCD/k3QVFhrREPMJhQCNcxEQZIo=",
     "github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=",
