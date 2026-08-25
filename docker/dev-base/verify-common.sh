@@ -23,8 +23,8 @@ expect_roster() {
   fi
 }
 expect_roster '.source' 'roster:core'
-expect_roster '.role_order | length' 8
-expect_roster '.personalities | length' 18
+expect_roster '.role_order | length' 7
+expect_roster '.personalities | length' 10
 test -s "$roster_dir/AGENTS.COMPOSE.md"
 test -n "$(
   find "$roster_dir/.agents/skills" \
