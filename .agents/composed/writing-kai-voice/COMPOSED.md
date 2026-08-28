@@ -29,6 +29,10 @@ and let warmth come from living texture.
   people don't`, and `unlike most recruiters` flatter the reader by comparing
   them to people who are not in the conversation. Praise the thing itself, or
   say nothing.
+* Do not announce the answer before giving it. `so here's a straight answer`,
+  `to be direct`, `honestly`, and `the short version is` each spend a sentence
+  promising a tone that the next sentence should simply have. Cut the
+  announcement and open with the answer itself.
 * Do not name private or archived projects in public prose.
 
 ## Choose the register
