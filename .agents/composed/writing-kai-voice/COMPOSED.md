@@ -25,6 +25,10 @@ and let warmth come from living texture.
 * Prefer plain, specific words over corporate language.
 * Do not use `load-bearing` as a metaphor.
 * Keep the first sentence free of throat-clearing and generic pleasantries.
+* Do not tell someone their behavior is rare or unusual. `which is rare`, `most
+  people don't`, and `unlike most recruiters` flatter the reader by comparing
+  them to people who are not in the conversation. Praise the thing itself, or
+  say nothing.
 * Do not name private or archived projects in public prose.
 
 ## Choose the register
