@@ -45,7 +45,7 @@ func TestOverlayDecodesEveryShippedField(t *testing.T) {
 	cases := map[string][2]string{
 		"platform-claude-overlay.json": {"platform", "claude"},
 		"platform-codex-overlay.json":  {"platform", "codex"},
-		"director-codex-overlay.json":       {"director", "codex"},
+		"director-codex-overlay.json":  {"director", "codex"},
 		// frontend is the only seat on the scattered arrangement.
 		"frontend-claude-overlay.json": {"frontend", "claude"},
 	}

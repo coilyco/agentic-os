@@ -88,15 +88,15 @@ type sessionOptions struct {
 // parseSessionArgs hand-parses because everything after the first `--` belongs
 // to the child verbatim, including the child's own `--`.
 func parseSessionArgs(argv []string) (sessionOptions, error) {
-	options := sessionOptions{Motion: true, Audible: true}
+	options := sessionOptions{Motion: true}
 	for index := 0; index < len(argv); index++ {
 		switch value := argv[index]; value {
 		case "--hold":
 			options.Hold = true
 		case "--no-motion":
 			options.Motion = false
-		case "--silent":
-			options.Audible = false
+		case "--sound":
+			options.Audible = true
 		case "--card":
 			if index+1 >= len(argv) {
 				return sessionOptions{}, fmt.Errorf("%s --card needs a value", sessionCommand)

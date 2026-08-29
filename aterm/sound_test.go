@@ -72,16 +72,22 @@ func TestTheCardCarriesTheSoundMark(t *testing.T) {
 	}
 }
 
-func TestASessionCanBeSilenced(t *testing.T) {
-	if soundWanted(nil, false) {
+// Silence is the default, so the interesting cases are the two ways in and the
+// one refusal that outranks both.
+func TestASessionIsSilentUnlessAsked(t *testing.T) {
+	if soundAsked(false) {
+		t.Fatal("a launch nobody asked to hear should stay silent")
+	}
+	if !soundAsked(true) {
+		t.Fatal("--sound should ask for the mark")
+	}
+	t.Setenv(soundEnv, "1")
+	if !soundAsked(false) {
+		t.Fatalf("%s should ask for the mark", soundEnv)
+	}
+	// A recording or a CI runner still gets nothing, opted in or not.
+	if soundWanted(nil, true) {
 		t.Fatal("a nil stdout is not a terminal")
-	}
-	if soundWanted(os.Stdout, true) {
-		t.Fatal("--silent should win")
-	}
-	t.Setenv(silentEnv, "1")
-	if soundWanted(os.Stdout, false) {
-		t.Fatalf("%s should win", silentEnv)
 	}
 }
 
@@ -95,12 +101,19 @@ func TestSilencePlaysAndCachesNothing(t *testing.T) {
 	}
 }
 
-func TestSessionStageAcceptsSilent(t *testing.T) {
-	options, err := parseSessionArgs([]string{"--silent", "--no-motion", "--", "true"})
+func TestSessionStageDefaultsToSilent(t *testing.T) {
+	quiet, err := parseSessionArgs([]string{"--no-motion", "--", "true"})
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if options.Audible || options.Motion {
-		t.Fatalf("options = %+v, want both channels off", options)
+	if quiet.Audible || quiet.Motion {
+		t.Fatalf("options = %+v, want both channels off", quiet)
+	}
+	loud, err := parseSessionArgs([]string{"--sound", "--", "true"})
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if !loud.Audible {
+		t.Fatalf("options = %+v, want the mark on", loud)
 	}
 }

@@ -21,7 +21,7 @@ import (
 var soundSamples embed.FS
 
 const (
-	silentEnv       = "ATERM_SILENT"
+	soundEnv        = "ATERM_SOUND"
 	soundPlayBudget = 4 * time.Second
 )
 
@@ -115,11 +115,14 @@ func cachedSample(timbre string) (string, error) {
 	return path, nil
 }
 
-// soundWanted is off wherever the sound would play into a log, a recording, or
-// a CI runner rather than a room with a person in it.
-func soundWanted(stdout *os.File, disabled bool) bool {
-	if disabled || strings.TrimSpace(os.Getenv(silentEnv)) != "" {
-		return false
-	}
-	return characterDevices(stdout)
+// soundAsked is the opt-in on its own, separable so it is testable off a
+// terminal, which is where the suite runs.
+func soundAsked(enabled bool) bool {
+	return enabled || strings.TrimSpace(os.Getenv(soundEnv)) != ""
+}
+
+// soundWanted is off unless asked for, and still refused wherever it would play
+// into a log, a recording, or CI. See docs/aterm.md.
+func soundWanted(stdout *os.File, enabled bool) bool {
+	return soundAsked(enabled) && characterDevices(stdout)
 }

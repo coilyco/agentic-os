@@ -8,9 +8,9 @@ Major shipped capabilities, not files.
 - [Branded agent terminal](aterm.md) - `aterm` opens one composed agent session in its own Sombra kitty
   window, completing and refusing roles against the live roster, and writes a macOS `.app` launcher per
   [role bundle](aterm-bundles.md), each carrying its own embedded icon. The window opens on an identity card drawn from the
-  overlay's own `geometry`, sounded from its `sound_mark`, and standing over that role's own
-  [creature background](aterm-creature.md). Mac and Linux only, since kitty has no
-  Windows build.
+  overlay's own `geometry`, standing over that role's own
+  [creature background](aterm-creature.md), and sounded from its `sound_mark` when `--sound` asks.
+  Mac and Linux only, since kitty has no Windows build.
 - [Speech helper](aos-roles-and-voice.md) - `aos-say` client plus relay for status speech.
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.
 - [Agents and sessions](features-agents.md) - self-name, composition
