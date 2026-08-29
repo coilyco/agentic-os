@@ -45,22 +45,6 @@ jobs:
       - name: Test the native terminal companion
         run: just aterm-test
 
-  aos-eval-tests:
-    runs-on: docker
-    timeout-minutes: 10
-    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
-    steps:
-      - uses: actions/checkout@v6
-      - name: Cache uv downloads
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock', 'aos-eval/uv.lock') }}
-          restore-keys: |
-            uv-${{ runner.os }}-
-      - name: Test the shared eval grading package
-        run: just aos-eval-test
-
   gate:
     runs-on: docker
     timeout-minutes: 30
@@ -74,7 +58,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock', 'aos-eval/uv.lock') }}
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
           restore-keys: |
             uv-${{ runner.os }}-
 

@@ -24,8 +24,8 @@ Language drafts and stable language cache refs are build-only artifacts.
 `:latest` is a compatibility alias for `:release`.
 
 The root `v*` train serves the dev-base image, the independent `aos-precommit-v*`
-the hooks, and `aos-v*` the standalone CLI binaries and packages. Shared eval
-grading pins `aos-eval-v*`, path-filtered to `aos-eval/**`. See [aos-cli.md](aos-cli.md).
+the hooks, and `aos-v*` the standalone CLI binaries and packages. See
+[aos-cli.md](aos-cli.md).
 
 ## Version bump
 

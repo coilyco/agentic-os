@@ -194,8 +194,6 @@ excludes = ["agentic_os.egg-info/**", "aos_precommit.egg-info/**"]
 [dependency-groups]
 dev = ["pytest>=9"]
 
-# aos-eval is a separate project with its own environment, so its tests are not
-# importable from here. `just aos-eval-test` runs them.
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

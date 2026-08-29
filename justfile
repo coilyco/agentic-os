@@ -87,14 +87,6 @@ aos-release-package *ARGS:
 aos-role-question *ARGS:
     @sh scripts/aos-role-question.sh "$@"
 
-# Shared eval grading for agent-compose and sirens-echo: schema, boundary pairing, human annotation, failure taxonomy, and the one-way display export. Released on its own `aos-eval-v*` train. Run `just aos-eval help` for the full reference.
-aos-eval *ARGS:
-    @uv run --project aos-eval aos-eval "$@"
-
-# Run the shared eval grading test suite.
-aos-eval-test *ARGS:
-    @uv run --project aos-eval pytest aos-eval "$@"
-
 # Speak short status text with the Mac-integrated `aos-say` client. On Darwin it calls `/usr/bin/say` directly, and on other hosts it forwards one JSON request to the configured relay. Use `just aos-say relay` for the relay entrypoint.
 aos-say *ARGS:
     @go run -C aos-say . "$@"
