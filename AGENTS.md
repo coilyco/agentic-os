@@ -64,12 +64,7 @@ Config splits on three axes, each a distinct owner: **permission/surface** (AOSg
 
 ## Release
 
-Conventional-commits 1.0.0 and Forgejo issue references are encouraged house style but unenforced, since the `conventional-commit` and `closes-issue` commit-msg hooks have been retired from the suite. Each release train advances only on a promoted diff that touches its own inputs: the standalone AOS CLI on a shipped binary or package input, `aos-precommit-v*` on an installed hook input, and dev-base publication on an image tier. Manual workflow dispatch remains the explicit retry or override path, and major versions are hand-driven only (`scripts/release.py --bump major` for aos-precommit, workflow dispatch for other trains) rather than inferred from commit messages. Canonical history lives on Forgejo, the GitHub mirror stays PR-gated, and never `--no-verify`. `ward agent` headless dispatch follows the resolved workflow:
-
-* `merge-remote-main` - merge or push to `main`, then close the issue. Ward's default lane.
-* `pull-request` - push a branch and open a human-gated Forgejo PR.
-* `pull-request-and-merge` - open a PR for the director lane. Merge only after the issue thread shows `workflow: pull-request-and-merge`, `WARD-OUTCOME: done`, and a passed review summary.
-* `remote-branch-only` - push a branch and stop. No PR or merge authority.
+Conventional-commits 1.0.0 and Forgejo issue references are encouraged house style but unenforced, since the `conventional-commit` and `closes-issue` commit-msg hooks have been retired from the suite. Each release train advances only on a promoted diff that touches its own inputs: the standalone AOS CLI on a shipped binary or package input, `aos-precommit-v*` on an installed hook input, and dev-base publication on an image tier. Manual workflow dispatch remains the explicit retry or override path, and major versions are hand-driven only (`scripts/release.py --bump major` for aos-precommit, workflow dispatch for other trains) rather than inferred from commit messages. Canonical history lives on Forgejo and the GitHub mirror stays PR-gated. `ward agent` headless dispatch follows the resolved lane, defined once in the generated Git workflow block below rather than restated here.
 
 A read-only clone cannot push itself, so push or merge workflows need a writable surface. Track landed work by issue state and commits on `main`. `aosguard ops forgejo pr list` and `pr view` are allowed. Merge stays gated.
 
@@ -140,9 +135,9 @@ Unless told otherwise, "done" includes the obvious follow-through, not the first
 
 ### Native checkpoints must be remote
 
-Whenever an agent doing native work outside `warded` reaches a checkpoint holding local repository changes **or undurable work product**, the agent **must commit the in-scope changes and push the commit to the canonical remote before pausing, reporting the checkpoint, switching tasks, or ending the turn**. A checkpoint includes a human decision wall, a blocked dependency, a handoff, a context boundary, and any point where the agent may not continue immediately.
+The block above requires the push. This extends it to **undurable work product** and names when it fires: a checkpoint is a human decision wall, a blocked dependency, a handoff, a context boundary, or any point where the agent may not continue immediately.
 
-If the resolved workflow allows the work to land, the agent pushes it to `main` as usual. If the work should not yet land on `main`, the agent creates or reuses a task-specific branch and pushes the checkpoint there. The remote branch is the recovery artifact. Uncommitted changes, local-only commits, stashes, reflogs, and a clean local worktree without a remote ref **do not count**. Test failures or incomplete follow-up may keep a checkpoint off `main`, but they never justify leaving the only copy local. Never force-push to satisfy this rule. If an ordinary push cannot succeed, the agent preserves the local state and reports the exact blocker as the current wall.
+If the work should not land on `main` yet, the agent pushes the checkpoint to a task-specific branch. The remote branch is the recovery artifact. Uncommitted changes, local-only commits, stashes, reflogs, and a clean worktree without a remote ref **do not count**. Test failures or incomplete follow-up may keep a checkpoint off `main`, but never justify leaving the only copy local. Never force-push to satisfy this rule; if an ordinary push cannot succeed, preserve the local state and report the exact blocker as the current wall.
 
 **Work product is more than the worktree.** A design, a measurement and the numbers behind it, the reasoning under a decision, a specification the human typed, and a rejected alternative worth not re-litigating are all work product, and none of them appears in `git status`. Durable means committed to a repository or filed on the tracker, so a transcript, a session scratchpad, and a published artifact are renderings rather than stores: an artifact is a view of something already in git or an issue, never the only copy of it.
 
@@ -150,9 +145,7 @@ If the resolved workflow allows the work to land, the agent pushes it to `main` 
 
 ### A pushed branch owes its pull request
 
-The rule above ends at a remote branch, and **a branch is not a deliverable**. Whenever an agent pushes a branch on any lane that lands through review (`pull-request`, `pull-request-and-merge`), it **opens the pull request in the same turn**, before reporting the checkpoint, handing back, or ending the turn. A branch pushed on a lane that lands on `main` still owes one whenever the merge itself is blocked, because the branch is then the only thing carrying the work. Only `remote-branch-only` stops at a branch, and only when the caller resolved that lane.
-
-**A branch with no PR is litter**: nothing points at it and it is invisible to anyone reading issues or the merge queue, so the work is lost the moment the session ends. When the agent cannot open the PR itself, it reports that as the blocking wall and hands back the branch name with its compare URL rather than describing the work as pushed and done.
+The Git workflow block above carries the rule, and **a branch is not a deliverable**. Two cases it does not cover. A branch pushed on a lane that lands on `main` still owes a pull request whenever the merge itself is blocked, because the branch is then the only thing carrying the work. And when the agent cannot open the pull request itself, it reports that as the blocking wall and hands back the branch name with its compare URL, rather than describing the work as pushed and done.
 
 ### A deferral owes its issue
 

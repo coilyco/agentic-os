@@ -121,8 +121,8 @@ band = "large"
 # rather than prose. Recorded because the previous attempt at this rule opened a
 # pull request against a branch carrying no commit, so the rule read as shipped
 # for a day while the file never changed (coilysiren/inbox#480).
-agents_md_max_lines = 247
-agents_md_max_chars = 34600
+agents_md_max_lines = 240
+agents_md_max_chars = 33339
 # Subsystem dirs carry idiomatic co-located READMEs and config docs that the
 # root/docs/skills location rule does not model. Excluded per the root layout
 # hatch: warp (Go module).
