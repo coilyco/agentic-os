@@ -19,8 +19,9 @@ For each repo checked out under ~/projects/<org>/<name> across every org dir
      consumer ships `.github/actionlint.yaml` (see `actionlint_args`).
   4. Insert/refresh the managed `.gitattributes` block pinning the working
      tree to LF. See docs/pre-commit-hygiene.md.
-  5. Run `pre-commit install --hook-type pre-commit --hook-type commit-msg
-     --hook-type prepare-commit-msg`.
+  5. Run `pre-commit install` for pre-commit, commit-msg, prepare-commit-msg,
+     and pre-push. pre-push carries pr-guard, and omitting it left that hook
+     with nowhere to run on every consumer (agentic-os#1382).
 
 Pin a package tag with `--rev`. Default tracks the latest aos-precommit release.
 
@@ -557,6 +558,7 @@ def install_pre_commit_hooks(repo_dir: Path) -> str:
             "--hook-type", "pre-commit",
             "--hook-type", "commit-msg",
             "--hook-type", "prepare-commit-msg",
+            "--hook-type", "pre-push",
         ],
         cwd=repo_dir, capture_output=True, text=True, check=False,
     )
