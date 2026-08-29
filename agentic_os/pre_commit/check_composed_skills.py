@@ -65,6 +65,7 @@ def catalogue_problems(repo_root: Path, composed: Path) -> list[str]:
     ]
     every = [selector for selectors in roles.values() for selector in selectors]
     allowed = load_str_list(HOOK_ID, "unselected", repo_root)
+    used: set[str] = set()
     for entry in sorted(composed.iterdir()):
         if not entry.is_dir() or entry.name.startswith("."):
             continue
@@ -72,13 +73,21 @@ def catalogue_problems(repo_root: Path, composed: Path) -> list[str]:
             continue
         if any(fnmatch.fnmatchcase(entry.name, selector) for selector in every):
             continue
-        if any(fnmatch.fnmatchcase(entry.name, pattern) for pattern in allowed):
+        covering = [p for p in allowed if fnmatch.fnmatchcase(entry.name, p)]
+        if covering:
+            used.update(covering)
             continue
         problems.append(
             f".agents/composed/{entry.name}: no role selects it. Add a "
             f"composed-skill selector, or list it under "
             f"[tool.agentic-os.check-composed-skills] unselected with a reason."
         )
+    problems.extend(
+        f"pyproject.toml: [tool.agentic-os.check-composed-skills] unselected "
+        f"pattern {pattern!r} covers no unselected source, so it exempts "
+        f"nothing. Its source is gone, or a role now selects it."
+        for pattern in sorted(set(allowed) - used)
+    )
     return problems
 
 

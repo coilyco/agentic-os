@@ -104,3 +104,45 @@ def test_this_repos_catalogue_and_role_graph_agree() -> None:
     root = Path(__file__).resolve().parent.parent
 
     assert catalogue_problems(root, root / ".agents" / "composed") == []
+
+
+def _with_unselected(tmp_path: Path, patterns: list[str]) -> None:
+    body = ", ".join(f'"{p}"' for p in patterns)
+    (tmp_path / "pyproject.toml").write_text(
+        f"[tool.agentic-os.check-composed-skills]\nunselected = [{body}]\n",
+        encoding="utf-8",
+    )
+
+
+def test_a_live_exemption_still_passes(tmp_path: Path) -> None:
+    # The control. A pattern covering a genuinely unselected source is the
+    # whole point of the escape hatch and must stay silent.
+    kdl = "roles {\n    role qa {\n        composed-skill a\n    }\n}\n"
+    composed = _catalogue(tmp_path, kdl, ["a", "orphan"])
+    _with_unselected(tmp_path, ["orphan"])
+
+    assert catalogue_problems(tmp_path, composed) == []
+
+
+def test_an_exemption_whose_source_is_gone_fails(tmp_path: Path) -> None:
+    kdl = "roles {\n    role qa {\n        composed-skill a\n    }\n}\n"
+    composed = _catalogue(tmp_path, kdl, ["a"])
+    _with_unselected(tmp_path, ["deleted-long-ago"])
+
+    problems = catalogue_problems(tmp_path, composed)
+
+    assert len(problems) == 1
+    assert "'deleted-long-ago' covers no unselected source" in problems[0]
+
+
+def test_an_exemption_a_role_now_selects_fails(tmp_path: Path) -> None:
+    # The dangerous drift: the exemption is wrong and still active, so removing
+    # the selector later would leave the gate silent.
+    kdl = "roles {\n    role qa {\n        composed-skill a\n        composed-skill b\n    }\n}\n"
+    composed = _catalogue(tmp_path, kdl, ["a", "b"])
+    _with_unselected(tmp_path, ["b"])
+
+    problems = catalogue_problems(tmp_path, composed)
+
+    assert len(problems) == 1
+    assert "'b' covers no unselected source" in problems[0]
