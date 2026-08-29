@@ -32,8 +32,8 @@ const (
 	creaturePlateAspect = 10.0 / 16.0
 	// Where a fill starts losing alpha, and how much of it goes. The dark
 	// linework stays whole at any depth. See docs/aterm-creature.md.
-	creatureGlareKnee  = 0.46
-	creatureGlareDepth = 0.58
+	creatureGlareKnee  = 0.62
+	creatureGlareDepth = 0.30
 	// A path kitty reads as a glob is a path it may not open. See docs/aterm-creature.md.
 	globMetacharacters = "*?[]{}"
 )
