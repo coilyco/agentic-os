@@ -8,7 +8,7 @@ version = "0.1.1"
 description = "Shared eval grading layer: schema, boundary pairing, human annotation, failure taxonomy, and a one-way display export."
 readme = "README.md"
 license = { text = "MIT" }
-authors = [{ name = "Kai Siren" }]
+authors = [{ name = "Kai Ase Siren" }]
 requires-python = ">=3.11"
 # Deliberately no inspect-ai and no model client. The runners stay in the
 # repos that own them, so this package never pulls inference into a consumer.
