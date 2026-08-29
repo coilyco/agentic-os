@@ -25,8 +25,10 @@ wrap aosguard ops forgejo {
         prefix "token "
         value ssm "/forgejo/coilyco-ops/api-token"
     }
-    // Scope gate: every leaf whose path carries {owner} must name a coily* owner.
+    // One clause per owner-shaped parameter the swagger spells: a spec-resolved
+    // surface cannot rename them, so each needs its own (agentic-os#1378).
     restrict owner matches coily*
+    restrict username matches coily*
     // repos: read/create/edit/delete plus the cross-repo `search` finder. Fork
     // and archive/unarchive are denied below as human-only irreversible toggles.
     can get repo
