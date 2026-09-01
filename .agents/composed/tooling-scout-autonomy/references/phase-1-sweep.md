@@ -17,7 +17,7 @@ backlog**:
 - The latest `*-capability-scout-*` and `*-displacement-scout-*` notes files - newly
   acquired tools are prime build material, and a planned displacement is a refactor
   waiting to happen.
-- The latest `tooling-issue-prioritization` output - P1/P2 items already carry intent.
+- The latest `tooling-issue-triage` output - P1/P2 items already carry intent.
 
 **Tag every candidate by kind**, because kind drives the phase-3 multiplier:
 

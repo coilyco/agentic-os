@@ -1,4 +1,4 @@
-# P0 content-rule net (recall stage). See the entrypoint's "Target shape".
+# P0 content-rule net (recall stage). See target-shape.md.
 #
 # Each category is a case-insensitive regex matched against an issue's
 # title + body. A match makes the issue a P0 *candidate*. Candidates are

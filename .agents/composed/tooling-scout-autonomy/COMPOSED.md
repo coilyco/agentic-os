@@ -62,6 +62,6 @@ The scout family is one portfolio activity in three directions:
 ## See also
 
 - [references/scoring-and-config.md](references/scoring-and-config.md) - scoring weights, run-config schema, cadence and resume.
-- `tooling-issue-prioritization` - the backlog signal consumed during the
+- `tooling-issue-triage` - the backlog signal consumed during the
   grounded sweep.
 - `tooling-scout-capability` / `tooling-scout-displacement` - the add / shed siblings.

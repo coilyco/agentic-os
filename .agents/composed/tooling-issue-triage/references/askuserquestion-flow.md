@@ -1,8 +1,12 @@
 # AskUserQuestion flow
 
-Where human judgment actually enters. Tiering orders a backlog and the [autonomy axis](automation-mode-axis.md) names each issue's ceiling. Neither drains `autonomy/async-consult`, and that queue is the one blocking real work. This is the loop that does.
+Where human judgment actually enters, in the depth half of the loop. Tiering orders a backlog and the [autonomy axis](automation-mode-axis.md) names each issue's ceiling. Neither drains `autonomy/async-consult`, and that queue is the one blocking real work. These rounds are what drains it.
 
 `async-consult` is defined as a question waiting in a queue rather than an appointment. **A queue nobody polls is just a label.** These rounds are the polling.
+
+**Ask only what a recommendation cannot settle.** Anything you would answer the same way yourself goes on the [triage board](triage-board-artifact.md) as a preselected disposition, where it costs the human a skim instead of a round. When more than four genuine forks are ready at once, or one needs more context than four option labels hold, render them as a [consult queue](consult-queue-artifact.md) instead of splitting them across turns.
+
+**Audit the label before composing the question.** On a sampled director bucket, 4 of 7 issues carrying `autonomy/async-consult` were not consults: two were read-and-report tasks belonging on `autonomy/headless`, one was a settled record, one was blocked behind agent prep that had not run. Reclassifying is a higher-value move than answering, so the relabel proposal is the first row of every round.
 
 ## The loop
 
