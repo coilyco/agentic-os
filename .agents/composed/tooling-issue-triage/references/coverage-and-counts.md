@@ -93,6 +93,24 @@ loop in one Bash call or a scratchpad script, keeping label, close, and comment
 calls out of worker prompts. The writes are reversible, so the gate is on the
 form rather than the risk.
 
+### The parent is not enough on its own: batch size counts too
+
+Measured on the 2026-09-01 fleet audit. A parent-driven loop of **18** label
+writes passed. A parent-driven loop of **130**, in the same session with the
+same authorization and the same verb, was refused as a mass external-system
+write. Nothing about the caller changed, only the count.
+
+So "drive mutations from the parent" is necessary and not sufficient. Plan a
+bulk relabel as **tens of writes, not hundreds**, scoped to a bucket you can
+name in one sentence, and expect the refusal anyway on a fleet-sized pass.
+
+**When it is refused, the reading is the thing worth saving.** Do not re-shape
+the same loop to slip past the gate: that works around the intent rather than
+the mechanism. File the classification as a tracker issue carrying one row per
+issue with its evidence, so the pass is durable and someone with the right
+surface can apply it. A refused write costs an hour. A lost reading of 188
+issues costs the whole pass.
+
 ## See also
 
 - [global-forgejo-scope](global-forgejo-scope.md) - the fleet inventory, distribution accounting, and completion rules for a whole-fleet pass.
