@@ -47,6 +47,38 @@ is counted separately rather than folded into `type=issues`, and pinned rows are
 not double-counted. There is no Forgejo bug to file. The durable rule is only
 that per-repo is DB-direct and cannot lag.
 
+### The mandate covers every enumeration, not just the triage pass
+
+The count gate is easy to read as a rule about the main fan-out. It is not. It
+binds on **any** question of the form "which issues carry X", including the
+quick ad-hoc scan you run to check your own work.
+
+Measured twice in the 2026-09-01 session, both times by the author of this
+page. The opening fleet count returned **739** against an authoritative **776**,
+caught because the gate was applied. A later scan for one label returned
+**21** against an authoritative **34**, not caught, because the gate was
+skipped on a query that felt too small to need it. Acting on that number
+relabelled 21 issues and silently left 13.
+
+Both failures have the same shape: a page request fails, the loop reads the
+empty result as the end of the collection, and the shortfall is invisible
+because nothing declared what the total should have been.
+
+### Filter server-side, and count the filter
+
+Do not page a repository's whole issue list and filter by label in your own
+code. Ask the API for the filtered set and read its total:
+
+```bash
+gettotal "$BASE/repos/$OWNER/$REPO/issues?type=issues&state=open&labels=priority%2FP4&limit=1"
+```
+
+The `labels=` filter takes URL-encoded label names, and the `X-Total-Count` on
+that request is DB-direct for the filtered set exactly as it is for the whole
+one. That turns a coverage problem into a single number, which is the only form
+that can be checked. **Verify a bulk write by re-reading that number, not by
+re-running the scan that produced the worklist.**
+
 ## The count mandate
 
 When you fan discovery out one worker per repository, the workers reliably
