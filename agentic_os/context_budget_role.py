@@ -222,6 +222,37 @@ def _agents_components(
     return components
 
 
+def _operating_base_components(
+    providers: Mapping[str, Path],
+    provider_identities: Mapping[str, str],
+    repo_identity: str,
+) -> list[Component]:
+    """Measure the provider AGENTS files composed into a harness global load point.
+
+    See docs/context-budget.md for what this covers and what it still misses.
+    """
+    components: list[Component] = []
+    for index, source_id in enumerate(sorted(providers)):
+        identity = provider_identities[source_id]
+        if identity == repo_identity:
+            continue
+        path = providers[source_id] / "AGENTS.md"
+        if not path.is_file():
+            continue
+        components.append(
+            _component(
+                f"operating-base:{index:03}:{source_id}",
+                "operating-base",
+                identity,
+                f"{identity}:AGENTS.md",
+                "composed-global",
+                True,
+                path.read_bytes(),
+            )
+        )
+    return components
+
+
 def _safe_child_path(root: Path, relative: object, label: str) -> Path:
     if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
         raise RuntimeError(f"invalid {label}")
@@ -646,6 +677,13 @@ def build_snapshot(
         _agents_components(
             repo,
             cwd,
+            repo_identity,
+        )
+    )
+    components.extend(
+        _operating_base_components(
+            providers,
+            provider_identities,
             repo_identity,
         )
     )
