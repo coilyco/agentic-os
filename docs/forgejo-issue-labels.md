@@ -6,7 +6,7 @@ the numeric ids the API declares.
 
 ## The rule
 
-Every filed issue carries one `priority/P0`..`priority/P4` and one
+Every filed issue carries one `priority/P0`..`priority/P3` and one
 `autonomy/headless`, `autonomy/live-collab`, `autonomy/async-consult`, or
 `autonomy/epic`. The verb shadows the generated `issue create` leaf and
 enforces both (#1105).

@@ -4,13 +4,46 @@ Every triage label is a `prefix/value` pair, and Forgejo treats a prefixed group
 
 | axis | exclusive | values |
 | --- | --- | --- |
-| `priority/*` | yes | `P0` `P1` `P2` `P3` `P4` |
+| `priority/*` | yes | `P0` `P1` `P2` `P3` |
 | `autonomy/*` | yes | `headless` `live-collab` `async-consult` `epic` |
 | `role/*` | no | `platform` `sysadmin` `science` `frontend` `gamedev` `director` `advocate` `human` |
 
 `role/*` is deliberately not exclusive, because one issue can legitimately need two seats. A decision with a landing carries both - the seat that rules and the seat that applies the result.
 
 `role/human` is the one value that is not a seat. It means a person is required and specifically not an agent seat, so reach for it only when no seat fits.
+
+## The 2026-09-01 deletion of `priority/P4`
+
+`priority/P4` was the icebox: the demotion sink for parked, speculative-but-kept
+work that should stay open and tracked rather than be closed. It was deleted
+because it never did that.
+
+Measured across the whole fleet on 2026-09-01:
+
+* **21 open, 1,196 closed.** It was the most-applied priority label in the estate by lifetime volume.
+* **Median lifetime 14 days**, filing to close. 37% closed within a week, and only 10% lived past 30 days.
+* **53% of all its closes landed on three days**, 73% on five.
+
+So nothing parked. Issues were marked `priority/P4` to stage a bulk close and
+were closed within a fortnight, mostly in batches. The label was a marshalling
+step for closure wearing the name of a resting place.
+
+That mismatch was load-bearing rather than cosmetic. [target-shape](target-shape.md)
+set a **30-50% stock target** on a tier whose behaviour was **flow**, so its
+3.7% standing balance - the ordinary residue between burn-downs - read as a
+failure to prune. In one 2026-09-01 session that reading produced three
+successive wrong conclusions before the closed-issue count settled it.
+
+Deleting the tier rather than retuning its band was Kai's call, made against a
+recommendation to keep the label and drop only the band. The cost she accepted
+is stated plainly: **deleting a Forgejo label strips it from every issue
+carrying it**, so the 1,196 closed issues lost their marker and
+`state:closed label:priority/P4` stopped being a queryable record of five past
+burn-downs.
+
+Nothing replaced it. `priority/P3` is now both the default and the floor, and
+the prune is closing, which reopen already makes reversible. See
+[pruning-and-api](pruning-and-api.md).
 
 ## The 2026-08-15 rename
 

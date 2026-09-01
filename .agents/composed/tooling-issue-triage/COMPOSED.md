@@ -1,6 +1,6 @@
 ---
 name: tooling-issue-triage
-description: Ground-level issue triage as one loop - scope and count the pool, tier it on three axes, publish a triage-board artifact for breadth, drain the blocking forks through batched AskUserQuestion rounds, write answers back, then decompose what survives into tracer-bullet slices. Triggers - triage, prioritize, backlog burn-down, priority/P0-P4, icebox, autonomy, role labels, consult queue, ask the human, triage board, decompose, make tickets, issue counts.
+description: Ground-level issue triage as one loop - scope and count the pool, tier it on three axes, publish a triage-board artifact for breadth, drain the blocking forks through batched AskUserQuestion rounds, write answers back, then decompose what survives into tracer-bullet slices. Triggers - triage, prioritize, backlog burn-down, priority/P0-P3, autonomy, role labels, consult queue, ask the human, triage board, decompose, make tickets, issue counts.
 ---
 
 # Issue triage
@@ -96,9 +96,11 @@ Four rules, each earned against a real pass.
 
 ## Pruning
 
-Default to demoting to `priority/P4` rather than closing. Reserve closing for
-near-duplicates merged into a canonical, and for the genuinely dead. Keep is the
-safe default. See [pruning-and-api](references/pruning-and-api.md).
+**Keep it or close it. There is no soft-prune tier**, since `priority/P4` was
+deleted on 2026-09-01 for never behaving like the icebox it was named for. Keep
+is the safe default and `priority/P3` is where unsure lands. Closing is the
+prune, and reopen is its exact inverse, so it is not the hard call it sounds
+like. See [pruning-and-api](references/pruning-and-api.md).
 
 ## The enforcing half
 

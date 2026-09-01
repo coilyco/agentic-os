@@ -22,7 +22,7 @@ Application-aware Forgejo storage measurement. The generic kubectl surface keeps
 
 ## `forgejo.kdl`
 
-Forgejo ops surface for the standalone AOSguard bundle. AOS authors it and AOSguard ships it. Ward mounts the built binary and owns nothing in here, and no leaf below defers a decision to Ward existing. Every `can` resolves its operationId by convention (verb + resource -> method + path); the only explicit `op` pins are on the repo-label denials below, where a bare `label` would resolve org-ward. Hardened per ward#109: orgs and repos lose their irreversible verbs, repo-label CRUD moves to org-labels, a cross-repo issue search and a move-issue action land, and every path-{owner} leaf is scoped to coily* owners. Repo-level label create/edit are additionally policy-disabled per ward#107 (dup P0-P4 prevention). Auto-resolution per umbra#147. See the tooling-aosguard skill.
+Forgejo ops surface for the standalone AOSguard bundle. AOS authors it and AOSguard ships it. Ward mounts the built binary and owns nothing in here, and no leaf below defers a decision to Ward existing. Every `can` resolves its operationId by convention (verb + resource -> method + path); the only explicit `op` pins are on the repo-label denials below, where a bare `label` would resolve org-ward. Hardened per ward#109: orgs and repos lose their irreversible verbs, repo-label CRUD moves to org-labels, a cross-repo issue search and a move-issue action land, and every path-{owner} leaf is scoped to coily* owners. Repo-level label create/edit are additionally policy-disabled per ward#107 (dup priority-tier prevention). Auto-resolution per umbra#147. See the tooling-aosguard skill.
 
 ## `kubectl.kdl`
 

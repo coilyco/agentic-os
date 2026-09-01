@@ -7,11 +7,22 @@
 
 You never force a `priority/P0` percentage - urgent is whatever genuinely is (a re-triage of ~750 issues confirmed ~19).
 
-The **non-`priority/P0` remainder** splits to a global distribution across the resolved
-priority pool, as equal-width ranges so the cut lands on a natural break, not a
-forced percentage: **`priority/P1` 0-20%, `priority/P2` 10-30%, `priority/P3` 20-40%, `priority/P4` 30-50%** - same
-20-point width, centers at **10 / 20 / 30 / 40**, summing to 100. Treat the
-band, not a single number, as the target. `priority/P1` floors at zero on purpose: a
-backlog with nothing important-and-near-term has an empty `priority/P1`, and that is
-correct. Small or urgent repositories may deviate past a band edge. The shape
-holds on the resolved pool.
+The **non-`priority/P0` remainder** splits to a global distribution across the
+resolved priority pool, as ranges so the cut lands on a natural break rather
+than a forced percentage: **`priority/P1` 0-20%, `priority/P2` 20-40%, and
+`priority/P3` takes the remainder.** Treat the band, not a single number, as the
+target.
+
+**`priority/P3` is deliberately uncapped**, because it is both the default tier
+and the floor. A default with a ceiling forces promotion to fill a quota, which
+is the same failure `priority/P1`'s zero floor guards against from the other
+end: a backlog with nothing important-and-near-term has an empty `priority/P1`,
+and that is correct.
+
+Small or urgent repositories may deviate past a band edge. The shape holds on
+the resolved pool.
+
+**Only three bands, because `priority/P4` was deleted on 2026-09-01.** The
+four-band version set a *stock* target of 30-50% on a tier whose measured
+behaviour was *flow*, and the mismatch generated repeated false alarms. See
+[label-taxonomy](label-taxonomy.md).

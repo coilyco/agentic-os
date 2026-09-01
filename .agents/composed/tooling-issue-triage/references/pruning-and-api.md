@@ -2,11 +2,13 @@
 
 ## Pruning - demote, merge, or close
 
-Default to **demoting to `priority/P4` (icebox)** rather than closing: speculative-but-kept work stays open and tracked at the lowest tier, and the async triage loop can only move issues between open tiers anyway. Reserve closing for two cases:
+**There is no soft-prune tier. Keep it or close it.** `priority/P4` existed to be the icebox and was deleted on 2026-09-01 because it never behaved like one (see [label-taxonomy](label-taxonomy.md)). Nothing replaced it, deliberately.
 
+- **Keep** anything concrete, a bug, infra/security/ops, committed-direction, OR anything uncertain - at its earned tier. Keep is the safe default, and `priority/P3` is where unsure lands.
 - **Merge** near-duplicates into the lowest-numbered canonical (comment "merged into #N", then close the losers).
-- **Hard close** only the genuinely dead - superseded, abandoned, or one-line stubs with no value. For a bulk burn-down, an `icebox` label on the closed issue keeps it reversible (`state:closed label:icebox`).
-- **Keep** anything concrete, a bug, infra/security/ops, committed-direction, OR anything uncertain - at its earned tier. Keep is the safe default; demotion to `priority/P4` is the soft prune, closing is the hard one.
+- **Close** the genuinely dead - superseded, abandoned, or one-line stubs with no value.
+
+**Closing is the prune, and it is not a hard one.** Close has reopen as its exact inverse, so a wrong close is no wall. That is what makes a missing icebox affordable: the reason to park rather than close was reversibility, and closing already is reversible. Say why in a comment, the way a merge says it is green, and the record survives in the closed issue rather than in a label.
 
 ## Running it over an API - lessons
 
