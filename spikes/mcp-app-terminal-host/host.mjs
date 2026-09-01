@@ -2,11 +2,11 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.PORT || 8787);
-const APP_TOOL = "get-system-info";
+const SERVER = process.env.MCP_SERVER || "@modelcontextprotocol/server-system-monitor";
 
 // One long-lived stdio session, so a widget's second button press lands on the
 // same server process as its first.
-const srv = spawn("npx", ["-y", "@modelcontextprotocol/server-system-monitor", "--stdio"], {
+const srv = spawn("npx", ["-y", SERVER, "--stdio"], {
   stdio: ["pipe", "pipe", "inherit"],
 });
 let buf = "";
@@ -39,12 +39,12 @@ await rpc("initialize", {
 srv.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
 
 const toolList = (await rpc("tools/list", {})).result;
-const appTool = toolList.tools.find((t) => t.name === APP_TOOL);
+const appTool = toolList.tools.find((t) => t._meta?.ui?.resourceUri);
 const uiUri = appTool?._meta?.ui?.resourceUri;
 const widget = (await rpc("resources/read", { uri: uiUri })).result.contents[0];
-const instantiating = (await rpc("tools/call", { name: APP_TOOL, arguments: {} })).result;
+const instantiating = (await rpc("tools/call", { name: appTool.name, arguments: {} })).result;
 
-console.log(`widget ${uiUri} ${widget.text.length} bytes, mime ${widget.mimeType}`);
+console.log(`${SERVER}: tool ${appTool.name}, widget ${uiUri}, ${widget.text.length} bytes`);
 
 // --- the frame log --------------------------------------------------------
 const frames = [];
@@ -58,12 +58,13 @@ const logFrame = (dir, method, note) => {
 // rather than replaying a captured result.
 const page = `<!doctype html><meta charset="utf-8">
 <style>html,body{margin:0;background:#12101a}iframe{border:0;width:100vw;height:100vh}</style>
-<iframe id="w" src="/widget.html" sandbox="allow-scripts"></iframe>
+<iframe id="w" src="/widget.html" sandbox="${process.env.SANDBOX || 'allow-scripts'}"></iframe>
 <script>
 const fr = document.getElementById('w');
 const TOOL_RESULT = ${JSON.stringify(instantiating)};
 const log = (d, m, n) => fetch('/log', {method:'POST', body: JSON.stringify({d, m, n})});
 const post = (m) => fr.contentWindow.postMessage(m, '*');
+let openLinkSeq = 0;
 // postMessage is structured clone, not JSON, so an undefined-valued key
 // survives the hop and reads as a present error member. Send one or the other.
 const proxy = (m) => fetch('/rpc', {method:'POST', body: JSON.stringify({method:m.method, params:m.params})})
@@ -92,6 +93,19 @@ window.addEventListener('message', (e) => {
   } else if (m.method === "ui/notifications/initialized") {
     post({jsonrpc:"2.0", method:"ui/notifications/tool-result", params:TOOL_RESULT});
     log('->', 'ui/notifications/tool-result', 'instantiating');
+  } else if (m.method === "ui/open-link") {
+    openLinkSeq++;
+    log('<-', 'ui/open-link', JSON.stringify(m.params) + ' seq:' + openLinkSeq);
+    if (openLinkSeq === 1) {
+      post({jsonrpc:"2.0", id:m.id, error:{code:-32601, message:"not implemented: ui/open-link"}});
+      log('->', 'error -32601', 'ui/open-link');
+    } else if (openLinkSeq === 2) {
+      post({jsonrpc:"2.0", id:m.id, result:{isError:true}});
+      log('->', 'result isError:true', 'ui/open-link refused');
+    } else {
+      post({jsonrpc:"2.0", id:m.id, result:{isError:false}});
+      log('->', 'result isError:false', 'ui/open-link accepted');
+    }
   } else if (m.method === "tools/call" || m.method === "tools/list" ||
              m.method === "resources/read" || m.method === "resources/list") {
     proxy(m);
