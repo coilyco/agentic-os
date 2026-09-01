@@ -89,12 +89,23 @@ if [ -z "${_SIREN_SHELL_ENV:-}" ]; then
   # ward owns the whole workspace root (the security boundary, all orgs).
   export WARD_LOCKDOWN_ROOT="$PROJECTS_ROOT"
 
-  # Prepend $1 to PATH if it's a real dir and not already present.
+  # Skipping when already present loses to `brew shellenv`, which re-prepends
+  # unconditionally, so an inherited PATH keeps Homebrew ahead (aos#1467).
   _siren_path_prepend() {
+    [ -d "$1" ] || return 0
     case ":$PATH:" in
-      *":$1:"*) ;;
-      *) [ -d "$1" ] && PATH="$1:$PATH" ;;
+      *":$1:"*)
+        _sp=":$PATH:"
+        while :; do
+          case "$_sp" in
+            *":$1:"*) _sp="${_sp%%":$1:"*}:${_sp#*":$1:"}" ;;
+            *) break ;;
+          esac
+        done
+        _sp="${_sp#:}"; PATH="${_sp%:}"; unset _sp ;;
     esac
+    # An emptied PATH would take a trailing colon here, putting cwd on PATH.
+    if [ -n "$PATH" ]; then PATH="$1:$PATH"; else PATH="$1"; fi
   }
 
   case "$(uname -s)" in
