@@ -190,6 +190,7 @@ func newCommand(deps commandDeps) *cli.Command {
 					return runDoctor(ctx, deps, cmd)
 				},
 			},
+			newCardCommand(),
 			newBundlesCommand(deps),
 			newPaneCommand(deps),
 		},

@@ -105,13 +105,41 @@ func TestRenderCardGrowsWithProgress(t *testing.T) {
 	if empty == full {
 		t.Fatal("the card should arrive rather than appear whole at progress 0")
 	}
-	for _, want := range []string{"tenacious", "grounded"} {
-		if !strings.Contains(full, want) {
-			t.Fatalf("the legend should name %q:\n%s", want, full)
+	if !strings.Contains(full, card.Annotation) {
+		t.Fatalf("the card should name the seat:\n%s", full)
+	}
+	if strings.Count(full, "\n") != figureHeight {
+		t.Fatalf("the card should be %d lines:\n%s", figureHeight, full)
+	}
+}
+
+// Kai cut the card to the seat name, its colour, and the creature. agentic-os#1456
+func TestTheCardCarriesNothingButTheNameAndTheCreature(t *testing.T) {
+	card := buildSessionCard(platformOverlay(t), launchPlan{Brand: launchBrand{Accent: "#9c8b31"}})
+	card.Seat = "claude"
+	card.Tier = "frontier"
+	card.Expression = "acting"
+	card.Workspace = "a-workspace-label"
+	card.Directory = "/a/directory/nobody/needs"
+	card.Shadowed = true
+	full := renderCard(card, 1)
+	gone := []string{
+		card.Seat, card.Tier, card.Expression, card.Workspace, card.Directory,
+		"leased", "unleased",
+	}
+	for _, figure := range card.Figures {
+		gone = append(gone, figure.Name, figure.Emoji)
+	}
+	for _, dropped := range gone {
+		if strings.TrimSpace(dropped) == "" {
+			continue
+		}
+		if strings.Contains(full, dropped) {
+			t.Fatalf("the card should have dropped %q:\n%s", dropped, full)
 		}
 	}
-	if strings.Count(full, "\n") != figureHeight+1 {
-		t.Fatalf("the card should be %d lines:\n%s", figureHeight+1, full)
+	if !strings.Contains(full, card.Annotation) {
+		t.Fatalf("the card should keep the seat name:\n%s", full)
 	}
 }
 

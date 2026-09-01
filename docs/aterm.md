@@ -10,6 +10,7 @@
 aterm                              # pick a role, then a seat
 aterm platform                     # the role's default seat
 aterm platform codex -- --resume   # arguments for the harness
+aterm card                         # this session's card, again
 aterm --list                       # the live roster, no window
 aterm --list --json                # the same roster, for a script
 ```
@@ -33,6 +34,10 @@ The window opens fullscreen at font size 14.5, which `--start-as` and `--font-si
 **The sound mark is opt-in, because a window opens many times a day.** `--sound` plays the role's pair and `ATERM_SOUND` turns it on for a shell, and neither reaches a log, a recording, or CI, where the terminal check refuses it whatever was asked. The samples still ship and `just aterm-sounds` still renders them, so this is a default rather than a removal. An env var alone could not have delivered silence: the `.app` wrapper harvests only `PATH` from a login shell, so a Dock or Spotlight launch never sees the caller's environment and only a default reaches both ways in.
 
 **`aterm doctor` preflights the whole chain**, exits 1 on a broken link, and names the unleased-shadow case a launch makes silently. `--json` is `aterm.doctor.v1`.
+
+**The identity card is the seat name, its colour, and the creature, and nothing else.** It carried the seat, tier, expression, workspace, directory, shadow line, and a personality legend keyed by emoji. Kai cut all of it. The card the launch draws and the card `aterm card` re-renders are one renderer, so the two cannot drift.
+
+**`aterm card` re-renders the card for the session you are already inside.** The launch card loses the window to the harness on its first repaint and then leaves the terminal's history at the scrollback cap, which on a kitty at the 2000-line default is a few hours rather than 400ms. The verb reads `ATERM_CARD`, which `_session` sets on the harness it starts, so it re-renders the payload the launch already resolved rather than asking `agent-compose` again. That is what keeps it working from inside a session shadow, where re-resolving cannot (agentic-os#1460). Outside a session aterm opened, `ATERM_CARD` is unset and the verb exits 4. Whether the card can be seen at launch at all is agentic-os#1456.
 
 **A launch from inside a native session shadow refuses with exit 6, rather than opening a window that dies.** The child inherits the session's `HOME`, so `aos` resolves a projects root under the shadow while the repository plan reached through that same `HOME` names the canonical one, and they can never agree. The refusal runs ahead of the working-directory check, which fails on the same root cause and reports it as a symptom. `--list` and `--dry-run` open no window and stay usable from in there, which is how the identity card is inspected. `aterm doctor` reports the same condition as a `native session` failure. Making the nested launch work rather than refuse is agentic-os#1460.
 

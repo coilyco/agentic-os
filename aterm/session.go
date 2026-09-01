@@ -34,6 +34,11 @@ func runSession(options sessionOptions, stdin io.Reader, stdout, stderr io.Write
 		playCard(stdout, options.Card, options.Motion)
 	}
 	command := exec.Command(argv[0], argv[1:]...)
+	// The card is already resolved here, so the session carries it rather than
+	// re-resolving it later. `aterm card` re-renders from this.
+	if options.CardPayload != "" {
+		command.Env = append(os.Environ(), cardEnv+"="+options.CardPayload)
+	}
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
@@ -82,7 +87,10 @@ type sessionOptions struct {
 	Motion  bool
 	Audible bool
 	Card    sessionCard
-	Argv    []string
+	// CardPayload is the encoded card exactly as it arrived, so the session can
+	// pass it on without re-encoding what it decoded.
+	CardPayload string
+	Argv        []string
 }
 
 // parseSessionArgs hand-parses because everything after the first `--` belongs
@@ -107,6 +115,7 @@ func parseSessionArgs(argv []string) (sessionOptions, error) {
 				return sessionOptions{}, err
 			}
 			options.Card = card
+			options.CardPayload = strings.TrimSpace(argv[index])
 		case "--":
 			options.Argv = argv[index+1:]
 			return options, nil

@@ -18,6 +18,7 @@ const (
 	cardFrames     = 10
 	cardGap        = "  "
 	noMotionEnv    = "ATERM_NO_MOTION"
+	cardEnv        = "ATERM_CARD"
 )
 
 type cardFigure struct {
@@ -113,46 +114,17 @@ func renderCard(card sessionCard, progress float64) string {
 		}
 		lines[row] = strings.Join(parts, cardGap)
 	}
-	for index, detail := range cardDetails(card) {
-		if index >= len(lines) {
-			break
-		}
-		lines[index] += cardGap + cardGap + detail
-	}
-	return strings.Join(append(lines, cardLegend(card)), "\n") + "\n"
+	lines[0] += cardGap + cardGap + cardName(card)
+	return strings.Join(lines, "\n") + "\n"
 }
 
-func cardDetails(card sessionCard) []string {
-	accent := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(card.Accent))
-	faint := lipgloss.NewStyle().Faint(true)
-	seat := card.Seat
-	if card.Tier != "" {
-		seat += " // " + card.Tier
-	}
-	if card.Expression != "" {
-		seat += " // " + card.Expression
-	}
-	shadow := "unleased, this window shares the canonical checkout"
-	if card.Shadowed {
-		shadow = "leased session shadow"
-	}
-	details := []string{accent.Render(card.Annotation), faint.Render(seat)}
-	if card.Workspace != "" {
-		details = append(details, faint.Render(card.Workspace))
-	}
-	return append(details, faint.Render(card.Directory), faint.Render(shadow))
-}
-
-func cardLegend(card sessionCard) string {
-	parts := make([]string, 0, len(card.Figures))
-	for _, figure := range card.Figures {
-		label := strings.TrimSpace(figure.Emoji + " " + figure.Name)
-		if hexColorPattern.MatchString(figure.Color) {
-			label = lipgloss.NewStyle().Foreground(lipgloss.Color(figure.Color)).Render(label)
-		}
-		parts = append(parts, label)
-	}
-	return strings.Join(parts, cardGap+cardGap)
+// cardName is the whole of the card's text. Kai cut the seat, tier, expression,
+// workspace, directory, shadow line, and personality legend. agentic-os#1456
+func cardName(card sessionCard) string {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(card.Accent)).
+		Render(card.Annotation)
 }
 
 func renderFigure(figure cardFigure, progress float64) []string {
