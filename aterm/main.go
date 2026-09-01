@@ -92,6 +92,11 @@ func main() {
 }
 
 func defaultWorkingDirectory() string {
+	// Inside a shadow both of the below resolve under the session home, where
+	// nothing is checked out. agentic-os#1460
+	if launch := readCanonicalLaunch(); launch.inShadow() && launch.complete() {
+		return launch.Projects
+	}
 	if projectsRoot := strings.TrimSpace(os.Getenv(defaultWorkingEnvVar)); projectsRoot != "" {
 		return projectsRoot
 	}

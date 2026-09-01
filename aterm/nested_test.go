@@ -114,3 +114,130 @@ func TestRefusalOutrunsTheWorkingDirectoryCheck(t *testing.T) {
 		t.Fatalf("exit code = %d, want %d: %v", code, exitNested, err)
 	}
 }
+
+func clearShadowEnv(t *testing.T) {
+	t.Helper()
+	for _, variable := range []string{
+		nativeSessionEnv, nativeSessionRootEnv, nativeSessionProjectsEnv,
+		canonicalHomeEnv, canonicalProjectsEnv,
+	} {
+		t.Setenv(variable, "")
+	}
+}
+
+func shadowEnv(t *testing.T) canonicalLaunch {
+	t.Helper()
+	launch := canonicalLaunch{
+		Session:  "ds74",
+		Root:     "/tmp/aos/native/ds74",
+		Home:     "/Users/kai",
+		Projects: "/Users/kai/projects",
+	}
+	t.Setenv(nativeSessionEnv, launch.Session)
+	t.Setenv(nativeSessionRootEnv, launch.Root)
+	t.Setenv(nativeSessionProjectsEnv, launch.Root+"/projects")
+	t.Setenv(canonicalHomeEnv, launch.Home)
+	t.Setenv(canonicalProjectsEnv, launch.Projects)
+	return launch
+}
+
+// The refusal survives only for an aos too old to publish the canonical values,
+// which is the case the guard was built for. agentic-os#1460
+func TestLaunchProceedsInsideAShadowThatPublishesTheCanonicalValues(t *testing.T) {
+	var spawns []recordedSpawn
+	shadowEnv(t)
+	if _, err := runAtermRaw(t, stubDeps(t, &spawns, true), "platform", "claude"); err != nil {
+		t.Fatalf("launch inside a complete shadow: %v", err)
+	}
+	if len(spawns) != 1 {
+		t.Fatalf("spawned %d windows, want 1", len(spawns))
+	}
+}
+
+func TestCanonicalEnvironReplacesTheShadowWithWhatItReplaced(t *testing.T) {
+	launch := shadowEnv(t)
+	environ := []string{
+		"HOME=/tmp/aos/native/ds74/home",
+		"USERPROFILE=/tmp/aos/native/ds74/home",
+		"XDG_CONFIG_HOME=/tmp/aos/native/ds74/home/.config",
+		"CLAUDE_CONFIG_DIR=/tmp/aos/native/ds74/home/.claude",
+		nativeSessionEnv + "=ds74",
+		nativeSessionRootEnv + "=/tmp/aos/native/ds74",
+		nativeSessionProjectsEnv + "=/tmp/aos/native/ds74/projects",
+		canonicalHomeEnv + "=/Users/kai",
+		canonicalProjectsEnv + "=/Users/kai/projects",
+		"PATH=/tmp/aos/native/ds74/home/.local/bin:/opt/homebrew/bin:/usr/bin",
+		"EDITOR=vim",
+		"NOTE=/tmp/aos/native/ds74 is where the shadow lives",
+		childSessionEnv + "=1",
+	}
+	got := map[string]string{}
+	for _, entry := range canonicalEnviron(environ, launch) {
+		name, value, _ := strings.Cut(entry, "=")
+		got[name] = value
+	}
+	if got["HOME"] != launch.Home {
+		t.Fatalf("HOME = %q, want %q", got["HOME"], launch.Home)
+	}
+	if got[defaultWorkingEnvVar] != launch.Projects {
+		t.Fatalf("%s = %q, want %q", defaultWorkingEnvVar, got[defaultWorkingEnvVar], launch.Projects)
+	}
+	for _, gone := range []string{
+		"USERPROFILE", "XDG_CONFIG_HOME", "CLAUDE_CONFIG_DIR",
+		nativeSessionEnv, nativeSessionRootEnv, nativeSessionProjectsEnv,
+		canonicalHomeEnv, canonicalProjectsEnv, childSessionEnv,
+	} {
+		if _, still := got[gone]; still {
+			t.Fatalf("%s should not reach the new session, got %q", gone, got[gone])
+		}
+	}
+	if got["PATH"] != "/opt/homebrew/bin:/usr/bin" {
+		t.Fatalf("PATH kept a shadow entry: %q", got["PATH"])
+	}
+	if got["EDITOR"] != "vim" {
+		t.Fatalf("an unrelated variable was dropped: %q", got["EDITOR"])
+	}
+	// A value that mentions the root without being a path under it is kept,
+	// because the rule is a path match rather than a substring match.
+	if got["NOTE"] == "" {
+		t.Fatal("a value merely mentioning the root should survive")
+	}
+}
+
+func TestCanonicalEnvironStaysOutOfTheWayWhenItCannotHelp(t *testing.T) {
+	clearShadowEnv(t)
+	if environ := canonicalEnviron([]string{"HOME=/Users/kai"}, readCanonicalLaunch()); environ != nil {
+		t.Fatalf("a top-level launch should inherit unchanged, got %v", environ)
+	}
+	t.Setenv(nativeSessionEnv, "ds74")
+	if environ := canonicalEnviron([]string{"HOME=/x"}, readCanonicalLaunch()); environ != nil {
+		t.Fatalf("an incomplete shadow has nothing to build from, got %v", environ)
+	}
+}
+
+func TestDoctorPassesInsideAShadowThatPublishesTheCanonicalValues(t *testing.T) {
+	var spawns []recordedSpawn
+	shadowEnv(t)
+	out, err := runAtermRaw(t, stubDeps(t, &spawns, true), "doctor", "--json")
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, out)
+	}
+	if check := doctorVerdicts(t, out)["native session"]; check.Status != doctorOK {
+		t.Fatalf("native session status = %q, want %q", check.Status, doctorOK)
+	}
+}
+
+// The launch resolves its own working directory before it builds the child's
+// environment, and inside a shadow both fallbacks point at an empty home.
+func TestDefaultWorkingDirectoryPrefersTheCanonicalProjectsRoot(t *testing.T) {
+	launch := shadowEnv(t)
+	t.Setenv(defaultWorkingEnvVar, "/tmp/aos/native/ds74/home/projects")
+	if got := defaultWorkingDirectory(); got != launch.Projects {
+		t.Fatalf("default working directory = %q, want %q", got, launch.Projects)
+	}
+	clearShadowEnv(t)
+	t.Setenv(defaultWorkingEnvVar, "/Users/kai/projects")
+	if got := defaultWorkingDirectory(); got != "/Users/kai/projects" {
+		t.Fatalf("a top-level launch should keep %s, got %q", defaultWorkingEnvVar, got)
+	}
+}

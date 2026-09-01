@@ -6,7 +6,7 @@ A native AOS launch runs the agent inside a per-session shadow instead of the ca
 
 ## Session markers
 
-`AOS_NATIVE_SESSION` carries the session id and `AOS_NATIVE_SESSION_PROJECTS` carries the session `projects` root. Both are exported only by a launch that links at least one worktree. A launch linking none leaves both unset, because it stays in the canonical checkout and no isolation claim would be true there. An agent reads the pair as the authoritative answer to whether it is isolated, rather than pattern-matching its own working directory against a path.
+`AOS_NATIVE_SESSION` carries the session id and `AOS_NATIVE_SESSION_PROJECTS` carries the session `projects` root. Both are exported only by a launch that links at least one worktree. A launch linking none leaves both unset, because it stays in the canonical checkout and no isolation claim would be true there. An agent reads the pair as the authoritative answer to whether it is isolated, rather than pattern-matching its own working directory against a path. `AOS_NATIVE_SESSION_ROOT` and the `AOS_NATIVE_CANONICAL_*` pair travel with them, for [nested launches](aterm.md).
 
 `AOS_REPO_ROOT` names the canonical checkout and is unrelated. It is set by the shell base and the container entrypoint, so it stays populated inside a shadow and points away from it.
 

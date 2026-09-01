@@ -71,14 +71,18 @@ func runDoctor(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 }
 
 func checkNativeSession(report *doctorReport) {
-	session := nativeSession()
-	if session == "" {
+	launch := readCanonicalLaunch()
+	switch {
+	case !launch.inShadow():
 		report.add("native session", doctorOK, "not inside one, so a launch can open its own")
-		return
+	case launch.complete():
+		report.add("native session", doctorOK,
+			"inside %s, and a launch opens on the canonical %s", launch.Session, launch.Home)
+	default:
+		report.add("native session", doctorFail,
+			"inside %s, and the aos that opened it publishes no canonical home, so a launch is refused",
+			launch.Session)
 	}
-	report.add("native session", doctorFail,
-		"inside %s, and a launch from here opens a window that dies before the harness starts",
-		session)
 }
 
 func checkProjectsRoot(report *doctorReport, configured string) {
