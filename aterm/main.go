@@ -218,6 +218,13 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 		}
 		return writeRoster(stdout, roster)
 	}
+	// Ahead of the working directory, which fails on the same root cause and
+	// reports it as a symptom. --dry-run opens no window. See docs/aterm.md.
+	if !cmd.Bool("dry-run") {
+		if err := refuseNestedLaunch(); err != nil {
+			return err
+		}
+	}
 	cwd, err := validateWorkingDirectory(cmd.String("working-directory"))
 	if err != nil {
 		return withExit(exitUsage, err)

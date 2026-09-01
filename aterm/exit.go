@@ -10,6 +10,7 @@ const (
 	exitOffRoster = 3
 	exitMissing   = 4
 	exitSpawn     = 5
+	exitNested    = 6
 )
 
 type exitError struct {
