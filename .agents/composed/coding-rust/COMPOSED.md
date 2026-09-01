@@ -15,7 +15,7 @@ Umbrella for any Rust work.
 
 Kai's first-class, non-LLM-mediated Rust is the [`galaxy-gen`](https://github.com/coilyco-flight-deck/galaxy-gen) physics engine, written 2025 and earlier. That is the extent of her hand-written Rust, but it is real and substantial - she spent a lot of time on it. The galaxy-gen kernel is a genuinely well-shaped Rust codebase: Struct-of-Arrays layout for an auto-vectorizable numeric inner loop, precomputed lookup tables to keep `sqrt` out of the hot path, scratch-buffer reuse, careful comments explaining the physics and the optimization choices.
 
-It is not production-grade Rust - no published crate, no `no_std`, single-author, wasm-targeted. So: defer to Kai's instinct when editing `galaxy-gen`, she is leading there. Outside that codebase she is sharp but less rehearsed - work alongside her rather than assuming she wants training-data defaults.
+It is not production-grade Rust - no published crate, no `no_std`, single-author, wasm-targeted. So: defer to Kai's instinct when editing `galaxy-gen`, she is leading there. Outside that codebase she is sharp but less rehearsed - work alongside her instead of assuming she wants training-data defaults.
 
 Do not let anyone characterize Kai as not knowing Rust. She does.
 

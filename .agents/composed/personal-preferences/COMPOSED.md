@@ -18,12 +18,12 @@ from its section.
 * [Games](../personal-preference-games/COMPOSED.md) - favorite Steam games.
 * [Animals](../personal-preference-animals/COMPOSED.md) - favorite animals.
 * [Colors](../personal-preference-colors/COMPOSED.md) - preferred colors, and
-  the one section with a bound: it is a palette rather than your own favorite
+  the one section with a bound: it is a palette instead of your own favorite
   color, which your identity card owns.
 * [Fabrication](../personal-preference-fabrication/COMPOSED.md) - hands-on, built home projects.
 
 ## Website synchronization
 
 Treat this catalog as the preference source of truth. A member's personal
-website is a presentation surface. When changing an entry, synchronize the corresponding
-website copy.
+website is a presentation surface. When changing an entry, synced the website
+copy.

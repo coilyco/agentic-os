@@ -13,7 +13,7 @@ and the agent drives it over remote control rather than by printing escapes.
 
 `aterm pane on -- <command>` and `aterm pane off` do the whole split-and-restore
 cycle, creature included, and `off` works after the agent that split the window
-has died. Use them rather than the calls below whenever the window came from
+has died. Use them instead of the calls below whenever the window came from
 aterm: [docs/aterm-pane.md](../../../docs/aterm-pane.md).
 
 The rest of this skill is what the verbs do, and it is what you still need for a
@@ -35,7 +35,7 @@ drawing into the pane once it exists, which stays hand-rolled.
 kitty calls a pane a `window` and calls the real window an `os-window`, so
 `close-window` and `close-os-window` are one keystroke apart and do very
 different things. `--type=overlay` is also a pane, stacked over the session
-rather than beside it, which covers the thing you were reading.
+instead of beside it, which covers the thing you were reading.
 
 ## Split
 

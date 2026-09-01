@@ -22,13 +22,13 @@ Loop, option design, recording, and failure modes: [askuserquestion-flow](refere
 
 ## Tier definitions
 
-- **`priority/P0`** - urgent AND blocking now. Active breakage/outage, security holes, data-loss risk, or blocks other committed work. Assigned by **a content-rule net, then a judgment confirm** (see Target shape), never a quota - whatever genuinely matches is P0.
+- **`priority/P0`** - urgent AND blocking now. Active breakage/outage, security holes, data-loss risk, or blocks other committed work. Assigned by **a content-rule net, then a judgment confirm** (see Target form), never a quota - whatever genuinely matches is P0.
 - **`priority/P1`** - important, the clear next thing once P0s clear. Concrete, committed-direction, near-term value.
 - **`priority/P2`** - backlog you genuinely intend to act on, just not yet. A real near-to-mid-term path to done.
 - **`priority/P3`** - the DEFAULT tier. Low but kept; also where unsure, unscored, or freshly-filed issues land. Requires no positive evidence - it is the fallback.
-- **`priority/P4`** - icebox, the lowest tier. The demotion sink: parked / speculative-but-kept / won't-do-soon (hobby toys, "fork X" / "try Z" wishes, reading-list adds, vague vision, far-future plays, one-line stubs). Unlike `priority/P3`, `priority/P4` needs positive "parked" judgment - the async triage loop pushes here rather than closing.
+- **`priority/P4`** - icebox, the lowest tier. The demotion sink: parked / speculative-but-kept / won't-do-soon (hobby toys, "fork X" / "try Z" wishes, reading-list adds, vague vision, far-future plays, one-line stubs). Unlike `priority/P3`, `priority/P4` needs positive "parked" judgment - the async triage loop pushes here instead of closing.
 
-## Target shape
+## Target form
 
 `priority/P0` has no quota - it is content-based, carved by a deterministic
 content-rule net and then a per-candidate judgment confirm. The non-P0
@@ -41,9 +41,9 @@ Tier ranks urgency, not "can an agent land it unattended?" - independent questio
 
 ## Third axis: role
 
-Which seat the work needs, orthogonal to both others and not exclusive. Eight values, one per role, plus `role/human` for a person who is not a seat at all. It answers what `autonomy/async-consult` kept swallowing - a human is needed, but **which** one. See [label-taxonomy](references/label-taxonomy.md).
+Which seat the work needs, orthogonal to both others and not exclusive. Eight values, one per role, and `role/human` for a person who is not a seat at all. It answers what `autonomy/async-consult` kept swallowing - a human is needed, but **which** one. See [label-taxonomy](references/label-taxonomy.md).
 
 ## Assignment, pruning, and running it over an API
 
-- [Assignment method](references/assignment-method.md) - the part that actually works: carve P0 by rule, score the rest by judgment, enforce the shape by percentile cut.
-- [Pruning and running it over an API](references/pruning-and-api.md) - demote/merge/close decisions plus the hard-won lessons for driving triage over an issue tracker API.
+- [Assignment method](references/assignment-method.md) - the part that actually works: carve P0 by rule, score the rest by judgment, enforce the form by percentile cut.
+- [Pruning and running it over an API](references/pruning-and-api.md) - demote/merge/close decisions and the hard-won lessons for driving triage over an issue tracker API.

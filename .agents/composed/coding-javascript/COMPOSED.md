@@ -9,7 +9,7 @@ seed:
 
 # coding-javascript
 
-Umbrella for anything in the JS/TS world. Subskills (frameworks, runtimes, build tools) sit under this when they accumulate enough shape to deserve their own surface.
+Umbrella for anything in the JS/TS world. Subskills (frameworks, runtimes, build tools) sit under this when they accumulate enough form to deserve their own surface.
 
 ## Defaults
 

@@ -52,7 +52,7 @@ uses the corresponding `identify`, `convert`, `compare`, or `montage` command.
   multi-image inputs.
 * The agent treats `compare` returning nonzero as a reported difference, not
   automatically as an execution failure.
-* The agent does not loosen ImageMagick security policy to process an
+* The agent does not loosen ImageMagick security rules to process an
   unsupported or untrusted input.
 * The agent uses [`tooling-image-zoom`](../tooling-image-zoom/SKILL.md) when the
-  task is close inspection rather than transformation.
+  task is close inspection instead of transformation.

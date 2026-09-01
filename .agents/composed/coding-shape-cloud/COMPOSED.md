@@ -9,7 +9,7 @@ Umbrella for any work that targets a public cloud. Cross-cuts AWS, GCP, Azure, a
 
 ## Background
 
-Multi-cloud experience across all three majors. AWS is Kai's default for new infra. GCP comes from Bluelink (GCP-primary, K8s on GKE). Azure comes from Textio (Azure OpenAI plus a BGP VPN back to AWS).
+Multi-cloud experience across all three majors. AWS is Kai's default for new infra. GCP comes from Bluelink (GCP-primary, K8s on GKE). Azure comes from Textio (Azure OpenAI and a BGP VPN back to AWS).
 
 ## Cloud posture
 
@@ -17,12 +17,12 @@ Multi-cloud experience across all three majors. AWS is Kai's default for new inf
 - GCP and Azure are existing-system-only surfaces. Follow the target project's
   own conventions when work requires either one.
 
-## Cross-cloud principles
+## Cross-cloud rules
 
 - **One region pinned per project.** No "auto-pick by latency" cleverness. AWS default `us-east-1`, but document the choice in repo conventions.
 - **IAM, not users.** Roles + policies, federated identity (SSO, workload identity). Long-lived access keys are an anti-pattern in any cloud.
 - **IaC over click-ops.** Terraform first (cross-cloud surface). CloudFormation, Pulumi, ARM templates only when an existing project commits to them.
-- **Secrets in the cloud-native param store.** AWS SSM SecureString, GCP Secret Manager, Azure Key Vault. Same shape, different door. Per the configs-in-SSM rule.
+- **Secrets in the cloud-native param store.** AWS SSM SecureString, GCP Secret Manager, Azure Key Vault. Same form, different door. Per the configs-in-SSM rule.
 - **Tag everything.** Cost attribution, ownership, environment, lifecycle. Cloud bills get unrecoverable without tags.
 - **Avoid vendor lock that doesn't transfer.** OTel-shaped instrumentation, S3-compatible storage interfaces, Kubernetes-shaped compute. Don't reach for a cloud-only primitive when a portable one exists, unless the cloud-only one is materially better for the use case.
 

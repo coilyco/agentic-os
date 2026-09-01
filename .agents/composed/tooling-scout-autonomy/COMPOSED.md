@@ -10,8 +10,8 @@ The **build** leg of the scout family. Its two siblings move tooling in and out:
 `tooling-scout-displacement` finds what to **shed** (your custom code out).
 This leg answers the third question:
 given the toolset you already have, **what novel software should you build on top of it?**
-Add / shed / build. The output is a ranked, buildable backlog plus a ready-to-run long-run
-contract, sized to hand straight to an overnight autonomous session.
+Add / shed / build. The output is a ranked, buildable backlog and a ready-to-run long-run
+rule, sized to hand straight to an overnight autonomous session.
 
 ## Triggers
 
@@ -37,19 +37,19 @@ surfaces private intent, and only an actual build lands commits.
 - [Phase 1 - Grounded sweep](references/phase-1-sweep.md) - walk the working surface, ingest sibling-scout and backlog outputs if present, list buildable candidates tagged refactor / backfill / net-new.
 - [Phase 2 - Projection](references/phase-2-project.md) - project software that does not exist yet but composes the existing toolset. Composition is required, not optional.
 - [Phase 3 - Leverage scoring](references/phase-3-score.md) - score value x reach / cost with the refactor + backfill multipliers, apply the reserved-surface fence, rank.
-- [Phase 4 - Contract synthesis](references/phase-4-contract.md) - for the top picks, write a long-run contract (goal / done-condition / non-goals) ready for an overnight run.
-- [Phase 5 - Present and hand off](references/phase-5-present.md) - flatten the top 3 to chat, explicit-deny approval, the chosen contract seeds a long-run session.
+- [Phase 4 - Rule synthesis](references/phase-4-contract.md) - for the top picks, write a long-run rule (goal / done-condition / non-goals) ready for an overnight run.
+- [Phase 5 - Present and hand off](references/phase-5-present.md) - flatten the top 3 to chat, explicit-deny approval, the chosen rule seeds a long-run session.
 
 ## Run config
 
 Supplied at invoke, not hardcoded (this is a public-safe method): target repo list,
 notes/scratch path, and a **reserved-surface fence** - subsystems this run must not touch
-or propose work on, the human's way to keep a scout off reserved or boundary code.
+or propose work on, the human's way to keep a scout off reserved or wall code.
 Schema in [references/scoring-and-config.md](references/scoring-and-config.md).
 
 ## PM handoff
 
-PM owns the contract, then hands implementation to engineer as phase 5 details.
+PM owns the rule, then hands implementation to engineer as phase 5 details.
 
 ## Paired with
 

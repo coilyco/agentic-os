@@ -5,12 +5,12 @@ description: Operate and diagnose the repo-managed Warp terminal configuration. 
 
 # Warp
 
-Use this thin router for the Warp configuration shipped by AOS. The repository
+Use this thin router for the Warp configuration shipped by AOS. The repo
 docs own platform layout, settings, and failure details.
 
 ## Core loop
 
-* Run `just warp doctor` to inspect the selected channel without changing
+* Run `just warp doctor` to inspect the chosen channel without changing
   it.
 * Run `just warp apply` after an approved config change.
 * Set `WARP_CHANNEL=preview|stable` or pass `--channel` when auto-detection

@@ -11,7 +11,7 @@ metadata:
 # Design System Generation and Audit
 
 Use this workflow to make visual-system decisions explicit and testable. Read
-the target repository's design conventions, product context, and command
+the target repo's design conventions, product context, and command
 surface before applying it.
 
 ## Generate a design system
@@ -25,7 +25,7 @@ surface before applying it.
 5. Propose a compact token set and map existing values into it.
 6. Define reusable component patterns, including focus, disabled, loading,
    empty, error, hover, and responsive states.
-7. Produce the repository's expected design artifact, such as `DESIGN.md`,
+7. Produce the repo's expected design artifact, such as `DESIGN.md`,
    tokens, component documentation, or a self-contained preview.
 
 Preserve established product character unless the task explicitly calls for a

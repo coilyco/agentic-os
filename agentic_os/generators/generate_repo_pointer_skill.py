@@ -148,10 +148,10 @@ def render_skill(
         f"Pointer to `~/projects/{org}/{name}/`.\n"
         "\n"
         "- [`README.md`](../../../README.md) - what it is, quickstart, layout.\n"
-        "- [`AGENTS.md`](../../../AGENTS.md) - agent-facing operating context for the repo.\n"
+        "- [`AGENTS.md`](../../../AGENTS.md) - agent-facing context for the repo.\n"
         "- [`docs/FEATURES.md`](../../../docs/FEATURES.md) - what ships today.\n"
         "\n"
-        f"Read those before answering substantive questions about {name}.\n"
+        f"Read those before answering large questions about {name}.\n"
     )
     return f"---\n{frontmatter}---\n\n{body}"
 

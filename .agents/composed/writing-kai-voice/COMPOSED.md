@@ -45,7 +45,7 @@ Keep the same person while changing the amount of context and surface texture.
 * **Close casual chat** - allow fragments, lowercase drift, emoji, and kaomoji.
 * **Gaming chat** - allow initialisms, typos, and playful emphasis only in this fast register.
 * **Medical or administrative** - stay calm, itemized, and nearly emoji-free.
-* **Long-form argument** - allow longer sentences while preserving plain words and a decision-first shape.
+* **Long-form argument** - allow longer sentences while preserving plain words and a decision-first form.
 * **LinkedIn** - apply the LinkedIn voice specialization when it is loaded.
 
 ## Keep the recognizable texture
@@ -85,7 +85,7 @@ polish so aggressively that the living thought disappears.
 A draft goes to a temp file, never into the account it would be sent from. No
 Gmail draft, no queued post, no comment box holding a proposal. A message parked
 where it sends from is one mis-click from going out, and rejecting a batch then
-costs the reader a cleanup pass through their own inbox rather than a closed
+costs the reader a cleanup pass through their own inbox instead of a closed
 file. The file is the deliverable. Moving it into the account is a separate step
 and needs its own authorization.
 

@@ -5,11 +5,11 @@ description: Code review for ward's in-container review agent. Use when asked to
 
 # Code Review
 
-Review the current filesystem change set once, against the issue contract and the intended baseline implementation.
+Review the current filesystem change set once, against the issue rule and the intended baseline implementation.
 
 ## Review stance
 
-- **Prioritize** correctness bugs, behavioral regressions, missing tests, security and secret risks, operational risk, config or deploy mistakes, and mismatch against the issue contract.
+- **Prioritize** correctness bugs, behavioral regressions, missing tests, security and secret risks, operational risk, config or deploy mistakes, and mismatch against the issue rule.
 - **Compare to the intended baseline**, not to a hypothetical rewrite. The question is whether this diff lands the issue cleanly.
 - **Assume the reviewer may share a model family with the worker.** Force a refutation pass even when the patch looks good.
 
@@ -17,7 +17,7 @@ Review the current filesystem change set once, against the issue contract and th
 
 Read, in this order when available:
 
-1. The issue contract or run seed.
+1. The issue rule or run seed.
 2. `git status`.
 3. `git diff --staged` and `git diff`.
 4. Touched tests and docs.
@@ -34,14 +34,14 @@ If a required input is missing or the diff cannot be reviewed safely, block once
 
 ## How to review
 
-- Start from the issue contract and ask what must be true for the change to count as done.
+- Start from the issue rule and ask what must be true for the change to count as done.
 - Read the diff as evidence, not as intent.
 - Try to break the patch first. Look for the cheapest plausible failure mode, not the nicest interpretation.
 - Check whether the tests cover the new behavior and the regression surface.
 - Check whether docs, configs, migrations, deploy knobs, or operational expectations changed in lockstep.
 - Prefer concrete findings over vibes. If nothing breaks, say why the patch still survives refutation.
 
-## Output contract
+## Output rule
 
 Return one compact result in the format in [`references/output-format.md`](references/output-format.md).
 

@@ -8,7 +8,7 @@ description: Use when director decides how the portfolio should consume, contrib
 Use this skill when an open-source dependency or project creates a portfolio
 decision, not merely an implementation choice.
 
-## Activation boundary
+## Activation wall
 
 TPM activates this workflow for adoption, contribution, publication,
 governance, fork, and retirement decisions. Engineering owns technical
@@ -21,7 +21,7 @@ This method supplies the portfolio posture and stewardship commitment.
 2. TPM distinguishes replaceable convenience from a strategic dependency.
 3. TPM maps who receives value, who carries maintenance, and who controls the
    roadmap.
-4. TPM identifies the public boundary that strengthens the ecosystem without
+4. TPM identifies the public wall that strengthens the ecosystem without
    exposing private operating context.
 5. TPM records the event that would make the chosen posture stale.
 
@@ -51,14 +51,14 @@ TPM does not treat open source as free labor, marketing inventory, or a way to
 externalize unfinished maintenance. A public release creates obligations even
 when no revenue model exists.
 
-## Output contract
+## Output rule
 
-TPM delivers the selected posture, strategic dependency, public and private
-boundary, maintainer commitment, upstream relationship, affected projects,
+TPM delivers the chosen posture, strategic dependency, public and private
+wall, maintainer commitment, upstream relationship, affected projects,
 transition path, success evidence, and revisit trigger. TPM names the role
 that owns the next action and the evidence that role must return.
 
-This skill grants no spending, licensing, publication, repository, or
+This skill grants no spending, licensing, publication, repo, or
 governance authority.
 
 ## Evaluation target

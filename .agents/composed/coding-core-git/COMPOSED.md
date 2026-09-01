@@ -11,7 +11,7 @@ Umbrella skill for any work that touches git or GitHub. Owns the broad keyword s
 
 ## Triggers
 
-git, github, gh, gh cli, gh api, octokit, graphql, repo, repository, pull request, PR, issue, fork, branch, commit, push, workflow, action, release, tag, label.
+git, github, gh, gh cli, gh api, octokit, graphql, repo, repo, pull request, PR, issue, fork, branch, commit, push, workflow, action, release, tag, label.
 
 ## Hard rule: never use the GitHub GraphQL API without confirming first
 
@@ -35,7 +35,7 @@ Each step shows the `gh` way first, then the `git` + `curl` fallback for machine
 - [CI failure patterns](references/ci-failure-patterns.md) and [build-infra failures](references/ci-build-infra-failures.md) - the failure-pattern catalog.
 - [CI decision tree](references/ci-decision-tree.md) and [CI troubleshooting](references/ci-troubleshooting.md) - the auto-fix decision tree.
 - [Merging](references/merging.md) - squash merge, branch cleanup, and auto-merge.
-- [Workflow example and command reference](references/workflow-example-and-commands.md) - end-to-end walkthrough plus a gh-vs-curl command table.
+- [Workflow example and command reference](references/workflow-example-and-commands.md) - end-to-end walkthrough and a gh-vs-curl command table.
 
 ### PR body templates
 

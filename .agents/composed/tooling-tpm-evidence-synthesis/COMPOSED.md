@@ -8,7 +8,7 @@ description: Use when director turns research into a decision-grade conclusion. 
 Use this skill when director has research material and must tell the decision
 maker what the evidence supports, what remains uncertain, and why it matters.
 
-## Activation boundary
+## Activation wall
 
 TPM activates this workflow for synthesis, not raw retrieval. A request
 for sources, current facts, or document collection stays in the relevant
@@ -44,7 +44,7 @@ instead of appending a generic caveat section.
 
 The final recommendation includes the evidence it depends on, the strongest
 alternative interpretation, and the next evidence worth buying. This skill
-grants no authority to obtain restricted data or make the decision.
+grants no permission to obtain restricted data or make the decision.
 
 ## Evaluation target
 

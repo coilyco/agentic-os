@@ -9,7 +9,7 @@ Umbrella for any Kubernetes work.
 
 ## Triggers
 
-kubernetes, k8s, k3s, kubectl, helm, manifest, deployment, statefulset, daemonset, configmap, secret, ingress, namespace, pod, service, pv, pvc, externalsecrets, cert-manager.
+kubernetes, k8s, k3s, kubectl, helm, manifest, deploy, statefulset, daemonset, configmap, secret, ingress, namespace, pod, service, pv, pvc, externalsecrets, cert-manager.
 
 ## Defaults
 

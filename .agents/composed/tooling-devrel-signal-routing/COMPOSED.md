@@ -8,7 +8,7 @@ description: Use when advocate turns onboarding or support contacts into immedia
 Use this skill when advocate must help the current customer while
 preserving evidence that could improve onboarding, product, or operations.
 
-## Activation boundary
+## Activation wall
 
 Advocate activates this workflow for onboarding friction, support
 patterns, retention risks, and customer research. A live reliability incident
@@ -38,14 +38,14 @@ Advocate closes the loop with the customer after the internal handoff.
 Advocate does not promise roadmap timing, silently convert a request
 into a commitment, or treat ticket closure as durable resolution.
 
-## Output contract
+## Output rule
 
 The record contains the customer-facing response, internal classification,
 evidence packet, owner, next checkpoint, and closure condition. Recurring pain
 synthesis includes frequency and segment evidence instead of a pile of
 anecdotes.
 
-This skill grants no authority to change accounts, credits, contracts,
+This skill grants no permission to change accounts, credits, contracts,
 roadmaps, or production systems.
 
 ## Evaluation target

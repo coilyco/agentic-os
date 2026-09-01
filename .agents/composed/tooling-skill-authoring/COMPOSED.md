@@ -9,7 +9,7 @@ metadata:
 # Skill authoring
 
 Director and PM use this method to decide whether a capability deserves a skill,
-where it belongs, and what contract an implementation role receives. Repository
+where it belongs, and what rule an implementation role receives. Repo
 changes go to engineer as a bounded source change, not this whole catalog.
 
 ## Handbook

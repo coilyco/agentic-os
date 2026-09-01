@@ -31,7 +31,7 @@ Pulled out to keep this file scannable.
 
 See [`references/methodology.md`](references/methodology.md) for:
 
-- **Seven frameworks**: HMW, JTBD, Opportunity Solution Trees, First Principles, SCAMPER, OODA, Reverse Brainstorming.
+- **Seven frameworks**: HMW, JTBD, Opportunity Solution Trees, First Rules, SCAMPER, OODA, Reverse Brainstorming.
 - **Five-phase session structure**: Frame, Diverge, Provoke, Converge, Capture.
 - **Anti-pattern catalog**: solutioning before framing, feature parity trap, anchoring on constraints, the one-idea brainstorm, analysis paralysis, brainstorming when you should be researching.
 

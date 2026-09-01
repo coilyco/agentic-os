@@ -15,7 +15,7 @@ cli, command line, urfave, cobra, kong, click, commander, oclif, gum, subcommand
 
 Kai has deep first-class CLI-building experience and is an experienced open-source maintainer, not a newcomer to either. Two anchors:
 
-- **RubyGems and Bundler** - Kai was an Open Source Software Engineer at Ruby Together (2016) maintaining `gem` and `bundle`, the package-manager CLIs the entire Ruby ecosystem runs on. Maintainer and contributor across the toolchain.
+- **RubyGems and Bundler** - Kai was an Open Source Software Engineer at Ruby Together (2016) maintaining `gem` and `pack`, the package-manager CLIs the entire Ruby ecosystem runs on. Maintainer and contributor across the toolchain.
 - **urfave/cli** - Kai is a maintainer of the Go CLI framework itself.
 
 So when a task involves contributing to or maintaining a CLI or an open-source project, frame it as Kai returning to familiar ground, not a first-time experience. Do not describe OSS contribution as something Kai has "never gotten to do." She has, twice over, on widely-used projects. The portfolio gap in `kai-career` (in agentic-os-kai) is about recent recruiter-visible flagship repos, not about whether Kai has shipped open source.
@@ -23,11 +23,11 @@ So when a task involves contributing to or maintaining a CLI or an open-source p
 ## Framework defaults by language
 
 - **Go** → `urfave/cli` (Kai is a maintainer). Cobra/kong only when an existing project commits to them.
-- **Python** → `click`. Typer is a thin wrapper, fine when type-driven shape is the goal.
+- **Python** → `click`. Typer is a thin wrapper, fine when type-driven form is the goal.
 - **Node/TypeScript** → `commander` for simple, `oclif` for complex with subcommand discovery.
 - **Shell prompts/styling** → `gum` from the Charm stack.
 
-## Design principles
+## Design rules
 
 - **Wrapper APIs mirror the real CLI.** When wrapping a sub-tool (kubectl, gh, aws, etc), preserve verb names and flag shapes. Do not invent shorter or "friendlier" names. This is the load-bearing rule behind ward's whole design - see `ward-discipline` (in ward).
 - **One verb, one job.** Don't pile orthogonal behavior into a single command.

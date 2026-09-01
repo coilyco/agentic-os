@@ -8,7 +8,7 @@ description: Use when social turns one theme, launch, or finding into an editori
 Use this skill when social must build a sequence that changes or tests an
 audience belief, then learn from the response.
 
-## Activation boundary
+## Activation wall
 
 Social activates this workflow for a campaign or recurring editorial thread.
 A one-off wording edit stays in an ordinary writing workflow. Live posting,
@@ -38,10 +38,10 @@ Social captures the audience's own language, repeated questions, and strongest
 counterargument. The next editorial decision follows that evidence instead of
 chasing whichever post received the largest number.
 
-## Output contract
+## Output rule
 
 The editorial brief contains the audience shift, claim and proof, post
-sequence, channel adaptations, reply boundary, measurement question, and
+sequence, channel adaptations, reply wall, measurement question, and
 learning log. Social marks drafts as drafts until an authorized actor
 publishes them.
 
@@ -50,4 +50,4 @@ publishes them.
 Compare a cold model and composed social on one launch brief. The composed
 social should produce a coherent sequence with distinct post jobs, anticipate
 misreading, define a learning question, and turn response into editorial
-evidence rather than vanity metrics.
+evidence instead of vanity metrics.

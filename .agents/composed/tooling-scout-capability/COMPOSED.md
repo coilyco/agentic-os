@@ -41,7 +41,7 @@ final per-install commits land in the personal-OS repo. Inbox path:
 - [Phase 5 - Present 🥇🟢 inline](references/phase-5-present.md) - flatten the top tier to chat, explicit-deny approval.
 - [Phase 6 - Install approved entries](references/phase-6-install.md) - one issue + one commit + one push per entry, defense-in-depth re-check.
 
-## PM handoff boundary
+## PM handoff wall
 
 PM owns phases 1 through 3 and phase 5. PM hands phase 4 to engineer or ops
 for supply-chain verification, then hands approved phase 6 work to engineer

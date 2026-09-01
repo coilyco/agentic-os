@@ -42,5 +42,5 @@ path that makes the voice identifiable.
 
 Return the candidate text first. When it helps review, follow it with preserved
 phrases, material transformations, and claims that still need verification.
-Mark drafts as drafts. This skill grants no authority to publish, reply, or
+Mark drafts as drafts. This skill grants no permission to publish, reply, or
 change an account.

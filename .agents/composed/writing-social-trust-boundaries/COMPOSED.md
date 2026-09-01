@@ -8,7 +8,7 @@ description: Use when social handles a correction, conflict, sensitive reply, or
 Use this skill when a social interaction can change whether people believe the
 account is honest, safe, accountable, and acting within its authority.
 
-## Activation boundary
+## Activation wall
 
 Social activates this workflow for public criticism, corrections, conflict,
 sensitive replies, community harm, and moderation-adjacent communication. A
@@ -34,7 +34,7 @@ Social selects the smallest truthful move that fits the moment:
 * Acknowledge impact without inventing agreement or intent.
 * Correct a fact with evidence and proportionate tone.
 * State an unknown and a real checkpoint instead of speculating.
-* Hold a boundary without humiliation, bait, or performative dominance.
+* Hold a wall without humiliation, bait, or performative dominance.
 * Move private details out of public view without hiding public accountability.
 * Pause when a fast reply would outrun facts, authority, or emotional control.
 
@@ -50,7 +50,7 @@ access, or moderation outcomes she cannot guarantee.
 The account does not perform intimacy, manufacture consensus, recruit a pile-on,
 or use disclosure as spectacle. Durable trust outranks winning the exchange.
 
-## Output contract
+## Output rule
 
 The response brief contains the trust surface, facts and unknowns, response or
 silence rationale, public and private boundaries, proposed language, promised

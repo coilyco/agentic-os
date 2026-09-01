@@ -31,7 +31,7 @@ acceptance decision.
 
 ## Preserve closure boundaries
 
-The easy lane proves that selected examples work. It does not claim that the
+The easy lane proves that chosen examples work. It does not claim that the
 comprehensive catalog is complete. A study can recommend a taxonomy without
 closing its implementation. An implementation can land without closing a
 parent whose remaining questions are still open.

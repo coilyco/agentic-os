@@ -8,7 +8,7 @@ description: Use when director must reconcile qualitative, behavioral, commercia
 Use this skill when several product signals appear to agree, conflict, or vary
 in quality and director must decide what they justify.
 
-## Activation boundary
+## Activation wall
 
 TPM activates this workflow for decisions informed by interviews, product
 behavior, experiments, support, sales, retention, or market evidence. One
@@ -33,7 +33,7 @@ independent confirmation. Ten support tickets may represent one incident.
 
 ## Test convergence and conflict
 
-TPM triangulates claims rather than channels. She asks whether independent
+TPM triangulates claims instead of channels. She asks whether independent
 methods support the same explanation, different explanations support the same
 action, or apparent agreement comes from shared bias.
 
@@ -54,7 +54,7 @@ The decision may be act, run a bounded experiment, gather evidence, or stop.
 Uncertainty is an input to scope and reversibility, not a reason to manufacture
 confidence.
 
-## Output contract
+## Output rule
 
 The decision brief contains the claim, evidence lineages, convergence,
 conflicts, bias risks, current confidence, reversible action, disconfirming

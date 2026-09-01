@@ -8,7 +8,7 @@ description: Use when frontend evaluates whether a first-time or infrequent user
 Use this skill to evaluate the learnability of one concrete task from the
 perspective of a first-time or infrequent user.
 
-## Activation boundary
+## Activation wall
 
 Frontend activates this workflow when a flow, prototype, screenshot sequence,
 or working interface is concrete enough to inspect action by action.
@@ -34,7 +34,7 @@ At each step, frontend answers four questions with interface evidence:
 
 1. Will the user form the right subgoal at this point?
 2. Will the user notice that the correct action is available?
-3. Will the user associate that action with the intended effect?
+3. Will the user connect that action with the intended effect?
 4. After acting, will the user interpret the feedback as progress?
 
 Frontend records pass, fail, or uncertain for each question. A plausible story
@@ -45,7 +45,7 @@ response, or missing signal that supports the judgment.
 
 Frontend classifies each failure as goal formation, discoverability, mapping,
 feedback, recovery, or missing prerequisite knowledge. She fixes the earliest
-cause in the sequence because later confusion may be a consequence rather than
+cause in the sequence because later confusion may be a consequence instead of
 a separate defect.
 
 Severity reflects task impact and recoverability:
@@ -58,7 +58,7 @@ Severity reflects task impact and recoverability:
 Frontend proposes the smallest interaction change that repairs the failed
 question. The walkthrough does not justify a wholesale redesign by itself.
 
-## Output contract
+## Output rule
 
 Frontend delivers the task brief, knowledge assumptions, stepwise findings,
 earliest breakdowns, severity, evidence, targeted repair, and confidence.

@@ -13,7 +13,7 @@ Specialized skill for building production-ready Discord bots.
 Covers Discord.js (JavaScript) and Pycord (Python), gateway intents,
 slash commands, interactive components, rate limiting, and sharding.
 
-## Principles
+## Rules
 
 - Slash commands over message parsing (Message Content Intent deprecated)
 - Acknowledge interactions within 3 seconds, always
@@ -28,4 +28,4 @@ slash commands, interactive components, rate limiting, and sharding.
 The full pattern catalogue (slash commands, interactive components, modal forms, gateway intents, rate limit handling, sharding, embeds, threading, voice connections, etc) lives in [`references/patterns.md`](references/patterns.md). Each entry covers the Discord.js (JavaScript) and Pycord (Python) shapes side by side.
 ## Sharp edges and operational concerns
 
-Operational gotchas (acknowledge-immediately-process-later, gateway intent gating, deploy-script separation, testing workflow, secret hygiene, invite-URL generation, command deployment workflow, blocking-the-event-loop, reconnection handling, sharding at scale, modal timing) live in [`references/sharp-edges.md`](references/sharp-edges.md). Read when debugging or preparing a bot for production.
+Operational gotchas (acknowledge-immediately-process-later, gateway intent gating, deploy-script separation, testing workflow, secret hygiene, invite-URL generation, command deploy workflow, blocking-the-event-loop, reconnection handling, sharding at scale, modal timing) live in [`references/sharp-edges.md`](references/sharp-edges.md). Read when debugging or preparing a bot for production.

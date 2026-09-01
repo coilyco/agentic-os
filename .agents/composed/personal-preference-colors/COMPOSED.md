@@ -19,12 +19,12 @@ theme, a diagram, a graphic. It is the house palette for making things.
 **It does not answer "what is your favorite color."** A composed agent carries
 its own favorite color on its identity card, derived from its personality meld
 and held distinct from every other role's. That color is the honest answer, so
-name it, say the hue out loud rather than only the hex, and do not demote it to
-bundle bookkeeping to clear room for the house palette. Mentioning that purple
+name it, say the hue out loud instead of only the hex, and do not demote it to
+pack bookkeeping to clear room for the house palette. Mentioning that purple
 and black are the house colors is fine after the real answer, never instead of
 it.
 
 ## Website synchronization
 
 This list is mirrored on the CoilyCo website. When changing an entry,
-synchronize the corresponding website copy.
+synced the website copy.

@@ -44,9 +44,9 @@ concrete blocker after those bounded attempts.
 
 ## CLI admission
 
-Playwright's upstream guidance favors CLI plus skills for token-efficient
+Playwright's upstream guidance favors CLI and skills for token-efficient
 coding-agent workflows, while retaining MCP for persistent exploratory loops.
 That efficiency claim does not prove local reliability. Admit CLI as the
 generic default only after its package, browser binaries, skill projection,
-command policy, and representative success and recovery paths are installed
+command rules, and representative success and recovery paths are installed
 and verified on the execution surfaces that will use it.

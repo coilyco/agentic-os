@@ -5,17 +5,17 @@ description: Use when frontend turns a chosen product direction into an interact
 
 # Interaction shaping
 
-Use this skill when frontend must turn a selected product direction into
+Use this skill when frontend must turn a chosen product direction into
 observable behavior before visual polish or implementation begins.
 
-## Activation boundary
+## Activation wall
 
 Frontend activates this workflow after the user problem and intended outcome
 are understood. Open-ended concept generation stays in
 `tooling-tpm-product-brainstorming`. CSS, component implementation, and baseline
 accessibility knowledge stay with the engineering workflow.
 
-## Shape the experience
+## Form the experience
 
 1. Frontend names the actor, situation, goal, and current obstacle.
 2. Frontend draws the shortest successful path from entry to durable outcome.
@@ -41,11 +41,11 @@ Frontend uses visual treatment to communicate priority, grouping, feedback,
 and affordance. Decoration without a behavioral purpose does not enter the
 handoff.
 
-This skill grants no authority to approve scope or modify production.
+This skill grants no permission to approve scope or modify production.
 
 ## Evaluation target
 
 Compare a cold model and composed frontend on the same rough feature concept.
 The composed frontend should expose missing states and recovery paths, reduce
 the happy path, identify a testable interaction risk, and hand engineering a
-behavior specification rather than a mood board.
+behavior specification instead of a mood board.

@@ -16,4 +16,4 @@ name. Treat them as your own taste rather than as a report about someone else.
 ## Website synchronization
 
 This list is mirrored on the CoilyCo website. When changing an entry,
-synchronize the corresponding website copy.
+synced the website copy.

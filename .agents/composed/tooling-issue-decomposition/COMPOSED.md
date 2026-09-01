@@ -13,18 +13,18 @@ Break a plan into independently-grabbable tracker issues using vertical slices
 ### 0. Size-check (only on oversized-opener path)
 
 If this skill fired because the session opened with a bare issue reference,
-read it through the repository's configured tracker surface and assess size
+read it through the repo's configured tracker surface and assess size
 before doing anything else:
 
 - Single, narrow acceptance criterion - not oversized. Decline politely, hand control back, let the normal flow run.
 - Multiple unrelated acceptance criteria, vague scope, or estimated to touch many files across layers - oversized. Tell the user you flagged it as oversized and ask if they want to split before executing. If yes, continue to step 1. If no, hand control back.
 
-The point of this gate is to avoid splitting issues that don't need it. The skill is the right tool when an issue would otherwise burn a whole session on orientation plus mid-task compaction.
+The point of this gate is to avoid splitting issues that don't need it. The skill is the right tool when an issue would otherwise burn a whole session on orientation and mid-task compaction.
 
 ### 1. Gather context
 
 Work from whatever is already in the conversation context. If the human passes
-an issue number or URL, read the issue and comments through the repository's
+an issue number or URL, read the issue and comments through the repo's
 configured tracker surface.
 
 ### 2. Explore the codebase (optional)

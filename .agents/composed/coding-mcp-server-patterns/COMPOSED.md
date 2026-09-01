@@ -16,7 +16,7 @@ current official MCP specification and SDK documentation before authoring code.
 
 ## Select the capability surface
 
-Confirm that MCP is the right boundary before implementing it:
+Confirm that MCP is the right wall before implementing it:
 
 * **Tool** - an action the model may invoke.
 * **Resource** - read-only context the client may fetch.
@@ -24,13 +24,13 @@ Confirm that MCP is the right boundary before implementing it:
 * **Plain CLI or API** - a deterministic workflow that does not benefit from
   model-facing discovery.
 
-Keep executable authority outside the skill. Apply the target repository's
+Keep executable authority outside the skill. Apply the target repo's
 permission, command-routing, validation, and secret-handling rules.
 
-## Shape the server
+## Form the server
 
 1. Separate domain logic from MCP registration and transport code.
-2. Define an input schema and documented output shape for every tool.
+2. Define an input schema and documented output form for every tool.
 3. Prefer resources for read-only data and tools for actions.
 4. Return concise structured errors that help the model recover. Do not expose
    stack traces, secrets, or raw private payloads.
@@ -51,7 +51,7 @@ Use the current SDK documentation as the source of truth.
   Write protocol messages only to stdout and send diagnostics to stderr.
 * **Streamable HTTP** - use for remote or shared servers. Apply authentication,
   origin validation, session handling, timeouts, request limits, and safe
-  shutdown at the HTTP boundary.
+  shutdown at the HTTP wall.
 * **Legacy HTTP and SSE** - retain only when an existing client requires
   backward compatibility.
 
@@ -66,13 +66,13 @@ Exercise:
 * valid and invalid schema inputs
 * expected errors, timeouts, cancellation, and retry behavior
 * authentication and authorization boundaries for remote servers
-* clean startup and shutdown for the selected transport
+* clean startup and shutdown for the chosen transport
 * bounded results for large or adversarial inputs
 * compatibility with the actual target client
 
-Use the target repository's Ward or equivalent command surface for setup,
+Use the target repo's Ward or equivalent command surface for setup,
 formatting, tests, and builds. Do not copy a package-manager command into the
-workflow when the repository owns a wrapper.
+workflow when the repo owns a wrapper.
 ## Provenance
 
 Adapted from [`affaan-m/ECC/skills/mcp-server-patterns`](https://github.com/affaan-m/ECC/tree/591ab5cbd3f2f65860ea91c226e410b1502c8e2e/skills/mcp-server-patterns)

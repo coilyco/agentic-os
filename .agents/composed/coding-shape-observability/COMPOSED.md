@@ -5,7 +5,7 @@ description: Category umbrella for observability work across vendors - metrics, 
 
 # coding-shape-observability
 
-Umbrella for any observability work. Spans metrics, traces, logs, dashboards, alerting, SLOs. Kai's professional spine across multiple employers: Datadog, Prometheus, Grafana, Sentry, CloudWatch, New Relic. Current edge is OTel plus LLM consumers of observability data.
+Umbrella for any observability work. Spans metrics, traces, logs, dashboards, alerting, SLOs. Kai's professional spine across multiple employers: Datadog, Prometheus, Grafana, Sentry, CloudWatch, New Relic. Current edge is OTel and LLM consumers of observability data.
 
 ## Triggers
 
@@ -37,7 +37,7 @@ When designing new observability surfaces, ask: how does an LLM agent consume th
 
 ## Anti-patterns
 
-- Logging at every function boundary (logspam, useless).
+- Logging at every function wall (logspam, useless).
 - Metrics without dashboards (write-only telemetry).
 - Dashboards without alerts (read-only telemetry).
 - Alerts without runbooks (paging without action).
@@ -50,4 +50,4 @@ Designing instrumentation, building dashboards, configuring alerts, debugging vi
 
 ## See also
 
-- SigNoz - the canonical ingest and exception-grouping contract, documented alongside the deployment that runs it.
+- SigNoz - the canonical ingest and exception-grouping rule, documented alongside the deploy that runs it.

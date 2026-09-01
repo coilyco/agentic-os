@@ -11,13 +11,13 @@ metadata:
 The agent never performs a live take. Timing, retakes, and the operator's
 attention are all removable from the critical path, and removing them is the
 point of both tools here. The one exception is content the text stream cannot
-carry, which the human records rather than the agent. See below.
+carry, which the human records instead of the agent. See below.
 
 ## Choosing the tool
 
 VHS renders a `.tape` script to GIF, MP4, or WebM with no live session. It suits
 any command that is fast and deterministic. A wrong pause is an edit to a number
-rather than another take.
+instead of another take.
 
 asciinema records a real session to a text cast. It suits anything whose output
 timing cannot be known in advance, which includes every agent session, since
@@ -37,7 +37,7 @@ responses vary by tens of seconds. `agg` converts a cast to GIF.
 3. The agent checks the resulting aspect ratio against the destination. Output
    past about 120 columns yields a letterbox strip that suits a README banner
    and fails on a social post. When the ratio will not work, the fix is a
-   narrower command rather than a smaller font: pipe through `head` and `cut`,
+   narrower command instead of a smaller font: pipe through `head` and `cut`,
    or record a different subcommand.
 
 ## Recording a live session
@@ -79,7 +79,7 @@ the frame.
 scrollback (`kitty @ action clear_terminal scrollback active` clears the pane
 without touching the agent's own context), then responds to cue lines agreed
 before the take so nothing is improvised on camera. Short replies land after the
-visual rather than narrating it.
+visual instead of narrating it.
 
 Turn `viewMode` to compact in `/config` first. Verbose expands every tool call
 inline and is the single largest source of on-screen noise. `aterm --no-motion`
@@ -99,11 +99,11 @@ ffmpeg -ss HEAD -to TAIL -i RAW.mov -an \
 ```
 
 `-an` drops the audio. `setpts=0.5*PTS` doubles the speed, which suits typing
-and idle thinking. 60fps rather than 30 when the clip contains an animation
+and idle thinking. 60fps instead of 30 when the clip contains an animation
 driven at around 32fps, since 30 judders against it. Half resolution is ample
 for a feed. A 30MB 44 second capture becomes about 1.4MB at 21 seconds.
 
-Find the trim points by sampling rather than scrubbing, cropping to the region
+Find the trim points by sampling instead of scrubbing, cropping to the region
 that tells you what you need:
 
 ```text
@@ -117,7 +117,7 @@ video, and the same content is roughly a tenth the size.
 
 A display capture holds whatever else was on screen. Before any recording is
 published the agent samples it end to end and looks, which is a privacy review
-rather than a quality one:
+instead of a quality one:
 
 ```text
 ffmpeg -v error -i RAW.mov -vf "fps=1/3,scale=480:-1" rev/f%02d.png -y
@@ -142,6 +142,6 @@ the exit code and obvious in the frame.
 
 ## Showing the result to a human
 
-macOS Preview steps an animated GIF frame by frame rather than playing it, so
+macOS Preview steps an animated GIF frame by frame instead of playing it, so
 the agent opens rendered output in a browser. Several clips go on one local HTML
-page rather than several tabs.
+page instead of several tabs.

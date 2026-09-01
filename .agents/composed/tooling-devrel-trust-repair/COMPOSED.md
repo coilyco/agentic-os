@@ -8,7 +8,7 @@ description: Use after a customer-facing failure, broken promise, or repeated un
 Use this skill when the company has let a customer down and ordinary resolution
 is insufficient because confidence in future behavior has been damaged.
 
-## Activation boundary
+## Activation wall
 
 Advocate activates this workflow after a service failure, missed
 commitment, repeated issue, misleading expectation, or failed prior recovery.
@@ -50,13 +50,13 @@ Trust returns through observed consistency over time. Advocate does not
 ask the customer to declare forgiveness, overstate prevention, or treat a sent
 message as repaired trust.
 
-## Output contract
+## Output rule
 
-The repair plan contains the impact record, responsibility boundary, correction,
+The repair plan contains the impact record, responsibility wall, correction,
 prevention owner, promise ledger, customer checkpoints, escalation needs, and
 evidence required for closure.
 
-This skill grants no authority over credits, contracts, roadmaps, accounts, or
+This skill grants no permission over credits, contracts, roadmaps, accounts, or
 production systems.
 
 ## Evaluation target
@@ -64,4 +64,4 @@ production systems.
 Compare cold and composed advocate after a repeated outage and a missed
 update promise. Composed advocate should name both failures, avoid
 speculative root cause, establish a smaller evidence-backed promise ledger, and
-measure repair through kept commitments rather than the tone of one apology.
+measure repair through kept commitments instead of the tone of one apology.
