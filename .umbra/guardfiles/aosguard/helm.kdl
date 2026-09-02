@@ -67,9 +67,12 @@ wrap aosguard ops helm {
         deny-when kubeconfig matches "*"
         describe "return a release to a prior revision; pass the revision from history"
     }
-    // intentionally unexposed - release destruction, and the local state whose
+    can run uninstall {
+        deny-when kubeconfig matches "*"
+        describe "IRREVERSIBLE: removes a release and every resource it owns, with no rollback afterwards because the history goes with it. Name the exact release. Attended deprovision is what this is for"
+    }
+    // intentionally unexposed - the uninstall alias, and the local state whose
     // change would silently redirect where a chart comes from
-    never run uninstall
     never run delete
     never run repo
     never run plugin
