@@ -1,0 +1,80 @@
+// aosguard ops helm - Helm releases as an allowlist.
+// Rationale: tooling-aosguard references/guardfile-headers.md.
+
+wrap aosguard ops helm {
+    exec helm
+    // Wrap-level so a later grant cannot forget it. Helm spells the selector
+    // --kube-context, where kubectl spells it --context. #1502.
+    only pass when kube-context is kai-server ser8 {
+        describe "the cluster this call runs against; required, and one of kai-server or ser8"
+    }
+    // reads - release state
+    can run list {
+        deny-when kubeconfig matches "*"
+        describe "releases in a namespace; -A for every namespace"
+    }
+    can run status {
+        deny-when kubeconfig matches "*"
+        describe "one release's state, revision, and notes; pass the release name"
+    }
+    can run history {
+        deny-when kubeconfig matches "*"
+        describe "revision history for a release, the input to a rollback"
+    }
+    can run "get values" {
+        deny-when kubeconfig matches "*"
+        describe "the values a release was installed with; --revision to pick one"
+    }
+    can run "get manifest" {
+        deny-when kubeconfig matches "*"
+        describe "the rendered manifest a release actually applied"
+    }
+    can run "get metadata" {
+        deny-when kubeconfig matches "*"
+        describe "chart name, version, and app version behind a release"
+    }
+    can run "get notes" {
+        deny-when kubeconfig matches "*"
+        describe "the NOTES.txt a release rendered"
+    }
+    // reads - chart rendering, offline
+    can run template {
+        deny-when kubeconfig matches "*"
+        describe "render a chart to stdout without contacting the cluster; -f values, --set overrides"
+    }
+    can run lint {
+        deny-when kubeconfig matches "*"
+        describe "check a chart for problems without contacting the cluster"
+    }
+    can run "show values" {
+        deny-when kubeconfig matches "*"
+        describe "a chart's default values.yaml"
+    }
+    can run "show chart" {
+        deny-when kubeconfig matches "*"
+        describe "a chart's Chart.yaml"
+    }
+    // deploy surface - the write verbs, all audit-logged
+    can run upgrade {
+        deny-when kubeconfig matches "*"
+        describe "upgrade a release, or install it when passed --install, which is how every rollout in coilyco-bridge/deploy invokes it"
+    }
+    can run install {
+        deny-when kubeconfig matches "*"
+        describe "install a release that does not exist yet; prefer upgrade --install, which is idempotent"
+    }
+    can run rollback {
+        deny-when kubeconfig matches "*"
+        describe "return a release to a prior revision; pass the revision from history"
+    }
+    // intentionally unexposed - release destruction, and the local state whose
+    // change would silently redirect where a chart comes from
+    never run uninstall
+    never run delete
+    never run repo
+    never run plugin
+    never run registry
+    never run push
+    never run package
+    never run create
+}
