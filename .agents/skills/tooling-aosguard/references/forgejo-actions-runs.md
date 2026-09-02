@@ -17,29 +17,12 @@ Use AOSguard for live inspection:
 Raw API examples include `page=1` whenever they include `limit`, on both
 `/actions/runs` and `/actions/tasks`.
 
-## Forgejo Actions rerun bridge
+## There is no rerun bridge
 
-`aosguard ops actions rerun` and `rerun-failed-jobs` call the packaged
-`agentic_os.forgejo_actions_rerun` module. The call targets a known run, then
-falls back to dispatching that run's workflow file for the same ref when Forgejo
-exposes no usable rerun control.
+`aosguard ops actions rerun` and `rerun-failed-jobs` were removed in agentic-os#1428. They 404'd on this Forgejo, and the packaged `forgejo_actions_rerun` module went with them. Re-run a workflow from the Forgejo web UI, or push a new commit.
 
-The companion fetch overlay in
-[AOSguard's Forgejo spec](../../../../.umbra/guardfiles/aosguard/forgejo.kdl) pins the
-dead API rerun routes from agentic-os#473, so the dead shape stays documented
-rather than becoming another hand-coded HTTP call.
+The fetch overlay in [AOSguard's Forgejo spec](../../../../.umbra/guardfiles/aosguard/forgejo.kdl) still pins the dead API rerun routes from agentic-os#473, so the dead shape stays documented rather than becoming another hand-coded HTTP call.
 
-Forgejo exposes the rerun controls inconsistently on this deployment, so the
-bridge keeps the bot token inside AOSguard and the run id as the authority
-boundary, then dispatches the workflow file when the controls are absent.
-- `actions rerun` and `actions rerun-failed-jobs` each try their web control
-  first, then fall back to workflow dispatch for the same ref.
-
-The resolved routes are:
-
-- `POST /{owner}/{repo}/actions/runs/{run_id}/rerun`
-- `POST /{owner}/{repo}/actions/runs/{run_id}/jobs/{job_index}/rerun`
-- `POST /api/v1/repos/{owner}/{repo}/actions/workflows/{workflowfilename}/dispatches`
 
 ## Forgejo Actions logs
 
