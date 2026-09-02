@@ -26,10 +26,11 @@ resumes at the END marker, which is what a whole-file exclude gave up.
 Two per-repo dials under ``[tool.agentic-os.code-comments]`` change the two
 paragraphs above, both defaulting off so no repo moves until it opts in:
 
-``header_cap = true``
-    Applies the two-line cap to the top-of-file header too, for YAML and KDL.
-    The exemption let a header grow without bound, which is where explanation
-    accumulates once every other position is capped.
+``header_cap = false``
+    Exempts the top-of-file header from the two-line cap again, for YAML and
+    KDL. On by default since #1119: the exemption let a header grow without
+    bound, which is where explanation accumulates once every other position
+    is capped, and for YAML the top block is also the only legal position.
 
 ``yaml_comments_below_content = true``
     Drops the YAML-only top-block restriction, so YAML takes the same capped
@@ -469,7 +470,8 @@ def main() -> int:
     if not is_enabled(HOOK_ID):
         print(f"{HOOK_ID}: disabled by repo config")
         return 0
-    header_cap = get_bool_option(HOOK_ID, "header_cap", False)
+    # On by default since #1119. The docstring above carries the reason.
+    header_cap = get_bool_option(HOOK_ID, "header_cap", True)
     comments_below_content = get_bool_option(
         HOOK_ID, "yaml_comments_below_content", False
     )

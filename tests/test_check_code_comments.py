@@ -212,13 +212,22 @@ def test_block_open_inside_a_line_comment_does_not_shield_a_deref() -> None:
     assert scan_lines(Path("m.rs"), ".rs", lines) == []
 
 
-# The two opt-in dials. Both default off, so every test above describes the
-# behaviour a repo that sets neither still gets.
+# The two dials. `scan_lines` keeps a False parameter default so a caller must
+# be explicit. The config default main() resolves is separate (#1119).
 
 
-def test_header_cap_off_by_default_for_kdl() -> None:
+def test_scan_lines_leaves_the_dial_to_its_caller() -> None:
     lines = ["// one", "// two", "// three", "node 1"]
     assert scan_lines(Path("spec.kdl"), ".kdl", lines) == []
+
+
+def test_header_cap_config_default_is_on(tmp_path: Path, monkeypatch) -> None:
+    # #1119: a dial nothing sets never applies, and this one shipped off.
+    import agentic_os.config as config
+
+    monkeypatch.setattr(config, "REPO_ROOT", tmp_path)
+    (tmp_path / "pyproject.toml").write_text("[tool.agentic-os.code-comments]\n")
+    assert config.get_bool_option("code-comments", "header_cap", True) is True
 
 
 def test_header_cap_rejects_an_over_long_kdl_header() -> None:

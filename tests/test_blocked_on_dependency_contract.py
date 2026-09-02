@@ -9,7 +9,7 @@ AUTOMATION_MODE = (
     ROOT
     / ".agents"
     / "composed"
-    / "tooling-issue-prioritization"
+    / "tooling-issue-triage"
     / "references"
     / "automation-mode-axis.md"
 )
@@ -17,7 +17,7 @@ READINESS_AXIS = (
     ROOT
     / ".agents"
     / "composed"
-    / "tooling-issue-prioritization"
+    / "tooling-issue-triage"
     / "references"
     / "readiness-axis.md"
 )

@@ -1,0 +1,653 @@
+// Forgejo ops surface for the standalone AOSguard bundle.
+// Rationale: tooling-aosguard references/guardfile-headers.md.
+
+wrap aosguard ops forgejo {
+    // The ssm value provider: umbra ships no store SDK, so a store-backed
+    // source is an exec contract, declared here rather than linked in.
+    provider ssm {
+        exec aws ssm get-parameter --with-decryption --output text --query "Parameter.Value" --name
+    }
+
+    spec forgejo.swagger.v1.json.gz
+    base-url "forgejo.coilysiren.me/api/v1"
+    // Auth as the coilyco-ops bot, not a personal PAT (ward#151), so automated
+    // ops attribute to the bot. Token + scopes: provision-coilyco-ops-bot.sh.
+    auth header-token {
+        header Authorization
+        prefix "token "
+        value ssm "/forgejo/coilyco-ops/api-token"
+    }
+    // One clause per owner-shaped parameter the swagger spells: a spec-resolved
+    // surface cannot rename them, so each needs its own (agentic-os#1378).
+    restrict owner matches coily*
+    restrict username matches coily*
+    // repos: read/create/edit/delete plus the cross-repo `search` finder. Fork
+    // and archive/unarchive are denied below as human-only irreversible toggles.
+    can get repo
+    can search repo {
+        describe "cross-repo repo finder (GET /repos/search)"
+    }
+    can create repo
+    can edit repo
+    never replace-all repo-topic {
+        op repoUpdateTopics
+        message "repository topic replacement requires an attended admin credential; use `aosguard ops forgejo-admin repo-topic replace-all`"
+    }
+    can delete repo {
+        describe "irreversible: deletes the repo and all its data"
+    }
+    never fork repo {
+        message "forking is a human-only operation; fork in the web UI"
+    }
+    never archive repo {
+        message "archive/unarchive flips a repo's lifecycle; do it in the web UI"
+    }
+    never unarchive repo {
+        message "archive/unarchive flips a repo's lifecycle; do it in the web UI"
+    }
+    // orgs: read-only. Org create and delete are human-only.
+    can get org
+    can list org
+    never create org {
+        message "org creation is a human-only operation"
+    }
+    never delete org {
+        message "org deletion is irreversible and human-only"
+    }
+    can create org-repo {
+        op createOrgRepo
+        describe "create a repo inside an existing org (POST /orgs/{org}/repos); the org-scoped sibling of `create repo` (which targets /user/repos, a path the bot lacks write:user for). The coilyco-ops token already carries write:organization, so this is a missing verb, not a missing scope (ward#218). op pinned because a bare `create org-repo` also matches the deprecated alias. Org create/delete stay human-only; this creates repos within an org, not orgs themselves."
+    }
+    can list org-repo {
+        op orgListRepos
+        describe "list the repos an org owns (GET /orgs/{org}/repos). The route survey (ward#92) catalogs each primary org's repos through this leaf; `user-repo list` covers the one primary owner that is a user, not an org."
+    }
+    can list user-repo {
+        op userListRepos
+        describe "list the repos a user owns (GET /users/{username}/repos). coilysiren is a user, not an org, so the route survey reaches its repos here rather than through `org-repo list`. Read-only, the survey's other half."
+    }
+    // search finders: global read-only finders keyed on a query string, with no
+    // {owner}/{org} path param to gate - server-wide reads, no new behavior (ward#368).
+    can search user {
+        describe "user finder (GET /users/search)"
+    }
+    can search topic {
+        describe "topic finder (GET /topics/search)"
+    }
+    // org-labels (/orgs/{org}/labels): reads work as the bot, writes need org
+    // ownership it lacks, so they name the admin verb. See the tooling-aosguard skill.
+    can get org-label
+    can list org-label
+    never create org-label {
+        message "org label writes need organization ownership, which coilyco-ops lacks; use `aosguard ops forgejo-admin org-label create`"
+    }
+    never edit org-label {
+        message "org label writes need organization ownership, which coilyco-ops lacks; use `aosguard ops forgejo-admin org-label edit`"
+    }
+    never delete org-label {
+        message "org label writes need organization ownership, which coilyco-ops lacks; use `aosguard ops forgejo-admin org-label delete`"
+    }
+    // org-members: the org membership roster (GET /orgs/{org}/members); the `org`
+    // ancestor scopes it like the org-label/org-repo siblings. Read-only (ward#368).
+    can list org-member {
+        describe "org member list (GET /orgs/{org}/members)"
+    }
+    // repo-labels: repo-scoped label create/edit are policy-disabled (ward#107);
+    // mint/rename via org-label above, attach via issue-label below. op pinned.
+    never create label {
+        op issueCreateLabel
+        describe "op pinned because a bare `label` resource otherwise resolves to the shallower org path. A repo-level label (POST/PATCH /repos/{owner}/{repo}/labels) that duplicates an org label silently shadows it; that path minted the off-palette dup P0-P4 labels across 26 repos (340 tags re-pointed, 67 labels deleted - coilyco-bridge/coily#248)."
+        message "repo-level label create is policy-disabled (ward#107): it mints labels that duplicate and shadow the org P0-P4 taxonomy. Create org labels with `create org-label`."
+    }
+    never edit label {
+        op issueEditLabel
+        message "repo-level label edit is policy-disabled (ward#107): edit the org taxonomy with `edit org-label`."
+    }
+    // milestones: all-scalar CRUD plus the close/reopen fixed-body toggles (the
+    // toggles resolve like edit and carry only `body`).
+    can get milestone
+    can list milestone
+    can create milestone
+    can edit milestone
+    can delete milestone
+    can close milestone {
+        body state=closed
+    }
+    can reopen milestone {
+        body state=open
+    }
+    // issues: the array-body + query-param group. close/reopen are fixed-body
+    // toggles; delete is denied (close instead); search is the cross-repo finder.
+    can get issue
+    can view issue
+    can list issue
+    action list-all issue {
+        describe "List all issues by auto-paginating issue list."
+        input owner {
+            positional
+            required
+            help "repo owner"
+        }
+        input repo {
+            positional
+            required
+            help "repo name"
+        }
+        input state {
+            flag
+            help "whether issue is open or closed"
+        }
+        input labels {
+            flag
+            help "comma separated list of labels"
+        }
+        input q {
+            flag
+            help "search string"
+        }
+        input type {
+            flag
+            help "filter by type (issues / pulls)"
+        }
+        input milestones {
+            flag
+            help "comma separated list of milestone names or ids"
+        }
+        input since {
+            flag
+            help "Only show items updated after the given RFC3339 time"
+        }
+        input before {
+            flag
+            help "Only show items updated before the given RFC3339 time"
+        }
+        input created_by {
+            flag
+            help "Only show items created by the given user"
+        }
+        input assigned_by {
+            flag
+            help "Only show items assigned by the given user"
+        }
+        input mentioned_by {
+            flag
+            help "Only show items mentioning the given user"
+        }
+        input limit {
+            flag
+            help "page size of results"
+        }
+        input sort {
+            flag
+            help "Type of sort"
+        }
+        collect list issue {
+            args {
+                owner $owner
+                repo $repo
+                state $state
+                labels $labels
+                q $q
+                type $type
+                milestones $milestones
+                since $since
+                before $before
+                created_by $created_by
+                assigned_by $assigned_by
+                mentioned_by $mentioned_by
+                sort $sort
+            }
+            page-param page
+            limit-param limit
+            limit $limit
+            default-limit "50"
+            as issues
+        }
+    }
+    can search issue
+    can create issue
+    can edit issue
+    can comment issue
+    can close issue {
+        body state=closed
+    }
+    can reopen issue {
+        body state=open
+    }
+    never delete issue {
+        message "issue deletion is irreversible; close it instead (move-issue does this)"
+    }
+    can list issue-comment {
+        op issueGetComments
+        describe "the comments sub-collection GET, pinned by op (the convention resolves `list issue-comment` against issueGetComments poorly). The `view issue` shadow action below chains this so a view returns the thread."
+    }
+    can delete issue-comment {
+        op issueDeleteComment
+        describe "delete a single issue comment by its comment ID (DELETE /repos/{owner}/{repo}/issues/comments/{id}). op pinned for the same reason `list issue-comment` pins issueGetComments - the bare `delete issue-comment` convention does not reach issueDeleteComment. This is the cleanup path a stale reservation road-block needed (ward#570): a `ward agent` launch that dies before its container comes up posts a release-marker comment to retract the hold, but the orphaned `ward-agent-reservation` comment itself could only be removed by hand until this leaf. {owner}-scoped by the coily* gate above; irreversible, so it is a targeted-ID delete, never a bulk sweep."
+    }
+    // repo refs: read-only list sub-collections (commits/branches/tags), each
+    // {owner}-scoped by the coily* gate above; native GETs, no new behavior (ward#368).
+    can list commit {
+        op repoGetAllCommits
+        describe "commit list (GET /repos/{owner}/{repo}/commits). op pinned because the operationId is repoGetAllCommits - a `get`-shaped id the `list commit` convention does not reach."
+    }
+    can list branch {
+        op repoListBranches
+        describe "branch list (GET /repos/{owner}/{repo}/branches). op pinned because a bare `list branch` otherwise resolves to repoListBranchProtection (GET .../branch_protections), the shallower branch-prefixed match."
+    }
+    can list tag {
+        describe "tag list (GET /repos/{owner}/{repo}/tags)"
+    }
+    // commit statuses: CI state per ref (agentic-os#446). Pure reads - the
+    // combined rollup is what a director grades a PR head red/green with.
+    can status commit {
+        op repoGetCombinedStatusByRef
+        describe "combined commit status (GET /repos/{owner}/{repo}/commits/{ref}/status): the single rolled-up state for a ref (success/failure/pending) across all its statuses. op pinned because the status singleton sits beside the statuses collection and the bare convention cannot split them."
+    }
+    can list-statuses commit {
+        op repoListStatusesByRef
+        describe "commit status list (GET /repos/{owner}/{repo}/commits/{ref}/statuses): the per-context statuses behind the combined rollup. op pinned beside `commit status` for the same singleton/collection split."
+    }
+    // releases, with the multipart asset upload beside them (upload-asset resolves
+    // as create-on the assets sub-collection).
+    can get release
+    can list release
+    can create release
+    can edit release
+    can delete release
+    can upload-asset release
+    // pulls: full lifecycle including merge, op-pinned - the bare convention
+    // misses the sub-resources. Merge is ours on the coily* gate, not Ward's.
+    can view pr {
+        op repoGetPullRequest
+        describe "single PR read (GET /repos/{owner}/{repo}/pulls/{index}). The lifecycle beside it is complete: files/commits/create/edit/close/reopen/update (agentic-os#488) and merge."
+    }
+    can list pr {
+        op repoListPullRequests
+    }
+    can files pr {
+        op repoGetPullRequestFiles
+        describe "changed-file list for a PR (GET /repos/{owner}/{repo}/pulls/{index}/files). The stranded-PR sweep (agentic-os#488) had to clone each repo to learn a PR was empty because additions/changed_files on the PR body cannot distinguish 'no work' from 'already merged'; this read answers that off-disk."
+    }
+    can commits pr {
+        op repoGetPullRequestCommits
+        describe "commit list for a PR (GET /repos/{owner}/{repo}/pulls/{index}/commits): the read helper beside `pr files` (agentic-os#488)."
+    }
+    can create pr {
+        op repoCreatePullRequest
+        describe "open a pull request (POST /repos/{owner}/{repo}/pulls): --title plus --head and --base branch names. The authoring end of the lifecycle (agentic-os#488). Pass --body as --body \"$(cat FILE)\" rather than inline: a PR body is dense with backticked paths and code, and a backtick inside a double-quoted shell argument is command substitution the shell runs before this verb sees it. The failure is silent in the wrong direction - the substituted output becomes the body, or the embedded command simply runs and no pull request is created."
+    }
+    can edit pr {
+        op repoEditPullRequest
+        describe "edit a pull request's title/body/state fields (PATCH /repos/{owner}/{repo}/pulls/{index}). Prefer the fixed-body `pr close` / `pr reopen` toggles for state flips."
+    }
+    can close pr {
+        op repoEditPullRequest
+        body state=closed
+        describe "close a pull request without merging (PATCH state=closed): the stranded-PR cleanup verb (agentic-os#488). Reversible with `pr reopen`, so a wrong close is not a wall."
+    }
+    can reopen pr {
+        op repoEditPullRequest
+        body state=open
+        describe "reopen a closed, unmerged pull request (PATCH state=open): the inverse of `pr close`."
+    }
+    can update pr {
+        op repoUpdatePullRequest
+        describe "update a stale PR head branch from its base (POST /repos/{owner}/{repo}/pulls/{index}/update), e.g. pull main into a branch that fell behind (agentic-os#488: ward#987 stranded partly because nothing could refresh a branch 180 commits back)."
+    }
+    can merge pr {
+        op repoMergePullRequest
+        describe "merge a pull request (POST /repos/{owner}/{repo}/pulls/{index}/merge). Pass the merge style as --Do: merge, rebase, rebase-merge, squash, or fast-forward-only. Prefer the repository's own default_merge_style, readable from `repo get`, over a habitual choice. Merging through this leaf is what keeps the pull request a usable record: Forgejo records merged=true and the merge commit, and the diff survives. Pushing the merge by hand instead leaves the pull request rendering nothing, because base...head collapses once main contains head. Scoped to coily* owners by the gate above, and branch protection still applies, so a protected branch refuses this exactly as it refuses a push."
+    }
+    // issue-labels: the compound resource targets the issue's labels sub-collection;
+    // add/set/remove are the membership verbs (POST/PUT/DELETE).
+    can list issue-label
+    can add issue-label
+    can set issue-label
+    can remove issue-label
+    // Forgejo reserves pin management for repository admins. coilyco-ops held
+    // that only in the inbox until 2026-08-29, so these were shadowed (#1375).
+    can list issue-pin {
+        op repoListPinnedIssues
+    }
+    can pin issue {
+        op pinIssue
+    }
+    can edit issue-pin {
+        op moveIssuePin
+    }
+    can remove issue-pin {
+        op unpinIssue
+    }
+    // actions runs: status-bearing native run reads (agentic-os#446); unlike
+    // the `actions runs` exec bridge these carry each run's status/conclusion.
+    can list action-run {
+        op ListActionRuns
+        describe "Actions run list with status filters (GET /repos/{owner}/{repo}/actions/runs). op pinned to the upstream ListActionRuns id."
+    }
+    can get action-run {
+        op ActionRun
+        describe "single Actions run with its status and conclusion (GET /repos/{owner}/{repo}/actions/runs/{run_id}). op pinned to the upstream ActionRun id."
+    }
+    can list action-run-job {
+        op ListActionRunJobs
+        describe "jobs belonging to one Actions run (GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs)"
+    }
+    can logs action-job {
+        op repoGetActionJobLogs
+        describe "exact plaintext bytes for one Actions job, with optional attempt and byte ranges (Forgejo 16)"
+    }
+    can logs action-run {
+        op repoGetActionRunLogs
+        describe "exact ZIP bytes containing every job log in one Actions run (Forgejo 16)"
+    }
+    action list action-run {
+        describe "List Actions runs with a safe page-1 default."
+        input owner {
+            positional
+            required
+            help "repo owner"
+        }
+        input repo {
+            positional
+            required
+            help "repo name"
+        }
+        input limit {
+            flag
+            required
+            help "page size of results (required for bounded output)"
+        }
+        call list action-run {
+            args {
+                owner $owner
+                repo $repo
+                page "1"
+                limit $limit
+            }
+            as action_runs
+        }
+    }
+    // actions tasks: the read-only CI-run listing surface.
+    can list tasks
+    action list tasks {
+        describe "list Forgejo Actions tasks with a safe page-1 default"
+        input owner {
+            positional
+            required
+            help "repo owner"
+        }
+        input repo {
+            positional
+            required
+            help "repo name"
+        }
+        input limit {
+            flag
+            help "page size of results"
+        }
+        call list tasks {
+            args {
+                owner $owner
+                repo $repo
+                page "1"
+                limit $limit
+            }
+            as tasks
+        }
+    }
+    // actions workflows: manual dispatch for an allowed workflow file.
+    can dispatch workflow {
+        op DispatchWorkflow
+        describe "Dispatch a workflow file (POST /repos/{owner}/{repo}/actions/workflows/{workflowfilename}/dispatches). Allows a guarded manual trigger instead of a raw API call. The API body requires ref and may carry inputs."
+    }
+    // create issue: shadow the leaf so no issue is filed without a priority and an
+    // autonomy label (#1105). Names not ids; globs enumerate (unknown name = 200).
+    action create issue {
+        describe "File an issue, refusing one that carries no priority label or no autonomy label (#1105). Shadows the generated `issue create` leaf. --labels takes label NAMES (priority/P2, autonomy/headless) rather than the numeric ids the POST /issues body declares: the names are identical across every org and repo the coily* gate reaches and the ids are not, so validating a name needs no per-org id table and no lookup, and the caller stops running `org-label list` before every filing. The labels are applied by a second call to the labels sub-collection, whose body schema declares the id-or-name union that carries a name at all. The refusal is not part of that second call: it happens while the inputs bind, before the create fires, so a call that violates the rule creates nothing. Since inbox and website migrated onto priority/* and autonomy/* (coilysiren/inbox#392) one rule covers every repo this surface writes, and no per-repo exemption is carried. The globs enumerate the vocabulary rather than wildcarding it, because the labels endpoint drops an unknown name silently with a 200, so a loose priority/* would accept priority/p2, let the write through and apply nothing. The leaf`s optional fields are carried through: an omitted one is left out of the request rather than failing the call (umbra#326). Only the deprecated single --assignee and --closed are dropped, the first because --assignees supersedes it and the second because an issue filed already-closed is not a thing this surface should make easy."
+        input owner {
+            positional
+            required
+            help "repo owner"
+        }
+        input repo {
+            positional
+            required
+            help "repo name"
+        }
+        input title {
+            flag
+            required
+            help "issue title"
+        }
+        input body {
+            flag
+            help "issue body"
+        }
+        input milestone {
+            flag
+            help "milestone id"
+        }
+        input assignees {
+            flag
+            array
+            help "assignee login, repeatable"
+        }
+        input due_date {
+            flag
+            help "due date (RFC 3339)"
+        }
+        input ref {
+            flag
+            help "git ref to associate"
+        }
+        input labels {
+            flag
+            required
+            array
+            help "label NAME, repeatable; needs one priority/* and one autonomy/*"
+            matches "priority/P[0-4]" message="no priority label: add --labels priority/P2 (P0 highest, P4 lowest)"
+            matches "autonomy/headless" "autonomy/live-collab" "autonomy/async-consult" "autonomy/epic" message="no autonomy label: add --labels autonomy/headless (or autonomy/live-collab, autonomy/async-consult, autonomy/epic)"
+        }
+        call create issue {
+            args {
+                owner $owner
+                repo $repo
+                title $title
+                body $body
+                milestone $milestone
+                assignees $assignees
+                due_date $due_date
+                ref $ref
+            }
+            as issue
+        }
+        call add issue-label {
+            args {
+                owner $owner
+                repo $repo
+                index $issue.number
+                labels $labels
+            }
+            as labels
+        }
+    }
+    // move-issue: copy title/body to a target repo, back-link, then CLOSE the
+    // source (never delete). Labels carry and are required, like create (#1317).
+    action move-issue {
+        describe "Move an issue to another repo (copy title/body, back-link, close source). Never deletes."
+        input source {
+            positional
+            required
+            help "source owner/name"
+        }
+        input index {
+            positional
+            required
+            help "source issue number"
+        }
+        input target {
+            positional
+            required
+            help "target owner/name"
+        }
+        input labels {
+            flag
+            required
+            array
+            help "label NAME for the moved issue, repeatable; needs one priority/* and one autonomy/*"
+            matches "priority/P[0-4]" message="no priority label: add --labels priority/P2 (P0 highest, P4 lowest)"
+            matches "autonomy/headless" "autonomy/live-collab" "autonomy/async-consult" "autonomy/epic" message="no autonomy label: add --labels autonomy/headless (or autonomy/live-collab, autonomy/async-consult, autonomy/epic)"
+        }
+        call view issue {
+            args {
+                owner-repo $source
+                index $index
+            }
+            as src
+        }
+        call create issue {
+            args {
+                owner-repo $target
+                title $src.title
+                body $src.body
+            }
+            as dst
+        }
+        call add issue-label {
+            args {
+                owner-repo $target
+                index $dst.number
+                labels $labels
+            }
+            as moved-labels
+        }
+        call comment issue {
+            args {
+                owner-repo $source
+                index $index
+                body $dst.html_url
+            }
+        }
+        call close issue {
+            args {
+                owner-repo $source
+                index $index
+            }
+        }
+    }
+    // view issue: shadow the generated `issue view` leaf so a view returns the
+    // issue AND its comment thread (ward#170). See describe for the ward#225 note.
+    action view issue {
+        describe "View an issue with its full comment thread (issue + comments). Shadows the generated `issue view` (same 3-arg signature) so a view never misses the comments - the ward#170 failure mode where an agent reads the body and skips the thread. ward#225: the generated CLI renders this through a lean projection that collapses every commenter to its login literal, so a multi-comment issue no longer repeats each commenter's full profile once per comment. The guardfile shape is unchanged."
+        input owner {
+            positional
+            required
+            help "repo owner"
+        }
+        input repo {
+            positional
+            required
+            help "repo name"
+        }
+        input index {
+            positional
+            required
+            help "issue number"
+        }
+        call view issue {
+            args {
+                owner $owner
+                repo $repo
+                index $index
+            }
+            as issue
+        }
+        call list issue-comment {
+            args {
+                owner $owner
+                repo $repo
+                index $index
+            }
+            as comments
+        }
+    }
+    // comment issue: shadow the leaf so a comment on a CLOSED issue warns instead
+    // of posting silently - get-then-comment with a fail-when over state (ward#380).
+    action comment issue {
+        describe "Post a comment on an issue, warning when the issue is closed (ward#380). Shadows the generated `issue comment` leaf (same 3-arg + --body signature): it GETs the issue to read its state, posts the comment, then `fail-when`s on state=='closed' so commenting on a closed issue exits non-zero instead of passing silently. The comment IS still created - the non-zero exit and the issue body in the output are the warning that the target was closed, not a block on the post. Renders {comment, issue} together like every mount call action."
+        input owner {
+            positional
+            required
+            help "repo owner"
+        }
+        input repo {
+            positional
+            required
+            help "repo name"
+        }
+        input index {
+            positional
+            required
+            help "issue number"
+        }
+        input body {
+            flag
+            required
+            help "The body of the comment"
+        }
+        call get issue {
+            args {
+                owner $owner
+                repo $repo
+                index $index
+            }
+            as issue
+        }
+        call comment issue {
+            args {
+                owner $owner
+                repo $repo
+                index $index
+                body $body
+            }
+            as comment
+        }
+        fail-when "$issue.state == 'closed'"
+    }
+    // Rerun fetch mirrors remain until Forgejo exposes their routes in Swagger.
+    fetch "actions rerun" {
+        method "POST"
+        path "/repos/{owner}/{repo}/actions/runs/{run}/rerun"
+        output "raw"
+        when first input matches coily*
+    }
+    fetch "actions rerun-failed-jobs" {
+        method "POST"
+        path "/repos/{owner}/{repo}/actions/runs/{run}/rerun-failed-jobs"
+        output "raw"
+        when first input matches coily*
+    }
+
+    // Keep runner-token minting here so umbra locks one vendored Forgejo
+    // contract rather than a second fetch-only Swagger member.
+    restrict org matches coily*
+    fetch "generate-runner-token global" {
+        method "GET"
+        path "/admin/runners/registration-token"
+        output "raw"
+        header "Accept" "application/json"
+    }
+    fetch "generate-runner-token org" {
+        method "GET"
+        path "/orgs/{org}/actions/runners/registration-token"
+        output "raw"
+        header "Accept" "application/json"
+    }
+    fetch "generate-runner-token repo" {
+        method "GET"
+        path "/repos/{owner}/{repo}/actions/runners/registration-token"
+        output "raw"
+        header "Accept" "application/json"
+    }
+}

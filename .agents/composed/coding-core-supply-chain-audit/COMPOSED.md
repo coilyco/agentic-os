@@ -10,7 +10,7 @@ allowed-tools: Bash Read Grep WebFetch
 
 audit this dep, vet this crate, is this safe, supply chain audit, trust check.
 
-Vet a third-party package before it ships in your code. The output is a trust verdict (green / yellow / red) plus a short writeup. Don't recommend "allow" without running the checks.
+Vet a third-party package before it ships in your code. The output is a trust verdict (green / yellow / red) and a short writeup. Don't recommend "allow" without running the checks.
 
 ## When to run
 
@@ -43,4 +43,4 @@ The full multi-step checklist (org reality, maintainer signals, repo health, cod
 ## More
 
 - [Invoking cargo / npm above board](references/ward-pkg-wrappers.md) - route package-manager actions through `ward pkg`.
-- [Output format](references/output-format.md) - the verdict shape to write to chat, plus what this skill is NOT.
+- [Output format](references/output-format.md) - the verdict form to write to chat, and what this skill is NOT.

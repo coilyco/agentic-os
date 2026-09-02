@@ -204,9 +204,9 @@ def test_release_workflow_derives_assets_from_dist() -> None:
     assert '"_session"' in release_check
 
 
-def test_specgen_pin_is_owned_by_the_dependency_lock() -> None:
+def test_umbra_pin_is_owned_by_the_dependency_lock() -> None:
     lock = json.loads(
-        (ROOT / ".specgen" / "guardfiles" / "specverb.lock").read_text(
+        (ROOT / ".umbra" / "guardfiles" / "specverb.lock").read_text(
             encoding="utf-8"
         )
     )
@@ -218,5 +218,5 @@ def test_specgen_pin_is_owned_by_the_dependency_lock() -> None:
 
     assert not (ROOT / "aos-cli" / "release.env").exists()
     assert '"cliGuard"' in builder
-    assert "SPECGEN_VERSION" not in builder
-    assert f"ARG SPECGEN_VERSION={pinned}\n" in dockerfile
+    assert "UMBRA_VERSION" not in builder
+    assert f"ARG UMBRA_VERSION={pinned}\n" in dockerfile

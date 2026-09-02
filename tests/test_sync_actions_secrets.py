@@ -59,6 +59,13 @@ def test_deploy_pin_reconciler_secrets_are_mapped() -> None:
     )
 
 
+def test_housecast_publishes_with_a_pypi_token() -> None:
+    """Forgejo is not a PyPI trusted-publishing provider, so the token is the only path."""
+    mod = _load_script()
+    housecast = mod.MAPPING[mod.slug("housecast")]
+    assert housecast["PYPI_TOKEN"] == "/coilysiren/pypi/token"
+
+
 def test_every_mapped_secret_name_is_acceptable_to_forgejo() -> None:
     """The real mapping must not contain a name the server would 400 on."""
     mod = _load_script()

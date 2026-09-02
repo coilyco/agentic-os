@@ -485,3 +485,75 @@ func TestWriteBundleUsesRoleArtAndPrefersTheSharedIcon(t *testing.T) {
 		t.Fatal("no art means no Resources directory, not an empty icns")
 	}
 }
+
+// brewTree lays out the two halves of a Homebrew install: the versioned Cellar
+// a shell may have resolved, and the opt symlink target that outlives it.
+func brewTree(t *testing.T, formula, version, tail string) (string, string, string) {
+	t.Helper()
+	prefix := t.TempDir()
+	cellar := filepath.Join(prefix, "Cellar", formula, version, tail)
+	opt := filepath.Join(prefix, "opt", formula, tail)
+	for _, dir := range []string{cellar, opt} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("make %s: %v", dir, err)
+		}
+	}
+	return prefix, cellar, opt
+}
+
+// A Cellar path is a dead directory the moment the formula upgrades, and this
+// one gets baked into a generated launcher. agentic-os#1440
+func TestBakedPathTradesCellarForTheOptSymlink(t *testing.T) {
+	_, cellar, opt := brewTree(t, "go", "1.26.5", filepath.Join("libexec", "bin"))
+	got := livePathEntries(cellar)
+	if got != opt {
+		t.Fatalf("baked %q, want the stable %q", got, opt)
+	}
+	if strings.Contains(got, "/Cellar/") {
+		t.Fatalf("a version-pinned path survived into the bake: %q", got)
+	}
+}
+
+// Two versions of one formula are the same opt path, so the bake should carry
+// it once rather than twice.
+func TestBakedPathCollapsesTwoCellarVersions(t *testing.T) {
+	prefix, cellar, opt := brewTree(t, "go", "1.26.5", "bin")
+	older := filepath.Join(prefix, "Cellar", "go", "1.25.0", "bin")
+	if err := os.MkdirAll(older, 0o755); err != nil {
+		t.Fatalf("make %s: %v", older, err)
+	}
+	got := livePathEntries(strings.Join([]string{cellar, older}, string(filepath.ListSeparator)))
+	if got != opt {
+		t.Fatalf("baked %q, want the single stable %q", got, opt)
+	}
+}
+
+// An unlinked formula has no opt path, and dropping it would take the only
+// route to the binary with it.
+func TestBakedPathKeepsACellarWithNoOptEquivalent(t *testing.T) {
+	prefix := t.TempDir()
+	cellar := filepath.Join(prefix, "Cellar", "unlinked", "0.1.0", "bin")
+	if err := os.MkdirAll(cellar, 0o755); err != nil {
+		t.Fatalf("make %s: %v", cellar, err)
+	}
+	if got := livePathEntries(cellar); got != cellar {
+		t.Fatalf("baked %q, want the Cellar path kept as the only route", got)
+	}
+}
+
+// The generated launcher is the artifact that outlives the shell it was
+// written from, so the assertion belongs on its bytes too.
+func TestGeneratedLauncherCarriesNoVersionPinnedPath(t *testing.T) {
+	_, cellar, _ := brewTree(t, "go", "1.26.5", filepath.Join("libexec", "bin"))
+	spec := bundleSpec{
+		Role: "platform", DisplayName: "Platform Engineer", Person: "Angie",
+		BakedPath:       livePathEntries(cellar),
+		ATermBin:        "/opt/homebrew/bin/aterm",
+		AOSBin:          "/opt/homebrew/bin/aos",
+		AgentComposeBin: "/opt/homebrew/bin/agent-compose",
+		TerminalBin:     "/opt/homebrew/bin/kitty",
+	}
+	if launcher := bundleLauncher(spec); strings.Contains(launcher, "/Cellar/") {
+		t.Fatalf("the launcher baked a version-pinned path:\n%s", launcher)
+	}
+}

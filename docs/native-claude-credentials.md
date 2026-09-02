@@ -96,6 +96,15 @@ so agentic-os#1165's bare `*` only ever warned at startup and is now retired.
 host, which makes it operator-local preference under the config-placement axes,
 so it stays hand-edited and no writer owns it.
 
+## Fleet preference
+
+`tui: fullscreen` is the one preference the writer sets beside the guardrails,
+because Kai chose the fullscreen renderer as the fleet default rather than a
+per-host tuning. A host whose terminal cannot take the alternate screen, such as
+iTerm2 under `tmux -CC` or a screen reader, exports `CLAUDE_CODE_NO_FLICKER=0`
+in `~/.shellrc.local`: the env var outranks the saved key, so convergence keeps
+writing the default and the host keeps ignoring it.
+
 ## Read-only assertion
 
 `agentic-os-kai/scripts/up-to-date.py` asserts the remaining guardrails are

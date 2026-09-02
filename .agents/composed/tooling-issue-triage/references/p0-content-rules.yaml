@@ -1,0 +1,28 @@
+# P0 content-rule net (recall stage). See target-shape.md.
+#
+# Each category is a case-insensitive regex matched against an issue's
+# title + body. A match makes the issue a P0 *candidate*. Candidates are
+# then judgment-confirmed ("active incident / live exposure, or just about
+# the topic?") - the regexes deliberately over-match (~40% topic-mentions);
+# precision comes from the confirm step, not from tighter regexes.
+#
+# Tune toward recall here. Missing a real P0 (a live credential leak, an
+# active outage) is the expensive error; a false candidate just costs one
+# confirm call.
+
+categories:
+
+  secret_credential_exposure: >-
+    (securestring.*(commit|leak|expos)|leak(s|ed|ing)?\b.{0,30}(secret|credential|token|key|oauth)|(secret|credential|token|api[ -]?key|oauth).{0,30}(leak|exposed|plaintext|into commit|in commit)|rotate.{0,20}(leaked|exposed|compromis)|literal username.*token|token.*literal username)
+
+  arbitrary_code_exec_or_bypass: >-
+    (arbitrary code execution|remote code execution|\bACE\b|chmod \+x.*run|gate bypass|bypass(es|ed)?\b.{0,25}(gate|lockdown|guard)|lockdown.{0,20}bypass|auth(entication|z)?\s*bypass|sandbox escape|privilege escalation|laundering gap)
+
+  data_loss_or_corruption: >-
+    (data[ -]?loss|drops? (local )?commits?|lost commit|silently.{0,20}(lost|dropped|swap)|crosses? (commit )?messages|stash.*swap.*staged|overwrit.{0,15}(data|commits?))
+
+  active_outage_crashloop_pipeline_down: >-
+    (crashloop|crash[ -]?loop|crashlooping|bot down|crashes? post-reboot|runners offline|all .{0,20}pipelines? stalled|every (deploy|release) fails?|deploys? fail .{0,20}(name=null|every)|deploy path broken end-to-end|100% failure|fail(s|ing) every \dmin)
+
+  blocks_all_committed_work: >-
+    (blocks all|blocking all|blocks every|blocks the .* (deploy|pipeline|release|build)|blocks other committed)

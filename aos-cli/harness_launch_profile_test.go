@@ -61,13 +61,15 @@ func TestStandaloneDefaultAgentForRole(t *testing.T) {
 	if len(document.DefaultAgents) == 0 {
 		t.Fatal("the configured launch profiles declared no roles")
 	}
-	for role, want := range document.DefaultAgents {
+	// Asserting got == document.DefaultAgents[role] would compare the loader
+	// against itself. Value resolution is covered by the fixture tests below.
+	for role := range document.DefaultAgents {
 		got, err := standaloneDefaultAgentForRole(role)
 		if err != nil {
 			t.Fatalf("standaloneDefaultAgentForRole(%s): %v", role, err)
 		}
-		if got != want {
-			t.Fatalf("standaloneDefaultAgentForRole(%s) = %q, want %q", role, got, want)
+		if got == "" {
+			t.Fatalf("standaloneDefaultAgentForRole(%s) resolved to an empty agent", role)
 		}
 	}
 	for _, role := range []string{"", "bad/role", "story-architect"} {

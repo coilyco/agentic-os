@@ -68,7 +68,7 @@ def _run_links(monkeypatch: pytest.MonkeyPatch, root: Path) -> int:
 def _run_layout(monkeypatch: pytest.MonkeyPatch, root: Path) -> int:
     monkeypatch.setattr(cdocs, "REPO_ROOT", root)
     monkeypatch.setattr(config, "REPO_ROOT", root)
-    return cdocs.main()
+    return max(cdocs.main_placement(), cdocs.main_size())
 
 
 def test_a_gitignored_bake_is_not_this_repos_markdown(

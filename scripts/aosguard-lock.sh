@@ -5,9 +5,9 @@ set -eu
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 cd "$repo_root"
 
-specgen_bin=${SPECGEN_BIN:-specgen}
-"$specgen_bin" \
-    --project-root .specgen/guardfiles \
+umbra_bin=${UMBRA_BIN:-umbra}
+"$umbra_bin" \
+    --project-root .umbra/guardfiles \
     --skills-out dist/skills \
     lock \
     "$@"

@@ -37,6 +37,11 @@ const (
 	claudeDisableAutoUpdaterEnv = "DISABLE_AUTOUPDATER"
 	nativeSessionEnv            = "AOS_NATIVE_SESSION"
 	nativeSessionProjectsEnv    = "AOS_NATIVE_SESSION_PROJECTS"
+	nativeSessionRootEnv        = "AOS_NATIVE_SESSION_ROOT"
+	// A launcher inside a shadow needs the values the shadow replaced, so it
+	// can hand a new session the canonical ones. docs/native-shadow.md
+	nativeCanonicalHomeEnv     = "AOS_NATIVE_CANONICAL_HOME"
+	nativeCanonicalProjectsEnv = "AOS_NATIVE_CANONICAL_PROJECTS"
 	// Every session worktree is cut from this ref, so provenance verification
 	// judges the same commit the session will read. docs/native-session-start.md
 	nativeWorktreeBase = "origin/main"
@@ -49,17 +54,21 @@ type nativeArtifact struct {
 }
 
 type nativeLease struct {
-	Format          string     `json:"format"`
-	ID              string     `json:"id"`
-	Harness         string     `json:"harness"`
-	PID             int        `json:"pid"`
-	ProcessStart    string     `json:"process_start"`
-	OriginalCWD     string     `json:"original_cwd"`
-	SessionRoot     string     `json:"session_root"`
-	SessionProjects string     `json:"session_projects"`
-	SessionHome     string     `json:"session_home,omitempty"`
-	ClaudeKeychain  string     `json:"claude_keychain,omitempty"`
-	DeadSince       *time.Time `json:"dead_since,omitempty"`
+	Format          string `json:"format"`
+	ID              string `json:"id"`
+	Harness         string `json:"harness"`
+	PID             int    `json:"pid"`
+	ProcessStart    string `json:"process_start"`
+	OriginalCWD     string `json:"original_cwd"`
+	SessionRoot     string `json:"session_root"`
+	SessionProjects string `json:"session_projects"`
+	SessionHome     string `json:"session_home,omitempty"`
+	// The home and projects root this session was leased from, which no other
+	// field carries: original_cwd is the launch directory, not the root.
+	CanonicalHome     string     `json:"canonical_home,omitempty"`
+	CanonicalProjects string     `json:"canonical_projects,omitempty"`
+	ClaudeKeychain    string     `json:"claude_keychain,omitempty"`
+	DeadSince         *time.Time `json:"dead_since,omitempty"`
 	// Released is the session saying it is finished, which skips the grace a
 	// crashed session needs. See docs/native-shadow.md.
 	Released  *time.Time       `json:"released,omitempty"`
@@ -1606,17 +1615,19 @@ func createNativeSession(
 			return nativeLaunchWorkspace{CWD: runtime.CWD}, nil
 		}
 		if err := writeNativeJSON(nativeStatePath(runtime, "leases", id+".json"), nativeLease{
-			Format:          "agentic-os.native-lease.v1",
-			ID:              id,
-			Harness:         harness,
-			PID:             runtime.PID,
-			ProcessStart:    runtime.ProcessStart,
-			OriginalCWD:     runtime.CWD,
-			SessionRoot:     sessionRoot,
-			SessionProjects: sessionProjects,
-			SessionHome:     sessionHome,
-			ClaudeKeychain:  claudeKeychain,
-			Artifacts:       artifacts,
+			Format:            "agentic-os.native-lease.v1",
+			ID:                id,
+			Harness:           harness,
+			PID:               runtime.PID,
+			ProcessStart:      runtime.ProcessStart,
+			OriginalCWD:       runtime.CWD,
+			SessionRoot:       sessionRoot,
+			SessionProjects:   sessionProjects,
+			SessionHome:       sessionHome,
+			CanonicalHome:     runtime.Home,
+			CanonicalProjects: runtime.ProjectsRoot,
+			ClaudeKeychain:    claudeKeychain,
+			Artifacts:         artifacts,
 		}); err != nil {
 			return nativeLaunchWorkspace{}, fmt.Errorf("write native lease: %w", err)
 		}
@@ -1626,17 +1637,19 @@ func createNativeSession(
 		return nativeLaunchWorkspace{CWD: runtime.CWD, SessionHome: sessionHome}, nil
 	}
 	lease := nativeLease{
-		Format:          "agentic-os.native-lease.v1",
-		ID:              id,
-		Harness:         harness,
-		PID:             runtime.PID,
-		ProcessStart:    runtime.ProcessStart,
-		OriginalCWD:     runtime.CWD,
-		SessionRoot:     sessionRoot,
-		SessionProjects: sessionProjects,
-		SessionHome:     sessionHome,
-		ClaudeKeychain:  claudeKeychain,
-		Artifacts:       artifacts,
+		Format:            "agentic-os.native-lease.v1",
+		ID:                id,
+		Harness:           harness,
+		PID:               runtime.PID,
+		ProcessStart:      runtime.ProcessStart,
+		OriginalCWD:       runtime.CWD,
+		SessionRoot:       sessionRoot,
+		SessionProjects:   sessionProjects,
+		SessionHome:       sessionHome,
+		CanonicalHome:     runtime.Home,
+		CanonicalProjects: runtime.ProjectsRoot,
+		ClaudeKeychain:    claudeKeychain,
+		Artifacts:         artifacts,
 	}
 	if err := writeNativeJSON(nativeStatePath(runtime, "leases", id+".json"), lease); err != nil {
 		return nativeLaunchWorkspace{}, fmt.Errorf("write native lease: %w", err)
@@ -1648,6 +1661,17 @@ func createNativeSession(
 	}
 	if err := os.Setenv(nativeSessionProjectsEnv, sessionProjects); err != nil {
 		return nativeLaunchWorkspace{}, fmt.Errorf("set native session projects: %w", err)
+	}
+	// A launcher inside the shadow reads these to build a new session on the
+	// canonical values rather than on this one's. agentic-os#1460
+	for variable, value := range map[string]string{
+		nativeSessionRootEnv:       sessionRoot,
+		nativeCanonicalHomeEnv:     runtime.Home,
+		nativeCanonicalProjectsEnv: runtime.ProjectsRoot,
+	} {
+		if err := os.Setenv(variable, value); err != nil {
+			return nativeLaunchWorkspace{}, fmt.Errorf("set %s: %w", variable, err)
+		}
 	}
 	if sessionHome != "" {
 		if err := os.Setenv(agentComposeRuntimeHomeEnv, sessionHome); err != nil {

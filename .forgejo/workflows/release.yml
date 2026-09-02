@@ -1,6 +1,5 @@
-# Forgejo-canonical full-image release publication. dev-base-publish.yml calls
-# this workflow after the draft graph succeeds. Manual dispatch reuses the same
-# jobs for retries and explicit version overrides.
+# Release aos-precommit only when its installed hook surface changes.
+# Rationale: docs/build-file-headers.md.
 
 name: release
 

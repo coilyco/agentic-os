@@ -8,10 +8,10 @@ description: Use when sales negotiates commercial terms after qualification. Pre
 Use this skill after discovery has established a credible problem and both
 parties are deciding terms, scope, risk, or commitment.
 
-## Activation boundary
+## Activation wall
 
 Sales activates this workflow for a qualified opportunity with a concrete
-negotiation. Discovery stays in `tooling-sales-discovery`. Contract language,
+negotiation. Discovery stays in `tooling-sales-discovery`. Rule language,
 pricing authority, and final commitments remain with their authorized owners.
 
 ## Prepare the decision space
@@ -19,7 +19,7 @@ pricing authority, and final commitments remain with their authorized owners.
 Sales records:
 
 * Each side's interests, stated positions, constraints, and decision process.
-* Her best alternative, reservation boundary, and cost of no agreement.
+* Her best alternative, reservation wall, and cost of no agreement.
 * Objective standards that can explain a fair term.
 * Every negotiable issue, its value to each side, and implementation risk.
 * Nonnegotiable legal, ethical, security, delivery, and authority boundaries.
@@ -44,14 +44,14 @@ Sales does not make repeated unilateral concessions, split differences without
 examining the underlying interests, or discount price while leaving scope and
 risk unchanged.
 
-## Hold the relationship and boundary
+## Hold the relationship and wall
 
 Sales surfaces hard constraints early, summarizes disagreement accurately, and
 tests whether a package is implementable for both parties. She rejects false
 scarcity, hidden terms, fabricated competitors, and pressure that removes
 meaningful consent.
 
-No deal is preferable to an agreement below the reservation boundary or one
+No deal is preferable to an agreement below the reservation wall or one
 the company cannot deliver.
 
 ## Close the actual agreement
@@ -60,7 +60,7 @@ The negotiation record separates agreed terms, open terms, contingencies,
 owners, approval needs, and the mutual next step. Sales confirms that the
 people accepting terms have the necessary authority.
 
-This skill grants no authority to quote, sign, contact, discount, or commit.
+This skill grants no permission to quote, sign, contact, discount, or commit.
 
 ## Evaluation target
 

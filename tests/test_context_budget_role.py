@@ -679,3 +679,66 @@ def test_plugin_skill_collision_fails_closed(tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="delivered more than once"):
         build_fixture_snapshot(tmp_path, plugin_roots=[plugin])
+
+
+def test_build_snapshot_measures_the_composed_operating_base(
+    tmp_path: Path,
+) -> None:
+    provider = provider_fixture(tmp_path)
+    write(provider / "AGENTS.md", "# Public operating base\n" + "base line\n" * 40)
+    private_provider = tmp_path / "private-provider"
+    write(private_provider / "AGENTS.md", "# Private operating context\n")
+    write(
+        private_provider / ".agents" / "skills" / "private-routing" / "SKILL.md",
+        "---\nname: private-routing\ndescription: Private routing.\n---\n# Private routing\n",
+    )
+    bundle = bundle_fixture(tmp_path)
+    manifest_path = bundle / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["sources"].append("aosk")
+    write(manifest_path, json.dumps(manifest))
+    repo, cwd = repo_fixture(tmp_path)
+
+    snapshot = context.build_snapshot(
+        bundle,
+        provider,
+        repo,
+        cwd,
+        role="sysadmin",
+        expected_personalities=FIXTURE_PERSONALITIES,
+        additional_providers={"aosk": private_provider},
+    )
+
+    rows = [
+        item for item in component_rows(snapshot) if item["kind"] == "operating-base"
+    ]
+    assert [item["delivery"] for item in rows] == ["composed-global", "composed-global"]
+    assert all(item["eager"] for item in rows)
+    assert sum(int(item["bytes"]) for item in rows) > 400
+
+
+def test_operating_base_does_not_double_count_the_active_repository(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = provider_fixture(tmp_path)
+    write(provider / "AGENTS.md", "# Shared operating base\n")
+    bundle = bundle_fixture(tmp_path)
+    monkeypatch.setattr(
+        context,
+        "repository_identity",
+        lambda _repo: "coilyco-flight-deck/agentic-os",
+    )
+
+    snapshot = context.build_snapshot(
+        bundle,
+        provider,
+        provider,
+        provider,
+        role="sysadmin",
+        expected_personalities=FIXTURE_PERSONALITIES,
+    )
+
+    kinds = [item["kind"] for item in component_rows(snapshot)]
+    assert "agents-cascade" in kinds
+    assert "operating-base" not in kinds

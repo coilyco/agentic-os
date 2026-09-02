@@ -1,18 +1,5 @@
-# Pull-request CI gate for director-merge repos. This is the live version of
-# docs/ci-in-dev-base-example.yml, and branch protection can require the
-# resulting `ci / gate` status context on PR-gated workflows. `release` is the
-# promoted last-known-good branch (ward#1117 / aos#469) and never re-gates:
-# promote.yml already ran the suite on the exact sha it fast-forwarded, so a
-# flaky rerun cannot fail a vouched promotion (Kai's call, 2026-07-12).
-#
-# The Ward doctor job validates only Ward's supported YAML contract. Role
-# policy and operator grants are intentionally absent from this repository.
-# AOS CLI and Python package tests stay on every build. The separate
-# dev-base-pr workflow is path-filtered to Docker changes.
-#
-# uv builds the local packages through PEP 517, which resolves setuptools from
-# PyPI whenever the uv cache is cold. That egress flakes on this runner, so the
-# jobs cache ~/.cache/uv and raise uv's 30s HTTP timeout.
+# Pull-request CI gate for director-merge repos.
+# Rationale: docs/build-file-headers.md.
 
 name: ci
 

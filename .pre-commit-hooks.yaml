@@ -6,7 +6,8 @@
 #     hooks:
 #       - id: catalog-trifecta
 #       - id: code-review-contract
-#       - id: documentation-layout
+#       - id: documentation-placement
+#       - id: documentation-size
 #       - id: context-load-points
 #       - id: code-comments
 #       - id: actions-run-one-line
@@ -80,10 +81,19 @@
   pass_filenames: false
   stages: [pre-commit]
 
-- id: documentation-layout
-  name: documentation layout
-  description: "Enforce Markdown placement and size: root allow-list, flat docs/, skill folders only, 80 lines / 4000 chars."
-  entry: check-documentation-layout
+- id: documentation-placement
+  name: documentation placement
+  description: "Where Markdown may live: root allow-list, flat docs/, skill folders only."
+  entry: check-documentation-placement
+  language: python
+  always_run: true
+  pass_filenames: false
+  stages: [pre-commit]
+
+- id: documentation-size
+  name: documentation size
+  description: "How big Markdown may be: the declared band's per-file line and char caps, and the docs/ count cap."
+  entry: check-documentation-size
   language: python
   always_run: true
   pass_filenames: false

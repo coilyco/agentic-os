@@ -12,7 +12,7 @@ This is the public-safe operating base, read on every session on public and work
 
 ## Project shape
 
-Kai calls this repo **aos** for short (chat and issue refs). `aos` and `agentic-os` refer to the same thing - the GitHub slug stays `agentic-os`. The repo ships the cross-repo pre-commit hooks (the catalog suite), the public-safe skills under `.agents/skills/`, and supporting subsystems (`warp/` Go module).
+Kai calls this repo **aos** for short (chat and issue refs). `aos` and `agentic-os` refer to the same thing - the GitHub slug stays `agentic-os`. The repo ships the cross-repo pre-commit hooks (the catalog suite), the public-safe skills under `.agents/skills/`, and the Go subsystems beside them (`aos-cli/`, `aterm/`, `aos-say/`).
 
 ## Repo boundaries
 
@@ -48,13 +48,13 @@ The **trigger** for a rollout is a push, not a hand-run publish, which keeps it 
 
 ### Config placement
 
-**Config lives at the lowest layer that fully determines it**, is consumed only by that layer or higher, and is **never fetched downward**. A shipped product never reaches up into a reference/docs repo for its own runtime config. This is the config sibling of the authoring-vs-rollout law above: logic is authored in its home layer and flows down, and so is the config that logic reads.
+**Config lives at the lowest layer that fully determines it**, is consumed only by that layer or higher, and is **never fetched downward**. A shipped product never reaches up into a reference/docs repo for its own runtime config.
 
-**Corollary** - a reference-implementation repo authors zero config that a shipped tool consumes at runtime. Fleet config that everyone using the tool melds to their own values belongs down in the tool's build-time authoring layer (authored, compiled, embedded), not up in the reference repo. The reference repo may hold a clearly-marked reference copy of a config file as documentation, never a thing the tool fetches.
+**Corollary** - a reference-implementation repo authors zero config that a shipped tool consumes at runtime. Fleet config belongs in the tool's build-time authoring layer, authored, compiled, and embedded. The reference repo may hold a clearly-marked reference copy as documentation, never a thing the tool fetches.
 
 **Deployment boundary (aos#778).** AOS owns agent-compose inputs, harness selection, deployment identity, and standalone AOSguard policy, and Ward owns fixed workflows and its broker. AOS ships no Ward role-policy or KDL bundle: only the supported YAML in [`.ward/ward.yaml`](.ward/ward.yaml) remains, carrying catalog metadata since inbox#366 moved dev verbs. Full reasoning: [docs/ward-specs.md](docs/ward-specs.md).
 
-The layer gradient this keys off (churn and host-awareness rising together, a clone/use breakpoint at each): umbra and specgen (generic engines, external contributors, no upstream knowledge), then Ward (fixed workflows and broker), then aos (AOSguard policy, composition inputs, and public docs), then infra (nobody clones it but Kai).
+The layer gradient, lowest first: umbra, then Ward, then aos, then infra.
 
 Config splits on three axes, each a distinct owner: **permission/surface** (AOSguard specs and Ward's fixed broker), **deployment tuning** (identity, model, endpoint, attribution, roster defaults - AOS and agent-compose launch inputs), and **operator-local preference** (per-host, hand-edited, not embedded, parsed from a local source). One parser may serve two sources, and the axes stay distinct owners regardless.
 
@@ -64,7 +64,7 @@ Config splits on three axes, each a distinct owner: **permission/surface** (AOSg
 
 ## Release
 
-Conventional-commits 1.0.0 and Forgejo issue references are encouraged house style but unenforced, since the `conventional-commit` and `closes-issue` commit-msg hooks have been retired from the suite. Each release train advances only on a promoted diff that touches its own inputs: the standalone AOS CLI on a shipped binary or package input, `aos-precommit-v*` on an installed hook input, and dev-base publication on an image tier. Manual workflow dispatch remains the explicit retry or override path, and major versions are hand-driven only (`scripts/release.py --bump major` for aos-precommit, workflow dispatch for other trains) rather than inferred from commit messages. Canonical history lives on Forgejo and the GitHub mirror stays PR-gated. `ward agent` headless dispatch follows the resolved lane, defined once in the generated Git workflow block below rather than restated here.
+Conventional-commits 1.0.0 and Forgejo issue references are encouraged house style but unenforced, since the `conventional-commit` and `closes-issue` commit-msg hooks have been retired from the suite. Each release train advances only on a promoted diff that touches its own inputs: the standalone AOS CLI on a shipped binary or package input, `aos-precommit-v*` on an installed hook input, and dev-base publication on an image tier. Manual workflow dispatch remains the explicit retry or override path, and major versions are hand-driven only (`scripts/release.py --bump major` for aos-precommit, workflow dispatch for other trains) rather than inferred from commit messages. Canonical history lives on Forgejo and the GitHub mirror stays PR-gated. A seat that receives dispatched work follows the resolved lane, defined once in the generated Git workflow block below rather than restated here.
 
 A read-only clone cannot push itself, so push or merge workflows need a writable surface. Track landed work by issue state and commits on `main`. `aosguard ops forgejo pr list` and `pr view` are allowed. Merge stays gated.
 
@@ -135,13 +135,13 @@ Unless told otherwise, "done" includes the obvious follow-through, not the first
 
 ### Native checkpoints must be remote
 
-The block above requires the push. This extends it to **undurable work product** and names when it fires: a checkpoint is a human decision wall, a blocked dependency, a handoff, a context boundary, or any point where the agent may not continue immediately.
+This extends the push rule to **undurable work product**, and fires at a checkpoint: a human decision wall, a blocked dependency, a handoff, a context boundary, or any point where the agent may not continue immediately.
 
-If the work should not land on `main` yet, the agent pushes the checkpoint to a task-specific branch. The remote branch is the recovery artifact. Uncommitted changes, local-only commits, stashes, reflogs, and a clean worktree without a remote ref **do not count**. Test failures or incomplete follow-up may keep a checkpoint off `main`, but never justify leaving the only copy local. Never force-push to satisfy this rule; if an ordinary push cannot succeed, preserve the local state and report the exact blocker as the current wall.
+If the work should not land on `main` yet, the agent pushes the checkpoint to a task-specific branch. The remote branch is the recovery artifact. Uncommitted changes, local-only commits, stashes, reflogs, and a clean worktree without a remote ref **do not count**. Test failures or incomplete follow-up may keep a checkpoint off `main`, but never justify leaving the only copy local. Never force-push to satisfy this rule. If an ordinary push cannot succeed, preserve the local state and report the exact blocker as the current wall.
 
-**Work product is more than the worktree.** A design, a measurement and the numbers behind it, the reasoning under a decision, a specification the human typed, and a rejected alternative worth not re-litigating are all work product, and none of them appears in `git status`. Durable means committed to a repository or filed on the tracker, so a transcript, a session scratchpad, and a published artifact are renderings rather than stores: an artifact is a view of something already in git or an issue, never the only copy of it.
+**Work product is more than the worktree.** A design, a measurement and the numbers behind it, the reasoning under a decision, a specification the human typed, and a rejected alternative worth not re-litigating are all work product. Durable means committed to a repository or filed on the tracker, so a transcript, a session scratchpad, and a published artifact are renderings rather than stores.
 
-**This fires when the turn ends, not when the human asks.** "Is everything pushed" is a courtesy rather than the safety mechanism, so a truthful answer about files, given while hours of design live only in the transcript, is a wrong answer to what was asked. Read that question as "is any of my work at risk", audit every category above, and name what is not yet durable. Nothing about the human's state triggers or excuses the obligation: preserving work only when correctly prompted moves the risk onto the person least able to carry it.
+**This fires when the turn ends, not when the human asks.** Read "is everything pushed" as "is any of my work at risk", audit every category above, and name what is not yet durable.
 
 ### A pushed branch owes its pull request
 
@@ -179,27 +179,27 @@ A checkout whose directory basename ends in `-workdir` is reserved for Kai's man
 
 Proceed autonomously on anything reversible. Stop only for a destructive, irreversible, or externally-visible action (force-push, data loss, a post or email on the human's behalf, a public surface), or a genuine multi-path fork where the wrong choice is costly to undo. Everything short of that wall: pick the sensible default, name it inline in one line ("picking X because Y"), and keep going, because a 5-second correction after the fact is cheaper than a run parked for an hour. Batch any genuine questions and surface them at the end with the work already done, not mid-run.
 
-Suppressing a question is about whether to stop, never about which surface carries one that is asked anyway. When the agent does ask, the end-of-run batch included, it uses the harness's structured question tool (AskUserQuestion in Claude Code) rather than prose, up to four questions in one call, recommended option first. When the batch runs past four, the agent asks the four that unblock the most work, then repeats with another call once those land, rather than spilling the remainder into prose.
+Suppressing a question is about whether to stop, never about which surface carries one that is asked anyway. When the agent does ask, the end-of-run batch included, it uses the harness's structured question tool (AskUserQuestion in Claude Code) rather than prose, up to four questions in one call, recommended option first. When the batch runs past four, the agent asks the four that unblock the most work, then repeats with another call once those land, rather than spilling the remainder into prose. **Deferring a decision is only free while the cost of being wrong stays flat or falls.** When that cost rises with time, deferring is strictly worse than deciding, and the moment you notice is the cheapest moment there will be. Check the reversal cost now rather than in general: a fixed external date, a dependency being archived underneath the issue, and a mental index that decays all raise it, and none of them announce themselves.
 
 ### Front-load the context you know you need
 
-Acquiring the evidence comes before ranking it. Before you make a consequential claim, name the source that would settle it and open that source. A claim is consequential when a reader could act on it or when it enters a durable artifact such as an issue, plan, review, record, verdict, or recommendation. The trigger is the claim rather than an edit, so an assessment, a ranking, and a diagnosis reach it exactly as a code change does.
+Before a consequential claim, name the source that would settle it and open that source. A claim is consequential when a reader could act on it, or when it enters a durable artifact such as an issue, plan, review, record, verdict, or recommendation. An assessment, a ranking, and a diagnosis reach this exactly as a code change does.
 
-Prefer the thing over any description of the thing: the code over the issue describing it, the diff over the commit subject, the file contents over the metadata or the search hit, the raw response over a summary of it. A description is evidence about the description, and can be stale, partial, or backwards relative to the thing it names.
+Prefer the thing over any description of it: the code over the issue describing it, the diff over the commit subject, the file contents over the metadata or the search hit, the raw response over a summary of it.
 
-A derived claim does not inherit the provenance of the fact it came from. "The reply landed on the 7th" is a record, and "so they have waited three weeks" is a subtraction assuming nothing happened in between. The trigger is your own sentence rather than your confidence: whenever you write an elapsed duration, a rate, a trend, or a current state, that clause was computed and needs its own source or its own hedge. A live source still cannot give you a rate from one reading.
+A derived claim does not inherit the provenance of the fact it came from. Whenever you write an elapsed duration, a rate, a trend, or a current state, that clause was computed and needs its own source or its own hedge.
 
-A pointer whose target is absent is not a source. A skill naming a checkout that is not on this host has told you a source exists without giving it to you. What a pointer names is reachable with the access you already hold, so clone it to a temporary path and read it. Calling a source unavailable when it was one clone away is a guess promoted by the word.
+A pointer whose target is absent is not a source. What a pointer names is reachable with the access you already hold, so clone it to a temporary path and read it.
 
-When you correct a claim, notify what consumes it. Whoever holds the stale version is structurally the last to learn it moved, so the obligation sits on the corrector rather than the next reader: you know what changed and which issues, drafts, and records depend on it, and they cannot know what they do not know. Yesterday's correction is the least propagated thing you hold.
+When you correct a claim, notify what consumes it: the issues, drafts, and records that depend on the version you moved.
 
-Naming a gap is not closing it. An identified gap is a task rather than a disclaimer, and recording that information is still needed and then stopping is a failure whenever that information is reachable with the access you already hold. Absence established through one search modality is not absence: searching issues establishes nothing about a repository tree, and a single empty query is not a negative result.
+Naming a gap is not closing it. An identified gap is a task rather than a disclaimer whenever the information is reachable with the access you already hold. Absence established through one search modality is not absence, and a single empty query is not a negative result.
 
-Apply this stopping condition before you deliver. For every consequential claim, either name the source you opened, or mark the claim as inference and state the observation that would settle it. Unavailability never silently promotes a guess into a fact.
+Apply this stopping condition before you deliver. For every consequential claim, either name the source you opened, or mark the claim as inference and state the observation that would settle it.
 
-Editing is one instance of this rule rather than the boundary of it. When a convention, schema, or subsystem wiring is discoverable in the repo, a skill, or a doc, read it before planning, and before the first edit list the conventions and subsystems the work touches and confirm you have read each one. A narrowed scope does not narrow the context budget, and the **first** instance of a pattern needs the most grounding, because that first entry sets the schema everything after it copies.
+Editing is one instance of this rule rather than the boundary of it. Read a convention, schema, or subsystem wiring before planning against it, and before the first edit list what the work touches and confirm you have read each one. A narrowed scope does not narrow the context budget, and the **first** instance of a pattern needs the most grounding.
 
-Acquisition is bounded. It reaches only sources that would change a specific pending claim or decision, curiosity alone is not a warrant, and cost scales with stakes, so a durable artifact or an external commitment earns more digging than a passing remark. Role doctrine may narrow the reach this rule grants, and the narrower boundary wins where the two disagree. This rule grants no new authority: it adds no permission, credential, network access, or mutation right, leaves every live-operations boundary exactly where it stands, and keeps sending, publishing, and destructive actions gated as they are. Read-only acquisition was already permitted, and the failure this corrects is leaving it unused.
+Acquisition is bounded. It reaches only sources that would change a specific pending claim or decision, and cost scales with stakes. Role doctrine may narrow the reach this rule grants, and the narrower boundary wins. This rule grants no permission, credential, network access, or mutation right, leaves every live-operations boundary where it stands, and keeps sending, publishing, and destructive actions gated as they are.
 
 ### Command delivery
 
@@ -210,7 +210,7 @@ Commands for a human must cross the current execution boundary truthfully.
 
 In either model a **reusable script** - anything the human might run more than once, or worth tracking - is committed to a repo and handed back as a path. This covers **any** command offered for the human to run, optional and alternative ones included, not just the primary next step. The trigger is the recipient, not the framing: commands the agent runs itself through its shell execution tool never touch a human paste path and stay out of scope.
 
-That covers a **human** recipient. There is **no autonomous agent-to-agent command channel**: the o2r relay was archived in the June 2026 surface reduction (`agentic-os-kai#677`, revival tracked at `ward#104`). Delivery is **human-mediated** - route the request through the human, who relays it upstream, with no command crossing an agent boundary on its own. The `kai-command-handover` skill holds the current procedure.
+That covers a **human** recipient. Between agents the rule is about the **boundary**, not the messaging: no command crosses an agent boundary unreviewed. In-process subagents a session spawns and drives are inside that boundary, so fan-out is ordinary work and harness tools like `SendMessage` and `ListAgents` are the normal way to do it. Crossing to an agent the session does not own is the gated case: the o2r relay was archived in the June 2026 surface reduction (`agentic-os-kai#677`, revival tracked at `ward#104`), so that delivery stays **human-mediated** - route the request through the human, who relays it upstream. The `kai-command-handover` skill holds the current procedure.
 
 ### Name a file to a human with an absolute path
 

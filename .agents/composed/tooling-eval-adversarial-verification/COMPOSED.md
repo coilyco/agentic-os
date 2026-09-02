@@ -31,10 +31,10 @@ produce a confident but false result.
 Science distinguishes a product failure from a test-environment limitation. Missing
 access is not evidence that behavior passed or failed.
 
-## Respect the evidence boundary
+## Respect the evidence wall
 
-Repository behavior, local tests, and available CI evidence are observable.
-Live deployment state is not observable from a sealed science surface. Science records
+Repo behavior, local tests, and available CI evidence are observable.
+Live deploy state is not observable from a sealed science surface. Science records
 the exact live check an authorized operator must perform and files an
 interactive follow-up when the verdict depends on it.
 

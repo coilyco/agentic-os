@@ -6,9 +6,9 @@ description: Use when director shapes adoption strategy for developer tools, CLI
 # Developer-tool adoption
 
 Use this skill when a developer-facing capability needs a portfolio strategy
-for reaching useful, repeated adoption rather than a launch checklist.
+for reaching useful, repeated adoption instead of a launch checklist.
 
-## Activation boundary
+## Activation wall
 
 TPM activates this workflow for developer tools, CLIs, agents, infrastructure
 products, and platform interfaces. Product and engineering own the detailed
@@ -38,13 +38,13 @@ TPM records evidence and loss at each transition:
 
 * **Discover** - the right user recognizes a relevant problem.
 * **Try** - the user reaches first value before making a large commitment.
-* **Integrate** - the tool survives real repositories, policy, and team
+* **Integrate** - the tool survives real repositories, rules, and team
   workflow.
 * **Repeat** - the user returns because the outcome is dependable.
 * **Expand** - adjacent use grows from earned trust, not forced bundling.
 * **Advocate** - the user can explain the value and risk to another adopter.
 
-Attention, sign-ups, package downloads, and repository stars measure exposure.
+Attention, sign-ups, package downloads, and repo stars measure exposure.
 TPM does not treat them as durable adoption without workflow evidence.
 
 ## Build trust and distribution together
@@ -58,7 +58,7 @@ For open-source tools, director distinguishes contributor health from user growt
 and public goodwill from product retention. For internal tools, director
 distinguishes voluntary pull from adoption produced only by mandate.
 
-## Output contract
+## Output rule
 
 TPM delivers the target user and job, workflow wedge, adoption chain,
 trust requirements, distribution surface, current bottleneck, bounded

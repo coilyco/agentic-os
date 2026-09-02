@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Split specgen's one aosguard skill into one skill per wrapped area.
+"""Split umbra's one aosguard skill into one skill per wrapped area.
 
 A single `aosguard` skill only loads once an agent already suspects it needs
 aosguard, which is the retrieval failure agentic-os#1028 records: an agent read
@@ -7,7 +7,7 @@ that operator verbs live here, found no `reopen` on the MCP surface, and wrote
 "denied" into three tickets. `aosguard-forgejo` matches the entity the agent is
 demonstrably working with instead.
 
-Generated from specgen's own index, so a new wrapped area produces its skill
+Generated from umbra's own index, so a new wrapped area produces its skill
 with no hand edit. The concept skill that says what aosguard is, and is not,
 is hand-written at .agents/skills/tooling-aosguard.
 """
@@ -96,7 +96,7 @@ def prune_stale(root: Path, areas: set[str]) -> list[str]:
 def generate(root: Path) -> tuple[list[str], list[str]]:
     source = root / BINARY / INDEX
     if not source.is_file():
-        raise SystemExit(f"no specgen index at {source}; run the aosguard build first")
+        raise SystemExit(f"no umbra index at {source}; run the aosguard build first")
     document = yaml.safe_load(source.read_text(encoding="utf-8")) or {}
     grouped = group_by_area(list(document.get("commands") or []))
     if not grouped:

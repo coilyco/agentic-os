@@ -2,9 +2,9 @@
 """Sync Forgejo Actions secrets from their SSM sources of truth.
 
 Repo Actions secrets (Telegram alert credentials, promote/release PAT,
-package-repository writers, and deploy's pin-reconciler pair) are write-only in
-Forgejo, so drift shows up as silently-dead alert, publication, or auto-deploy
-steps. This makes the mapping explicit and re-applying it one verb:
+package-repository writers, housecast's PyPI upload token, and deploy's
+pin-reconciler pair) are write-only in Forgejo, so drift shows up as
+silently-dead alert, publication, or auto-deploy steps. This makes the mapping explicit and re-applying it one verb:
 `just sync-actions-secrets` (add `-- --dry-run` to preview).
 
 Entries are keyed `owner/repo`, so the mapping spans orgs.
@@ -78,6 +78,11 @@ MAPPING: dict[str, dict[str, str]] = {
     slug("umbra"): {
         **TELEGRAM_SECRET_SOURCES,
         "CI_RELEASE_TOKEN": "/forgejo/coilyco-ops/ci-release-token",
+    },
+    # housecast's PyPI train, read by its publish workflow. Trusted publishing
+    # has no Forgejo identity provider, so an API token is the only path.
+    slug("housecast"): {
+        "PYPI_TOKEN": "/coilysiren/pypi/token",
     },
     # deploy's scheduled pin reconciler. Telegram is deliberately absent: the
     # repo already sets those two, and their live values are unreadable here.

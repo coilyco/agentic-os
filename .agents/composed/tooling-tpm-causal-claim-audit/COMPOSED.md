@@ -6,9 +6,9 @@ description: Use when director evaluates whether evidence supports a causal clai
 # Causal claim audit
 
 Use this skill when a recommendation depends on whether an exposure,
-intervention, or event causes an outcome rather than merely predicts it.
+intervention, or event causes an outcome instead of merely predicts it.
 
-## Activation boundary
+## Activation wall
 
 TPM activates this workflow after enough evidence exists to state a causal
 question. Ordinary evidence synthesis remains sufficient for descriptive,
@@ -57,7 +57,7 @@ TPM distinguishes a failed refutation attempt from proof. Several methods
 that share the same identifying assumption do not constitute independent
 triangulation.
 
-## Output contract
+## Output rule
 
 TPM reports the estimand, causal graph, identifying assumptions, design
 strength, refutation results, surviving alternatives, and the smallest new

@@ -80,7 +80,7 @@ On a terminal, the row is redrawn about ten times a second, so a slow phase stil
 launch:
 
 ```text
-aos ⠹ fleet pass over 19 repositories // 7/19 coilyco-flight-deck/infrastructure 6.20s
+aos ⠹ fleet pass over 19 repositories // 7/19 coilyco-bridge/infrastructure 6.20s
 ```
 
 Off a terminal, each phase prints `start` before it runs and `done` with its elapsed time after. Per-repository `fetch` and

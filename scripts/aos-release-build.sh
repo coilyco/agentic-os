@@ -4,7 +4,7 @@ set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 targets="$repo_root/aos-cli/release-targets.txt"
-specgen_lock="$repo_root/.specgen/guardfiles/specverb.lock"
+umbra_lock="$repo_root/.umbra/guardfiles/specverb.lock"
 version=${AOS_RELEASE_VERSION:-$(
     git -C "$repo_root" describe --tags --exact-match --match 'aos-v*' 2>/dev/null ||
         git -C "$repo_root" rev-parse --short HEAD
@@ -40,25 +40,25 @@ verify_checksum() {
     fi
 }
 
-download_specgen() {
+download_umbra() {
     host_os=$(go env GOOS | tr -d '\r')
     host_arch=$(go env GOARCH | tr -d '\r')
     # The driver and the lock must agree on the framework version, so the lock
     # is the only pin. A second one drifts and the older driver fails closed.
-    specgen_version=$(
+    umbra_version=$(
         sed -n 's/^[[:space:]]*"cliGuard":[[:space:]]*"v\{0,1\}\([0-9.]*\)".*/\1/p' \
-            "$specgen_lock"
+            "$umbra_lock"
     )
-    asset="specgen-${host_os}-${host_arch}"
+    asset="umbra-${host_os}-${host_arch}"
     host_suffix=""
     if [ "$host_os" = "windows" ]; then
         host_suffix=".exe"
         asset="${asset}${host_suffix}"
     fi
-    specgen="$release_build/specgen${host_suffix}"
-    base="https://forgejo.coilysiren.me/coilyco-flight-deck/umbra/releases/download/v${specgen_version}"
-    if [ -z "$specgen_version" ]; then
-        echo "$specgen_lock does not pin cliGuard" >&2
+    umbra="$release_build/umbra${host_suffix}"
+    base="https://forgejo.coilysiren.me/coilyco-flight-deck/umbra/releases/download/v${umbra_version}"
+    if [ -z "$umbra_version" ]; then
+        echo "$umbra_lock does not pin cliGuard" >&2
         exit 1
     fi
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
@@ -67,15 +67,15 @@ download_specgen() {
         "${base}/SHA256SUMS" -o "$release_build/SHA256SUMS"
     grep "[[:space:]]${asset}$" "$release_build/SHA256SUMS" \
         | verify_checksum "$release_build"
-    mv "$release_build/$asset" "$specgen"
-    chmod 0755 "$specgen"
+    mv "$release_build/$asset" "$umbra"
+    chmod 0755 "$umbra"
 }
 
 build_aosguard_skill() {
     source="$release_build/aosguard-skill-source"
     host_binary="$release_build/aosguard-skill-host"
-    cp -R "$repo_root/.specgen" "$source"
-    "$specgen" \
+    cp -R "$repo_root/.umbra" "$source"
+    "$umbra" \
         --project-root "$source/guardfiles" \
         --skills-out "$release_build/aosguard-skill" \
         build \
@@ -108,10 +108,7 @@ build_bundle() {
     cp -R "$release_build/aosguard-skill" \
         "$bundle_root/share/aos/aosguard-skill"
     cp "$repo_root/agentic_os/__init__.py" \
-        "$repo_root/agentic_os/forgejo_actions_list.py" \
         "$repo_root/agentic_os/forgejo_actions_logs.py" \
-        "$repo_root/agentic_os/forgejo_actions_rerun.py" \
-        "$repo_root/agentic_os/forgejo_actions_web.py" \
         "$bundle_root/share/aos/python/agentic_os/"
     cp "$repo_root/aos-cli/repositories/substrate-repos.txt" \
         "$repo_root/aos-cli/repositories/sealed-repos.gitignore" \
@@ -135,7 +132,7 @@ build_aosguard() {
         out="${out}.exe"
     fi
 
-    cp -R "$repo_root/.specgen" "$source"
+    cp -R "$repo_root/.umbra" "$source"
     project="$source/guardfiles"
     python3 - "$project/specverb.lock" "$project/go.mod" "$project/go.sum" <<'PY'
 import json
@@ -146,7 +143,7 @@ lock = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 pathlib.Path(sys.argv[2]).write_text("\n".join(lock["goMod"]) + "\n", encoding="utf-8")
 pathlib.Path(sys.argv[3]).write_text("\n".join(lock["goSum"]) + "\n", encoding="utf-8")
 PY
-    "$specgen" --project-root "$project" gen --out "$project/main.go"
+    "$umbra" --project-root "$project" gen --out "$project/main.go"
     # Specgen materialization decodes gzip locks before embedding. After `gen`,
     # this direct cross-build stages every decoded lock.
     find "$project" -type f -name '*.lock.json.gz' -print |
@@ -165,10 +162,7 @@ PY
     mkdir -p "$wrapper/payload/agentic_os"
     cp "$raw" "$wrapper/payload/aosguard"
     cp "$repo_root/agentic_os/__init__.py" \
-        "$repo_root/agentic_os/forgejo_actions_list.py" \
         "$repo_root/agentic_os/forgejo_actions_logs.py" \
-        "$repo_root/agentic_os/forgejo_actions_rerun.py" \
-        "$repo_root/agentic_os/forgejo_actions_web.py" \
         "$wrapper/payload/agentic_os/"
     (
         cd "$wrapper"
@@ -213,7 +207,7 @@ build_aterm() {
 mkdir -p "$dist"
 release_build=$(mktemp -d)
 trap 'rm -rf "$release_build"' EXIT HUP INT TERM
-download_specgen
+download_umbra
 build_aosguard_skill
 
 while IFS= read -r target || [ -n "$target" ]; do

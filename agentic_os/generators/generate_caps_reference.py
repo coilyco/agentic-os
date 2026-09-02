@@ -195,6 +195,14 @@ def generate(doc_path: Path = DOC_PATH) -> int:
 
 
 def check_drift(doc_path: Path = DOC_PATH) -> int:
+    """Byte-compare the doc against a fresh render.
+
+    That covers every number and every word, so the doc cannot drift from
+    this generator. It cannot cover this generator's own prose drifting
+    from what the validator measures, which is how the band rows came to
+    say "non-blank" (#1331, #1337). A behavior test guards that instead:
+    tests/test_check_documentation_layout.py asserts blank lines count.
+    """
     expected = render_doc()
     actual = doc_path.read_text(encoding="utf-8") if doc_path.exists() else ""
     if actual == expected:

@@ -53,6 +53,10 @@ def catalogue_problems(repo_root: Path, composed: Path) -> list[str]:
     A role with no selector composes nothing and every other hook still passes:
     the Executive Strategist shipped empty for eleven days that way. A source no
     role selects is dead weight nobody notices. See agentic-os#1073.
+
+    The mirror of both is a selector matching nothing (#1205): the role has a
+    selector and every source is claimed, so neither check above fires, and the
+    role still composes less than its author believes.
     """
     roles = role_selectors(repo_root)
     if roles is None:
@@ -64,6 +68,19 @@ def catalogue_problems(repo_root: Path, composed: Path) -> list[str]:
         if not selectors
     ]
     every = [selector for selectors in roles.values() for selector in selectors]
+    present = sorted(
+        entry.name
+        for entry in composed.iterdir()
+        if entry.is_dir() and not entry.name.startswith(".")
+    )
+    problems.extend(
+        f"{ROLE_GRAPH.as_posix()}: role {name} selects {selector!r}, which "
+        f"matches no source under .agents/composed. The role composes less "
+        f"than it reads as selecting."
+        for name, selectors in sorted(roles.items())
+        for selector in selectors
+        if not any(fnmatch.fnmatchcase(n, selector) for n in present)
+    )
     allowed = load_str_list(HOOK_ID, "unselected", repo_root)
     used: set[str] = set()
     for entry in sorted(composed.iterdir()):

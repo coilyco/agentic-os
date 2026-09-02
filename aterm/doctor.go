@@ -50,6 +50,7 @@ func (report *doctorReport) add(name, status, detail string, arguments ...any) {
 // produces no window otherwise sends the operator probing it by hand.
 func runDoctor(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 	report := doctorReport{Format: doctorFormat}
+	checkNativeSession(&report)
 	checkProjectsRoot(&report, cmd.String("working-directory"))
 	roster := checkAgentCompose(ctx, deps, cmd, &report)
 	checkTerminal(ctx, deps, cmd, &report)
@@ -67,6 +68,21 @@ func runDoctor(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 		return withExit(exitFailure, fmt.Errorf("doctor found a launch this host cannot make"))
 	}
 	return nil
+}
+
+func checkNativeSession(report *doctorReport) {
+	launch := readCanonicalLaunch()
+	switch {
+	case !launch.inShadow():
+		report.add("native session", doctorOK, "not inside one, so a launch can open its own")
+	case launch.complete():
+		report.add("native session", doctorOK,
+			"inside %s, and a launch opens on the canonical %s", launch.Session, launch.Home)
+	default:
+		report.add("native session", doctorFail,
+			"inside %s, and the aos that opened it publishes no canonical home, so a launch is refused",
+			launch.Session)
+	}
 }
 
 func checkProjectsRoot(report *doctorReport, configured string) {

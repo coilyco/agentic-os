@@ -107,12 +107,12 @@ aos-test *ARGS:
 aos-tidy *ARGS:
     @go mod tidy -C aos-cli "$@"
 
-# Materialize the standalone aosguard operator CLI and native generated skill from the independent .specgen snapshot.
+# Materialize the standalone aosguard operator CLI and native generated skill from the independent .umbra snapshot.
 aosguard-build *ARGS:
-    @specgen --project-root .specgen/guardfiles --skills-out dist/skills build --out dist/aosguard "$@"
+    @umbra --project-root .umbra/guardfiles --skills-out dist/skills build --out dist/aosguard "$@"
     @uv run python -m agentic_os.generators.generate_aosguard_skills --skills-root dist/skills
 
-# Refresh aosguard's vendored API snapshot and frozen umbra dependency graph with the packaged specgen driver. Pass specgen lock flags as trailing arguments.
+# Refresh aosguard's vendored API snapshot and frozen umbra dependency graph with the packaged umbra driver. Pass umbra lock flags as trailing arguments.
 aosguard-lock *ARGS:
     @sh scripts/aosguard-lock.sh "$@"
 
@@ -120,9 +120,9 @@ aosguard-lock *ARGS:
 aosguard-release-fmt *ARGS:
     @gofmt -w aosguard-release "$@"
 
-# Materialize and run aosguard from the independent .specgen snapshot, passing arguments through.
+# Materialize and run aosguard from the independent .umbra snapshot, passing arguments through.
 aosguard-run *ARGS:
-    @specgen --project-root .specgen/guardfiles run -- "$@"
+    @umbra --project-root .umbra/guardfiles run -- "$@"
 
 # Launch one composed agent session in its own branded kitty window. Bare invocation picks a role; pass role and seat positionally, and harness arguments after `--`. `--list` prints the live roster, `--dry-run` inspects without opening a window. See docs/aterm.md.
 aterm *ARGS:
@@ -147,6 +147,10 @@ aterm-lint *ARGS:
 # Re-render the shipped sound-mark samples from the live Agent Compose roster into aterm/sounds/. Commit the result: each sample is meant to be auditioned and rejected by ear before it ships. See docs/aterm.md.
 aterm-sounds *ARGS:
     @cd aterm && go run ./soundgen sounds "$@"
+
+# Split the current aterm session's kitty window beside a command, or put it back. `pane on -- <cmd>` splits and moves the role creature clear, `pane off` restores it and closes the pane. Needs a kitty with remote control listening. See docs/aterm-pane.md.
+aterm-pane *ARGS:
+    @go run -C aterm . pane "$@"
 
 # Walk the live Agent Compose roster and assert aterm still fits it: every launchable seat resolves, every unlaunchable one refuses, no shipped overlay field is discarded, and every timbre has a sample. Fails rather than skips when agent-compose is missing. See docs/aterm.md.
 aterm-contract *ARGS:
@@ -264,9 +268,9 @@ remint-ci-release-token *ARGS:
 remint-registry-read-token *ARGS:
     @uv run --with boto3 python scripts/remint-registry-read-token.py "$@"
 
-# Run the exact repository CI gate, bootstrapping the pinned specgen release before pytest and the full pre-commit suite.
+# Run the exact repository CI gate, bootstrapping the pinned umbra release before pytest and the full pre-commit suite.
 repo-test-gate *ARGS:
-    @bash scripts/ci/repo-test-gate.sh "$@"
+    @bash scripts/ci-command.sh bash scripts/ci/repo-test-gate.sh "$@"
 
 # Validate SSM parameter paths against the /<org>/<repo>/<tier>/<tail> schema. `just ssm-path /coilysiren/backend/write/ts-authkey [more...]`, or `--stdin` for one path per line. A CLI validator (paths arrive as args, not repo files), so it is ward-fenced rather than a commit-path hook. See docs/release.md.
 ssm-path *ARGS:
@@ -280,7 +284,7 @@ sweep-documentation-layout *ARGS:
 sweep-precommit *ARGS:
     @uv run python scripts/sweep-precommit.py "$@"
 
-# Sync Forgejo Actions secrets (Telegram alert creds, release PATs, package-repository writers, and deploy's pin-reconciler pair) from their SSM sources of truth. Entries are keyed `owner/repo`, so the mapping spans orgs: aos + ward + umbra under coilyco-flight-deck, plus coilyco-bridge/deploy. Values flow SSM -> Forgejo API in-process, never disk or argv. An attended operator supplies `FORGEJO_ADMIN_TOKEN`; `--dry-run` previews the mapping. See docs/release.md.
+# Sync Forgejo Actions secrets (Telegram alert creds, release PATs, package-repository writers, housecast's PyPI token, and deploy's pin-reconciler pair) from their SSM sources of truth. Entries are keyed `owner/repo`, so the mapping spans orgs: aos + ward + umbra + housecast under coilyco-flight-deck, plus coilyco-bridge/deploy. Values flow SSM -> Forgejo API in-process, never disk or argv. An attended operator supplies `FORGEJO_ADMIN_TOKEN`; `--dry-run` previews the mapping. See docs/release.md.
 sync-actions-secrets *ARGS:
     @uv run python scripts/sync-actions-secrets.py "$@"
 
@@ -291,11 +295,3 @@ test *ARGS:
 # On Windows, update every installed app from the Flight Deck Scoop bucket. Ward self-updates through its audited path; pass -- -WhatIf to preview.
 update-flight-deck-scoop *ARGS:
     @pwsh -NoProfile -File scripts/update-flight-deck-scoop.ps1 "$@"
-
-# Establish and verify Kai's Warp config across hosts. `just warp apply` renders all three state layers (repo template, config-dir TOML, SQLite); `just warp doctor` reports drift. See project-a-ward-exec-warp.md.
-warp *ARGS:
-    @go run -C warp . "$@"
-
-# Run the Warp config Go test suite.
-warp-test *ARGS:
-    @go test -C warp ./... "$@"

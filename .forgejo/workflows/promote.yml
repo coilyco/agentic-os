@@ -1,13 +1,5 @@
-# Promote main to release after the same suite ci.yml runs. ci.yml never
-# re-gates release precisely because this gate already vouched for the exact
-# sha, so the two must stay in step: a gate narrower than ci.yml promotes a red
-# main. test_pull_request_ci_workflow.py holds them in step. Draft dev-base
-# image publishing runs in a separate workflow keyed by the promoted SHA, so a
-# transient registry or build failure cannot stall the release branch.
-#
-# uv builds the local packages through PEP 517, which resolves setuptools from
-# PyPI whenever the uv cache is cold. That egress flakes on this runner, so the
-# jobs cache ~/.cache/uv and raise uv's 30s HTTP timeout.
+# Promote main to release after the same suite ci.yml runs.
+# Rationale: docs/build-file-headers.md.
 
 name: promote
 

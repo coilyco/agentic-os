@@ -31,6 +31,9 @@ type aosRepositorySelection struct {
 	Skills     []string `json:"skills,omitempty" yaml:"skills,omitempty"`
 	Name       string   `json:"name,omitempty" yaml:"name,omitempty"`
 	DeclaredBy string   `json:"declared_by,omitempty" yaml:"declared_by,omitempty"`
+	// Carried, never read: the skill split is the composer's, and the strict
+	// decode below rejects the whole plan without it (#1445).
+	BindingSkills []string `json:"binding_skills,omitempty" yaml:"binding_skills,omitempty"`
 }
 
 type aosRepositoryPolicyInput struct {

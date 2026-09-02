@@ -32,5 +32,5 @@ aws, amazon web services, boto3, botocore, awscli, aws-cli, ec2, s3, iam, lambda
 ## See also
 
 - `agentic-os-kai/SSM.md` - parameter inventory.
-- `aosguard --help` - live generated command contract.
+- `aosguard --help` - live generated command rule.
 - `coding-terraform` - IaC umbrella for AWS infrastructure.

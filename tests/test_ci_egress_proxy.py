@@ -70,7 +70,13 @@ def test_no_workflow_caches_the_retired_pre_commit_home(workflow: Path) -> None:
 def test_every_gate_invocation_crosses_the_proxy_wrapper() -> None:
     callers = [
         path
-        for path in [*WORKFLOWS, *sorted((ROOT / "scripts" / "ci").glob("*.sh"))]
+        # The justfile is here because `just repo-test-gate` is the spelling
+        # an agent types, and it was the one unwrapped caller (#1212).
+        for path in [
+            *WORKFLOWS,
+            *sorted((ROOT / "scripts" / "ci").glob("*.sh")),
+            ROOT / "justfile",
+        ]
         if GATE in path.read_text(encoding="utf-8") and path.name != "repo-test-gate.sh"
     ]
 

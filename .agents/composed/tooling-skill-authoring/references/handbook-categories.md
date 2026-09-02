@@ -9,7 +9,7 @@ Pick the prefix up front. The validator rejects unknown prefixes.
 * `ops-investigation-*` - investigation playbooks and runbooks. Status-enforced. Required H2 sections enforced.
 * `gaming-eco-*` - Eco modding (investigation, scaffolding, source-auditing).
 * `writing-*` - prose / voice / issue authoring surface
-  (`writing-voice-guide-linter`, `tooling-issue-decomposition`, and the social
+  (`writing-voice-guide-linter`, `tooling-issue-triage`, and the social
   writing family).
 * `personality-*` - role-neutral presence, attention, tempo, and voice for agent-compose personality providers.
 * `home-*` - smart-home control at My House (hue, sonos, cast).

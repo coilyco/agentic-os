@@ -18,6 +18,7 @@ const (
 	cardFrames     = 10
 	cardGap        = "  "
 	noMotionEnv    = "ATERM_NO_MOTION"
+	cardEnv        = "ATERM_CARD"
 )
 
 type cardFigure struct {
@@ -32,8 +33,11 @@ type cardFigure struct {
 }
 
 type sessionCard struct {
-	Format     string       `json:"format"`
-	Annotation string       `json:"annotation"`
+	Format     string `json:"format"`
+	Annotation string `json:"annotation"`
+	// Role is the slug, not the display name, because it is what re-derives
+	// the creature plate after the launch. See docs/aterm-pane.md.
+	Role       string       `json:"role"`
 	Seat       string       `json:"seat"`
 	Tier       string       `json:"tier"`
 	Expression string       `json:"expression"`
@@ -48,6 +52,7 @@ func buildSessionCard(document overlayDocument, plan launchPlan) sessionCard {
 	card := sessionCard{
 		Format:     cardFormat,
 		Annotation: plan.Identity.Annotation,
+		Role:       plan.Identity.Role,
 		Seat:       plan.Identity.Seat,
 		Tier:       document.Seat.Tier,
 		Expression: plan.Identity.Expression,
@@ -109,46 +114,17 @@ func renderCard(card sessionCard, progress float64) string {
 		}
 		lines[row] = strings.Join(parts, cardGap)
 	}
-	for index, detail := range cardDetails(card) {
-		if index >= len(lines) {
-			break
-		}
-		lines[index] += cardGap + cardGap + detail
-	}
-	return strings.Join(append(lines, cardLegend(card)), "\n") + "\n"
+	lines[0] += cardGap + cardGap + cardName(card)
+	return strings.Join(lines, "\n") + "\n"
 }
 
-func cardDetails(card sessionCard) []string {
-	accent := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(card.Accent))
-	faint := lipgloss.NewStyle().Faint(true)
-	seat := card.Seat
-	if card.Tier != "" {
-		seat += " // " + card.Tier
-	}
-	if card.Expression != "" {
-		seat += " // " + card.Expression
-	}
-	shadow := "unleased, this window shares the canonical checkout"
-	if card.Shadowed {
-		shadow = "leased session shadow"
-	}
-	details := []string{accent.Render(card.Annotation), faint.Render(seat)}
-	if card.Workspace != "" {
-		details = append(details, faint.Render(card.Workspace))
-	}
-	return append(details, faint.Render(card.Directory), faint.Render(shadow))
-}
-
-func cardLegend(card sessionCard) string {
-	parts := make([]string, 0, len(card.Figures))
-	for _, figure := range card.Figures {
-		label := strings.TrimSpace(figure.Emoji + " " + figure.Name)
-		if hexColorPattern.MatchString(figure.Color) {
-			label = lipgloss.NewStyle().Foreground(lipgloss.Color(figure.Color)).Render(label)
-		}
-		parts = append(parts, label)
-	}
-	return strings.Join(parts, cardGap+cardGap)
+// cardName is the whole of the card's text. Kai cut the seat, tier, expression,
+// workspace, directory, shadow line, and personality legend. agentic-os#1456
+func cardName(card sessionCard) string {
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(card.Accent)).
+		Render(card.Annotation)
 }
 
 func renderFigure(figure cardFigure, progress float64) []string {

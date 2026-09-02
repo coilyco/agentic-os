@@ -1,6 +1,7 @@
 import re
 
 from agentic_os.generators.generate_repo_pointer_skill import (
+    DEFAULT_ORG,
     build_description,
     check_drift,
     clean_description,
@@ -42,6 +43,14 @@ def test_check_drift_passes_clean_generated_file():
     assert check_drift("repo-website", text) == []
 
 
+def test_render_skill_default_org_is_the_fleet_home_org():
+    """The default is the guess for a repo that sets no org. Every repo with the
+    hook enabled overrides it, so this locks the fallback rather than a live path."""
+    text = render_skill("newrepo", "A new repo. Triggers - newrepo")
+    assert "Pointer to `~/projects/coilyco-bridge/newrepo/`." in text
+    assert check_drift("repo-newrepo", text) == []
+
+
 def test_render_skill_org_overrides_pointer_path():
     text = render_skill("deploy", "A monorepo. Triggers - deploy", "coilyco-bridge")
     assert "Pointer to `~/projects/coilyco-bridge/deploy/`." in text
@@ -77,10 +86,13 @@ def test_dot_repository_render_and_drift_check_preserve_real_path():
 
 
 def test_check_drift_uses_org_for_byte_match():
+    # Derived, not named: the second assertion goes vacuous if this equals
+    # DEFAULT_ORG, which is how the hardcoded version broke.
+    other = "coilyco-flight-deck" if DEFAULT_ORG != "coilyco-flight-deck" else "coilyco-gaming"
     desc = "A monorepo. Triggers - deploy"
-    migrated = render_skill("deploy", desc, "coilyco-bridge")
+    migrated = render_skill("deploy", desc, other)
     # Clean under the matching org, drifted when checked as the default org.
-    assert check_drift("repo-deploy", migrated, "coilyco-bridge") == []
+    assert check_drift("repo-deploy", migrated, other) == []
     assert any("drifted" in p for p in check_drift("repo-deploy", migrated))
 
 

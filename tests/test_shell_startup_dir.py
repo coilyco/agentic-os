@@ -66,7 +66,7 @@ def _interactive_shell_pwd(
     existing_terminal_tree: bool = False,
 ) -> str:
     env = os.environ.copy()
-    env.pop("WARP_STARTUP_DIR", None)
+    env.pop("AOS_STARTUP_DIR", None)
     env.pop("PROJECTS_ROOT", None)
     env.pop("AOS_NATIVE_SESSIONS_DIR", None)
     env.pop("_SIREN_SHELL_ENV", None)
@@ -80,7 +80,7 @@ def _interactive_shell_pwd(
         }
     )
     if startup_dir is not None:
-        env["WARP_STARTUP_DIR"] = _bash_path(startup_dir)
+        env["AOS_STARTUP_DIR"] = _bash_path(startup_dir)
     if projects_root is not None:
         env["PROJECTS_ROOT"] = _bash_path(projects_root)
     if default_shell is not None:
@@ -120,7 +120,7 @@ def _interactive_zsh_pwd(
         pytest.skip("zsh is unavailable")
 
     env = os.environ.copy()
-    env.pop("WARP_STARTUP_DIR", None)
+    env.pop("AOS_STARTUP_DIR", None)
     env.pop("AOS_NATIVE_SESSIONS_DIR", None)
     env.pop("_SIREN_SHELL_ENV", None)
     env.update(

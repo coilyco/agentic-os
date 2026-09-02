@@ -1,6 +1,5 @@
-# Publish commit-scoped language payloads and the full image after release has
-# advanced, then publish the root minor release from the verified full draft.
-# Registry or build failures do not block branch promotion.
+# Publish commit-scoped language payloads and the full image.
+# Rationale: docs/build-file-headers.md.
 
 name: dev-base-publish
 

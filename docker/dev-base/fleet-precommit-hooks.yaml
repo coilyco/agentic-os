@@ -1,10 +1,6 @@
-# Hook environments warmed into the image at build time so CI never pays the
-# cold-cache install. Stale pins here cost speed, never correctness: pre-commit
-# falls back to installing whatever this misses.
-#
-# Carries the externally-hosted pins the fleet shares. Hooks served from
-# forgejo.coilysiren.me stay out, since that host is on the runners' NO_PROXY
-# path and installs in seconds.
+# Hook environments warmed into the image at build time.
+# Rationale: docs/build-file-headers.md.
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

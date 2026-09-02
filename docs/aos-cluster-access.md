@@ -34,7 +34,7 @@ environment override. AOS never asks the operator to paste the token.
 ## Boundaries
 
 * Ward remains provider-neutral and accepts the credential as a launch input.
-* AOSguard keeps its independent specgen-owned credential mounts.
+* AOSguard keeps its independent umbra-owned credential mounts.
 * Standalone AOS launches do not gain this Ward broker credential.
 * Agent-compose context bundles carry no credential or Ward authority.
 

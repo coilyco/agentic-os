@@ -28,8 +28,14 @@ Named multi-provider capture is part of the
 The snapshot separates:
 
 * **Eager context** - role instructions, the harness-neutral repository
-  `AGENTS.md` root-to-CWD cascade, and ordinary, role, personality,
-  role-composed, and optional plugin skill frontmatter.
+  `AGENTS.md` root-to-CWD cascade, the composed operating base, and ordinary,
+  role, personality, role-composed, and optional plugin skill frontmatter.
+* **Operating base** - each provider's root `AGENTS.md`, the files a harness
+  composes into its global load point. The active repository is measured by the
+  cascade above and skipped here, so no file is counted twice. Before this
+  existed the snapshot counted only the active repository, which under-reported
+  a real seat by roughly 30,000 bytes and hid the largest eager surface in the
+  estate from the instrument built to rank it.
 * **Lazy context** - skill bodies and resources, optional plugin bodies and
   resources, and the count of deferred mcporter registrations.
 * **MCP schemas** - zero eager schemas. The mcporter inventory contributes only
@@ -41,6 +47,11 @@ The YAML artifact groups non-skill components and one top-level breakdown by
 with its class, eager tokens, lazy tokens, and resource count. Stable ordering,
 no timestamps, and no absolute source locators make identical inputs produce the
 same payload hash.
+
+Still outside the boundary: the sections Agent Compose generates into the host
+global rather than reading from a provider, which are the seat dispatch table
+and the personality invariant. Measuring those needs a composition rather than a
+file read.
 
 Snapshots use `context-budget-<role>-<phase>.yaml`. AOS owns the reusable
 measurement and validation contract. The consumer that determines the complete

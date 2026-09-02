@@ -103,6 +103,14 @@ func stubDeps(t *testing.T, spawns *[]recordedSpawn, shadowed bool) commandDeps 
 // ~/projects, which no CI container has, and inheriting it fails every test.
 func runAterm(t *testing.T, deps commandDeps, argv ...string) (string, error) {
 	t.Helper()
+	// A test inherits whatever shadow it was started from, which would change
+	// the launch under test. See nested_test.go for the shadow cases.
+	clearShadowEnv(t)
+	return runAtermRaw(t, deps, argv...)
+}
+
+func runAtermRaw(t *testing.T, deps commandDeps, argv ...string) (string, error) {
+	t.Helper()
 	stdout := &bytes.Buffer{}
 	command := newCommand(deps)
 	command.Writer = stdout

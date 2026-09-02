@@ -9,12 +9,12 @@ description: Kai's technical preferences - Go CLI defaults (urfave/cli), Charm T
 
 Python, AWS, Kubernetes, Terraform. Distributed systems, platform engineering, o11y-heavy. LLM APIs and production-grade AI systems.
 
-## CLI and repository shape
+## CLI and repo form
 
 Kai is/was a maintainer of [urfave/cli](https://github.com/urfave/cli). **Default to urfave/cli over cobra/kong.** When in doubt about Go CLI tooling, check what urfave/cli does first.
 
 - **Prefer Go for operator CLIs.** Do not introduce a Python CLI surface.
-- **Avoid polyglot repositories.** If a single-language project needs a CLI in another language, put the CLI in its own repository and share contracts through a published schema artifact.
+- **Avoid polyglot repositories.** If a single-language project needs a CLI in another language, put the CLI in its own repo and share contracts through a published schema artifact.
 - **Keep standalone CLIs standalone.** Do not add umbra or Ward unless the tool specifically needs audit gating.
 
 ## Charm (preferred TUI/CLI styling family)
@@ -32,7 +32,7 @@ Kai is/was a maintainer of [urfave/cli](https://github.com/urfave/cli). **Defaul
 - mods (LLM CLI)
 - freeze, melt
 
-When a ward/eco tool needs interactive prompts, fancy output, or a TUI, bias toward this stack over hand-rolled ANSI or rivals like tview/promptui. Cotton-candy aesthetic, MIT-licensed, very actively maintained, plays nicely with urfave/cli for the imperative-CLI-with-occasional-TUI shape.
+When a ward/eco tool needs interactive prompts, fancy output, or a TUI, bias toward this stack over hand-rolled ANSI or rivals like tview/promptui. Cotton-candy aesthetic, MIT-licensed, very actively maintained, plays nicely with urfave/cli for the imperative-CLI-with-occasional-TUI form.
 
 - [Don't suggest dead or dormant repos](references/dead-repos.md) - 12-month-commit bright line before recommending any OSS dependency.
 - [Aliases and pagers](references/aliases-and-pagers.md) - no renamed-command aliases, pagers configured off.
@@ -49,4 +49,4 @@ Three tiers by repo intent - MIT for shareable, AGPL-3.0 for deployment-of-one, 
 
 - [JSON-twin discoverability for dashboards](references/json-twin-discoverability.md) - three discovery mechanisms so cold-start agents find a JSON variant.
 - [Configs go in SSM, not in skills or code](references/configs-in-ssm.md) - stash rotatable config-shaped values in AWS SSM, never hardcode.
-- [Batch job rules](references/batch-job-rules.md) - no parallelism for rate-limited jobs, plus ward wrapper rules.
+- [Batch job rules](references/batch-job-rules.md) - no parallelism for rate-limited jobs, and ward wrapper rules.

@@ -23,12 +23,12 @@ Reports each violation as `path:line: [rule] 'span' - hint`.
 
 Resolve `<loaded-skill-dir>` from the current harness's native skill root.
 The source checkout keeps the helper under `.agents/composed/`, while
-agent-compose promotes it into the selected role's native skills bundle.
+agent-compose promotes it into the chosen role's native skills pack.
 
 Default mode reports and exits zero. `--strict` exits non-zero on any
 violation, suitable for pre-commit hook integration.
 
-## Profile contract
+## Profile rule
 
 A profile is JSON: an object with a non-empty `rules` list.
 
@@ -50,13 +50,13 @@ A profile is JSON: an object with a non-empty `rules` list.
   is what keeps a table row from also tripping every punctuation rule.
 - `flags` - any of `i`, `m`, `s`.
 
-A profile that will not load is an error rather than zero rules. Linting
+A profile that will not load is an error instead of zero rules. Linting
 nothing and reporting success is the failure mode this refuses.
 
 ## Notes
 
 - Rules are regexes, so any rule needing a referent, a name, or judgement
-  belongs in human review rather than here. A profile can still carry an
+  belongs in human review instead of here. A profile can still carry an
   over-flagging rule deliberately, and should say so in its own hint.
 - Deciding which rules to carry is the profile's job. This skill has no
   opinion about em-dashes, pronouns, or anyone's address.

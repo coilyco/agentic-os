@@ -25,7 +25,7 @@ networks:
     name: ward-tailnet                     # existing shared Docker name, do not rename
 ```
 
-This is the standing, shared box. It runs once with `restart: unless-stopped`, and the infra sibling (the `tailscale-proxy` ansible role in `coilyco-flight-deck/infrastructure`) converges it, not ward. The compose lives at `ansible/roles/tailscale-proxy/files/compose.yaml` and is authoritative. This excerpt focuses on its Tailscale service.
+This is the standing, shared box. It runs once with `restart: unless-stopped`, and the infra sibling (the `tailscale-proxy` ansible role in `coilyco-bridge/infrastructure`) converges it, not ward. The compose lives at `ansible/roles/tailscale-proxy/files/compose.yaml` and is authoritative. This excerpt focuses on its Tailscale service.
 
 Inject the auth key without writing it to disk:
 

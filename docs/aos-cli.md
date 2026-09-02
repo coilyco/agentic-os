@@ -10,7 +10,7 @@ authority, and standalone AOS applies
 
 Every AOS launch has two contexts: agent-compose verifies and projects the
 selected role into a private staged home, and AOS attaches standalone `aosguard`
-with its specgen credential mounts. The compatibility flags `--composed` and
+with its umbra credential mounts. The compatibility flags `--composed` and
 `--guarded` are still accepted, explicit false values included, but disable
 neither.
 

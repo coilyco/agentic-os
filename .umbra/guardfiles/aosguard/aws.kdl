@@ -1,0 +1,28 @@
+// aosguard ops aws - the AWS CLI surface as an allowlist (umbra execverb).
+// Rationale: tooling-aosguard references/guardfile-headers.md.
+
+wrap aosguard ops aws {
+    exec aws
+    // identity - nothing to guard
+    can run sts get-caller-identity
+    can run sts get-session-token
+    can run ssm get-parameter
+    can run ssm get-parameters-by-path
+    can run ssm put-parameter {
+        when type matches SecureString
+        allow-flag --name
+        allow-flag --value
+        allow-flag --type
+        allow-flag --overwrite
+        allow-flag --no-overwrite
+        allow-flag --description
+    }
+    can run ssm delete-parameter {
+        when name matches "/*"
+        allow-flag --name
+        describe "delete one explicitly named SSM parameter"
+    }
+    can run s3 ls
+    can run s3 cp
+    can run s3 sync
+}

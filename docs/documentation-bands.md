@@ -115,6 +115,6 @@ sections above plus these:
 
 ## Baseline
 
-- `docs/` must stay flat - no subdirectories, use filename prefixes (`features-*.md`, `warp-*.md`, `skill-discipline-*.md`).
+- `docs/` must stay flat - no subdirectories, use filename prefixes (`features-*.md`, `aterm-*.md`, `skill-discipline-*.md`).
 - A nested `SKILL.md` below a top-level skill dir fails: the loader only sees top-level dirs.
 - A co-located **module `README.md`** is allowed in one of two capped shapes, each <= 3 non-blank lines (blank lines free, prose lines <= 90 chars). **Outpost** - a heading, optional one-sentence summary, and exactly one link to a single `docs/*.md` file that must link back to that exact README path (reciprocal, file-to-file). One doc may anchor many outposts. **Homestead** - heading plus up to 2 content lines, no `docs/` pointer (self-contained signage). The discriminator is whether the README links a `docs/*.md` file. This turns the per-repo `ansible/README.md` / `deploy/*/README.md` excludes into a rule - a conforming README needs no exclude.

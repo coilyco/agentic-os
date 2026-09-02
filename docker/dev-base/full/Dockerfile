@@ -11,7 +11,7 @@ FROM ${LANG_PYTHON_IMAGE} AS dev-base-lang-python-graft
 
 FROM ubuntu:24.04 AS dev-base-tool-builder
 ARG WARD_VERSION=0.887.0
-ARG SPECGEN_VERSION=0.184.0
+ARG UMBRA_VERSION=0.192.0
 ARG AOS_VERSION=0.213.0
 ARG TARGETARCH
 ARG DEBIAN_FRONTEND=noninteractive
@@ -45,20 +45,20 @@ RUN set -eux; \
     install -m 0755 "/tmp/${aos_asset}" /usr/local/bin/aos; \
     rm "/tmp/${aos_asset}" /tmp/aos-SHA256SUMS; aos --version
 RUN set -eux; \
-    specgen_asset="specgen-linux-${TARGETARCH}"; \
-    specgen_base="https://forgejo.coilysiren.me/coilyco-flight-deck/umbra/releases/download/v${SPECGEN_VERSION}"; \
+    umbra_asset="umbra-linux-${TARGETARCH}"; \
+    umbra_base="https://forgejo.coilysiren.me/coilyco-flight-deck/umbra/releases/download/v${UMBRA_VERSION}"; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
-      "${specgen_base}/${specgen_asset}" -o "/tmp/${specgen_asset}"; \
+      "${umbra_base}/${umbra_asset}" -o "/tmp/${umbra_asset}"; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
-      "${specgen_base}/SHA256SUMS" -o /tmp/specgen-SHA256SUMS; \
-    grep "[[:space:]]${specgen_asset}$" /tmp/specgen-SHA256SUMS \
+      "${umbra_base}/SHA256SUMS" -o /tmp/umbra-SHA256SUMS; \
+    grep "[[:space:]]${umbra_asset}$" /tmp/umbra-SHA256SUMS \
       | (cd /tmp && sha256sum -c -); \
-    install -m 0755 "/tmp/${specgen_asset}" /usr/local/bin/specgen; \
-    rm "/tmp/${specgen_asset}" /tmp/specgen-SHA256SUMS; specgen --version
+    install -m 0755 "/tmp/${umbra_asset}" /usr/local/bin/umbra; \
+    rm "/tmp/${umbra_asset}" /tmp/umbra-SHA256SUMS; umbra --version
 COPY --from=aosguard-spec . /tmp/aosguard-spec
 COPY --from=aosguard-python . /tmp/aosguard-python/agentic_os
 RUN set -eux; \
-    specgen --project-root /tmp/aosguard-spec/guardfiles \
+    umbra --project-root /tmp/aosguard-spec/guardfiles \
       --skills-out /opt/agentic-os/aosguard-skill build \
       --set-version "dev-base" --out /usr/local/bin/aosguard; \
     chmod 0755 /usr/local/bin/aosguard; \
@@ -181,6 +181,7 @@ ARG RUST_PINNED_VERSIONS
 # guard matters: an unplumbed arg would make the loop below a silent pass.
 RUN node --version && go version && dotnet --list-sdks && cargo --version && \
     trunk --version && wasm-pack --version && wasm-opt --version && \
+    wasm-bindgen --version && \
     python --version && pipenv --version && aosguard --version && \
     test -n "${RUST_PINNED_VERSIONS}" && \
     for pin in ${RUST_PINNED_VERSIONS}; do \

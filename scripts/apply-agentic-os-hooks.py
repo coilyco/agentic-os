@@ -11,7 +11,7 @@ For each repo checked out under ~/projects/<org>/<name> across every org dir
   1. Read or create `.pre-commit-config.yaml`.
   2. Strip legacy stamped `repo: local` blocks for the hooks now centralized
      here (catalog-doc-size, catalog-trifecta,
-     documentation-layout, code-comments, check-skills, dead-cross-links,
+     documentation-placement, documentation-size, code-comments, check-skills, dead-cross-links,
      skill-discipline).
   3. Insert/refresh the managed block: the agentic-os hook set plus the
      standard hygiene hooks, actionlint, Forgejo Runner validation, shellcheck,
@@ -160,7 +160,7 @@ FORGEJO_RUNNER_REV = "v12.10.1"
 
 SHELLCHECK_REPO_URL = "https://github.com/shellcheck-py/shellcheck-py"
 SHELLCHECK_REV = "v0.11.0.1"
-SHELLCHECK_EXCLUDE = r"^shell/(zshrc|warp\.zsh)$"
+SHELLCHECK_EXCLUDE = r"^shell/zshrc$"
 
 TYPOS_REPO_URL = "https://github.com/crate-ci/typos"
 TYPOS_REV = "v1.48.0"
@@ -197,10 +197,12 @@ LEGACY_STAMPED_SCRIPTS = [
     "scripts/check-skills.py",
 ]
 
-# Default hook IDs per repo (hand-editable).
+# Default hook IDs per repo (hand-editable). DEFAULT_REV tracks the newest tag
+# on its own, so REMOVING an id here must land with the release that drops it.
 DEFAULT_HOOK_IDS = [
     "catalog-trifecta",
-    "documentation-layout",
+    "documentation-placement",
+    "documentation-size",
     "context-load-points",
     "code-comments",
     "actions-run-one-line",
@@ -571,15 +573,19 @@ def apply_to_repo(repo_dir: Path, rev: str, dry_run: bool) -> tuple[str, str]:
     repo = repo_dir.name
     if repo_dir.parent.name in VENDOR_ORGS:
         return ("skipped", f"vendor org ({repo_dir.parent.name})")
-    if repo == "agentic-os":
-        # Source repo dogfoods via repo: local; upstream-ref would duplicate IDs.
-        return ("skipped", "self (source repo)")
     if not repo_dir.is_dir():
         return ("skipped", "not checked out locally")
     if not (repo_dir / ".git").exists():
         return ("skipped", "not a git working tree")
     if (repo_dir / IGNORE_MARKER).exists():
         return ("skipped", f"opted out ({IGNORE_MARKER})")
+    # The source repo dogfoods through `repo: local`, so writing the managed
+    # block would duplicate every hook id. Its git hooks still install (#1192).
+    if repo == "agentic-os":
+        if dry_run:
+            return ("dryrun", "install hooks only, config is hand-maintained")
+        status = install_pre_commit_hooks(repo_dir)
+        return ("applied", f"config untouched (source repo), {status}")
 
     config_path = repo_dir / ".pre-commit-config.yaml"
     hook_ids = hook_ids_for(repo)

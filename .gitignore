@@ -17,17 +17,6 @@ id_ed25519*
 *.kdbx
 kai-server.conf
 
-# Copyrighted game art used as a local Warp theme background, not redistributable.
-# The factorio theme YAML references this path; absent on a fresh clone Warp just
-# shows no background image. Source: https://factorio.com/game/screenshots
-static/wallpaper-factorio.jpg
-
-# Rendered output of the warp/ template engine. Templates are tracked, output is not.
-warp/settings.toml
-
-# Compiled `go build` output of the warp/ module; built on demand, never tracked.
-warp/warp
-
 # Runtime / machine-local state
 *.log
 logs/
@@ -76,8 +65,8 @@ Thumbs.db
 /dist
 /build
 /out
-.specgen/**/*.md
-!.specgen/README.md
+.umbra/**/*.md
+!.umbra/README.md
 *.bundle.js
 *.min.js
 *.min.css

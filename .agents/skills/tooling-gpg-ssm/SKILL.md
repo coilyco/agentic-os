@@ -24,7 +24,7 @@ Never hand-write `gpg.program` from inside a native session. `$HOME` there is a 
 
 ## Deeper context
 
-- [design](references/design.md) - shared key bootstrap, no on-disk passphrase, verification passthrough, agent cache, credential gate, plus the Git Bash carve-out.
+- [design](references/design.md) - shared key bootstrap, no on-disk passphrase, verification passthrough, agent cache, credential gate, and the Git Bash carve-out.
 - [adding a new host](references/adding-a-host.md) - steps to wire signed commits on a fresh machine.
 - [debugging](references/debugging.md) - common signing failures, fixes, and the never-bypass rule.
 

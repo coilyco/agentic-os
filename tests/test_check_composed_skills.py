@@ -146,3 +146,22 @@ def test_an_exemption_a_role_now_selects_fails(tmp_path: Path) -> None:
 
     assert len(problems) == 1
     assert "'b' covers no unselected source" in problems[0]
+
+
+def test_a_selector_matching_nothing_fails(tmp_path: Path) -> None:
+    # #1205: the role has a selector and every source is claimed, so neither
+    # existing direction fires while the role composes less than it says.
+    kdl = "roles {\n    role qa {\n        composed-skill a\n        composed-skill coding-rust\n    }\n}\n"
+    composed = _catalogue(tmp_path, kdl, ["a"])
+
+    problems = catalogue_problems(tmp_path, composed)
+
+    assert len(problems) == 1
+    assert "selects 'coding-rust'" in problems[0]
+
+
+def test_a_glob_selector_matching_one_source_passes(tmp_path: Path) -> None:
+    kdl = "roles {\n    role qa {\n        composed-skill tooling-*\n    }\n}\n"
+    composed = _catalogue(tmp_path, kdl, ["tooling-x"])
+
+    assert catalogue_problems(tmp_path, composed) == []

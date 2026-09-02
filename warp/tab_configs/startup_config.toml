@@ -1,8 +1,0 @@
-name = "New tab: kai"
-
-[[panes]]
-id = "main"
-type = "terminal"
-directory = "/Users/kai/projects"
-
-[params]

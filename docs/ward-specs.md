@@ -84,6 +84,18 @@ The roster itself lives in Ward's actor-aware queue filter and the host-local
 `director.default-scope`, which are the surfaces that decide admission. This doc
 records the policy, not the list.
 
+## Frozen as a contract
+
+Kai settled this on 2026-08-24 (agentic-os#1299). The schema, the `ward:` lane
+vocabulary, and the shipped binary all stay. What came out is the runtime from
+this repo's hot paths: the `ward-doctor` CI job, the workflow install steps, and
+`ward --version` / `ward doctor` from the image's common verification.
+
+Exposure rather than disuse: an unmaintained binary sat where a toolchain bump
+breaking its install would read as a broken image build. The image still
+installs Ward and provisions `~/.ward/audit`, so `ward agent` dispatch is
+unchanged. Verification of a frozen component stopped, not the component.
+
 ## Rollout order
 
 1. Keep deny-by-default containment in Ward's actor-aware queue filter, with

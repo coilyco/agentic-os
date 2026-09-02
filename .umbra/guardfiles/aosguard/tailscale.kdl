@@ -1,0 +1,37 @@
+// aosguard ops tailscale - the tailnet live-observe surface.
+// Rationale: tooling-aosguard references/guardfile-headers.md.
+
+wrap aosguard ops tailscale {
+    exec "/usr/local/bin/tailscale"
+    can run status {
+        describe "tailnet state: peers, this node, and whether tailscaled is up. --json carries per-peer Tags, HostName, TailscaleIPs, and Online, which is the tailnet device and tag inventory; no API credential is involved"
+    }
+    can run ping {
+        describe "tailnet-layer reachability probe to a peer; pass host or IP"
+    }
+    can run netcheck {
+        describe "network conditions report: DERP latency, NAT, UDP reach"
+    }
+    can run ip {
+        describe "this node's tailnet IPs (-4 / -6 to narrow)"
+    }
+    can run whois {
+        describe "identify the tailnet node behind an IP"
+    }
+    can run "dns status" {
+        describe "MagicDNS resolver state"
+    }
+    can run version {
+        describe "client + daemon version"
+    }
+    // intentionally unexposed - identity, topology, and exposure changes
+    never run up
+    never run down
+    never run login
+    never run logout
+    never run set
+    never run serve
+    never run funnel
+    never run ssh
+    never run file
+}

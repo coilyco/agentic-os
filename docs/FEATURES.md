@@ -4,12 +4,15 @@ Major shipped capabilities, not files.
 
 ## Inventory
 
-- [Shell and secrets](install.md) - shared shells, Warp, SSM, and GPG.
+- [Shell and secrets](install.md) - shared shells, SSM, and GPG.
 - [Branded agent terminal](aterm.md) - `aterm` opens one composed agent session in its own Sombra kitty
   window, completing and refusing roles against the live roster, and writes a macOS `.app` launcher per
-  role, each carrying its own embedded icon. The window opens on an identity card drawn from the
-  overlay's own `geometry` and sounded from its `sound_mark`. Mac and Linux only, since kitty has no
-  Windows build.
+  [role bundle](aterm-bundles.md), each carrying its own embedded icon. The window opens on an identity card drawn from the
+  overlay's own `geometry`, standing over that role's own
+  [creature background](aterm-creature.md), and sounded from its `sound_mark` when `--sound` asks.
+  `aterm pane on` and `off` [split that window](aterm-pane.md) beside a command and put it back,
+  re-deriving the creature rather than depending on anything the split recorded.
+  Mac and Linux only, since kitty has no Windows build.
 - [Speech helper](aos-roles-and-voice.md) - `aos-say` client plus relay for status speech.
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.
 - [Agents and sessions](features-agents.md) - self-name, composition
@@ -30,20 +33,22 @@ Major shipped capabilities, not files.
   [convergence](aos-convergence.md), [connectivity](aos-context-bundle.md),
   [kubeconfig](aos-cluster-access.md), [issue pins](aos-issue-flow.md), and
   [check-ins](aos-issue-flow.md).
-- [aosguard](aosguard.md) - guarded CLI with fixed
-  [SigNoz MCP reads](signoz.md), issue pins, PR merge, and sealed
-  [Forgejo storage measurement](forgejo-ops.md).
+- [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) - guarded CLI with issue pins,
+  PR merge, and sealed
+  [Forgejo storage measurement](../.agents/skills/tooling-aosguard/references/forgejo-ops.md).
+- [Guarded helm releases](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - cluster-pinned upgrade, install, and rollback with release destruction unexposed.
 - [Code review skill](../.agents/composed/tooling-code-review/COMPOSED.md) - Portfolio Director gate-decision review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
-- [Forgejo Actions logs](forgejo-actions-runs.md) - job logs and run ZIPs.
-- [Forgejo Actions list bridge](forgejo-actions-runs.md) - safe run/task listing.
-- [Forgejo runner tokens](forgejo-ops.md) - guarded registration-token minting.
-- [Forgejo Actions reruns](forgejo-actions-runs.md) - guarded reruns and dispatch fallback.
+- [Forgejo Actions logs](../.agents/skills/tooling-aosguard/references/forgejo-actions-runs.md) - job logs and run ZIPs.
+- [Forgejo runner tokens](../.agents/skills/tooling-aosguard/references/forgejo-ops.md) - guarded registration-token minting.
+- [Issue-label guard](forgejo-issue-labels.md) - no issue files without a priority and an autonomy label.
+- [Forgejo policy vendoring](vendor-forgejo-policy.md) - the operator policy pushes down to deploy, never fetched up.
 - [Ward integration boundary](ward-specs.md) - one generic runner for every
   [composed role](aos-roles-and-voice.md), and no role-derived authority.
 - [Cross-repo tooling and release](release.md) - aos-precommit and release operations.
-- [Telegram CI failure alerts](signoz.md) - one sealed verb, no alert program in any repo.
+- [Telegram CI failure alerts](../actions/telegram-alert/action.yml) - one composite action, no alert program in any repo.
 - [dev-base image](dev-base-image.md) - parallel cached language payloads feeding one automatically released full development surface.
+- [Pinned WASM toolchain](dev-base-wasm-toolchain.md) - wasm-pack, wasm-opt, and the wasm-bindgen CLI baked so no build downloads them.
 - [CI parity in dev-base](ci-in-dev-base.md) - CI runs inside the moving :release dev-base image.
 - [Pull-request CI gate](ci-in-dev-base.md) - fast tests and Docker-only image validation.
 - [AGENTS pointer](features-agents.md) - generated sibling-repo workspace pointer.

@@ -1,0 +1,25 @@
+# Push the Forgejo operator policy down to deploy when it changes.
+# Rationale: docs/build-file-headers.md.
+
+name: vendor-forgejo-policy
+
+on:
+  push:
+    branches: [release]
+    paths:
+      - ".umbra/guardfiles/aosguard/forgejo.kdl"
+      - ".umbra/guardfiles/aosguard/forgejo.swagger.v1.json.gz"
+  workflow_dispatch:
+
+jobs:
+  vendor:
+    runs-on: docker
+    timeout-minutes: 10
+    container: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os:release
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Push the policy and its pruned spec to deploy
+        run: bash "$GITHUB_WORKSPACE/scripts/ci-command.sh" bash "$GITHUB_WORKSPACE/scripts/ci/vendor-forgejo-policy.sh"
+        env:
+          DEPLOY_WRITE_TOKEN: ${{ secrets.DEPLOY_WRITE_TOKEN }}

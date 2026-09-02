@@ -6,9 +6,9 @@ description: Use when science verifies visual behavior or investigates screensho
 # Visual verification
 
 Use this skill when layout, styling, responsive behavior, or rendered state is
-part of the product contract and a screenshot can provide relevant evidence.
+part of the product rule and a screenshot can provide relevant evidence.
 
-## Activation boundary
+## Activation wall
 
 Science activates this workflow for visual regressions and state or viewport
 comparisons. Functional behavior, accessibility conformance, and design
@@ -17,7 +17,7 @@ judgment remain separate evidence lanes.
 ## Stabilize the observation
 
 Science records the browser and version, viewport, device scale, theme, locale,
-fonts, data state, clock, animation state, and capture boundary. She fixes or
+fonts, data state, clock, animation state, and capture wall. She fixes or
 masks nondeterministic regions only with a stated reason.
 
 A stable screenshot of the wrong state is not a useful baseline. Science reaches
@@ -35,7 +35,7 @@ Science reads the complete images before crops or metrics. A nonzero pixel diff 
 a change signal, not automatically a defect. A low diff can still hide a
 critical missing control or clipped label.
 
-## Test the visual contract
+## Test the visual rule
 
 Science checks the smallest matrix that covers the risk:
 
@@ -56,7 +56,7 @@ Science never updates a baseline merely to make a check green. An authorized rev
 must identify the intended change and approve the new reference. Broad churn
 triggers root-cause analysis before mass acceptance.
 
-## Output contract
+## Output rule
 
 The report contains capture conditions, state matrix, evidence triads,
 classification, user impact, confidence, unstable regions, and baseline

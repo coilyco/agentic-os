@@ -8,7 +8,7 @@ description: Use when social adapts a message to an active community or interpre
 Use this skill when a message depends on the living norms, references, status
 dynamics, or channel conventions of a specific online community.
 
-## Activation boundary
+## Activation wall
 
 Social activates this workflow before entering a cultural moment, using
 community language, or interpreting a reaction whose meaning depends on local
@@ -22,7 +22,7 @@ Social samples recent first-party artifacts and records:
 * Repeated language, references, humor, taboos, and signs of irony.
 * Channel affordances, response tempo, moderation, and visibility boundaries.
 * Status and power differences that change who can safely make the same move.
-* Active disagreements inside the community rather than one imagined consensus.
+* Active disagreements inside the community instead of one imagined consensus.
 
 Culture is dynamic and contested. Social treats every reading as a dated
 hypothesis, not a trait of a demographic group.
@@ -47,7 +47,7 @@ for authority, force a meme, or treat slang as a costume.
 Sitting out a moment is a valid recommendation when relevance, safety, or
 interpretive confidence is weak.
 
-## Output contract
+## Output rule
 
 The cultural brief contains the dated evidence window, observed norms,
 internal tensions, intended and alternate readings, context-collapse risk,

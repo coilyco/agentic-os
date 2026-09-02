@@ -30,7 +30,7 @@ Eco-specific modding mechanics live in the `gaming-eco-*` skill family. This ski
 - Nullable reference types on. Annotate intent, don't blanket-suppress with `!`.
 - `var` when the type is obvious from the right-hand side, explicit type when it aids the reader.
 - Expression-bodied members for one-liners (the Eco mods lean on this for `IDynamicValue` overrides).
-- Match the project's `using` placement. The Eco repos put `using` directives inside the `namespace` block - follow the file you're in rather than reformatting.
+- Match the project's `using` placement. The Eco repos put `using` directives inside the `namespace` block - follow the file you're in instead of reformatting.
 - Async all the way down for I/O. No `.Result` / `.Wait()` blocking on async code.
 - Attributes are load-bearing in Eco mods (`[Serialized]`, `[LocDisplayName]`, `[Tier]`, etc.). Don't drop or reorder them casually.
 

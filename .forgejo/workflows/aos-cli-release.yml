@@ -6,7 +6,7 @@ on:
   push:
     branches: [release]
     paths:
-      - ".specgen/guardfiles/**"
+      - ".umbra/guardfiles/**"
       - "agentic_os/__init__.py"
       - "agentic_os/forgejo_actions_*.py"
       - "aos-cli/**"

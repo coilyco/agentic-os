@@ -27,7 +27,7 @@ Broad Python keyword surface - python, python3, .py, pip, uv, poetry, pyenv, pyt
 ## Style
 
 - Type hints on function signatures, less religious about every local variable.
-- Dataclasses or pydantic over dict-shaped objects when the shape is known.
+- Dataclasses or pydantic over dict-shaped objects when the form is known.
 - f-strings over `.format()` or `%`. Always.
 - `pathlib.Path` over `os.path` string surgery.
 - Async-first when there's I/O. Sync only when nothing benefits from concurrency.

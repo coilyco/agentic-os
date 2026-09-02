@@ -24,7 +24,7 @@ def test_guard_uses_the_tag_on_release_not_a_newer_staging_tag() -> None:
     )
 
     assert resolve_release_ref("guard", fetch_json=fetch) == "v0.129.0"
-    assert resolve_release_ref("specgen", fetch_json=fetch) == "v0.129.0"
+    assert resolve_release_ref("umbra", fetch_json=fetch) == "v0.129.0"
 
 
 def test_guard_uses_the_generated_tag_on_release() -> None:

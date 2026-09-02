@@ -8,7 +8,7 @@ description: Use when sales must discover and qualify a real customer problem be
 Use this skill when sales must determine whether a real problem, credible fit,
 and worthwhile next step exist before a demo, proposal, or forecast.
 
-## Activation boundary
+## Activation wall
 
 Sales activates this workflow before pitching. A confirmed customer asking for
 implementation detail belongs with the product or technical owner. Marketing
@@ -21,7 +21,7 @@ Sales asks for a recent concrete example, then traces:
 * The problem in the customer's own words.
 * The current workaround and why it persists.
 * Frequency, operational impact, and consequence of doing nothing.
-* Why the problem matters now rather than someday.
+* Why the problem matters now instead of someday.
 * Stakeholders, decision process, and constraints.
 * Evidence that would disqualify the opportunity.
 
@@ -40,11 +40,11 @@ Sales does not force urgency, hide a mismatch, or pitch after the first pain
 signal. Early disqualification protects both parties and improves the evidence
 quality of the remaining pipeline.
 
-## Output contract
+## Output rule
 
 The deal-evidence record separates customer facts, sales inferences, open
 questions, risks, disqualifiers, and the agreed next action. This skill grants
-no authority to contact a customer, change an account, quote terms, or commit
+no permission to contact a customer, change an account, quote terms, or commit
 the company.
 
 ## Evaluation target

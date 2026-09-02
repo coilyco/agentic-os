@@ -10,6 +10,7 @@
 aterm                              # pick a role, then a seat
 aterm platform                     # the role's default seat
 aterm platform codex -- --resume   # arguments for the harness
+aterm card                         # this session's card, again
 aterm --list                       # the live roster, no window
 aterm --list --json                # the same roster, for a script
 ```
@@ -30,27 +31,26 @@ The window opens fullscreen at font size 14.5, which `--start-as` and `--font-si
 
 **The picker follows the terminal, not stdout.** `aterm > log` used to refuse with "a role is required", because the check wanted stdin and stdout both to be character devices. It runs on `/dev/tty`.
 
+**The sound mark is opt-in, because a window opens many times a day.** `--sound` plays the role's pair and `ATERM_SOUND` turns it on for a shell, and neither reaches a log, a recording, or CI, where the terminal check refuses it whatever was asked. The samples still ship and `just aterm-sounds` still renders them, so this is a default rather than a removal. An env var alone could not have delivered silence: the `.app` wrapper harvests only `PATH` from a login shell, so a Dock or Spotlight launch never sees the caller's environment and only a default reaches both ways in.
+
 **`aterm doctor` preflights the whole chain**, exits 1 on a broken link, and names the unleased-shadow case a launch makes silently. `--json` is `aterm.doctor.v1`.
+
+**The identity card is the seat name, its colour, and the creature, and nothing else.** It carried the seat, tier, expression, workspace, directory, shadow line, and a personality legend keyed by emoji. Kai cut all of it. The card the launch draws and the card `aterm card` re-renders are one renderer, so the two cannot drift.
+
+**`aterm card` re-renders the card for the session you are already inside.** The launch card loses the window to the harness on its first repaint and then leaves the terminal's history at the scrollback cap, which on a kitty at the 2000-line default is a few hours rather than 400ms. The verb reads `ATERM_CARD`, which `_session` sets on the harness it starts, so it re-renders the payload the launch already resolved rather than asking `agent-compose` again. That is what keeps it working from inside a session shadow, where re-resolving cannot (agentic-os#1460). Outside a session aterm opened, `ATERM_CARD` is unset and the verb exits 4. Whether the card can be seen at launch at all is agentic-os#1456.
+
+**A launch from inside a native session shadow opens on the canonical environment, not on this session's.** A launch is a new session, so `aos` publishes `AOS_NATIVE_SESSION_ROOT` and the `AOS_NATIVE_CANONICAL_*` pair, and `aterm` drops every value that is a path under the session root, filters the same out of `PATH`, drops the session markers so the child leases its own, drops `CLAUDE_CODE_CHILD_SESSION` because a window is a session rather than a subagent, and restores `HOME` and `PROJECTS_ROOT`. An `aos` too old to publish those refuses with exit 6 rather than opening a window that dies, ahead of the working-directory check that reports the same cause as a symptom. `--list` and `--dry-run` open no window and stay usable throughout, and `aterm doctor` names which of the three states the session is in. Reasoning: agentic-os#1460.
 
 **It decodes the whole identity overlay, and renders rather than derives.** A struct naming fewer fields than the overlay ships drops the rest in silence, so `aterm/overlay.go` declares every leaf and a round-trip test fails on any that does not. The window background is the roster's `background`: separation is a property of the set, and seven accents tinted alike land inside each other's JND. aterm tints only for an agent-compose too old to ship one (agent-compose#358).
 
 **The fixtures do not catch upstream drift, so `just aterm-contract` walks the live roster.** Every launchable seat resolves, every unlaunchable one refuses with exit 3, every timbre has a sample, and the closest background pair holds a dE 3.0 floor. Its own reason: it diffs the live overlay against the typed struct leaf by leaf, so a dropped field fails the day it is added. `ATERM_LIVE_ROSTER` makes a missing `agent-compose` fail rather than skip.
 
+## The creature background
+
+Every window stands its role's own creature behind the session. See
+[the aterm creature background](aterm-creature.md).
+
 ## macOS app bundles
 
-`aterm bundles` writes one `.app` per live role into `~/Applications`, so a role opens from Spotlight, the Dock, or Finder with no terminal to type in. Each wraps `aterm <role>`, so it opens the window above.
-
-```text
-just aterm-bundles                   # write them
-just aterm-bundles --dry-run         # what would land, rendered
-```
-
-**A Finder launch carries none of your shell's PATH.** It starts at `/usr/bin:/bin:/usr/sbin:/sbin`, where none of `aos`, `agent-compose`, kitty, or the harness lives. Pinning the first three through the env vars `aterm` reads is not enough, since `agent-compose launch` resolves the harness itself, so a bundle stopping there reached shadow init and died on `claude` not found. The wrapper rebuilds `PATH` from a login shell, current as tools move, over a baked copy for a profile exporting none.
-
-**A window belongs to the bundle holding the binary that drew it.** Calling kitty where it lives credited every window to kitty in the Dock, the switcher, and Mission Control. Each bundle links the terminal in beside its launcher and opens through it, so those surfaces read the role, and `LSUIElement` went with it: an accessory app cannot own the front window. A shell launch prefers the role's installed bundle too. The plist names the host's architecture, or LaunchServices runs it translated and every child inherits that (#1291). A launch failing before a window opens has nothing to hold the error, so the wrapper alerts through `osascript`.
-
-**A bundle is only as new as the `aterm` it calls.** Generation writes the wrapper, so a name or `PATH` fix lands on regeneration while every window option comes from the binary it invokes. Those moving separately once made half a fix look whole, so generation warns when the builds differ.
-
-**A bundle is named for who answers**, the person and role rather than the harness: `Vera // Systems Administrator`. A POSIX filename cannot hold a slash, so it is stored with ` :: `, which macOS renders as one, and only the directory carries it: the executable stays a plain `aterm-<role>`.
-
-**Roles come from the live roster**, the read the launcher and its completion use, so no second list goes stale. A bundle is recognized by a marker inside it rather than its name, so a renamed scheme reports what the last run wrote instead of orphaning it. What this run no longer writes is reported rather than deleted, an app it did not write is never overwritten, and every target is checked first, so a refusal cannot half-regenerate the set. Bundles are per-role on the launch profiles' seat, each Finder-tagged `acompose` so one Spotlight word finds them. `--tag` renames it. kitty outlives its last window by macOS convention, which left the bundle registered and the next click reopening nothing, so `aterm` quits it with the window.
+`aterm bundles` writes one `.app` per live role into `~/Applications`. See
+[aterm macOS app bundles](aterm-bundles.md).

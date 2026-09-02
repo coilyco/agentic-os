@@ -9,7 +9,7 @@ Umbrella for any Kubernetes work.
 
 ## Triggers
 
-kubernetes, k8s, k3s, kubectl, helm, manifest, deployment, statefulset, daemonset, configmap, secret, ingress, namespace, pod, service, pv, pvc, externalsecrets, cert-manager.
+kubernetes, k8s, k3s, kubectl, helm, manifest, deploy, statefulset, daemonset, configmap, secret, ingress, namespace, pod, service, pv, pvc, externalsecrets, cert-manager.
 
 ## Defaults
 
@@ -22,7 +22,7 @@ kubernetes, k8s, k3s, kubectl, helm, manifest, deployment, statefulset, daemonse
 
 ## Conventions
 
-- Manifests in [`coilyco-flight-deck/infrastructure`](https://github.com/coilyco-flight-deck/infrastructure). Apply via the repo's deploy scripts, not ad-hoc `kubectl apply`.
+- Manifests in [`coilyco-bridge/infrastructure`](https://github.com/coilyco-bridge/infrastructure). Apply via the repo's deploy scripts, not ad-hoc `kubectl apply`.
 - Namespaces match the service name. One service, one namespace, when reasonable.
 - Resource limits set explicitly (cluster is small, OOM evictions are real - see `ops-investigation-k3s-pod-eviction` (in agentic-os-kai)).
 

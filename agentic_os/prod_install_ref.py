@@ -32,7 +32,7 @@ PRODUCTS = {
     "guard": _GUARD,
     "umbra": _GUARD,
     "cli-guard": _GUARD,  # retained alias
-    "specgen": _GUARD,
+    "specgen": _GUARD,  # retained alias: the driver's name until umbra v0.192.0
     "aos": _AOS,
     "agentic-os": _AOS,
 }

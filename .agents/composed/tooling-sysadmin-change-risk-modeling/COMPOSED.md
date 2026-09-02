@@ -25,8 +25,8 @@ partitioned.
 ## Name the credible failure story
 
 Sysadmin writes the shortest plausible sequence from change to user harm. She names
-the assumption that stops propagation at each boundary and the evidence that
-the boundary actually holds.
+the assumption that stops propagation at each wall and the evidence that
+the wall actually holds.
 
 Sysadmin treats prior success as evidence about similar conditions, not immunity.
 Novel dependencies, changed scale, and shared credentials reduce the value of
@@ -45,7 +45,7 @@ For each material risk, sysadmin selects one or more controls:
 If no control can bound an unacceptable failure story, sysadmin stops and escalates
 the risk decision. A numeric score does not substitute for that judgment.
 
-## Output contract
+## Output rule
 
 The change brief contains the propagation map, failure stories, affected
 domains, reversibility limits, detection and abort signals, rollout partitions,

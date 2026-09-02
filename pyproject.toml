@@ -50,7 +50,8 @@ check-code-review-contract = "agentic_os.pre_commit.check_code_review_contract:m
 check-code-comments = "agentic_os.pre_commit.check_code_comments:main"
 check-actions-run-one-line = "agentic_os.pre_commit.check_actions_run_one_line:main"
 check-source-doc-refs = "agentic_os.pre_commit.check_source_doc_refs:main"
-check-documentation-layout = "agentic_os.pre_commit.check_documentation_layout:main"
+check-documentation-placement = "agentic_os.pre_commit.check_documentation_layout:main_placement"
+check-documentation-size = "agentic_os.pre_commit.check_documentation_layout:main_size"
 check-context-load-points = "agentic_os.pre_commit.check_context_load_points:main"
 check-context-budget = "agentic_os.pre_commit.check_context_budget:main"
 agents-context-inventory = "agentic_os.agents_context_inventory:main"
@@ -123,12 +124,7 @@ band = "large"
 # for a day while the file never changed (coilysiren/inbox#480).
 agents_md_max_lines = 240
 agents_md_max_chars = 33339
-# Subsystem dirs carry idiomatic co-located READMEs and config docs that the
-# root/docs/skills location rule does not model. Excluded per the root layout
-# hatch: warp (Go module).
 excludes = [
-    "warp/launch_configurations/**",
-    "warp/tab_configs/**",
     # Root SSM.md is a focused pointer to the SSM params aos code consumes,
     # mirroring the canonical SSM.md placement. See SSM.md.
     "SSM.md",
@@ -139,7 +135,7 @@ excludes = [
 # then relaxed to allow a contiguous comment block above the first content
 # line (the whole header stays put under a sort).
 # These pre-existing files carry rich teaching/config comment blocks
-# (skill-discipline examples, the skills registry, warp configs) and are
+# (skill-discipline examples, the skills registry) and are
 # grandfathered so the rule enforces net-new YAML.
 # Cleanup tracked in the code-comments docs. Bash comments inside `run: |`
 # block scalars are no longer over-read, so actions/** needs no exclude.
@@ -152,13 +148,12 @@ excludes = [
 [tool.agentic-os.code-comments]
 excludes = [
     ".agents/skills/categories.yaml",
-    ".agents/composed/tooling-issue-prioritization/references/p0-content-rules.yaml",
+    ".agents/composed/tooling-issue-triage/references/p0-content-rules.yaml",
     ".pre-commit-config.yaml",
     ".pre-commit-hooks.yaml",
     "docs/skill-discipline-example-categories.yaml",
     "docs/skill-discipline-example-pre-commit-config.yaml",
     "docs/ci-in-dev-base-example.yml",
-    "warp/launch_configurations/**",
 ]
 
 # Composed sources no role in .agents/roles.kdl selects. Each entry is a

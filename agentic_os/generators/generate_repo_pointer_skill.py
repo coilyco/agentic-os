@@ -15,7 +15,7 @@ supply repo metadata however it likes. The canonical source is Forgejo, whose
 `repo view --json` returns both the description and the topics array in one
 payload. The CLI reads that JSON from stdin:
 
-    aosguard ops forgejo repo view --repo coilysiren/<name> --json \
+    aosguard ops forgejo repo view --repo coilyco-bridge/<name> --json \
         | python -m agentic_os.generators.generate_repo_pointer_skill <name> --from-json - --repo-root <repo>
 
 `--from-json` also accepts the GitHub `gh repo view --json
@@ -92,7 +92,7 @@ def build_description(raw_description: str, name: str, topics: list[str]) -> str
     return f"{desc}. {trigger_line}" if desc else trigger_line
 
 
-DEFAULT_ORG = "coilysiren"
+DEFAULT_ORG = "coilyco-bridge"
 
 
 def repo_skill_name(name: str, org: str = DEFAULT_ORG) -> str:
@@ -126,9 +126,11 @@ def render_skill(
     applied here for the directory/frontmatter name and the H1.
 
     `org` is the workspace org dir the repo lives under (`~/projects/<org>/`).
-    Defaults to `coilysiren`; repos migrated to another org (coilyco-bridge,
-    coilyco-flight-deck) set `[tool.agentic-os.repo-pointer-skills] org` so the
-    pointer path tracks the real checkout. See scripts/sweep-precommit.py.
+    Defaults to `coilyco-bridge`, the fleet's home org; a repo living elsewhere
+    sets `[tool.agentic-os.repo-pointer-skills] org` so the pointer path tracks
+    the real checkout. Every repo enabling the hook sets it today, so the
+    default is the guess for a new repo rather than a live path. See
+    scripts/sweep-precommit.py.
 
     Ordinary names render as `repo-<name>`. A repository name outside the
     skill grammar receives an owner-qualified, content-addressed fallback so
@@ -148,10 +150,10 @@ def render_skill(
         f"Pointer to `~/projects/{org}/{name}/`.\n"
         "\n"
         "- [`README.md`](../../../README.md) - what it is, quickstart, layout.\n"
-        "- [`AGENTS.md`](../../../AGENTS.md) - agent-facing operating context for the repo.\n"
+        "- [`AGENTS.md`](../../../AGENTS.md) - agent-facing context for the repo.\n"
         "- [`docs/FEATURES.md`](../../../docs/FEATURES.md) - what ships today.\n"
         "\n"
-        f"Read those before answering substantive questions about {name}.\n"
+        f"Read those before answering large questions about {name}.\n"
     )
     return f"---\n{frontmatter}---\n\n{body}"
 

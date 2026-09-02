@@ -32,6 +32,7 @@ case "${TARGETARCH:?TARGETARCH is required}" in
     NODE_ARCH=x64
     TRUFFLEHOG_ARCH=amd64
     TS_ARCH=amd64
+    WASM_BINDGEN_ARCH=x86_64
     WASM_PACK_ARCH=x86_64
     YQ_ARCH=amd64
     ;;
@@ -52,6 +53,7 @@ case "${TARGETARCH:?TARGETARCH is required}" in
     NODE_ARCH=arm64
     TRUFFLEHOG_ARCH=arm64
     TS_ARCH=arm64
+    WASM_BINDGEN_ARCH=aarch64
     WASM_PACK_ARCH=aarch64
     YQ_ARCH=arm64
     ;;
@@ -79,6 +81,7 @@ printf '%s\n' \
   "NODE_ARCH=${NODE_ARCH}" \
   "TRUFFLEHOG_ARCH=${TRUFFLEHOG_ARCH}" \
   "TS_ARCH=${TS_ARCH}" \
+  "WASM_BINDGEN_ARCH=${WASM_BINDGEN_ARCH}" \
   "WASM_PACK_ARCH=${WASM_PACK_ARCH}" \
   "YQ_ARCH=${YQ_ARCH}" \
   > /opt/agentic-os/arch.env

@@ -1,8 +1,5 @@
 # Catalog metadata for the cross-repo knowledge graph.
-#
-# Dev verbs moved to the justfile (inbox#366) and catalog-trifecta stopped
-# requiring this path (inbox#385), so no validator reads this file today.
-# Surviving schema and its real consumers: docs/ward-specs.md.
+# Rationale: docs/build-file-headers.md.
 
 agent:
   image: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os

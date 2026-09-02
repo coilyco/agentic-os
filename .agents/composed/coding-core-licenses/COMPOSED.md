@@ -18,7 +18,7 @@ Anything Kai wants other people to pick up, reuse, fork, and build on. Generic t
 
 ## Tier 2 - AGPL-3.0 (deployment-of-one repos)
 
-A repo that is a deployment of one - software Kai runs as a single-tenant deployment for herself, not a library others embed. AGPL is the right tier because it closes the network-service loophole: anyone who redeploys it, modified or not, as a service must offer the source to its users. That keeps a personal deployment from being silently swallowed into someone else's closed product.
+A repo that is a deploy of one - software Kai runs as a single-tenant deploy for herself, not a library others embed. AGPL is the right tier because it closes the network-service loophole: anyone who redeploys it, modified or not, as a service must offer the source to its users. That keeps a personal deploy from being silently swallowed into someone else's closed product.
 
 - **License:** GNU Affero General Public License v3.0.
 - **SPDX:** `AGPL-3.0-or-later` (use the full SPDX identifier, not a bare `AGPL`).

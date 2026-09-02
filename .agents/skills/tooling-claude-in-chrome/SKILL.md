@@ -25,5 +25,5 @@ If fewer than ~5 clicks, just hand the human a checklist with deep links. Browse
 
 ## Patterns
 
-- [React input and per-row flow](references/react-input-and-flow.md) - native-setter pattern for React-controlled inputs, plus the reliable navigate-search-click-submit-verify loop.
+- [React input and per-row flow](references/react-input-and-flow.md) - native-setter pattern for React-controlled inputs, and the reliable navigate-search-click-submit-verify loop.
 - [wedge recovery and gotchas](references/wedge-recovery-and-gotchas.md) - unwedging a dead session, browser_batch and dialog gotchas, and the anti-signals that mean "use JS, not mouse".

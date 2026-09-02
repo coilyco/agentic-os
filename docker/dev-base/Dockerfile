@@ -9,6 +9,7 @@ ARG DOTNET_VERSION=10.0.302
 ARG TRUNK_VERSION=0.21.14
 ARG NODE_VERSION=22.23.2
 ARG WASM_PACK_VERSION=0.15.0
+ARG WASM_BINDGEN_VERSION=0.2.118
 ARG BINARYEN_VERSION=119
 # Toolchains consumers pin in rust-toolchain.toml, baked so a pinned repo
 # never fetches a channel at build time. See docs/dev-base-image.md.
@@ -76,6 +77,7 @@ RUN set -eux; . /opt/agentic-os/arch.env; \
 FROM ubuntu:24.04 AS dev-base-lang-rust
 ARG TRUNK_VERSION
 ARG WASM_PACK_VERSION
+ARG WASM_BINDGEN_VERSION
 ARG BINARYEN_VERSION
 ARG RUST_PINNED_VERSIONS
 ARG TARGETARCH
@@ -120,6 +122,21 @@ RUN set -eux; . /opt/agentic-os/arch.env; \
       "wasm-pack-v${WASM_PACK_VERSION}-${WASM_PACK_ARCH}-unknown-linux-musl/wasm-pack"; \
     chmod 0755 /usr/local/cargo/bin/wasm-pack; rm /tmp/wasm-pack.tar.gz; \
     wasm-pack --version
+# wasm-pack shells out to the wasm-bindgen CLI and downloads its own copy when
+# PATH has none, the same hole the wasm-opt block below closes. This pin must
+# track the wasm-bindgen CRATE consumers lock, or wasm-pack fetches the
+# matching CLI anyway: docs/dev-base-wasm-toolchain.md carries that rule.
+# Only the binaries wasm-pack invokes are kept; wasm2es6js it never calls.
+RUN set -eux; . /opt/agentic-os/arch.env; \
+    curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
+      "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/wasm-bindgen-${WASM_BINDGEN_VERSION}-${WASM_BINDGEN_ARCH}-unknown-linux-musl.tar.gz" \
+      -o /tmp/wasm-bindgen.tar.gz; \
+    tar -xzf /tmp/wasm-bindgen.tar.gz -C /usr/local/cargo/bin --strip-components=1 \
+      "wasm-bindgen-${WASM_BINDGEN_VERSION}-${WASM_BINDGEN_ARCH}-unknown-linux-musl/wasm-bindgen" \
+      "wasm-bindgen-${WASM_BINDGEN_VERSION}-${WASM_BINDGEN_ARCH}-unknown-linux-musl/wasm-bindgen-test-runner"; \
+    chmod 0755 /usr/local/cargo/bin/wasm-bindgen \
+      /usr/local/cargo/bin/wasm-bindgen-test-runner; \
+    rm /tmp/wasm-bindgen.tar.gz; wasm-bindgen --version
 # binaryen supplies wasm-opt, which wasm-pack runs as its optimization pass.
 # wasm-pack takes wasm-opt from PATH when it finds one and otherwise downloads
 # its own floating "latest" build, so an unpinned image silently reoptimizes

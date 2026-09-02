@@ -346,7 +346,13 @@ func livePathEntries(value string) string {
 	seen := make(map[string]bool)
 	for _, entry := range filepath.SplitList(value) {
 		entry = strings.TrimSpace(entry)
-		if entry == "" || seen[entry] {
+		if entry == "" {
+			continue
+		}
+		// Rewrite before the dedup, so two Cellar versions of one formula
+		// collapse to the single opt path they both stand for.
+		entry = stableBrewEntry(entry)
+		if seen[entry] {
 			continue
 		}
 		if info, err := os.Stat(entry); err != nil || !info.IsDir() {
@@ -356,6 +362,31 @@ func livePathEntries(value string) string {
 		kept = append(kept, entry)
 	}
 	return strings.Join(kept, string(filepath.ListSeparator))
+}
+
+// stableBrewEntry trades a versioned Cellar path for the opt symlink Homebrew
+// repoints on upgrade, since this one is baked. See docs/aterm-bundles.md.
+func stableBrewEntry(entry string) string {
+	const cellar = "/Cellar/"
+	index := strings.Index(entry, cellar)
+	if index < 0 {
+		return entry
+	}
+	// <prefix>/Cellar/<formula>/<version>[/<tail>] becomes <prefix>/opt/<formula>[/<tail>].
+	parts := strings.SplitN(entry[index+len(cellar):], string(filepath.Separator), 3)
+	if len(parts) < 2 || parts[0] == "" {
+		return entry
+	}
+	stable := filepath.Join(entry[:index], "opt", parts[0])
+	if len(parts) == 3 {
+		stable = filepath.Join(stable, parts[2])
+	}
+	// An unlinked formula is reachable only through the Cellar, so a missing
+	// opt path means the version pin is the only way there.
+	if info, err := os.Stat(stable); err != nil || !info.IsDir() {
+		return entry
+	}
+	return stable
 }
 
 func resolveIcon(value string) (string, error) {

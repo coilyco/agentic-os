@@ -53,7 +53,7 @@ That links the wrapper and sets `gpg.program` to it in one step, on every OS. Ve
 
 One shared core (`shell/common.sh`) owns shell setup. Zsh (`shell/zshrc`) and Bash (`shell/bashrc`) source it, then add their prompt and completion. The rendered Windows PowerShell profile reads its marked blocks and derives Windows paths natively, without launching Bash: `shared-environment` carries exports and stays declarative, and `shared-environment-clear` carries bare `unset NAME` lines, so a name Unix clears is cleared on Windows too (agentic-os#849). Setup boots cleanly on Mac, Linux (kai-server), and Windows. It carries identity, history, AWS defaults, `WARD_LOCKDOWN_ROOT`, git helpers, aliases, an `rg` wrapper, and on-demand SSM reads.
 
-The core's env + PATH block runs once per terminal tree, gated by an exported `_SIREN_SHELL_ENV` guard: a nested shell inherits the env and skips re-running brew/pyenv/PATH, while still defining aliases and functions (per-shell, never inherited). Env + PATH load for non-interactive shells too (scripts, ssh exec, the Claude Code Bash tool). Prompt and completion are interactive-only. The core exports `PROJECTS_ROOT`, honoring a set value, then `~/projects`, then deriving the workspace umbrella from the AOS checkout. Fresh shells at `$HOME` or an AOS session root auto-cd to `$WARP_STARTUP_DIR` or `$PROJECTS_ROOT`; nested and checkout shells stay put. This also drives Warp's new-tab directory. Host-specific lines live in untracked `~/.shellrc.local` (shared) or `~/.{bash,zsh}rc.local` (per shell).
+The core's env + PATH block runs once per terminal tree, gated by an exported `_SIREN_SHELL_ENV` guard: a nested shell inherits the env and skips re-running brew/pyenv/PATH, while still defining aliases and functions (per-shell, never inherited). Env + PATH load for non-interactive shells too (scripts, ssh exec, the Claude Code Bash tool). Prompt and completion are interactive-only. The core exports `PROJECTS_ROOT`, honoring a set value, then `~/projects`, then deriving the workspace umbrella from the AOS checkout. Fresh shells at `$HOME` or an AOS session root auto-cd to `$AOS_STARTUP_DIR` or `$PROJECTS_ROOT`; nested and checkout shells stay put. Host-specific lines live in untracked `~/.shellrc.local` (shared) or `~/.{bash,zsh}rc.local` (per shell).
 
 ## Agent-CLI compose preflight
 
@@ -96,11 +96,6 @@ built or packaged for Windows (agentic-os#1264). Alacritty keeps the Windows
 terminal baseline for everything else: infrastructure renders Git Bash as
 Alacritty's direct shell and keeps the terminal free of an intermediate
 multiplexer.
-
-Transitional Warp config still renders into `~/.warp-preview/` on Mac or
-`~/.warp/` on Windows. Repo state disables cloud sync and owns its theme,
-native tabs, agent toggles, and redaction rules for network identifiers,
-credentials, tokens, keys, JWTs, and phone numbers.
 
 ## GPG signing without disk-cached passphrases
 

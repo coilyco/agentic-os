@@ -48,6 +48,12 @@ still govern placement
 and flatness, and no longer reach either cap. docs/FEATURES.md is not special.
 CLAUDE.md is expected to be a one-line `@AGENTS.md` pointer.
 
+Placement and size ship as two hooks, `documentation-placement` and
+`documentation-size`, so a repo whose Markdown is site content rather than
+documentation drops the caps and keeps the placement rules (#1111). Both read
+their tunables from the one `documentation-layout` config section, and
+`enabled = false` there still disables both.
+
 SKILL.md and COMPOSED.md take no size cap from here. check-skills owns them
 through categories.yaml, and a skill overflows into its own references/ rather
 than into docs/.
@@ -104,6 +110,8 @@ from agentic_os.pre_commit.tree import should_skip
 
 REPO_ROOT = Path.cwd()
 HOOK_ID = "documentation-layout"
+PLACEMENT_HOOK_ID = "documentation-placement"
+SIZE_HOOK_ID = "documentation-size"
 # Per-repo size bands: lines, chars, and docs count. Rationale and the
 # measured chars-per-line behind the pairs: docs/documentation-bands.md.
 BAND_CAPS = {
@@ -584,26 +592,44 @@ def check_markdown_sizes() -> list[str]:
     return violations
 
 
-def main() -> int:
-    if not is_enabled(HOOK_ID):
-        print(f"{HOOK_ID}: disabled by repo config")
-        return 0
-    violations = (
-        check_band_declaration()
-        + check_docs_count()
-        + check_docs_flatness()
-        + check_markdown_locations()
-        + check_markdown_sizes()
-        + check_skill_flatness()
-    )
+def _enabled(hook_id: str) -> bool:
+    """The combined id still disables both halves.
+
+    It stays the config namespace for band and every cap, so splitting the
+    entry points churns no consumer pyproject (#1111).
+    """
+    return is_enabled(HOOK_ID) and is_enabled(hook_id)
+
+
+def _report(hook_id: str, violations: list[str]) -> int:
     if not violations:
-        print("documentation-layout check: OK")
+        print(f"{hook_id} check: OK")
         return 0
     for violation in violations:
         sys.stderr.write(f"FAIL: {violation}\n")
-    sys.stderr.write(f"\n{len(violations)} documentation layout violation(s).\n")
+    sys.stderr.write(f"\n{len(violations)} {hook_id} violation(s).\n")
     return 1
 
 
+def main_placement() -> int:
+    if not _enabled(PLACEMENT_HOOK_ID):
+        print(f"{PLACEMENT_HOOK_ID}: disabled by repo config")
+        return 0
+    return _report(
+        PLACEMENT_HOOK_ID,
+        check_docs_flatness() + check_markdown_locations() + check_skill_flatness(),
+    )
+
+
+def main_size() -> int:
+    if not _enabled(SIZE_HOOK_ID):
+        print(f"{SIZE_HOOK_ID}: disabled by repo config")
+        return 0
+    return _report(
+        SIZE_HOOK_ID,
+        check_band_declaration() + check_docs_count() + check_markdown_sizes(),
+    )
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(max(main_placement(), main_size()))

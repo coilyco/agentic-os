@@ -8,7 +8,7 @@ description: Use when science verifies a stateful lifecycle, protocol, or workfl
 Use this skill when behavior depends on execution history or current state and
 isolated input-output examples cannot demonstrate the important paths.
 
-## Activation boundary
+## Activation wall
 
 Science activates this workflow for status lifecycles, approvals, authentication,
 multi-step flows, retries, async jobs, protocols, and stateful APIs. Pure
@@ -24,7 +24,7 @@ functions and independent input combinations stay in ordinary test design.
 4. Science defines the expected response for every invalid state-event pair.
 5. Science states invariants that must hold after every transition.
 
-The model describes the contract, not the implementation's internal branches.
+The model describes the rule, not the implementation's internal branches.
 Science keeps states coarse enough to explain behavior and splits a state only when
 its allowed events or invariants differ.
 
@@ -37,7 +37,7 @@ Science checks:
 * Terminal states cannot escape through duplicate, late, or reordered events.
 * Every valid transition and important transition pair has coverage.
 * Every invalid state-event pair fails without a partial side effect.
-* Retries and duplicate events preserve idempotency where the contract promises
+* Retries and duplicate events preserve idempotency where the rule promises
   it.
 * Guards hold at boundary values and under competing or concurrent events.
 * Invariants hold after success, rejection, timeout, cancellation, and recovery.
@@ -52,17 +52,17 @@ system under test with that prediction. She does not derive the oracle from the
 same implementation branch being tested.
 
 When automated generation is worthwhile, science turns events into rules, guards
-into preconditions, and contract properties into invariants. The model receives
+into preconditions, and rule properties into invariants. The model receives
 review before a generator expands it into paths.
 
-## Output contract
+## Output rule
 
 Science delivers the state graph or transition list, invariants, invalid-event
-policy, covered and uncovered paths, and minimal failing sequences. Ambiguous
+rules, covered and uncovered paths, and minimal failing sequences. Ambiguous
 transitions are specification gaps, not silent assumptions.
 
 This workflow contributes evidence to `tooling-eval-adversarial-verification`.
-It does not replace that skill's release verdict or observable-state boundary.
+It does not replace that skill's release verdict or observable-state wall.
 
 ## Method provenance
 
@@ -75,4 +75,4 @@ The method remains tool-independent.
 Compare a cold model and composed science on an order lifecycle whose happy path
 passes but whose refund, retry, and cancellation events interact. The composed
 Science should expose missing and invalid transitions, find a minimal failing event
-sequence, and distinguish a contract gap from an implementation defect.
+sequence, and distinguish a rule gap from an implementation defect.

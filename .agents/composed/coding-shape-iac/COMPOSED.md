@@ -5,7 +5,7 @@ description: Category umbrella for infrastructure-as-code. The Ansible / Terrafo
 
 # coding-shape-iac
 
-Umbrella for any infrastructure-as-code work. Cross-cuts every provisioning and configuration tool. The job of this skill is to route to the right tool by the shape of the work, not to relitigate the choice each time.
+Umbrella for any infrastructure-as-code work. Cross-cuts every provisioning and configuration tool. The job of this skill is to route to the right tool by the form of the work, not to relitigate the choice each time.
 
 ## The trifecta: full coverage in three legs
 
@@ -17,13 +17,13 @@ Ansible, Terraform, and Kubernetes together cover Kai's whole infrastructure sur
 
 Pick by substrate: API resource -> Terraform, host or service state -> Ansible, containerized workload -> Kubernetes. Most real systems use all three, each on the leg it fits.
 
-## Cross-cutting principles
+## Cross-cutting rules
 
 - **State and secrets stay out of the tree.** Terraform state in S3 + DynamoDB lock, secrets in SSM / native param stores, never literal credentials in a `.tf` / playbook / manifest. Per the configs-in-SSM rule.
 - **Plan before apply.** `terraform plan`, `--check` / `--diff` in Ansible, `kubectl diff` / server-side dry-run. Review the diff before mutating anything. Double-confirm destroys.
 - **One concern per stack / play / manifest set.** Network, app, observability stay separable. No mega-modules.
 - **Pin versions.** Provider constraints, collection versions, image tags and chart versions. No floating.
-- **Idempotence is the contract.** Re-running converges to the same state. A tool invocation that is not safe to repeat is a bug.
+- **Idempotence is the rule.** Re-running converges to the same state. A tool invocation that is not safe to repeat is a bug.
 
 ## Triggers
 

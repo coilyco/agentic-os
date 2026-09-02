@@ -8,7 +8,7 @@ description: Use when director turns explored options into a consequential decis
 Use this skill when director must convert explored options into a commitment
 that another role can execute without reconstructing the debate.
 
-## Activation boundary
+## Activation wall
 
 TPM activates this workflow after the problem and credible options exist.
 For open-ended exploration, director uses `tooling-tpm-product-brainstorming`
@@ -37,10 +37,10 @@ date, threshold, failed assumption, or new evidence class.
 TPM does not reopen a decision because discomfort remains. TPM
 reopens it when the recorded trigger fires or the decision frame proves false.
 
-## Handoff contract
+## Handoff rule
 
 The handoff names the acting role, bounded outcome, constraints, authority
-boundary, success evidence, and next checkpoint. TPM separates direction
+wall, success evidence, and next checkpoint. TPM separates direction
 from implementation so the handoff does not micromanage the owner.
 
 This skill grants no merge, tracker, spending, publishing, or operational

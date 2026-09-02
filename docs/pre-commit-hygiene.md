@@ -53,7 +53,7 @@ spelling, such as SSM parameters, pass with no allowlist. Liveness is
 `check-link-liveness`, a report-only CLI rather than a hook, and its scheduled
 job is not built yet. Page-shape validation is deferred until the format has
 more than one instance: its only draft is
-[coilysiren/inbox#417](https://forgejo.coilysiren.me/coilysiren/inbox/issues/417).
+[coilysiren/inbox#417](https://forgejo.coilysiren.me/coilyco-bridge/inbox/issues/417).
 
 ## Manual opt-ins
 

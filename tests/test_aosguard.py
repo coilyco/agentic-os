@@ -1,4 +1,4 @@
-"""Static contract for the independent aosguard specgen project."""
+"""Static contract for the independent aosguard umbra project."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PROJECT = ROOT / ".specgen" / "guardfiles"
+PROJECT = ROOT / ".umbra" / "guardfiles"
 SOURCE = PROJECT / "aosguard"
 
 
@@ -23,7 +23,7 @@ def aosguard_binary(tmp_path_factory: pytest.TempPathFactory) -> Path:
     binary = tmp_path_factory.mktemp("aosguard") / f"aosguard{suffix}"
     subprocess.run(
         [
-            "specgen",
+            "umbra",
             "--project-root",
             str(PROJECT),
             "build",
@@ -115,12 +115,8 @@ def test_aosguard_actions_use_packaged_python_modules() -> None:
     text = (SOURCE / "actions.kdl").read_text(encoding="utf-8")
 
     assert "exec python3" in text
-    assert ".specgen/guardfiles/aosguard/scripts/" not in text
-    for module in (
-        "forgejo_actions_list",
-        "forgejo_actions_logs",
-        "forgejo_actions_rerun",
-    ):
+    assert ".umbra/guardfiles/aosguard/scripts/" not in text
+    for module in ("forgejo_actions_logs",):
         assert f'"agentic_os.{module}"' in text
         assert (ROOT / "agentic_os" / f"{module}.py").is_file()
 
@@ -186,16 +182,11 @@ def test_native_release_wrapper_embeds_the_actions_bridge() -> None:
     assert "//go:embed payload/aosguard payload/agentic_os/*" in text
     assert "PYTHONPATH=" in text
     build = (ROOT / "scripts" / "aos-release-build.sh").read_text(encoding="utf-8")
-    generate = build.index('"$specgen" --project-root "$project" gen')
+    generate = build.index('"$umbra" --project-root "$project" gen')
     decode = build.index("find \"$project\" -type f -name '*.lock.json.gz'")
     compile_binary = build.index('go build -trimpath -ldflags "-s -w -X main.Version=')
     assert generate < decode < compile_binary
-    for module in (
-        "forgejo_actions_list.py",
-        "forgejo_actions_logs.py",
-        "forgejo_actions_rerun.py",
-        "forgejo_actions_web.py",
-    ):
+    for module in ("forgejo_actions_logs.py",):
         assert f'"$repo_root/agentic_os/{module}"' in build
     assert '"$repo_root/agentic_os/forgejo_storage_measure.py"' not in build
 
@@ -387,7 +378,7 @@ def test_aws_put_parameter_creates_and_overwrites_without_value_disclosure(
         "--value",
         value_uri,
         "--type",
-        "String",
+        "SecureString",
     )
     overwritten = _run_aosguard_aws(
         aosguard_binary,
@@ -412,19 +403,25 @@ def test_aws_put_parameter_creates_and_overwrites_without_value_disclosure(
 @pytest.mark.parametrize(
     "args",
     [
-        ("put-parameter", "--value", "file:///tmp/value", "--type", "String"),
         (
             "put-parameter",
             "--name",
             "/fixture/example",
             "--value",
-            "inline-value",
+            "file:///tmp/value",
             "--type",
             "String",
         ),
+        (
+            "put-parameter",
+            "--name",
+            "/fixture/example",
+            "--value",
+            "file:///tmp/value",
+        ),
     ],
 )
-def test_aws_put_parameter_requires_a_name_and_file_value_source(
+def test_aws_put_parameter_requires_securestring(
     aosguard_binary: Path,
     tmp_path: Path,
     args: tuple[str, ...],
@@ -434,7 +431,9 @@ def test_aws_put_parameter_requires_a_name_and_file_value_source(
     assert proc.returncode != 0
     assert "denied:" in proc.stderr
     assert "fail-closed" in proc.stderr
-    assert "inline-value" not in proc.stderr
+    # Name the rule, because both cases were denied by the name and file-source
+    # rules until those left the guardfile, and stayed green on this one.
+    assert "type" in proc.stderr
     assert not (tmp_path / "aws-argv").exists()
 
 

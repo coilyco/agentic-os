@@ -9,7 +9,7 @@ draft succeeds, it calls `release.yml` to publish the next root minor release.
 Manual dispatch overrides the path filter and can resume the image graph.
 `release.yml` is also a no-cancel retry and override queue. It never gates the
 branch. `main` stays yolo-able, while `release` is last-known-good. Forgejo owns releases per
-[forgejo-ops.md](forgejo-ops.md).
+[forgejo-ops.md](../.agents/skills/tooling-aosguard/references/forgejo-ops.md).
 
 Promotion only gates and advances the branch. Non-artifact merges produce no
 package tag or draft image.
@@ -67,7 +67,7 @@ package tag is present.
 `v*`, and `aos-precommit-v*` tags onto the read-only GitHub mirror
 (`coilysiren/agentic-os`) where downstream refs resolve. It is
 fast-forward-only, never `--force`, and no-ops without the PAT. See
-[forgejo-ops.md](forgejo-ops.md) for the mirror-side detail.
+[forgejo-ops.md](../.agents/skills/tooling-aosguard/references/forgejo-ops.md) for the mirror-side detail.
 
 ## Skip markers
 

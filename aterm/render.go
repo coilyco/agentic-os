@@ -31,6 +31,7 @@ func renderPlan(writer io.Writer, document overlayDocument, plan launchPlan) err
 		{"shadow", shadowLine(plan.Shadowed)},
 		{"personality", personalityLine(document)},
 		{"brand", brandLine(plan.Brand)},
+		{"creature", creatureLine(plan.Creature)},
 		{"title", plan.Brand.Title},
 		{"child", strings.Join(plan.Child, " ")},
 	}
@@ -83,6 +84,15 @@ func personalityLine(document overlayDocument) string {
 		parts = append(parts, label)
 	}
 	return strings.Join(parts, "  ")
+}
+
+// creatureLine says where the plate is, since deciding whether the background
+// looks right means opening the file the window will draw.
+func creatureLine(plate creaturePlate) string {
+	if plate.Path == "" {
+		return "none, the window background stays flat"
+	}
+	return fmt.Sprintf("%s   %s tint", plate.Path, plate.Tint)
 }
 
 func brandLine(brand launchBrand) string {

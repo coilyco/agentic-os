@@ -18,7 +18,7 @@ harness, independently verifies the returned immutable bundle, projects that
 exact bundle into an empty private home, removes `.agent-compose/` bookkeeping,
 and validates that only the selected instruction and skill roots remain.
 
-Under `--guarded` it adds specgen's generated `aosguard` skill to the selected
+Under `--guarded` it adds umbra's generated `aosguard` skill to the selected
 skill root and copies the binary under `bin/`. Guarded-only mode writes a small
 instruction naming the attached tool and stating that the shared role slug
 grants no authority.
@@ -51,7 +51,7 @@ and role-independent.
 
 AOS owns translation, staged-home validation, guarded assembly, and caching.
 Agent-compose owns role context and stays usable through `agent-compose` and
-`acompose`. umbra and specgen own generic guarded-tool generation, and Ward owns
+`acompose`. umbra owns generic guarded-tool generation, and Ward owns
 runtime policy, Compose, credentials, teardown, and warded-mode authority.
 
 ## AOS standalone connectivity

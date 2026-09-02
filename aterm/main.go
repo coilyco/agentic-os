@@ -82,7 +82,7 @@ func main() {
 			os.Exit(exitUsage)
 		}
 		options.Motion = options.Motion && cardMotionWanted(os.Stdout, false)
-		options.Audible = options.Audible && soundWanted(os.Stdout, false)
+		options.Audible = soundWanted(os.Stdout, options.Audible)
 		os.Exit(runSession(options, os.Stdin, os.Stdout, os.Stderr))
 	}
 	if err := newCommand(systemDeps()).Run(context.Background(), os.Args); err != nil {
@@ -92,6 +92,11 @@ func main() {
 }
 
 func defaultWorkingDirectory() string {
+	// Inside a shadow both of the below resolve under the session home, where
+	// nothing is checked out. agentic-os#1460
+	if launch := readCanonicalLaunch(); launch.inShadow() && launch.complete() {
+		return launch.Projects
+	}
 	if projectsRoot := strings.TrimSpace(os.Getenv(defaultWorkingEnvVar)); projectsRoot != "" {
 		return projectsRoot
 	}
@@ -146,8 +151,12 @@ func newCommand(deps commandDeps) *cli.Command {
 				Usage: "skip the identity card animation, for a recording or a log",
 			},
 			&cli.BoolFlag{
-				Name:  "silent",
-				Usage: "skip the launch sound mark",
+				Name:  "sound",
+				Usage: "play the role's sound mark at launch, which is otherwise silent",
+			},
+			&cli.BoolFlag{
+				Name:  "no-creature",
+				Usage: "leave the window background flat, without the role's creature behind the session",
 			},
 			&cli.BoolFlag{
 				Name:  "json",
@@ -186,7 +195,9 @@ func newCommand(deps commandDeps) *cli.Command {
 					return runDoctor(ctx, deps, cmd)
 				},
 			},
+			newCardCommand(),
 			newBundlesCommand(deps),
+			newPaneCommand(deps),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return runLaunch(ctx, deps, cmd)
@@ -212,6 +223,13 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 			return writeRosterJSON(stdout, roster)
 		}
 		return writeRoster(stdout, roster)
+	}
+	// Ahead of the working directory, which fails on the same root cause and
+	// reports it as a symptom. --dry-run opens no window. See docs/aterm.md.
+	if !cmd.Bool("dry-run") {
+		if err := refuseNestedLaunch(); err != nil {
+			return err
+		}
 	}
 	cwd, err := validateWorkingDirectory(cmd.String("working-directory"))
 	if err != nil {
@@ -239,9 +257,12 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 		TerminalBin:      cmd.String("terminal-bin"),
 		Workspace:        workspaceLabel(ctx, deps, cwd, cmd.IsSet("working-directory")),
 		NoMotion:         cmd.Bool("no-motion"),
-		Silent:           cmd.Bool("silent"),
+		Sound:            cmd.Bool("sound"),
 		Extra:            extra,
 		Hold:             cmd.Bool("hold"),
+	}
+	if creatureWanted(cmd.Bool("no-creature")) {
+		request.Creature = bakeCreaturePlate(role, creaturePresence, creatureWholeWindow)
 	}
 	aos, err := requireBinary(deps.lookPath, request.AOSBin)
 	if err != nil {

@@ -3,7 +3,8 @@
 
 Holds the fleet-wide, public-safe Claude Code settings keys that every host
 gets regardless of whether the private bridge overlay is present. Auto-memory
-is off because point-in-time memory drifts. Claude in Chrome is denied because
+is off because point-in-time memory drifts. The TUI is fullscreen because that
+is the fleet default, with CLAUDE_CODE_NO_FLICKER=0 as the per-host opt-out. Claude in Chrome is denied because
 browser computer-use should be an explicit session opt-in. The permission deny
 list keeps live-infrastructure CLIs and the memory directory out of an agent's
 raw shell.
@@ -35,6 +36,9 @@ SETTINGS_PATH = HOME / ".claude" / "settings.json"
 # guardrail. Reasoning in docs/native-claude-credentials.md.
 BASE_SETTINGS: dict = {
     "autoMemoryEnabled": False,
+    # The env var CLAUDE_CODE_NO_FLICKER outranks this key, so a host whose
+    # terminal cannot take the alternate screen opts out in ~/.shellrc.local.
+    "tui": "fullscreen",
 }
 BASE_DENIED_MCP_SERVERS = [{"serverName": "claude-in-chrome"}]
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runner egress goes through FORGEJO_EGRESS_PROXY; the nested DinD path has no
 # direct route out. Forgejo itself must stay off the proxy or the checkout
-# deadlocks against its own ingress. See docs/forgejo-actions-runs.md.
+# deadlocks against its own ingress. See the tooling-aosguard skill.
 set -euo pipefail
 
 if [ "$#" -eq 0 ]; then

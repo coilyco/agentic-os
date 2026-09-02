@@ -53,7 +53,7 @@ def test_language_targets_are_payload_only_and_share_architecture_mapping() -> N
         "ward-shell-entrypoint.sh",
         "AGENT_COMPOSE_VERSION",
         "WARD_VERSION",
-        "SPECGEN_VERSION",
+        "UMBRA_VERSION",
         "AOS_VERSION",
     ):
         assert forbidden not in text
@@ -69,7 +69,7 @@ def test_full_image_owns_the_common_and_internal_tool_surface() -> None:
     assert "COPY --from=aosguard-spec" in text
     assert "COPY --from=aosguard-python" in text
     assert "--skills-out /opt/agentic-os/aosguard-skill" in text
-    for name in ("AGENT_COMPOSE_VERSION", "WARD_VERSION", "SPECGEN_VERSION", "AOS_VERSION"):
+    for name in ("AGENT_COMPOSE_VERSION", "WARD_VERSION", "UMBRA_VERSION", "AOS_VERSION"):
         assert f"ARG {name}=" in text
 
 
@@ -101,11 +101,12 @@ def test_common_verification_covers_the_composed_runtime_surface() -> None:
         "agent-compose version",
         "agent-compose roster",
         "person.json",
-        "python3 -m agentic_os.forgejo_actions_list --help",
-        "ward --version",
-        "WARD_DOCTOR_ALLOW_PLACEHOLDERS=1 ward doctor",
     ):
         assert command in text
+    # Ward is frozen as a contract (#1299): the image still installs it, and
+    # verifying an unmaintained binary made its install a build-breaker.
+    for gone in ("ward --version", "ward doctor"):
+        assert gone not in text
     # aos#771: the isolated-import proof is the only thing standing between a
     # pinned hook rev and the image copy, so it may not quietly disappear.
     assert 'printf \'SENTINEL = "isolated"\\n\'' in text

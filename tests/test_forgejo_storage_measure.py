@@ -13,7 +13,7 @@ import pytest
 def _load_measurement_module():
     source = (
         Path(__file__).resolve().parents[1]
-        / ".specgen"
+        / ".umbra"
         / "guardfiles"
         / "aosguard"
         / "forgejo_storage_measure.py"

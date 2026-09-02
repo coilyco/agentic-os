@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE = ROOT / ".specgen" / "guardfiles" / "aosguard" / "netlify_domain_alias.py"
+MODULE = ROOT / ".umbra" / "guardfiles" / "aosguard" / "netlify_domain_alias.py"
 
 
 def _load():

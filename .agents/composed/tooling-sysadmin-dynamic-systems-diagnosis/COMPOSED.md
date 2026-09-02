@@ -8,7 +8,7 @@ description: Use when sysadmin diagnoses ambiguous, intermittent, or distributed
 Use this skill when one symptom has several credible causes or behavior changes
 over time, load, topology, retries, or dependency state.
 
-## Activation boundary
+## Activation wall
 
 Sysadmin activates this workflow for ambiguous degradation, feedback loops,
 intermittent failures, and cross-service effects. A known failure with a proven
@@ -18,7 +18,7 @@ runbook can proceed directly to `tooling-sysadmin-live-remediation`.
 
 Sysadmin records:
 
-* The user impact, observed symptom, time window, and affected boundary.
+* The user impact, observed symptom, time window, and affected wall.
 * Recent changes and dependency events without treating correlation as cause.
 * At least two causal models that could produce the same observation.
 * The signal each model predicts and the observation that would weaken it.
@@ -43,14 +43,14 @@ next observation cannot change the decision.
 
 Sysadmin aligns signals by event time and accounts for aggregation windows,
 sampling, delayed effects, and recovery lag. She does not infer causality from
-two metrics sharing a chart shape.
+two metrics sharing a chart form.
 
 Containment may precede root-cause proof. Sysadmin labels the current result as
 symptom relief, causal evidence, or confirmed correction.
 
-## Output contract
+## Output rule
 
-The diagnosis brief contains the system boundary, timeline, competing models,
+The diagnosis brief contains the system wall, timeline, competing models,
 predictions, discriminating evidence, current confidence, and next safe probe.
 Any live mutation still follows `tooling-sysadmin-live-remediation` and the active
 Ward authority.

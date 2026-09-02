@@ -4,10 +4,9 @@ _siren_zshrc_source="$(readlink "${(%):-%N}" 2>/dev/null || printf '%s' "${(%):-
 _siren_aos_root="$(cd "$(dirname "$_siren_zshrc_source")/.." && pwd -P)"
 export AOS_REPO_ROOT="$_siren_aos_root"
 source "$_siren_aos_root/shell/common.sh"
-# compinit before warp.zsh and aterm: both register a completion via compdef.
+# compinit before aterm: it registers a completion via compdef.
 autoload -Uz compinit && compinit
 _siren_aterm_completion zsh
-source "$_siren_aos_root/shell/warp.zsh"
 command -v direnv >/dev/null && eval "$(direnv hook zsh)"
 
 # Machine-local overrides (host-specific PATH, aliases, functions). Public-safe: the line is generic; the content lives outside this repo.

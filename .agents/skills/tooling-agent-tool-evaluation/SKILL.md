@@ -15,14 +15,14 @@ definitions so grading does not teach the agent which calls to make.
 ## Prepare
 
 1. Snapshot each candidate tool exactly as the harness exposes it. Preserve its
-   name, description, input schema, required fields, and result contract.
+   name, description, input schema, required fields, and result rule.
 2. Write representative tasks in a separate artifact. Cover a routine success,
    an invalid or boundary input, and a result that could become oversized.
    Record the expected outcome and correctness rule without naming tool calls.
 3. Include a baseline or prior definition when its result could change whether
    the tool is adopted or revised. State why comparison is unnecessary when no
    decision could change.
-4. Hold the agent, model, instructions, access, data, retry policy, and run
+4. Hold the agent, model, instructions, access, data, retry rules, and run
    count constant across definitions. Start a fresh session for each run when
    the harness permits it.
 

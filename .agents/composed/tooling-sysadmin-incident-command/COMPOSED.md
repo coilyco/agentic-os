@@ -8,7 +8,7 @@ description: Use when sysadmin coordinates a multi-party production incident. Se
 Use this skill when service impact or response complexity requires several
 people or workstreams to act as one incident organization.
 
-## Activation boundary
+## Activation wall
 
 Sysadmin activates incident command when impact is severe, expanding, uncertain, or
 too broad for one operator. A bounded investigation with one owner stays in

@@ -17,7 +17,7 @@ web server, http server, rest api, graphql, fastapi, flask, django, sanic, starl
 - **Go** → stdlib `net/http` for simple, `chi` for routing-heavy. Skip gin/echo/fiber unless project commits to them.
 - **TypeScript** → Fastify > Express. Node-side servers should default to async/await throughout.
 
-## Design principles
+## Design rules
 
 - **OpenAPI from day one.** `/openapi.json` exists, accurate, kept in sync with handlers. Cross-link to the JSON-twin discoverability rule in `kai-tech-prefs`.
 - **Async I/O when there's I/O.** Sync handlers only when there's nothing to overlap.

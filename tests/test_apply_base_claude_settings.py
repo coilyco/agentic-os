@@ -23,6 +23,7 @@ def test_base_settings_disable_memory_and_chrome_without_losing_local_denies() -
     changed = MODULE.merge_base_settings(settings)
 
     assert settings["autoMemoryEnabled"] is False
+    assert settings["tui"] == "fullscreen"
     assert settings["theme"] == "dark"
     assert settings["deniedMcpServers"] == [
         {"serverName": "local-browser"},
@@ -30,6 +31,7 @@ def test_base_settings_disable_memory_and_chrome_without_losing_local_denies() -
     ]
     assert set(changed) == {
         "autoMemoryEnabled",
+        "tui",
         "deniedMcpServers",
         "permissions.deny",
     }

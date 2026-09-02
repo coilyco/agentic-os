@@ -1,0 +1,35 @@
+// aosguard ops netlify - the Netlify site surface as an allowlist.
+// Rationale: tooling-aosguard references/guardfile-headers.md.
+
+wrap aosguard ops netlify {
+    provider ssm {
+        exec aws ssm get-parameter --with-decryption --output text --query "Parameter.Value" --name
+    }
+
+    exec python3 {
+        env NETLIFY_AUTH_TOKEN {
+            value ssm "/coilysiren/netlify/token"
+        }
+    }
+
+    // The API keys sites on the full name or an opaque uuid. The name is the
+    // one of the two that stays readable in a tracked file.
+    only pass when site is coilysiren-dot-me.netlify.app {
+        describe "the Netlify site this call acts on; required, and the only site on this estate"
+    }
+
+    // `embed` lands last in argv, so the action cannot be pinned ahead of the
+    // script path. It arrives as the caller's arg0 and each leaf guards its own.
+    can run site {
+        argv "-I"
+        embed "netlify_domain_alias.py"
+        when arg0 matches show
+        describe "pass `show --site <name>` to read the custom domain and every alias"
+    }
+    can run alias {
+        argv "-I"
+        embed "netlify_domain_alias.py"
+        when arg0 matches add
+        describe "pass `add --site <name> --alias <domain>` and/or `--remove <domain>`; preserves the aliases you did not name, and a rename belongs in one call because each write re-issues the certificate covering the primary domain"
+    }
+}

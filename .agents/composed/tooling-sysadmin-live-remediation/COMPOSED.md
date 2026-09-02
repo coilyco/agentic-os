@@ -29,7 +29,7 @@ evidence, not automatic proof of causality.
 Sysadmin prefers the smallest reversible change that can discriminate between
 credible causes. She avoids simultaneous mutations that destroy attribution.
 
-## Hold the verification boundary
+## Hold the verification wall
 
 Sysadmin declares recovery only when the user-facing or system-level signal is
 observable and healthy. A successful command or rollout start is not recovery.

@@ -143,3 +143,57 @@ func TestRepositoriesCommandEmitsCompiledResidency(t *testing.T) {
 		t.Fatalf("lines output = %q", got)
 	}
 }
+
+// Literal YAML in the PRODUCER's shape: marshalling this package's own struct
+// would prove only that it round-trips itself, and the struct was wrong (#1445).
+func TestLoadAOSRepositoryPlanAcceptsBindingSkills(t *testing.T) {
+	root := t.TempDir()
+	plan := "format: " + agentComposeRepositoryPlanYAMLFormat + "\n" +
+		"projects_root: " + root + "\n" +
+		"inputs:\n" +
+		"  - identity: owner/policy\n" +
+		"    revision: 0123456789abcdef\n" +
+		"    policy:\n" +
+		"      path: .agents/roles.kdl\n" +
+		"      sha256: sha256:test\n" +
+		"roles:\n" +
+		"  advocate:\n" +
+		"    - identity: owner/lore\n" +
+		"      path: " + filepath.Join(root, "owner", "lore") + "\n" +
+		"      source: owner/policy\n" +
+		"      scope: provider\n" +
+		"      reason: role \"advocate\" uses skill-provider repository \"lore\"\n" +
+		"      required: true\n" +
+		"      skills:\n" +
+		"        - '*'\n" +
+		"      binding_skills:\n" +
+		"        - lore-method-*\n" +
+		"        - lore-self-compensation\n" +
+		"      name: lore\n" +
+		"      declared_by: owner/policy\n" +
+		"residency:\n" +
+		"  - identity: owner/lore\n" +
+		"    path: " + filepath.Join(root, "owner", "lore") + "\n" +
+		"    source: owner/policy\n" +
+		"    scope: provider\n" +
+		"    reason: role \"advocate\" uses skill-provider repository \"lore\"\n"
+	path := filepath.Join(t.TempDir(), "repository-plan.yaml")
+	if err := os.WriteFile(path, []byte(plan), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := loadAOSRepositoryPlan(path)
+	if err != nil {
+		t.Fatalf("binding_skills rejected: %v", err)
+	}
+	selection := loaded.Roles["advocate"][0]
+	// Dropped rather than carried would still pass the load above.
+	if len(selection.BindingSkills) != 2 || selection.BindingSkills[0] != "lore-method-*" {
+		t.Errorf("BindingSkills = %v, want both entries in order", selection.BindingSkills)
+	}
+	if len(selection.Skills) != 1 || selection.Skills[0] != "*" {
+		t.Errorf("Skills = %v, want the wildcard beside it", selection.Skills)
+	}
+	if selection.Name != "lore" || !selection.Required {
+		t.Errorf("selection = %+v, want the provider fields preserved", selection)
+	}
+}

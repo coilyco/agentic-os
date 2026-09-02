@@ -569,3 +569,32 @@ def test_references_outside_a_skill_tree_are_not_exempt() -> None:
     assert not is_skill_reference(Path("docs/references/a.md"))
     # The directory, never a file that merely happens to be named references.md.
     assert not is_skill_reference(Path(".agents/skills/s/references.md"))
+
+
+def test_size_switches_off_without_taking_placement_with_it(
+    tmp_path: Path, monkeypatch
+) -> None:
+    # A site repo drops the caps its blog posts cannot meet and keeps the
+    # placement rules it still wants (#1111).
+    _point_repo_root_at(tmp_path, monkeypatch)
+    write(tmp_path / "src/pages/posts/blog.md", "# post\n" + "line\n" * 200)
+    write(
+        tmp_path / "pyproject.toml",
+        '[tool.agentic-os.documentation-layout]\nband = "small"\n'
+        "\n[tool.agentic-os.documentation-size]\nenabled = false\n",
+    )
+    assert docs_layout.main_size() == 0
+    assert docs_layout.main_placement() == 1
+
+
+def test_the_combined_id_still_disables_both_halves(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _point_repo_root_at(tmp_path, monkeypatch)
+    write(tmp_path / "src/pages/posts/blog.md", "# post\n" + "line\n" * 200)
+    write(
+        tmp_path / "pyproject.toml",
+        '[tool.agentic-os.documentation-layout]\nband = "small"\nenabled = false\n',
+    )
+    assert docs_layout.main_placement() == 0
+    assert docs_layout.main_size() == 0

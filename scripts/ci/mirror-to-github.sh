@@ -17,7 +17,7 @@ case "${1:-}" in
     if ! git push github main; then
       echo "::error::mirror-to-github: fast-forward push to GitHub main rejected." >&2
       echo "GitHub main has diverged from Forgejo main or the PAT lost push access." >&2
-      echo "GitHub main is protected, so a human must reconcile it. See docs/forgejo-ops.md." >&2
+      echo "GitHub main is protected, so a human must reconcile it. See the tooling-aosguard skill." >&2
       exit 1
     fi
     git push --tags github

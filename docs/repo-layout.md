@@ -8,16 +8,10 @@ Full breakdown of what lives where. Summary in [the README](../README.md).
 
 One shared core, two thin per-shell entries, so bash and zsh run identical env, PATH, aliases, and functions.
 
-- `shell/common.sh` - env, per-OS PATH, aliases, git helpers, `rg`, SSM loading, workspace-root discovery, and auto-cd via `$WARP_STARTUP_DIR` (default `$PROJECTS_ROOT`). Env runs once per terminal tree via `_SIREN_SHELL_ENV`.
-- `shell/zshrc` - zsh entry, symlinked to `~/.zshrc`. Sources `common.sh`, then zsh-only bits: `compinit`, the `vcs_info` siren prompt, `warp.zsh`.
+- `shell/common.sh` - env, per-OS PATH, aliases, git helpers, `rg`, SSM loading, workspace-root discovery, and auto-cd via `$AOS_STARTUP_DIR` (default `$PROJECTS_ROOT`). Env runs once per terminal tree via `_SIREN_SHELL_ENV`.
+- `shell/zshrc` - zsh entry, symlinked to `~/.zshrc`. Sources `common.sh`, then zsh-only bits: `compinit`, the `vcs_info` siren prompt, and the `aterm` completion.
 - `shell/bashrc` - bash entry, symlinked to `~/.bashrc`. Sources `common.sh`, then bash-only bits: completion, the `PROMPT_COMMAND` siren prompt.
-- `shell/warp.zsh` - the zsh-only `warp` dispatcher + completion.
 - Host-local overrides: `~/.shellrc.local` (shared, sourced by `common.sh`), `~/.zshrc.local`, `~/.bashrc.local`. Untracked.
-
-## warp
-
-- `warp/settings.toml` - Warp config. Vertical tabs, theme, font, custom secret-regex list, AI/agent toggles. `[account] is_settings_sync_enabled = false` so the repo wins over cloud sync.
-- `warp/tab_configs/startup_config.toml` - default new-tab pane setup.
 
 - `aos-say/` - speech helper client and relay.
 
@@ -107,8 +101,9 @@ dev-base-build` as the first check. `ward agent` is the runtime entry point.
 
 **Forgejo ops surface discovery** - what Forgejo surface exists here now. Run
 `aosguard ops forgejo describe` first, then `--help` and `rg -n "aosguard ops
-forgejo" docs .specgen`. Prefer runtime help over guessing a verb, and update
-[aosguard](aosguard.md) when the surface changes.
+forgejo" docs .umbra`. Prefer runtime help over guessing a verb, and update
+[aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) when the surface
+changes.
 
 **Ward PR workflow and director merge** - PR lifecycle, director merge, or
 burn-down. Run `rg -n "pull-request-and-merge|director merge|WARD-OUTCOME"

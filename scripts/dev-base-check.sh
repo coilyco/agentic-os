@@ -28,7 +28,7 @@ fi
 while IFS= read -r language_target; do
   docker buildx build \
     --check \
-    --build-context aosguard-spec=.specgen \
+    --build-context aosguard-spec=.umbra \
     --build-context aosguard-python=agentic_os \
     --build-context repo-lists=aos-cli/repositories \
     --target "$language_target" \
@@ -43,7 +43,7 @@ docker buildx build \
   --build-arg "LANG_GO_IMAGE=${ubuntu_base}" \
   --build-arg "LANG_DOTNET_IMAGE=${ubuntu_base}" \
   --build-arg "LANG_PYTHON_IMAGE=${ubuntu_base}" \
-  --build-context aosguard-spec=.specgen \
+  --build-context aosguard-spec=.umbra \
   --build-context aosguard-python=agentic_os \
   --build-context repo-lists=aos-cli/repositories \
   --target dev-base-full \
