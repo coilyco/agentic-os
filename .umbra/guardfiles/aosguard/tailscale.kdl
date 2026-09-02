@@ -4,7 +4,7 @@
 wrap aosguard ops tailscale {
     exec "/usr/local/bin/tailscale"
     can run status {
-        describe "tailnet state: peers, this node, and whether tailscaled is up"
+        describe "tailnet state: peers, this node, and whether tailscaled is up. --json carries per-peer Tags, HostName, TailscaleIPs, and Online, which is the tailnet device and tag inventory; no API credential is involved"
     }
     can run ping {
         describe "tailnet-layer reachability probe to a peer; pass host or IP"
