@@ -101,7 +101,6 @@ def test_common_verification_covers_the_composed_runtime_surface() -> None:
         "agent-compose version",
         "agent-compose roster",
         "person.json",
-        "python3 -m agentic_os.forgejo_actions_list --help",
     ):
         assert command in text
     # Ward is frozen as a contract (#1299): the image still installs it, and

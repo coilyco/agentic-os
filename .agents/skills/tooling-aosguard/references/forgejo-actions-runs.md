@@ -4,16 +4,14 @@ Listing runs, re-running one, and reading their logs.
 
 ## Forgejo Actions listing
 
-The packaged `agentic_os.forgejo_actions_list` module lists runs or tasks and
-defaults to `page=1`, as does the native `action-run list` wrapper whenever a
-caller passes `--limit`. Forgejo can ignore that limit on the runs endpoint
+The native `action-run list` wrapper defaults to `page=1` whenever a caller
+passes `--limit`. Forgejo can ignore that limit on the runs endpoint
 unless the page is explicit, pulling the whole history.
 
 Use AOSguard for live inspection:
 
 - `aosguard ops forgejo action-run list <owner> <repo> --limit N`
 - `aosguard ops forgejo tasks list <owner> <repo> --limit N`
-- `aosguard ops actions runs <owner> <repo> [--page 1] [--limit N]`
 - `aosguard ops actions tasks <owner> <repo> [--page 1] [--limit N]`
 
 Raw API examples include `page=1` whenever they include `limit`, on both

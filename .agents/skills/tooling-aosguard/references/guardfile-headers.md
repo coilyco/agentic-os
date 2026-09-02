@@ -6,7 +6,8 @@ skill's `references/` takes no size cap, so it lands here whole.
 
 ## `actions.kdl`
 
-AOSguard's repository-local Forgejo Actions resolvers and rerun bridges. These narrow Python modules share one command group and the coilyco-ops bot token.
+AOSguard's Forgejo Actions log bridge. One verb, because it is the only Actions operation that still needs code: it unpacks a run ZIP, resumes by byte range in chunks, and caps the read, none of which a REST passthrough does. Listing left this file in agentic-os#1502's follow-up - `ops forgejo action-run list` and friends resolve the same endpoints from the spec on Forgejo 16, so the packaged list and rerun modules were redundant and are gone. Rerun went with them; it 404'd on this Forgejo (agentic-os#1428).
+
 
 ## `aws.kdl`
 
@@ -56,9 +57,6 @@ AUTH COMES FROM THE ENVIRONMENT, NEVER FROM ARGV. redis-cli reads REDISCLI_AUTH,
 
 WRITES ARE NOT HERE, AND THE REASON IS MONEY. A bucket key holds a spend budget, so `set` fabricates budget and `flushall` resets every budget at once. Neither is an agent verb. `del` is the one exception and is exposed deliberately: unsticking a single wedged bucket is ordinary operations, and it is bounded to one key at a time. `config set` stays denied because maxmemory-policy is load-bearing - moving it off noeviction turns an eviction into a silent budget reset, which is the failure the store exists to prevent.
 
-## `signoz.kdl`
-
-Every leaf fixes one exact tool on the pre-authenticated SigNoz MCP server selected by AOS convergence. Callers pass native MCP key=value arguments. They cannot replace the server, tool, config, or transport. Forgejo, kubectl, and server evidence stay in their own groups.
 
 ## `tailscale.kdl`
 
@@ -67,7 +65,3 @@ aosguard ops tailscale - the tailnet live-observe surface as an allowlist (umbra
 **The tailnet-wide device and tag inventory is here, not on an API leaf.** `status --json` carries `Tags`, `HostName`, `TailscaleIPs`, and `Online` for every peer, which answers "what tags does the tailnet actually report for this host" from the netmap the policy was evaluated against. agentic-os#1503 proposed promoting `list_tailscale_devices.py` from coilyco-bridge/infrastructure onto an API leaf; measuring first showed the local verb already answers it, so no leaf, no credential, and no new SSM parameter were added.
 
 **There is deliberately no `acl` leaf, and there cannot be an agent-readable one.** Reading or rewriting the tailnet policy needs admin scope, and that credential is operator-held only by design: the ACL decides which machines an agent can SSH into, so its credential stays unreadable by the agents it governs (`coilyco-bridge/infrastructure` `docs/tailscale.md`). The `/tailscale/admin/oauth-client-{id,secret}` path some older docstrings still name is retired, and live SSM holds nothing under `/tailscale/` at all. A guarded ACL verb would have to put that credential in an agent-readable store, which inverts the boundary rather than guarding it.
-
-## `telegram.kdl`
-
-CI failure alerting as one verb, so no repository carries a copy of the alert program. The mapper holds the Telegram identity, so this leaf reaches a fixed cluster-local endpoint with no credential and takes no caller input: every field comes from the runner's own GITHUB_* environment. Sealed for the same reason `forgejo-storage measure` is - a caller cannot turn a fixed POST into an arbitrary one. See [`signoz.md`](signoz.md).

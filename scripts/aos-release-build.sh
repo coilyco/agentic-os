@@ -108,10 +108,7 @@ build_bundle() {
     cp -R "$release_build/aosguard-skill" \
         "$bundle_root/share/aos/aosguard-skill"
     cp "$repo_root/agentic_os/__init__.py" \
-        "$repo_root/agentic_os/forgejo_actions_list.py" \
         "$repo_root/agentic_os/forgejo_actions_logs.py" \
-        "$repo_root/agentic_os/forgejo_actions_rerun.py" \
-        "$repo_root/agentic_os/forgejo_actions_web.py" \
         "$bundle_root/share/aos/python/agentic_os/"
     cp "$repo_root/aos-cli/repositories/substrate-repos.txt" \
         "$repo_root/aos-cli/repositories/sealed-repos.gitignore" \
@@ -165,10 +162,7 @@ PY
     mkdir -p "$wrapper/payload/agentic_os"
     cp "$raw" "$wrapper/payload/aosguard"
     cp "$repo_root/agentic_os/__init__.py" \
-        "$repo_root/agentic_os/forgejo_actions_list.py" \
         "$repo_root/agentic_os/forgejo_actions_logs.py" \
-        "$repo_root/agentic_os/forgejo_actions_rerun.py" \
-        "$repo_root/agentic_os/forgejo_actions_web.py" \
         "$wrapper/payload/agentic_os/"
     (
         cd "$wrapper"

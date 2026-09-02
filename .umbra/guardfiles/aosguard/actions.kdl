@@ -1,4 +1,4 @@
-// AOSguard's repository-local Forgejo Actions resolvers and rerun bridges.
+// AOSguard's Forgejo Actions log bridge, the one Actions verb needing code.
 // Rationale: tooling-aosguard references/guardfile-headers.md.
 
 wrap aosguard ops actions {
@@ -18,25 +18,5 @@ wrap aosguard ops actions {
         argv "-m" "agentic_os.forgejo_actions_logs"
         when arg0 matches coily*
         describe "fetch bounded whole-run ZIP or single-job log bytes through the Forgejo 16 API"
-    }
-    can run runs {
-        argv "-m" "agentic_os.forgejo_actions_list" "runs"
-        when arg0 matches coily*
-        describe "list Forgejo Actions runs with a safe page-1 default"
-    }
-    can run tasks {
-        argv "-m" "agentic_os.forgejo_actions_list" "tasks"
-        when arg0 matches coily*
-        describe "list Forgejo Actions tasks with a safe page-1 default"
-    }
-    can run rerun {
-        argv "-m" "agentic_os.forgejo_actions_rerun" "rerun"
-        when arg0 matches coily*
-        describe "rerun an existing workflow run, falling back to dispatch for the same ref"
-    }
-    can run rerun-failed-jobs {
-        argv "-m" "agentic_os.forgejo_actions_rerun" "rerun-failed-jobs"
-        when arg0 matches coily*
-        describe "rerun failed jobs when supported, falling back to dispatch for the same ref"
     }
 }

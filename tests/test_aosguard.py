@@ -116,11 +116,7 @@ def test_aosguard_actions_use_packaged_python_modules() -> None:
 
     assert "exec python3" in text
     assert ".umbra/guardfiles/aosguard/scripts/" not in text
-    for module in (
-        "forgejo_actions_list",
-        "forgejo_actions_logs",
-        "forgejo_actions_rerun",
-    ):
+    for module in ("forgejo_actions_logs",):
         assert f'"agentic_os.{module}"' in text
         assert (ROOT / "agentic_os" / f"{module}.py").is_file()
 
@@ -190,12 +186,7 @@ def test_native_release_wrapper_embeds_the_actions_bridge() -> None:
     decode = build.index("find \"$project\" -type f -name '*.lock.json.gz'")
     compile_binary = build.index('go build -trimpath -ldflags "-s -w -X main.Version=')
     assert generate < decode < compile_binary
-    for module in (
-        "forgejo_actions_list.py",
-        "forgejo_actions_logs.py",
-        "forgejo_actions_rerun.py",
-        "forgejo_actions_web.py",
-    ):
+    for module in ("forgejo_actions_logs.py",):
         assert f'"$repo_root/agentic_os/{module}"' in build
     assert '"$repo_root/agentic_os/forgejo_storage_measure.py"' not in build
 

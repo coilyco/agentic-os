@@ -33,22 +33,20 @@ Major shipped capabilities, not files.
   [convergence](aos-convergence.md), [connectivity](aos-context-bundle.md),
   [kubeconfig](aos-cluster-access.md), [issue pins](aos-issue-flow.md), and
   [check-ins](aos-issue-flow.md).
-- [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) - guarded CLI with fixed
-  [SigNoz MCP reads](../.agents/skills/tooling-aosguard/references/signoz.md), issue pins, PR merge, and sealed
+- [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) - guarded CLI with issue pins,
+  PR merge, and sealed
   [Forgejo storage measurement](../.agents/skills/tooling-aosguard/references/forgejo-ops.md).
 - [Guarded helm releases](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - cluster-pinned upgrade, install, and rollback with release destruction unexposed.
 - [Code review skill](../.agents/composed/tooling-code-review/COMPOSED.md) - Portfolio Director gate-decision review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
 - [Forgejo Actions logs](../.agents/skills/tooling-aosguard/references/forgejo-actions-runs.md) - job logs and run ZIPs.
-- [Forgejo Actions list bridge](../.agents/skills/tooling-aosguard/references/forgejo-actions-runs.md) - safe run/task listing.
 - [Forgejo runner tokens](../.agents/skills/tooling-aosguard/references/forgejo-ops.md) - guarded registration-token minting.
 - [Issue-label guard](forgejo-issue-labels.md) - no issue files without a priority and an autonomy label.
 - [Forgejo policy vendoring](vendor-forgejo-policy.md) - the operator policy pushes down to deploy, never fetched up.
-- [Forgejo Actions reruns](../.agents/skills/tooling-aosguard/references/forgejo-actions-runs.md) - guarded reruns and dispatch fallback.
 - [Ward integration boundary](ward-specs.md) - one generic runner for every
   [composed role](aos-roles-and-voice.md), and no role-derived authority.
 - [Cross-repo tooling and release](release.md) - aos-precommit and release operations.
-- [Telegram CI failure alerts](../.agents/skills/tooling-aosguard/references/signoz.md) - one sealed verb, no alert program in any repo.
+- [Telegram CI failure alerts](../actions/telegram-alert/action.yml) - one composite action, no alert program in any repo.
 - [dev-base image](dev-base-image.md) - parallel cached language payloads feeding one automatically released full development surface.
 - [Pinned WASM toolchain](dev-base-wasm-toolchain.md) - wasm-pack, wasm-opt, and the wasm-bindgen CLI baked so no build downloads them.
 - [CI parity in dev-base](ci-in-dev-base.md) - CI runs inside the moving :release dev-base image.
