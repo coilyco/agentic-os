@@ -70,7 +70,8 @@ Each entry is stated as the observation, then the check that catches it.
   code enforces. **Check: for every declared constraint, assert that violating
   it fails.** A constraint with no failing test is decoration.
 * **The guarded copy and its unguarded twin** - one emission of a string is
-  redacted and a sibling emission of the same string is not. **Check: assert
+  redacted and a sibling emission of the same string is not, or generally a
+  value kept on two surfaces where only the one in hand was updated. **Check: assert
   every surface carrying that value is covered**, not the one the incident
   named.
 * **The authority that cannot be withheld** - a charter names a limit with no
@@ -114,7 +115,9 @@ Each entry is stated as the observation, then the check that catches it.
   its pods recovered, each holding a connection result recorded once at startup
   and never retried. The specification proposing this entry measured its own
   coverage against a copy of this file that predated this file's newest entry,
-  and reported as uncovered a case already documented here.
+  and reported as uncovered a case already documented here. Watch the success
+  direction hardest: a stale failure looks wrong and gets investigated, a stale
+  success ships behind a green board.
 * **The order that renders but does not sort** - a sequence displays plausibly
   while resting on an arbitrary key, such as the creation order of a choice
   list. **Check: assert two elements whose correct relative order is known
