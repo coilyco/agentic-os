@@ -29,14 +29,22 @@ brew_update = _load_brew_module()
 class _Runner:
     """Records argv and replays canned stdout for the capturing calls."""
 
-    def __init__(self, listed: str = "", outdated_stdout: list[str] | None = None):
+    def __init__(
+        self,
+        listed: str = "",
+        outdated_stdout: list[str] | None = None,
+        fail_on: list[str] | None = None,
+    ):
         self.calls: list[list[str]] = []
         self.listed = listed
         self.outdated_stdout = outdated_stdout or [""]
+        self.fail_on = fail_on
         self._outdated_seen = 0
 
     def __call__(self, argv, **kwargs):
         self.calls.append(list(argv))
+        if self.fail_on is not None and list(argv) == self.fail_on:
+            raise subprocess.CalledProcessError(1, list(argv))
         stdout = ""
         if argv[:2] == ["brew", "list"]:
             stdout = self.listed
@@ -106,3 +114,24 @@ def test_missing_brew_reports_rather_than_traces(monkeypatch, capsys):
     monkeypatch.setattr(brew_update.subprocess, "run", _absent)
     assert brew_update.main() == 2
     assert "brew is not on PATH" in capsys.readouterr().err
+
+
+def test_a_failed_tap_upgrade_still_runs_the_general_upgrade():
+    """One unbuildable formula in our tap must not cost every other update."""
+    runner = _Runner(
+        listed="coilyco-flight-deck/tap/agent-compose\n",
+        fail_on=["brew", "upgrade", "coilyco-flight-deck/tap/agent-compose"],
+    )
+    exit_code = brew_update.run(runner, lambda _line: None)
+
+    assert ["brew", "upgrade"] in runner.calls
+    assert exit_code == 1
+
+
+def test_a_failed_upgrade_is_nonzero_even_when_nothing_reads_outdated():
+    runner = _Runner(
+        listed="coilyco-flight-deck/tap/agent-compose\n",
+        outdated_stdout=[""],
+        fail_on=["brew", "upgrade", "coilyco-flight-deck/tap/agent-compose"],
+    )
+    assert brew_update.run(runner, lambda _line: None) == 1

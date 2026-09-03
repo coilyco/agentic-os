@@ -37,6 +37,20 @@ def outdated(runner: RunCommand) -> list[str]:
     return [line for line in reported.splitlines() if line.strip()]
 
 
+def _try_upgrade(argv: Sequence[str], runner: RunCommand, out: Callable[[str], None]) -> bool:
+    """Upgrade, reporting a failure rather than raising.
+
+    One unbuildable formula in our own tap must not cost the caller every other
+    update in the run: agentic-os#6835.
+    """
+    try:
+        _stream(argv, runner)
+        return True
+    except subprocess.CalledProcessError as exc:
+        out(f"FAILED: {' '.join(argv)} (exit {exc.returncode})")
+        return False
+
+
 def run(runner: RunCommand, out: Callable[[str], None]) -> int:
     _stream(["brew", "update"], runner)
 
@@ -48,23 +62,25 @@ def run(runner: RunCommand, out: Callable[[str], None]) -> int:
     else:
         out("nothing outdated after metadata refresh")
 
+    failed = False
     mine = ours(runner)
     if mine:
         out(f"upgrading {len(mine)} formula(e) from {TAP}")
-        _stream(["brew", "upgrade", *mine], runner)
+        failed |= not _try_upgrade(["brew", "upgrade", *mine], runner, out)
     else:
         out(f"no formulae installed from {TAP}")
 
     out("upgrading everything else")
-    _stream(["brew", "upgrade"], runner)
+    failed |= not _try_upgrade(["brew", "upgrade"], runner, out)
 
     remaining = outdated(runner)
-    if remaining:
+    if failed or remaining:
         # Pinned or build-failed formulae survive an upgrade, so say so rather
         # than letting a clean exit imply everything moved.
-        out("still outdated after upgrade:")
-        for line in remaining:
-            out(f"  {line}")
+        if remaining:
+            out("still outdated after upgrade:")
+            for line in remaining:
+                out(f"  {line}")
         return 1
     out("all formulae current")
     return 0
