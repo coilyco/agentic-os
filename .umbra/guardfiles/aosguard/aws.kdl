@@ -6,6 +6,8 @@ wrap aosguard ops aws {
     // identity - nothing to guard
     can run sts get-caller-identity
     can run sts get-session-token
+    // Prod/secret, tfstate and file-source denies are absent by choice, not
+    // oversight. tooling-aosguard references/aosguard.md records why.
     can run ssm get-parameter
     can run ssm get-parameters-by-path
     can run ssm put-parameter {

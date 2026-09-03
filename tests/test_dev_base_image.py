@@ -69,7 +69,7 @@ def test_full_image_owns_the_common_and_internal_tool_surface() -> None:
     assert "COPY --from=aosguard-spec" in text
     assert "COPY --from=aosguard-python" in text
     assert "--skills-out /opt/agentic-os/aosguard-skill" in text
-    for name in ("AGENT_COMPOSE_VERSION", "WARD_VERSION", "UMBRA_VERSION", "AOS_VERSION"):
+    for name in ("AGENT_COMPOSE_VERSION", "UMBRA_VERSION", "AOS_VERSION"):
         assert f"ARG {name}=" in text
 
 
@@ -83,14 +83,22 @@ def test_aos_is_installed_from_a_versioned_release() -> None:
     assert "COPY --from=aos-cli" not in text
 
 
-def test_ward_is_installed_from_a_checksummed_release_not_built_from_source() -> None:
+def test_nothing_in_the_full_image_is_built_from_source() -> None:
+    """Every tool arrives as a released asset. This outlived the Ward install it
+    was written for: that binary went when its repository did."""
     text = FULL_DOCKERFILE.read_text(encoding="utf-8")
 
-    assert 'ward_asset="ward-linux-${TARGETARCH}"' in text
-    assert '"${ward_base}/SHA256SUMS"' in text
     assert "sha256sum -c -" in text
     assert "git clone" not in text
     assert "go build" not in text
+
+
+def test_the_retired_ward_binary_is_not_reinstalled() -> None:
+    """Its repository is gone, so any fetch of it fails the image build closed."""
+    text = FULL_DOCKERFILE.read_text(encoding="utf-8")
+
+    assert "/usr/local/bin/ward" not in text
+    assert "coilyco-flight-deck/ward" not in text
 
 
 def test_common_verification_covers_the_composed_runtime_surface() -> None:
@@ -103,8 +111,8 @@ def test_common_verification_covers_the_composed_runtime_surface() -> None:
         "person.json",
     ):
         assert command in text
-    # Ward is frozen as a contract (#1299): the image still installs it, and
-    # verifying an unmaintained binary made its install a build-breaker.
+    # Ward's verification went at #1299 for breaking the build, and the install
+    # followed once its repository was deleted. Nothing may verify it again.
     for gone in ("ward --version", "ward doctor"):
         assert gone not in text
     # aos#771: the isolated-import proof is the only thing standing between a
