@@ -14,6 +14,14 @@ Silent passing is worse than the hazard it fails to stop. A control that errors
 gets fixed. A control that returns a plausible answer nobody can distinguish
 from a real one gets believed, and the wrong number travels.
 
+**A readout fails the same way with no wall in it.** Several entries below are
+not controls at all. They are counts, conditions, orderings and propagated
+values that render plausibly while structurally decoupled from what they
+describe, so there is nothing in them that could have refused. They belong here
+because the failure and the remedy keep their shape: a plausible answer nobody
+can distinguish from a real one, caught by varying the subject and asserting
+the readout follows.
+
 ## The taxonomy
 
 Each entry is stated as the observation, then the check that catches it.
@@ -88,6 +96,32 @@ Each entry is stated as the observation, then the check that catches it.
   answer with no exit code to disagree. Both pass their own review, because
   the layer actually checked was correct and the layer the question was about
   was the one next to it.
+* **The indicator with no mechanism** - a count, condition or status renders
+  plausibly while the subsystem it describes is switched off or unreachable.
+  **Check: disable the mechanism and assert the indicator moves.** Where it
+  cannot be disabled, assert it against one case whose true value is known by
+  another route. A Forgejo repository carrying `has_issues` false still reports
+  `open_issues_count` 76: the counter reads rows the disabled unit no longer
+  serves, and nothing in the response disagrees with itself, so a caller
+  planning against the count schedules work onto a tracker nobody can open.
+* **The value that landed and did not travel** - a change is committed,
+  promoted, or marked superseded at the source while live consumers still hold
+  the prior one. **Check: read the value back from a consumer rather than from
+  the source.** A source-side read confirms the write and says nothing about
+  propagation, and the gap is invisible from both ends, because the author sees
+  a landed commit and the consumer sees a value with no age on it. Three
+  sessions independently reported an MCP server unreachable nine hours after
+  its pods recovered, each holding a connection result recorded once at startup
+  and never retried. The specification proposing this entry measured its own
+  coverage against a copy of this file that predated this file's newest entry,
+  and reported as uncovered a case already documented here.
+* **The order that renders but does not sort** - a sequence displays plausibly
+  while resting on an arbitrary key, such as the creation order of a choice
+  list. **Check: assert two elements whose correct relative order is known
+  appear in that order**, rather than asserting the list rendered. A plausible
+  order is the hard case, because a reversed one gets noticed and an arbitrary
+  one gets believed, and a caller whose sort was dropped upstream reads arrival
+  order as the answer.
 
 ## How to use it
 
