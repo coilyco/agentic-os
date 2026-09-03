@@ -9,7 +9,7 @@ description = "AOS cross-repo pre-commit hooks for skill catalogs, documentation
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Kai Ase Siren" }]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "PyYAML>=6.0.3",
     "ruamel.yaml>=0.19",
