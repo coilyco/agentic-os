@@ -107,9 +107,10 @@ build_bundle() {
         "$bundle_root/bin/aosguard${suffix}"
     cp -R "$release_build/aosguard-skill" \
         "$bundle_root/share/aos/aosguard-skill"
-    cp "$repo_root/agentic_os/__init__.py" \
-        "$repo_root/agentic_os/forgejo_actions_logs.py" \
-        "$bundle_root/share/aos/python/agentic_os/"
+    sh "$repo_root/scripts/guardfile-python-modules.sh" "$repo_root" |
+        while IFS= read -r module; do
+            cp "$module" "$bundle_root/share/aos/python/agentic_os/"
+        done
     cp "$repo_root/aos-cli/repositories/substrate-repos.txt" \
         "$repo_root/aos-cli/repositories/sealed-repos.gitignore" \
         "$bundle_root/share/aos/repositories/"
@@ -161,9 +162,10 @@ PY
     cp -R "$repo_root/aosguard-release" "$wrapper"
     mkdir -p "$wrapper/payload/agentic_os"
     cp "$raw" "$wrapper/payload/aosguard"
-    cp "$repo_root/agentic_os/__init__.py" \
-        "$repo_root/agentic_os/forgejo_actions_logs.py" \
-        "$wrapper/payload/agentic_os/"
+    sh "$repo_root/scripts/guardfile-python-modules.sh" "$repo_root" |
+        while IFS= read -r module; do
+            cp "$module" "$wrapper/payload/agentic_os/"
+        done
     (
         cd "$wrapper"
         GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \

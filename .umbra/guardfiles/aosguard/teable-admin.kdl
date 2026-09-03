@@ -16,23 +16,25 @@ wrap aosguard ops teable-admin {
         }
     }
 
+    // -P keeps the caller's cwd off sys.path: a `-m` exec would otherwise let a
+    // planted agentic_os/ outrank the bundle, token already resolved (#6837).
     can run create-field {
-        argv "-m" "agentic_os.teable_admin" "create-field"
+        argv "-P" "-m" "agentic_os.teable_admin" "create-field"
         describe "create a field, then re-read it through a separate request and refuse unless every requested property survived: this instance accepts unknown field properties and silently discards them, returning 200 either way"
     }
 
     can run list-fields {
-        argv "-m" "agentic_os.teable_admin" "list-fields"
+        argv "-P" "-m" "agentic_os.teable_admin" "list-fields"
         describe "list a table's fields"
     }
 
     can run create-table {
-        argv "-m" "agentic_os.teable_admin" "create-table"
+        argv "-P" "-m" "agentic_os.teable_admin" "create-table"
         describe "create a table, then re-read it through a separate request and refuse unless it stored as requested"
     }
 
     can run describe-base {
-        argv "-m" "agentic_os.teable_admin" "describe-base"
+        argv "-P" "-m" "agentic_os.teable_admin" "describe-base"
         describe "list the tables in a base"
     }
 }

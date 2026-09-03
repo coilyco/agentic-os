@@ -14,8 +14,10 @@ wrap aosguard ops actions {
         }
     }
 
+    // -P keeps the caller's cwd off sys.path, which a `-m` exec otherwise
+    // prepends ahead of the bundled module (agentic-os#6837).
     can run logs {
-        argv "-m" "agentic_os.forgejo_actions_logs"
+        argv "-P" "-m" "agentic_os.forgejo_actions_logs"
         when arg0 matches coily*
         describe "fetch bounded whole-run ZIP or single-job log bytes through the Forgejo 16 API"
     }
