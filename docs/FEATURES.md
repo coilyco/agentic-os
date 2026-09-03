@@ -43,6 +43,7 @@ Major shipped capabilities, not files.
 - [Forgejo runner tokens](../.agents/skills/tooling-aosguard/references/forgejo-ops.md) - guarded registration-token minting.
 - [Issue-label guard](forgejo-issue-labels.md) - no issue files without a priority and an autonomy label.
 - [Forgejo policy vendoring](vendor-forgejo-policy.md) - the operator policy pushes down to deploy, never fetched up.
+- [Homebrew updates](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - `aosguard update brew` refreshes tap metadata, upgrades this estate's own formulae first, then the rest, and exits non-zero on anything left behind.
 - [Teable schema admin](../.agents/skills/tooling-aosguard/references/teable-admin.md) - guarded field and table creation that re-reads through a separate request and refuses unless the write stored as asked; convert and table-delete refused by name.
 - [Ward integration boundary](ward-specs.md) - one generic runner for every
   [composed role](aos-roles-and-voice.md), and no role-derived authority.

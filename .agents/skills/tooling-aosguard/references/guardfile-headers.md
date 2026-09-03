@@ -21,6 +21,23 @@ Forgejo operations Forgejo refuses to the coilyco-ops bot, which is an org membe
 
 Application-aware Forgejo storage measurement. The generic kubectl surface keeps exec denied. This sealed bridge fixes every target and command in the packaged module, so callers cannot turn measurement into a remote shell.
 
+## `update.kdl`
+
+`aosguard update brew` - a top-level sibling of `ops`, because it updates the estate's own
+tooling rather than operating a backend. One sealed verb running three phases in order:
+`brew update`, then every installed `coilyco-flight-deck/tap` formula, then a general
+`brew upgrade`.
+
+The order is the whole point. A bare `brew upgrade` resolves against tap metadata already
+on disk, so it can report success having installed nothing, which is how `aos` sat at
+0.296.0 while the tap carried 0.297.0 and `agent-compose` sat fourteen minor versions
+behind (agentic-os#6831). Our formulae go first so a failure later in the general upgrade
+cannot leave the tooling this estate runs on behind.
+
+The formula list is read from `brew list` at runtime rather than tracked here. A tracked
+inventory would be a second copy of something the tap already owns, and going stale is the
+exact defect the command exists to catch.
+
 ## `forgejo.kdl`
 
 Forgejo ops surface for the standalone AOSguard bundle. AOS authors it and AOSguard ships it. Ward mounts the built binary and owns nothing in here, and no leaf below defers a decision to Ward existing. Every `can` resolves its operationId by convention (verb + resource -> method + path); the only explicit `op` pins are on the repo-label denials below, where a bare `label` would resolve org-ward. Hardened per ward#109: orgs and repos lose their irreversible verbs, repo-label CRUD moves to org-labels, a cross-repo issue search and a move-issue action land, and every path-{owner} leaf is scoped to coily* owners. Repo-level label create/edit are additionally policy-disabled per ward#107 (dup priority-tier prevention). Auto-resolution per umbra#147. See the tooling-aosguard skill.

@@ -461,3 +461,14 @@ def test_aws_put_parameter_preserves_failure_without_disclosing_value(
     assert proc.returncode != 0
     assert "fixture failure" in proc.stderr
     assert secret not in proc.stdout + proc.stderr
+
+
+def test_aosguard_brew_update_is_sealed_and_top_level() -> None:
+    text = (SOURCE / "update.kdl").read_text(encoding="utf-8")
+
+    assert "wrap aosguard update" in text
+    assert "wrap aosguard ops" not in text
+    assert 'argv "-I"' in text
+    assert 'embed "brew_update.py"' in text
+    assert "sealed" in text
+    assert (SOURCE / "brew_update.py").is_file()

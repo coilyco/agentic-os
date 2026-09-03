@@ -1,0 +1,13 @@
+// Homebrew metadata refresh, then this estate's own formulae, then the rest.
+// Rationale: tooling-aosguard references/guardfile-headers.md.
+
+wrap aosguard update {
+    exec python3
+
+    can run brew {
+        argv "-I"
+        embed "brew_update.py"
+        sealed
+        describe "run `brew update`, upgrade every installed coilyco-flight-deck/tap formula, then upgrade the rest; takes no arguments"
+    }
+}
