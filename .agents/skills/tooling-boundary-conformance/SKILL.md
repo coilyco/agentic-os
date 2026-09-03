@@ -122,6 +122,15 @@ Each entry is stated as the observation, then the check that catches it.
   order is the hard case, because a reversed one gets noticed and an arbitrary
   one gets believed, and a caller whose sort was dropped upstream reads arrival
   order as the answer.
+* **The second reader who was never independent** - two readers agree, and the
+  agreement is treated as confirmation while both drew from the same upstream at
+  the same remove. **Check: name what each reader read, and confirm at least one
+  went to the authority.** Two stale copies agree exactly as well as two current
+  ones, so agreement measures shared provenance rather than truth, and a
+  verification step built this way raises confidence without adding evidence.
+  A specification written against a composed copy of this file was confirmed
+  against a second composed copy: both carried 8 entries, the authority carried
+  12, and the reported gap was wrong in the same direction twice.
 
 ## How to use it
 
