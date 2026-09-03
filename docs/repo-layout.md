@@ -107,7 +107,5 @@ changes.
 
 **Ward PR workflow and director merge** - PR lifecycle, director merge, or
 burn-down. Run `rg -n "pull-request-and-merge|director merge|WARD-OUTCOME"
-.ward docs` and `ward agent director --help`. Check
-`aosguard ops forgejo issue view <owner> <repo> <issue>` first: the issue thread
-carries the workflow and the merge authorization. Burndown containment is in
+.ward docs` and `ward agent director --help`. Burndown containment is in
 [ward-specs](ward-specs.md).

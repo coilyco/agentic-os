@@ -33,15 +33,14 @@ Major shipped capabilities, not files.
   [convergence](aos-convergence.md), [connectivity](aos-context-bundle.md),
   [kubeconfig](aos-cluster-access.md), [issue pins](aos-issue-flow.md), and
   [check-ins](aos-issue-flow.md).
-- [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) - guarded CLI with issue pins,
-  PR merge, and sealed
+- [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) - guarded CLI with PR
+  merge and sealed
   [Forgejo storage measurement](../.agents/skills/tooling-aosguard/references/forgejo-ops.md).
 - [Guarded helm releases](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - cluster-pinned upgrade, install, and rollback with release destruction unexposed.
 - [Code review skill](../.agents/composed/tooling-code-review/COMPOSED.md) - Portfolio Director gate-decision review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
 - [Forgejo Actions logs](../.agents/skills/tooling-aosguard/references/forgejo-actions-runs.md) - job logs and run ZIPs.
 - [Forgejo runner tokens](../.agents/skills/tooling-aosguard/references/forgejo-ops.md) - guarded registration-token minting.
-- [Issue-label guard](forgejo-issue-labels.md) - no issue files without a priority and an autonomy label.
 - [Forgejo policy vendoring](vendor-forgejo-policy.md) - the operator policy pushes down to deploy, never fetched up.
 - [Homebrew updates](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - `aosguard update brew` refreshes tap metadata, upgrades this estate's own formulae first, then the rest, and exits non-zero on anything left behind.
 - [Teable schema admin](../.agents/skills/tooling-aosguard/references/teable-admin.md) - guarded field and table creation that re-reads through a separate request and refuses unless the write stored as asked; convert and table-delete refused by name.

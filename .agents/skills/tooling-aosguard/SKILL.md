@@ -18,13 +18,14 @@ surface before concluding it is denied.**
 This is the failure that produced this skill. An agent needed to reopen two
 Forgejo issues, found the MCP grants close, comment, create, and edit but not
 reopen, and wrote "Kai or ops must do this" into three ticket comments.
-`aosguard ops forgejo issue reopen` existed the whole time.
+`aosguard ops forgejo issue reopen` existed the whole time. That verb has since
+been removed with the rest of the Forgejo issue surface, and the lesson stands.
 
 The agent had already read that operator verbs live in aosguard. It had the
 sentence loaded and did not recall it when a tool search came back empty, so
 this is a retrieval failure instead of a discovery one. That is why the
 per-area skills are named for the entity you are working with: `aosguard-forgejo`
-matches while you are filing issues, and one large `aosguard` skill only loads
+matches while you are merging a pull request, and one large `aosguard` skill only loads
 if you already suspect the answer.
 
 Enumerate before concluding: `aosguard ops <area> --help`, or `describe` where
