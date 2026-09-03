@@ -1,0 +1,38 @@
+// Teable schema administration, the second Teable surface and the only one
+// that writes schema. Rationale: tooling-aosguard references/guardfile-headers.md.
+
+wrap aosguard ops teable-admin {
+    // The ssm value provider: umbra ships no store SDK, so a store-backed
+    // source is an exec contract, declared here rather than linked in.
+    provider ssm {
+        exec aws ssm get-parameter --with-decryption --output text --query "Parameter.Value" --name
+    }
+
+    // Resolved at exec time so the admin PAT never sits in a caller's
+    // environment. Scope and reasoning: references/teable-admin.md.
+    exec python3 {
+        env TEABLE_API_TOKEN {
+            value ssm "/coilysiren/teable/api-token-coilyco-ops-admin"
+        }
+    }
+
+    can run create-field {
+        argv "-m" "agentic_os.teable_admin" "create-field"
+        describe "create a field, then re-read it through a separate request and refuse unless every requested property survived: this instance accepts unknown field properties and silently discards them, returning 200 either way"
+    }
+
+    can run list-fields {
+        argv "-m" "agentic_os.teable_admin" "list-fields"
+        describe "list a table's fields"
+    }
+
+    can run create-table {
+        argv "-m" "agentic_os.teable_admin" "create-table"
+        describe "create a table, then re-read it through a separate request and refuse unless it stored as requested"
+    }
+
+    can run describe-base {
+        argv "-m" "agentic_os.teable_admin" "describe-base"
+        describe "list the tables in a base"
+    }
+}
