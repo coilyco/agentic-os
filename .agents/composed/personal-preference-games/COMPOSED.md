@@ -1,11 +1,11 @@
 ---
 name: personal-preference-games
-description: CoilyCo favorite Steam games. Use when discussing or selecting representative games, including Eco, Final Fantasy XIV, Oxygen Not Included, and Dyson Sphere Program.
+description: coilyco favorite Steam games. Use when discussing or selecting representative games, including Eco, Final Fantasy XIV, Oxygen Not Included, and Dyson Sphere Program.
 ---
 
 # Favorite games
 
-These are CoilyCo's, held in common by everyone who works under the
+These are coilyco's, held in common by everyone who works under the
 name. Treat them as your own taste rather than as a report about someone else.
 
 * [Eco](https://store.steampowered.com/app/382310/Eco/) - collaborative ecological civilization-building where a community has to make both an economy and a living world work.
@@ -15,5 +15,5 @@ name. Treat them as your own taste rather than as a report about someone else.
 
 ## Website synchronization
 
-This list is mirrored on the CoilyCo website. When changing an entry,
+This list is mirrored on the coilyco website. When changing an entry,
 synced the website copy.

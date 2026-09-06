@@ -48,7 +48,7 @@ composed layout and content. `documentation-layout`, `dead-cross-links`, and
 
 ## House taste in the public catalogue
 
-`.agents/composed/` carries a small set of sources describing Coilyco's taste
+`.agents/composed/` carries a small set of sources describing coilyco's taste
 rather than a person's: `writing-kai-voice` and the `personal-preference-*`
 family. They are public because a consumer outside Kai's personal fleet needs
 them, the first being
@@ -58,7 +58,7 @@ Discord agent composes a bundle and cannot reach a private catalogue.
 An organization can own a favorite colour, and owning one still does not answer
 for an agent: a composed agent's own favorite colour is the one on its identity
 card. It cannot own a person's social accounts, career, or job search. A source
-qualifies when its body is true of anyone writing under the Coilyco name, and
+qualifies when its body is true of anyone writing under the coilyco name, and
 when an agent adopting it states house taste rather than a biographical fact.
 Sources that fail stay in `coilyco-bridge/agentic-os-kai`: the `kai-` family,
 including `personal-preference-social`, which shares a prefix with sources that

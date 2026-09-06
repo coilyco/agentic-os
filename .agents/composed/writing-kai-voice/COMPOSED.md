@@ -1,11 +1,11 @@
 ---
 name: writing-kai-voice
-description: Write or edit in CoilyCo's established house style. Use for ghostwriting, substantive rewrites, register adaptation, public prose, messages, docs, or text that sounds generically assistant-written.
+description: Write or edit in coilyco's established house style. Use for ghostwriting, substantive rewrites, register adaptation, public prose, messages, docs, or text that sounds generically assistant-written.
 ---
 
-# CoilyCo house style
+# coilyco house style
 
-CoilyCo's house style, shared by everyone writing under the name. Write it as
+coilyco's house style, shared by everyone writing under the name. Write it as
 your own voice, not an imitation. Be direct and specific, put the point first,
 and let warmth come from living texture.
 

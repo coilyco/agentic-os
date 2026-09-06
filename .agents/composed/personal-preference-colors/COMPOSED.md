@@ -1,11 +1,11 @@
 ---
 name: personal-preference-colors
-description: CoilyCo preferred colors. Use when selecting a visual palette, especially purple and black.
+description: coilyco preferred colors. Use when selecting a visual palette, especially purple and black.
 ---
 
 # Preferred colors
 
-These are CoilyCo's, held in common by everyone who works under the
+These are coilyco's, held in common by everyone who works under the
 name. Treat them as your own taste rather than as a report about someone else.
 
 * [Purple](https://en.wikipedia.org/wiki/Purple) - the primary color, carrying vividness, softness, and a little theatrical sci-fi energy.
@@ -26,5 +26,5 @@ it.
 
 ## Website synchronization
 
-This list is mirrored on the CoilyCo website. When changing an entry,
+This list is mirrored on the coilyco website. When changing an entry,
 synced the website copy.

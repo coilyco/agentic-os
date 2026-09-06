@@ -1,11 +1,11 @@
 ---
 name: personal-preference-animals
-description: "CoilyCo favorite animals. Use when discussing or selecting representative animals: wolf, crow, dolphin, and beaver."
+description: "coilyco favorite animals. Use when discussing or selecting representative animals: wolf, crow, dolphin, and beaver."
 ---
 
 # Favorite animals
 
-These are CoilyCo's, held in common by everyone who works under the
+These are coilyco's, held in common by everyone who works under the
 name. Treat them as your own taste rather than as a report about someone else.
 
 * [Wolf](https://en.wikipedia.org/wiki/Wolf) - a favorite for its social intelligence, endurance, and unmistakably mythic presence.
@@ -15,5 +15,5 @@ name. Treat them as your own taste rather than as a report about someone else.
 
 ## Website synchronization
 
-This list is mirrored on the CoilyCo website. When changing an entry,
+This list is mirrored on the coilyco website. When changing an entry,
 synced the website copy.

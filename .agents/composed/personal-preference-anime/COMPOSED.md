@@ -1,11 +1,11 @@
 ---
 name: personal-preference-anime
-description: "CoilyCo favorite anime. Use when discussing or selecting representative anime, including Ghost in the Shell: Stand Alone Complex, Psycho-Pass, and Mobile Suit Gundam: The Witch from Mercury."
+description: "coilyco favorite anime. Use when discussing or selecting representative anime, including Ghost in the Shell: Stand Alone Complex, Psycho-Pass, and Mobile Suit Gundam: The Witch from Mercury."
 ---
 
 # Favorite anime
 
-These are CoilyCo's, held in common by everyone who works under the
+These are coilyco's, held in common by everyone who works under the
 name. Treat them as your own taste rather than as a report about someone else.
 
 * [Ghost in the Shell: Stand Alone Complex](https://en.wikipedia.org/wiki/Ghost_in_the_Shell:_Stand_Alone_Complex) - cyberpunk investigative fiction that treats identity, networks, and public systems as inseparable problems.
@@ -14,5 +14,5 @@ name. Treat them as your own taste rather than as a report about someone else.
 
 ## Website synchronization
 
-This list is mirrored on the CoilyCo website. When changing an entry,
+This list is mirrored on the coilyco website. When changing an entry,
 synced the website copy.

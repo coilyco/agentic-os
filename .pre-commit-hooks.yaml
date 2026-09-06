@@ -10,6 +10,7 @@
 #       - id: documentation-size
 #       - id: context-load-points
 #       - id: code-comments
+#       - id: brand-case
 #       - id: actions-run-one-line
 #       - id: source-doc-refs
 #       - id: check-skills
@@ -112,6 +113,15 @@
   name: code comment discipline
   description: "Cap inline comments at two contiguous 90-char lines. A top-of-file header block is exempt and YAML allows comments only in that block, both changeable per repo via header_cap and yaml_comments_below_content under [tool.agentic-os.code-comments]."
   entry: check-code-comments
+  language: python
+  always_run: true
+  pass_filenames: false
+  stages: [pre-commit]
+
+- id: brand-case
+  name: brand name is lowercase
+  description: "The brand name is set lowercase in prose, sentence-initial included, the way adidas and ebay are. Code spans, fenced blocks, URLs and link targets are exempt because a slug or hostname is not prose. A literal external identifier that genuinely carries a capital takes an entry under [tool.agentic-os.brand-case] allow."
+  entry: check-brand-case
   language: python
   always_run: true
   pass_filenames: false
