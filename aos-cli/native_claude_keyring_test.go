@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -9,41 +8,16 @@ import (
 	"testing"
 )
 
-type fakeClaudeKeyring struct {
-	items   map[string][]byte
-	reads   []string
-	writes  []string
-	deletes []string
-}
-
-func newFakeClaudeKeyring() *fakeClaudeKeyring {
-	return &fakeClaudeKeyring{items: map[string][]byte{}}
-}
-
-func (fake *fakeClaudeKeyring) ports() claudeKeyringPorts {
-	return claudeKeyringPorts{
-		Read: func(_ context.Context, service, _ string) ([]byte, error) {
-			fake.reads = append(fake.reads, service)
-			secret, ok := fake.items[service]
-			if !ok {
-				return nil, errClaudeKeyringNotFound
-			}
-			return secret, nil
-		},
-		Write: func(_ context.Context, service, _ string, secret []byte) error {
-			fake.writes = append(fake.writes, service)
-			fake.items[service] = append([]byte(nil), secret...)
-			return nil
-		},
-		Delete: func(_ context.Context, service, _ string) error {
-			fake.deletes = append(fake.deletes, service)
-			if _, ok := fake.items[service]; !ok {
-				return errClaudeKeyringNotFound
-			}
-			delete(fake.items, service)
-			return nil
-		},
-	}
+// stubKeyring serves one canned secret and records the services asked for.
+func stubKeyring(secret []byte, err error) (claudeKeyringReader, *[]string) {
+	asked := &[]string{}
+	return func(_ context.Context, service, _ string) ([]byte, error) {
+		*asked = append(*asked, service)
+		if err != nil {
+			return nil, err
+		}
+		return secret, nil
+	}, asked
 }
 
 // The suffix is Claude Code's own, so a golden digest guards against silently
@@ -67,178 +41,163 @@ func TestNativeClaudeKeychainServiceMatchesHarnessNaming(t *testing.T) {
 	}
 }
 
-func TestLendNativeClaudeCredentialCopiesHostLogin(t *testing.T) {
-	fake := newFakeClaudeKeyring()
-	fake.items[claudeCredentialService] = []byte("host-token")
-	home := "/home/example"
-	sessionHome := "/tmp/example-session/home"
+func TestSeedCanonicalClaudeCredentialWritesTheKeychainLogin(t *testing.T) {
+	home := t.TempDir()
+	read, asked := stubKeyring([]byte(`{"claudeAiOauth":{"accessToken":"t"}}`), nil)
 
-	service, err := lendNativeClaudeCredential(
-		context.Background(), fake.ports(), home, sessionHome,
-	)
+	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("seed: %v", err)
 	}
-	want := nativeClaudeKeychainService(home, nativeClaudeSessionConfigDir(sessionHome))
-	if service != want {
-		t.Fatalf("session service = %q, want %q", service, want)
+	if !seeded {
+		t.Fatal("seed reported no write")
 	}
-	if !bytes.Equal(fake.items[want], []byte("host-token")) {
-		t.Fatalf("session item = %q, want the host token", fake.items[want])
-	}
-	if !bytes.Equal(fake.items[claudeCredentialService], []byte("host-token")) {
-		t.Fatal("host item must be left intact")
-	}
-}
-
-func TestLendNativeClaudeCredentialReportsMissingHostLogin(t *testing.T) {
-	fake := newFakeClaudeKeyring()
-	service, err := lendNativeClaudeCredential(
-		context.Background(), fake.ports(), "/home/example", "/tmp/example-session/home",
-	)
-	if !errors.Is(err, errClaudeKeyringNotFound) {
-		t.Fatalf("error = %v, want %v", err, errClaudeKeyringNotFound)
-	}
-	if service != "" {
-		t.Fatalf("service = %q, want empty", service)
-	}
-	if len(fake.writes) != 0 {
-		t.Fatalf("writes = %v, want none", fake.writes)
-	}
-}
-
-// A session home that resolves to the host config dir must never copy onto
-// itself, which would delete the host login during harvest.
-func TestLendNativeClaudeCredentialSkipsHostConfigDir(t *testing.T) {
-	fake := newFakeClaudeKeyring()
-	fake.items[claudeCredentialService] = []byte("host-token")
-	home := "/home/example"
-
-	service, err := lendNativeClaudeCredential(context.Background(), fake.ports(), home, home)
+	target := canonicalClaudeCredentialPath(home)
+	body, err := os.ReadFile(target)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("read seeded file: %v", err)
 	}
-	if service != "" {
-		t.Fatalf("service = %q, want empty", service)
+	if string(body) != `{"claudeAiOauth":{"accessToken":"t"}}` {
+		t.Fatalf("seeded body = %q", body)
 	}
-	if len(fake.reads) != 0 || len(fake.writes) != 0 {
-		t.Fatalf("reads = %v, writes = %v, want none", fake.reads, fake.writes)
-	}
-}
-
-func TestReturnNativeClaudeCredentialWritesBackAndClearsSession(t *testing.T) {
-	fake := newFakeClaudeKeyring()
-	fake.items[claudeCredentialService] = []byte("stale-token")
-	home := "/home/example"
-	session := nativeClaudeKeychainService(home, "/tmp/example-session/home/.claude")
-	fake.items[session] = []byte("refreshed-token")
-
-	if err := returnNativeClaudeCredential(
-		context.Background(), fake.ports(), home, session,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(fake.items[claudeCredentialService], []byte("refreshed-token")) {
-		t.Fatalf("host item = %q, want the refreshed token", fake.items[claudeCredentialService])
-	}
-	if _, ok := fake.items[session]; ok {
-		t.Fatal("session item must be deleted so no orphan accumulates")
-	}
-}
-
-// An unclean exit can leave the lease recorded with no session item behind, and
-// the harvest still has to clear the record rather than fail forever.
-func TestReturnNativeClaudeCredentialToleratesMissingSessionItem(t *testing.T) {
-	fake := newFakeClaudeKeyring()
-	fake.items[claudeCredentialService] = []byte("host-token")
-	home := "/home/example"
-	session := nativeClaudeKeychainService(home, "/tmp/example-session/home/.claude")
-
-	if err := returnNativeClaudeCredential(
-		context.Background(), fake.ports(), home, session,
-	); err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(fake.items[claudeCredentialService], []byte("host-token")) {
-		t.Fatal("host item must be left intact")
-	}
-	if len(fake.writes) != 0 {
-		t.Fatalf("writes = %v, want none", fake.writes)
-	}
-}
-
-func TestReturnNativeClaudeCredentialIgnoresEmptyService(t *testing.T) {
-	fake := newFakeClaudeKeyring()
-	if err := returnNativeClaudeCredential(
-		context.Background(), fake.ports(), "/home/example", "  ",
-	); err != nil {
-		t.Fatal(err)
-	}
-	if len(fake.reads)+len(fake.writes)+len(fake.deletes) != 0 {
-		t.Fatal("an empty service must not touch the keyring")
-	}
-}
-
-func TestHarvestNativeClaudeLeaseClearsRecord(t *testing.T) {
-	fake := newFakeClaudeKeyring()
-	home := "/home/example"
-	session := nativeClaudeKeychainService(home, "/tmp/example-session/home/.claude")
-	fake.items[session] = []byte("refreshed-token")
-	runtime := nativeRuntime{Home: home, Stderr: os.Stderr, ClaudeKeyring: fake.ports()}
-	lease := nativeLease{ClaudeKeychain: session}
-
-	if !harvestNativeClaudeLease(runtime, &lease) {
-		t.Fatal("harvest reported no change, want the lease cleared")
-	}
-	if lease.ClaudeKeychain != "" {
-		t.Fatalf("lease keychain = %q, want empty", lease.ClaudeKeychain)
-	}
-	if !bytes.Equal(fake.items[claudeCredentialService], []byte("refreshed-token")) {
-		t.Fatal("host item must receive the refreshed token")
-	}
-	if harvestNativeClaudeLease(runtime, &lease) {
-		t.Fatal("a cleared lease must not be harvested twice")
-	}
-}
-
-// Linux and Windows keep the Claude login in the config dir the session already
-// projects, so an absent keyring is nothing to report and nothing to carry.
-func unsupportedClaudeKeyring() claudeKeyringPorts {
-	return claudeKeyringPorts{
-		Read: func(context.Context, string, string) ([]byte, error) {
-			return nil, errClaudeKeyringUnsupported
-		},
-		Write: func(context.Context, string, string, []byte) error {
-			return errClaudeKeyringUnsupported
-		},
-		Delete: func(context.Context, string, string) error {
-			return errClaudeKeyringUnsupported
-		},
-	}
-}
-
-func TestLendNativeClaudeCredentialStaysQuietWithoutAKeyring(t *testing.T) {
-	service, err := lendNativeClaudeCredential(
-		context.Background(),
-		unsupportedClaudeKeyring(),
-		"/home/example",
-		"/tmp/example-session/home",
-	)
+	// The credential is readable only by its owner.
+	info, err := os.Stat(target)
 	if err != nil {
-		t.Fatalf("error = %v, want none", err)
+		t.Fatalf("stat: %v", err)
 	}
-	if service != "" {
-		t.Fatalf("service = %q, want empty", service)
+	if perm := info.Mode().Perm(); perm != 0o600 {
+		t.Fatalf("mode = %v, want 0600", perm)
+	}
+	// It reads the default service, never a session-scoped digest.
+	if len(*asked) != 1 || (*asked)[0] != claudeCredentialService {
+		t.Fatalf("services read = %v", *asked)
 	}
 }
 
-func TestReturnNativeClaudeCredentialStaysQuietWithoutAKeyring(t *testing.T) {
-	home := "/home/example"
-	session := nativeClaudeKeychainService(home, "/tmp/example-session/home/.claude")
-	err := returnNativeClaudeCredential(
-		context.Background(), unsupportedClaudeKeyring(), home, session,
-	)
+// The Keychain goes stale once the file is authoritative, so overwriting would
+// retire the token the sessions are actually using.
+func TestSeedCanonicalClaudeCredentialNeverOverwrites(t *testing.T) {
+	home := t.TempDir()
+	target := canonicalClaudeCredentialPath(home)
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(target, []byte("live"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	read, asked := stubKeyring([]byte("stale"), nil)
+
+	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home)
 	if err != nil {
-		t.Fatalf("error = %v, want none", err)
+		t.Fatalf("seed: %v", err)
+	}
+	if seeded {
+		t.Fatal("seed overwrote an existing credential")
+	}
+	if body, _ := os.ReadFile(target); string(body) != "live" {
+		t.Fatalf("body = %q, want the untouched live value", body)
+	}
+	if len(*asked) != 0 {
+		t.Fatalf("keychain was read despite an existing file: %v", *asked)
+	}
+}
+
+func TestSeedCanonicalClaudeCredentialStaysQuietWithoutAKeyring(t *testing.T) {
+	home := t.TempDir()
+	for _, absent := range []error{errClaudeKeyringUnsupported, errClaudeKeyringNotFound} {
+		read, _ := stubKeyring(nil, absent)
+		seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home)
+		if err != nil {
+			t.Fatalf("%v: %v", absent, err)
+		}
+		if seeded {
+			t.Fatalf("%v: reported a write", absent)
+		}
+		if _, err := os.Stat(canonicalClaudeCredentialPath(home)); !os.IsNotExist(err) {
+			t.Fatalf("%v: wrote a file anyway", absent)
+		}
+	}
+}
+
+func TestSeedCanonicalClaudeCredentialSurfacesRealKeyringFailures(t *testing.T) {
+	home := t.TempDir()
+	boom := errors.New("keychain locked")
+	read, _ := stubKeyring(nil, boom)
+	if _, err := seedCanonicalClaudeCredential(context.Background(), read, home); !errors.Is(err, boom) {
+		t.Fatalf("err = %v, want %v", err, boom)
+	}
+}
+
+// The ordinary case: the session wrote through its symlink, so the canonical
+// file is already current and there is nothing to reclaim.
+func TestReclaimSessionClaudeCredentialIgnoresAnIntactSymlink(t *testing.T) {
+	home := t.TempDir()
+	sessionHome := t.TempDir()
+	target := canonicalClaudeCredentialPath(home)
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(target, []byte("canonical"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	link := filepath.Join(sessionHome, ".claude", ".credentials.json")
+	if err := os.MkdirAll(filepath.Dir(link), 0o700); err != nil {
+		t.Fatalf("mkdir session: %v", err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatalf("symlink: %v", err)
+	}
+
+	reclaimed, err := reclaimSessionClaudeCredential(sessionHome, home)
+	if err != nil {
+		t.Fatalf("reclaim: %v", err)
+	}
+	if reclaimed {
+		t.Fatal("reclaimed through an intact symlink")
+	}
+}
+
+// The guard's reason for existing: a write that replaced the link would strand
+// the rotated token in a session directory about to be reaped.
+func TestReclaimSessionClaudeCredentialRecoversAReplacedLink(t *testing.T) {
+	home := t.TempDir()
+	sessionHome := t.TempDir()
+	target := canonicalClaudeCredentialPath(home)
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(target, []byte("old"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	replaced := filepath.Join(sessionHome, ".claude", ".credentials.json")
+	if err := os.MkdirAll(filepath.Dir(replaced), 0o700); err != nil {
+		t.Fatalf("mkdir session: %v", err)
+	}
+	if err := os.WriteFile(replaced, []byte("rotated"), 0o600); err != nil {
+		t.Fatalf("write session: %v", err)
+	}
+
+	reclaimed, err := reclaimSessionClaudeCredential(sessionHome, home)
+	if err != nil {
+		t.Fatalf("reclaim: %v", err)
+	}
+	if !reclaimed {
+		t.Fatal("reclaim reported nothing recovered")
+	}
+	if body, _ := os.ReadFile(target); string(body) != "rotated" {
+		t.Fatalf("canonical body = %q, want the rotated value", body)
+	}
+}
+
+func TestReclaimSessionClaudeCredentialToleratesAnAbsentSession(t *testing.T) {
+	home := t.TempDir()
+	for _, sessionHome := range []string{"", t.TempDir()} {
+		reclaimed, err := reclaimSessionClaudeCredential(sessionHome, home)
+		if err != nil {
+			t.Fatalf("reclaim %q: %v", sessionHome, err)
+		}
+		if reclaimed {
+			t.Fatalf("reclaim %q reported a recovery", sessionHome)
+		}
 	}
 }

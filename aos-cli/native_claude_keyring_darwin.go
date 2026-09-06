@@ -31,45 +31,6 @@ func readClaudeKeyring(ctx context.Context, service, account string) ([]byte, er
 	return bytes.TrimSpace(stdout.Bytes()), nil
 }
 
-// The secret crosses on argv because /usr/bin/security otherwise only prompts
-// on a terminal. docs/native-claude-credentials.md records the tradeoff.
-func writeClaudeKeyring(ctx context.Context, service, account string, secret []byte) error {
-	command := exec.CommandContext(
-		ctx,
-		"/usr/bin/security",
-		"add-generic-password",
-		"-U",
-		"-s", service,
-		"-a", account,
-		"-w", string(secret),
-	)
-	var stderr bytes.Buffer
-	command.Stderr = &stderr
-	if err := command.Run(); err != nil {
-		return errors.New(claudeKeyringFailure(err, stderr.Bytes()))
-	}
-	return nil
-}
-
-func deleteClaudeKeyring(ctx context.Context, service, account string) error {
-	command := exec.CommandContext(
-		ctx,
-		"/usr/bin/security",
-		"delete-generic-password",
-		"-s", service,
-		"-a", account,
-	)
-	var stderr bytes.Buffer
-	command.Stderr = &stderr
-	if err := command.Run(); err != nil {
-		if claudeKeyringMissing(err, stderr.Bytes()) {
-			return errClaudeKeyringNotFound
-		}
-		return errors.New(claudeKeyringFailure(err, stderr.Bytes()))
-	}
-	return nil
-}
-
 func claudeKeyringMissing(err error, stderr []byte) bool {
 	var exitError *exec.ExitError
 	if !errors.As(err, &exitError) {

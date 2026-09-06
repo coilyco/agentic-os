@@ -177,14 +177,18 @@ def test_full_image_build_uses_the_dedicated_runner() -> None:
     publish = PUBLISH.read_text(encoding="utf-8")
 
     # The verify job needs the same runner: it reads the registry through docker.
-    assert publish.count("runs-on: docker-build") == 3
+    # plan-draft joined them, so four rather than three.
+    assert publish.count("runs-on: docker-build") == 4
     assert "publish-language-payloads:" in publish
     assert "publish-full:" in publish
     assert "needs: [plan-draft, publish-language-payloads]" in publish
     plan_draft = publish.split("\n  plan-draft:\n", 1)[1].split(
         "\n  publish-language-payloads:\n", 1
     )[0]
-    assert "runs-on: docker" in plan_draft
+    # Exact, not a substring of docker-build, and no container: a container here
+    # made the publish graph depend on the image it publishes.
+    assert "runs-on: docker-build" in plan_draft
+    assert "container:" not in plan_draft
 
 
 def test_shared_docker_bootstrap_retries_downloads_without_partial_files() -> None:
