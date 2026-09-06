@@ -13,3 +13,5 @@ roles:
     agent: claude
   advocate:
     agent: claude
+  infosec:
+    agent: claude
