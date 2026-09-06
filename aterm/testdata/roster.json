@@ -339,12 +339,12 @@
       "background": "#2f1800"
     },
     {
-      "slug": "infosec",
-      "display_name": "Security Engineer",
-      "purpose": "Find what the estate exposes, and prove the path to it before someone else does.",
-      "skill": "role-infosec",
-      "skill_source": "roster:core:role:infosec",
-      "skill_digest": "sha256:1aa62a09b4cd1f4f59ff66bbfb0b6559224cec68599d24448998e5416f3c5e57",
+      "slug": "underwriter",
+      "display_name": "AI Underwriter",
+      "purpose": "Underwrite a company's claim that its high-risk AI system meets the Act, and stand behind the file that proves it.",
+      "skill": "role-underwriter",
+      "skill_source": "roster:core:role:underwriter",
+      "skill_digest": "sha256:4cf07d1b4e0aa768f7398a86c251ca45c5bbe6d14866e555885fecb6af9a0027",
       "identity": {
         "name": "Cassandra",
         "pronouns": "they"
