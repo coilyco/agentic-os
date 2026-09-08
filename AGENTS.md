@@ -64,9 +64,9 @@ Config splits on three axes, each a distinct owner: **permission/surface** (AOSg
 
 ## Release
 
-Conventional-commits 1.0.0 and Forgejo issue references are encouraged house style but unenforced, since the `conventional-commit` and `closes-issue` commit-msg hooks have been retired from the suite. Each release train advances only on a promoted diff that touches its own inputs: the standalone AOS CLI on a shipped binary or package input, `aos-precommit-v*` on an installed hook input, and dev-base publication on an image tier. Manual workflow dispatch remains the explicit retry or override path, and major versions are hand-driven only (`scripts/release.py --bump major` for aos-precommit, workflow dispatch for other trains) rather than inferred from commit messages. Canonical history lives on Forgejo and the GitHub mirror stays PR-gated. A seat that receives dispatched work follows the resolved lane, defined once in the generated Git workflow block below rather than restated here.
+Conventional-commits 1.0.0 is encouraged house style but unenforced, since the `conventional-commit` and `closes-issue` commit-msg hooks have been retired from the suite. Reference a tracker record as `teable:<owner>/<repo>#<n>`, because Forgejo issue trackers are off fleet-wide and a bare `<owner>/<repo>#<n>` still means Forgejo, where pull requests and historical issues live. Each release train advances only on a promoted diff that touches its own inputs: the standalone AOS CLI on a shipped binary or package input, `aos-precommit-v*` on an installed hook input, and dev-base publication on an image tier. Manual workflow dispatch remains the explicit retry or override path, and major versions are hand-driven only (`scripts/release.py --bump major` for aos-precommit, workflow dispatch for other trains) rather than inferred from commit messages. Canonical history lives on Forgejo and the GitHub mirror stays PR-gated. A seat that receives dispatched work follows the resolved lane, defined once in the generated Git workflow block below rather than restated here.
 
-A read-only clone cannot push itself, so push or merge workflows need a writable surface. Track landed work by issue state and commits on `main`. `aosguard ops forgejo pr list` and `pr view` are allowed. Merge stays gated.
+A read-only clone cannot push itself, so push or merge workflows need a writable surface. Track landed work by tracker-record state and commits on `main`. `aosguard ops forgejo pr list` and `pr view` are allowed. Merge stays gated.
 
 ## Agent rules
 
@@ -75,12 +75,11 @@ A read-only clone cannot push itself, so push or merge workflows need a writable
 
 **This repo runs the `pull-request-and-merge` lane**, declared as `ward.workflow` in this file's frontmatter. The agent commits to a task branch, pushes it, opens a Forgejo pull request, and **merges that pull request itself** once it is green. The author of the code is the one who merges it. Opening the pull request is a step, never the stopping point.
 
-The fleet runs two lanes, and both authorize the same core actions:
+The fleet runs one lane, and it authorizes the agent end to end. Pushing straight to `main` is over: `merge-remote-main` is retired, so no repo can declare its way back to one.
 
-* `merge-remote-main` - the agent commits, pushes to `main`, and closes the issue. No branch and no pull request.
 * `pull-request-and-merge` - the agent commits to a task branch, pushes it, opens a pull request, and merges that pull request itself once it is green.
 
-**Every lane slug names what the AGENT does, never what someone else does.** `pull-request-and-merge` carries the merge because the agent that authored the code merges its own pull request. `pull-request` drops `-and-merge` because the author stops at the pull request and the director merge lane takes over. Reading `pull-request-and-merge` as "someone else merges it later" inverts the two lanes and leaves finished work sitting unmerged.
+**Every lane slug names what the AGENT does, never what someone else does.** `pull-request-and-merge` carries the merge because the agent that authored the code merges its own pull request. `pull-request` drops `-and-merge` because the author stops at the pull request and the director merge lane takes over. Reading `pull-request-and-merge` as "someone else merges it later" inverts the two and leaves finished work sitting unmerged.
 
 **These actions are pre-authorized on every lane, and the agent MUST take them without asking first.** Committing, creating a branch, pushing a branch, pushing the lane's own destination, and opening a pull request are ordinary reversible work, not the destructive wall that earns a question. Stopping to ask is how a turn ends with the work stranded in a dirty worktree.
 
@@ -167,6 +166,10 @@ This rule governs a session with no native shadow. Before the first mutation in 
 
 Before cloning a repository, the agent checks the host's expected-repositories list when that surface is configured. If the repository is not explicitly listed as one that belongs on disk, the agent clones it into the resolved temporary directory with a task-specific basename, never under the persistent projects or workspace tree, treats that clone as task-scoped, and removes it once the work is complete and remote-checkpoint requirements are satisfied. An absent or unreadable list does not authorize a persistent checkout.
 
+### A foreign checkout is somewhere to read, not somewhere to run from
+
+The rules above bound what an agent may **write** in a checkout it does not own, and say nothing about what it may **run** from inside one. A privileged command resolves against its working directory: `python3 -m` prepends that directory to `sys.path`, so a module import inside a foreign clone loads the clone's code first, in a process that may already hold a decrypted credential, and `PYTHONPATH` does not save it because the working directory wins. The same shape reaches anything resolving configuration, plugins, or hooks by name. So **invoke an operator verb, a credential-bearing command, or anything resolving a module or plugin by name from a directory the estate authored**, leaving the foreign checkout first. Reading its files, running git against it, and inspecting it are untouched, because the rule is about execution carrying authority rather than about presence. **The trigger is ordinary rather than adversarial**: an agent clones an unlisted repository exactly as instructed above, works inside it, and reaches for an operator verb without leaving, and nothing in that sequence looks wrong from inside the session. A guard validating argv cannot see it either, since the invocation is legitimate and the substitution happens at import. Where tooling can enforce the safe form it should, and this rule covers every case it does not reach.
+
 ### Serialized checkouts invert isolation
 
 A repository in the serialized set inverts the three rules above. The agent works it in the canonical checkout under `$PROJECTS_ROOT`, never in a shadow, a worktree, or a temporary clone, and treats it as belonging on disk whether or not residency lists it. The named set, the one-writer reason, and what to confirm first: [native agent workspaces](docs/native-agent-workspaces.md).
@@ -181,19 +184,17 @@ Proceed autonomously on anything reversible. Stop only for a destructive, irreve
 
 Suppressing a question is about whether to stop, never about which surface carries one that is asked anyway. When the agent does ask, the end-of-run batch included, it uses the harness's structured question tool (AskUserQuestion in Claude Code) rather than prose, up to four questions in one call, recommended option first. When the batch runs past four, the agent asks the four that unblock the most work, then repeats with another call once those land, rather than spilling the remainder into prose. **Deferring a decision is only free while the cost of being wrong stays flat or falls.** When that cost rises with time, deferring is strictly worse than deciding, and the moment you notice is the cheapest moment there will be. Check the reversal cost now rather than in general: a fixed external date, a dependency being archived underneath the issue, and a mental index that decays all raise it, and none of them announce themselves.
 
+**A role bundle launches its own role, or a human is present.** A seat fans out sub-agents of its own role freely, and never launches a different role non-interactively.
+
 ### Front-load the context you know you need
 
 Before a consequential claim, name the source that would settle it and open that source. A claim is consequential when a reader could act on it, or when it enters a durable artifact such as an issue, plan, review, record, verdict, or recommendation. An assessment, a ranking, and a diagnosis reach this exactly as a code change does.
 
-Prefer the thing over any description of it: the code over the issue describing it, the diff over the commit subject, the file contents over the metadata or the search hit, the raw response over a summary of it.
-
-A derived claim does not inherit the provenance of the fact it came from. Whenever you write an elapsed duration, a rate, a trend, or a current state, that clause was computed and needs its own source or its own hedge.
-
-A pointer whose target is absent is not a source. What a pointer names is reachable with the access you already hold, so clone it to a temporary path and read it.
+Prefer the thing over any description of it: the code over the issue describing it, the diff over the commit subject, the file contents over the metadata or the search hit, the raw response over a summary of it. A derived claim does not inherit the provenance of the fact it came from. Whenever you write an elapsed duration, a rate, a trend, or a current state, that clause was computed and needs its own source or its own hedge. A pointer whose target is absent is not a source. What a pointer names is reachable with the access you already hold, so clone it to a temporary path and read it.
 
 When you correct a claim, notify what consumes it: the issues, drafts, and records that depend on the version you moved.
 
-Naming a gap is not closing it. An identified gap is a task rather than a disclaimer whenever the information is reachable with the access you already hold. Absence established through one search modality is not absence, and a single empty query is not a negative result.
+Naming a gap is not closing it. An identified gap is a task rather than a disclaimer whenever the information is reachable. Absence established through one search modality is not absence, and a single empty query is not a negative result.
 
 Apply this stopping condition before you deliver. For every consequential claim, either name the source you opened, or mark the claim as inference and state the observation that would settle it.
 
@@ -206,7 +207,7 @@ Acquisition is bounded. It reaches only sources that would change a specific pen
 Commands for a human must cross the current execution boundary truthfully.
 
 * **Container / surface session** - a `warded` container or read-only director surface has no writable host mount. Hand one-off commands back inline. For anything reusable or worth tracking, commit to a **pushable** repo and push, then hand back the committed path. A local container file does not cross this boundary.
-* **Host harness** - hand one-off commands back inline. A temporary file is optional when it materially improves review or safety, not a terminal-specific paste requirement.
+* **Host harness** - hand one-off commands back inline. A temporary file is optional when it materially improves review or safety, not a terminal-specific paste requirement. Resolve a repository command with `aos run --handoff <verb>` rather than a bare `just` line, which works only from the owning repo: no justfile sits at the projects root.
 
 In either model a **reusable script** - anything the human might run more than once, or worth tracking - is committed to a repo and handed back as a path. This covers **any** command offered for the human to run, optional and alternative ones included, not just the primary next step. The trigger is the recipient, not the framing: commands the agent runs itself through its shell execution tool never touch a human paste path and stay out of scope.
 

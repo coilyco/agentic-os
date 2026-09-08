@@ -15,13 +15,19 @@ deterministic renderer plus a `check_drift` the validator (`check_git_workflow`)
 uses to regenerate offline and fail on any drift. The applier
 (`scripts/apply-git-workflow.py`) injects or refreshes the block in place.
 
-The block details both lanes the fleet actually runs (`merge-remote-main` and
-`pull-request-and-merge`), names which one this repo is on, and states the
-pre-authorization in MUST / ALWAYS / NEVER terms. Both lanes authorize the same
-core actions, so an agent that has read the block never needs to ask whether
-committing or pushing is allowed here. The two genuine walls, `--no-verify` and
-force-push, stay closed in the same breath, so the block reads as a boundary
-rather than a blanket.
+The block names the one lane the fleet runs, `pull-request-and-merge`, says which
+lane this repo declares, and states the pre-authorization in MUST / ALWAYS / NEVER
+terms, so an agent that has read it never needs to ask whether committing or
+pushing is allowed here. The two genuine walls, `--no-verify` and force-push, stay
+closed in the same breath, so the block reads as a boundary rather than a blanket.
+
+`merge-remote-main` was retired here. It was the lane that let an agent push the
+default branch directly, and pushing straight to `main` ended fleet-wide. Removing
+the slug from `LANES` is what makes it unrenderable: a repo declaring it now reads
+as undeclared and gets the guarded `pull-request` shape rather than a direct push.
+One repo still declares it and keeps it deliberately, `coilysiren/coilysiren`. That
+one is GitHub-canonical, carries `.agentic-os-ignore`, wires no catalog hooks, and
+holds no managed block, so nothing here renders or validates its frontmatter.
 
 Every slug names what the AGENT does, and the block says so outright because
 the first two drafts of this generator got it backwards. `pull-request-and-merge`
@@ -65,18 +71,14 @@ PR_AND_MERGE = "pull-request-and-merge"
 PULL_REQUEST = "pull-request"
 BRANCH_ONLY = "remote-branch-only"
 
-LANES = (MERGE_MAIN, PULL_REQUEST, PR_AND_MERGE, BRANCH_ONLY)
+# MERGE_MAIN is deliberately absent: retired, and unrenderable by construction.
+LANES = (PULL_REQUEST, PR_AND_MERGE, BRANCH_ONLY)
 
 _DECLARED = "declared as `ward.workflow` in this file's frontmatter"
 
 # Lead paragraph per lane. `None` keys the undeclared variant, which never
 # grants a direct push to `main` on a guess.
 _LEAD: dict[str | None, str] = {
-    MERGE_MAIN: (
-        f"**This repo runs the `{MERGE_MAIN}` lane**, {_DECLARED}. The agent "
-        "commits, pushes straight to `main`, and closes the issue. Pushing "
-        "`main` here is the expected path, not an escalation."
-    ),
     PR_AND_MERGE: (
         f"**This repo runs the `{PR_AND_MERGE}` lane**, {_DECLARED}. The agent "
         "commits to a task branch, pushes it, opens a Forgejo pull request, "
@@ -103,12 +105,11 @@ _LEAD: dict[str | None, str] = {
     ),
 }
 
-_BODY = f"""The fleet runs two lanes, and both authorize the same core actions:
+_BODY = f"""The fleet runs one lane, and it authorizes the agent end to end. Pushing straight to `main` is over: `{MERGE_MAIN}` is retired, so no repo can declare its way back to one.
 
-* `{MERGE_MAIN}` - the agent commits, pushes to `main`, and closes the issue. No branch and no pull request.
 * `{PR_AND_MERGE}` - the agent commits to a task branch, pushes it, opens a pull request, and merges that pull request itself once it is green.
 
-**Every lane slug names what the AGENT does, never what someone else does.** `{PR_AND_MERGE}` carries the merge because the agent that authored the code merges its own pull request. `{PULL_REQUEST}` drops `-and-merge` because the author stops at the pull request and the director merge lane takes over. Reading `{PR_AND_MERGE}` as "someone else merges it later" inverts the two lanes and leaves finished work sitting unmerged.
+**Every lane slug names what the AGENT does, never what someone else does.** `{PR_AND_MERGE}` carries the merge because the agent that authored the code merges its own pull request. `{PULL_REQUEST}` drops `-and-merge` because the author stops at the pull request and the director merge lane takes over. Reading `{PR_AND_MERGE}` as "someone else merges it later" inverts the two and leaves finished work sitting unmerged.
 
 **These actions are pre-authorized on every lane, and the agent MUST take them without asking first.** Committing, creating a branch, pushing a branch, pushing the lane's own destination, and opening a pull request are ordinary reversible work, not the destructive wall that earns a question. Stopping to ask is how a turn ends with the work stranded in a dirty worktree.
 

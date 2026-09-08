@@ -62,8 +62,14 @@ func TestDoctorNamesAnUnleasedLaunchWithoutFailing(t *testing.T) {
 		t.Fatalf("an unleased host still launches, so doctor should pass: %v", err)
 	}
 	shadow := doctorVerdicts(t, out)["session shadow"]
-	if shadow.Status != doctorWarn || !strings.Contains(shadow.Detail, "unleased") {
+	if shadow.Status != doctorWarn {
 		t.Fatalf("session shadow = %+v, want an unleased warning", shadow)
+	}
+	// Both losses, because reporting only the worktree understates the skip.
+	for _, want := range []string{"unleased", "shares this checkout", "daily host convergence"} {
+		if !strings.Contains(shadow.Detail, want) {
+			t.Fatalf("session shadow detail %q is missing %q", shadow.Detail, want)
+		}
 	}
 }
 

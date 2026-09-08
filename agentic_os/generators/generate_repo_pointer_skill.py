@@ -147,7 +147,7 @@ def render_skill(
     body = (
         f"# {skill_name}\n"
         "\n"
-        f"Pointer to `~/projects/{org}/{name}/`.\n"
+        f"Repository `{org}/{name}`. Checkout at `~/projects/{org}/{name}/` when resident.\n"
         "\n"
         "- [`README.md`](../../../README.md) - what it is, quickstart, layout.\n"
         "- [`AGENTS.md`](../../../AGENTS.md) - agent-facing context for the repo.\n"
@@ -166,8 +166,10 @@ def skill_path(repo_root: Path, name: str, skills_dir: str) -> Path:
 
 
 _FRONTMATTER_RE = re.compile(r"\A---\n(?P<fm>.*?\n)---\n", re.DOTALL)
+# Names the repository first, because the checkout is only conditionally there.
 _POINTER_RE = re.compile(
-    r"^Pointer to `~/projects/(?P<org>[^/`]+)/(?P<name>[^/`]+)/`\.$",
+    r"^Repository `(?P<org>[^/`]+)/(?P<name>[^/`]+)`\. "
+    r"Checkout at `~/projects/[^`]+/` when resident\.$",
     re.MULTILINE,
 )
 

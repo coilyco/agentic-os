@@ -7,6 +7,7 @@
 export ANSIBLE_FORCE_COLOR=1
 export LANG=en_US.UTF-8
 export EDITOR=code
+export GIT_PAGER=""
 export GIT_EDITOR=nano
 export SSH_KEY_PATH="$HOME/.ssh/id_rsa"
 export CLI_MFA=ykman

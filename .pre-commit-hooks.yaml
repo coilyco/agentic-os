@@ -10,6 +10,7 @@
 #       - id: documentation-size
 #       - id: context-load-points
 #       - id: code-comments
+#       - id: brand-case
 #       - id: actions-run-one-line
 #       - id: source-doc-refs
 #       - id: check-skills
@@ -47,7 +48,7 @@
 
 - id: pr-guard
   name: pre-push PR guard
-  description: "Refuse pushes whose destination is the remote default branch, and refuse to update an already-published branch that has no open PR, naming the merged PR when one exists so a stranded push is told to branch again rather than to open another PR on a dead branch. A repo declaring ward.workflow merge-remote-main is exempt from the first half, because that push is the lane, and every other lane plus an undeclared one stays guarded. The PR half needs FORGEJO_TOKEN and degrades to a notice without it. Client-side only; git push --no-verify bypasses it."
+  description: "Refuse pushes whose destination is the remote default branch, and refuse to update an already-published branch that has no open PR, naming the merged PR when one exists so a stranded push is told to branch again rather than to open another PR on a dead branch. No lane exempts a repo from the first half: merge-remote-main was the one that did and it is retired, so every repo including an undeclared one stays guarded. The PR half needs FORGEJO_TOKEN and degrades to a notice without it. Client-side only; git push --no-verify bypasses it."
   entry: scripts/pr-guard-pre-push.sh
   language: script
   always_run: true
@@ -83,7 +84,7 @@
 
 - id: documentation-placement
   name: documentation placement
-  description: "Where Markdown may live: root allow-list, flat docs/, skill folders only."
+  description: "Where Markdown may live: root allow-list, flat docs/ and guides/, skill folders only."
   entry: check-documentation-placement
   language: python
   always_run: true
@@ -92,7 +93,7 @@
 
 - id: documentation-size
   name: documentation size
-  description: "How big Markdown may be: the declared band's per-file line and char caps, and the docs/ count cap."
+  description: "How big Markdown may be: the declared band's per-file line and char caps, and the docs/ and guides/ count caps."
   entry: check-documentation-size
   language: python
   always_run: true
@@ -112,6 +113,15 @@
   name: code comment discipline
   description: "Cap inline comments at two contiguous 90-char lines. A top-of-file header block is exempt and YAML allows comments only in that block, both changeable per repo via header_cap and yaml_comments_below_content under [tool.agentic-os.code-comments]."
   entry: check-code-comments
+  language: python
+  always_run: true
+  pass_filenames: false
+  stages: [pre-commit]
+
+- id: brand-case
+  name: brand name is lowercase
+  description: "The brand name is set lowercase in prose, sentence-initial included, the way adidas and ebay are. Code spans, fenced blocks, URLs and link targets are exempt because a slug or hostname is not prose. A literal external identifier that genuinely carries a capital takes an entry under [tool.agentic-os.brand-case] allow."
+  entry: check-brand-case
   language: python
   always_run: true
   pass_filenames: false

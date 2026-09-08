@@ -14,12 +14,19 @@ Constants live in [`agentic_os/pre_commit/check_code_comments.py`](../agentic_os
 
 ## documentation-layout
 
+* **markdown lines (micro band)** - 40 - lines, blank ones included, where `band = "micro"` is declared.
+* **markdown chars (micro band)** - 3000 - characters where `band = "micro"` is declared.
+* **docs count (micro band)** - 5 - `docs/*.md` files where `band = "micro"` is declared, the cap that separates micro from small.
 * **markdown lines (small band)** - 40 - lines, blank ones included, where `band = "small"` is declared.
 * **markdown chars (small band)** - 3000 - characters where `band = "small"` is declared.
 * **docs count (small band)** - 20 - `docs/*.md` files where `band = "small"` is declared.
 * **markdown lines (large band)** - 120 - lines, blank ones included, where `band = "large"` is declared.
 * **markdown chars (large band)** - 8000 - characters where `band = "large"` is declared.
 * **docs count (large band)** - 40 - `docs/*.md` files where `band = "large"` is declared.
+* **guide lines (small band)** - 80 - lines for a `guides/*.md` narrative walkthrough, 2x the small band's per-doc cap.
+* **guide chars (small band)** - 6000 - characters for a `guides/*.md` page where `band = "small"` is declared.
+* **guide lines (large band)** - 240 - lines for a `guides/*.md` narrative walkthrough, 2x the large band's per-doc cap.
+* **guide chars (large band)** - 16000 - characters for a `guides/*.md` page where `band = "large"` is declared.
 * **README overview lines** - 160 - lines, blank ones included, for the root README.md.
 * **README overview chars** - 12500 - characters for the root README.md.
 * **AGENTS.md lines (default)** - 320 - AGENTS.md shared default (override per-repo with `agents_md_max_lines`).

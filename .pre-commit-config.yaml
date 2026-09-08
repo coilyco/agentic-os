@@ -54,6 +54,13 @@ repos:
         always_run: true
         pass_filenames: false
         stages: [pre-commit]
+      - id: brand-case
+        name: brand name is lowercase
+        entry: python -m agentic_os.pre_commit.check_brand_case
+        language: python
+        always_run: true
+        pass_filenames: false
+        stages: [pre-commit]
       - id: code-comments
         name: code comment discipline
         entry: python -m agentic_os.pre_commit.check_code_comments

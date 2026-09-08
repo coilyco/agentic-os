@@ -85,6 +85,9 @@ func TestDoctorPassesTheNativeSessionCheckAtTheTopLevel(t *testing.T) {
 }
 
 func TestRefusalUnwrapsToItsExitCode(t *testing.T) {
+	// A modern shadow publishes the canonical trio, and inheriting it makes the
+	// launch complete, so the refusal under test never fires. #1460
+	clearShadowEnv(t)
 	t.Setenv(nativeSessionEnv, "ds74")
 	err := refuseNestedLaunch()
 	if err == nil {
@@ -100,6 +103,7 @@ func TestRefusalUnwrapsToItsExitCode(t *testing.T) {
 // root cause reported as its symptom. agentic-os#1460
 func TestRefusalOutrunsTheWorkingDirectoryCheck(t *testing.T) {
 	var spawns []recordedSpawn
+	clearShadowEnv(t)
 	t.Setenv(nativeSessionEnv, "ds74")
 	t.Setenv(defaultWorkingEnvVar, "")
 	t.Setenv("HOME", filepath.Join(t.TempDir(), "no-projects-here"))

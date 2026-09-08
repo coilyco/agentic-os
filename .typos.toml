@@ -24,3 +24,5 @@ SOM = "SOM"
 Iz = "Iz"
 signoz = "signoz"
 ward = "ward"
+# Teable id prefixes: typos splits the alpha run, as with `ser` above.
+viw = "viw"

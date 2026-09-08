@@ -10,7 +10,6 @@ FROM ${LANG_DOTNET_IMAGE} AS dev-base-lang-dotnet-graft
 FROM ${LANG_PYTHON_IMAGE} AS dev-base-lang-python-graft
 
 FROM ubuntu:24.04 AS dev-base-tool-builder
-ARG WARD_VERSION=0.887.0
 ARG UMBRA_VERSION=0.192.0
 ARG AOS_VERSION=0.213.0
 ARG TARGETARCH
@@ -22,17 +21,6 @@ RUN set -eux; \
     apt-get update; apt-get install -y --no-install-recommends \
       ca-certificates curl git openssh-client python3 python3-yaml; \
     rm -rf /var/lib/apt/lists/*
-RUN set -eux; \
-    ward_asset="ward-linux-${TARGETARCH}"; \
-    ward_base="https://forgejo.coilysiren.me/coilyco-flight-deck/ward/releases/download/v${WARD_VERSION}"; \
-    curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
-      "${ward_base}/${ward_asset}" -o "/tmp/${ward_asset}"; \
-    curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
-      "${ward_base}/SHA256SUMS" -o /tmp/ward-SHA256SUMS; \
-    grep "[[:space:]]${ward_asset}$" /tmp/ward-SHA256SUMS \
-      | (cd /tmp && sha256sum -c -); \
-    install -m 0755 "/tmp/${ward_asset}" /usr/local/bin/ward; \
-    rm "/tmp/${ward_asset}" /tmp/ward-SHA256SUMS; ward --version
 RUN set -eux; \
     aos_asset="aos-linux-${TARGETARCH}"; \
     aos_base="https://forgejo.coilysiren.me/coilyco-flight-deck/agentic-os/releases/download/aos-v${AOS_VERSION}"; \
@@ -117,7 +105,6 @@ COPY --chmod=0755 session-name.sh git-identity.sh statusline.sh ward-shell-entry
 COPY --chmod=0755 statusline.d/ /opt/agentic-os/statusline.d/
 COPY --chmod=0644 claude-managed-settings.json /etc/claude-code/managed-settings.json
 COPY --from=repo-lists --chmod=0644 substrate-repos.txt /opt/agentic-os/substrate-repos.txt
-COPY --from=dev-base-tool-builder /usr/local/bin/ward /usr/local/bin/ward
 COPY --from=dev-base-tool-builder /usr/local/bin/aos /usr/local/bin/aos
 COPY --from=dev-base-tool-builder /usr/local/bin/aosguard /usr/local/bin/aosguard
 COPY --from=dev-base-tool-builder /opt/agentic-os/aosguard-skill /opt/agentic-os/aosguard-skill

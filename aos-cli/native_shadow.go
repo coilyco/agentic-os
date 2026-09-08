@@ -67,7 +67,6 @@ type nativeLease struct {
 	// field carries: original_cwd is the launch directory, not the root.
 	CanonicalHome     string     `json:"canonical_home,omitempty"`
 	CanonicalProjects string     `json:"canonical_projects,omitempty"`
-	ClaudeKeychain    string     `json:"claude_keychain,omitempty"`
 	DeadSince         *time.Time `json:"dead_since,omitempty"`
 	// Released is the session saying it is finished, which skips the grace a
 	// crashed session needs. See docs/native-shadow.md.
@@ -132,14 +131,14 @@ type nativeRuntime struct {
 	Progress *nativeProgress
 	// ClaudeKeyring is injected by tests. The zero value falls back to the
 	// platform keyring.
-	ClaudeKeyring claudeKeyringPorts
+	ClaudeKeyring claudeKeyringReader
 }
 
-func (runtime nativeRuntime) claudeKeyring() claudeKeyringPorts {
-	if runtime.ClaudeKeyring.Read != nil {
+func (runtime nativeRuntime) claudeKeyring() claudeKeyringReader {
+	if runtime.ClaudeKeyring != nil {
 		return runtime.ClaudeKeyring
 	}
-	return defaultClaudeKeyringPorts()
+	return readClaudeKeyring
 }
 
 func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
@@ -177,6 +176,11 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 	}
 	runtime.Role = role
 	runtime.Progress.Begin(harness, command)
+	// Before any session state exists, and after `--probe` returned, so a
+	// metadata read never waits. teable:coilyco-bridge/infrastructure#7054
+	if err := gateNativeUpdate(ctx, runtime, defaultNativeUpdateGate()); err != nil {
+		return err
+	}
 	if err := convergeNativeEnvironment(ctx, runtime); err != nil {
 		return fmt.Errorf("converge native environment: %w", err)
 	}
@@ -657,24 +661,28 @@ func nativeGit(directory string, args ...string) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-// harvestNativeClaudeLease returns a finished session's token to the host and
-// reports whether the lease changed. Keyring failure warns, never blocks.
+// harvestNativeClaudeLease recovers a finished session's rotated credential.
+// Failure warns, never blocks. docs/native-claude-credentials.md.
 func harvestNativeClaudeLease(runtime nativeRuntime, lease *nativeLease) bool {
-	if strings.TrimSpace(lease.ClaudeKeychain) == "" {
-		return false
-	}
-	if err := returnNativeClaudeCredential(
-		context.Background(),
-		runtime.claudeKeyring(),
-		runtime.Home,
-		lease.ClaudeKeychain,
-	); err != nil {
+	reclaimed, err := reclaimSessionClaudeCredential(lease.SessionHome, runtime.Home)
+	if err != nil {
 		fmt.Fprintf(runtime.Stderr,
 			"aos: native session Claude login not returned to the host: %v\n", err)
 		return false
 	}
-	lease.ClaudeKeychain = ""
-	return true
+	if reclaimed {
+		return true
+	}
+	// The harness deletes the staged link when it cannot refresh the token, and
+	// the rotation then lives only in the session Keychain item.
+	harvested, err := harvestSessionClaudeKeychain(
+		context.Background(), runtime.claudeKeyring(), lease.SessionHome, runtime.Home)
+	if err != nil {
+		fmt.Fprintf(runtime.Stderr,
+			"aos: native session Claude login not harvested from the keychain: %v\n", err)
+		return false
+	}
+	return harvested
 }
 
 // nativeHeldLease pairs a lease with its file so startup can read every lease
@@ -1552,6 +1560,19 @@ func createNativeSession(
 	sessionProjects := filepath.Join(sessionRoot, "projects")
 	sessionHome := ""
 	if options.WorkspaceRoot || options.StandaloneHome {
+		// Before staging, because the stager links whatever the host .claude
+		// holds at stage time and the credential has to be there to be linked.
+		if harness == "claude" {
+			seeded, err := seedCanonicalClaudeCredential(
+				context.Background(), runtime.claudeKeyring(), runtime.Home)
+			if err != nil {
+				fmt.Fprintf(runtime.Stderr,
+					"aos: canonical Claude login not seeded: %v\n", err)
+			} else if seeded {
+				runtime.Progress.Note("seeded %s from the keychain",
+					canonicalClaudeCredentialPath(runtime.Home))
+			}
+		}
 		sessionHome = filepath.Join(sessionRoot, "home")
 		stage := runtime.Progress.Step("stage session home")
 		stageErr := error(nil)
@@ -1566,20 +1587,6 @@ func createNativeSession(
 			return nativeLaunchWorkspace{}, stageErr
 		}
 		stage.Done("%s", sessionHome)
-	}
-	claudeKeychain := ""
-	if harness == "claude" && sessionHome != "" {
-		service, err := lendNativeClaudeCredential(
-			context.Background(),
-			runtime.claudeKeyring(),
-			runtime.Home,
-			sessionHome,
-		)
-		if err != nil {
-			fmt.Fprintf(runtime.Stderr,
-				"aos: native session Claude login not carried forward: %v\n", err)
-		}
-		claudeKeychain = service
 	}
 	branch := "aos/" + harness + "/" + id
 	artifacts := make([]nativeArtifact, 0, len(repositories))
@@ -1626,7 +1633,6 @@ func createNativeSession(
 			SessionHome:       sessionHome,
 			CanonicalHome:     runtime.Home,
 			CanonicalProjects: runtime.ProjectsRoot,
-			ClaudeKeychain:    claudeKeychain,
 			Artifacts:         artifacts,
 		}); err != nil {
 			return nativeLaunchWorkspace{}, fmt.Errorf("write native lease: %w", err)
@@ -1648,7 +1654,6 @@ func createNativeSession(
 		SessionHome:       sessionHome,
 		CanonicalHome:     runtime.Home,
 		CanonicalProjects: runtime.ProjectsRoot,
-		ClaudeKeychain:    claudeKeychain,
 		Artifacts:         artifacts,
 	}
 	if err := writeNativeJSON(nativeStatePath(runtime, "leases", id+".json"), lease); err != nil {

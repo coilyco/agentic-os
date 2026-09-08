@@ -15,7 +15,7 @@ aterm --list                       # the live roster, no window
 aterm --list --json                # the same roster, for a script
 ```
 
-The window opens fullscreen at font size 14.5, which `--start-as` and `--font-size` override, since kitty's default 11.0 suits a terminal rather than a session you read all day. It needs `agent-compose` and kitty on `PATH` and bundles neither. Without `aos` it still launches, unleased. `--dry-run` prints the plan and opens nothing. `--list --json` prints the launchable projection, every live role carrying only the seats `agent-compose launch` can start, under contract `aterm.roster.v1`.
+The window opens fullscreen at font size 14.5, which `--start-as` and `--font-size` override, since kitty's default 11.0 suits a terminal rather than a session you read all day. It needs `agent-compose` and kitty on `PATH` and bundles neither. Without `aos` it still launches, unleased and unconverged. `--dry-run` prints the plan and opens nothing. `--list --json` prints the launchable projection, every live role carrying only the seats `agent-compose launch` can start, under contract `aterm.roster.v1`.
 
 **It refuses a stale role before it opens anything.** Role slugs turn over, so `aterm` reads `agent-compose catalog roles --json` on every run and names the live roster in the refusal. A transposed slug comes back as `is not a live role. Did you mean platform?` plus every live slug. A seat is checked twice: it must belong to the role and be a harness `agent-compose launch` can start. `penpot` is real but not launchable, and the refusal says which check it failed.
 

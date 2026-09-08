@@ -47,13 +47,14 @@ def test_render_skill_default_org_is_the_fleet_home_org():
     """The default is the guess for a repo that sets no org. Every repo with the
     hook enabled overrides it, so this locks the fallback rather than a live path."""
     text = render_skill("newrepo", "A new repo. Triggers - newrepo")
-    assert "Pointer to `~/projects/coilyco-bridge/newrepo/`." in text
+    assert "Repository `coilyco-bridge/newrepo`." in text
+    assert "`~/projects/coilyco-bridge/newrepo/` when resident." in text
     assert check_drift("repo-newrepo", text) == []
 
 
 def test_render_skill_org_overrides_pointer_path():
     text = render_skill("deploy", "A monorepo. Triggers - deploy", "coilyco-bridge")
-    assert "Pointer to `~/projects/coilyco-bridge/deploy/`." in text
+    assert "Repository `coilyco-bridge/deploy`. Checkout at `~/projects/coilyco-bridge/deploy/` when resident." in text
     assert "coilysiren" not in text
 
 
@@ -81,7 +82,7 @@ def test_dot_repository_render_and_drift_check_preserve_real_path():
     skill_name = repo_skill_name(".github", "coilyco-bridge")
 
     assert f"name: {skill_name}" in text
-    assert "Pointer to `~/projects/coilyco-bridge/.github/`." in text
+    assert "Repository `coilyco-bridge/.github`. Checkout at `~/projects/coilyco-bridge/.github/` when resident." in text
     assert check_drift(skill_name, text, "coilyco-bridge") == []
 
 

@@ -224,34 +224,28 @@ def test_the_open_lookup_never_asks_for_state_all() -> None:
 
 
 
-# The lane half: a guard that refuses a `merge-remote-main` push contradicts
-# the AGENTS.md block another hook renders from the same declaration (#1321).
+# The lane half. This guard stood down on `merge-remote-main` (#1321), which is
+# retired, so the stand-down is gone and these are its negative controls.
 
 
-def test_the_merge_remote_main_lane_stands_the_guard_down(tmp_path: Path) -> None:
+def test_the_retired_lane_no_longer_stands_the_guard_down(tmp_path: Path) -> None:
     got = _run(
         tmp_path, open_prs=[], closed_prs=[], branch="main", lane="merge-remote-main"
     )
 
-    assert got.returncode == 0, got.stderr
-    assert "refusing to push directly" not in got.stderr
+    assert got.returncode == 1
+    assert "refusing to push directly" in got.stderr
 
 
-def test_the_stand_down_exits_rather_than_falling_into_the_pr_half(
-    tmp_path: Path,
-) -> None:
-    # Falling through would ask the forge for an open PR whose head is `main`,
-    # find none, and refuse after all.
+def test_the_refusal_says_no_lane_exempts_a_repo(tmp_path: Path) -> None:
+    # The message has to explain why a slug that used to work no longer does,
+    # or the next agent reads the refusal as a bug and reaches for --no-verify.
     got = _run(
-        tmp_path,
-        open_prs=[],
-        closed_prs=[_pr(1030, merged=True, state="closed")],
-        branch="main",
-        lane="merge-remote-main",
+        tmp_path, open_prs=[], closed_prs=[], branch="main", lane="merge-remote-main"
     )
 
-    assert got.returncode == 0, got.stderr
-    assert got.stderr == "" or "no open PR" not in got.stderr
+    assert "No lane exempts a repo from this" in got.stderr
+    assert "it is retired" in got.stderr
 
 
 @pytest.mark.parametrize(
@@ -269,7 +263,7 @@ def test_every_other_lane_keeps_the_default_branch_guarded(
 def test_an_undeclared_repo_is_told_which_lane_it_declares(tmp_path: Path) -> None:
     got = _run(tmp_path, open_prs=[], closed_prs=[], branch="main", lane="")
 
-    assert "this repo declares no lane" in got.stderr
+    assert "This repo declares no lane" in got.stderr
 
 
 def test_an_unresolvable_reader_guards_and_says_so(tmp_path: Path) -> None:
@@ -299,7 +293,8 @@ def test_an_unresolvable_reader_guards_and_says_so(tmp_path: Path) -> None:
 
 
 def test_the_pr_half_is_untouched_on_a_merge_remote_main_repo(tmp_path: Path) -> None:
-    # Standing down covers the default branch only.
+    # The retirement changed the default-branch half only. A feature branch on a
+    # repo that has not migrated yet is judged exactly as any other.
     got = _run(
         tmp_path,
         open_prs=[],

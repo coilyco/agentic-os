@@ -1,0 +1,63 @@
+// Teable records over one pinned personal base, the records half of the Teable
+// split. Rationale: tooling-aosguard references/teable-personal.md.
+
+wrap aosguard ops teable-personal {
+    // The ssm value provider: umbra ships no store SDK, so a store-backed
+    // source is an exec contract, declared here rather than linked in.
+    provider ssm {
+        exec aws ssm get-parameter --with-decryption --output text --query "Parameter.Value" --name
+    }
+
+    // Both resolved at exec time so neither the PAT nor the base id sits in a
+    // caller's environment. The base id is opaque, so it lives in SSM not here.
+    exec python3 {
+        env TEABLE_API_TOKEN {
+            value ssm "/coilysiren/teable/api-token-personal"
+        }
+        env TEABLE_BASE_ID {
+            value ssm "/coilysiren/teable/connections-base-id"
+        }
+    }
+
+    // -P keeps the caller's cwd off sys.path: a `-m` exec would otherwise let a
+    // planted agentic_os/ outrank the bundle, token already resolved (#6837).
+    can run list-base {
+        argv "-P" "-m" "agentic_os.teable_personal" "list-base"
+        describe "show the one base this surface is pinned to"
+    }
+
+    can run list-base-table {
+        argv "-P" "-m" "agentic_os.teable_personal" "list-base-table"
+        describe "list the tables in the pinned base"
+    }
+
+    can run list-table-field {
+        argv "-P" "-m" "agentic_os.teable_personal" "list-table-field"
+        describe "list a table's fields, refusing a table outside the pinned base"
+    }
+
+    can run list-table-view {
+        argv "-P" "-m" "agentic_os.teable_personal" "list-table-view"
+        describe "list a table's views, refusing a table outside the pinned base"
+    }
+
+    can run list-record {
+        argv "-P" "-m" "agentic_os.teable_personal" "list-record"
+        describe "list records; pass --projection per field, because an unprojected read pulls every field of every row"
+    }
+
+    can run get-record {
+        argv "-P" "-m" "agentic_os.teable_personal" "get-record"
+        describe "read one record by id"
+    }
+
+    can run create-record {
+        argv "-P" "-m" "agentic_os.teable_personal" "create-record"
+        describe "create a record, then re-read it through a separate request and refuse unless every requested field value survived: a 2xx from this instance is not evidence that the write applied"
+    }
+
+    can run edit-record {
+        argv "-P" "-m" "agentic_os.teable_personal" "edit-record"
+        describe "update a record, then re-read it through a separate request and refuse unless every requested field value survived"
+    }
+}

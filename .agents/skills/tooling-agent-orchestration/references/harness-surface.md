@@ -30,7 +30,7 @@ The tools available now, what each is actually for, and which retired pattern it
 
 * **o2r's deterministic session id** - map it onto the issue or thread the work is rooted in, and let every agent derive the same id rather than passing one around.
 * **o2r's concepts rather than commands** - a subagent prompt that states a goal and its acceptance condition beats one that scripts steps, and it is what makes a fresh-context agent useful.
-* **o2r's append-only log with newest-wins state** - a Forgejo issue thread is exactly this substrate, and it is durable in a way none of the tools above are.
+* **o2r's append-only log with newest-wins state** - a tracker record plus its linked `comments` rows is exactly this substrate, and it is durable in a way none of the tools above are.
 * **o2r's liveness cadence** - `notify_when_idle` and background task notifications replace the polling half. The declared death threshold has no equivalent and stays your own discipline.
 * **Ward's distinct terminal states** - keep `blocked` separate from `failed` in whatever you report, because they call for different next actions.
 * **Ward's evidence rule** - a subagent reporting success is a process exit. Check the artifact.

@@ -12,7 +12,7 @@ Five questions to pin down before writing anything:
 
 1. **What should this skill enable an agent to do?** One sentence.
 2. **When should it trigger?** Concrete user phrasings, contexts, scheduled routines.
-3. **What is the expected output?** A knowledge note, a Forgejo issue, an in-session report, a terminal command, a file on disk.
+3. **What is the expected output?** A knowledge note, a tracker record, an in-session report, a terminal command, a file on disk.
 4. **Which category does it fit?** Pick the family up front. If none fits, you are committing to update the spec before authoring.
 5. **Does it touch live systems?** Writes, deletions, network calls with side effects. If yes, design the skill to default to read-only or dry-run, and require an explicit opt-in for destructive operations.
 

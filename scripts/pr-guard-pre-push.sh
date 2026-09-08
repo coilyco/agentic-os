@@ -6,9 +6,9 @@
 # exist on it yet, so the first push of any branch can never have one. What is
 # enforceable, and what this implements, is:
 #
-#   1. Refuse any push whose destination is the remote's default branch, unless
-#      the repo declares the `merge-remote-main` lane, whose entire definition
-#      is that push. Works against any forge, needs no credentials.
+#   1. Refuse any push whose destination is the remote's default branch. No lane
+#      exempts a repo from this any more. Works against any forge, needs no
+#      credentials.
 #   2. Once a branch already exists on the remote, require an open PR before
 #      allowing further pushes to it. Forgejo API only, and only when
 #      FORGEJO_TOKEN is present; it degrades to a notice otherwise so a missing
@@ -23,17 +23,19 @@
 # pushing a ref pre-commit does not surface. It stops accidents, not intent.
 # Server-side branch protection is the control that cannot be bypassed.
 #
-# Lane: `merge-remote-main` is defined as commit, push to `main`, close the
-# issue, so on a repo declaring it rule 1 would refuse the lane's own
-# destination and leave `--no-verify`, which the fleet rules forbid, as the only
-# way through (agentic-os#1321). The lane is declared once as `ward.workflow` in
+# Lane: this guard used to stand down on `merge-remote-main`, because that lane
+# was defined as the push to `main` and refusing it left `--no-verify`, which the
+# fleet rules forbid, as the only way through (agentic-os#1321). That lane is
+# retired and the stand-down went with it, so rule 1 is now unconditional and a
+# repo cannot declare its way past it. The read survives only to name the lane in
+# the refusal, which is what tells an agent whether it is looking at a repo that
+# has not been migrated yet. The lane is declared once as `ward.workflow` in
 # AGENTS.md frontmatter and `agentic_os.generators.generate_git_workflow` owns
 # reading it, so this asks that owner through `--print-lane` rather than growing
 # a second frontmatter parser. pre-commit builds no environment for a
 # `language: script` hook, so the resolver is looked for in three places, in
 # order: `AOS_LANE_READER`, PATH, then the python env pre-commit built for this
-# same hook repo's python hooks, which sits beside this scripts/ directory. An
-# unresolved answer reads as undeclared, and undeclared stays guarded.
+# same hook repo's python hooks, which sits beside this scripts/ directory.
 #
 # Contract: pre-commit consumes git's stdin ref lines itself and re-exposes one
 # ref through PRE_COMMIT_REMOTE_* / PRE_COMMIT_LOCAL_BRANCH. It skips deletions
@@ -81,17 +83,14 @@ if [ "$branch" = "$default_branch" ]; then
   lane=""
   [ -n "$reader" ] && lane="$("$reader" --print-lane 2>/dev/null)"
 
-  # Exit, never fall through: the half below judges feature branches, and the
-  # default branch has no pull request of its own for it to find.
-  [ "$lane" = "merge-remote-main" ] && exit 0
-
-  # Separates a stand-down that should not have fired from one that could not.
+  # Separates "this repo declares no lane" from "the lane could not be read".
+  # Both refuse now, but they want different follow-up.
   [ -n "$reader" ] ||
     printf '[pr-guard] no lane reader found; treating this repo as undeclared\n' >&2
 
   die "refusing to push directly to '$default_branch'. Branch and open a PR.
-       On a repo declaring 'ward.workflow: merge-remote-main' this guard stands
-       down instead; this repo declares ${lane:-no lane}.
+       No lane exempts a repo from this: 'merge-remote-main' was the one that
+       did and it is retired. This repo declares ${lane:-no lane}.
        Deliberate override: git push --no-verify"
 fi
 

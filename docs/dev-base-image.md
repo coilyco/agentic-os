@@ -16,7 +16,7 @@ exact build into the full-image job.
 [`docker/dev-base/full/Dockerfile`](../docker/dev-base/full/Dockerfile) starts
 from the same-commit Rust payload, grafts the other four, and installs the
 shared agent and operator surface once. Only the full image carries the
-entrypoint, common verification, release-pinned `aos`, Ward, `aosguard`,
+entrypoint, common verification, release-pinned `aos`, `aosguard`,
 agent-compose, harnesses, operator CLIs, and full-only gate tools such as
 `golangci-lint`, `trufflehog`, and `kdlfmt`.
 

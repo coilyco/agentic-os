@@ -55,7 +55,7 @@ Iterate until the breakdown is approved.
 ## Create the issues
 
 Create through the repository's configured tracker surface, in dependency order
-(blockers first) so real issue numbers can go in the Blocked by field. Coilyco
+(blockers first) so real issue numbers can go in the Blocked by field. coilyco
 repositories use Forgejo. Follow `coding-core-git-workflow` for tracker
 selection and write authority.
 

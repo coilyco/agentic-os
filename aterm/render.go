@@ -69,7 +69,9 @@ func shadowLine(shadowed bool) string {
 	if shadowed {
 		return "leased"
 	}
-	return "none, the window runs Agent Compose directly"
+	// Naming the daily converge too: it rides the aos wrapper, which this
+	// window skips entirely. See docs/aterm.md.
+	return "none, the window runs Agent Compose directly and skips daily host convergence"
 }
 
 // personalityLine is the first place the sensory identity shows up: each

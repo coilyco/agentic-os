@@ -44,6 +44,19 @@ after a `--` separator, depending on how the recipe captures arguments. Check
 the recipe instead of assuming a form: `sync-repo-skills --verify-manifest`
 and `sync-mcp-skills -- --check` both exist in the same repo.
 
+## Handing a verb to a person
+
+`just <verb>` is how an agent invokes a verb from inside the repo that owns it.
+It is not how a verb is handed to a person. No justfile sits at the projects
+root or at any org directory, so a bare `just` line only runs from that one
+repo, and the reader is usually somewhere else.
+
+Hand `aos run --handoff <verb>` instead. It resolves the owning repository from
+the compiled residency set, prints an absolute path, and adds `git pull` exactly
+when that checkout is behind and clean. Ambiguous or unknown verbs refuse rather
+than guess. `aos run <verb>` without the flag does the same resolution and runs
+it, which is the form to use from a directory that owns no justfile.
+
 ## What the justfile does not own
 
 Operator verbs are **aosguard's**, surfaced as `aosguard ops <area> ...`, and

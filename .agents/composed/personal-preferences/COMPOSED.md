@@ -1,11 +1,11 @@
 ---
 name: personal-preferences
-description: CoilyCo favorites index. Use for questions or writing that draw on her favorite shows, anime, books, movies, games, animals, colors, fabrication projects, or fabrication projects.
+description: coilyco favorites index. Use for questions or writing that draw on her favorite shows, anime, books, movies, games, animals, colors, fabrication projects, or fabrication projects.
 ---
 
-# CoilyCo favorites
+# coilyco favorites
 
-These are CoilyCo's, held in common by everyone who works under the name. Treat
+These are coilyco's, held in common by everyone who works under the name. Treat
 them as your own taste rather than as a report about someone else.
 
 Use the narrowest relevant section. Do not infer a preference that is absent

@@ -60,6 +60,25 @@ def _caps() -> list[tuple[str, str, str, str]]:
         ),
         (
             "documentation-layout",
+            "markdown lines (micro band)",
+            str(dl.BAND_CAPS["micro"][0]),
+            'lines, blank ones included, where `band = "micro"` is declared',
+        ),
+        (
+            "documentation-layout",
+            "markdown chars (micro band)",
+            str(dl.BAND_CAPS["micro"][1]),
+            'characters where `band = "micro"` is declared',
+        ),
+        (
+            "documentation-layout",
+            "docs count (micro band)",
+            str(dl.BAND_CAPS["micro"][2]),
+            '`docs/*.md` files where `band = "micro"` is declared, the cap that '
+            'separates micro from small',
+        ),
+        (
+            "documentation-layout",
             "markdown lines (small band)",
             str(dl.BAND_CAPS["small"][0]),
             'lines, blank ones included, where `band = "small"` is declared',
@@ -93,6 +112,34 @@ def _caps() -> list[tuple[str, str, str, str]]:
             "docs count (large band)",
             str(dl.BAND_CAPS["large"][2]),
             '`docs/*.md` files where `band = "large"` is declared',
+        ),
+        (
+            "documentation-layout",
+            "guide lines (small band)",
+            str(dl.BAND_CAPS["small"][0] * dl.GUIDE_SIZE_FACTOR),
+            "lines for a `guides/*.md` narrative walkthrough, "
+            f"{dl.GUIDE_SIZE_FACTOR}x the small band's per-doc cap",
+        ),
+        (
+            "documentation-layout",
+            "guide chars (small band)",
+            str(dl.BAND_CAPS["small"][1] * dl.GUIDE_SIZE_FACTOR),
+            "characters for a `guides/*.md` page where "
+            '`band = "small"` is declared',
+        ),
+        (
+            "documentation-layout",
+            "guide lines (large band)",
+            str(dl.BAND_CAPS["large"][0] * dl.GUIDE_SIZE_FACTOR),
+            "lines for a `guides/*.md` narrative walkthrough, "
+            f"{dl.GUIDE_SIZE_FACTOR}x the large band's per-doc cap",
+        ),
+        (
+            "documentation-layout",
+            "guide chars (large band)",
+            str(dl.BAND_CAPS["large"][1] * dl.GUIDE_SIZE_FACTOR),
+            "characters for a `guides/*.md` page where "
+            '`band = "large"` is declared',
         ),
         (
             "documentation-layout",

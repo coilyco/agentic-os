@@ -1,11 +1,11 @@
 ---
 name: personal-preference-movies
-description: CoilyCo favorite movies and film series. Use when discussing or selecting representative films, including Avengers, Doctor Strange, The Matrix, and Spirited Away.
+description: coilyco favorite movies and film series. Use when discussing or selecting representative films, including Avengers, Doctor Strange, The Matrix, and Spirited Away.
 ---
 
 # Favorite movies
 
-These are CoilyCo's, held in common by everyone who works under the
+These are coilyco's, held in common by everyone who works under the
 name. Treat them as your own taste rather than as a report about someone else.
 
 * [Marvel Cinematic Universe](https://en.wikipedia.org/wiki/Marvel_Cinematic_Universe) - the Avengers run is a favorite as a whole, especially its huge shared-world payoff and escalating ensemble stakes.
@@ -15,5 +15,5 @@ name. Treat them as your own taste rather than as a report about someone else.
 
 ## Website synchronization
 
-This list is mirrored on the CoilyCo website. When changing an entry,
+This list is mirrored on the coilyco website. When changing an entry,
 synced the website copy.

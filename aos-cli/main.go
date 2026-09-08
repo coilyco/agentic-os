@@ -212,6 +212,32 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 				Action: runRepositories,
 			},
 			{
+				Name:      "run",
+				Usage:     "run a just verb from whichever resident repository declares it",
+				ArgsUsage: "<verb> [args...]",
+				Description: "There is no justfile at the projects root and an elevated working\n" +
+					"directory is deliberate, so `just <verb>` typed there can only fail.\n" +
+					"Candidates come from the residency set in Agent Compose's compiled\n" +
+					"repository-plan.yaml, enumerated with `just --summary`. One match runs.\n" +
+					"Several list every candidate, unless the working directory sits inside\n" +
+					"one, which selects it the way bare `just` there would.\n\n" +
+					"Before running it reports how far the resolved checkout trails its\n" +
+					"upstream, stamped with the age of the last fetch. It never fetches and\n" +
+					"mutates nothing, so the stamp is what makes the count trustworthy.\n\n" +
+					"Inside a session shadow it still runs, because most verbs are ordinary\n" +
+					"there. It names the hazard when the resolved repository is one the\n" +
+					"shadow does not carry: that run reaches the canonical checkout while\n" +
+					"HOME is still the shadow, so a verb rendering a ~-rooted host path\n" +
+					"writes into a temporary directory rather than converging the host.\n" +
+					"A per-verb guard stays where it is and says why. This says where.",
+				Flags: []cli.Flag{
+					&cli.StringFlag{Name: "plan", Value: defaultRepositoryPlanPath(), Usage: "compiled Agent Compose repository plan"},
+					&cli.StringFlag{Name: "repo", Usage: "owner/name, when more than one resident repository declares the verb"},
+					&cli.BoolFlag{Name: "handoff", Usage: "print the absolute-path command to run outside the agent session, and run nothing"},
+				},
+				Action: runRun,
+			},
+			{
 				Name:  "version",
 				Usage: "print the build version",
 				Action: func(_ context.Context, _ *cli.Command) error {

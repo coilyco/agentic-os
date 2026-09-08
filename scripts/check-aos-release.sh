@@ -65,7 +65,11 @@ for target in $(awk '!/^[[:space:]]*(#|$)/ { print }' \
     bundle="$dist/aos-bundle-${goos}-${goarch}.tar.gz"
     tar -tzf "$bundle" | grep -Fx './share/aos/aosguard-skill/aosguard/SKILL.md' >/dev/null
     tar -tzf "$bundle" | grep -Fx './share/aos/aosguard-skill/aosguard/references/commands.yaml' >/dev/null
-    tar -tzf "$bundle" | grep -Fx './share/aos/python/agentic_os/forgejo_actions_logs.py' >/dev/null
+    sh "$repo_root/scripts/guardfile-python-modules.sh" "$repo_root" |
+        while IFS= read -r module; do
+            tar -tzf "$bundle" |
+                grep -Fx "./share/aos/python/agentic_os/$(basename "$module")" >/dev/null
+        done
     tar -tzf "$bundle" | grep -Fx './share/aos/repositories/substrate-repos.txt' >/dev/null
 done
 

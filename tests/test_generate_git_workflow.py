@@ -45,8 +45,14 @@ Kai is she/her.
 
 
 def test_detect_lane_reads_ward_workflow():
-    assert detect_lane(AGENTS.format(lane=MERGE_MAIN)) == MERGE_MAIN
+    assert detect_lane(AGENTS.format(lane=PULL_REQUEST)) == PULL_REQUEST
     assert detect_lane(AGENTS.format(lane=PR_AND_MERGE)) == PR_AND_MERGE
+
+
+def test_detect_lane_refuses_the_retired_slug():
+    # Retired at normalize, which detect_lane runs through, so a repo still
+    # declaring it reads as undeclared and renders the guarded shape.
+    assert detect_lane(AGENTS.format(lane=MERGE_MAIN)) is None
 
 
 def test_detect_lane_is_none_without_a_declaration():
@@ -59,7 +65,14 @@ def test_normalize_lane_rejects_non_strings_and_unknown_slugs():
     assert normalize_lane(None) is None
     assert normalize_lane(42) is None
     assert normalize_lane("push-whatever") is None
-    assert normalize_lane("  merge-remote-main  ") == MERGE_MAIN
+
+
+def test_the_retired_merge_remote_main_slug_no_longer_normalizes():
+    # Padded too: normalize strips before matching, and a retired slug must
+    # not come back through that door.
+    assert normalize_lane(MERGE_MAIN) is None
+    assert normalize_lane("  merge-remote-main  ") is None
+    assert MERGE_MAIN not in LANES
 
 
 @pytest.mark.parametrize("lane", LANES)
@@ -79,11 +92,13 @@ def test_undeclared_lane_grants_neither_a_main_push_nor_a_merge():
     assert render_body("invented-lane") == body
 
 
-def test_block_details_both_fleet_lanes_whichever_one_is_active():
-    for lane in (MERGE_MAIN, PR_AND_MERGE, None):
+def test_block_names_the_one_fleet_lane_whichever_one_is_active():
+    for lane in (PULL_REQUEST, PR_AND_MERGE, None):
         block = render_block(lane)
-        assert f"* `{MERGE_MAIN}` -" in block
         assert f"* `{PR_AND_MERGE}` -" in block
+        # The retired slug is named as retired, never offered as a bullet.
+        assert f"* `{MERGE_MAIN}` -" not in block
+        assert f"`{MERGE_MAIN}` is retired" in block
 
 
 def test_block_states_the_authorization_in_strong_terms():
@@ -112,8 +127,15 @@ def test_apply_replaces_the_legacy_stamp_under_agent_rules():
 
 
 def test_apply_renders_the_lane_the_file_declares():
+    out = apply_to_text(AGENTS.format(lane=PULL_REQUEST))
+    assert f"**This repo runs the `{PULL_REQUEST}` lane**" in out
+    assert check_drift(out) == []
+
+
+def test_apply_gives_a_repo_on_the_retired_lane_the_guarded_shape():
+    # Never a direct push on a slug the generator no longer honors.
     out = apply_to_text(AGENTS.format(lane=MERGE_MAIN))
-    assert f"**This repo runs the `{MERGE_MAIN}` lane**" in out
+    assert "**This repo declares no `ward.workflow` lane.**" in out
     assert check_drift(out) == []
 
 
@@ -124,8 +146,8 @@ def test_apply_is_idempotent():
 
 
 def test_apply_refreshes_a_block_left_on_a_stale_lane():
-    stale = apply_to_text(AGENTS.format(lane=MERGE_MAIN))
-    relaned = stale.replace(f"workflow: {MERGE_MAIN}", f"workflow: {PR_AND_MERGE}", 1)
+    stale = apply_to_text(AGENTS.format(lane=PULL_REQUEST))
+    relaned = stale.replace(f"workflow: {PULL_REQUEST}", f"workflow: {PR_AND_MERGE}", 1)
     assert check_drift(relaned)  # the block now contradicts the declared lane
     assert check_drift(apply_to_text(relaned)) == []
 

@@ -116,11 +116,7 @@ def test_aosguard_actions_use_packaged_python_modules() -> None:
 
     assert "exec python3" in text
     assert ".umbra/guardfiles/aosguard/scripts/" not in text
-    for module in (
-        "forgejo_actions_list",
-        "forgejo_actions_logs",
-        "forgejo_actions_rerun",
-    ):
+    for module in ("forgejo_actions_logs",):
         assert f'"agentic_os.{module}"' in text
         assert (ROOT / "agentic_os" / f"{module}.py").is_file()
 
@@ -190,14 +186,11 @@ def test_native_release_wrapper_embeds_the_actions_bridge() -> None:
     decode = build.index("find \"$project\" -type f -name '*.lock.json.gz'")
     compile_binary = build.index('go build -trimpath -ldflags "-s -w -X main.Version=')
     assert generate < decode < compile_binary
-    for module in (
-        "forgejo_actions_list.py",
-        "forgejo_actions_logs.py",
-        "forgejo_actions_rerun.py",
-        "forgejo_actions_web.py",
-    ):
-        assert f'"$repo_root/agentic_os/{module}"' in build
-    assert '"$repo_root/agentic_os/forgejo_storage_measure.py"' not in build
+    # Derived from the guardfiles rather than hand-listed, because a hand-listed
+    # copy shipped teable-admin's surface with no payload: agentic-os#6836.
+    assert "scripts/guardfile-python-modules.sh" in build
+    assert '"$repo_root/agentic_os/forgejo_actions_logs.py"' not in build
+    assert "forgejo_storage_measure" not in build
 
 
 def test_aosguard_forgejo_storage_measurement_mounts_exec_group(
@@ -387,7 +380,7 @@ def test_aws_put_parameter_creates_and_overwrites_without_value_disclosure(
         "--value",
         value_uri,
         "--type",
-        "String",
+        "SecureString",
     )
     overwritten = _run_aosguard_aws(
         aosguard_binary,
@@ -412,19 +405,25 @@ def test_aws_put_parameter_creates_and_overwrites_without_value_disclosure(
 @pytest.mark.parametrize(
     "args",
     [
-        ("put-parameter", "--value", "file:///tmp/value", "--type", "String"),
         (
             "put-parameter",
             "--name",
             "/fixture/example",
             "--value",
-            "inline-value",
+            "file:///tmp/value",
             "--type",
             "String",
         ),
+        (
+            "put-parameter",
+            "--name",
+            "/fixture/example",
+            "--value",
+            "file:///tmp/value",
+        ),
     ],
 )
-def test_aws_put_parameter_requires_a_name_and_file_value_source(
+def test_aws_put_parameter_requires_securestring(
     aosguard_binary: Path,
     tmp_path: Path,
     args: tuple[str, ...],
@@ -434,7 +433,9 @@ def test_aws_put_parameter_requires_a_name_and_file_value_source(
     assert proc.returncode != 0
     assert "denied:" in proc.stderr
     assert "fail-closed" in proc.stderr
-    assert "inline-value" not in proc.stderr
+    # Name the rule, because both cases were denied by the name and file-source
+    # rules until those left the guardfile, and stayed green on this one.
+    assert "type" in proc.stderr
     assert not (tmp_path / "aws-argv").exists()
 
 
@@ -462,3 +463,14 @@ def test_aws_put_parameter_preserves_failure_without_disclosing_value(
     assert proc.returncode != 0
     assert "fixture failure" in proc.stderr
     assert secret not in proc.stdout + proc.stderr
+
+
+def test_aosguard_brew_update_is_sealed_and_top_level() -> None:
+    text = (SOURCE / "update.kdl").read_text(encoding="utf-8")
+
+    assert "wrap aosguard update" in text
+    assert "wrap aosguard ops" not in text
+    assert 'argv "-I"' in text
+    assert 'embed "brew_update.py"' in text
+    assert "sealed" in text
+    assert (SOURCE / "brew_update.py").is_file()

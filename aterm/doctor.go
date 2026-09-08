@@ -295,7 +295,8 @@ func checkAOS(
 		report.add("session shadow", doctorOK, "leased, the window gets its own worktree")
 	} else {
 		report.add("session shadow", doctorWarn,
-			"unleased, `%s _native-shadow --probe` failed and the window shares this checkout", aos)
+			"unleased, `%s _native-shadow --probe` failed, so the window shares this "+
+				"checkout and its launch skips daily host convergence", aos)
 	}
 	checkLaunchProfiles(ctx, deps, cmd, report, aos, roster)
 }

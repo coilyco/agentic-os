@@ -15,7 +15,7 @@ Five questions to pin down before writing:
 
 1. What should this skill enable the target agent to do?
 2. When should this skill trigger? (user phrasings, contexts, scheduled routines)
-3. What's the expected output format? (Forgejo issue, in-session report, terminal command, files on disk)
+3. What's the expected output format? (tracker record, in-session report, terminal command, files on disk)
 4. Which prefix fits (see `categories.yaml` for the canonical list)? Or do we need a new category (require justification)?
 5. Will it touch live systems (kubectl, AWS writes, Trello, Discord, Bluesky)? If yes, route through `ward` and design test prompts that stay read-only or dry-run by default.
 

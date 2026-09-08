@@ -1,6 +1,6 @@
 ---
 name: coding-core-git-workflow
-description: Git workflow for Kai's repositories. Covers Forgejo, tracker choice, commits, pushes, PR lanes, issues, TODOs, and recovery.
+description: Git workflow for Kai's repositories. Covers Forgejo for git, the Teable tracker, commits, pushes, PR lanes, issues, TODOs, and recovery.
 ---
 
 # Git workflow
@@ -11,17 +11,18 @@ Default across `~/projects/coilyco-*/*` and `~/projects/coilysiren/*`:
 
 - Follow the resolved workflow for the repo and run:
 - Every slug names what **you, the author** do. `-and-merge` means you merge, not that someone else will get to it.
-- `merge-remote-main` - commit to `main` directly, then push. Ward's default lane.
-- `pull-request` - push a branch and open a Forgejo PR, then stop. You do not merge. The director merge lane takes it from there, which is exactly why this lane has no `-and-merge`.
-- `pull-request-and-merge` - push a branch, open the PR, and merge it yourself once it is green. The PR is the record and the CI gate, not a wait state. Leaving one open and reporting it as awaiting someone is the failure this lane exists to prevent.
+- `pull-request-and-merge` - **the lane every repo runs.** Push a branch, open the PR, and merge it yourself once it is green. The PR is the record and the CI gate, not a wait state. Leaving one open and reporting it as awaiting someone is the failure this lane exists to prevent.
+- `pull-request` - push a branch and open a Forgejo PR, then stop. You do not merge. The director merge lane takes it from there, which is exactly why this lane has no `-and-merge`. Declared by no repo now, and kept for work a director has to gate.
 - `remote-branch-only` - push a branch and stop. No PR and no merge.
+- `merge-remote-main` - **retired.** It was the lane that let you push `main` directly, and pushing straight to `main` ended fleet-wide. The generator no longer renders it, so a repo declaring it reads as undeclared and gets the guarded `pull-request` shape. One repo still declares it and keeps it deliberately: `coilysiren/coilysiren`, which is GitHub-canonical, carries `.agentic-os-ignore`, and wires none of the catalog hooks.
 - A pushed branch always gets a PR. Only `remote-branch-only` stops at the branch, and only when the caller resolved that lane. Unassigned work defaults to `pull-request`. A branch with no PR is litter nobody reviews.
+- `pr-guard` refuses any push whose destination is the default branch, with no lane exempting a repo any more. It runs at pre-push, so a repo whose other pre-push hooks are already failing cannot push at all until those are fixed. Never `--no-verify` around it.
 - Run tests, linters, builds without asking. Fix failures.
 - Never `--no-verify`.
 - Readonly git/shell auto-allowed.
-- Every commit closes a same-repo issue. File first, then commit with `closes #N` / `fixes #N` / `resolves #N`.
+- File the tracker record first, then reference it in the commit body as `teable:<owner>/<repo>#<n>`. No trailer closes a record for you, so closing it is a separate deliberate step.
 - `agentic-os-kai` only: one commit per discrete additive change.
-- `git commit --amend` is fine pre-push, preferred over a "fix lint" follow-on for hook fixes. If the amend changes substance relative to the closing-issue description, post a comment on that issue so the audit trail survives. Force-push off-limits. Overrides the default Claude Code rule.
+- `git commit --amend` is fine pre-push, preferred over a "fix lint" follow-on for hook fixes. If the amend changes substance relative to the record's description, add a row in the `comments` table linked to that record so the audit trail survives. Force-push off-limits. Overrides the default Claude Code rule.
 
 Never run destructive git commands unless the human explicitly asks. Never revert changes you didn't make.
 
@@ -65,4 +66,4 @@ Every repo has `.pre-commit-config.yaml` with offline trufflehog:
 
 - [GitHub issues as work tracker](references/github-issue-tracker.md) - precedence, close-via-commit, tracker issues stay open, bot-attribution signature.
 - [Guarded operator work](references/guarded-operator-work.md) - AOSguard discovery, approved bare reads, and the GitHub GraphQL wall.
-- [Default TODO destination and flake discipline](references/default-todo-and-flake.md) - Forgejo as default tracker, never-ask-just-file, flaky-test rule.
+- [Default TODO destination and flake discipline](references/default-todo-and-flake.md) - Teable as default tracker, never-ask-just-file, flaky-test rule.

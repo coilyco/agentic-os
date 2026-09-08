@@ -4,65 +4,70 @@ A native session home is session-scoped, and Claude Code keys its macOS Keychain
 credential to that home. Without a bridge the harness starts logged out on every
 launch. This page records why, and what the launcher does about it.
 
-## Why the symlink farm cannot cover it
+## Why the Keychain cannot carry it
 
-[The Claude configuration projection](native-harness-config.md) links
-`.claude.json` into the session home, so folder trust, the MCP registry, and
-onboarding state all carry forward. Credentials do not travel that path. On
-macOS the OAuth token lives in the login Keychain, and no file in the projected
-home holds it.
-
-Claude Code namespaces that Keychain item by a digest of `CLAUDE_CONFIG_DIR`.
-The default config directory keeps the bare service name
-`Claude Code-credentials`, and any other directory takes a suffix of the first
-four bytes of the SHA-256 of the exact path string.
+Claude Code namespaces the Keychain item by a digest of `CLAUDE_CONFIG_DIR`. The
+default config directory keeps the bare service name `Claude Code-credentials`,
+and any other directory takes a suffix of the first four bytes of the SHA-256 of
+the exact path string.
 
 Every native session mints a fresh id, so `CLAUDE_CONFIG_DIR` differs on every
 launch, which yields a service name that has never been written. The harness
-reports no error. It simply asks the operator to log in, stores the result under
-the session-scoped service, and abandons it when the session directory is
-reaped. Repeated launches accumulate stranded Keychain items.
+reports no error. It simply asks the operator to log in.
 
 ## What the launcher does
 
-The launcher lends the credential in and takes it back.
+It seeds one file and lets the symlink farm do the rest.
 
-At session creation, when the harness is Claude and the session has its own
-home, the launcher reads the host service and writes the same secret under the
-session service. The resolved session service is recorded on the lease.
+Claude Code reads `.credentials.json` from `CLAUDE_CONFIG_DIR` in preference to
+the Keychain, and falls back to the Keychain only when that file is absent. So
+at session creation, when the harness is Claude, the launcher writes the
+Keychain login to `~/.claude/.credentials.json` if that file does not exist.
+[The configuration projection](native-harness-config.md) already links every
+entry of `~/.claude` into the session home, so the credential is carried by the
+same mechanism as everything else and needs no code of its own.
 
-At the next startup, cleanup sees the finished session, reads whatever the
-session service now holds, writes it back to the host service, and deletes the
-session item. The harvest happens as soon as a session is observed dead, ahead
-of the worktree grace period, because the next launch needs the refreshed value
-rather than the one lent out a day earlier. Deleting the session item on harvest
-is what keeps orphans from accumulating.
+Seeding never overwrites. Once the file exists it is authoritative and the
+Keychain item stops being updated, so copying the stale item over a live file
+would retire the token every session is using.
 
-The write-back matters because a refresh token normally rotates when it is used.
-A session that never handed its token back would leave the host holding a value
-that the provider has already retired.
+## Write-back at cleanup
 
-Both directions are warnings, never launch blockers. A lost token costs one
-login. A cleanup that refuses to finish costs every later launch.
+A rotated token reaches the canonical file two ways, because it goes missing two
+ways. A session that **replaced** the link with a regular file has that file
+copied back. A session whose entry is **gone** has its Keychain item read
+instead, because the harness deletes `.credentials.json` once the token behind
+it expires and falls back to the item digested from `CLAUDE_CONFIG_DIR`
+(`teable:coilyco-flight-deck/agentic-os#7021`, reproduced under plain `claude`).
+Without that second case the seed cannot recover, since it never overwrites: an
+expired canonical stays expired and every seat pays a login every launch.
+
+Only a token that **outlives** canonical is written, compared on
+`claudeAiOauth.expiresAt`, so an unparsable or unstamped payload loses rather
+than winning as zero. That is what separates this from the lend-and-return
+failure below. Failure warns, never blocks.
 
 ## Boundaries and tradeoffs
 
-The bridge is macOS only. Linux keeps credentials in a file inside the config
-directory, which the projected home already carries, and Windows credential
-storage is not wired up here.
+The seed is macOS only, because only macOS keeps the credential outside the
+config directory. Linux already stores it in the file the projection carries,
+and Windows credential storage is not wired up here.
 
-`/usr/bin/security` accepts a secret on argv or from a terminal prompt, and a
-launcher cannot drive the prompt. The token therefore crosses on argv for the
-duration of one call. macOS restricts another user's argv, so the exposure is a
-same-user read during that window. This is a deliberate exception to the
-argv-secret rule, and it is confined to this one call.
+Concurrent refreshes are the vendor's problem rather than this launcher's. Every
+session resolves the same path, so Claude Code's own concurrent-refresh handling
+coordinates them, which is what the previous lend-and-return arrangement was
+reimplementing badly: it kept one Keychain item per session and wrote back at
+reap, so with several live sessions the last harvest won and every earlier
+rotation was discarded.
 
-Two live sessions that each refresh their token will each write back when they
-are reaped, and the later harvest wins. The earlier session's rotation is lost,
-which costs one login.
+No secret crosses argv. The seed reads the Keychain through
+`/usr/bin/security find-generic-password` and writes the file at `0600`, so the
+deliberate argv exception this page used to document is gone with the writes
+that needed it.
 
-A session home that resolves to the host config directory is left alone. Lending
-onto the host service would make the later harvest delete the host login.
+If the canonical file is ever deleted, the next launch reseeds from the Keychain.
+That value may be old enough to be refused, which costs one login, the same as
+having no credential at all.
 
 ## Settings guardrails
 

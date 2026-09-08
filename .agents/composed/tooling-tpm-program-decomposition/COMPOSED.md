@@ -1,6 +1,6 @@
 ---
 name: tooling-tpm-program-decomposition
-description: Use when director turns a broad outcome into an epic and sequenced Forgejo issues. Preserves parent links, evidence lanes, dependency order, and closure boundaries.
+description: Use when director turns a broad outcome into an epic and sequenced tracker records. Preserves parent links, evidence lanes, dependency order, and closure boundaries.
 ---
 
 # Program decomposition

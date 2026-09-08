@@ -9,12 +9,36 @@ can never drift between code and prose.
 Markdown documentation may live only in:
     1. the repo root, with a small universal filename allow-list;
     2. docs/*.md, with no docs subdirectories;
-    3. skill folders (.agents/skills, .agents/composed, .claude/skills, or
+    3. guides/*.md, with no guides subdirectories (see below);
+    4. skill folders (.agents/skills, .agents/composed, .claude/skills, or
        skills), which may carry support subdirs. No nested skill entry point
        may hide below the top-level skill dir;
-    4. anywhere under an `examples/` directory at any depth, any .md filename;
-    5. a co-located module README.md, but only in one of two tightly-capped
+    5. anywhere under an `examples/` directory at any depth, any .md filename;
+    6. a co-located module README.md, but only in one of two tightly-capped
        shapes (see below). Any other co-located Markdown is still a violation.
+
+guides/ is narrative, docs/ is reference
+----------------------------------------
+`docs/` answers "how does X work" and is capped short and flat so the set
+stays scannable. `guides/` answers "how do I do Y, end to end", and its value
+is the sequence, the worked example and the failure modes - none of which
+survive being cut to reference length. A guide truncated into a reference page
+is just a worse reference page, so the two shelves take different caps rather
+than sharing one.
+
+Guides do not count toward the docs/ count cap. A repo sitting at its docs cap
+can still add a guide, which is the case that forced the type: a walkthrough
+had nowhere legal to live because the reference shelf was full, and splitting
+or merging reference pages answers neither.
+
+The guide shelf carries no count cap of its own. Guide count tracks what a repo
+ships rather than how much narrative it invented, so a repo adding a seat or a
+target earns a guide with it, and a count cap there fails the repo while naming
+a fix (fold into docs/) that a full reference shelf makes impossible.
+
+Which repos may open a guides/ shelf is ratified centrally, because it is the
+one destination with no count cap. See docs/documentation-bands.md for the caps and the
+derivation behind them.
 
 Module README.md shapes
 -----------------------
@@ -105,6 +129,10 @@ from agentic_os.config import (
     is_excluded,
     load_excludes,
     load_str_list,
+    ratified_band,
+    ratified_guides,
+    ratified_patterns,
+    shipped_policy_path,
 )
 from agentic_os.pre_commit.tree import should_skip
 
@@ -115,12 +143,19 @@ SIZE_HOOK_ID = "documentation-size"
 # Per-repo size bands: lines, chars, and docs count. Rationale and the
 # measured chars-per-line behind the pairs: docs/documentation-bands.md.
 BAND_CAPS = {
+    "micro": (40, 3_000, 5),
     "small": (40, 3_000, 20),
     "large": (120, 8_000, 40),
 }
 # Declaring is mandatory in both directions (docs/documentation-bands.md).
 # This is only what the caps resolve to while a repo is red for not declaring.
 UNDECLARED_BAND = "small"
+
+DOCS_DIRNAME = "docs"
+GUIDES_DIRNAME = "guides"
+# Mechanism, worked example, failure story - a reference page each, so a guide
+# takes twice the band rather than a hand-set number (documentation-bands.md).
+GUIDE_SIZE_FACTOR = 2
 
 # Co-located module README.md caps (outpost / homestead shapes; see docstring).
 # Non-blank lines per README, and prose chars per line (pointer line exempt).
@@ -165,16 +200,50 @@ def vendored_trees(repo_root: Path | None = None) -> list[str]:
 
 
 def size_excluded_trees(repo_root: Path | None = None) -> list[str]:
-    """Path prefixes this repo owns but sizes differently.
+    """Ratified path prefixes this repo owns but sizes differently.
 
     `excludes` governs placement and deliberately does not reach the size caps,
     and `vendored` says the Markdown is not ours. A monorepo that co-locates a
     README and docs/ under each component fits neither: those docs are ours,
     and the root-plus-flat-docs shape the caps assume does not describe them.
-    Declaring them vendored to buy the exemption would be a false statement
-    about provenance, so this is the separate, honest key.
+
+    Both exclusion keys are ratified centrally, so what a repo declares here is
+    a request rather than a grant. An unratified pattern is reported by
+    `check_exclusion_ratification` instead of silently applying.
     """
-    return load_str_list(HOOK_ID, "size_excludes", repo_root)
+    declared = load_str_list(HOOK_ID, "size_excludes", repo_root)
+    effective, _ = ratified_patterns("size_excludes", declared, repo_root)
+    return effective
+
+
+def placement_excludes(repo_root: Path | None = None) -> list[str]:
+    """Ratified placement excludes, the intersection of local and central."""
+    effective, _ = ratified_patterns(
+        "excludes", load_excludes(HOOK_ID, repo_root), repo_root
+    )
+    return effective
+
+
+def check_exclusion_ratification(key: str, repo_root: Path | None = None) -> list[str]:
+    """Every declared exclusion with no central entry, as a violation.
+
+    Dropping an unratified pattern quietly would trade one silent escape for
+    another: the repo would read as excluded and the hook would disagree. The
+    remedy is the second pull request, so the message names it.
+    """
+    declared = (
+        load_excludes(HOOK_ID, repo_root)
+        if key == "excludes"
+        else load_str_list(HOOK_ID, key, repo_root)
+    )
+    _, unratified = ratified_patterns(key, declared, repo_root)
+    return [
+        f"{key} pattern {pattern!r} is not ratified for this repo. Add it to "
+        f"agentic_os/documentation_policy.yaml in agentic-os with a written "
+        f"reason, release the hook, and bump this repo's pin. Until then it "
+        f"grants nothing."
+        for pattern in unratified
+    ]
 
 
 def is_vendored(rel: Path, patterns: list[str]) -> bool:
@@ -247,7 +316,7 @@ def is_skill_reference(rel: Path) -> bool:
 
 
 def markdown_files(apply_excludes: bool = True) -> list[Path]:
-    excludes = load_excludes(HOOK_ID) if apply_excludes else []
+    excludes = placement_excludes() if apply_excludes else []
     out: list[Path] = []
     for path in REPO_ROOT.rglob("*.md"):
         rel = path.relative_to(REPO_ROOT)
@@ -259,24 +328,63 @@ def markdown_files(apply_excludes: bool = True) -> list[Path]:
     return sorted(out)
 
 
-def check_docs_flatness() -> list[str]:
-    docs = REPO_ROOT / "docs"
-    if not docs.is_dir():
+def _check_flatness(dirname: str) -> list[str]:
+    root = REPO_ROOT / dirname
+    if not root.is_dir():
         return []
-    excludes = load_excludes(HOOK_ID)
+    excludes = placement_excludes()
     violations: list[str] = []
-    for path in sorted(docs.rglob("*")):
+    for path in sorted(root.rglob("*")):
         rel = path.relative_to(REPO_ROOT)
         if should_skip(rel):
             continue
         if is_excluded(rel, excludes) or is_build_output(rel, REPO_ROOT):
             continue
-        if path.is_dir() and path != docs:
+        if path.is_dir() and path != root:
             violations.append(
-                f"{rel.as_posix()}: docs/ must stay flat. Use filename prefixes instead "
-                f"of docs subdirectories."
+                f"{rel.as_posix()}: {dirname}/ must stay flat. Use filename prefixes "
+                f"instead of {dirname} subdirectories."
             )
     return violations
+
+
+def check_docs_flatness() -> list[str]:
+    return _check_flatness(DOCS_DIRNAME)
+
+
+def check_guides_flatness() -> list[str]:
+    return _check_flatness(GUIDES_DIRNAME)
+
+
+def check_guides_are_ratified() -> list[str]:
+    """The guides shelf is the one destination with no count cap.
+
+    That makes it where content goes when it fits nowhere else, so which repos
+    may open one is ratified rather than decided by whoever creates the
+    directory. See guides/ratifying-an-exclusion.md.
+    """
+    root = REPO_ROOT / GUIDES_DIRNAME
+    if not root.is_dir() or ratified_guides():
+        return []
+    present = sorted(
+        rel.as_posix()
+        for rel in (p.relative_to(REPO_ROOT) for p in root.glob("*.md"))
+        if not is_build_output(rel, REPO_ROOT)
+    )
+    if not present:
+        return []
+    return [
+        f"{name}: this repo is not ratified to author a guides/ shelf. It is "
+        f"the one destination with no count cap, so opening one takes an entry "
+        f"in agentic_os/documentation_policy.yaml, copied by hand into both "
+        f"repos, rather than a mkdir."
+        for name in present
+    ]
+
+
+def is_guide(rel: Path) -> bool:
+    """A flat guides/<name>.md. Anything deeper is a placement violation."""
+    return len(rel.parts) == 2 and rel.parts[0] == GUIDES_DIRNAME
 
 
 def is_under_examples(rel: Path) -> bool:
@@ -416,7 +524,9 @@ def check_markdown_locations() -> list[str]:
                     f"docs into docs/."
                 )
             continue
-        if rel.parts[0] == "docs" and len(rel.parts) == 2:
+        if rel.parts[0] == DOCS_DIRNAME and len(rel.parts) == 2:
+            continue
+        if is_guide(rel):
             continue
         if is_under_skill_path(rel):
             continue
@@ -431,7 +541,7 @@ def check_markdown_locations() -> list[str]:
             continue
         violations.append(
             f"{rel.as_posix()}: Markdown files may live only at repo root, docs/*.md, "
-            f"a skill folder, or a capped module README.md."
+            f"guides/*.md, a skill folder, or a capped module README.md."
         )
     return violations
 
@@ -444,7 +554,7 @@ def check_skill_flatness(repo_root: Path | None = None) -> list[str]:
     are fine because the rule targets hidden sub-skills.
     """
     root = repo_root or REPO_ROOT
-    excludes = load_excludes(HOOK_ID, root)
+    excludes = placement_excludes(root)
     violations: list[str] = []
     for skill_parts in SKILL_PATHS:
         skill_root = root.joinpath(*skill_parts)
@@ -472,9 +582,18 @@ def check_skill_flatness(repo_root: Path | None = None) -> list[str]:
 
 
 def band(repo_root: Path | None = None) -> str:
-    """Return the repo's declared band, or the tight one when it has none."""
+    """The band in force: the local declaration, only where central agrees.
+
+    A band that disagreed with the registry would let one repo widen its own
+    caps, which is the decision this registry moved out of the repo under
+    pressure. Disagreement falls back to the tight band and is reported by
+    `check_band_declaration`.
+    """
     declared = get_str_option(HOOK_ID, "band", "", repo_root)
-    return declared if declared in BAND_CAPS else UNDECLARED_BAND
+    if declared not in BAND_CAPS:
+        return UNDECLARED_BAND
+    central = ratified_band(repo_root)
+    return declared if declared == central else UNDECLARED_BAND
 
 
 def markdown_caps(repo_root: Path | None = None) -> tuple[int, int]:
@@ -486,10 +605,13 @@ def docs_cap(repo_root: Path | None = None) -> int:
     return BAND_CAPS[band(repo_root)][2]
 
 
+def guide_caps(repo_root: Path | None = None) -> tuple[int, int]:
+    lines, chars = markdown_caps(repo_root)
+    return lines * GUIDE_SIZE_FACTOR, chars * GUIDE_SIZE_FACTOR
+
+
 def check_band_declaration() -> list[str]:
     declared = get_str_option(HOOK_ID, "band", "")
-    if declared in BAND_CAPS:
-        return []
     names = ", ".join(sorted(BAND_CAPS))
     if not declared:
         return [
@@ -498,7 +620,61 @@ def check_band_declaration() -> list[str]:
             f"[tool.agentic-os.{HOOK_ID}] in pyproject.toml, or under "
             f"[{HOOK_ID}] in .agentic-os.toml."
         ]
-    return [f'band = "{declared}" is not a band. Declare one of {names}.']
+    if declared not in BAND_CAPS:
+        return [f'band = "{declared}" is not a band. Declare one of {names}.']
+    central = ratified_band()
+    if not central:
+        return [
+            f'band = "{declared}" is not ratified: this repo has no entry in '
+            f"agentic_os/documentation_policy.yaml. Add it in "
+            f"agentic-os-kai/data/documentation-bands.yaml with a written "
+            f"reason, sync, release the hook, and bump this repo's pin."
+        ]
+    if central != declared:
+        return [
+            f'band = "{declared}" disagrees with the ratified band '
+            f'"{central}". Caps fall back to {UNDECLARED_BAND} until they '
+            f"match. Change the ratified band in "
+            f"agentic-os-kai/data/documentation-bands.yaml, or change this "
+            f"declaration back to \"{central}\"."
+        ]
+    return []
+
+
+POLICY_MIRROR_NAMES = ("documentation_policy.yaml", "documentation-policy.yaml")
+
+
+def check_policy_mirror() -> list[str]:
+    """Every copy of the policy in this repo must match the shipped one.
+
+    The copy is made by hand on purpose. A limit raised in one repo and not the
+    other is then a visible disagreement rather than a quiet edit, which is the
+    whole reason there are two copies and no script that writes them.
+    """
+    shipped = shipped_policy_path()
+    try:
+        want = shipped.read_bytes()
+    except OSError:
+        return [
+            f"the shipped policy is unreadable at {shipped}. Every band and "
+            f"exclusion falls back closed until it is restored."
+        ]
+    violations: list[str] = []
+    for path in sorted(REPO_ROOT.rglob("*.yaml")):
+        if path.name not in POLICY_MIRROR_NAMES:
+            continue
+        rel = path.relative_to(REPO_ROOT)
+        if should_skip(rel) or is_build_output(rel, REPO_ROOT):
+            continue
+        if path.resolve() == shipped.resolve():
+            continue
+        if path.read_bytes() != want:
+            violations.append(
+                f"{rel.as_posix()}: differs from the shipped policy. Copy it "
+                f"across by hand, in both repos, rather than editing one. The "
+                f"second copy exists so a raised limit cannot land quietly."
+            )
+    return violations
 
 
 def check_docs_count() -> list[str]:
@@ -508,23 +684,28 @@ def check_docs_count() -> list[str]:
     over-long doc into two docs, which is how a docs/ folder reaches 156 files
     with none of them over the cap.
     """
-    docs = REPO_ROOT / "docs"
-    if not docs.is_dir():
-        return []
-    present = sorted(
-        p.relative_to(REPO_ROOT)
-        for p in docs.glob("*.md")
-        if not should_skip(p.relative_to(REPO_ROOT))
-        and not is_build_output(p.relative_to(REPO_ROOT), REPO_ROOT)
-    )
+    present = _count_markdown(DOCS_DIRNAME)
     cap = docs_cap()
-    if len(present) <= cap:
+    if present is None or present <= cap:
         return []
     return [
-        f"docs/: {len(present)} docs exceeds the {cap}-doc cap for the "
+        f"docs/: {present} docs exceeds the {cap}-doc cap for the "
         f"{band()} band. Merge related pages; splitting one doc into two to "
         f"clear the size cap trades one violation for another."
     ]
+
+
+def _count_markdown(dirname: str) -> int | None:
+    """Flat *.md in `dirname`, or None when the directory is absent."""
+    root = REPO_ROOT / dirname
+    if not root.is_dir():
+        return None
+    return sum(
+        1
+        for p in root.glob("*.md")
+        if not should_skip(p.relative_to(REPO_ROOT))
+        and not is_build_output(p.relative_to(REPO_ROOT), REPO_ROOT)
+    )
 
 
 def caps_for(rel: Path) -> tuple[int, int]:
@@ -544,6 +725,8 @@ def caps_for(rel: Path) -> tuple[int, int]:
             HOOK_ID, "readme_max_chars", README_DEFAULT_MAX_CHARS
         )
         return max_lines, max_chars
+    if is_guide(rel):
+        return guide_caps()
     return markdown_caps()
 
 
@@ -559,6 +742,21 @@ def strip_frontmatter(text: str) -> str:
     if end == -1:
         return text
     return text[end + len("\n---\n") :]
+
+
+def _oversize_remedy(rel: Path) -> str:
+    """What to do about an over-long file, by what kind of file it is.
+
+    Telling a guide author to split into docs/*.md is the remedy that sent the
+    walkthrough back to the shelf it did not fit on. A guide that overruns is
+    carrying reference material, and that is the half that moves.
+    """
+    if is_guide(rel):
+        return (
+            "A guide is one journey; move the reference material it carries "
+            "into docs/*.md rather than splitting the walkthrough."
+        )
+    return "Split large docs into smaller docs/*.md files."
 
 
 def check_markdown_sizes() -> list[str]:
@@ -579,15 +777,16 @@ def check_markdown_sizes() -> list[str]:
         n_lines = len(text.splitlines())
         n_chars = len(text)
         max_lines, max_chars = caps_for(rel)
+        remedy = _oversize_remedy(rel)
         if n_lines > max_lines:
             violations.append(
                 f"{rel.as_posix()}: {n_lines} lines exceeds the {max_lines}-line "
-                f"cap. Split large docs into smaller docs/*.md files."
+                f"cap. {remedy}"
             )
         if n_chars > max_chars:
             violations.append(
                 f"{rel.as_posix()}: {n_chars} chars exceeds the {max_chars}-char "
-                f"cap. Split large docs into smaller docs/*.md files."
+                f"cap. {remedy}"
             )
     return violations
 
@@ -617,7 +816,12 @@ def main_placement() -> int:
         return 0
     return _report(
         PLACEMENT_HOOK_ID,
-        check_docs_flatness() + check_markdown_locations() + check_skill_flatness(),
+        check_docs_flatness()
+        + check_guides_flatness()
+        + check_guides_are_ratified()
+        + check_markdown_locations()
+        + check_skill_flatness()
+        + check_exclusion_ratification("excludes"),
     )
 
 
@@ -627,7 +831,11 @@ def main_size() -> int:
         return 0
     return _report(
         SIZE_HOOK_ID,
-        check_band_declaration() + check_docs_count() + check_markdown_sizes(),
+        check_band_declaration()
+        + check_docs_count()
+        + check_markdown_sizes()
+        + check_exclusion_ratification("size_excludes")
+        + check_policy_mirror(),
     )
 
 

@@ -110,7 +110,7 @@ func TestRenderPlanSkipsEmptyFields(t *testing.T) {
 	if !strings.Contains(out.String(), "not a checkout") {
 		t.Fatalf("an absent workspace should say so:\n%s", out.String())
 	}
-	if !strings.Contains(out.String(), "none, the window runs Agent Compose directly") {
+	if !strings.Contains(out.String(), "none, the window runs Agent Compose directly and skips daily host convergence") {
 		t.Fatalf("an unshadowed plan should say so:\n%s", out.String())
 	}
 }
