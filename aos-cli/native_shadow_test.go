@@ -2023,7 +2023,7 @@ func stubEnv(values map[string]string) func(string) string {
 // from inside a session must not resolve them to the shadow. agentic-os#7195
 func TestNativeRuntimeRootsPreferTheCanonicalHomeInAShadow(t *testing.T) {
 	home, projects := nativeRuntimeRoots("/tmp/aos/native/kv99/home", stubEnv(map[string]string{
-		nativeSessionEnv:           "kv99",
+		nativeSessionRootEnv:       "/tmp/aos/native/kv99",
 		nativeCanonicalHomeEnv:     "/Users/kai",
 		nativeCanonicalProjectsEnv: "/Users/kai/projects",
 		// The shadow's own PROJECTS_ROOT must lose, because it names the shadow.
@@ -2037,10 +2037,11 @@ func TestNativeRuntimeRootsPreferTheCanonicalHomeInAShadow(t *testing.T) {
 	}
 }
 
-// The canonical pair outlives the session that set it, so its presence is not
-// the shadow signal. CI carries it with no session and must be unaffected.
-func TestNativeRuntimeRootsIgnoreTheCanonicalPairWithoutASession(t *testing.T) {
+// A launch exports the markers with os.Setenv, so they outlive it inside one
+// process. A home outside the session root means the shadow is not ours.
+func TestNativeRuntimeRootsIgnoreMarkersLeftByAnEarlierLaunch(t *testing.T) {
 	home, projects := nativeRuntimeRoots("/home/runner", stubEnv(map[string]string{
+		nativeSessionRootEnv:       "/tmp/aos/native/kv99",
 		nativeCanonicalHomeEnv:     "/Users/kai",
 		nativeCanonicalProjectsEnv: "/Users/kai/projects",
 		"PROJECTS_ROOT":            "/build/fixture/projects",
@@ -2053,11 +2054,10 @@ func TestNativeRuntimeRootsIgnoreTheCanonicalPairWithoutASession(t *testing.T) {
 	}
 }
 
-// A session whose launcher published no canonical pair keeps host behaviour,
-// rather than half-resolving to a shadow path.
+// Half a pair is not a shadow either, so host behaviour stands.
 func TestNativeRuntimeRootsNeedTheWholeCanonicalPair(t *testing.T) {
 	home, projects := nativeRuntimeRoots("/tmp/aos/native/kv99/home", stubEnv(map[string]string{
-		nativeSessionEnv:       "kv99",
+		nativeSessionRootEnv:   "/tmp/aos/native/kv99",
 		nativeCanonicalHomeEnv: "/Users/kai",
 		"PROJECTS_ROOT":        "/tmp/aos/native/kv99/home/projects",
 	}))

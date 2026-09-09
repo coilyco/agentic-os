@@ -328,12 +328,13 @@ func clearDeprecatedModelSelectors() error {
 // nativeRuntimeRoots picks the host home and projects root. Inside a session
 // HOME is the shadow, and every consumer of these two wants the host.
 func nativeRuntimeRoots(home string, env func(string) string) (string, string) {
-	// The session id is the shadow's own declaration, matching aterm's
-	// inShadow. The canonical pair alone is not: it outlives the session.
-	inShadow := strings.TrimSpace(env(nativeSessionEnv)) != ""
+	// A launch exports these with os.Setenv, so a marker outlives the launch
+	// that set it. Only a home actually under the session root is a shadow.
+	sessionRoot := strings.TrimSpace(env(nativeSessionRootEnv))
 	canonicalHome := strings.TrimSpace(env(nativeCanonicalHomeEnv))
 	canonicalProjects := strings.TrimSpace(env(nativeCanonicalProjectsEnv))
-	if inShadow && canonicalHome != "" && canonicalProjects != "" {
+	_, homeInShadow := relativeWithin(sessionRoot, home)
+	if sessionRoot != "" && canonicalHome != "" && canonicalProjects != "" && homeInShadow {
 		return canonicalHome, canonicalProjects
 	}
 	projects := strings.TrimSpace(env("PROJECTS_ROOT"))
