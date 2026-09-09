@@ -77,29 +77,79 @@ func TestSeedCanonicalClaudeCredentialWritesTheKeychainLogin(t *testing.T) {
 
 // The Keychain goes stale once the file is authoritative, so overwriting would
 // retire the token the sessions are actually using.
-func TestSeedCanonicalClaudeCredentialNeverOverwrites(t *testing.T) {
+func TestSeedCanonicalClaudeCredentialNeverOverwritesAStampedFile(t *testing.T) {
 	home := t.TempDir()
 	target := canonicalClaudeCredentialPath(home)
 	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(target, []byte("live"), 0o600); err != nil {
+	if err := os.WriteFile(target, stampedCredential(200), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	read, asked := stubKeyring([]byte("stale"), nil)
+	read, asked := stubKeyring(stampedCredential(900), nil)
 
 	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home)
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 	if seeded {
-		t.Fatal("seed overwrote an existing credential")
+		t.Fatal("seed overwrote a stamped credential")
 	}
-	if body, _ := os.ReadFile(target); string(body) != "live" {
+	if body, _ := os.ReadFile(target); string(body) != string(stampedCredential(200)) {
 		t.Fatalf("body = %q, want the untouched live value", body)
 	}
 	if len(*asked) != 0 {
-		t.Fatalf("keychain was read despite an existing file: %v", *asked)
+		t.Fatalf("keychain was read despite a stamped file: %v", *asked)
+	}
+}
+
+// The trap this fix opens: the seed used to skip a stamped-zero file forever,
+// because it checked presence rather than usability.
+func TestSeedCanonicalClaudeCredentialRepairsAnUnstampedFile(t *testing.T) {
+	home := t.TempDir()
+	target := canonicalClaudeCredentialPath(home)
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(target, stampedCredential(0), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	read, _ := stubKeyring(stampedCredential(900), nil)
+
+	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if !seeded {
+		t.Fatal("seed left an unstamped credential in place")
+	}
+	if body, _ := os.ReadFile(target); string(body) != string(stampedCredential(900)) {
+		t.Fatalf("body = %q, want the keychain login", body)
+	}
+}
+
+// Repair still needs something comparable, so an unstamped item cannot replace
+// an unstamped file and call that progress.
+func TestSeedCanonicalClaudeCredentialRefusesAnUncomparableRepair(t *testing.T) {
+	home := t.TempDir()
+	target := canonicalClaudeCredentialPath(home)
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(target, stampedCredential(0), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	read, _ := stubKeyring([]byte(`{"claudeAiOauth":{"accessToken":"t"}}`), nil)
+
+	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if seeded {
+		t.Fatal("seed wrote an uncomparable payload")
+	}
+	if body, _ := os.ReadFile(target); string(body) != string(stampedCredential(0)) {
+		t.Fatalf("body = %q, want the file untouched", body)
 	}
 }
 
@@ -365,6 +415,36 @@ func TestHarvestSessionClaudeKeychainRefusesAnUncomparablePayload(t *testing.T) 
 	}
 	if harvested {
 		t.Fatal("harvest wrote an uncomparable payload over a stamped one")
+	}
+}
+
+// The reap half of the same trap. A canonical stamped zero used to beat every
+// rotation, so the fresh login was refused and then dropped with the item.
+func TestHarvestSessionClaudeKeychainReplacesAnUnstampedCanonical(t *testing.T) {
+	home := t.TempDir()
+	sessionHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(sessionHome, ".claude"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	canonical := canonicalClaudeCredentialPath(home)
+	if err := os.MkdirAll(filepath.Dir(canonical), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(canonical, stampedCredential(0), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	read, _ := stubKeyring(stampedCredential(900), nil)
+
+	harvested, err := harvestSessionClaudeKeychain(
+		context.Background(), read, sessionHome, home)
+	if err != nil {
+		t.Fatalf("harvest: %v", err)
+	}
+	if !harvested {
+		t.Fatal("harvest lost a rotation to an unstamped canonical")
+	}
+	if body, _ := os.ReadFile(canonical); string(body) != string(stampedCredential(900)) {
+		t.Fatalf("canonical body = %q", body)
 	}
 }
 

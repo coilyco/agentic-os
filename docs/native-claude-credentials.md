@@ -27,9 +27,11 @@ Keychain login to `~/.claude/.credentials.json` if that file does not exist.
 entry of `~/.claude` into the session home, so the credential is carried by the
 same mechanism as everything else and needs no code of its own.
 
-Seeding never overwrites. Once the file exists it is authoritative and the
-Keychain item stops being updated, so copying the stale item over a live file
-would retire the token every session is using.
+Seeding never overwrites a **stamped** file, because copying the stale Keychain
+item over a live one would retire the token every session is using. It does
+replace an **unstamped** one, carrying no comparable `claudeAiOauth.expiresAt`:
+unusable and, under the old rule, unreplaceable at once, which cost every seat a
+login every launch (`teable:coilyco-flight-deck/agentic-os#7234`).
 
 ## Write-back at cleanup
 
@@ -39,14 +41,13 @@ copied back. A session whose entry is **gone** has its Keychain item read
 instead, because the harness deletes `.credentials.json` once the token behind
 it expires and falls back to the item digested from `CLAUDE_CONFIG_DIR`
 (`teable:coilyco-flight-deck/agentic-os#7021`, reproduced under plain `claude`).
-Without that second case the seed cannot recover, since it never overwrites: an
-expired canonical stays expired and every seat pays a login every launch.
+Without it a **stamped** but expired canonical stays expired for good.
 
 Only a token that **outlives** canonical is written, compared on
-`claudeAiOauth.expiresAt`, so an unparsable or unstamped payload loses rather
-than winning as zero. That is what separates this from the lend-and-return
-failure below. Failure warns, never blocks. Both decisions are covered again
-against the real Keychain in `native_claude_keyring_darwin_test.go`.
+`claudeAiOauth.expiresAt`: an unparsable or unstamped **candidate** loses rather
+than winning as zero, and an unstamped **incumbent** loses too, worthless rather
+than infinitely fresh. That separates this from lend-and-return below. Failure
+warns, never blocks. Both are covered in `native_claude_keyring_darwin_test.go`.
 
 Reap then **removes** the item, after both reads and on both paths, since its
 service digests a home that will never exist again and nothing else would remove
