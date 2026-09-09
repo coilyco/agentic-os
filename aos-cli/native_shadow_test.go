@@ -2021,8 +2021,9 @@ func stubEnv(values map[string]string) func(string) string {
 
 // Every consumer of Home and ProjectsRoot wants the host, so a verb invoked
 // from inside a session must not resolve them to the shadow. agentic-os#7195
-func TestNativeRuntimeRootsPreferTheCanonicalHome(t *testing.T) {
+func TestNativeRuntimeRootsPreferTheCanonicalHomeInAShadow(t *testing.T) {
 	home, projects := nativeRuntimeRoots("/tmp/aos/native/kv99/home", stubEnv(map[string]string{
+		nativeSessionEnv:           "kv99",
 		nativeCanonicalHomeEnv:     "/Users/kai",
 		nativeCanonicalProjectsEnv: "/Users/kai/projects",
 		// The shadow's own PROJECTS_ROOT must lose, because it names the shadow.
@@ -2036,29 +2037,45 @@ func TestNativeRuntimeRootsPreferTheCanonicalHome(t *testing.T) {
 	}
 }
 
-// Outside a session neither variable is set and host behaviour is unchanged.
-func TestNativeRuntimeRootsKeepTheHostHomeWithoutASession(t *testing.T) {
-	home, projects := nativeRuntimeRoots("/Users/kai", stubEnv(map[string]string{
-		"PROJECTS_ROOT": "/elsewhere",
+// The canonical pair outlives the session that set it, so its presence is not
+// the shadow signal. CI carries it with no session and must be unaffected.
+func TestNativeRuntimeRootsIgnoreTheCanonicalPairWithoutASession(t *testing.T) {
+	home, projects := nativeRuntimeRoots("/home/runner", stubEnv(map[string]string{
+		nativeCanonicalHomeEnv:     "/Users/kai",
+		nativeCanonicalProjectsEnv: "/Users/kai/projects",
+		"PROJECTS_ROOT":            "/build/fixture/projects",
 	}))
-	if home != "/Users/kai" {
-		t.Fatalf("home = %q, want the host home", home)
+	if home != "/home/runner" {
+		t.Fatalf("home = %q, want the ambient home", home)
 	}
-	if projects != "/elsewhere" {
+	if projects != "/build/fixture/projects" {
 		t.Fatalf("projects = %q, want PROJECTS_ROOT", projects)
 	}
 }
 
-// With nothing set at all the projects root still hangs off the resolved home,
-// which is the canonical one when a session exports it.
-func TestNativeRuntimeRootsFallBackToTheResolvedHome(t *testing.T) {
+// A session whose launcher published no canonical pair keeps host behaviour,
+// rather than half-resolving to a shadow path.
+func TestNativeRuntimeRootsNeedTheWholeCanonicalPair(t *testing.T) {
 	home, projects := nativeRuntimeRoots("/tmp/aos/native/kv99/home", stubEnv(map[string]string{
+		nativeSessionEnv:       "kv99",
 		nativeCanonicalHomeEnv: "/Users/kai",
+		"PROJECTS_ROOT":        "/tmp/aos/native/kv99/home/projects",
 	}))
+	if home != "/tmp/aos/native/kv99/home" {
+		t.Fatalf("home = %q, want the ambient home", home)
+	}
+	if projects != "/tmp/aos/native/kv99/home/projects" {
+		t.Fatalf("projects = %q, want PROJECTS_ROOT", projects)
+	}
+}
+
+// With nothing set the projects root hangs off the home that was resolved.
+func TestNativeRuntimeRootsFallBackToTheResolvedHome(t *testing.T) {
+	home, projects := nativeRuntimeRoots("/Users/kai", stubEnv(map[string]string{}))
 	if home != "/Users/kai" {
-		t.Fatalf("home = %q, want the canonical home", home)
+		t.Fatalf("home = %q, want the ambient home", home)
 	}
 	if projects != filepath.Join("/Users/kai", "projects") {
-		t.Fatalf("projects = %q, want it under the canonical home", projects)
+		t.Fatalf("projects = %q, want it under the home", projects)
 	}
 }
