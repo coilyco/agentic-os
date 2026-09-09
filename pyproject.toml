@@ -123,8 +123,20 @@ band = "large"
 # rather than prose. Recorded because the previous attempt at this rule opened a
 # pull request against a branch carrying no commit, so the rule read as shipped
 # for a day while the file never changed (coilysiren/inbox#480).
+#
+# Raised 33339 to 33710 chars on 2026-09-08 for one rule, the brand name being
+# lowercase. It binds every session and every role: any seat writes the name,
+# and ordinary sentence-casing capitalises it automatically, which is why this
+# is the way the name drifts. No role source can hold it for the same reason.
+# The `brand-case` hook has enforced it in tracked files since #1539, and the
+# rule was written down nowhere an agent reads before writing, so a seat spent a
+# whole session capitalising it across chat, tracker records and a published
+# artifact, none of which a pre-commit run can reach. The line cap is untouched
+# and the file sits 2 lines under it. Headroom stays at 10 chars, because the
+# back-pressure above is the point and this raise is not meant to buy room for
+# the next rule.
 agents_md_max_lines = 240
-agents_md_max_chars = 33339
+agents_md_max_chars = 33710
 excludes = [
     # Root SSM.md is a focused pointer to the SSM params aos code consumes,
     # mirroring the canonical SSM.md placement. See SSM.md.

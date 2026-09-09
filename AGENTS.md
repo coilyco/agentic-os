@@ -111,6 +111,7 @@ The rule is about Kai and reaches nobody else. **Anyone whose pronouns you have 
 * No italics - bold only, for structural anchors.
 * No semicolons in prose.
 * No prose tables - flat bullets `* <anchor> - <cats> - <details>`.
+* `coilyco` is lowercase wherever it reads as a name, sentence-initial included, the way `adidas` is. Code spans, fenced blocks, URLs and paths are exempt, and a literal external identifier carrying a capital takes an allowlist entry. The `brand-case` hook covers tracked files, so this line is what reaches chat, tracker records, artifacts, commits and pull-request text.
 
 ### Speak as yourself
 
