@@ -49,18 +49,19 @@ func canonicalClaudeCredentialPath(home string) string {
 }
 
 // seedCanonicalClaudeCredential writes the Keychain login to the canonical file
-// when absent. Never overwrites. See docs/native-claude-credentials.md.
+// when absent or unstamped, never over a stamped one. docs/native-claude-credentials.md.
 func seedCanonicalClaudeCredential(
 	ctx context.Context,
 	read claudeKeyringReader,
 	home string,
 ) (bool, error) {
 	target := canonicalClaudeCredentialPath(home)
-	switch _, err := os.Lstat(target); {
-	case err == nil:
+	stamped, err := claudeCredentialStamped(target)
+	if err != nil {
+		return false, err
+	}
+	if stamped {
 		return false, nil
-	case !os.IsNotExist(err):
-		return false, fmt.Errorf("inspect %s: %w", target, err)
 	}
 
 	secret, err := read(ctx, claudeCredentialService, nativeClaudeKeychainAccount())
@@ -74,6 +75,12 @@ func seedCanonicalClaudeCredential(
 	if len(secret) == 0 {
 		return false, nil
 	}
+	// An absent target takes anything, and an unstamped one is replaced only by
+	// a payload the launcher can actually compare.
+	fresher, err := claudeCredentialOutlives(secret, target)
+	if err != nil || !fresher {
+		return false, err
+	}
 	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 		return false, fmt.Errorf("create %s: %w", filepath.Dir(target), err)
 	}
@@ -81,6 +88,20 @@ func seedCanonicalClaudeCredential(
 		return false, fmt.Errorf("write %s: %w", target, err)
 	}
 	return true, nil
+}
+
+// claudeCredentialStamped reports whether the file carries an expiry the
+// launcher can compare. A failed refresh leaves none. Doc page above.
+func claudeCredentialStamped(path string) (bool, error) {
+	payload, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read %s: %w", path, err)
+	}
+	_, ok := claudeCredentialExpiry(payload)
+	return ok, nil
 }
 
 // reclaimSessionClaudeCredential recovers a rotated token when a session left a
@@ -214,15 +235,17 @@ func claudeCredentialOutlives(candidate []byte, target string) (bool, error) {
 	if !ok {
 		return false, nil
 	}
+	// An unstamped incumbent is worthless rather than infinitely fresh, and
+	// treating it as unbeatable is what made canonical unreplaceable.
 	currentExpiry, ok := claudeCredentialExpiry(current)
 	if !ok {
-		return false, nil
+		return true, nil
 	}
 	return candidateExpiry > currentExpiry, nil
 }
 
-// An unparsable or unstamped payload compares as unknown rather than as zero,
-// so it never wins the comparison above.
+// An unparsable or unstamped payload compares as unknown rather than as zero.
+// As the candidate it never wins, and as the incumbent it never holds.
 func claudeCredentialExpiry(payload []byte) (int64, bool) {
 	var envelope struct {
 		OAuth struct {

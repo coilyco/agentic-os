@@ -11,7 +11,7 @@ Every per-repo `AGENTS.md` opens with a one-line pointer at the workspace base. 
 - **`coilyco-flight-deck/*`** - the public base on its GitHub mirror (`coilyco-flight-deck/agentic-os/AGENTS.md`), the public face an unauthenticated reader can open.
 - **`coilyco-bridge/*`** - the same public base, with the private `agentic-os-kai/AGENTS.md` overlay on canonical Forgejo layered on top. The wording carries the layering: aos-pub is the foundation, aos-kai layers Kai-specific context over it.
 
-The canonical base repos themselves (`agentic-os`, `agentic-os-kai`) are exempt - a base does not point at itself. `coilysiren` stays **deliberately unmanaged**: Kai's public personal namespace outside the coilyco-* fleet. Since the org migration it holds one `.agentic-os-ignore`-exempt repo, the profile `coilysiren/coilysiren`, carrying a bespoke bootstrap rather than a one-line pointer. It is hand-maintained rather than templated, so it takes a hand-fix instead of a generator branch. `website` moved to `coilyco-flight-deck/website`.
+The canonical base repos themselves (`agentic-os`, `agentic-os-kai`) are exempt - a base does not point at itself. `coilysiren` stays **deliberately unmanaged**: Kai's public personal namespace outside the coilyco-* fleet. Since the org migration it holds one `.agentic-os-ignore`-exempt repo, the profile `coilysiren/coilysiren`, carrying a bespoke bootstrap rather than a one-line pointer. It is hand-maintained rather than templated, so it takes a hand-fix instead of a generator branch. `website` moved to `coilyco-bridge/website`.
 
 ## Enforcement and application
 
