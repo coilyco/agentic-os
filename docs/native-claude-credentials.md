@@ -45,7 +45,8 @@ expired canonical stays expired and every seat pays a login every launch.
 Only a token that **outlives** canonical is written, compared on
 `claudeAiOauth.expiresAt`, so an unparsable or unstamped payload loses rather
 than winning as zero. That is what separates this from the lend-and-return
-failure below. Failure warns, never blocks.
+failure below. Failure warns, never blocks. Both decisions are covered again
+against the real Keychain in `native_claude_keyring_darwin_test.go`.
 
 ## Boundaries and tradeoffs
 
