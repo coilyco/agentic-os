@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -2077,5 +2079,105 @@ func TestNativeRuntimeRootsFallBackToTheResolvedHome(t *testing.T) {
 	}
 	if projects != filepath.Join("/Users/kai", "projects") {
 		t.Fatalf("projects = %q, want it under the home", projects)
+	}
+}
+
+// The reclaim path returns before the harvest, so a removal on the fall-through
+// never runs for it and the orphan survives the reap.
+func TestHarvestNativeClaudeLeaseDropsTheItemOnTheReclaimPath(t *testing.T) {
+	home := t.TempDir()
+	sessionHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(sessionHome, ".claude"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	// A regular file where the staged link was is reclaim's own case.
+	if err := os.WriteFile(
+		filepath.Join(sessionHome, ".claude", ".credentials.json"),
+		stampedCredential(200), 0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	dropped := []string{}
+	runtime := nativeRuntime{
+		Home:   home,
+		Stderr: io.Discard,
+		ClaudeKeyringDelete: func(_ context.Context, service, _ string) error {
+			dropped = append(dropped, service)
+			return nil
+		},
+	}
+
+	if !harvestNativeClaudeLease(runtime, &nativeLease{SessionHome: sessionHome}) {
+		t.Fatal("reclaim reported no recovery")
+	}
+	want := nativeClaudeKeychainService(home, filepath.Join(sessionHome, ".claude"))
+	if len(dropped) != 1 || dropped[0] != want {
+		t.Fatalf("services dropped = %v, want %q", dropped, want)
+	}
+}
+
+// Deleting before the read discards the rotation the read exists to recover, so
+// the order is the property rather than the pair of calls.
+func TestHarvestNativeClaudeLeaseReadsBeforeItDrops(t *testing.T) {
+	home := t.TempDir()
+	sessionHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(sessionHome, ".claude"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	order := []string{}
+	runtime := nativeRuntime{
+		Home:   home,
+		Stderr: io.Discard,
+		ClaudeKeyring: func(_ context.Context, _, _ string) ([]byte, error) {
+			order = append(order, "read")
+			return stampedCredential(200), nil
+		},
+		ClaudeKeyringDelete: func(_ context.Context, _, _ string) error {
+			order = append(order, "drop")
+			return nil
+		},
+	}
+
+	if !harvestNativeClaudeLease(runtime, &nativeLease{SessionHome: sessionHome}) {
+		t.Fatal("harvest reported no recovery")
+	}
+	if len(order) != 2 || order[0] != "read" || order[1] != "drop" {
+		t.Fatalf("call order = %v, want [read drop]", order)
+	}
+	// And the rotation actually landed, which is what the order protects.
+	body, err := os.ReadFile(canonicalClaudeCredentialPath(home))
+	if err != nil {
+		t.Fatalf("read canonical: %v", err)
+	}
+	if string(body) != string(stampedCredential(200)) {
+		t.Fatalf("canonical body = %q", body)
+	}
+}
+
+// A keychain that refuses the removal must not turn a recovered rotation into a
+// reported failure: the credential is already safe on disk by then.
+func TestHarvestNativeClaudeLeaseKeepsARecoveryWhenTheDropFails(t *testing.T) {
+	home := t.TempDir()
+	sessionHome := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(sessionHome, ".claude"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	stderr := &bytes.Buffer{}
+	runtime := nativeRuntime{
+		Home:   home,
+		Stderr: stderr,
+		ClaudeKeyring: func(_ context.Context, _, _ string) ([]byte, error) {
+			return stampedCredential(200), nil
+		},
+		ClaudeKeyringDelete: func(_ context.Context, _, _ string) error {
+			return errors.New("keychain locked")
+		},
+	}
+
+	if !harvestNativeClaudeLease(runtime, &nativeLease{SessionHome: sessionHome}) {
+		t.Fatal("a failed removal was reported as a failed harvest")
+	}
+	if !strings.Contains(stderr.String(), "keychain item not removed") {
+		t.Fatalf("stderr = %q, want the removal warning", stderr)
 	}
 }

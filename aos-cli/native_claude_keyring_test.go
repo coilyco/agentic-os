@@ -367,3 +367,90 @@ func TestHarvestSessionClaudeKeychainRefusesAnUncomparablePayload(t *testing.T) 
 		t.Fatal("harvest wrote an uncomparable payload over a stamped one")
 	}
 }
+
+// stubKeyringDelete records what it was asked to remove, so a test can assert
+// on the service name rather than on a boolean.
+func stubKeyringDelete(err error) (claudeKeyringDeleter, *[]string) {
+	dropped := &[]string{}
+	return func(_ context.Context, service, _ string) error {
+		*dropped = append(*dropped, service)
+		return err
+	}, dropped
+}
+
+func TestDropSessionClaudeKeychainRemovesTheSessionDigest(t *testing.T) {
+	home := t.TempDir()
+	sessionHome := t.TempDir()
+	drop, dropped := stubKeyringDelete(nil)
+
+	removed, err := dropSessionClaudeKeychain(
+		context.Background(), drop, sessionHome, home)
+	if err != nil {
+		t.Fatalf("drop: %v", err)
+	}
+	if !removed {
+		t.Fatal("drop reported no removal")
+	}
+	want := nativeClaudeKeychainService(home, filepath.Join(sessionHome, ".claude"))
+	if len(*dropped) != 1 || (*dropped)[0] != want {
+		t.Fatalf("services dropped = %v, want %q", *dropped, want)
+	}
+}
+
+// The one that would hurt. A session pointed at the host's own config dir reads
+// the shared item rather than minting one, and removing it logs the host out.
+func TestDropSessionClaudeKeychainSparesTheSharedHostItem(t *testing.T) {
+	home := t.TempDir()
+	sessionHome := home
+	drop, dropped := stubKeyringDelete(nil)
+
+	removed, err := dropSessionClaudeKeychain(
+		context.Background(), drop, sessionHome, home)
+	if err != nil {
+		t.Fatalf("drop: %v", err)
+	}
+	if removed {
+		t.Fatal("drop removed the shared host item")
+	}
+	if len(*dropped) != 0 {
+		t.Fatalf("services dropped = %v, want none", *dropped)
+	}
+}
+
+// An item already gone, and a platform with no keychain at all, are both the
+// end state this wants rather than a failure to report.
+func TestDropSessionClaudeKeychainTreatsAnAbsentItemAsDone(t *testing.T) {
+	for _, absent := range []error{errClaudeKeyringNotFound, errClaudeKeyringUnsupported} {
+		drop, _ := stubKeyringDelete(absent)
+		removed, err := dropSessionClaudeKeychain(
+			context.Background(), drop, t.TempDir(), t.TempDir())
+		if err != nil {
+			t.Fatalf("drop with %v: %v", absent, err)
+		}
+		if removed {
+			t.Fatalf("drop with %v reported a removal", absent)
+		}
+	}
+}
+
+func TestDropSessionClaudeKeychainSurfacesARealFailure(t *testing.T) {
+	boom := errors.New("keychain locked")
+	drop, _ := stubKeyringDelete(boom)
+	if _, err := dropSessionClaudeKeychain(
+		context.Background(), drop, t.TempDir(), t.TempDir()); !errors.Is(err, boom) {
+		t.Fatalf("drop error = %v, want %v", err, boom)
+	}
+}
+
+// A lease with no session home names no digest, so there is nothing to remove.
+func TestDropSessionClaudeKeychainIgnoresAnEmptySessionHome(t *testing.T) {
+	drop, dropped := stubKeyringDelete(nil)
+	removed, err := dropSessionClaudeKeychain(
+		context.Background(), drop, "", t.TempDir())
+	if err != nil {
+		t.Fatalf("drop: %v", err)
+	}
+	if removed || len(*dropped) != 0 {
+		t.Fatalf("drop acted on an empty session home: %v", *dropped)
+	}
+}

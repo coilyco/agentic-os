@@ -132,6 +132,8 @@ type nativeRuntime struct {
 	// ClaudeKeyring is injected by tests. The zero value falls back to the
 	// platform keyring.
 	ClaudeKeyring claudeKeyringReader
+	// ClaudeKeyringDelete is the write half, injected the same way.
+	ClaudeKeyringDelete claudeKeyringDeleter
 }
 
 func (runtime nativeRuntime) claudeKeyring() claudeKeyringReader {
@@ -139,6 +141,13 @@ func (runtime nativeRuntime) claudeKeyring() claudeKeyringReader {
 		return runtime.ClaudeKeyring
 	}
 	return readClaudeKeyring
+}
+
+func (runtime nativeRuntime) claudeKeyringDelete() claudeKeyringDeleter {
+	if runtime.ClaudeKeyringDelete != nil {
+		return runtime.ClaudeKeyringDelete
+	}
+	return deleteClaudeKeyring
 }
 
 func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
@@ -680,14 +689,36 @@ func nativeGit(directory string, args ...string) (string, error) {
 // harvestNativeClaudeLease recovers a finished session's rotated credential.
 // Failure warns, never blocks. docs/native-claude-credentials.md.
 func harvestNativeClaudeLease(runtime nativeRuntime, lease *nativeLease) bool {
+	recovered, failed := recoverNativeClaudeLease(runtime, lease)
+	// Last, and on both paths: deleting before the read would discard the
+	// rotation it recovers. docs/native-claude-credentials.md.
+	if _, err := dropSessionClaudeKeychain(
+		context.Background(), runtime.claudeKeyringDelete(),
+		lease.SessionHome, runtime.Home,
+	); err != nil {
+		fmt.Fprintf(runtime.Stderr,
+			"aos: native session Claude keychain item not removed: %v\n", err)
+	}
+	if failed {
+		return false
+	}
+	return recovered
+}
+
+// recoverNativeClaudeLease is the read half, split out so the removal above
+// runs on every path rather than only the one that falls through.
+func recoverNativeClaudeLease(
+	runtime nativeRuntime,
+	lease *nativeLease,
+) (recovered bool, failed bool) {
 	reclaimed, err := reclaimSessionClaudeCredential(lease.SessionHome, runtime.Home)
 	if err != nil {
 		fmt.Fprintf(runtime.Stderr,
 			"aos: native session Claude login not returned to the host: %v\n", err)
-		return false
+		return false, true
 	}
 	if reclaimed {
-		return true
+		return true, false
 	}
 	// The harness deletes the staged link when it cannot refresh the token, and
 	// the rotation then lives only in the session Keychain item.
@@ -696,9 +727,9 @@ func harvestNativeClaudeLease(runtime nativeRuntime, lease *nativeLease) bool {
 	if err != nil {
 		fmt.Fprintf(runtime.Stderr,
 			"aos: native session Claude login not harvested from the keychain: %v\n", err)
-		return false
+		return false, true
 	}
-	return harvested
+	return harvested, false
 }
 
 // nativeHeldLease pairs a lease with its file so startup can read every lease

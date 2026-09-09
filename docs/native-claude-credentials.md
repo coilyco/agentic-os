@@ -48,6 +48,10 @@ than winning as zero. That is what separates this from the lend-and-return
 failure below. Failure warns, never blocks. Both decisions are covered again
 against the real Keychain in `native_claude_keyring_darwin_test.go`.
 
+Reap then **removes** the item, after both reads and on both paths, since its
+service digests a home that will never exist again and nothing else would remove
+it. Never the bare `Claude Code-credentials` service, the shared host login.
+
 ## Boundaries and tradeoffs
 
 The seed is macOS only, because only macOS keeps the credential outside the
@@ -55,16 +59,12 @@ config directory. Linux already stores it in the file the projection carries,
 and Windows credential storage is not wired up here.
 
 Concurrent refreshes are the vendor's problem rather than this launcher's. Every
-session resolves the same path, so Claude Code's own concurrent-refresh handling
-coordinates them, which is what the previous lend-and-return arrangement was
-reimplementing badly: it kept one Keychain item per session and wrote back at
-reap, so with several live sessions the last harvest won and every earlier
-rotation was discarded.
+session resolves the same path, so Claude Code's own handling coordinates them.
+Lend-and-return reimplemented that badly: one item per session, written back at
+reap, so the last harvest won and every earlier rotation was discarded.
 
-No secret crosses argv. The seed reads the Keychain through
-`/usr/bin/security find-generic-password` and writes the file at `0600`, so the
-deliberate argv exception this page used to document is gone with the writes
-that needed it.
+No secret crosses argv: `find-generic-password` returns the payload on stdout,
+`delete-generic-password` carries none, and the file is written at `0600`.
 
 If the canonical file is ever deleted, the next launch reseeds from the Keychain.
 That value may be old enough to be refused, which costs one login, the same as

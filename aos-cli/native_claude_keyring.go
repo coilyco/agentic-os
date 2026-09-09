@@ -169,6 +169,37 @@ func harvestSessionClaudeKeychain(
 	return true, nil
 }
 
+// claudeKeyringDeleter is the write half of the port, back for one caller after
+// 5db49ff0 removed the lease machinery it used to belong to.
+type claudeKeyringDeleter func(ctx context.Context, service, account string) error
+
+// dropSessionClaudeKeychain removes the item a finished session minted, which
+// nothing else can name or remove. docs/native-claude-credentials.md.
+func dropSessionClaudeKeychain(
+	ctx context.Context,
+	drop claudeKeyringDeleter,
+	sessionHome, home string,
+) (bool, error) {
+	if strings.TrimSpace(sessionHome) == "" {
+		return false, nil
+	}
+	service := nativeClaudeKeychainService(home, filepath.Join(sessionHome, ".claude"))
+	// The shared host item is the login every other session reads. A session
+	// that landed on the default service borrowed it rather than minting one.
+	if service == claudeCredentialService {
+		return false, nil
+	}
+	err := drop(ctx, service, nativeClaudeKeychainAccount())
+	if errors.Is(err, errClaudeKeyringUnsupported) ||
+		errors.Is(err, errClaudeKeyringNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // claudeCredentialOutlives refuses to retire a token that lasts longer than the
 // candidate, which is how the retired per-session harvest lost rotations.
 func claudeCredentialOutlives(candidate []byte, target string) (bool, error) {

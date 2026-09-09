@@ -7,3 +7,7 @@ import "context"
 func readClaudeKeyring(context.Context, string, string) ([]byte, error) {
 	return nil, errClaudeKeyringUnsupported
 }
+
+func deleteClaudeKeyring(context.Context, string, string) error {
+	return errClaudeKeyringUnsupported
+}
