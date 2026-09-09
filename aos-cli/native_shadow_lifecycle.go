@@ -189,6 +189,20 @@ func nativeUnpushedCommits(artifact nativeArtifact) int {
 	return count
 }
 
+// writeClaudeCredentialHealth prints state only. docs/native-claude-credentials.md.
+func writeClaudeCredentialHealth(health claudeCredentialHealth, asJSON bool) error {
+	if asJSON {
+		encoded, err := json.MarshalIndent(health, "", "  ")
+		if err != nil {
+			return fmt.Errorf("marshal the credential health: %w", err)
+		}
+		_, err = fmt.Fprintf(os.Stdout, "%s\n", encoded)
+		return err
+	}
+	_, err := fmt.Fprintln(os.Stdout, health.Line())
+	return err
+}
+
 func writeNativeShadowReport(runtime nativeRuntime, report nativeShadowReport, asJSON bool) error {
 	if asJSON {
 		encoded, err := json.MarshalIndent(report, "", "  ")
@@ -323,6 +337,12 @@ func nativeShadowLifecycleVerb(cmd *cli.Command) (func(nativeRuntime) error, boo
 		dryRun := cmd.Bool("dry-run")
 		return func(runtime nativeRuntime) error {
 			return reapNativeShadows(runtime, dryRun)
+		}, true
+	case cmd.Bool("credential"):
+		asJSON := cmd.Bool("json")
+		return func(runtime nativeRuntime) error {
+			return writeClaudeCredentialHealth(
+				inspectCanonicalClaudeCredential(runtime.Home, runtime.Now), asJSON)
 		}, true
 	}
 	return nil, false

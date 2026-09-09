@@ -292,6 +292,7 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 					&cli.BoolFlag{Name: "list"},
 					&cli.BoolFlag{Name: "json"},
 					&cli.BoolFlag{Name: "reap"},
+					&cli.BoolFlag{Name: "credential"},
 					&cli.BoolFlag{Name: "dry-run"},
 					&cli.StringFlag{Name: "release"},
 				},

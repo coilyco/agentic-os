@@ -38,7 +38,8 @@ func TestDoctorPassesOnAHostThatCanLaunch(t *testing.T) {
 	verdicts := doctorVerdicts(t, out)
 	for _, name := range []string{
 		"working directory", "agent-compose", "roster", "overlay",
-		"identity vocabulary", "terminal", "aos", "session shadow", "launch profiles",
+		"identity vocabulary", "terminal", "aos", "session shadow", "claude login",
+		"launch profiles",
 	} {
 		check, found := verdicts[name]
 		if !found {
@@ -70,6 +71,54 @@ func TestDoctorNamesAnUnleasedLaunchWithoutFailing(t *testing.T) {
 		if !strings.Contains(shadow.Detail, want) {
 			t.Fatalf("session shadow detail %q is missing %q", shadow.Detail, want)
 		}
+	}
+}
+
+// The state that costs a login every launch is invisible until doctor names it.
+// teable:coilyco-flight-deck/agentic-os#7234
+func TestDoctorWarnsOnAnUnstampedClaudeCredential(t *testing.T) {
+	var spawns []recordedSpawn
+	deps := stubDeps(t, &spawns, true)
+	inner := deps.output
+	deps.output = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if len(args) > 1 && args[0] == "_native-shadow" && args[1] == "--credential" {
+			return []byte("unstamped: no comparable expiresAt\n"), nil
+		}
+		return inner(ctx, name, args...)
+	}
+
+	out, err := runDoctorCommand(t, deps, "--json")
+	if err != nil {
+		t.Fatalf("a login is recoverable, so doctor should pass: %v\n%s", err, out)
+	}
+	login := doctorVerdicts(t, out)["claude login"]
+	if login.Status != doctorWarn {
+		t.Fatalf("claude login = %+v, want a warning", login)
+	}
+	if !strings.Contains(login.Detail, "unstamped") {
+		t.Fatalf("claude login detail %q does not name the state", login.Detail)
+	}
+}
+
+// A doctor that cannot reach aos must say so rather than imply a healthy login.
+func TestDoctorWarnsWhenTheCredentialReadFails(t *testing.T) {
+	var spawns []recordedSpawn
+	deps := stubDeps(t, &spawns, true)
+	inner := deps.output
+	deps.output = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+		if len(args) > 1 && args[0] == "_native-shadow" && args[1] == "--credential" {
+			return nil, fmt.Errorf("boom")
+		}
+		return inner(ctx, name, args...)
+	}
+
+	out, err := runDoctorCommand(t, deps, "--json")
+	if err != nil {
+		t.Fatalf("doctor: %v\n%s", err, out)
+	}
+	login := doctorVerdicts(t, out)["claude login"]
+	if login.Status != doctorWarn || !strings.Contains(login.Detail, "boom") {
+		t.Fatalf("claude login = %+v, want a warning carrying the failure", login)
 	}
 }
 
