@@ -325,6 +325,23 @@ func clearDeprecatedModelSelectors() error {
 	return nil
 }
 
+// nativeRuntimeRoots picks the host home and projects root. Inside a session
+// HOME is the shadow, and every consumer of these two wants the host.
+func nativeRuntimeRoots(home string, env func(string) string) (string, string) {
+	if canonical := strings.TrimSpace(env(nativeCanonicalHomeEnv)); canonical != "" {
+		home = canonical
+	}
+	projects := strings.TrimSpace(env(nativeCanonicalProjectsEnv))
+	// PROJECTS_ROOT loses to it, because in a session that names the shadow.
+	if projects == "" {
+		projects = strings.TrimSpace(env("PROJECTS_ROOT"))
+	}
+	if projects == "" {
+		projects = filepath.Join(home, "projects")
+	}
+	return home, projects
+}
+
 func resolveNativeRuntime() (nativeRuntime, error) {
 	cwd, err := filepath.Abs(".")
 	if err != nil {
@@ -334,18 +351,7 @@ func resolveNativeRuntime() (nativeRuntime, error) {
 	if err != nil {
 		return nativeRuntime{}, fmt.Errorf("resolve native home: %w", err)
 	}
-	// Inside a session HOME is the shadow, and every consumer of these two
-	// wants the host. docs/native-claude-credentials.md, agentic-os#7195.
-	if canonical := strings.TrimSpace(os.Getenv(nativeCanonicalHomeEnv)); canonical != "" {
-		home = canonical
-	}
-	projects := strings.TrimSpace(os.Getenv(nativeCanonicalProjectsEnv))
-	if projects == "" {
-		projects = strings.TrimSpace(os.Getenv("PROJECTS_ROOT"))
-	}
-	if projects == "" {
-		projects = filepath.Join(home, "projects")
-	}
+	home, projects := nativeRuntimeRoots(home, os.Getenv)
 	projects, err = filepath.Abs(projects)
 	if err != nil {
 		return nativeRuntime{}, fmt.Errorf("resolve projects root: %w", err)

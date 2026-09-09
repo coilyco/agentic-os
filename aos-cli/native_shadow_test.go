@@ -2013,51 +2013,52 @@ func TestStageNativeRoleHomeLinksClaudeCredential(t *testing.T) {
 	}
 }
 
+// stubEnv serves a fixed environment, so the roots are decided by the values
+// under test rather than by the machine the suite runs on.
+func stubEnv(values map[string]string) func(string) string {
+	return func(name string) string { return values[name] }
+}
+
 // Every consumer of Home and ProjectsRoot wants the host, so a verb invoked
 // from inside a session must not resolve them to the shadow. agentic-os#7195
-func TestResolveNativeRuntimePrefersTheCanonicalHome(t *testing.T) {
-	shadow := t.TempDir()
-	canonicalHome := t.TempDir()
-	canonicalProjects := filepath.Join(canonicalHome, "projects")
-	t.Setenv("HOME", shadow)
-	t.Setenv(nativeCanonicalHomeEnv, canonicalHome)
-	t.Setenv(nativeCanonicalProjectsEnv, canonicalProjects)
-	// The shadow's own PROJECTS_ROOT must lose, because it names the shadow.
-	t.Setenv("PROJECTS_ROOT", filepath.Join(shadow, "projects"))
-
-	resolved, err := resolveNativeRuntime()
-	if err != nil {
-		t.Fatalf("resolve: %v", err)
+func TestNativeRuntimeRootsPreferTheCanonicalHome(t *testing.T) {
+	home, projects := nativeRuntimeRoots("/tmp/aos/native/kv99/home", stubEnv(map[string]string{
+		nativeCanonicalHomeEnv:     "/Users/kai",
+		nativeCanonicalProjectsEnv: "/Users/kai/projects",
+		// The shadow's own PROJECTS_ROOT must lose, because it names the shadow.
+		"PROJECTS_ROOT": "/tmp/aos/native/kv99/home/projects",
+	}))
+	if home != "/Users/kai" {
+		t.Fatalf("home = %q, want the canonical home", home)
 	}
-	if resolved.Home != canonicalHome {
-		t.Fatalf("Home = %q, want the canonical home %q", resolved.Home, canonicalHome)
-	}
-	if resolved.ProjectsRoot != canonicalProjects {
-		t.Fatalf("ProjectsRoot = %q, want %q", resolved.ProjectsRoot, canonicalProjects)
-	}
-	// The credential the harvest writes is the reason this matters.
-	if got := canonicalClaudeCredentialPath(resolved.Home); !strings.HasPrefix(got, canonicalHome) {
-		t.Fatalf("canonical credential path = %q, want it under %q", got, canonicalHome)
+	if projects != "/Users/kai/projects" {
+		t.Fatalf("projects = %q, want the canonical projects root", projects)
 	}
 }
 
-// Outside a session neither variable is set, and the host behaviour is unchanged.
-func TestResolveNativeRuntimeKeepsTheHostHomeWithoutASession(t *testing.T) {
-	host := t.TempDir()
-	elsewhere := t.TempDir()
-	t.Setenv("HOME", host)
-	t.Setenv(nativeCanonicalHomeEnv, "")
-	t.Setenv(nativeCanonicalProjectsEnv, "")
-	t.Setenv("PROJECTS_ROOT", elsewhere)
+// Outside a session neither variable is set and host behaviour is unchanged.
+func TestNativeRuntimeRootsKeepTheHostHomeWithoutASession(t *testing.T) {
+	home, projects := nativeRuntimeRoots("/Users/kai", stubEnv(map[string]string{
+		"PROJECTS_ROOT": "/elsewhere",
+	}))
+	if home != "/Users/kai" {
+		t.Fatalf("home = %q, want the host home", home)
+	}
+	if projects != "/elsewhere" {
+		t.Fatalf("projects = %q, want PROJECTS_ROOT", projects)
+	}
+}
 
-	resolved, err := resolveNativeRuntime()
-	if err != nil {
-		t.Fatalf("resolve: %v", err)
+// With nothing set at all the projects root still hangs off the resolved home,
+// which is the canonical one when a session exports it.
+func TestNativeRuntimeRootsFallBackToTheResolvedHome(t *testing.T) {
+	home, projects := nativeRuntimeRoots("/tmp/aos/native/kv99/home", stubEnv(map[string]string{
+		nativeCanonicalHomeEnv: "/Users/kai",
+	}))
+	if home != "/Users/kai" {
+		t.Fatalf("home = %q, want the canonical home", home)
 	}
-	if resolved.Home != host {
-		t.Fatalf("Home = %q, want %q", resolved.Home, host)
-	}
-	if resolved.ProjectsRoot != elsewhere {
-		t.Fatalf("ProjectsRoot = %q, want PROJECTS_ROOT %q", resolved.ProjectsRoot, elsewhere)
+	if projects != filepath.Join("/Users/kai", "projects") {
+		t.Fatalf("projects = %q, want it under the canonical home", projects)
 	}
 }
