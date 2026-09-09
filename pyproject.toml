@@ -135,8 +135,21 @@ band = "large"
 # and the file sits 2 lines under it. Headroom stays at 10 chars, because the
 # back-pressure above is the point and this raise is not meant to buy room for
 # the next rule.
-agents_md_max_lines = 240
-agents_md_max_chars = 33710
+#
+# Raised 240 to 242 lines and 33710 to 34790 chars on 2026-09-09 for one rule,
+# naming a record or a choice by what it is. It binds every session and every
+# role: any seat can cite a tracker number or offer a choice, and both fail the
+# same way, by handing over a pointer the reader cannot cheaply resolve. No role
+# source can hold it, because it fires on the message that ends a turn rather
+# than on the kind of work the turn did, so a lazily-read skill would miss the
+# sessions where it happens. Recorded from two turn-burners Kai reported the
+# same day, a bare `#1234` costing a browser trip and a one-word shorthand for
+# an option that was never restated, the second unrecoverable by scrollback
+# search because the shorthand was coined at ask-time and never appeared in the
+# turn that described the option (teable:coilyco-flight-deck/agentic-os#7244).
+# Headroom stays at 15 chars, because the back-pressure above is the point.
+agents_md_max_lines = 242
+agents_md_max_chars = 34790
 excludes = [
     # Root SSM.md is a focused pointer to the SSM params aos code consumes,
     # mirroring the canonical SSM.md placement. See SSM.md.
