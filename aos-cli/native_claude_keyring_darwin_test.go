@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -118,8 +119,54 @@ func addScratchKeychainItem(t *testing.T, service, account, secret string) {
 			"/usr/bin/security", "delete-generic-password",
 			"-s", service, "-a", account,
 		)
-		if output, err := remove.CombinedOutput(); err != nil {
+		// Already gone is the drop test's own success, not a leak.
+		if output, err := remove.CombinedOutput(); err != nil &&
+			!claudeKeyringMissing(err, output) {
 			t.Errorf("delete keychain item %q: %v: %s", service, err, output)
 		}
 	})
+}
+
+// A stub cannot exercise what security actually exits with, and the absent-item
+// path below is the branch a stub can only assert about itself.
+func TestDropSessionClaudeKeychainRemovesARealKeychainItem(t *testing.T) {
+	home := t.TempDir()
+	sessionHome := t.TempDir()
+	configDir := filepath.Join(sessionHome, ".claude")
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	service := nativeClaudeKeychainService(home, configDir)
+	account := nativeClaudeKeychainAccount()
+	addScratchKeychainItem(t, service, account, string(stampedCredential(200)))
+
+	// The item is really there before the drop, so its absence after means the
+	// drop removed it rather than never having found it.
+	if _, err := readClaudeKeyring(context.Background(), service, account); err != nil {
+		t.Fatalf("scratch item unreadable before the drop: %v", err)
+	}
+
+	removed, err := dropSessionClaudeKeychain(
+		context.Background(), deleteClaudeKeyring, sessionHome, home)
+	if err != nil {
+		t.Fatalf("drop: %v", err)
+	}
+	if !removed {
+		t.Fatal("drop reported no removal")
+	}
+	if _, err := readClaudeKeyring(
+		context.Background(), service, account,
+	); !errors.Is(err, errClaudeKeyringNotFound) {
+		t.Fatalf("read after drop = %v, want %v", err, errClaudeKeyringNotFound)
+	}
+
+	// Reaping twice must not turn into a reported failure.
+	removed, err = dropSessionClaudeKeychain(
+		context.Background(), deleteClaudeKeyring, sessionHome, home)
+	if err != nil {
+		t.Fatalf("second drop: %v", err)
+	}
+	if removed {
+		t.Fatal("second drop reported a removal")
+	}
 }
