@@ -334,7 +334,15 @@ func resolveNativeRuntime() (nativeRuntime, error) {
 	if err != nil {
 		return nativeRuntime{}, fmt.Errorf("resolve native home: %w", err)
 	}
-	projects := strings.TrimSpace(os.Getenv("PROJECTS_ROOT"))
+	// Inside a session HOME is the shadow, and every consumer of these two
+	// wants the host. docs/native-claude-credentials.md, agentic-os#7195.
+	if canonical := strings.TrimSpace(os.Getenv(nativeCanonicalHomeEnv)); canonical != "" {
+		home = canonical
+	}
+	projects := strings.TrimSpace(os.Getenv(nativeCanonicalProjectsEnv))
+	if projects == "" {
+		projects = strings.TrimSpace(os.Getenv("PROJECTS_ROOT"))
+	}
 	if projects == "" {
 		projects = filepath.Join(home, "projects")
 	}

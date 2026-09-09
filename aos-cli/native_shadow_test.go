@@ -2012,3 +2012,52 @@ func TestStageNativeRoleHomeLinksClaudeCredential(t *testing.T) {
 		t.Fatalf("credential links to %s, want %s", resolved, want)
 	}
 }
+
+// Every consumer of Home and ProjectsRoot wants the host, so a verb invoked
+// from inside a session must not resolve them to the shadow. agentic-os#7195
+func TestResolveNativeRuntimePrefersTheCanonicalHome(t *testing.T) {
+	shadow := t.TempDir()
+	canonicalHome := t.TempDir()
+	canonicalProjects := filepath.Join(canonicalHome, "projects")
+	t.Setenv("HOME", shadow)
+	t.Setenv(nativeCanonicalHomeEnv, canonicalHome)
+	t.Setenv(nativeCanonicalProjectsEnv, canonicalProjects)
+	// The shadow's own PROJECTS_ROOT must lose, because it names the shadow.
+	t.Setenv("PROJECTS_ROOT", filepath.Join(shadow, "projects"))
+
+	resolved, err := resolveNativeRuntime()
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if resolved.Home != canonicalHome {
+		t.Fatalf("Home = %q, want the canonical home %q", resolved.Home, canonicalHome)
+	}
+	if resolved.ProjectsRoot != canonicalProjects {
+		t.Fatalf("ProjectsRoot = %q, want %q", resolved.ProjectsRoot, canonicalProjects)
+	}
+	// The credential the harvest writes is the reason this matters.
+	if got := canonicalClaudeCredentialPath(resolved.Home); !strings.HasPrefix(got, canonicalHome) {
+		t.Fatalf("canonical credential path = %q, want it under %q", got, canonicalHome)
+	}
+}
+
+// Outside a session neither variable is set, and the host behaviour is unchanged.
+func TestResolveNativeRuntimeKeepsTheHostHomeWithoutASession(t *testing.T) {
+	host := t.TempDir()
+	elsewhere := t.TempDir()
+	t.Setenv("HOME", host)
+	t.Setenv(nativeCanonicalHomeEnv, "")
+	t.Setenv(nativeCanonicalProjectsEnv, "")
+	t.Setenv("PROJECTS_ROOT", elsewhere)
+
+	resolved, err := resolveNativeRuntime()
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if resolved.Home != host {
+		t.Fatalf("Home = %q, want %q", resolved.Home, host)
+	}
+	if resolved.ProjectsRoot != elsewhere {
+		t.Fatalf("ProjectsRoot = %q, want PROJECTS_ROOT %q", resolved.ProjectsRoot, elsewhere)
+	}
+}
