@@ -53,7 +53,9 @@ roles {
 
     role advocate {
         composed-skill tooling-discord-community-host
-        composed-skill "writing-*"
+        // Was "writing-*". The social register skills moved to voice-corpus,
+        // beside the evidence base and the sibling this repo never held.
+        composed-skill writing-system-improvement-vocab
         composed-skill "tooling-devrel-*"
         composed-skill "personal-preference-*"
         composed-skill "personal-preferences"
