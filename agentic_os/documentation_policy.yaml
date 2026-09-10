@@ -31,7 +31,6 @@ repos:
     - data/
   agentic-os-xxx:
     band: large
-    guides: true
   coilysiren:
     band: micro # fundamentally a simple repo
   deploy:

@@ -12,20 +12,25 @@ something that needed the room.
 
 ## The test
 
-**Cut it to reference length in your head. Does the value survive?**
+**Can a reader follow it with their hands?**
 
-A reference page loses nothing by being short and scannable. That is what it is
-for. Somebody arrives knowing what they want, reads the two paragraphs that
-answer it, and leaves.
+A guide is the concrete steps a human performs to accomplish a task, in the
+order they perform them. The commands they run, the values they supply, what
+they should see after each step, and what to do when a step does something
+else. Number them. The reader has a terminal open while they read.
 
-A walkthrough loses the sequence, and the sequence was the content. If the
-useful part is "first this, then that, and here is what goes wrong in the
-middle," then trimming it to a summary produces a page that is technically
-accurate and helps nobody.
+Prose about a task is not a guide. A page that explains an area, argues for a
+shape, or recounts how something came to be can be accurate and worth keeping
+and still belongs in `docs/` or on the tracker record. Length does not convert
+it, and the roomier cap on this shelf pays for steps and worked output rather
+than for paragraphs. If you cannot point at the step a reader performs first,
+you do not have a guide yet.
 
-If you cannot tell, ask who is reading it and what they are doing while they
-read. A guide has a reader who is **doing something, in order**. Reference has a
-reader who is **looking something up**.
+When the first test leaves you unsure, use the second one. **Cut it to
+reference length in your head. Does the value survive?** A reference page loses
+nothing by being short and scannable. Somebody arrives knowing what they want,
+reads the two paragraphs that answer it, and leaves. A procedure loses the
+sequence, and the sequence was the content.
 
 ## The failure that produced the type
 
@@ -68,6 +73,9 @@ Three shapes that look like guides and are not:
   performing the sequence.
 * **A design rationale.** Valuable, and it belongs beside the thing it explains
   rather than on a shelf a reader consults while working.
+* **A block of prose with no steps in it.** The plainest case and the most
+  common. If the page has no command, no input and nothing for the reader to
+  do, no amount of subject-matter weight makes it a guide.
 
 ## What an over-cap guide usually means
 

@@ -27,15 +27,16 @@ repo outgrowing `small` argues there rather than raising its own caps.
 Disagreement falls it back to `small`:
 [ratifying a band or an exclusion](../guides/ratifying-an-exclusion.md).
 
-## guides/ is the narrative shelf
+## guides/ is the procedure shelf
 
 `docs/` answers **how does X work**, capped short and flat. `guides/` answers
-**how do I do Y, end to end**, where the sequence, the worked example and the
-failure modes do not survive being cut to reference length. A guide takes twice
-its band's per-doc caps, the shelves count separately, and a guide cross-links
-out as `../docs/<name>.md`. There is no guide count cap, which is why **opening
-a shelf is ratified rather than a mkdir**: an uncapped destination is where
-content goes when it fits nowhere else. Two repos carry one today.
+**how do I do Y**, as concrete steps a human performs to finish a task: the
+commands, the inputs, the check after each step, the recovery when one fails.
+Prose about a task is not a guide, and length does not convert it. A guide takes
+twice its band's per-doc caps, the shelves count separately, and it cross-links
+out as `../docs/<name>.md`. There is no guide count cap, which is why **opening a
+shelf is ratified rather than a mkdir**: an uncapped destination is where content
+goes when it fits nowhere else. Two repos carry one.
 
 ## Why a count cap exists at all
 

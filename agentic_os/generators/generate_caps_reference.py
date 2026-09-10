@@ -117,7 +117,7 @@ def _caps() -> list[tuple[str, str, str, str]]:
             "documentation-layout",
             "guide lines (small band)",
             str(dl.BAND_CAPS["small"][0] * dl.GUIDE_SIZE_FACTOR),
-            "lines for a `guides/*.md` narrative walkthrough, "
+            "lines for a `guides/*.md` page of task steps, "
             f"{dl.GUIDE_SIZE_FACTOR}x the small band's per-doc cap",
         ),
         (
@@ -131,7 +131,7 @@ def _caps() -> list[tuple[str, str, str, str]]:
             "documentation-layout",
             "guide lines (large band)",
             str(dl.BAND_CAPS["large"][0] * dl.GUIDE_SIZE_FACTOR),
-            "lines for a `guides/*.md` narrative walkthrough, "
+            "lines for a `guides/*.md` page of task steps, "
             f"{dl.GUIDE_SIZE_FACTOR}x the large band's per-doc cap",
         ),
         (

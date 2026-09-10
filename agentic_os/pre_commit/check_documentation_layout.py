@@ -17,14 +17,16 @@ Markdown documentation may live only in:
     6. a co-located module README.md, but only in one of two tightly-capped
        shapes (see below). Any other co-located Markdown is still a violation.
 
-guides/ is narrative, docs/ is reference
-----------------------------------------
+guides/ is procedure, docs/ is reference
+---------------------------------------
 `docs/` answers "how does X work" and is capped short and flat so the set
-stays scannable. `guides/` answers "how do I do Y, end to end", and its value
-is the sequence, the worked example and the failure modes - none of which
-survive being cut to reference length. A guide truncated into a reference page
-is just a worse reference page, so the two shelves take different caps rather
-than sharing one.
+stays scannable. `guides/` answers "how do I do Y" as the concrete steps a
+human performs to finish a task: the commands, the inputs, the check after
+each step, and the recovery when one fails. Prose about a task is not a guide,
+however long or well written, and the roomier cap here pays for steps and
+worked output rather than for paragraphs. A guide truncated into a reference
+page is just a worse reference page, so the two shelves take different caps
+rather than sharing one.
 
 Guides do not count toward the docs/ count cap. A repo sitting at its docs cap
 can still add a guide, which is the case that forced the type: a walkthrough
@@ -753,8 +755,8 @@ def _oversize_remedy(rel: Path) -> str:
     """
     if is_guide(rel):
         return (
-            "A guide is one journey; move the reference material it carries "
-            "into docs/*.md rather than splitting the walkthrough."
+            "A guide is one task's steps. Move the reference material it "
+            "carries into docs/*.md rather than splitting the steps."
         )
     return "Split large docs into smaller docs/*.md files."
 

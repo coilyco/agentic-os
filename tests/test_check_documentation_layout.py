@@ -607,7 +607,7 @@ def test_the_combined_id_still_disables_both_halves(
     assert docs_layout.main_size() == 0
 
 
-# guides/: the narrative shelf, separate from the docs/ reference shelf.
+# guides/: the procedure shelf, separate from the docs/ reference shelf.
 
 def _set_band(tmp_path: Path, band: str) -> None:
     """Declare a band and ratify it, for a test that switches band mid-run.
@@ -724,14 +724,14 @@ def test_a_repo_with_no_guides_is_untouched(tmp_path: Path, monkeypatch) -> None
 def test_an_oversize_guide_is_not_told_to_split_into_docs(
     tmp_path: Path, monkeypatch
 ) -> None:
-    # The remedy that sent the walkthrough back to the shelf it did not fit on
+    # The remedy that sent the steps back to the shelf they did not fit on
     # must not be the one the hook prints at a guide author.
     _large_band(tmp_path)
     write(tmp_path / "guides" / "long.md", "# Guide\n" + "line\n" * 300)
     write(tmp_path / "docs" / "long.md", "# Page\n" + "line\n" * 300)
     _point_repo_root_at(tmp_path, monkeypatch)
     said = {v.split(":")[0]: v for v in docs_layout.check_markdown_sizes()}
-    assert "splitting the walkthrough" in said["guides/long.md"]
+    assert "splitting the steps" in said["guides/long.md"]
     assert "Split large docs" in said["docs/long.md"]
 
 
