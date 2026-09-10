@@ -43,5 +43,5 @@ Editing or writing Rust. Inherit Kai's defaults and her galaxy-gen instincts bef
 
 ## See also
 
-- `kai-tech-prefs` - tooling and dependency preferences.
+- `coilyco-tech-prefs` - tooling and dependency preferences.
 - `coding-galaxy-gen-astrophysics` - the physics the galaxy-gen Rust kernel implements.

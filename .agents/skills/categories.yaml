@@ -37,9 +37,12 @@ categories:
     prefix: personal-preference-
     enforce_status: false
 
-  - id: kai
+  # Estate-owned context. `kai-` held this slot until the prefix sweep moved
+  # the owner tag off skills that describe the operation rather than the person;
+  # skills that genuinely describe Kai keep `kai-` and live in agentic-os-kai.
+  - id: coilyco
     kind: prefix
-    prefix: kai-
+    prefix: coilyco-
     enforce_status: false
 
   # ---- Model capability/scope profiles (thin) ----

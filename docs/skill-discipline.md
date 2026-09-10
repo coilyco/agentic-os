@@ -80,7 +80,7 @@ Two valid forms for in-prose references to other skills:
 * **Bare backticks** `` `skill-name` `` for passing mentions in prose. Not navigable.
 * **Markdown link** `` [`skill-name`](../skill-name/SKILL.md) `` for navigable references.
 
-Either form: if the name does not resolve to a real skill in the repo, `check_dead_links.py` flags it. A cross-repo reference (a skill or file living in a sibling repo) cannot be a navigable link - it would escape the repo root, which is now a hard violation - so use the bare-backtick form with a parenthetical, e.g. `` `kai-aws-auth` (in agentic-os-kai) ``.
+Either form: if the name does not resolve to a real skill in the repo, `check_dead_links.py` flags it. A cross-repo reference (a skill or file living in a sibling repo) cannot be a navigable link - it would escape the repo root, which is now a hard violation - so use the bare-backtick form with a parenthetical, e.g. `` `coilyco-aws-auth` (in agentic-os-kai) ``.
 
 External URLs, mailto links, and bare anchors (`#section`) are out of scope for the dead-link check. A `../` link is no longer skipped: an internal one is existence-checked, and one that escapes the repo root fails.
 

@@ -19,7 +19,7 @@ go, golang, .go, go.mod, go.sum, gopls, urfave, cobra, kong, charm, bubbletea, l
 
 - **Version**: Go 1.22+ unless project pins lower.
 - **Modules**: always. No GOPATH-era patterns.
-- **CLI framework**: `urfave/cli` first (Kai is a maintainer), cobra/kong only if a project already commits to them. See `kai-tech-prefs`.
+- **CLI framework**: `urfave/cli` first (Kai is a maintainer), cobra/kong only if a project already commits to them. See `coilyco-tech-prefs`.
 - **TUI**: Charm stack (bubbletea, lipgloss, gum, glow, huh). Same skill prefs.
 - **Logging**: `log/slog` stdlib. Structured, leveled.
 - **Tests**: stdlib `testing`. Reach for `testify` only when assertions get repetitive.
