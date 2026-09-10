@@ -344,7 +344,7 @@ def is_build_output(rel_path: Path | str, repo_root: Path | None = None) -> bool
 
 
 # Central ratification of documentation exclusions, so the escape hatch does not
-# live in the repo under pressure. See guides/ratifying-an-exclusion.md.
+# live in the repo under pressure. See docs/ratifying-an-exclusion.md.
 
 _RATIFIED_PATH = Path(__file__).with_name("documentation_policy.yaml")
 _RATIFIED_CACHE: dict[str, object] = {}

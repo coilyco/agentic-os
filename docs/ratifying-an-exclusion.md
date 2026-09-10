@@ -2,8 +2,8 @@
 
 Adding an exclusion to `documentation-layout` takes two pull requests in two
 repositories, a hook release, and a pin bump. Removing one takes a single pull
-request on either side. This walks both directions and explains why they are
-deliberately not the same cost.
+request on either side. This walks both, and why they cost differently on
+purpose.
 
 ## Why it is two pull requests
 
@@ -115,9 +115,5 @@ rather than asking for an exemption: it says the Markdown's shape is owned
 outside this repo. A false `vendored` declaration is a lie in a tracked file
 rather than an escape hatch, and it is caught by reading it.
 
-## See also
-
-- [../docs/documentation-bands.md](../docs/documentation-bands.md) - the bands,
-  the caps, and every carve-out in one place.
-- [removing-a-validator-rule.md](removing-a-validator-rule.md) - what to do
-  when the answer is that the rule itself is wrong.
+The bands, the caps and every carve-out in one place:
+[documentation-bands.md](documentation-bands.md).

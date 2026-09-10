@@ -125,7 +125,7 @@ RUN set -eux; . /opt/agentic-os/arch.env; \
 # wasm-pack shells out to the wasm-bindgen CLI and downloads its own copy when
 # PATH has none, the same hole the wasm-opt block below closes. This pin must
 # track the wasm-bindgen CRATE consumers lock, or wasm-pack fetches the
-# matching CLI anyway: docs/dev-base-wasm-toolchain.md carries that rule.
+# matching CLI anyway: docs/vendor-forgejo-policy.md carries that rule.
 # Only the binaries wasm-pack invokes are kept; wasm2es6js it never calls.
 RUN set -eux; . /opt/agentic-os/arch.env; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \

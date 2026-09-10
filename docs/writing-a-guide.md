@@ -1,14 +1,27 @@
 # Writing a guide
 
-[`documentation-bands`](../docs/documentation-bands.md) carries the caps, the
-band table and the cross-link rule. This page is the other half: how to tell,
-before you start writing, whether the thing in your head is a guide or a
-reference page.
+[`documentation-bands`](documentation-bands.md) carries the caps, the band
+table and the cross-link rule. This page is the other half: which repos may
+have a `guides/` shelf at all, and how to tell whether the thing in your head
+is a guide or a reference page.
 
 Getting it wrong is cheap in one direction and expensive in the other. A guide
 filed as reference gets cut until the part that mattered is gone. A reference
 page filed as a guide sits on a deliberately scarce shelf and crowds out
 something that needed the room.
+
+## Only a flagship repo has a shelf
+
+**`guides/` is for the externally facing flagship repos and nowhere else.**
+A guide is written for somebody outside the estate who is adopting the thing
+and needs to be walked through it. That reader exists for umbra, mcp-beaver,
+housecast and agent-compose. Everywhere else the reader is Kai or an agent,
+and what they need is reference in `docs/` or a skill.
+
+This repo used to carry a shelf and no longer does. Internal procedure is
+still procedure, and it lives in `docs/*.md` under the ordinary per-doc caps
+rather than on a shelf with none. If your repo is not one of the four, the
+rest of this page is background: you are writing a `docs/` page.
 
 ## The test
 
@@ -34,22 +47,15 @@ sequence, and the sequence was the content.
 
 ## The failure that produced the type
 
-Worth keeping because it is the clearest case, and because the remedy text was
-part of the problem.
-
-A narrative walkthrough was written for a project whose `docs/` sat at exactly
-its count cap. It was refused three ways at once: the folder was full, the page
-was over the line cap, and it was over the char cap. Moving it to `guides/`
-failed too, because `guides/` was not yet a legal location.
-
-The count cap was the interesting refusal. **The page was not too long. The
-shelf was full and the page was not that kind of page.** A repo can be genuinely
-finished adding reference pages and still owe its readers a walkthrough.
+A walkthrough was written for a project whose `docs/` sat at exactly its
+count cap. It was refused three ways at once, and the count cap was the
+interesting one. **The page was not too long. The shelf was full and the page
+was not that kind of page.**
 
 The remedy text at the time said to split the doc into smaller `docs/*.md`
-files. Followed literally, that advice destroys a walkthrough: you get three
-reference fragments and no sequence. It now says something else, and the reason
-that matters is that a validator's suggested fix is read as authoritative by
+files, which followed literally destroys a procedure: you get three reference
+fragments and no sequence. It says something else now. That is the part worth
+keeping, because a validator's suggested fix is read as authoritative by
 whoever hit it at midnight.
 
 ## What guides/ is not
@@ -109,16 +115,5 @@ they are doing while they read it, that is what you have.
 
 `dead-cross-links` resolves a relative link against the file it sits in, so a
 bare `foo.md` inside a guide resolves to `guides/foo.md` and fails. Reference
-`docs/` as `../docs/<name>.md`.
-
-This is the one mechanical thing that catches everybody once. It fails loudly,
-which is the good case.
-
-## This page is the first one
-
-Said plainly because it is relevant rather than cute. The type was specified by
-the seat whose page could not land, built by the seat that owns the validators,
-and the argument for it is a failure that happened rather than a shape somebody
-liked. If the distinction here reads as tidier than your actual situation, trust
-your situation. The test at the top is the whole of it, and everything below is
-consequence.
+`docs/` as `../docs/<name>.md`. This is the one mechanical thing that catches
+everybody once, and it fails loudly, which is the good case.

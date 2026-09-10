@@ -22,7 +22,7 @@ This repo ships the validator and the applier. The fleet rollout that lands the 
 
 ## Features: managed git-workflow block
 
-Every repo declares its landing lane once, as `ward.workflow` in the AGENTS.md frontmatter, and `generate-git-workflow` renders a marker-delimited managed block from it that states the standing authorization to commit, branch, push, and open a pull request. The fleet runs one lane, `pull-request-and-merge`, and `merge-remote-main` is retired. Lanes, enforcement, and the one deliberate exemption: [git-workflow lanes](git-workflow-lanes.md).
+Every repo declares its landing lane once, as `ward.workflow` in the AGENTS.md frontmatter, and `generate-git-workflow` renders a marker-delimited managed block from it that states the standing authorization to commit, branch, push, and open a pull request. The fleet runs one lane, `pull-request-and-merge`, and `merge-remote-main` is retired. Lanes, enforcement, and the one deliberate exemption: [git-workflow lanes](build-file-headers.md).
 
 ## Features: agents and sessions
 

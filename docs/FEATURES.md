@@ -44,7 +44,6 @@ Major shipped capabilities, not files.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
 - [Forgejo Actions logs](../.agents/skills/tooling-aosguard/references/forgejo-actions-runs.md) - job logs and run ZIPs.
 - [Forgejo runner tokens](../.agents/skills/tooling-aosguard/references/forgejo-ops.md) - guarded registration-token minting.
-- [Forgejo policy vendoring](vendor-forgejo-policy.md) - the operator policy pushes down to deploy, never fetched up.
 - [Homebrew updates](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - `aosguard update brew` refreshes tap metadata, upgrades this estate's own formulae first, then the rest, and exits non-zero on anything left behind.
 - [Teable schema admin](../.agents/skills/tooling-aosguard/references/teable-admin.md) - guarded field and table creation that re-reads through a separate request and refuses unless the write stored as asked; convert and table-delete refused by name.
 - [Teable personal records](../.agents/skills/tooling-aosguard/references/teable-personal.md) - guarded record reads and writes over one SSM-pinned base that the caller cannot name; writes re-read before reporting success, and record-delete is unmounted and refused by name.
@@ -53,11 +52,11 @@ Major shipped capabilities, not files.
 - [Cross-repo tooling and release](release.md) - aos-precommit and release operations.
 - [Telegram CI failure alerts](../actions/telegram-alert/action.yml) - one composite action, no alert program in any repo.
 - [dev-base image](dev-base-image.md) - parallel cached language payloads feeding one automatically released full development surface.
-- [Pinned WASM toolchain](dev-base-wasm-toolchain.md) - wasm-pack, wasm-opt, and the wasm-bindgen CLI baked so no build downloads them.
+- [Pinned and vendored build inputs](vendor-forgejo-policy.md) - the Forgejo policy pushes down to deploy, and the WASM toolchain is baked so no build downloads it.
 - [CI parity in dev-base](ci-in-dev-base.md) - CI runs inside the moving :release dev-base image.
 - [Pull-request CI gate](ci-in-dev-base.md) - fast tests and Docker-only image validation.
 - [AGENTS pointer](features-agents.md) - generated sibling-repo workspace pointer.
-- [AGENTS git-workflow block](git-workflow-lanes.md) - generated per-lane standing authorization to commit, branch, push, and open a PR. One fleet lane, `pull-request-and-merge`.
+- [AGENTS git-workflow block](build-file-headers.md) - generated per-lane standing authorization to commit, branch, push, and open a PR. One fleet lane, `pull-request-and-merge`.
 - **Brand case** - the brand name is lowercase in prose, sentence-initial
   included. Fenced blocks, code spans, URLs and link targets are exempt, and a
   literal external identifier takes an `allow` entry rather than an edit.
@@ -81,7 +80,7 @@ Major shipped capabilities, not files.
   structural documentation type beside `docs/*.md`, with its own roomier size
   caps and no count cap, so an end-to-end walkthrough has somewhere legal to
   live when the reference shelf is full.
-- [Centrally ratified documentation exclusions](../guides/ratifying-an-exclusion.md) -
+- [Centrally ratified documentation exclusions](ratifying-an-exclusion.md) -
   a `documentation-layout` exclusion applies only when the repo's own config and
   agentic-os both name it, so adding one costs two pull requests, a release and
   a pin bump, while removing one costs one. An unratified local pattern fails

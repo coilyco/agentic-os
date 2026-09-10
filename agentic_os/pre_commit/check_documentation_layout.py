@@ -39,8 +39,11 @@ target earns a guide with it, and a count cap there fails the repo while naming
 a fix (fold into docs/) that a full reference shelf makes impossible.
 
 Which repos may open a guides/ shelf is ratified centrally, because it is the
-one destination with no count cap. See docs/documentation-bands.md for the caps and the
-derivation behind them.
+one destination with no count cap, and the shelf is for the externally facing
+flagship repos only: a guide is written for somebody outside the estate who is
+adopting the thing. Everywhere else that reader does not exist and the material
+belongs in docs/ or a skill. See docs/documentation-bands.md for the caps and
+the derivation behind them.
 
 Module README.md shapes
 -----------------------
@@ -363,7 +366,7 @@ def check_guides_are_ratified() -> list[str]:
 
     That makes it where content goes when it fits nowhere else, so which repos
     may open one is ratified rather than decided by whoever creates the
-    directory. See guides/ratifying-an-exclusion.md.
+    directory. See docs/ratifying-an-exclusion.md.
     """
     root = REPO_ROOT / GUIDES_DIRNAME
     if not root.is_dir() or ratified_guides():
@@ -376,10 +379,11 @@ def check_guides_are_ratified() -> list[str]:
     if not present:
         return []
     return [
-        f"{name}: this repo is not ratified to author a guides/ shelf. It is "
+        f"{name}: this repo is not ratified to author a guides/ shelf. The "
+        f"shelf is for the externally facing flagship repos only, and it is "
         f"the one destination with no count cap, so opening one takes an entry "
         f"in agentic_os/documentation_policy.yaml, copied by hand into both "
-        f"repos, rather than a mkdir."
+        f"repos, rather than a mkdir. Move the page into docs/*.md instead."
         for name in present
     ]
 

@@ -1,5 +1,5 @@
 # Documentation-layout policy per repo: band, guides shelf, ratified exclusions.
-# Band authored in agentic-os-kai. Procedure: guides/ratifying-an-exclusion.md.
+# Band authored in agentic-os-kai. Procedure: docs/ratifying-an-exclusion.md.
 
 repos:
   agent-compose:
@@ -13,7 +13,6 @@ repos:
     band: large
   agentic-os:
     band: large
-    guides: true
     excludes:
     - SSM.md
   agentic-os-hardware:
