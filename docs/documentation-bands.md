@@ -36,8 +36,8 @@ Prose about a task is not a guide, and length does not convert it.
 
 **A shelf is for the externally facing flagship repos and nowhere else**, because
 a guide is written for somebody outside the estate adopting the thing. Elsewhere
-the reader is Kai or an agent, and that reader wants `docs/` or a skill. One repo
-carries a shelf today, and this one gave its own up. A guide takes twice its
+the reader is Kai or an agent, and that reader wants `docs/` or a skill. Two
+carry a shelf today, and this repo gave its own up. A guide takes twice its
 band's per-doc caps, the shelves count separately, and it cross-links out as
 `../docs/<name>.md`. There is no guide count cap, which is why **opening a shelf
 is ratified rather than a mkdir**. Which page is which:
