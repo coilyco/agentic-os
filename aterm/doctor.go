@@ -298,7 +298,34 @@ func checkAOS(
 			"unleased, `%s _native-shadow --probe` failed, so the window shares this "+
 				"checkout and its launch skips daily host convergence", aos)
 	}
+	checkClaudeCredential(ctx, deps, report, aos)
 	checkLaunchProfiles(ctx, deps, cmd, report, aos, roster)
+}
+
+// The state is aos's to judge, so this renders the verdict rather than reading
+// the credential itself. docs/native-claude-credentials.md.
+func checkClaudeCredential(
+	ctx context.Context,
+	deps commandDeps,
+	report *doctorReport,
+	aos string,
+) {
+	raw, err := deps.output(ctx, aos, "_native-shadow", "--credential")
+	if err != nil {
+		report.add("claude login", doctorWarn,
+			"not read, `%s _native-shadow --credential` failed: %v", aos, firstLine(err.Error()))
+		return
+	}
+	line := strings.TrimSpace(string(raw))
+	if line == "" {
+		report.add("claude login", doctorWarn, "not read, aos returned nothing")
+		return
+	}
+	if state, _, _ := strings.Cut(line, ":"); state == "live" || state == "refreshable" {
+		report.add("claude login", doctorOK, "%s", line)
+		return
+	}
+	report.add("claude login", doctorWarn, "%s", line)
 }
 
 func checkLaunchProfiles(

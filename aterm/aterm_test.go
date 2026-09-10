@@ -54,6 +54,9 @@ func stubDeps(t *testing.T, spawns *[]recordedSpawn, shadowed bool) commandDeps 
 			switch {
 			case len(args) > 0 && args[0] == "catalog":
 				return fixture(t, "roster.json"), nil
+			case len(args) > 1 && args[0] == "_native-shadow" && args[1] == "--credential":
+				// aos owns the verdict, so the fixture host is simply logged in.
+				return []byte("live: valid until 2030-01-01T00:00:00Z\n"), nil
 			case len(args) > 0 && args[0] == "_launch-agent":
 				// aos owns the launch profiles, and every fixture role seats claude.
 				return []byte("claude\n"), nil
