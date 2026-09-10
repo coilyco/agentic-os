@@ -67,6 +67,9 @@ repos:
     band: large
   steam-ops:
     band: small
+  umbra:
+    band: large
+    guides: true
   voice-corpus:
     band: micro # its info lives primarily in skills
   website:
