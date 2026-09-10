@@ -38,4 +38,4 @@ Creating a repo, adding or changing a `LICENSE`, setting a `license` field in pa
 
 ## See also
 
-- `kai-tech-prefs` - other repo conventions.
+- `coilyco-tech-prefs` - other repo conventions.

@@ -40,4 +40,4 @@ Editing or writing C#. Inherit Kai's defaults before reaching for training-data 
 
 ## See also
 
-- `kai-tech-prefs` - tooling and dependency preferences.
+- `coilyco-tech-prefs` - tooling and dependency preferences.

@@ -27,7 +27,7 @@ Reach for tview/promptui only when an existing project already commits to them.
 
 ## Why Charm
 
-Cotton-candy aesthetic, MIT-licensed, very actively maintained, plays nicely with `urfave/cli` for the imperative-CLI-with-occasional-TUI form. See `kai-tech-prefs`.
+Cotton-candy aesthetic, MIT-licensed, very actively maintained, plays nicely with `urfave/cli` for the imperative-CLI-with-occasional-TUI form. See `coilyco-tech-prefs`.
 
 ## Design rules
 
