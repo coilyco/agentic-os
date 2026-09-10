@@ -633,7 +633,7 @@ def check_band_declaration() -> list[str]:
         return [
             f'band = "{declared}" is not ratified: this repo has no entry in '
             f"agentic_os/documentation_policy.yaml. Add it in "
-            f"agentic-os-kai/data/documentation-bands.yaml with a written "
+            f"agentic-os-kai/data/documentation-policy.yaml with a written "
             f"reason, sync, release the hook, and bump this repo's pin."
         ]
     if central != declared:
@@ -641,7 +641,7 @@ def check_band_declaration() -> list[str]:
             f'band = "{declared}" disagrees with the ratified band '
             f'"{central}". Caps fall back to {UNDECLARED_BAND} until they '
             f"match. Change the ratified band in "
-            f"agentic-os-kai/data/documentation-bands.yaml, or change this "
+            f"agentic-os-kai/data/documentation-policy.yaml, or change this "
             f"declaration back to \"{central}\"."
         ]
     return []
