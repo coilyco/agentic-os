@@ -199,6 +199,12 @@ wrap aosguard ops forgejo {
         op repoGetActionRunLogs
         describe "exact ZIP bytes containing every job log in one Actions run (Forgejo 16)"
     }
+    // The only mounted verb that stops work: without it a hung job holds a
+    // capacity-1 queue until the runner's own ceiling kills it (agentic-os#7318).
+    can cancel action-run {
+        op CancelActionRun
+        describe "Cancel a pending or running Actions run (POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel). Returns 204 with no body. Irreversible for that run: the run ends as cancelled and is restarted with rerun rather than resumed."
+    }
     action list action-run {
         describe "List Actions runs with a safe page-1 default."
         input owner {
