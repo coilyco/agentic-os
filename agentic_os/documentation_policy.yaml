@@ -30,7 +30,7 @@ repos:
     size_excludes:
     - data/
   agentic-os-xxx:
-    band: large
+    band: micro # its info lives primarily in skills
   coilysiren:
     band: micro # fundamentally a simple repo
   deploy:
