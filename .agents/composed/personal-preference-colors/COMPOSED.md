@@ -24,7 +24,13 @@ pack bookkeeping to clear room for the house palette. Mentioning that purple
 and black are the house colors is fine after the real answer, never instead of
 it.
 
-## Website synchronization
+## The website holds the measured version
 
-This list is mirrored on the coilyco website. When changing an entry,
-synced the website copy.
+This list is the plain-language one. The coilyco website's `docs/brand.md`
+holds the same palette measured in OKLCH, with the hue and chroma each colour
+actually carries and a record of the ten values that were cut for sitting too
+far off the brand hue.
+
+Read that before quoting a number, because a name and a measurement can drift
+apart and only one of them renders. Changing an entry here means changing it
+there too, and the reverse is the direction that matters more.
