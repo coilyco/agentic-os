@@ -6,12 +6,10 @@ Major shipped capabilities, not files.
 
 - [Shell and secrets](install.md) - shared shells, SSM, and GPG.
 - [Branded agent terminal](aterm.md) - `aterm` opens one composed agent session in its own Sombra kitty
-  window, completing and refusing roles against the live roster, and writes a macOS `.app` launcher per
-  [role bundle](aterm-bundles.md), each carrying its own embedded icon. The window opens on an identity card drawn from the
-  overlay's own `geometry`, standing over that role's own
-  [creature background](aterm-creature.md), and sounded from its `sound_mark` when `--sound` asks.
-  `aterm pane on` and `off` [split that window](aterm-pane.md) beside a command and put it back,
-  re-deriving the creature rather than depending on anything the split recorded.
+  window, completing and refusing roles against the live roster, and writes a macOS `.app` launcher
+  per [role bundle](aterm-bundles.md). The window opens on an identity card over that role's own
+  [creature background](aterm-creature.md), and `aterm pane on` and `off`
+  [split that window](aterm-pane.md) beside a command and put it back.
   Mac and Linux only, since kitty has no Windows build.
 - [Speech helper](aos-roles-and-voice.md) - `aos-say` client plus relay for status speech.
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.
@@ -88,6 +86,9 @@ Major shipped capabilities, not files.
   agentic-os both name it, so adding one costs two pull requests, a release and
   a pin bump, while removing one costs one. An unratified local pattern fails
   the hook by name rather than silently not applying.
+- [Issue-ref links](../scripts/issue-ref-links.sh) - a Stop hook naming the URL that resolves each
+  hash-ref in a reply, read off the payload key rather than the unflushed transcript. Warn first,
+  and never a Forgejo issue URL.
 - [Canonical agent-id generator](build-output-is-not-content.md) - short lowercase agent IDs.
 - [Agent-compose provider](context-budget.md) - the AOS capability provider contract.
 
