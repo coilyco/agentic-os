@@ -47,6 +47,7 @@ COPY --from=aosguard-spec . /tmp/aosguard-spec
 COPY --from=aosguard-python . /tmp/aosguard-python/agentic_os
 RUN set -eux; \
     umbra --project-root /tmp/aosguard-spec/guardfiles \
+      --guardfile /tmp/aosguard-spec/guardfiles/aosguard/forgejo.kdl \
       --skills-out /opt/agentic-os/aosguard-skill build \
       --set-version "dev-base" --out /usr/local/bin/aosguard; \
     chmod 0755 /usr/local/bin/aosguard; \
