@@ -109,8 +109,12 @@ aos-tidy *ARGS:
 
 # Materialize the standalone aosguard operator CLI and native generated skill from the independent .umbra snapshot.
 aosguard-build *ARGS:
-    @umbra --project-root .umbra/guardfiles --skills-out dist/skills build --out dist/aosguard "$@"
+    @umbra --project-root .umbra/guardfiles --guardfile "$(pwd)/.umbra/guardfiles/aosguard/forgejo.kdl" --skills-out dist/skills build --out dist/aosguard "$@"
     @uv run python -m agentic_os.generators.generate_aosguard_skills --skills-root dist/skills
+
+# Materialize the guarded `gh` replacement binary from the same .umbra snapshot. It occupies `gh` on an agent session's PATH; see the tooling-aosguard skill's gh-replacement reference.
+gh-shim-build *ARGS:
+    @umbra --project-root .umbra/guardfiles --guardfile "$(pwd)/.umbra/guardfiles/gh/gh.kdl" build --out dist/shims/gh "$@"
 
 # Refresh aosguard's vendored API snapshot and frozen umbra dependency graph with the packaged umbra driver. Pass umbra lock flags as trailing arguments.
 aosguard-lock *ARGS:

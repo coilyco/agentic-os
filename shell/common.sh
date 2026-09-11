@@ -167,6 +167,9 @@ if [ -z "${_SIREN_SHELL_ENV:-}" ]; then
       export MSYS_NO_PATHCONV=1
       ;;
   esac
+  # Guarded replacements front the real tool for an agent session and nowhere
+  # else. Reference: the tooling-aosguard skill, references/gh-replacement.md.
+  [ -n "${AOS_NATIVE_SESSION:-}" ] && _siren_path_prepend "$HOME/.local/umbra/shims"
   export PATH
 
   # Shared host-local overrides (machine-specific env, never tracked).

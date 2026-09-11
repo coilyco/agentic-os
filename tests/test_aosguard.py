@@ -24,8 +24,12 @@ def aosguard_binary(tmp_path_factory: pytest.TempPathFactory) -> Path:
     subprocess.run(
         [
             "umbra",
+            # Two wrap binaries share this project, so a member picks one. The
+            # path resolves against cwd rather than the project root.
             "--project-root",
             str(PROJECT),
+            "--guardfile",
+            str(SOURCE / "forgejo.kdl"),
             "build",
             "--out",
             str(binary),

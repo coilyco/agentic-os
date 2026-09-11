@@ -37,8 +37,9 @@ Major shipped capabilities, not files.
   declaring it, reports how far that checkout trails its upstream, and `--handoff` prints the
   absolute-path line to run outside a session shadow.
 - [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) - guarded CLI with PR
-  merge and sealed
-  [Forgejo storage measurement](../.agents/skills/tooling-aosguard/references/forgejo-ops.md).
+  merge, sealed
+  [Forgejo storage measurement](../.agents/skills/tooling-aosguard/references/forgejo-ops.md),
+  and a guarded `gh` replacement withholding every pull-request write.
 - [Guarded helm releases](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - cluster-pinned upgrade, install, and rollback with release destruction unexposed.
 - [Code review skill](../.agents/composed/tooling-code-review/COMPOSED.md) - Portfolio Director gate-decision review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
