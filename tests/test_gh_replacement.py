@@ -85,20 +85,35 @@ def test_the_withheld_leaves_are_visible_in_help(
     assert "NOT AVAILABLE" in result.stdout
 
 
-def test_a_granted_read_reaches_the_real_binary(shim: Path, fake_gh: Path) -> None:
+def test_a_read_reaches_the_real_binary(shim: Path, fake_gh: Path) -> None:
     result = run(shim, fake_gh, "pr", "list", "--state", "open")
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "REAL_GH pr list --state open" in result.stdout
 
 
-def test_an_ungranted_verb_is_refused_rather_than_passed_through(
+def test_an_unnamed_verb_forwards_to_the_real_binary(
     shim: Path, fake_gh: Path
 ) -> None:
+    """Under default-allow this file is a boundary rather than a catalog."""
     result = run(shim, fake_gh, "workflow", "run", "x")
 
-    assert result.returncode == 2
-    assert "REAL_GH" not in result.stdout
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "REAL_GH workflow run x" in result.stdout
+
+
+def test_an_unnamed_sibling_of_a_withheld_verb_keeps_its_flags(
+    shim: Path, fake_gh: Path
+) -> None:
+    """A withheld `pr create` mounts a `pr` group, and a group parses flags.
+
+    Without umbra forwarding the group's usage errors, `--json` would die here
+    purely because a sibling is withheld.
+    """
+    result = run(shim, fake_gh, "pr", "view", "12", "--json", "title")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "REAL_GH pr view 12 --json title" in result.stdout
 
 
 def test_the_api_leaf_admits_no_flag_that_could_write(
@@ -126,6 +141,14 @@ def test_the_guardfile_grants_no_pull_request_write(shim: Path) -> None:
     for verb in WITHHELD:
         assert f'can run "pr {verb}"' not in source
         assert f"withhold pr {verb} {{" in source
+
+
+def test_the_guardfile_declares_default_allow_with_its_reason(shim: Path) -> None:
+    """Losing the declaration would silently close the tool back down."""
+    source = MEMBER.read_text(encoding="utf-8")
+
+    assert "default-allow {" in source
+    assert "reason" in source.split("default-allow {", 1)[1][:600]
 
 
 def test_the_replacement_declares_itself(shim: Path, fake_gh: Path) -> None:

@@ -1,95 +1,14 @@
 // The guarded `gh`: a replacement binary an agent session's PATH puts first.
-// Rationale: tooling-aosguard references/guardfile-headers.md.
+// Rationale: tooling-aosguard references/gh-replacement.md.
 
 wrap gh {
     exec gh
     replace
 
-    // pull requests, read side. The mirror is where external contributors open
-    // one, so reading them is ordinary work.
-    can run "pr view" {
-        describe "one pull request's state, body, and checks; pass the number or URL"
-    }
-    can run "pr list" {
-        describe "pull requests on a repo; --state, --author, --search to narrow"
-    }
-    can run "pr diff" {
-        describe "the diff a pull request carries"
-    }
-    can run "pr checks" {
-        describe "CI check runs against a pull request's head"
-    }
-    can run "pr checkout" {
-        describe "check out a pull request's head branch locally"
-    }
-    can run "pr status" {
-        describe "pull requests relevant to you in the current repo"
-    }
-
-    // repositories and their contents
-    can run "repo view" {
-        describe "one repo's metadata, README, or a named --json field set"
-    }
-    can run "repo list" {
-        describe "repos under an owner; the input to the fleet's mirror sweeps"
-    }
-    can run "repo clone" {
-        describe "clone a repo; the checkout is local and writes nothing upstream"
-    }
-
-    // Actions and releases
-    can run "run list" {
-        describe "GitHub Actions runs on a repo"
-    }
-    can run "run view" {
-        describe "one Actions run, its jobs, and with --log its output"
-    }
-    can run "run watch" {
-        describe "follow an in-progress Actions run to completion"
-    }
-    can run "release list" {
-        describe "releases on a repo, newest first"
-    }
-    can run "release view" {
-        describe "one release's notes and assets; pass the tag"
-    }
-    can run "release download" {
-        describe "download a release's assets to the working directory"
-    }
-
-    // issues. Whether an agent may file one is open at
-    // teable:coilyco-flight-deck/agentic-os#7380 rather than decided here.
-    can run "issue view" {
-        describe "one issue's body and thread"
-    }
-    can run "issue list" {
-        describe "issues on a repo"
-    }
-    can run "issue create" {
-        describe "file a GitHub issue, which is the external-contributor queue"
-    }
-    can run "issue comment" {
-        describe "comment on a GitHub issue"
-    }
-    can run "issue close" {
-        describe "close a GitHub issue"
-    }
-
-    // repo administration the fleet's own provisioning uses
-    can run "secret set" {
-        describe "set an Actions secret; the value never reaches this argv when passed on stdin"
-    }
-    can run "secret list" {
-        describe "which Actions secrets a repo carries, names only"
-    }
-    can run "search code" {
-        describe "code search across GitHub"
-    }
-    can run "auth status" {
-        describe "which GitHub account this host's gh is authenticated as"
-    }
-    can run "auth token" {
-        describe "print the token gh holds. Its stdout is a credential"
+    // Naming a verb here takes something away. Everything unnamed is the
+    // ordinary gh, which is the point: this file is a boundary, not a catalog.
+    default-allow {
+        reason "gh is a read tool the fleet uses across a dozen verbs, and one of them is a boundary. Enumerating the rest would be an inventory that rots against GitHub's releases rather than against this policy, and a verb nobody thought of would be a verb the fleet silently lost."
     }
 
     // Allowlisted to a GET: `gh api -f x=y <path>` is a POST with no method
@@ -106,8 +25,8 @@ wrap gh {
         describe "read-only GitHub REST GET. No method, field, or input flag mounts, so a write cannot be spelled through here"
     }
 
-    // Pull-request writes. Stated rather than absent: an ungranted verb under a
-    // replacement reads as a tool that lacks the feature, and earns a retry.
+    // Pull-request writes. Stated rather than absent: an unnamed verb forwards
+    // now, so silence would hand the caller the very thing this refuses.
     withhold pr create {
         reason "Forgejo is canonical and GitHub is a read-only downstream mirror, so a pull request opened here lands work on the copy and the next mirror push fails as a non-fast-forward. Push the branch to origin and run `aosguard ops forgejo pr create` instead."
     }

@@ -10,7 +10,7 @@ FROM ${LANG_DOTNET_IMAGE} AS dev-base-lang-dotnet-graft
 FROM ${LANG_PYTHON_IMAGE} AS dev-base-lang-python-graft
 
 FROM ubuntu:24.04 AS dev-base-tool-builder
-ARG UMBRA_VERSION=0.218.0
+ARG UMBRA_VERSION=0.219.0
 ARG AOS_VERSION=0.213.0
 ARG TARGETARCH
 ARG DEBIAN_FRONTEND=noninteractive
