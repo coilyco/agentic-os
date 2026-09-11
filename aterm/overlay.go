@@ -13,11 +13,12 @@ const (
 )
 
 type overlaySeat struct {
-	Key      string `json:"key"`
-	Harness  string `json:"harness"`
-	Name     string `json:"name"`
-	Pronouns string `json:"pronouns"`
-	Tier     string `json:"tier"`
+	Key       string `json:"key"`
+	Harness   string `json:"harness"`
+	Name      string `json:"name"`
+	Pronouns  string `json:"pronouns"`
+	Tier      string `json:"tier"`
+	LegalName string `json:"legal_name,omitempty"`
 }
 
 // Names run widest-reading first, the emoji's own name then the roster's reading.
@@ -41,12 +42,19 @@ type overlaySoundMark struct {
 
 type overlayPersonality struct {
 	Name      string           `json:"name"`
+	Species   string           `json:"species,omitempty"`
 	Color     string           `json:"color"`
 	Motif     string           `json:"motif"`
 	Geometry  string           `json:"geometry"`
 	Emblem    overlayEmblem    `json:"emblem"`
 	Body      overlayBody      `json:"body"`
 	SoundMark overlaySoundMark `json:"sound_mark"`
+}
+
+// What a session says as it closes, so a hold banner is not invented.
+type overlayOutro struct {
+	Clean   string `json:"clean,omitempty"`
+	Failure string `json:"failure,omitempty"`
 }
 
 type overlayDocument struct {
@@ -59,8 +67,13 @@ type overlayDocument struct {
 	Stance          string      `json:"stance"`
 	Seat            overlaySeat `json:"seat"`
 	Annotation      string      `json:"annotation"`
-	Expression      string      `json:"expression"`
-	FavoriteColor   string      `json:"favorite_color"`
+	// The four-part sentence a seat answers "who are you" with, and the
+	// creature pair inside it. Derived from the meld: agent-compose#7485.
+	Identity      string        `json:"identity,omitempty"`
+	Creature      string        `json:"creature,omitempty"`
+	Outro         *overlayOutro `json:"outro,omitempty"`
+	Expression    string        `json:"expression"`
+	FavoriteColor string        `json:"favorite_color"`
 	// Solved across the whole roster upstream, which one overlay cannot do.
 	Background    string               `json:"background"`
 	Personalities []overlayPersonality `json:"personalities"`
