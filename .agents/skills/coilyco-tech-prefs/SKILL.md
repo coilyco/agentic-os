@@ -39,7 +39,7 @@ When a ward/eco tool needs interactive prompts, fancy output, or a TUI, bias tow
 
 ## Docs
 
-No "Repo layout" / "Project structure" sections in README. Filesystem is self-documenting. If a dir layout needs *explanation* (non-obvious separation, unusual build output), brief prose under a purpose-focused heading, not an ASCII tree.
+No "Repo layout" / "Project structure" sections in README. Filesystem is self-documenting. If a dir layout needs **explanation** (non-obvious separation, unusual build output), brief prose under a purpose-focused heading, not an ASCII tree.
 
 ## Licensing
 

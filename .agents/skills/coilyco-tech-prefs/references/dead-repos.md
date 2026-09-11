@@ -10,4 +10,4 @@ No recent commits → don't surface it, or surface it explicitly framed as "this
 
 Applies to upstream libraries, dev tools, alternatives lists ("modern X replacements"), CLI helpers, browser extensions, anything actively recommended.
 
-**Reason:** Kai has had Claude pitch her dead projects often enough to formalize the rule. The 12-month window is the bright line; project archived/maintenance-mode notices in the README count as dead regardless of last commit date.
+**Reason:** Kai has had Claude pitch her dead projects often enough to formalize the rule. The 12-month window is the bright line. Project archived/maintenance-mode notices in the README count as dead regardless of last commit date.

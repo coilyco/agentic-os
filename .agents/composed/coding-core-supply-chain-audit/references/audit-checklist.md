@@ -8,17 +8,17 @@ For each check, capture findings into your final writeup. The writeup is the del
 
 Use `gh api orgs/<name>` for orgs, `gh api users/<name>` for individuals. Verify:
 
-- Account is real, not a recently-created throwaway. **Account age over 1 year** is a soft floor; under 6 months is a yellow flag, under 30 days is red unless it's an obvious mirror of a long-standing project.
+- Account is real, not a recently-created throwaway. **Account age over 1 year** is a soft floor. Under 6 months is a yellow flag, under 30 days is red unless it's an obvious mirror of a long-standing project.
 - Public-facing identity matches stated identity. Cross-check `blog`, `homepage`, `email`, `twitter_username`, `bio`. Look for the org's website actually existing.
-- Org type makes sense (Organization vs User account; "Organization" alone doesn't mean verified).
+- Org type makes sense (Organization vs User account, and "Organization" alone doesn't mean verified).
 - Public_repos count is non-zero and the repos look real, not all-empty.
-- For *named individuals* mentioned in the bio: search for them. AWS Heroes, IETF authors, OSS maintainers of well-known projects, conference speakers all leave fingerprints. If the bio claims a named credential ("AWS ML Hero", "IETF chair", "Apache committer"), spot-check at least one.
+- For **named individuals** mentioned in the bio: search for them. AWS Heroes, IETF authors, OSS maintainers of well-known projects, conference speakers all leave fingerprints. If the bio claims a named credential ("AWS ML Hero", "IETF chair", "Apache committer"), spot-check at least one.
 
 ### 2. Maintainer activity
 
 Use `gh api repos/<owner>/<name>/contributors` and `gh api repos/<owner>/<name>/commits`.
 
-- Top contributor's account age, follower count, and other-repo activity. Drive-by contributors count for nothing; look at the **top 1-2** committers.
+- Top contributor's account age, follower count, and other-repo activity. Drive-by contributors count for nothing. Look at the **top 1-2** committers.
 - Email addresses on commits should be consistent and match a real domain. Disposable-mail domains are a yellow flag.
 - Most-recent commit date. **Under 12 months** is the bright line for "alive" (matches a "no dead repos" rule). Archived/maintenance-mode banners count as dead even if commits are recent.
 - PR-vs-direct-push ratio. A solo maintainer pushing direct to main is fine. A maintainer who appears to merge their own PRs without review is also fine, but note it. A pattern of recent commits from many unverified email addresses to a previously-quiet repo is a hijack signal.

@@ -61,8 +61,8 @@ Infrastructure #607 lands each reviewed product change through its owner.
 
 JSON format `agentic-os.agents-context-inventory.v1` is stable and timestamp-free:
 
-* repository aggregates, provenance, presence, root state, and document hashes;
-* product clipping candidates and recommended destinations;
+* repository aggregates, provenance, presence, root state, and document hashes
+* product clipping candidates and recommended destinations
 * an explicit AOSH non-global marker.
 
 Context budgeting can import `discover_repositories`, `ContextSelection`, and

@@ -96,7 +96,7 @@ oversight. An edit to one belongs in both.
 
 Because the script is embedded at build time, a fix here reaches a host only
 when a new aosguard is built and released. Do not sideload a local binary to
-get it sooner; see the `tooling-brew-release` skill.
+get it sooner. See the `tooling-brew-release` skill.
 
 ## Scope of the defect
 

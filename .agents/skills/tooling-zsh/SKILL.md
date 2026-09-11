@@ -13,7 +13,7 @@ Canonical files live at `~/projects/coilyco-flight-deck/agentic-os/shell/`, syml
 
 Files:
 
-- `common.sh` - the shared core (bash/zsh common subset). Sets env, per-OS PATH (via `uname -s`), aliases, git helpers, the `rg` wrapper, `ssm-get`, resolves `$PROJECTS_ROOT`, and auto-cds to `$AOS_STARTUP_DIR` with the projects root as its fallback. The env + PATH block runs once per terminal tree, gated by the exported `_SIREN_SHELL_ENV` guard; a nested shell inherits the env and skips it but still defines the aliases/functions.
+- `common.sh` - the shared core (bash/zsh common subset). Sets env, per-OS PATH (via `uname -s`), aliases, git helpers, the `rg` wrapper, `ssm-get`, resolves `$PROJECTS_ROOT`, and auto-cds to `$AOS_STARTUP_DIR` with the projects root as its fallback. The env + PATH block runs once per terminal tree, gated by the exported `_SIREN_SHELL_ENV` guard. A nested shell inherits the env and skips it but still defines the aliases/functions.
 - `zshrc` - zsh entry. Sources `common.sh`, then zsh-only: `compinit`, the `vcs_info` siren prompt, the `aterm` completion.
 - `bashrc` - bash entry. Sources `common.sh`, then bash-only: completion, the `PROMPT_COMMAND` siren prompt.
 - Host-local overrides: `~/.shellrc.local` (shared, sourced by `common.sh`), `~/.zshrc.local`, `~/.bashrc.local`. Untracked.
@@ -27,7 +27,7 @@ Available in any interactive zsh:
 - `git-default-branch`, `git-pr-title`, `git-merge-default-branch`, `git-checkpoint`, `git-squash`, `gt-conflicts`
 - `docker-bash <container-name>`, `rg-code <pattern>`, `pull-all-repos`, `count-lines`
 - `ssm-get <name> [profile] [region]` - delegates to `scripts/ssm-get`, so scripts and agent tool calls reach the same implementation via `~/.local/bin`
-- `github-token-load` - lazy. Call when something needs `$GITHUB_PERSONAL_ACCESS_TOKEN`; not eager on every shell start.
+- `github-token-load` - lazy. Call when something needs `$GITHUB_PERSONAL_ACCESS_TOKEN`. Not eager on every shell start.
 
 
 ## Prompt
@@ -54,7 +54,7 @@ Built on `vcs_info` + `PROMPT_SUBST`. No starship dependency.
 ## Common edits
 
 - **Add an alias or function** - put it in `common.sh` so both shells get it. Keep it in the bash/zsh common subset (no `typeset -U`, no bash arrays).
-- **Change PATH** - per-OS entries go in `common.sh`'s `case "$(uname -s)"` block; cross-platform env vars go in the env block above it.
+- **Change PATH** - per-OS entries go in `common.sh`'s `case "$(uname -s)"` block. Cross-platform env vars go in the env block above it.
 - **Change the prompt** - zsh in `zshrc` (`PROMPT=`, `vcs_info`), bash in `bashrc` (`PROMPT_COMMAND`). They are intentionally separate.
 - **Add a zsh-only completion / dispatcher** - a new zsh-only file sourced from `zshrc` after `compinit`, since a `compdef` call before it fails in every non-interactive zsh.
 

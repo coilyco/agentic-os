@@ -1,7 +1,7 @@
 # Phase 5 - Present 🥇🟢 inline
 
 Flatten the 🥇🟢 entries (only that combination) into a single chat
-list. Drop category nesting; prepend a per-entry category emoji
+list. Drop category nesting. Prepend a per-entry category emoji
 instead. Expand each Description from 1 sentence to 2-4 sentences.
 
 Final shape per line:

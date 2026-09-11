@@ -21,7 +21,7 @@ Skills load in three tiers:
 
 1. **Metadata** (name + description) - always in context (~100 words).
 2. **SKILL.md body** - in context whenever the skill triggers (cap in `check_documentation_layout.py`, same as all Markdown).
-3. **Bundled resources** - pulled in as needed; scripts can execute without their source loading.
+3. **Bundled resources** - pulled in as needed. Scripts can execute without their source loading.
 
 Patterns:
 

@@ -14,7 +14,7 @@ Framing reference: https://simme.dev/posts/the-end-of-just-ask-sarah/.
 
 Every skill is a peer directory directly under `.agents/skills/`. Do **not** nest sub-skills inside another skill's directory (e.g. `meta-skill/sub-skill/SKILL.md`). Nested-skill discovery is poorly supported by the harness, and harness setup only projects top-level skill dirs into native surfaces such as Claude's `.claude/skills/<name>` and Codex's `~/.agents/skills/<name>`. Anything below the top level is invisible to the loader.
 
-When a meta-skill needs to route to other skills, the routed skills live as **flat peers** alongside it. The meta's job is to name them and describe when each fires; the loader handles each one independently.
+When a meta-skill needs to route to other skills, the routed skills live as **flat peers** alongside it. The meta's job is to name them and describe when each fires. The loader handles each one independently.
 
 **Why:** caught early while building a meta-skill router. Initial design assumed sub-dir nesting per a team-coordination plugin pattern. That pattern relied on team-coordination plumbing (separate plugin repo, `commands/` symlinks, etc.) that doesn't apply in a single-operator personal-OS repo. Flat is the only shape the existing setup actually supports.
 
@@ -22,9 +22,9 @@ When a meta-skill needs to route to other skills, the routed skills live as **fl
 
 ## Bias toward Python helpers, not pure-prompt skills
 
-When a skill parses files, walks directories, queries SQLite, or does any structured data manipulation, write a Python script in the skill directory and have SKILL.md call it. Pure prompt instructions are fine for narrative steps; Python is right for anything where determinism, speed, or testability matter.
+When a skill parses files, walks directories, queries SQLite, or does any structured data manipulation, write a Python script in the skill directory and have SKILL.md call it. Pure prompt instructions are fine for narrative steps. Python is right for anything where determinism, speed, or testability matter.
 
-Helpers go in the skill dir alongside SKILL.md, get committed to the personal-OS repo, run with the system `python3` (stdlib-first; reach for trafilatura, lxml, etc. only when stdlib genuinely doesn't suffice).
+Helpers go in the skill dir alongside SKILL.md, get committed to the personal-OS repo, run with the system `python3` (stdlib-first, reaching for trafilatura, lxml, etc. only when stdlib genuinely doesn't suffice).
 
 Flagged 2026-04-26.
 

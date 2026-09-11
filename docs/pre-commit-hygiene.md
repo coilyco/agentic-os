@@ -48,7 +48,7 @@ so a rename edits a table rather than a validator: retired names and paths,
 canonical host for repository links, link text naming one project while the
 target names another, and placeholder or local URLs. Fenced and inline code are
 stripped first, so a doc narrating a rename backticks the retired name and one
-still *using* it does not. That exemption is why paths keeping a pre-rename
+still **using** it does not. That exemption is why paths keeping a pre-rename
 spelling, such as SSM parameters, pass with no allowlist. Liveness is
 `check-link-liveness`, a report-only CLI rather than a hook, and its scheduled
 job is not built yet. Page-shape validation is deferred until the format has
@@ -76,7 +76,7 @@ coverage audit until they roll out as active checks.
 ## Encoded leak guard
 
 `leak-guard` rejects plaintext occurrences of terms that should not be
-grep-bait. Most leaks are not secrets, they are *awkward*: an employer name in a
+grep-bait. Most leaks are not secrets, they are **awkward**: an employer name in a
 config path, a partner's name in a comment, a private repo named in a public
 README. None trip a secret scanner, but any turns `rg <term>` into a harvesting
 tool. See the recovered inbox corpus.

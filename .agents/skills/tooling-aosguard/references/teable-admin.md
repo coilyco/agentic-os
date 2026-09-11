@@ -39,11 +39,11 @@ Absence reads as "unimplemented" as readily as "refused", and the guesses go
 wrong in both directions. So both refusals are discoverable verbs that name
 the defect that earned them and point at the substitute:
 
-* **`convert-field`** — the one verb that destroys data while reporting the
+* **`convert-field`** - the one verb that destroys data while reporting the
   opposite, having emptied all 6,536 values in a column it declared required
   while returning 200 with `notNull` true. Do it in the Teable UI with an
   export in hand, and read the column back before trusting the response.
-* **`delete-table`** — Teable has no archive verb for a table, so a delete is
+* **`delete-table`** - Teable has no archive verb for a table, so a delete is
   unrecoverable outside a restic PVC restore. Rename in the UI instead, which
   is reversible.
 
@@ -54,7 +54,7 @@ Neither reaches the network. They exit non-zero with the reason.
 The admin PAT resolves from SSM at exec time, the same shape `ops actions` and
 `ops netlify` use, so it never sits in a caller's environment. It carries
 `field|create`, `table|create`, `table|delete` and `base|update` across two
-bases — breadth that is correct for an admin token and wrong to hold in a
+bases - breadth that is correct for an admin token and wrong to hold in a
 shell, which is the reason this surface exists rather than a `curl` and a
 `curlrc`.
 

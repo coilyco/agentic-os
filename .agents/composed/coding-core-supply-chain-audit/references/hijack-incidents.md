@@ -24,11 +24,11 @@ Surface this even when intent looks benign. The dep should be added to your audi
 
 When in doubt, search for these incident write-ups for pattern reminders:
 
-- **event-stream** (npm, 2018) - minor maintainer added; cryptocurrency-stealer payload introduced.
-- **ua-parser-js** (npm, 2021) - maintainer's npm account stolen; coinminer payload published.
-- **xz-utils backdoor** (2024) - multi-year social-engineering campaign; obfuscated payload in release tarballs but not the git source.
-- **rc** (npm, 2021) - typosquat / account takeover; exfil to attacker-controlled webhook.
-- **colors / faker** (npm, 2022) - maintainer self-sabotage; not malicious in the security sense but still broke downstream.
+- **event-stream** (npm, 2018) - minor maintainer added, then a cryptocurrency-stealer payload introduced.
+- **ua-parser-js** (npm, 2021) - maintainer's npm account stolen, then a coinminer payload published.
+- **xz-utils backdoor** (2024) - multi-year social-engineering campaign, with an obfuscated payload in release tarballs but not the git source.
+- **rc** (npm, 2021) - typosquat / account takeover, with exfil to an attacker-controlled webhook.
+- **colors / faker** (npm, 2022) - maintainer self-sabotage, not malicious in the security sense but still broke downstream.
 - **PyPI mirroring attacks** - typosquatting `requets` for `requests`, etc. Don't just check the existence of the package, check the spelling carefully.
 
 ## Defense in depth (post-audit)
@@ -37,5 +37,5 @@ Even after a clean audit, add ongoing protection:
 
 - `cargo audit` / `npm audit` / `pip-audit` in CI.
 - Dependabot or Renovate enabled, with auto-merge restricted to patch-level updates of already-audited deps.
-- Pin to exact versions in production; use ranges only in libraries.
+- Pin to exact versions in production. Use ranges only in libraries.
 - For load-bearing deps, mirror the source to coilysiren as a fallback in case upstream is hijacked or yanked.

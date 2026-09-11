@@ -97,7 +97,7 @@ The composed frontmatter is the source of truth. `generate-seed-skills` renders 
 
 Single-purpose validators for cryptic failure modes. These plus [`ward context-budget`](context-budget.md) are CLI/on-demand tools, not repo-content hooks, so they ship as ward verbs (agentic-os#233):
 
-- `ward aws-config` - catches the `[profile default]` trap (SDKs read `[default]`; a misplaced region surfaces later as a useless `NoRegion`).
+- `ward aws-config` - catches the `[profile default]` trap (SDKs read `[default]`, and a misplaced region surfaces later as a useless `NoRegion`).
 - `ward ssm-path` - checks parameter paths against the `/<org>/<repo>/<tier>/<tail>` schema before IAM/KMS, where a malformed path silently misses every tier policy.
 - `just prod-install-ref guard|ward|aos` - returns the immutable
   generated product tag attached to the promoted `release` branch. It returns

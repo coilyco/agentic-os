@@ -22,11 +22,11 @@ Rules:
 * Cross-links to other skills use either:
   * bare backticks `` `skill-name` `` for in-prose passing mentions, or
   * markdown link `` [`skill-name`](../skill-name/SKILL.md) `` for navigable references.
-  Either form is fine; both are validated. The dead-link checker resolves the markdown target.
+  Either form is fine, and both are validated. The dead-link checker resolves the markdown target.
 
 ### Description budgets
 
-Descriptions are the highest-cost text in the skill system because every candidate skill pays the cost before an agent decides what to open. Claude's larger context can tolerate chatty descriptions, but Codex routing benefits from shorter, sharper metadata. Optimize the eager surface first; leave the skill body rich.
+Descriptions are the highest-cost text in the skill system because every candidate skill pays the cost before an agent decides what to open. Claude's larger context can tolerate chatty descriptions, but Codex routing benefits from shorter, sharper metadata. Optimize the eager surface first. Leave the skill body rich.
 
 Hard validator limits:
 

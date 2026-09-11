@@ -62,7 +62,7 @@ A refused `create-record` leaves the row in place, because there is no
 delete-record verb to undo it with. The refusal says so and points at
 `edit-record` rather than implying a rollback happened.
 
-**There is no `--typecast`.** The MCP offers it; it is left off here because
+**There is no `--typecast`.** The MCP offers it. It is left off here because
 coercion makes a stored value legitimately differ from the requested one, which
 would turn the read-back assertion into a source of false refusals. Send values
 already in the field's type.

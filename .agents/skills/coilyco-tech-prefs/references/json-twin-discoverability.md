@@ -6,6 +6,6 @@ Whenever a dashboard you build has a JSON variant (whether via `Accept: applicat
 2. `Vary: Accept` and a `Link: ...; rel="alternate"; type="application/json", ...; rel="service-desc"; type="application/json"` response header on every route.
 3. A `GET /openapi.json` returning OpenAPI 3.1.
 
-**Why:** agents land on `/` and have no way to infer JSON exists; guessing `Accept: application/json` works but is a probe, not an inference.
+**Why:** agents land on `/` and have no way to infer JSON exists. Guessing `Accept: application/json` works but is a probe, not an inference.
 
 **How to apply:** every new internal dashboard with a machine-readable surface gets all three. Skip only when there is no JSON twin.

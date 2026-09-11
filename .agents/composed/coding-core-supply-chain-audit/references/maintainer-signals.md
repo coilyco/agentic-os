@@ -73,7 +73,7 @@ The judgment is "does the process match the project's stated shape," not "more P
 Single maintainer = bus factor 1. Always document this. It's not disqualifying but it informs mitigation:
 
 - For a bus-factor-1 dep that you depend on critically, plan for the fork. Note it in the audit. Consider mirroring to coilysiren.
-- For a bus-factor-1 dep that's load-bearing for a recruiter-facing project, the maintenance risk is also a *career* risk; a stalled dep can date the project.
+- For a bus-factor-1 dep that's load-bearing for a recruiter-facing project, the maintenance risk is also a **career** risk. A stalled dep can date the project.
 
 ## Named-credential verification
 

@@ -13,7 +13,7 @@ uv builds the local packages through PEP 517, which resolves setuptools from PyP
 
 ## `.forgejo/workflows/mirror-to-github.yml`
 
-Fast-forward Forgejo main+tags onto the read-only GitHub mirror; no-ops without the PAT. This is the GitHub side of the default public-repo contract in [`forgejo-ops.md`](../.agents/skills/tooling-aosguard/references/forgejo-ops.md). Forgejo (coilyco-flight-deck/agentic-os) is canonical; GitHub (coilysiren/agentic-os) is the PR-gated downstream mirror available to GitHub consumers. Forgejo consumers use fully qualified canonical URLs.
+Fast-forward Forgejo main+tags onto the read-only GitHub mirror. It no-ops without the PAT. This is the GitHub side of the default public-repo contract in [`forgejo-ops.md`](../.agents/skills/tooling-aosguard/references/forgejo-ops.md). Forgejo (coilyco-flight-deck/agentic-os) is canonical. GitHub (coilysiren/agentic-os) is the PR-gated downstream mirror available to GitHub consumers. Forgejo consumers use fully qualified canonical URLs.
 
 The push is fast-forward-only, never --force: GitHub main carries a "cannot force-push" branch-protection rule (the PR gate), so a --force push is rejected outright (GH013) and the mirror silently stalls (agentic-os#309). Forgejo main is append-only, so a fast-forward always suffices in steady state. A rejected FF push means the two mains have diverged and need a one-time human reconcile -- see [`forgejo-ops.md`](../.agents/skills/tooling-aosguard/references/forgejo-ops.md). A front test job now gates the mirror push so GitHub never advances on a tree that failed the repo-authoritative test/pre-commit checks.
 

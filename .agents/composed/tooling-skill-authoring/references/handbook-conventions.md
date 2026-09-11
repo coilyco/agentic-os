@@ -50,4 +50,4 @@ The validator's em-dash check flags U+2014 in SKILL.md prose. Wrap legitimate us
 
 Top-level directories under `.agents/skills/` are canonical. Harness-specific setup owns their projection. The fleet refresh updates Claude's repo-local `.claude/skills/<name>` links and catalog aggregation. Agent-compose projects eligible catalogs into Codex's portable `~/.agents/skills/<name>` user surface. Restart your harness after refreshing so the loader picks up new entries.
 
-Some skills (e.g. `ward-passthroughs`) live as symlinks inside `.agents/skills/` rather than real directories. The validator skips symlinks; the canonical target is validated where it lives.
+Some skills (e.g. `ward-passthroughs`) live as symlinks inside `.agents/skills/` rather than real directories. The validator skips symlinks. The canonical target is validated where it lives.

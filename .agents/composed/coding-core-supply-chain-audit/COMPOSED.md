@@ -32,7 +32,7 @@ Skip this skill for:
 
 ## Verdict scale
 
-- **Green** - Allow. Proceed normally. Ordinary maintenance risk (any dep can rot or get compromised later); use `cargo audit` / `npm audit` / dependabot for ongoing watch.
+- **Green** - Allow. Proceed normally. Ordinary maintenance risk (any dep can rot or get compromised later). Use `cargo audit` / `npm audit` / dependabot for ongoing watch.
 - **Yellow** - Allow with caveats. Document the yellow flags in the audit writeup so future-you knows the soft spots. Examples: bus factor of 1, very young project, single small maintainer.
 - **Red** - Stop. Do not add. Surface findings to the human. Examples: typosquat, code suggests data exfiltration, account hijack signals, abandoned with no path forward, license mismatch with project.
 

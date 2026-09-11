@@ -24,7 +24,7 @@ Exact-name skills (don't fit a prefix):
 * `skill-creator` - this skill (handbook + authoring loop).
 * `gaming-steam` - Steam library (one-off).
 * `gaming-factorio` - placeholder for future Factorio work.
-* `ward-passthroughs` - symlink into `ward's skills dir`. Single source of truth lives in the ward repo; this name is registered as an exact-name skill in the personal-OS repo so the validator recognizes it without owning its content. Symlinks are skipped from validation but their names are recognized for cross-link resolution.
+* `ward-passthroughs` - symlink into `ward's skills dir`. Single source of truth lives in the ward repo. This name is registered as an exact-name skill in the personal-OS repo so the validator recognizes it without owning its content. Symlinks are skipped from validation but their names are recognized for cross-link resolution.
 
 Picking a category for a new skill:
 

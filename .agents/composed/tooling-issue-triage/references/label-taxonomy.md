@@ -113,7 +113,7 @@ here without adding it there and it does not exist.
 `autonomy/async-consult` says a human is needed. It never said **which** human, so a director's decision queue and an operator's action queue arrived as one undifferentiated pile, and neither owner could see their own work. Tagging the seat splits them without inventing another autonomy value.
 
 Backfilling one org showed the cost concretely. Twenty-nine issues landed on
-`role/human` before the later values existed; eighteen turned out to be
+`role/human` before the later values existed. Eighteen turned out to be
 operator actions and eleven were decisions. Once every one of them had a real
 seat, `role/human` emptied. A value that holds everything unassigned tells you
 nothing about whose queue an issue is in, which is the only question this axis

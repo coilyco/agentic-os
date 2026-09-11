@@ -16,7 +16,7 @@ Kai calls this repo **aos** for short (chat and issue refs). `aos` and `agentic-
 
 ## Repo boundaries
 
-Public hosts and work laptops import this base only. Personal machines may compose additional scoped sources after it. Edit each canonical source, not generated output or an installed copy. This repo is the source of the catalog hooks; consumer repos reference it by upstream ref, never fork the validators.
+Public hosts and work laptops import this base only. Personal machines may compose additional scoped sources after it. Edit each canonical source, not generated output or an installed copy. This repo is the source of the catalog hooks. Consumer repos reference it by upstream ref, never fork the validators.
 
 ## Commands
 

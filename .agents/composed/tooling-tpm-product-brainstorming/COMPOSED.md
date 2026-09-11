@@ -1,7 +1,7 @@
 ---
 name: tooling-tpm-product-brainstorming
 description: Sparring partner for product, business, and career exploration - fan out to ideate, fan in to stress-test. Four modes, seven frameworks, five phases. Use to think out loud, brainstorm, ideate, walk a decision tree, grill me, stress-test, pressure-test, poke holes, what would break this.
-source: "anthropics/knowledge-work-plugins product-management/skills/product-brainstorming (skillsmp 12109 stars, installed 2026-05-18); references/stress-test.md adapted from alirezarezvani/claude-skills c-level-advisor/executive-mentor/skills/stress-test"
+source: "anthropics/knowledge-work-plugins product-management/skills/product-brainstorming (skillsmp 12109 stars, installed 2026-05-18). references/stress-test.md adapted from alirezarezvani/claude-skills c-level-advisor/executive-mentor/skills/stress-test"
 ---
 
 # Product Brainstorming

@@ -36,6 +36,6 @@ Speculative entries (no code to audit) get 🟡 by default since "I'd ask
 someone about it" is not "I'd install it tomorrow."
 
 Output: `YYYY-MM-DD-capability-scout-4-audited.yaml`. Preserve the
-medal emoji; prepend the safety emoji. Final per-entry prefix shape:
+medal emoji. Prepend the safety emoji. Final per-entry prefix shape:
 `{category-emoji}{medal}{safety} ` followed by `Category / Org / Name /
 Url / Description`.

@@ -43,7 +43,7 @@ tap and scoop pushes. A run reports the skip in its log rather than failing the
 release path.
 
 That guard is the thing worth not losing. A vendoring job that fails loudly on
-every release would get disabled; one that silently pushed with a token nobody
+every release would get disabled. One that silently pushed with a token nobody
 reviewed would be worse. `tests/test_vendor_forgejo_policy.py` holds it in place.
 
 ## Once it lands in deploy

@@ -50,7 +50,7 @@ Each entry is stated as the observation, then the check that catches it.
   itself and cannot fail. **Check: name where the expectation comes from and
   assert it is independent** - re-fetch from the authority, or record the
   expected value before the subject can change it. A version read at comparison
-  time always equals itself; the one read at load time does not. Recording at
+  time always equals itself. The one read at load time does not. Recording at
   load time closes the tautology and not the staleness: a copy loaded before a
   rotation and checked long after still reads as current, matches, and calls a
   dead credential valid. The check tells revoked from stale only inside the

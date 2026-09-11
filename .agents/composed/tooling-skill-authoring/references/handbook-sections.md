@@ -22,7 +22,7 @@ Currently enforced:
 Status-kind sub-shapes for `ops-investigation-*`:
 
 * **Active.** The default. Real, live investigation guide. Required H2 sections enforced.
-* **Stub.** Placeholder, will be expanded. Only `Overview` required; that section explains why it's a stub and where the work will land.
+* **Stub.** Placeholder, will be expanded. Only `Overview` required. That section explains why it's a stub and where the work will land.
 * **Runbook.** Operational rollout/runbook. Free-form body beyond `Overview`.
 * **CaseStudy.** Single-incident worked example. Free-form beyond `Overview`. Cross-link the underlying pattern.
 

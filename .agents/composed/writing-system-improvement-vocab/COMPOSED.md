@@ -25,13 +25,13 @@ Reach for it when: the search space is too large or fast-moving for human tuning
 
 ### Continuous comprehension - "stay current with the system you actually have"
 
-**Human practice (system-supported).** Maintain an ongoing, accurate mental model of a system that is changing faster than periodic review can keep up with. Weekly architecture retros, ensemble programming, AI-assisted code-comprehension tools. Output is updated *understanding*, not updated code. (Thoughtworks term, Feb 2026 retreat.)
+**Human practice (system-supported).** Maintain an ongoing, accurate mental model of a system that is changing faster than periodic review can keep up with. Weekly architecture retros, ensemble programming, AI-assisted code-comprehension tools. Output is updated **understanding**, not updated code. (Thoughtworks term, Feb 2026 retreat.)
 
 Reach for it when: code review is no longer a viable learning channel because change rate is too high. Post-AI-codegen environments. New team members in fast-moving codebases.
 
 ### Meta-improvement - "fix the opaqueness first, then the bug"
 
-**Human practice (priority heuristic).** When an object-level problem surfaces, ask whether the system that produced it can be improved so the same class of problem becomes cheaper to handle next time. Output is changes to tools, wrappers, docs, skills, AGENTS.md, error messages, structured fields. Agency is the engineer's; the artifact is the surrounding workflow, not the running system.
+**Human practice (priority heuristic).** When an object-level problem surfaces, ask whether the system that produced it can be improved so the same class of problem becomes cheaper to handle next time. Output is changes to tools, wrappers, docs, skills, AGENTS.md, error messages, structured fields. Agency is the engineer's. The artifact is the surrounding workflow, not the running system.
 
 Reach for it when: a recurring or recurring-shaped class of friction is showing up. Low priority -> meta first. Medium -> alongside. High -> object-level fix now, meta as immediate follow-up. See AGENTS.md "Meta-improvement bias."
 

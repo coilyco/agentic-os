@@ -23,7 +23,7 @@ Run on `npm install` / `pnpm install` / `yarn install` of **any** downstream con
 
 ## Python: `setup.py` and `pyproject.toml` build hooks
 
-Modern projects favor `pyproject.toml` and a build backend (`setuptools`, `hatchling`, `flit`, `poetry-core`, `pdm-backend`) over a custom `setup.py`. A custom `setup.py` with non-trivial code is itself a yellow flag (rare in well-maintained projects); read every line.
+Modern projects favor `pyproject.toml` and a build backend (`setuptools`, `hatchling`, `flit`, `poetry-core`, `pdm-backend`) over a custom `setup.py`. A custom `setup.py` with non-trivial code is itself a yellow flag (rare in well-maintained projects). Read every line.
 
 Pip can run arbitrary code at install via:
 

@@ -9,7 +9,7 @@ State it explicitly. Not "our market is large" but "the total addressable market
 The more specific the assumption, the more testable it is. Vague assumptions are unfalsifiable  -  and therefore useless.
 
 **Common assumption types:**
-- **Market size**  -  TAM, SAM, SOM; growth rate; customer segments
+- **Market size**  -  TAM, SAM, SOM, growth rate, customer segments
 - **Customer behavior**  -  willingness to pay, churn, expansion, referrals
 - **Revenue model**  -  conversion rates, deal size, sales cycle, CAC
 - **Competitive position**  -  moat durability, competitor response speed, switching cost

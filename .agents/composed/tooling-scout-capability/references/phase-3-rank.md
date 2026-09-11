@@ -4,7 +4,7 @@ Categorize entries semantically (eg. game-server-ops, gmail, calendar,
 gaming, observability, dev-tools, social, finance, ai-infrastructure,
 speculative-asks, etc.). Then rank globally - not within categories -
 at 3:2:1 ratio: 🥉 50%, 🥈 33%, 🥇 17%. A sparse category may end up
-entirely 🥉; that's expected and intentional.
+entirely 🥉. That's expected and intentional.
 
 Ranking criteria, in priority order:
 

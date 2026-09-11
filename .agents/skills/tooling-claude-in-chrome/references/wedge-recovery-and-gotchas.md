@@ -21,5 +21,5 @@ Don't loop on a wedged session - it stays wedged until human intervention.
 ## Anti-signals
 
 * "Just click the button" - if the button is part of a React controlled form, click via JS.
-* "It worked once with the mouse" - one success doesn't mean the path is reliable; the wedge is non-deterministic and triggered by extension focus shifts you can't observe.
+* "It worked once with the mouse" - one success doesn't mean the path is reliable. The wedge is non-deterministic and triggered by extension focus shifts you can't observe.
 * "I'll navigate away and come back" - if the form is dirty, the Leave site modal will fire.

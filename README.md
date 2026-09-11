@@ -70,7 +70,7 @@ ln -sf "$PWD/kitty/kitty.conf" ~/.config/kitty/kitty.conf
 ```
 
 On Windows, `just apply-shell-links` manages `~/.zshrc` and the `gpg-ssm.cmd`
-shim only. It also links the Forgejo git credential helper; Git Bash popup shells
+shim only. It also links the Forgejo git credential helper. Git Bash popup shells
 should not recreate `~/.bashrc`.
 
 Agent self-name and composition hooks, per-host steps, and gpg wiring: [docs/install.md](docs/install.md).
@@ -114,7 +114,7 @@ ssm-get /eco/server-api-token
 ```
 
 `ssm-get` prints the decrypted value to stdout without writing it to disk. The
-AWS profile defaults to `default`; pass a profile and region as the second and
+AWS profile defaults to `default`. Pass a profile and region as the second and
 third arguments. The implementation is `scripts/ssm-get` on `PATH`, which the
 shell function of the same name delegates to, so scripts and non-interactive
 shells reach it too. The bulk shell-environment exporter and the legacy
