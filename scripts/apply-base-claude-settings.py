@@ -31,8 +31,8 @@ BASE_SETTINGS: dict = {
 }
 BASE_DENIED_MCP_SERVERS = [{"serverName": "claude-in-chrome"}]
 
-# Fleet-wide permission denies: live-infrastructure CLIs that belong to a
-# guarded verb, plus the memory dir. See docs/native-claude-credentials.md.
+# Fleet-wide permission denies: live-infrastructure CLIs, the GitHub pull-request
+# write surface, and the memory dir. See docs/native-claude-credentials.md.
 BASE_DENIED_PERMISSIONS = [
     "Bash(gcloud *)",
     "Bash(kubectl *)",
@@ -41,6 +41,16 @@ BASE_DENIED_PERMISSIONS = [
     "Bash(gsutil *)",
     "Bash(mongosh *)",
     "Bash(mongo *)",
+    # Fail-closed backstop under github-pr-guard.sh, which owns the refusal
+    # text. `:*` rather than ` *` so the bare interactive spelling matches too.
+    "Bash(gh pr create:*)",
+    "Bash(gh pr merge:*)",
+    "Bash(gh pr edit:*)",
+    "Bash(gh pr close:*)",
+    "Bash(gh pr reopen:*)",
+    "Bash(gh pr ready:*)",
+    "Bash(gh pr review:*)",
+    "Bash(gh pr comment:*)",
     "Edit(**/.claude/projects/**/memory/**)",
 ]
 

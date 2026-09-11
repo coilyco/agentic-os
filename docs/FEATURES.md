@@ -88,6 +88,7 @@ Major shipped capabilities, not files.
 - [Issue-ref links](../scripts/issue-ref-links.sh) - a Stop hook naming the URL that resolves each
   hash-ref in a reply, read off the payload key rather than the unflushed transcript. Warn first,
   and never a Forgejo issue URL.
+- [GitHub PR guard](../scripts/github-pr-guard.sh) - a PreToolUse refusal naming Forgejo.
 - [Canonical agent-id generator](build-output-is-not-content.md) - short lowercase agent IDs.
 - [Agent-compose provider](context-budget.md) - the AOS capability provider contract.
 

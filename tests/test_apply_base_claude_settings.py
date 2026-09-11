@@ -38,6 +38,15 @@ def test_base_settings_disable_memory_and_chrome_without_losing_local_denies() -
     assert MODULE.merge_base_settings(settings) == []
 
 
+def test_every_github_pr_write_verb_carries_a_deny_rule() -> None:
+    """The hook owns the refusal text, this list owns the fail-closed floor."""
+    writes = ("create", "merge", "edit", "close", "reopen", "ready", "review", "comment")
+    for verb in writes:
+        assert f"Bash(gh pr {verb}:*)" in MODULE.BASE_DENIED_PERMISSIONS
+    # Reads stay reachable: a guard that unplugs `gh` is a different change.
+    assert not [r for r in MODULE.BASE_DENIED_PERMISSIONS if r.startswith("Bash(gh pr view")]
+
+
 def test_permission_rules_append_without_touching_sibling_permission_keys() -> None:
     settings = {
         "permissions": {
@@ -56,6 +65,7 @@ def test_permission_rules_append_without_touching_sibling_permission_keys() -> N
     assert permissions["deny"][0] == "Bash(rm -rf /*)"
     assert permissions["deny"][1:] == MODULE.BASE_DENIED_PERMISSIONS
     assert "Bash(kubectl *)" in permissions["deny"]
+    assert "Bash(gh pr create:*)" in permissions["deny"]
     assert "Edit(**/.claude/projects/**/memory/**)" in permissions["deny"]
 
 

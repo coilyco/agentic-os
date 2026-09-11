@@ -17,6 +17,7 @@ Default across `~/projects/coilyco-*/*` and `~/projects/coilysiren/*`:
 - `merge-remote-main` - **retired.** It was the lane that let you push `main` directly, and pushing straight to `main` ended fleet-wide. The generator no longer renders it, so a repo declaring it reads as undeclared and gets the guarded `pull-request` shape. One repo still declares it and keeps it deliberately: `coilysiren/coilysiren`, which is GitHub-canonical, carries `.agentic-os-ignore`, and wires none of the catalog hooks.
 - A pushed branch always gets a PR. Only `remote-branch-only` stops at the branch, and only when the caller resolved that lane. Unassigned work defaults to `pull-request`. A branch with no PR is litter nobody reviews.
 - `pr-guard` refuses any push whose destination is the default branch, with no lane exempting a repo any more. It runs at pre-push, so a repo whose other pre-push hooks are already failing cannot push at all until those are fixed. Never `--no-verify` around it.
+- The pull request goes on **Forgejo**, never GitHub. `github-pr-guard.sh` refuses `gh pr create|merge|edit|close|reopen|ready|review|comment`, the `gh api` routes around them, and the GitHub MCP pull-request writers, and hands back the Forgejo verb to use instead. GitHub is a read-only downstream mirror, so a pull request opened there lands work on the copy and breaks the next mirror push.
 - Run tests, linters, builds without asking. Fix failures.
 - Never `--no-verify`.
 - Readonly git/shell auto-allowed.
@@ -64,6 +65,7 @@ Every repo has `.pre-commit-config.yaml` with offline trufflehog:
 
 ## More detail
 
+- [The GitHub PR guard](references/github-pr-guard.md) - what the hook refuses, why Forgejo owns the pull request, and the deny-rule backstop under it.
 - [GitHub issues as work tracker](references/github-issue-tracker.md) - precedence, close-via-commit, tracker issues stay open, bot-attribution signature.
 - [Guarded operator work](references/guarded-operator-work.md) - AOSguard discovery, approved bare reads, and the GitHub GraphQL wall.
 - [Default TODO destination and flake discipline](references/default-todo-and-flake.md) - Teable as default tracker, never-ask-just-file, flaky-test rule.
