@@ -59,6 +59,8 @@ RUN set -eux; \
     rm -rf /tmp/aosguard-spec /tmp/aosguard-python; aosguard --version
 
 FROM ${BASE_IMAGE} AS dev-base-full
+# aterm's TestLiveOverlayDiscardsNoField runs the agent-compose this image
+# ships, so freezing this pin freezes the drift check that guards aterm.
 ARG AGENT_COMPOSE_VERSION=2.137.0
 ARG CLAUDE_VERSION=2.1.221
 ARG MCPORTER_VERSION=0.12.3
