@@ -15,3 +15,7 @@ roles:
     agent: claude
   analyst:
     agent: claude
+  psych:
+    agent: claude
+  reporter:
+    agent: claude
