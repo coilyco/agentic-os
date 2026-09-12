@@ -77,4 +77,14 @@ roles {
         composed-skill "tooling-eval-*"
         composed-skill "coding-core-*"
     }
+
+    // Declared for the app icon. Empty was asked for and this hook refuses it,
+    // so each takes the baseline only: teable:coilyco-flight-deck/agentic-os#7557.
+    role psych {
+        composed-skill writing-system-improvement-vocab
+    }
+
+    role reporter {
+        composed-skill writing-system-improvement-vocab
+    }
 }
