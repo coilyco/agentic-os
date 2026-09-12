@@ -6,7 +6,7 @@ said what the lane was without saying it is a standing authorization, so an agen
 still treated a commit or a push as worth stopping to ask about, and the turn
 ended with work stranded in a dirty worktree (agentic-os#1150). The block states
 the pre-authorization in MUST and NEVER terms, with `--no-verify` and force-push
-closed in the same breath. See docs/git-workflow-lanes.md.
+closed in the same breath. See docs/features-agents.md.
 """
 
 from __future__ import annotations
@@ -16,7 +16,10 @@ import re
 import sys
 from pathlib import Path
 
+from agentic_os.config import get_str_option
 from agentic_os.frontmatter import split_frontmatter
+
+HOOK_ID = "git-workflow"
 
 # Marker comments delimit the managed region so re-applies are idempotent and a
 # hand-edit inside the block is caught as drift. Rest of AGENTS.md stays authored.
@@ -76,6 +79,25 @@ _BODY = f"""The fleet runs one lane, and it authorizes the agent end to end. Pus
 * **ALWAYS merge your own pull request on `{PR_AND_MERGE}`**, in the same turn, as soon as it is green. Reporting it as open and awaiting someone is the failure this lane exists to prevent.
 * **NEVER merge on `{PULL_REQUEST}` or `{BRANCH_ONLY}`.** Those two stop where they stop, and the director merge lane carries a `{PULL_REQUEST}` from there."""
 
+# `pointer` drops the fleet-invariant half for a repo whose AGENTS.md the global
+# already carries. Contract, and why `full` defaults: docs/features-agents.md.
+BODY_FULL = "full"
+BODY_POINTER = "pointer"
+BODY_MODES = (BODY_FULL, BODY_POINTER)
+
+_POINTER = """The paragraph above is what differs per repo. The fleet-wide half of this lane - what is pre-authorized without asking, the two walls that stay closed, and what a lane slug names - is carried once by the operating base composed into every session's global context, because this repository's `AGENTS.md` is itself one of those composed sources and would otherwise deliver it twice on every turn. A checkout with no composed global does not carry that half at all: see docs/features-agents.md before setting this."""
+
+
+def normalize_body(body: object) -> str:
+    """Return a known body mode, defaulting to the self-contained `full`."""
+    return body if body in BODY_MODES else BODY_FULL
+
+
+def resolve_body(repo_root: "Path | None" = None) -> str:
+    """Read the body mode a repo declares, defaulting to `full`."""
+    return normalize_body(get_str_option(HOOK_ID, "body", BODY_FULL, repo_root))
+
+
 # Existing managed block, matched non-greedily for replacement / drift checks.
 BLOCK_RE = re.compile(re.escape(BEGIN) + r".*?" + re.escape(END), re.DOTALL)
 
@@ -103,17 +125,18 @@ def detect_lane(text: str) -> str | None:
     return normalize_lane(ward.get("workflow"))
 
 
-def render_body(lane: str | None) -> str:
+def render_body(lane: str | None, body: str = BODY_FULL) -> str:
     """Return the block prose for a lane. An unknown lane renders undeclared."""
-    return f"### Git workflow\n\n{_LEAD[normalize_lane(lane)]}\n\n{_BODY}"
+    tail = _BODY if normalize_body(body) == BODY_FULL else _POINTER
+    return f"### Git workflow\n\n{_LEAD[normalize_lane(lane)]}\n\n{tail}"
 
 
-def render_block(lane: str | None) -> str:
+def render_block(lane: str | None, body: str = BODY_FULL) -> str:
     """Return the full marker-delimited managed block for a lane."""
-    return f"{BEGIN}\n{render_body(lane)}\n{END}"
+    return f"{BEGIN}\n{render_body(lane, body)}\n{END}"
 
 
-def apply_to_text(text: str) -> str:
+def apply_to_text(text: str, body: str = BODY_FULL) -> str:
     """Return AGENTS.md text with the managed block inserted or refreshed.
 
     Idempotent: strips any prior managed block and the legacy one-line stamp,
@@ -123,7 +146,7 @@ def apply_to_text(text: str) -> str:
     lane = detect_lane(text)
     text = BLOCK_RE.sub("", text)
     text = _LEGACY_STAMP_RE.sub("", text)
-    return _normalize_blank_lines(_insert(text, render_block(lane)))
+    return _normalize_blank_lines(_insert(text, render_block(lane, body)))
 
 
 def _insert(text: str, block: str) -> str:
@@ -142,14 +165,14 @@ def _normalize_blank_lines(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", text)
 
 
-def check_drift(text: str) -> list[str]:
+def check_drift(text: str, body: str = BODY_FULL) -> list[str]:
     """Return human-readable defects for an AGENTS.md (offline, no net).
 
     The block must be present and byte-identical to `render_block(lane)` for the
     lane the same file declares. A surviving legacy stamp beside the block is
     also flagged, so an apply that half-migrated does not pass.
     """
-    block = render_block(detect_lane(text))
+    block = render_block(detect_lane(text), body)
     found = BLOCK_RE.search(text)
     if not found:
         return [

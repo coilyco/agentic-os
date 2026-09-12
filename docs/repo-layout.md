@@ -73,10 +73,10 @@ own: role selection is sealed into the verified bundle AOS adapts for Ward.
 
 ## Running tasks
 
-`.ward/ward.yaml` and the [`justfile`](../justfile) carry the same verbs. Ward
-is out-of-band flight control, so a clone with no ward on `PATH` still runs its
-own tasks through `just`. Neither is authoritative over the other and CI uses
-ward.
+The [`justfile`](../justfile) carries every verb. `ward exec` was the
+out-of-band flight control that used to carry them too, and both it and the
+`.ward/ward.yaml` that declared them are retired, so a clone runs its own tasks
+through `just` and so does CI.
 
 ## Repo maps
 
@@ -90,9 +90,9 @@ entry points, then run the first check. If the same repo also exists under
 Run `rg -n "context-bundle|--warded|--composed|--guarded" aos docs`, `ward
 doctor`, `aosguard ops forgejo describe`. Ownership splits: `.agents/roles.kdl`
 owns behavioral composition, `.agents/harness-launch-profiles.yaml` owns
-role-to-default-agent mapping, `.ward/ward.yaml` owns repository commands and
-the deployment image, agent-compose owns named seats and pronouns, and Ward and
-AOSguard own their separate surfaces.
+role-to-default-agent mapping, the `justfile` owns repository commands,
+agent-compose owns named seats and pronouns, and Ward and AOSguard own their
+separate surfaces.
 
 **Container startup and broker dispatch** - a run that starts wrong, mounts the
 wrong root, or has stale dispatch wiring. Run `rg -n

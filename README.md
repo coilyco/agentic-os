@@ -153,6 +153,6 @@ grammar.
 - [docs/FEATURES.md](docs/FEATURES.md) - inventory of what ships today.
 - [Repo maps](docs/repo-layout.md) - compact starting points for high-churn warded workflow areas.
 - [CODE-REVIEW.md](CODE-REVIEW.md) - root review contract for repo-local invariants and historical issues.
-- [justfile](justfile) - dev verbs, which agents route through - and [.ward/ward.yaml](.ward/ward.yaml), catalog metadata only.
+- [justfile](justfile) - dev verbs, which agents route through -, catalog metadata only.
 
 Cross-reference convention from [release.md](docs/release.md).

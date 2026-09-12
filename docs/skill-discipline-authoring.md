@@ -95,8 +95,8 @@ are skipped, and directory skipping mirrors `documentation-layout`.
 including both skill entrypoint forms, root pointers, and bare basenames.
 
 **catalog-trifecta** enforces the entrypoint set of `README.md`, `AGENTS.md`,
-`docs/FEATURES.md`, and `.ward/ward.yaml`, each Markdown file carrying
-`## See also` and linking the others. `AGENTS.md` also carries a required
+and `docs/FEATURES.md`, each carrying `## See also` and linking the others.
+`.ward/ward.yaml` was a fourth member until inbox#385 dropped it. `AGENTS.md` also carries a required
 repo-local heading set, so agents can scan operating rules without guessing
 each repo's prose shape.
 

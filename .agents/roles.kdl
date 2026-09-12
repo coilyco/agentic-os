@@ -22,7 +22,9 @@ roles {
         composed-skill tooling-tpm-product-brainstorming
         composed-skill tooling-tpm-product-signal-triangulation
         composed-skill tooling-tpm-program-decomposition
+        composed-skill coding-python
         composed-skill "coding-javascript*"
+        composed-skill "coding-core-*"
         composed-skill "tooling-frontend-*"
         composed-skill "personal-preference-*"
         composed-skill "personal-preferences"
@@ -44,6 +46,7 @@ roles {
         composed-skill tooling-code-review
         composed-skill tooling-skill-authoring
         composed-skill writing-system-improvement-vocab
+        composed-skill coding-python
         composed-skill "tooling-tpm-*"
         composed-skill "tooling-issue-*"
         composed-skill "tooling-scout-*"
@@ -56,6 +59,8 @@ roles {
         // Was "writing-*". The social register skills moved to voice-corpus,
         // beside the evidence base and the sibling this repo never held.
         composed-skill writing-system-improvement-vocab
+        composed-skill coding-python
+        composed-skill "coding-core-*"
         composed-skill "tooling-devrel-*"
         composed-skill "personal-preference-*"
         composed-skill "personal-preferences"
@@ -68,6 +73,7 @@ roles {
         composed-skill tooling-code-review
         composed-skill tooling-tpm-causal-claim-audit
         composed-skill tooling-tpm-evidence-synthesis
+        composed-skill coding-python
         composed-skill "tooling-eval-*"
         composed-skill "coding-core-*"
     }

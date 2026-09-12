@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import NoReturn
 
 from agentic_os.config import is_enabled
-from agentic_os.generators.generate_git_workflow import check_drift
+from agentic_os.generators.generate_git_workflow import check_drift, resolve_body
 
 HOOK_ID = "git-workflow"
 TRACKER = "docs/features-agents.md"
@@ -39,7 +39,9 @@ def main() -> int:
     if not agents.exists() or agents.is_symlink():
         return 0
 
-    problems = check_drift(agents.read_text(encoding="utf-8", errors="replace"))
+    problems = check_drift(
+        agents.read_text(encoding="utf-8", errors="replace"), resolve_body()
+    )
     if problems:
         fail(problems)
     print(f"{HOOK_ID} check: OK")

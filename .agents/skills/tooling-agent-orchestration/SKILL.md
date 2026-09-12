@@ -34,7 +34,7 @@ What they learned does not leave with them. This skill is the inventory.
 
 Read from `coilyco-flight-deck/ward` at `040f159` and `coilyco-flight-deck/otel-a2a-relay` at `8b96ed1`, both public. Where a pattern below disagrees with one of those repositories, the repo was right and this file has drifted.
 
-**What survives Ward's archival.** `.ward/ward.yaml` still carries catalog metadata, and the `ward:` AGENTS.md frontmatter key still selects a landing lane in every repo that declares one. Both are read by the catalog hooks and by composition rather than by any Ward process, so archiving the repo retires neither. What ends is the runtime, and with it the enforcement behind every pattern here.
+**What survives Ward's archival.** The `ward:` AGENTS.md frontmatter key, which still selects a landing lane in every repo that declares one. It is read by composition rather than by any Ward process, so archiving the repo does not reach it. `.ward/ward.yaml` did survive for a while carrying catalog metadata, and is now deleted fleet-wide because nothing read a key in it. What ends is the runtime, and with it the enforcement behind every pattern here.
 
 ## See also
 
