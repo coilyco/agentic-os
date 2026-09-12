@@ -91,12 +91,9 @@ Each entry is stated as the observation, then the check that catches it.
   read a value from it at start: an env var injected via `secretKeyRef` is
   fixed at container launch and never re-read, so a correct sync plus an
   already-running pod produces a stale credential with two healthy indicators
-  and no third that disagrees. A one-line shell check piping through `tail -1`
-  before grepping for an error string caught the line the error pushed the
-  real message onto rather than the message itself, and printed the negated
-  answer with no exit code to disagree. Both pass their own review, because
-  the layer actually checked was correct and the layer the question was about
-  was the one next to it.
+  and no third that disagrees. It passes its own review, because the layer
+  actually checked was correct and the layer the question was about was the
+  one next to it.
 * **The indicator with no mechanism** - a count, condition or status renders
   plausibly while the subsystem it describes is switched off or unreachable.
   **Check: disable the mechanism and assert the indicator moves.** Where it
@@ -109,13 +106,17 @@ Each entry is stated as the observation, then the check that catches it.
   promoted, or marked superseded at the source while live consumers still hold
   the prior one. **Check: read the value back from a consumer rather than from
   the source.** A source-side read confirms the write and says nothing about
-  propagation, and the gap is invisible from both ends, because the author sees
-  a landed commit and the consumer sees a value with no age on it. Three
-  sessions independently reported an MCP server unreachable nine hours after
-  its pods recovered, each holding a connection result recorded once at startup
-  and never retried. The specification proposing this entry measured its own
-  coverage against a copy of this file that predated this file's newest entry,
-  and reported as uncovered a case already documented here. Watch the success
+  propagation, and the gap is invisible from both ends: the author sees a
+  landed commit, the consumer a value with no age on it. Three sessions
+  reported an MCP server unreachable nine hours after its pods recovered, each
+  holding a startup connection result never retried. The specification
+  proposing this entry measured its coverage against a copy predating this
+  file's newest entry, and reported a case already here as uncovered. Worst
+  when a consumer pins its validator beside the artifact, because the check
+  that would catch the staleness is stale and green with it: an `AGENTS.md`
+  instructing a push to `main` passed the hook forbidding it, on a pinned
+  generator 34 releases old that still rendered the retired lane. Read the
+  check's own version, not only its exit code. Watch the success
   direction hardest: a stale failure looks wrong and gets investigated, a stale
   success ships behind a green board.
 * **The order that renders but does not sort** - a sequence displays plausibly
