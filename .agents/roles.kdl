@@ -77,11 +77,4 @@ roles {
         composed-skill "tooling-eval-*"
         composed-skill "coding-core-*"
     }
-
-    // Composed nothing before, having no block. Coding-only for now, and psych
-    // stays out by decision: teable:coilyco-flight-deck/agentic-os#7548.
-    role reporter {
-        composed-skill coding-python
-        composed-skill "coding-core-*"
-    }
 }
