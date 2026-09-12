@@ -18,8 +18,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agentic_os import config as cfg  # noqa: E402
 from agentic_os.generators.generate_git_workflow import (  # noqa: E402
+    BODY_FULL,
     apply_to_text,
     detect_lane,
+    resolve_body,
 )
 
 
@@ -33,12 +35,15 @@ def apply_to_repo(repo_dir: Path, dry_run: bool) -> tuple[str, str]:
 
     before = agents.read_text(encoding="utf-8", errors="replace")
     lane = detect_lane(before) or "undeclared"
-    after = apply_to_text(before)
+    # Read the mode from the repo being written, never from the applier's cwd.
+    body = resolve_body(repo_dir)
+    detail = lane if body == BODY_FULL else f"{lane}, {body} body"
+    after = apply_to_text(before, body)
     if after == before:
-        return "ok", f"already current ({lane})"
+        return "ok", f"already current ({detail})"
     if not dry_run:
         agents.write_text(after, encoding="utf-8", newline="\n")
-    return ("would-write" if dry_run else "wrote"), lane
+    return ("would-write" if dry_run else "wrote"), detail
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -3,10 +3,10 @@
 Ward owns fixed workflow commands, container isolation, lifecycle, repository
 workflow mechanics, and its fixed broker. AOS does not ship a Ward role bundle.
 
-The only Ward-consumed AOS file was [`.ward/ward.yaml`](../.ward/ward.yaml),
-validated by `ward doctor` through Ward's loader. That runtime is out of AOS CI
-under agentic-os#1299 and the file outlives it, so its surviving contract is
-written out below rather than left in an archived repository.
+The only Ward-consumed AOS file was `.ward/ward.yaml`, validated by `ward
+doctor`. That runtime left AOS CI under agentic-os#1299 and the file is now
+deleted fleet-wide (`teable:coilyco-flight-deck/agentic-os#95`). Its keys are
+recorded below, because the repository defining the schema is archived.
 
 ## Ownership
 
@@ -29,7 +29,8 @@ network reach, or release-bundle assets. The former `.ward` concerns moved as
 follows:
 
 * Image, release channel, and this repository's landing workflow moved from
-  `defaults.kdl` and `repos.kdl` to `.ward/ward.yaml`.
+  `defaults.kdl` and `repos.kdl` to `.ward/ward.yaml`, now deleted too. Only
+  the landing lane survives, in AGENTS.md frontmatter.
 * Role default-agent selection moved from `agents.kdl` and `roles.kdl` to the
   embedded AOS launch-profile YAML registry. Harness model, effort, verbosity,
   endpoint, and local defaults remain harness-owned. Ward-bound launches do not
@@ -42,15 +43,15 @@ follows:
   AOS owns only its bounded standalone runtime inputs, including kubeconfig
   projection.
 
-## The `.ward/ward.yaml` schema
+## The `.ward/ward.yaml` schema, as a record
 
-Ward's own schema page goes read-only when that repository is archived, so the surviving contract lives here. Source: ward `docs/ward-yaml.md` at `040f159`, read before the archive. Fifteen of the sixteen repositories on this host declare the file, nothing in Ward reads it any more, and `catalog-trifecta` stopped requiring it fleet-wide (`coilysiren/inbox#385`).
+**The file is deleted.** Kept because Ward's own schema page went read-only with the archive. Source: ward `docs/ward-yaml.md` at `040f159`, read before that. Nothing on the fleet read any of these keys by the time they went.
 
 * **`catalog.description` and `catalog.dependsOn`** - the cross-repo knowledge graph. Declared almost everywhere, and **no code on this host reads either one today**. An inventory a later consumer may pick up rather than a live input.
-* **`capabilities`** - a list of `provider/skill-dir` strings, read by `agentic-os-kai/scripts/pull-capabilities.py` to pull capability skills down into one leaf repo. Never part of Ward's documented schema, and today only `coilyco-gaming/galaxy-gen` declares it.
+* **`capabilities`** - a list of `provider/skill-dir` strings, read by `agentic-os-kai/scripts/pull-capabilities.py` to pull capability skills down into one leaf repo. Never part of Ward's documented schema, and declared only by `coilyco-gaming/galaxy-gen`. That list now lives in `capability_pull.repos` in AOSK's `categories.yaml`, since one script in one repo is the lowest layer that fully determines it.
 * **Retiring with the runtime** - `agent.image`, `agent.workflow`, and `agent.release-channel` were Ward launch inputs, and the landing lane lives in AGENTS.md frontmatter instead. `commands` is retired because dev verbs are justfile recipes (`coilysiren/inbox#366`). `security` is retired because AOSguard and umbra own that surface.
 
-**Two files, not one.** A separate `ward.yaml` at a repository root carries `tailnet.shortcut` and is fetched over the Forgejo API by `infrastructure/scripts/generate-caddy-shortcuts.py`, with `coily.yaml` and `config.yml` as migration fallbacks. Different path, different schema, different consumer. `pull-capabilities.py` accepts either path, which is the one place they meet.
+**Two files, not one.** A separate `ward.yaml` at a repository root carries `tailnet.shortcut` and is fetched over the Forgejo API by `infrastructure/scripts/generate-caddy-shortcuts.py`, with `coily.yaml` and `config.yml` as migration fallbacks. Different path, different schema, different consumer, untouched by the delete. Collapsing the two is what made `teable:coilyco-flight-deck/agentic-os#95` list that generator as a blocker it never was.
 
 **And the frontmatter key is a third thing.** `ward.workflow` in a repository's AGENTS.md selects one of four landing lanes and is read by `agentic_os.generators.generate_git_workflow`. Vocabulary rather than a runtime, so archiving Ward does not reach it.
 

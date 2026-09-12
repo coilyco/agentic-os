@@ -52,7 +52,7 @@ The **trigger** for a rollout is a push, not a hand-run publish, which keeps it 
 
 **Corollary** - a reference-implementation repo authors zero config that a shipped tool consumes at runtime. Fleet config belongs in the tool's build-time authoring layer, authored, compiled, and embedded. The reference repo may hold a clearly-marked reference copy as documentation, never a thing the tool fetches.
 
-**Deployment boundary (aos#778).** AOS owns agent-compose inputs, harness selection, deployment identity, and standalone AOSguard policy, and Ward owns fixed workflows and its broker. AOS ships no Ward role-policy or KDL bundle: only the supported YAML in [`.ward/ward.yaml`](.ward/ward.yaml) remains, carrying catalog metadata since inbox#366 moved dev verbs. Full reasoning: [docs/ward-specs.md](docs/ward-specs.md).
+**Deployment boundary (aos#778).** AOS owns agent-compose inputs, harness selection, deployment identity, and standalone AOSguard policy, and Ward owns fixed workflows and its broker. AOS ships no Ward role-policy, KDL bundle, or `.ward/` directory at all: the last of it carried catalog metadata nothing read, and is deleted. Full reasoning, and the schema kept as a record: [docs/ward-specs.md](docs/ward-specs.md).
 
 The layer gradient, lowest first: umbra, then Ward, then aos, then infra.
 
@@ -243,6 +243,5 @@ Do not write auto-memory files in any harness that offers them. Skip the save st
 - [README.md](README.md) - human-facing intro, per-OS install steps.
 - [docs/FEATURES.md](docs/FEATURES.md) - inventory of what ships today.
 - [justfile](justfile) - dev verbs. Agents route through just, not bare tooling.
-- [.ward/ward.yaml](.ward/ward.yaml) - catalog metadata only.
 
 Cross-reference convention from [release.md](docs/release.md).

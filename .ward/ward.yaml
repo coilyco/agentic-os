@@ -1,9 +1,0 @@
-# Catalog metadata for the cross-repo knowledge graph.
-# Rationale: docs/build-file-headers.md.
-
-agent:
-  image: forgejo.coilysiren.me/coilyco-flight-deck/agentic-os
-
-catalog:
-  description: "Personal agentic OS: shell config, terminal config, GPG/SSM tooling, Claude skills, and shared utility scripts symlinked into sibling coilysiren/* repos. Growing beyond just dotfiles into broader personal-OS scope."
-  dependsOn: []

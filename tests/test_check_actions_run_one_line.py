@@ -192,7 +192,7 @@ def test_invalid_yaml_reports_source_location(tmp_path: Path) -> None:
         (".forgejo/workflows/nested/test.yaml", True),
         ("actions/example/action.yml", True),
         ("action.yaml", True),
-        (".ward/ward.yaml", False),
+        (".pre-commit-config.yaml", False),
         ("fixtures/workflow.yml", False),
     ],
 )

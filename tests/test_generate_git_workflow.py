@@ -2,6 +2,8 @@ import pytest
 
 from agentic_os.generators.generate_git_workflow import (
     BEGIN,
+    BODY_FULL,
+    BODY_POINTER,
     BRANCH_ONLY,
     END,
     LANES,
@@ -12,9 +14,11 @@ from agentic_os.generators.generate_git_workflow import (
     check_drift,
     detect_lane,
     main,
+    normalize_body,
     normalize_lane,
     render_block,
     render_body,
+    resolve_body,
 )
 
 AGENTS = """---
@@ -265,3 +269,75 @@ def test_print_lane_prints_nothing_and_warns_nothing_without_an_agents_md(
 def test_print_lane_never_prints_the_block(tmp_path, capsys):
     out = _print_lane(tmp_path, capsys, AGENTS.format(lane=MERGE_MAIN))
     assert BEGIN not in out and END not in out
+
+
+# --- body mode: docs/features-agents.md --------------------------------------
+# Default stays `full`, so a repo that does not opt in renders as it did before.
+
+
+@pytest.mark.parametrize("lane", LANES)
+def test_full_is_the_default_and_unchanged_by_the_new_argument(lane):
+    assert render_block(lane) == render_block(lane, BODY_FULL)
+
+
+@pytest.mark.parametrize("lane", LANES)
+def test_pointer_keeps_the_lane_lead_and_drops_the_fleet_half(lane):
+    full = render_block(lane, BODY_FULL)
+    pointer = render_block(lane, BODY_POINTER)
+    # The lead names the lane and is what differs per repo, so it must survive.
+    assert lane in pointer
+    assert "### Git workflow" in pointer
+    # The fleet-invariant half is exactly what the base already carries.
+    assert "NEVER `--no-verify`" in full
+    assert "NEVER `--no-verify`" not in pointer
+    assert len(pointer) < len(full)
+
+
+def test_pointer_says_where_the_missing_half_lives():
+    pointer = render_block(PR_AND_MERGE, BODY_POINTER)
+    assert "composed into every session's global context" in pointer
+    # A reader in a checkout with no composed global needs to know it is absent.
+    assert "no composed global" in pointer
+
+
+@pytest.mark.parametrize("bad", ["", "FULL", "brief", None, 0, True, ["pointer"]])
+def test_an_unknown_body_mode_falls_back_to_the_self_contained_full(bad):
+    assert normalize_body(bad) == BODY_FULL
+    assert render_block(PR_AND_MERGE, bad) == render_block(PR_AND_MERGE, BODY_FULL)
+
+
+@pytest.mark.parametrize("lane", LANES)
+def test_apply_then_check_is_drift_free_in_pointer_mode(lane):
+    applied = apply_to_text(AGENTS.format(lane=lane), BODY_POINTER)
+    assert check_drift(applied, BODY_POINTER) == []
+
+
+@pytest.mark.parametrize("lane", LANES)
+def test_flipping_the_mode_without_reapplying_is_caught_as_drift(lane):
+    """The mode is config, so a repo can change it and forget to regenerate.
+
+    Both directions must fail, otherwise a repo silently keeps the wrong half.
+    """
+    full_text = apply_to_text(AGENTS.format(lane=lane), BODY_FULL)
+    pointer_text = apply_to_text(AGENTS.format(lane=lane), BODY_POINTER)
+    assert check_drift(full_text, BODY_POINTER) != []
+    assert check_drift(pointer_text, BODY_FULL) != []
+
+
+def test_resolve_body_defaults_to_full_without_config(tmp_path):
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'x'\n")
+    assert resolve_body(tmp_path) == BODY_FULL
+
+
+def test_resolve_body_reads_the_repo_opt_in(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.agentic-os.git-workflow]\nbody = 'pointer'\n"
+    )
+    assert resolve_body(tmp_path) == BODY_POINTER
+
+
+def test_resolve_body_ignores_a_nonsense_value(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.agentic-os.git-workflow]\nbody = 'sparse'\n"
+    )
+    assert resolve_body(tmp_path) == BODY_FULL

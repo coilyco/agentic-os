@@ -24,6 +24,10 @@ This repo ships the validator and the applier. The fleet rollout that lands the 
 
 Every repo declares its landing lane once, as `ward.workflow` in the AGENTS.md frontmatter, and `generate-git-workflow` renders a marker-delimited managed block from it that states the standing authorization to commit, branch, push, and open a pull request. The fleet runs one lane, `pull-request-and-merge`, and `merge-remote-main` is retired. Lanes, enforcement, and the one deliberate exemption: [git-workflow lanes](build-file-headers.md).
 
+**Body mode.** `[tool.agentic-os.git-workflow] body` picks `full` (the default) or `pointer`. The block has two halves: a lead paragraph naming this repo's lane, which differs per repo, and a fleet-invariant body carrying the pre-authorizations and the two walls. A repo whose own `AGENTS.md` is composed into the fleet-wide global delivers both halves twice to every seat, once through that global and once through its repository cascade, and the harness cannot collapse them because they arrive as two different files. `pointer` keeps the lead and replaces the body with a line saying where it lives, worth 1,465 bytes a turn per opted-in source.
+
+Set it only where a composed global is guaranteed, because a bare checkout then carries no copy of the fleet half at all. That is why the default is `full` and why no repo is special-cased by name: the hook stays org-agnostic and exempts no base repo, and a repo that wants the shorter form declares it. Flipping the option without re-running the applier fails the drift check in both directions rather than silently keeping the wrong half.
+
 ## Features: agents and sessions
 
 Agent naming and composition state.

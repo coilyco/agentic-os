@@ -31,12 +31,6 @@ Forgejo-canonical full-image release publication. dev-base-publish.yml calls thi
 
 Publish commit-scoped language payloads and the full image after release has advanced, then publish the root minor release from the verified full draft. Registry or build failures do not block branch promotion.
 
-## `.ward/ward.yaml`
-
-Catalog metadata for the cross-repo knowledge graph.
-
-Dev verbs moved to the justfile (inbox#366) and catalog-trifecta stopped requiring this path (inbox#385), so no validator reads this file today. Surviving schema and its real consumers: docs/ward-specs.md.
-
 ## `docker/dev-base/fleet-precommit-hooks.yaml`
 
 Hook environments warmed into the image at build time so CI never pays the cold-cache install. Stale pins here cost speed, never correctness: pre-commit falls back to installing whatever this misses.
