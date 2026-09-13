@@ -190,12 +190,16 @@ DEFAULT_HOOK_IDS = [
 # Per-repo hook opt-outs. eco-* repos vendor the Strange Loop Games Unity SDK,
 # whose comments are not ours to lint. lore is a docs-only slice.
 PER_REPO_HOOK_SKIPS: dict[str, set[str]] = {
+    # The two doc hooks came off by hand after Kai chose to bump only the hooks
+    # lore passes clean, so the applier has to stop reinstating them (#7631).
     "lore": {
         "check-skills",
         "repo-pointer-skills",
         "misplaced-skills",
         "agent-compose-size",
         "agent-compose-dedup",
+        "documentation-placement",
+        "documentation-size",
     },
 }
 # typos is absent by design: managed_block() emits it unconditionally, so an
