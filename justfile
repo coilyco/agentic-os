@@ -147,10 +147,6 @@ aterm-fmt *ARGS:
 aterm-lint *ARGS:
     @go vet -C aterm ./... "$@"
 
-# Re-render the shipped sound-mark samples from the live Agent Compose roster into aterm/sounds/. Commit the result: each sample is meant to be auditioned and rejected by ear before it ships. See docs/aterm.md.
-aterm-sounds *ARGS:
-    @cd aterm && go run ./soundgen sounds "$@"
-
 # Split the current aterm session's kitty window beside a command, or put it back. `pane on -- <cmd>` splits and moves the role creature clear, `pane off` restores it and closes the pane. Needs a kitty with remote control listening. See docs/aterm-pane.md.
 aterm-pane *ARGS:
     @go run -C aterm . pane "$@"

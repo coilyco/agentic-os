@@ -30,7 +30,6 @@ func runSession(options sessionOptions, stdin io.Reader, stdout, stderr io.Write
 	// The card is the only moment aterm owns the window by itself, so it is
 	// drawn here rather than by the launcher the operator typed in.
 	if options.Card.Format != "" {
-		playSoundMark(options.Card, options.Audible)
 		playCard(stdout, options.Card, options.Motion)
 	}
 	command := exec.Command(argv[0], argv[1:]...)
@@ -85,7 +84,6 @@ func holdWindow(stdin io.Reader, stdout io.Writer, notice string) {
 type sessionOptions struct {
 	Hold    bool
 	Motion  bool
-	Audible bool
 	Card    sessionCard
 	// CardPayload is the encoded card exactly as it arrived, so the session can
 	// pass it on without re-encoding what it decoded.
@@ -103,8 +101,6 @@ func parseSessionArgs(argv []string) (sessionOptions, error) {
 			options.Hold = true
 		case "--no-motion":
 			options.Motion = false
-		case "--sound":
-			options.Audible = true
 		case "--card":
 			if index+1 >= len(argv) {
 				return sessionOptions{}, fmt.Errorf("%s --card needs a value", sessionCommand)

@@ -34,11 +34,6 @@
       "body": {
         "archetype": "angular wedge body, flat planes meeting on one clean diagonal, no soft curves",
         "attachment": "a pair of shears carried at its shoulder, blades open, the cutting edge continuous with its own diagonal"
-      },
-      "sound_mark": {
-        "timbre": "snare-crack",
-        "contour": "falling-cut",
-        "pulse": "single-accent"
       }
     },
     {
@@ -57,11 +52,6 @@
       "body": {
         "archetype": "tall and narrow, a body of nested brass barrels telescoping out of one another, weathered and unpolished, each section a little narrower than the one below it",
         "attachment": "its whole upper body extended and sighting on something past the edge of frame, one lens catching the light at the far end"
-      },
-      "sound_mark": {
-        "timbre": "brass-swell",
-        "contour": "widening-rise",
-        "pulse": "long-single"
       }
     }
   ]

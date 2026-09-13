@@ -162,7 +162,7 @@ func checkOverlay(
 	report.add("overlay", doctorFail, "no live role has a launchable native seat to read one for")
 }
 
-// The identity card, the launch motion, and the sound mark are built from these
+// The identity card and the launch motion are built from these
 // fields, so a roster that stops shipping them degrades quietly. agentic-os#1251
 func checkSensoryVocabulary(report *doctorReport, document overlayDocument) {
 	missing := []string{}
@@ -173,7 +173,6 @@ func checkSensoryVocabulary(report *doctorReport, document overlayDocument) {
 			"emblem":     personality.Emblem.Emoji,
 			"geometry":   personality.Geometry,
 			"body":       personality.Body.Archetype,
-			"sound_mark": personality.SoundMark.Timbre,
 		} {
 			if strings.TrimSpace(value) == "" {
 				missing = append(missing, personality.Name+"."+name)

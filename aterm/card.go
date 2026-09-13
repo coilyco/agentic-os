@@ -27,9 +27,6 @@ type cardFigure struct {
 	Motif    string `json:"motif"`
 	Emoji    string `json:"emoji"`
 	Geometry string `json:"geometry"`
-	Timbre   string `json:"timbre"`
-	Contour  string `json:"contour"`
-	Pulse    string `json:"pulse"`
 }
 
 type sessionCard struct {
@@ -68,9 +65,6 @@ func buildSessionCard(document overlayDocument, plan launchPlan) sessionCard {
 			Motif:    personality.Motif,
 			Emoji:    personality.Emblem.Emoji,
 			Geometry: personality.Geometry,
-			Timbre:   personality.SoundMark.Timbre,
-			Contour:  personality.SoundMark.Contour,
-			Pulse:    personality.SoundMark.Pulse,
 		})
 	}
 	return card

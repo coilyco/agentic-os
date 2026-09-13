@@ -30,7 +30,7 @@ const (
 	defaultBundleTag = "acompose"
 )
 
-// Committed like aterm/sounds, so a bundle write needs no renderer on the host.
+// Committed, so a bundle write needs no renderer on the host.
 
 //go:embed icons/*.icns
 var roleIcons embed.FS

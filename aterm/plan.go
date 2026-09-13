@@ -21,7 +21,6 @@ type launchRequest struct {
 	StartAs          string
 	FontSize         string
 	NoMotion         bool
-	Sound            bool
 	Extra            []string
 	Hold             bool
 	Creature         creaturePlate
@@ -152,9 +151,6 @@ func buildLaunchPlan(
 	}
 	if request.NoMotion {
 		session = append(session, "--no-motion")
-	}
-	if request.Sound {
-		session = append(session, "--sound")
 	}
 	session = append(session, "--card", encoded, "--")
 	// kitty takes the program as trailing arguments, with no -e separator.

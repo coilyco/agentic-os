@@ -81,7 +81,7 @@ func TestOverlayDecodesEveryShippedField(t *testing.T) {
 	}
 }
 
-// The identity card and the sound mark are built from this vocabulary, so an
+// The identity card is built from this vocabulary, so an
 // empty leaf is a contract break rather than a blank field.
 func TestOverlayPersonalitiesCarryTheFullSensoryVocabulary(t *testing.T) {
 	document := platformOverlay(t)
@@ -97,9 +97,6 @@ func TestOverlayPersonalitiesCarryTheFullSensoryVocabulary(t *testing.T) {
 			"geometry":           personality.Geometry,
 			"body.archetype":     personality.Body.Archetype,
 			"body.attachment":    personality.Body.Attachment,
-			"sound_mark.timbre":  personality.SoundMark.Timbre,
-			"sound_mark.contour": personality.SoundMark.Contour,
-			"sound_mark.pulse":   personality.SoundMark.Pulse,
 		}
 		for field, value := range fields {
 			if value == "" {

@@ -34,12 +34,6 @@ type overlayBody struct {
 	Attachment string `json:"attachment"`
 }
 
-type overlaySoundMark struct {
-	Timbre  string `json:"timbre"`
-	Contour string `json:"contour"`
-	Pulse   string `json:"pulse"`
-}
-
 type overlayPersonality struct {
 	Name      string           `json:"name"`
 	Species   string           `json:"species,omitempty"`
@@ -49,7 +43,6 @@ type overlayPersonality struct {
 	Geometry  string           `json:"geometry"`
 	Emblem    overlayEmblem    `json:"emblem"`
 	Body      overlayBody      `json:"body"`
-	SoundMark overlaySoundMark `json:"sound_mark"`
 }
 
 // What a session says as it closes, so a hold banner is not invented.

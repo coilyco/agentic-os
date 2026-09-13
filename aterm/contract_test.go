@@ -251,26 +251,3 @@ func TestLiveDefaultSeatBelongsToItsRole(t *testing.T) {
 		t.Fatalf("%d of %d roles have no default agent, first: %s", refused, asked, firstRefusal)
 	}
 }
-
-// Every timbre the live roster ships needs a committed sample, or a launch is
-// silent for a personality nobody noticed was added.
-func TestLiveSoundMarksAllHaveASample(t *testing.T) {
-	deps, agentCompose, roster := liveRoster(t)
-	missing := []string{}
-	for _, role := range roster.Items {
-		seats := role.nativeSeats()
-		if len(seats) == 0 {
-			continue
-		}
-		_, document := liveOverlay(t, deps, agentCompose, role.Slug, seats[0].Harness)
-		for _, personality := range document.Personalities {
-			if !hasSample(personality.SoundMark.Timbre) {
-				missing = append(missing, personality.Name+" ("+personality.SoundMark.Timbre+")")
-			}
-		}
-	}
-	sort.Strings(missing)
-	if len(missing) > 0 {
-		t.Fatalf("run `just aterm-sounds`: no sample for %s", strings.Join(missing, ", "))
-	}
-}

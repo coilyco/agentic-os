@@ -34,11 +34,6 @@
       "body": {
         "archetype": "plump round soft-bodied creature, oversized head, big cheeks, soft and living rather than built from the thing it carries",
         "attachment": "a broad wooden artist's palette held against its chest, one thumb through the hole, wet dabs of unmixed colour scattered across it"
-      },
-      "sound_mark": {
-        "timbre": "toy-piano",
-        "contour": "zigzag-rise",
-        "pulse": "syncopated-three"
       }
     },
     {
@@ -57,11 +52,6 @@
       "body": {
         "archetype": "a body of faceted glass panels, thin lead cames running between them, light passing through it rather than stopping at its surface",
         "attachment": "a prism set where its eye would be, throwing one white beam out as a fanned band of colour across whatever it faces"
-      },
-      "sound_mark": {
-        "timbre": "celesta",
-        "contour": "expanding-arc",
-        "pulse": "shimmering-three"
       }
     }
   ]
