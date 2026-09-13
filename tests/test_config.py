@@ -9,6 +9,7 @@ from agentic_os.config import (
     get_int_option,
     is_enabled,
     is_excluded,
+    WorkspaceRootMissing,
     iter_workspace_repos,
     load_excludes,
     projects_root,
@@ -293,8 +294,24 @@ def test_iter_workspace_repos_skips_non_git_dirs(tmp_path: Path) -> None:
     assert [r.name for r in repos] == ["repo-a"]
 
 
-def test_iter_workspace_repos_missing_root(tmp_path: Path) -> None:
-    assert iter_workspace_repos(tmp_path / "nope") == []
+# An empty fleet reads as a clean fleet in all seven callers, so a missing root
+# has to refuse rather than return one (#7628).
+def test_iter_workspace_repos_refuses_a_missing_root(tmp_path: Path) -> None:
+    with pytest.raises(WorkspaceRootMissing):
+        iter_workspace_repos(tmp_path / "nope")
+
+
+def test_iter_workspace_repos_refuses_a_file_as_root(tmp_path: Path) -> None:
+    root = tmp_path / "projects"
+    root.write_text("not a directory")
+    with pytest.raises(WorkspaceRootMissing):
+        iter_workspace_repos(root)
+
+
+# A real but empty workspace root is a different fact from an absent one, and
+# stays an empty list rather than an error.
+def test_iter_workspace_repos_allows_an_empty_root(tmp_path: Path) -> None:
+    assert iter_workspace_repos(tmp_path) == []
 
 
 def test_iter_workspace_repos_honors_env(monkeypatch, tmp_path: Path) -> None:

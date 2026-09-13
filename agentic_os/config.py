@@ -49,6 +49,10 @@ def projects_root(root: Path | None = None) -> Path:
 ORG_PROFILE_REPO = ".github"
 
 
+class WorkspaceRootMissing(RuntimeError):
+    """The workspace root does not exist, so no caller may read a clean fleet."""
+
+
 def is_agent_managed_checkout(path: Path) -> bool:
     """Whether fleet tooling may treat ``path`` as an agent-managed checkout.
 
@@ -78,10 +82,22 @@ def iter_workspace_repos(root: Path | None = None) -> list[Path]:
     skip made all three invisible to every fleet rollout. Human-only
     ``*-workdir`` checkouts are skipped wherever they appear. Returns repo
     directory Paths sorted by (org dir, repo name).
+
+    Raises WorkspaceRootMissing when the root is not a directory, because every
+    caller reads an empty fleet as a clean fleet.
     """
     base = projects_root(root)
     if not base.is_dir():
-        return []
+        raise WorkspaceRootMissing(
+            f"workspace root {base} is not a directory, so the fleet cannot be "
+            "walked. Every caller of this function treats an empty result as a "
+            "clean fleet, so it refuses rather than returning one. Set "
+            "$PROJECTS_ROOT to the root you mean. In a native AOS session $HOME "
+            "is the session shadow and $AOS_NATIVE_SESSION_PROJECTS holds its "
+            "projects root, which is deliberately not consulted here: whether a "
+            "fleet rollout may run against a shadow is undecided "
+            "(teable:coilyco-flight-deck/agentic-os#7628)."
+        )
 
     def visible(path: Path) -> bool:
         return not path.name.startswith(".") or path.name == ORG_PROFILE_REPO
