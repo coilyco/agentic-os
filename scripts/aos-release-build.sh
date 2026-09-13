@@ -77,6 +77,7 @@ build_aosguard_skill() {
     cp -R "$repo_root/.umbra" "$source"
     "$umbra" \
         --project-root "$source/guardfiles" \
+        --guardfile "$source/guardfiles/aosguard/forgejo.kdl" \
         --skills-out "$release_build/aosguard-skill" \
         build \
         --set-version "$version" \
@@ -144,7 +145,9 @@ lock = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
 pathlib.Path(sys.argv[2]).write_text("\n".join(lock["goMod"]) + "\n", encoding="utf-8")
 pathlib.Path(sys.argv[3]).write_text("\n".join(lock["goSum"]) + "\n", encoding="utf-8")
 PY
-    "$umbra" --project-root "$project" gen --out "$project/main.go"
+    "$umbra" --project-root "$project" \
+        --guardfile "$project/aosguard/forgejo.kdl" \
+        gen --out "$project/main.go"
     # Specgen materialization decodes gzip locks before embedding. After `gen`,
     # this direct cross-build stages every decoded lock.
     find "$project" -type f -name '*.lock.json.gz' -print |
