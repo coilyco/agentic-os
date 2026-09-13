@@ -164,6 +164,9 @@ def main(argv=None) -> int:
         print(f"Source: {args.source}")
         print()
         for d in dirs:
+            if not hook_catalog.ships_to(d):
+                results.append({"repo": d.name, "status": "vendor", "missing": []})
+                continue
             results.append(
                 audit_config(
                     d.name, read_local_config(d), hook_catalog.hook_ids_for(d.name)
@@ -197,7 +200,7 @@ def main(argv=None) -> int:
     for r in results:
         by_status.setdefault(r["status"], []).append(r)
 
-    for status in ("ok", "missing", "no-config", "error"):
+    for status in ("ok", "vendor", "missing", "no-config", "error"):
         entries = by_status.get(status, [])
         if not entries:
             continue
@@ -229,14 +232,16 @@ def main(argv=None) -> int:
             )
         print()
 
-    bad = (
+    bad_repos = (
         len(by_status.get("missing", []))
         + len(by_status.get("no-config", []))
         + len(by_status.get("error", []))
-        + (1 if (inert or undeclared) else 0)
     )
-    if bad:
-        print(f"Coverage incomplete: {bad} repo(s) need attention.")
+    if bad_repos:
+        print(f"Coverage incomplete: {bad_repos} repo(s) need attention.")
+    if inert or undeclared:
+        print("Catalog incomplete: the shipped set carries a hook that cannot run.")
+    if bad_repos or inert or undeclared:
         return 1
     print("Coverage complete.")
     return 0

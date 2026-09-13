@@ -71,9 +71,8 @@ IGNORE_MARKER = ".agentic-os-ignore"
 BEGIN_MARKER = "# BEGIN managed by agentic-os/scripts/apply-agentic-os-hooks.py"
 END_MARKER = "# END managed by agentic-os/scripts/apply-agentic-os-hooks.py"
 
-# Org dirs of upstream checkouts nobody here owns, so nothing is written
-# into them. See docs/pre-commit-hygiene.md.
-VENDOR_ORGS = {"StrangeLoopGames"}
+# Re-exported for this script's callers. agentic_os.hook_catalog owns the set.
+VENDOR_ORGS = hook_catalog.VENDOR_ORGS
 
 GITATTRIBUTES_FILE = ".gitattributes"
 # `text=auto` alone still checks out CRLF under core.autocrlf=true. See
@@ -495,7 +494,7 @@ def install_pre_commit_hooks(repo_dir: Path) -> str:
 
 def apply_to_repo(repo_dir: Path, rev: str, dry_run: bool) -> tuple[str, str]:
     repo = repo_dir.name
-    if repo_dir.parent.name in VENDOR_ORGS:
+    if not hook_catalog.ships_to(repo_dir):
         return ("skipped", f"vendor org ({repo_dir.parent.name})")
     if not repo_dir.is_dir():
         return ("skipped", "not checked out locally")

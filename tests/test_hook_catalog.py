@@ -68,3 +68,16 @@ def test_hook_ids_for_drops_the_repos_declared_skips() -> None:
 def test_hook_ids_for_drops_the_eco_skip() -> None:
     assert "code-comments" not in hook_catalog.hook_ids_for("eco-mods")
     assert "code-comments" in hook_catalog.hook_ids_for("agent-proxy")
+
+
+# The applier refuses to write into a vendor org, so the audit must expect
+# nothing of one rather than reporting it missing every hook (#7635).
+def test_ships_to_refuses_a_vendor_org() -> None:
+    assert not hook_catalog.ships_to(Path("/p/StrangeLoopGames/Eco"))
+    assert hook_catalog.ships_to(Path("/p/coilyco-bridge/lore"))
+
+
+# A bare "eco" prefix also caught ecommerce-shaped names.
+def test_eco_skip_needs_the_hyphen() -> None:
+    assert "code-comments" not in hook_catalog.hook_ids_for("eco-app")
+    assert "code-comments" in hook_catalog.hook_ids_for("ecommerce-storefront")

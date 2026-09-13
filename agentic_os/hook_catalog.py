@@ -12,6 +12,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 HOOKS_FILE = REPO_ROOT / ".pre-commit-hooks.yaml"
 
+# Org dirs of upstream checkouts nobody here owns, so the rollout writes
+# nothing into them and the audit expects nothing of them.
+VENDOR_ORGS = {"StrangeLoopGames"}
+
 # Hand-editable. DEFAULT_REV tracks the newest tag on its own, so REMOVING an
 # id here must land with the release that drops it.
 DEFAULT_HOOK_IDS = [
@@ -58,9 +62,20 @@ ECO_HOOK_SKIPS = {"code-comments"}
 
 def hook_ids_for(repo: str) -> list[str]:
     skips: set[str] = set(PER_REPO_HOOK_SKIPS.get(repo, set()))
-    if repo.startswith("eco"):
+    # The hyphen matters: a bare "eco" prefix also matches ecommerce-shaped
+    # names that have nothing to do with the Eco game (agentic-os#7635).
+    if repo.startswith("eco-"):
         skips |= ECO_HOOK_SKIPS
     return [h for h in DEFAULT_HOOK_IDS if h not in skips]
+
+
+def ships_to(repo_dir: Path) -> bool:
+    """Whether the rollout writes into this checkout at all.
+
+    The audit asks the same question, so a vendor clone cannot be reported as
+    missing hooks the applier refuses to send it (agentic-os#7635).
+    """
+    return repo_dir.parent.name not in VENDOR_ORGS
 
 
 def hook_stages(hooks_file: Path | None = None) -> dict[str, list[str]]:
