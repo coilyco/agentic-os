@@ -19,6 +19,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agentic_os import config as cfg  # noqa: E402
+from agentic_os import hook_catalog  # noqa: E402
 
 # Consumer pin is tag-derived at read time (see default_rev), not committed.
 # FALLBACK_REV is the floor for tag-less checkouts. See docs/release.md.
@@ -159,55 +160,11 @@ LEGACY_STAMPED_SCRIPTS = [
     "scripts/check-skills.py",
 ]
 
-# Default hook IDs per repo (hand-editable). DEFAULT_REV tracks the newest tag
-# on its own, so REMOVING an id here must land with the release that drops it.
-DEFAULT_HOOK_IDS = [
-    "catalog-trifecta",
-    "documentation-placement",
-    "documentation-size",
-    "context-load-points",
-    "code-comments",
-    "actions-run-one-line",
-    "source-doc-refs",
-    "check-skills",
-    "dead-cross-links",
-    "repo-pointer-skills",
-    "misplaced-skills",
-    "agent-compose-size",
-    "agent-compose-dedup",
-    "trufflehog",
-    "pr-guard",
-    # Three that enforce rules the global AGENTS.md already binds everywhere,
-    # wired here since #937 and rolled out only now. Consumers see new failures.
-    "brand-case",
-    "leak-guard",
-    "unresolved-placeholder-guard",
-    # Added last: aos wired this one locally and consumers never got it, so the
-    # block drifted everywhere while the authoring repo stayed current (#937).
-    "git-workflow",
-]
-
-# Per-repo hook opt-outs. eco-* repos vendor the Strange Loop Games Unity SDK,
-# whose comments are not ours to lint. lore is a docs-only slice.
-PER_REPO_HOOK_SKIPS: dict[str, set[str]] = {
-    "lore": {
-        "check-skills",
-        "repo-pointer-skills",
-        "misplaced-skills",
-        "agent-compose-size",
-        "agent-compose-dedup",
-    },
-}
-# typos is absent by design: managed_block() emits it unconditionally, so an
-# entry here never fires (#1155). Vendored trees go in the repo's _typos.toml.
-ECO_HOOK_SKIPS = {"code-comments"}
-
-
-def hook_ids_for(repo: str) -> list[str]:
-    skips: set[str] = set(PER_REPO_HOOK_SKIPS.get(repo, set()))
-    if repo.startswith("eco"):
-        skips |= ECO_HOOK_SKIPS
-    return [h for h in DEFAULT_HOOK_IDS if h not in skips]
+# Re-exported for this script's callers. agentic_os.hook_catalog owns the set.
+DEFAULT_HOOK_IDS = hook_catalog.DEFAULT_HOOK_IDS
+PER_REPO_HOOK_SKIPS = hook_catalog.PER_REPO_HOOK_SKIPS
+ECO_HOOK_SKIPS = hook_catalog.ECO_HOOK_SKIPS
+hook_ids_for = hook_catalog.hook_ids_for
 
 
 def actionlint_args(repo_dir: Path | None) -> str:

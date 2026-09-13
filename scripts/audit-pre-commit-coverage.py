@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Assert every catalog repo's .pre-commit-config.yaml carries the expected hook ids.
 
-The expected set is the ids declared in this repo's `.pre-commit-hooks.yaml`,
-minus manual-only opt-ins. Walks every git working tree under ~/projects/<org>/*,
+The expected set is what the applier would write for that repo, read from
+agentic_os.hook_catalog rather than re-derived, so the two cannot disagree
+silently. Walks every git working tree under ~/projects/<org>/*,
 or `--source github` to query the contents API. Override the root with
 $PROJECTS_ROOT. Run it after an apply-agentic-os-hooks.py sweep to verify every
 consumer landed the managed block.
@@ -29,21 +30,10 @@ except ModuleNotFoundError:
     sys.exit(2)
 
 from agentic_os import config as cfg  # noqa: E402
+from agentic_os import hook_catalog  # noqa: E402
 
-HOOKS_FILE = REPO_ROOT / ".pre-commit-hooks.yaml"
 OWNER = "coilysiren"
 AGENTIC_OS_URL = "https://github.com/coilysiren/agentic-os"
-
-
-def expected_hook_ids() -> list[str]:
-    data = yaml.safe_load(HOOKS_FILE.read_text())
-    out = []
-    for hook in data:
-        stages = set(hook.get("stages") or [])
-        if stages and stages <= {"manual"}:
-            continue
-        out.append(hook["id"])
-    return out
 
 
 def gh(*args: str) -> str:
@@ -110,7 +100,12 @@ def _is_agentic_os_repo(repo_url: str) -> bool:
 
 
 def referenced_hook_ids(config_text: str) -> set[str]:
-    """Pull hook IDs from the agentic-os upstream-ref block(s)."""
+    """Hook ids this config runs, from the agentic-os ref block or from local.
+
+    agentic-os wires all of its own validators as `repo: local`, so an
+    upstream-ref-only read reported the authoring repo as missing every hook it
+    defines (agentic-os#7628). A locally wired id runs the same check.
+    """
     try:
         data = yaml.safe_load(config_text)
     except yaml.YAMLError:
@@ -120,7 +115,7 @@ def referenced_hook_ids(config_text: str) -> set[str]:
         if not isinstance(entry, dict):
             continue
         repo = entry.get("repo", "")
-        if not _is_agentic_os_repo(repo):
+        if not _is_agentic_os_repo(repo) and repo != "local":
             continue
         for hook in entry.get("hooks") or []:
             if isinstance(hook, dict) and "id" in hook:
@@ -150,8 +145,8 @@ def main(argv=None) -> int:
     ap.add_argument("--skip", nargs="*", default=[])
     args = ap.parse_args(argv)
 
-    expected = expected_hook_ids()
     skip = set(args.skip)
+    base = hook_catalog.DEFAULT_HOOK_IDS
 
     # Local mode drives off the on-disk checkout set so it spans every org dir.
     # Github mode keeps querying the coilysiren owner via the contents API.
@@ -163,27 +158,35 @@ def main(argv=None) -> int:
         else:
             dirs = [d for d in dirs if d.name not in skip]
         print(
-            f"Auditing {len(dirs)} repo(s) against {len(expected)} expected "
-            f"hook(s) from {AGENTIC_OS_URL}/.pre-commit-hooks.yaml"
+            f"Auditing {len(dirs)} repo(s) against the {len(base)} hook(s) the "
+            f"applier ships, per repo after its skips ({AGENTIC_OS_URL})"
         )
         print(f"Source: {args.source}")
         print()
         for d in dirs:
-            results.append(audit_config(d.name, read_local_config(d), expected))
+            results.append(
+                audit_config(
+                    d.name, read_local_config(d), hook_catalog.hook_ids_for(d.name)
+                )
+            )
     else:
         names = [args.repo] if args.repo else [
             r for r in list_active_repos() if r not in skip
         ]
         print(
-            f"Auditing {len(names)} repo(s) against {len(expected)} expected "
-            f"hook(s) from {AGENTIC_OS_URL}/.pre-commit-hooks.yaml"
+            f"Auditing {len(names)} repo(s) against the {len(base)} hook(s) the "
+            f"applier ships, per repo after its skips ({AGENTIC_OS_URL})"
         )
         print(f"Source: {args.source}")
         print()
         for name in names:
             try:
                 results.append(
-                    audit_config(name, read_remote_config(name), expected)
+                    audit_config(
+                        name,
+                        read_remote_config(name),
+                        hook_catalog.hook_ids_for(name),
+                    )
                 )
             except RuntimeError as exc:
                 results.append(
@@ -208,10 +211,29 @@ def main(argv=None) -> int:
                 print(f"  {r['repo']:28}")
         print()
 
+    # A shipped id that cannot fire is one defect for the whole fleet rather
+    # than a finding per repo, so it prints once and still fails the run.
+    inert = hook_catalog.inert_shipped_ids()
+    undeclared = hook_catalog.undeclared_shipped_ids()
+    if inert or undeclared:
+        print("== catalog (1) ==")
+        if inert:
+            print(
+                f"  shipped but manual-only, so never runs in a consumer: "
+                f"{', '.join(inert)}"
+            )
+        if undeclared:
+            print(
+                f"  shipped but undeclared in .pre-commit-hooks.yaml: "
+                f"{', '.join(undeclared)}"
+            )
+        print()
+
     bad = (
         len(by_status.get("missing", []))
         + len(by_status.get("no-config", []))
         + len(by_status.get("error", []))
+        + (1 if (inert or undeclared) else 0)
     )
     if bad:
         print(f"Coverage incomplete: {bad} repo(s) need attention.")
