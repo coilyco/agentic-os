@@ -108,3 +108,21 @@ func TestInspectCanonicalClaudeCredentialTreatsGarbageAsUnstamped(t *testing.T) 
 		t.Fatalf("state = %q, want %q", state, claudeCredentialUnstamped)
 	}
 }
+
+// The shape that appeared on kais-macbook-pro twice: both tokens stripped and
+// the stamps left behind, which read as live and disarmed every repair.
+func TestInspectCanonicalClaudeCredentialReportsAStampedHuskAsHollow(t *testing.T) {
+	home := t.TempDir()
+	now := time.UnixMilli(1_700_000_000_000)
+	writeCanonical(t, home, []byte(fmt.Sprintf(
+		`{"claudeAiOauth":{"expiresAt":%d,"refreshTokenExpiresAt":%d}}`,
+		now.Add(time.Hour).UnixMilli(), now.Add(24*time.Hour).UnixMilli())))
+
+	health := inspectCanonicalClaudeCredential(home, now)
+	if health.State != claudeCredentialHollow {
+		t.Fatalf("state = %q, want %q", health.State, claudeCredentialHollow)
+	}
+	if health.Healthy() {
+		t.Fatal("a credential carrying no token reported healthy")
+	}
+}

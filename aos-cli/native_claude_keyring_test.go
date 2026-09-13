@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // stubKeyring serves one canned secret and records the services asked for.
@@ -46,7 +47,7 @@ func TestSeedCanonicalClaudeCredentialWritesTheKeychainLogin(t *testing.T) {
 	home := t.TempDir()
 	read, asked := stubKeyring([]byte(`{"claudeAiOauth":{"accessToken":"t"}}`), nil)
 
-	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home)
+	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home, testNow)
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -77,29 +78,119 @@ func TestSeedCanonicalClaudeCredentialWritesTheKeychainLogin(t *testing.T) {
 
 // The Keychain goes stale once the file is authoritative, so overwriting would
 // retire the token the sessions are actually using.
-func TestSeedCanonicalClaudeCredentialNeverOverwritesAStampedFile(t *testing.T) {
+func TestSeedCanonicalClaudeCredentialNeverOverwritesALiveFile(t *testing.T) {
 	home := t.TempDir()
 	target := canonicalClaudeCredentialPath(home)
 	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(target, stampedCredential(200), 0o600); err != nil {
+	if err := os.WriteFile(target, liveCredential(), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
 	read, asked := stubKeyring(stampedCredential(900), nil)
 
-	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home)
+	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home, testNow)
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}
 	if seeded {
-		t.Fatal("seed overwrote a stamped credential")
+		t.Fatal("seed overwrote a live credential")
 	}
-	if body, _ := os.ReadFile(target); string(body) != string(stampedCredential(200)) {
+	if body, _ := os.ReadFile(target); string(body) != string(liveCredential()) {
 		t.Fatalf("body = %q, want the untouched live value", body)
 	}
 	if len(*asked) != 0 {
-		t.Fatalf("keychain was read despite a stamped file: %v", *asked)
+		t.Fatalf("keychain was read despite a live file: %v", *asked)
+	}
+}
+
+// The trap #7258 names: a husk stamped into the future disarmed the seed for
+// good, against a file that can never work.
+func TestSeedCanonicalClaudeCredentialRepairsAStampedHusk(t *testing.T) {
+	home := t.TempDir()
+	target := canonicalClaudeCredentialPath(home)
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(target, huskCredential(aheadOfNow(time.Hour)), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	read, asked := stubKeyring(refreshableCredential(), nil)
+
+	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home, testNow)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if !seeded {
+		t.Fatal("a husk with a future stamp disarmed the seed")
+	}
+	if len(*asked) != 1 {
+		t.Fatalf("keychain reads = %v, want the husk to let the seed look", *asked)
+	}
+	if body, _ := os.ReadFile(target); string(body) != string(refreshableCredential()) {
+		t.Fatalf("body = %q, want the refreshable keychain login", body)
+	}
+}
+
+// A lapsed access token over a live refresh token is a working login, and the
+// old comparator ranked it under a husk stamped one second later.
+func TestSeedCanonicalClaudeCredentialPrefersALiveRefreshOverAFresherStamp(t *testing.T) {
+	home := t.TempDir()
+	target := canonicalClaudeCredentialPath(home)
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	// Stamped far ahead of the candidate, and carrying nothing to present.
+	if err := os.WriteFile(target, huskCredential(aheadOfNow(72*time.Hour)), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	read, _ := stubKeyring(refreshableCredential(), nil)
+
+	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home, testNow)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if !seeded {
+		t.Fatal("the fresher stamp won over the only usable credential")
+	}
+}
+
+// The mirror failure the fix must not open: refusing a candidate merely for a
+// lapsed expiresAt would pass over the one recoverable login on the host.
+func TestSeedCanonicalClaudeCredentialAcceptsALapsedAccessToken(t *testing.T) {
+	home := t.TempDir()
+	read, _ := stubKeyring(refreshableCredential(), nil)
+
+	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home, testNow)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if !seeded {
+		t.Fatal("seed refused a credential whose refresh token is still good")
+	}
+}
+
+// A husk repairs nothing, so it must never be written over anything.
+func TestSeedCanonicalClaudeCredentialRefusesAHuskCandidate(t *testing.T) {
+	home := t.TempDir()
+	target := canonicalClaudeCredentialPath(home)
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(target, stampedCredential(0), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	read, _ := stubKeyring(huskCredential(aheadOfNow(72*time.Hour)), nil)
+
+	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home, testNow)
+	if err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if seeded {
+		t.Fatal("seed wrote a husk over the incumbent")
+	}
+	if body, _ := os.ReadFile(target); string(body) != string(stampedCredential(0)) {
+		t.Fatalf("body = %q, want the file untouched", body)
 	}
 }
 
@@ -116,7 +207,7 @@ func TestSeedCanonicalClaudeCredentialRepairsAnUnstampedFile(t *testing.T) {
 	}
 	read, _ := stubKeyring(stampedCredential(900), nil)
 
-	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home)
+	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home, testNow)
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -141,7 +232,7 @@ func TestSeedCanonicalClaudeCredentialRefusesAnUncomparableRepair(t *testing.T) 
 	}
 	read, _ := stubKeyring([]byte(`{"claudeAiOauth":{"accessToken":"t"}}`), nil)
 
-	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home)
+	seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home, testNow)
 	if err != nil {
 		t.Fatalf("seed: %v", err)
 	}
@@ -157,7 +248,7 @@ func TestSeedCanonicalClaudeCredentialStaysQuietWithoutAKeyring(t *testing.T) {
 	home := t.TempDir()
 	for _, absent := range []error{errClaudeKeyringUnsupported, errClaudeKeyringNotFound} {
 		read, _ := stubKeyring(nil, absent)
-		seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home)
+		seeded, err := seedCanonicalClaudeCredential(context.Background(), read, home, testNow)
 		if err != nil {
 			t.Fatalf("%v: %v", absent, err)
 		}
@@ -174,7 +265,7 @@ func TestSeedCanonicalClaudeCredentialSurfacesRealKeyringFailures(t *testing.T) 
 	home := t.TempDir()
 	boom := errors.New("keychain locked")
 	read, _ := stubKeyring(nil, boom)
-	if _, err := seedCanonicalClaudeCredential(context.Background(), read, home); !errors.Is(err, boom) {
+	if _, err := seedCanonicalClaudeCredential(context.Background(), read, home, testNow); !errors.Is(err, boom) {
 		t.Fatalf("err = %v, want %v", err, boom)
 	}
 }
@@ -259,6 +350,34 @@ func stampedCredential(expiresAt int64) []byte {
 		`{"claudeAiOauth":{"accessToken":"t","expiresAt":%d}}`, expiresAt))
 }
 
+// testNow anchors every worth comparison, so the small stamps above read as
+// long expired and the offsets below read as ahead of it.
+var testNow = time.UnixMilli(1_700_000_000_000)
+
+func aheadOfNow(d time.Duration) int64 { return testNow.Add(d).UnixMilli() }
+
+// liveCredential carries an access token that has not lapsed.
+func liveCredential() []byte {
+	return []byte(fmt.Sprintf(
+		`{"claudeAiOauth":{"accessToken":"t","expiresAt":%d}}`, aheadOfNow(time.Hour)))
+}
+
+// refreshableCredential is the shape the host Keychain actually held: a lapsed
+// access token over a refresh token that is still good.
+func refreshableCredential() []byte {
+	return []byte(fmt.Sprintf(
+		`{"claudeAiOauth":{"accessToken":"t","refreshToken":"r",`+
+			`"expiresAt":1,"refreshTokenExpiresAt":%d}}`, aheadOfNow(24*time.Hour)))
+}
+
+// huskCredential is what twice appeared on kais-macbook-pro: both tokens
+// stripped, the stamps left behind.
+func huskCredential(expiresAt int64) []byte {
+	return []byte(fmt.Sprintf(
+		`{"claudeAiOauth":{"expiresAt":%d,"refreshTokenExpiresAt":%d,`+
+			`"subscriptionType":"max"}}`, expiresAt, aheadOfNow(24*time.Hour)))
+}
+
 func TestHarvestSessionClaudeKeychainRecoversTheDeletedLink(t *testing.T) {
 	home := t.TempDir()
 	sessionHome := t.TempDir()
@@ -268,7 +387,7 @@ func TestHarvestSessionClaudeKeychainRecoversTheDeletedLink(t *testing.T) {
 	read, asked := stubKeyring(stampedCredential(200), nil)
 
 	harvested, err := harvestSessionClaudeKeychain(
-		context.Background(), read, sessionHome, home)
+		context.Background(), read, sessionHome, home, testNow)
 	if err != nil {
 		t.Fatalf("harvest: %v", err)
 	}
@@ -307,7 +426,7 @@ func TestHarvestSessionClaudeKeychainKeepsTheLongerLivedToken(t *testing.T) {
 	read, _ := stubKeyring(stampedCredential(200), nil)
 
 	harvested, err := harvestSessionClaudeKeychain(
-		context.Background(), read, sessionHome, home)
+		context.Background(), read, sessionHome, home, testNow)
 	if err != nil {
 		t.Fatalf("harvest: %v", err)
 	}
@@ -339,7 +458,7 @@ func TestHarvestSessionClaudeKeychainAdvancesToTheFresherToken(t *testing.T) {
 	read, _ := stubKeyring(stampedCredential(900), nil)
 
 	harvested, err := harvestSessionClaudeKeychain(
-		context.Background(), read, sessionHome, home)
+		context.Background(), read, sessionHome, home, testNow)
 	if err != nil {
 		t.Fatalf("harvest: %v", err)
 	}
@@ -379,7 +498,7 @@ func TestHarvestSessionClaudeKeychainSkipsWhenTheLinkSurvives(t *testing.T) {
 	read, asked := stubKeyring(stampedCredential(900), nil)
 
 	harvested, err := harvestSessionClaudeKeychain(
-		context.Background(), read, sessionHome, home)
+		context.Background(), read, sessionHome, home, testNow)
 	if err != nil {
 		t.Fatalf("harvest: %v", err)
 	}
@@ -409,7 +528,7 @@ func TestHarvestSessionClaudeKeychainRefusesAnUncomparablePayload(t *testing.T) 
 	read, _ := stubKeyring([]byte(`{"claudeAiOauth":{"accessToken":"t"}}`), nil)
 
 	harvested, err := harvestSessionClaudeKeychain(
-		context.Background(), read, sessionHome, home)
+		context.Background(), read, sessionHome, home, testNow)
 	if err != nil {
 		t.Fatalf("harvest: %v", err)
 	}
@@ -436,7 +555,7 @@ func TestHarvestSessionClaudeKeychainReplacesAnUnstampedCanonical(t *testing.T) 
 	read, _ := stubKeyring(stampedCredential(900), nil)
 
 	harvested, err := harvestSessionClaudeKeychain(
-		context.Background(), read, sessionHome, home)
+		context.Background(), read, sessionHome, home, testNow)
 	if err != nil {
 		t.Fatalf("harvest: %v", err)
 	}

@@ -723,7 +723,8 @@ func recoverNativeClaudeLease(
 	// The harness deletes the staged link when it cannot refresh the token, and
 	// the rotation then lives only in the session Keychain item.
 	harvested, err := harvestSessionClaudeKeychain(
-		context.Background(), runtime.claudeKeyring(), lease.SessionHome, runtime.Home)
+		context.Background(), runtime.claudeKeyring(), lease.SessionHome,
+		runtime.Home, runtime.Now)
 	if err != nil {
 		fmt.Fprintf(runtime.Stderr,
 			"aos: native session Claude login not harvested from the keychain: %v\n", err)
@@ -1611,7 +1612,8 @@ func createNativeSession(
 		// holds at stage time and the credential has to be there to be linked.
 		if harness == "claude" {
 			seeded, err := seedCanonicalClaudeCredential(
-				context.Background(), runtime.claudeKeyring(), runtime.Home)
+				context.Background(), runtime.claudeKeyring(), runtime.Home,
+				runtime.Now)
 			if err != nil {
 				fmt.Fprintf(runtime.Stderr,
 					"aos: canonical Claude login not seeded: %v\n", err)

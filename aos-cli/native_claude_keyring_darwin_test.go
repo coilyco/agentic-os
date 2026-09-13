@@ -34,7 +34,7 @@ func TestHarvestSessionClaudeKeychainReadsARealKeychainItem(t *testing.T) {
 	// Negative control: with nothing under that service a real read must report
 	// a miss, so the positive case below cannot pass on an unconditional write.
 	harvested, err := harvestSessionClaudeKeychain(
-		context.Background(), readClaudeKeyring, sessionHome, home)
+		context.Background(), readClaudeKeyring, sessionHome, home, testNow)
 	if err != nil {
 		t.Fatalf("harvest before the item exists: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestHarvestSessionClaudeKeychainReadsARealKeychainItem(t *testing.T) {
 	addScratchKeychainItem(t, service, account, string(stampedCredential(200)))
 
 	harvested, err = harvestSessionClaudeKeychain(
-		context.Background(), readClaudeKeyring, sessionHome, home)
+		context.Background(), readClaudeKeyring, sessionHome, home, testNow)
 	if err != nil {
 		t.Fatalf("harvest: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestHarvestSessionClaudeKeychainKeepsTheLongerLivedRealToken(t *testing.T) 
 	)
 
 	harvested, err := harvestSessionClaudeKeychain(
-		context.Background(), readClaudeKeyring, sessionHome, home)
+		context.Background(), readClaudeKeyring, sessionHome, home, testNow)
 	if err != nil {
 		t.Fatalf("harvest: %v", err)
 	}

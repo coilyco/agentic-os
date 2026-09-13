@@ -13,6 +13,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const claudeCredentialService = "Claude Code-credentials"
@@ -48,19 +49,20 @@ func canonicalClaudeCredentialPath(home string) string {
 	return filepath.Join(home, ".claude", ".credentials.json")
 }
 
-// seedCanonicalClaudeCredential writes the Keychain login to the canonical file
-// when absent or unstamped, never over a stamped one. docs/native-claude-credentials.md.
+// seedCanonicalClaudeCredential writes the Keychain login when canonical could
+// not carry a launch, never over one that could. Doc page above.
 func seedCanonicalClaudeCredential(
 	ctx context.Context,
 	read claudeKeyringReader,
 	home string,
+	now time.Time,
 ) (bool, error) {
 	target := canonicalClaudeCredentialPath(home)
-	stamped, err := claudeCredentialStamped(target)
+	usable, err := claudeCredentialUsable(target, now)
 	if err != nil {
 		return false, err
 	}
-	if stamped {
+	if usable {
 		return false, nil
 	}
 
@@ -75,9 +77,9 @@ func seedCanonicalClaudeCredential(
 	if len(secret) == 0 {
 		return false, nil
 	}
-	// An absent target takes anything, and an unstamped one is replaced only by
-	// a payload the launcher can actually compare.
-	fresher, err := claudeCredentialOutlives(secret, target)
+	// An absent target takes anything, and a worthless one is replaced only by
+	// a payload that is worth more rather than merely stamped later.
+	fresher, err := claudeCredentialOutlives(secret, target, now)
 	if err != nil || !fresher {
 		return false, err
 	}
@@ -90,9 +92,9 @@ func seedCanonicalClaudeCredential(
 	return true, nil
 }
 
-// claudeCredentialStamped reports whether the file carries an expiry the
-// launcher can compare. A failed refresh leaves none. Doc page above.
-func claudeCredentialStamped(path string) (bool, error) {
+// claudeCredentialUsable reports whether the file could carry a launch, which
+// is what disarms the seed. Why not the stamp: doc page above.
+func claudeCredentialUsable(path string, now time.Time) (bool, error) {
 	payload, err := os.ReadFile(path)
 	if os.IsNotExist(err) {
 		return false, nil
@@ -100,8 +102,7 @@ func claudeCredentialStamped(path string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("read %s: %w", path, err)
 	}
-	_, ok := claudeCredentialExpiry(payload)
-	return ok, nil
+	return claudeCredentialWorthOf(payload, now).usable(now), nil
 }
 
 // reclaimSessionClaudeCredential recovers a rotated token when a session left a
@@ -145,6 +146,7 @@ func harvestSessionClaudeKeychain(
 	ctx context.Context,
 	read claudeKeyringReader,
 	sessionHome, home string,
+	now time.Time,
 ) (bool, error) {
 	if strings.TrimSpace(sessionHome) == "" {
 		return false, nil
@@ -177,7 +179,7 @@ func harvestSessionClaudeKeychain(
 	}
 
 	target := canonicalClaudeCredentialPath(home)
-	fresher, err := claudeCredentialOutlives(secret, target)
+	fresher, err := claudeCredentialOutlives(secret, target, now)
 	if err != nil || !fresher {
 		return false, err
 	}
@@ -221,9 +223,14 @@ func dropSessionClaudeKeychain(
 	return true, nil
 }
 
-// claudeCredentialOutlives refuses to retire a token that lasts longer than the
+// claudeCredentialOutlives refuses to retire a token worth more than the
 // candidate, which is how the retired per-session harvest lost rotations.
-func claudeCredentialOutlives(candidate []byte, target string) (bool, error) {
+func claudeCredentialOutlives(candidate []byte, target string, now time.Time) (bool, error) {
+	candidateWorth := claudeCredentialWorthOf(candidate, now)
+	// A payload carrying no token repairs nothing, however it is stamped.
+	if !candidateWorth.tokens {
+		return false, nil
+	}
 	current, err := os.ReadFile(target)
 	if os.IsNotExist(err) {
 		return true, nil
@@ -231,32 +238,54 @@ func claudeCredentialOutlives(candidate []byte, target string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("read %s: %w", target, err)
 	}
-	candidateExpiry, ok := claudeCredentialExpiry(candidate)
-	if !ok {
-		return false, nil
-	}
-	// An unstamped incumbent is worthless rather than infinitely fresh, and
-	// treating it as unbeatable is what made canonical unreplaceable.
-	currentExpiry, ok := claudeCredentialExpiry(current)
-	if !ok {
-		return true, nil
-	}
-	return candidateExpiry > currentExpiry, nil
+	return candidateWorth.outranks(claudeCredentialWorthOf(current, now)), nil
 }
 
-// An unparsable or unstamped payload compares as unknown rather than as zero.
-// As the candidate it never wins, and as the incumbent it never holds.
-func claudeCredentialExpiry(payload []byte) (int64, bool) {
+// claudeCredentialWorth ranks a payload by what makes it usable rather than by
+// one stamp (teable:coilyco-flight-deck/agentic-os#7258).
+type claudeCredentialWorth struct {
+	tokens      bool
+	refreshable bool
+	expiresAt   int64
+}
+
+// outranks decides on token presence first, then on a refresh token that has
+// not itself lapsed. The access stamp only separates two equal payloads.
+func (worth claudeCredentialWorth) outranks(other claudeCredentialWorth) bool {
+	if worth.tokens != other.tokens {
+		return worth.tokens
+	}
+	if worth.refreshable != other.refreshable {
+		return worth.refreshable
+	}
+	return worth.expiresAt > other.expiresAt
+}
+
+// usable reports whether a launch could start logged in: a token to present,
+// and either an unlapsed one or a refresh that can mint one.
+func (worth claudeCredentialWorth) usable(now time.Time) bool {
+	return worth.tokens && (worth.refreshable || worth.expiresAt > now.UnixMilli())
+}
+
+// claudeCredentialWorthOf reads the four fields worth depends on. An unparsable
+// payload is worth nothing rather than reading as a zero stamp.
+func claudeCredentialWorthOf(payload []byte, now time.Time) claudeCredentialWorth {
 	var envelope struct {
 		OAuth struct {
-			ExpiresAt int64 `json:"expiresAt"`
+			AccessToken      string `json:"accessToken"`
+			RefreshToken     string `json:"refreshToken"`
+			ExpiresAt        int64  `json:"expiresAt"`
+			RefreshExpiresAt int64  `json:"refreshTokenExpiresAt"`
 		} `json:"claudeAiOauth"`
 	}
 	if err := json.Unmarshal(payload, &envelope); err != nil {
-		return 0, false
+		return claudeCredentialWorth{}
 	}
-	if envelope.OAuth.ExpiresAt <= 0 {
-		return 0, false
+	access := strings.TrimSpace(envelope.OAuth.AccessToken) != ""
+	refresh := strings.TrimSpace(envelope.OAuth.RefreshToken) != ""
+	return claudeCredentialWorth{
+		tokens:      access || refresh,
+		refreshable: refresh && envelope.OAuth.RefreshExpiresAt > now.UnixMilli(),
+		expiresAt:   envelope.OAuth.ExpiresAt,
 	}
-	return envelope.OAuth.ExpiresAt, true
 }

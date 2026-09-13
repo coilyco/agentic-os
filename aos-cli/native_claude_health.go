@@ -14,6 +14,7 @@ import (
 const (
 	claudeCredentialMissing     = "missing"
 	claudeCredentialUnstamped   = "unstamped"
+	claudeCredentialHollow      = "hollow"
 	claudeCredentialStale       = "stale"
 	claudeCredentialRefreshable = "refreshable"
 	claudeCredentialLive        = "live"
@@ -53,6 +54,10 @@ func inspectCanonicalClaudeCredential(home string, now time.Time) claudeCredenti
 		health.State = claudeCredentialUnstamped
 		health.Detail = "no comparable expiresAt, so the harness deletes every staged " +
 			"link and each session pays its own login"
+	case !claudeCredentialWorthOf(payload, now).tokens:
+		health.State = claudeCredentialHollow
+		health.Detail = "stamped but carrying neither token, so the stamp " +
+			"describes a login that is no longer in the file"
 	case now.Before(access):
 		health.State = claudeCredentialLive
 		health.Detail = "valid until " + stampUTC(access)
@@ -70,8 +75,8 @@ func inspectCanonicalClaudeCredential(home string, now time.Time) claudeCredenti
 
 func stampUTC(at time.Time) string { return at.UTC().Format(time.RFC3339) }
 
-// claudeCredentialStamps reads both expiries. A zero return means unusable,
-// matching how claudeCredentialExpiry treats an unstamped payload.
+// claudeCredentialStamps reads both expiries. A zero return means unstamped,
+// which is separate from whether the payload still carries a token.
 func claudeCredentialStamps(payload []byte) (access, refresh time.Time) {
 	var envelope struct {
 		OAuth struct {

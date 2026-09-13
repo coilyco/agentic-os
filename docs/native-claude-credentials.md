@@ -22,16 +22,18 @@ It seeds one file and lets the symlink farm do the rest.
 Claude Code reads `.credentials.json` from `CLAUDE_CONFIG_DIR` in preference to
 the Keychain, and falls back to the Keychain only when that file is absent. So
 at session creation, when the harness is Claude, the launcher writes the
-Keychain login to `~/.claude/.credentials.json` if that file does not exist.
+Keychain login to `~/.claude/.credentials.json` unless that file already works.
 [The configuration projection](native-harness-config.md) already links every
 entry of `~/.claude` into the session home, so the credential is carried by the
 same mechanism as everything else and needs no code of its own.
 
-Seeding never overwrites a **stamped** file, because copying the stale Keychain
-item over a live one would retire the token every session is using. It does
-replace an **unstamped** one, carrying no comparable `claudeAiOauth.expiresAt`:
-unusable and, under the old rule, unreplaceable at once, which cost every seat a
-login every launch (`teable:coilyco-flight-deck/agentic-os#7234`).
+Seeding never overwrites a **usable** file, since copying the stale Keychain item
+over a live one would retire the token every session is using, and replaces
+anything else (`teable:coilyco-flight-deck/agentic-os#7234`). Usable means a
+token to present, unlapsed or backed by a live refresh token. Gating on the
+**stamp** instead let a husk carrying a future `expiresAt` and neither token
+disarm the seed for good, seen twice on kais-macbook-pro and still unexplained
+(`#7258`). `aos doctor` calls that **hollow**: it needs replacing, not refreshing.
 
 ## Write-back at cleanup
 
@@ -41,13 +43,12 @@ copied back. A session whose entry is **gone** has its Keychain item read
 instead, because the harness deletes `.credentials.json` once the token behind
 it expires and falls back to the item digested from `CLAUDE_CONFIG_DIR`
 (`teable:coilyco-flight-deck/agentic-os#7021`, reproduced under plain `claude`).
-Without it a **stamped** but expired canonical stays expired for good.
 
-Only a token that **outlives** canonical is written, compared on
-`claudeAiOauth.expiresAt`: an unparsable or unstamped **candidate** loses rather
-than winning as zero, and an unstamped **incumbent** loses too, worthless rather
-than infinitely fresh. That separates this from lend-and-return below. Failure
-warns, never blocks. Both are covered in `native_claude_keyring_darwin_test.go`.
+Only a token **worth more** than canonical is written, ranked in three steps
+rather than off one timestamp: carrying a token beats carrying none, a live
+refresh token wins next, and `claudeAiOauth.expiresAt` only breaks the tie, never
+refusing a lapsed stamp on its own. That separates this from lend-and-return
+below. Failure warns, never blocks. Both are in `native_claude_keyring_darwin_test.go`.
 
 Reap then **removes** the item, after both reads and on both paths, since its
 service digests a home that will never exist again and nothing else would remove
@@ -68,8 +69,7 @@ No secret crosses argv: `find-generic-password` returns the payload on stdout,
 `delete-generic-password` carries none, and the file is written at `0600`.
 
 If the canonical file is ever deleted, the next launch reseeds from the Keychain.
-That value may be old enough to be refused, which costs one login, the same as
-having no credential at all.
+Only a husk there costs a login now, since a lapsed access token still refreshes.
 
 ## Settings guardrails
 
