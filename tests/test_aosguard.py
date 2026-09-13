@@ -186,7 +186,7 @@ def test_native_release_wrapper_embeds_the_actions_bridge() -> None:
     assert "//go:embed payload/aosguard payload/agentic_os/*" in text
     assert "PYTHONPATH=" in text
     build = (ROOT / "scripts" / "aos-release-build.sh").read_text(encoding="utf-8")
-    generate = build.index('"$umbra" --project-root "$project" gen')
+    generate = build.index('gen --out "$project/main.go"')
     decode = build.index("find \"$project\" -type f -name '*.lock.json.gz'")
     compile_binary = build.index('go build -trimpath -ldflags "-s -w -X main.Version=')
     assert generate < decode < compile_binary
