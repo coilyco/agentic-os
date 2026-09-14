@@ -1,0 +1,34 @@
+# {{NAME}}
+
+Scaffolded by `aos artifact new`. A self-contained page over the coilyco kit.
+
+    npm install
+    npm run dev     # esbuild dev server
+    npm run build   # emits dist/
+    npm run check   # prettier, the same thing CI should run
+
+## The page is the canvas
+
+`body` carries `k-canvas k-canvas--auto` rather than nesting a canvas inside a
+body with its own ground, which would land two fills on one surface. `--auto`
+answers the viewer's default theme state, which stamps no attribute at all and
+leaves `prefers-color-scheme` as the only signal.
+
+## The vendored kit and its pin
+
+`vendor/coilyco-kit.css` is a compiled build artifact of the website repo,
+copied in and committed. Nothing here fetches styling, fonts or scripts at
+runtime. `vendor/` is in `.prettierignore`: reformatting it would rewrite bytes
+nobody here owns.
+
+`aos artifact check` compares `vendor/coilyco-kit.json`'s **hash** against the
+kit the running `aos` ships. The two obvious alternatives are both wrong. A
+**count** has false negatives, because swapping one literal for another leaves
+every count identical while the tokens change, which is the exact case the pin
+exists to catch. A **byte diff** of the compiled CSS has false positives,
+because a formatting-only commit rewrites bytes and changes nothing semantic.
+
+## Formatting
+
+Keep `npm run check` and CI running the same formatter, or the suite passes
+locally and fails on formatting.

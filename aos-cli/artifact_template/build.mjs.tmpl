@@ -1,0 +1,42 @@
+// One bundler drives both paths, so the dev server and the build cannot drift
+// apart in what they emit.
+import esbuild from "esbuild"
+import fs from "node:fs"
+import path from "node:path"
+
+const out = "dist"
+const serve = process.argv.includes("--serve")
+
+// Copied rather than bundled: the vendored kit is a build artifact of another
+// repo and must reach dist byte-identical, so its pin still describes it.
+function copyStatic() {
+  fs.mkdirSync(path.join(out, "vendor"), { recursive: true })
+  fs.copyFileSync("index.html", path.join(out, "index.html"))
+  fs.copyFileSync("app.css", path.join(out, "app.css"))
+  for (const name of ["coilyco-kit.css", "coilyco-kit.json"]) {
+    fs.copyFileSync(path.join("vendor", name), path.join(out, "vendor", name))
+  }
+}
+
+const options = {
+  entryPoints: ["main.js"],
+  bundle: true,
+  format: "esm",
+  outdir: out,
+  minify: !serve,
+  sourcemap: serve,
+}
+
+copyStatic()
+
+if (serve) {
+  const ctx = await esbuild.context(options)
+  await ctx.watch()
+  const { host, port } = await ctx.serve({ servedir: out })
+  console.log(
+    `serving http://${host === "0.0.0.0" ? "localhost" : host}:${port}`,
+  )
+} else {
+  await esbuild.build(options)
+  console.log(`built ${out}/`)
+}

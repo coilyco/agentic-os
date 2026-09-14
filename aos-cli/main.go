@@ -202,6 +202,7 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 			},
 		},
 		Commands: []*cli.Command{
+			artifactCommand(),
 			{
 				Name:  "repositories",
 				Usage: "print the deterministic host-residency projection from Agent Compose",

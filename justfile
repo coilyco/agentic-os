@@ -295,3 +295,12 @@ test *ARGS:
 # On Windows, update every installed app from the Flight Deck Scoop bucket. Ward self-updates through its audited path; pass -- -WhatIf to preview.
 update-flight-deck-scoop *ARGS:
     @pwsh -NoProfile -File scripts/update-flight-deck-scoop.ps1 "$@"
+
+# Recompile the vendored kit and its pin from a website checkout.
+refresh-artifact-kit website:
+    @cd "{{website}}" && ./node_modules/.bin/sass --no-source-map \
+        --load-path=packages/kit/src packages/kit/src/kit-export.scss \
+        "{{justfile_directory()}}/aos-cli/artifact_assets/coilyco-kit.css"
+    @cd "{{website}}" && node -e "import('./packages/kit/src/manifest.js').then(m=>{const f=m.buildKitManifest('packages/kit/src/_kit.scss');process.stdout.write(JSON.stringify({schema:f.schema,hash:f.hash,count:f.count},null,2)+'\n')})" \
+        > "{{justfile_directory()}}/aos-cli/artifact_assets/coilyco-kit.json"
+    @echo "refreshed: $(head -c 200 aos-cli/artifact_assets/coilyco-kit.json | tr -d '\n')"

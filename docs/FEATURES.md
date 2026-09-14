@@ -91,6 +91,7 @@ Major shipped capabilities, not files.
   and never a Forgejo issue URL.
 - [Canonical agent-id generator](build-output-is-not-content.md) - short lowercase agent IDs.
 - [Agent-compose provider](context-budget.md) - the AOS capability provider contract.
+- Web artifact scaffolder - `aos artifact new`, and `aos artifact check` for a moved kit.
 
 ## See also
 

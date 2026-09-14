@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{NAME}}</title>
+    <link rel="stylesheet" href="./vendor/coilyco-kit.css" />
+    <link rel="stylesheet" href="./app.css" />
+  </head>
+  <!--
+    All three earn their place. .k scopes the kit's focus treatment, which is
+    `.k :focus-visible`, so a page without it falls back to the browser's
+    default ring on a ground the kit never derived it against. The page IS the
+    canvas rather than one nested in a body with its own ground, so the two
+    never resolve to the same fill. --auto answers the viewer's default theme
+    state, which stamps no attribute at all.
+  -->
+  <body class="k k-canvas k-canvas--auto">
+    <main id="app" class="k-column"></main>
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

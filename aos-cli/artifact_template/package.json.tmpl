@@ -1,0 +1,15 @@
+{
+  "name": "{{NAME}}",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node build.mjs --serve",
+    "build": "node build.mjs",
+    "format": "prettier --write .",
+    "check": "prettier --check ."
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "prettier": "^3.4.0"
+  }
+}
