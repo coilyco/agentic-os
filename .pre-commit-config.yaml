@@ -130,6 +130,21 @@ repos:
         always_run: true
         pass_filenames: false
         stages: [pre-commit]
+      # The two the rollout ships to every consumer and this repo ran in
+      # neither stage, while AGENTS.md said it dogfooded both (#7634).
+      - id: trufflehog
+        name: trufflehog (secret scan, offline)
+        entry: scripts/trufflehog-scan.sh
+        language: script
+        pass_filenames: false
+        stages: [pre-commit, pre-push]
+      - id: pr-guard
+        name: pre-push PR guard
+        entry: scripts/pr-guard-pre-push.sh
+        language: script
+        always_run: true
+        pass_filenames: false
+        stages: [pre-push]
       - id: seed-skills-drift
         name: seed_skills_data.py in sync with skill frontmatter
         entry: python -m agentic_os.pre_commit.check_seed_skills_drift
