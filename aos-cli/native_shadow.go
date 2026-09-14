@@ -36,8 +36,11 @@ const (
 	agentComposeRuntimeHomeEnv  = "AGENT_COMPOSE_RUNTIME_HOME"
 	claudeDisableAutoUpdaterEnv = "DISABLE_AUTOUPDATER"
 	nativeSessionEnv            = "AOS_NATIVE_SESSION"
-	nativeSessionProjectsEnv    = "AOS_NATIVE_SESSION_PROJECTS"
-	nativeSessionRootEnv        = "AOS_NATIVE_SESSION_ROOT"
+	// pnpm records the store it installed through, and a shadow home carries a
+	// per-session id, so every later session reads the install as stale.
+	pnpmStoreDirEnv          = "PNPM_CONFIG_STORE_DIR"
+	nativeSessionProjectsEnv = "AOS_NATIVE_SESSION_PROJECTS"
+	nativeSessionRootEnv     = "AOS_NATIVE_SESSION_ROOT"
 	// A launcher inside a shadow needs the values the shadow replaced, so it
 	// can hand a new session the canonical ones. docs/native-shadow.md
 	nativeCanonicalHomeEnv     = "AOS_NATIVE_CANONICAL_HOME"
@@ -1716,6 +1719,14 @@ func createNativeSession(
 	if err := os.Setenv(nativeSessionProjectsEnv, sessionProjects); err != nil {
 		return nativeLaunchWorkspace{}, fmt.Errorf("set native session projects: %w", err)
 	}
+	// Pinned to the canonical home so the recorded path is the same string in
+	// every session. An operator setting wins. docs/native-shadow.md
+	if store := canonicalPnpmStoreDir(runtime.Home); store != "" &&
+		strings.TrimSpace(os.Getenv(pnpmStoreDirEnv)) == "" {
+		if err := os.Setenv(pnpmStoreDirEnv, store); err != nil {
+			return nativeLaunchWorkspace{}, fmt.Errorf("set %s: %w", pnpmStoreDirEnv, err)
+		}
+	}
 	// A launcher inside the shadow reads these to build a new session on the
 	// canonical values rather than on this one's. agentic-os#1460
 	for variable, value := range map[string]string{
@@ -1769,6 +1780,22 @@ func createNativeSession(
 		SessionProjects: sessionProjects,
 		SessionHome:     sessionHome,
 	}, nil
+}
+
+// canonicalPnpmStoreDir mirrors pnpm's own per-platform default, resolved
+// against the canonical home rather than the shadow's. docs/native-shadow.md
+func canonicalPnpmStoreDir(home string) string {
+	if strings.TrimSpace(home) == "" {
+		return ""
+	}
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "pnpm", "store")
+	case "windows":
+		return filepath.Join(home, "AppData", "Local", "pnpm", "store")
+	default:
+		return filepath.Join(home, ".local", "share", "pnpm", "store")
+	}
 }
 
 func stageNativeRoleHome(source, target, projectsRoot string) error {

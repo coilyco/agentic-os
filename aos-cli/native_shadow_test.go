@@ -2181,3 +2181,24 @@ func TestHarvestNativeClaudeLeaseKeepsARecoveryWhenTheDropFails(t *testing.T) {
 		t.Fatalf("stderr = %q, want the removal warning", stderr)
 	}
 }
+
+// A shadow-resolved store makes every later session read the install as stale
+// and offer to purge node_modules (website#7647).
+func TestCanonicalPnpmStoreDirResolvesUnderTheCanonicalHome(t *testing.T) {
+	store := canonicalPnpmStoreDir("/Users/example")
+	if store == "" {
+		t.Fatal("no store path for a real home")
+	}
+	if !strings.HasPrefix(store, "/Users/example") {
+		t.Fatalf("store = %q, want it under the canonical home", store)
+	}
+	if strings.Contains(store, "/tmp/aos/native") {
+		t.Fatalf("store = %q, want no session path", store)
+	}
+}
+
+func TestCanonicalPnpmStoreDirIsEmptyWithoutAHome(t *testing.T) {
+	if got := canonicalPnpmStoreDir("  "); got != "" {
+		t.Fatalf("store = %q, want empty so nothing is pinned", got)
+	}
+}
