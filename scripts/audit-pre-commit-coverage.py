@@ -15,6 +15,7 @@ import base64
 import json
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,7 @@ except ModuleNotFoundError:
 
 from agentic_os import config as cfg  # noqa: E402
 from agentic_os import hook_catalog  # noqa: E402
+from agentic_os import freshness  # noqa: E402
 
 OWNER = "coilysiren"
 AGENTIC_OS_URL = "https://github.com/coilysiren/agentic-os"
@@ -135,6 +137,29 @@ def audit_config(
     return {"repo": repo, "status": "missing", "missing": missing}
 
 
+def _print_freshness(dirs: list[Path]) -> None:
+    """Stamp the read, because these counts get quoted into records and PRs.
+
+    A checkout answers from its last fetch, so a clean number taken from a
+    stale one is wrong and says nothing about it (agentic-os#7632).
+    """
+    now = datetime.now(timezone.utc)
+    print(f"Read at: {now.strftime('%Y-%m-%dT%H:%M:%SZ')}, against local checkouts")
+    rows = [
+        freshness.freshness_line(d.name, fresh, now)
+        for d in dirs
+        if freshness.stale_enough_to_mention(fresh := freshness.checkout_freshness(d))
+    ]
+    if not rows:
+        return
+    print(
+        f"  {len(rows)} of {len(dirs)} checkout(s) are behind or unfetched, so these "
+        "numbers are as of them rather than as of the fleet:"
+    )
+    for row in rows:
+        print(f"    {row}")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=(__doc__ or "").splitlines()[0])
     ap.add_argument(
@@ -162,6 +187,7 @@ def main(argv=None) -> int:
             f"applier ships, per repo after its skips ({AGENTIC_OS_URL})"
         )
         print(f"Source: {args.source}")
+        _print_freshness(dirs)
         print()
         for d in dirs:
             out, why = hook_catalog.opted_out(d)
