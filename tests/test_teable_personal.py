@@ -108,8 +108,9 @@ def test_create_record_refuses_when_a_requested_value_is_discarded(monkeypatch):
 
     assert caught.value.kind == "readback_mismatch"
     assert "tier" in str(caught.value)
-    # There is no delete-record verb, so the refusal has to say the row stayed.
-    assert "no delete-record verb" in str(caught.value)
+    # The row stayed and a blind retry duplicates it, so the refusal says both.
+    assert "exists" in str(caught.value)
+    assert "get-record" in str(caught.value) and "duplicate" in str(caught.value)
 
 
 def test_create_record_reads_back_through_a_separate_request(monkeypatch):

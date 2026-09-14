@@ -15,6 +15,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from typing import Any
 
 from agentic_os import shared_ssl_context
@@ -113,6 +114,38 @@ class TeableAPI:
         return tables
 
 
+def _instant(value: Any) -> datetime | None:
+    """A date-ish string as a UTC instant, or None when it is not one."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def survived(want: Any, stored: Any) -> bool:
+    """Whether `stored` carries everything `want` asked for.
+
+    Subset over dicts and positional over lists, so a discarded key or a
+    reordering still fails while server-added keys do not. See the normalising
+    cases in docs/pre-commit-hygiene.md.
+    """
+    if isinstance(want, dict):
+        return isinstance(stored, dict) and all(
+            key in stored and survived(value, stored[key]) for key, value in want.items()
+        )
+    if isinstance(want, list):
+        if not isinstance(stored, list) or len(want) != len(stored):
+            return False
+        return all(survived(w, s) for w, s in zip(want, stored))
+    want_at, stored_at = _instant(want), _instant(stored)
+    if want_at is not None and stored_at is not None:
+        return want_at == stored_at
+    return want == stored
+
+
 def mismatches(requested: dict[str, Any], stored: dict[str, Any]) -> list[str]:
     """Every requested property that did not survive the round trip.
 
@@ -120,12 +153,18 @@ def mismatches(requested: dict[str, Any], stored: dict[str, Any]) -> list[str]:
     and silently discarded, so a field asked for with five properties can be
     stored with three and return 200 either way. Only a key-by-key diff
     against a re-read finds the two that vanished.
+
+    Compares on what was asked for rather than byte-equality, because this
+    instance normalises what it stores: a date gains a time, a link gains its
+    title, a choice gains a server id. Those are representation rather than
+    loss, and failing on them trained the operator to retry a write that had
+    already landed (agentic-os#6929, #7644).
     """
     problems = []
     for key, want in requested.items():
         if key not in stored:
             problems.append(f"{key}: requested, absent from the read-back")
-        elif stored[key] != want:
+        elif not survived(want, stored[key]):
             problems.append(f"{key}: requested {want!r}, stored {stored[key]!r}")
     return problems
 
@@ -152,7 +191,8 @@ def create_field(api: TeableAPI, table_id: str, spec: dict[str, Any]) -> dict[st
             "readback_mismatch",
             f"field {field_id} exists and does not match what was requested:\n  "
             + "\n  ".join(problems)
-            + "\nNothing was deleted: there is no delete-field verb. Remove it in the Teable UI.",
+            + "\nThe field exists. Read it back with list-fields before creating it "
+            + "again: a second create leaves a duplicate column only the UI can remove.",
         )
     return stored
 

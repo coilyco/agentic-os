@@ -65,8 +65,9 @@ def test_create_field_refuses_when_a_requested_property_is_discarded(monkeypatch
 
     assert caught.value.kind == "readback_mismatch"
     assert "notNull" in str(caught.value)
-    # There is no delete-field verb, so the refusal has to say the field stayed.
-    assert "no delete-field verb" in str(caught.value)
+    # The field stayed and a blind retry duplicates it, so the refusal says both.
+    assert "exists" in str(caught.value)
+    assert "list-fields" in str(caught.value) and "duplicate" in str(caught.value)
 
 
 def test_create_field_succeeds_when_every_property_survives(monkeypatch):

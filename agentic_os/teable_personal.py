@@ -132,8 +132,9 @@ def create_record(
             "readback_mismatch",
             f"record {record_id} exists and does not match what was requested:\n  "
             + "\n  ".join(problems)
-            + f"\nNothing was rolled back: there is no delete-record verb. Fix it with "
-            f"edit-record {table_id} {record_id}, or remove it in the Teable UI.",
+            + f"\nThe row exists. Read it back with get-record {table_id} {record_id} "
+            "before writing it again: a second create leaves a duplicate row, and "
+            "delete-record is refused by policy, so only the Teable UI can remove it.",
         )
     return get_record(api, table_id, record_id, field_key_type=field_key_type)
 
@@ -170,6 +171,15 @@ def _read_spec(path: str) -> dict[str, Any]:
         raise TeableError("invalid_identifier", f"parse spec {path}: {exc}") from exc
     if not isinstance(spec, dict):
         raise TeableError("invalid_identifier", f"{path}: spec must be a JSON object of fields")
+    # The envelope other Teable callers use. Sent as-is the API reports a 404
+    # naming a field called "fields", which reads like a schema fault (#7644).
+    if set(spec) == {"fields"} and isinstance(spec["fields"], dict):
+        raise TeableError(
+            "invalid_identifier",
+            f'{path}: spec is wrapped in a "fields" envelope. This verb takes the bare '
+            'field-values object, so send the contents of "fields" rather than the '
+            "object around it.",
+        )
     return spec
 
 
