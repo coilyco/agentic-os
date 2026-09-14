@@ -22,7 +22,9 @@ runtime. `vendor/` is in `.prettierignore`: reformatting it would rewrite bytes
 nobody here owns.
 
 `aos artifact check` compares `vendor/coilyco-kit.json`'s **hash** against the
-kit the running `aos` ships. The two obvious alternatives are both wrong. A
+kit the running `aos` ships, and verifies the stylesheet against the
+`css_sha256` that pin records, so an edited or deleted vendor copy fails rather
+than passing on a sidecar nobody edits by hand. The two obvious alternatives are both wrong. A
 **count** has false negatives, because swapping one literal for another leaves
 every count identical while the tokens change, which is the exact case the pin
 exists to catch. A **byte diff** of the compiled CSS has false positives,

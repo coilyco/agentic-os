@@ -153,3 +153,80 @@ func TestEmbeddedKitPinIsWellFormed(t *testing.T) {
 		t.Errorf("count = %d", pin.Count)
 	}
 }
+
+// The pin describes a stylesheet, so the check has to open it. Before this,
+// a project whose vendored CSS had been edited still reported current.
+func TestArtifactCheckCatchesAnEditedStylesheet(t *testing.T) {
+	root := scaffoldInto(t, "demo")
+	css := filepath.Join(root, "vendor", "coilyco-kit.css")
+	body, err := os.ReadFile(css)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(css, append(body, []byte("\n.injected{}\n")...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, err := artifactCheck(root)
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	if result.CSSProblem == "" {
+		t.Fatal("an edited stylesheet reported intact")
+	}
+}
+
+// An absent stylesheet is not a current one, under any reading of the help.
+func TestArtifactCheckCatchesADeletedStylesheet(t *testing.T) {
+	root := scaffoldInto(t, "demo")
+	if err := os.Remove(filepath.Join(root, "vendor", "coilyco-kit.css")); err != nil {
+		t.Fatal(err)
+	}
+	result, err := artifactCheck(root)
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	if !strings.Contains(result.CSSProblem, "absent") {
+		t.Fatalf("CSSProblem = %q, want it to name the absence", result.CSSProblem)
+	}
+}
+
+// A project scaffolded before the digest existed must be told it cannot be
+// verified, rather than passing on a check that never ran.
+func TestArtifactCheckNamesAPinWithoutADigest(t *testing.T) {
+	root := scaffoldInto(t, "demo")
+	pinPath := filepath.Join(root, "vendor", "coilyco-kit.json")
+	raw, err := os.ReadFile(pinPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pin kitPin
+	if err := json.Unmarshal(raw, &pin); err != nil {
+		t.Fatal(err)
+	}
+	pin.CSS = ""
+	body, err := json.Marshal(pin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pinPath, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, err := artifactCheck(root)
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	if !strings.Contains(result.CSSProblem, "css_sha256") {
+		t.Fatalf("CSSProblem = %q", result.CSSProblem)
+	}
+}
+
+func TestArtifactCheckPassesOnAnIntactStylesheet(t *testing.T) {
+	root := scaffoldInto(t, "demo")
+	result, err := artifactCheck(root)
+	if err != nil {
+		t.Fatalf("check: %v", err)
+	}
+	if result.CSSProblem != "" || result.Stale {
+		t.Fatalf("fresh project: stale=%v problem=%q", result.Stale, result.CSSProblem)
+	}
+}
