@@ -58,6 +58,6 @@ wrap aosguard ops teable-personal {
 
     can run edit-record {
         argv "-P" "-m" "agentic_os.teable_personal" "edit-record"
-        describe "update a record, then re-read it through a separate request and refuse unless every requested field value survived"
+        describe "update a record, then re-read it through a separate request and refuse unless every requested field value survived; also the only way to empty a row here, because delete-record is refused by policy: Teable has no undo, so a deleted row is gone outside a restic PVC restore"
     }
 }
