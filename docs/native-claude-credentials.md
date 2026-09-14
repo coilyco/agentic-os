@@ -85,12 +85,12 @@ the authoring-vs-rollout rule in [AGENTS.md](../AGENTS.md).
 `permissions.allow` and removes only the two `RETIRED_*` lists, so operator
 rules and the sibling `ask` / `defaultMode` keys survive, and a rerun no-ops.
 
-Two shut, none open:
+One shut, none open:
 
-* **Live-infrastructure CLIs** - `gcloud`, `kubectl`, `helm`, `terraform`,
-  `gsutil`, `mongosh`, `mongo`. Each mutates production or a database, so it
-  belongs to an operator or a guarded `aosguard ops` verb, not a raw agent
-  shell. The deny is what steers an agent to the guarded surface.
+The live-infrastructure CLI denies (`gcloud`, `kubectl`, `helm`, `terraform`,
+`gsutil`, `mongosh`, `mongo`) are **retired**, Kai's call 2026-09-14: a deny
+matched the command string, missing `just <verb>` while blocking the direct call.
+
 * **Harness memory directory** - `Edit` against
   `**/.claude/projects/**/memory/**`, one rule that binds Write, Edit,
   MultiEdit, and NotebookEdit. `autoMemoryEnabled: false` stops the harness

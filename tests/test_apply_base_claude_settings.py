@@ -65,8 +65,19 @@ def test_permission_rules_append_without_touching_sibling_permission_keys() -> N
     assert permissions["defaultMode"] == "auto"
     assert permissions["deny"][0] == "Bash(rm -rf /*)"
     assert permissions["deny"][1:] == MODULE.BASE_DENIED_PERMISSIONS
-    assert "Bash(kubectl *)" in permissions["deny"]
     assert "Edit(**/.claude/projects/**/memory/**)" in permissions["deny"]
+
+
+def test_a_retired_deny_is_removed_from_a_converged_host() -> None:
+    """Dropping a rule from the base list only stops re-adding it. Retiring is
+    what clears it from every host that already has it."""
+    settings = {"permissions": {"deny": ["Bash(kubectl *)", "Bash(rm -rf /*)"]}}
+
+    changed = MODULE.merge_base_settings(settings)
+
+    assert "Bash(kubectl *)" not in settings["permissions"]["deny"]
+    assert "Bash(rm -rf /*)" in settings["permissions"]["deny"]
+    assert "permissions.deny" in changed
 
 
 def test_permission_rules_are_created_when_the_key_is_absent() -> None:

@@ -31,9 +31,15 @@ BASE_SETTINGS: dict = {
 }
 BASE_DENIED_MCP_SERVERS = [{"serverName": "claude-in-chrome"}]
 
-# Fleet-wide permission denies: live-infrastructure CLIs that belong to a
-# guarded verb, plus the memory dir. See docs/native-claude-credentials.md.
+# Fleet-wide permission denies. See docs/native-claude-credentials.md.
 BASE_DENIED_PERMISSIONS = [
+    "Edit(**/.claude/projects/**/memory/**)",
+]
+
+# The one exception to append-only: dropping a rule from the list above leaves
+# it on every converged host. See docs/native-claude-credentials.md.
+RETIRED_DENIED_PERMISSIONS = [
+    # Live-infrastructure CLIs, retired 2026-09-14. Reasoning in the doc page.
     "Bash(gcloud *)",
     "Bash(kubectl *)",
     "Bash(helm *)",
@@ -41,12 +47,6 @@ BASE_DENIED_PERMISSIONS = [
     "Bash(gsutil *)",
     "Bash(mongosh *)",
     "Bash(mongo *)",
-    "Edit(**/.claude/projects/**/memory/**)",
-]
-
-# The one exception to append-only: dropping a rule from the list above leaves
-# it on every converged host. See docs/native-claude-credentials.md.
-RETIRED_DENIED_PERMISSIONS = [
     # Edit(path) rules cover every file-editing tool. Write(path) matches nothing.
     "Write(**/.claude/projects/**/memory/**)",
     # The GitHub pull-request guard moved to umbra: the guarded binary refuses
