@@ -16,6 +16,13 @@ HOOKS_FILE = REPO_ROOT / ".pre-commit-hooks.yaml"
 # nothing into them and the audit expects nothing of them.
 VENDOR_ORGS = {"StrangeLoopGames"}
 
+# A repo carrying this file has opted out, fail-closed.
+IGNORE_MARKER = ".agentic-os-ignore"
+
+# The authoring repo wires every validator as `repo: local`, so the rollout
+# writes it no block and it still owes coverage. docs/pre-commit-hygiene.md.
+SOURCE_REPO = "agentic-os"
+
 # Hand-editable. DEFAULT_REV tracks the newest tag on its own, so REMOVING an
 # id here must land with the release that drops it.
 DEFAULT_HOOK_IDS = [
@@ -69,13 +76,26 @@ def hook_ids_for(repo: str) -> list[str]:
     return [h for h in DEFAULT_HOOK_IDS if h not in skips]
 
 
-def ships_to(repo_dir: Path) -> bool:
-    """Whether the rollout writes into this checkout at all.
+def opted_out(repo_dir: Path) -> tuple[bool, str]:
+    """Whether this checkout is outside the suite entirely, and why.
 
-    The audit asks the same question, so a vendor clone cannot be reported as
-    missing hooks the applier refuses to send it (agentic-os#7635).
+    Vendor clones and marker files owe no coverage, so the audit reports them
+    as exempt rather than as gaps (agentic-os#7628, #7635, #7638).
     """
-    return repo_dir.parent.name not in VENDOR_ORGS
+    if repo_dir.parent.name in VENDOR_ORGS:
+        return True, f"vendor org ({repo_dir.parent.name})"
+    if (repo_dir / IGNORE_MARKER).exists():
+        return True, f"opted out ({IGNORE_MARKER})"
+    return False, ""
+
+
+def ships_to(repo_dir: Path) -> bool:
+    """Whether the rollout renders the managed block into this checkout.
+
+    Narrower than owing coverage: the source repo gets no block and is still
+    audited, because a hand-maintained config drifts too (agentic-os#7634).
+    """
+    return not opted_out(repo_dir)[0] and repo_dir.name != SOURCE_REPO
 
 
 def hook_stages(hooks_file: Path | None = None) -> dict[str, list[str]]:

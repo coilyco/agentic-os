@@ -66,7 +66,7 @@ def default_rev() -> str:
 
 # A repo carrying this marker at its root opts out of all baseline
 # normalization, fail-closed. Remove the file to re-enroll.
-IGNORE_MARKER = ".agentic-os-ignore"
+IGNORE_MARKER = hook_catalog.IGNORE_MARKER
 
 BEGIN_MARKER = "# BEGIN managed by agentic-os/scripts/apply-agentic-os-hooks.py"
 END_MARKER = "# END managed by agentic-os/scripts/apply-agentic-os-hooks.py"
@@ -494,17 +494,16 @@ def install_pre_commit_hooks(repo_dir: Path) -> str:
 
 def apply_to_repo(repo_dir: Path, rev: str, dry_run: bool) -> tuple[str, str]:
     repo = repo_dir.name
-    if not hook_catalog.ships_to(repo_dir):
-        return ("skipped", f"vendor org ({repo_dir.parent.name})")
+    out, why = hook_catalog.opted_out(repo_dir)
+    if out:
+        return ("skipped", why)
     if not repo_dir.is_dir():
         return ("skipped", "not checked out locally")
     if not (repo_dir / ".git").exists():
         return ("skipped", "not a git working tree")
-    if (repo_dir / IGNORE_MARKER).exists():
-        return ("skipped", f"opted out ({IGNORE_MARKER})")
     # The source repo dogfoods through `repo: local`, so writing the managed
     # block would duplicate every hook id. Its git hooks still install (#1192).
-    if repo == "agentic-os":
+    if repo == hook_catalog.SOURCE_REPO:
         if dry_run:
             return ("dryrun", "install hooks only, config is hand-maintained")
         status = install_pre_commit_hooks(repo_dir)

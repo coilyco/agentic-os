@@ -72,8 +72,32 @@ def test_hook_ids_for_drops_the_eco_skip() -> None:
 
 # The applier refuses to write into a vendor org, so the audit must expect
 # nothing of one rather than reporting it missing every hook (#7635).
-def test_ships_to_refuses_a_vendor_org() -> None:
-    assert not hook_catalog.ships_to(Path("/p/StrangeLoopGames/Eco"))
+def test_opted_out_covers_a_vendor_org() -> None:
+    out, why = hook_catalog.opted_out(Path("/p/StrangeLoopGames/Eco"))
+    assert out and "vendor org" in why
+    assert not hook_catalog.opted_out(Path("/p/coilyco-bridge/lore"))[0]
+
+
+# A marker file is the explicit opt-out, and the audit honoured neither until
+# #7638, so a repo that asked to be left alone was its loudest failure.
+def test_opted_out_covers_the_ignore_marker(tmp_path: Path) -> None:
+    repo = tmp_path / "org" / "quiet-repo"
+    repo.mkdir(parents=True)
+    assert not hook_catalog.opted_out(repo)[0]
+    (repo / hook_catalog.IGNORE_MARKER).write_text("")
+    out, why = hook_catalog.opted_out(repo)
+    assert out and hook_catalog.IGNORE_MARKER in why
+
+
+# Merging the two predicates would silence a real finding: the source repo takes
+# no block and still owes coverage, which is how #7634 surfaced.
+def test_source_repo_takes_no_block_but_is_not_exempt() -> None:
+    source = Path("/p/coilyco-flight-deck/agentic-os")
+    assert not hook_catalog.ships_to(source)
+    assert not hook_catalog.opted_out(source)[0]
+
+
+def test_an_ordinary_repo_takes_the_block() -> None:
     assert hook_catalog.ships_to(Path("/p/coilyco-bridge/lore"))
 
 

@@ -164,8 +164,11 @@ def main(argv=None) -> int:
         print(f"Source: {args.source}")
         print()
         for d in dirs:
-            if not hook_catalog.ships_to(d):
-                results.append({"repo": d.name, "status": "vendor", "missing": []})
+            out, why = hook_catalog.opted_out(d)
+            if out:
+                results.append(
+                    {"repo": d.name, "status": "exempt", "missing": [], "why": why}
+                )
                 continue
             results.append(
                 audit_config(
@@ -200,7 +203,7 @@ def main(argv=None) -> int:
     for r in results:
         by_status.setdefault(r["status"], []).append(r)
 
-    for status in ("ok", "vendor", "missing", "no-config", "error"):
+    for status in ("ok", "exempt", "missing", "no-config", "error"):
         entries = by_status.get(status, [])
         if not entries:
             continue
@@ -208,6 +211,8 @@ def main(argv=None) -> int:
         for r in entries:
             if r["missing"]:
                 print(f"  {r['repo']:28} missing: {', '.join(r['missing'])}")
+            elif r.get("why"):
+                print(f"  {r['repo']:28} {r['why']}")
             elif r.get("error"):
                 print(f"  {r['repo']:28} error: {r['error']}")
             else:
