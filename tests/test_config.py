@@ -301,6 +301,18 @@ def test_iter_workspace_repos_refuses_a_missing_root(tmp_path: Path) -> None:
         iter_workspace_repos(tmp_path / "nope")
 
 
+# The message sends a reader somewhere, so it has to be somewhere that answers.
+# It cited a closed record about an unrelated audit bug (#7772).
+def test_the_missing_root_message_points_at_the_doc_that_governs(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(WorkspaceRootMissing) as raised:
+        iter_workspace_repos(tmp_path / "nope")
+
+    assert "docs/native-shadow.md" in str(raised.value)
+    assert "undecided" not in str(raised.value)
+
+
 def test_iter_workspace_repos_refuses_a_file_as_root(tmp_path: Path) -> None:
     root = tmp_path / "projects"
     root.write_text("not a directory")

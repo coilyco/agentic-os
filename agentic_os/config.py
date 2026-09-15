@@ -92,11 +92,13 @@ def iter_workspace_repos(root: Path | None = None) -> list[Path]:
             f"workspace root {base} is not a directory, so the fleet cannot be "
             "walked. Every caller of this function treats an empty result as a "
             "clean fleet, so it refuses rather than returning one. Set "
-            "$PROJECTS_ROOT to the root you mean. In a native AOS session $HOME "
-            "is the session shadow and $AOS_NATIVE_SESSION_PROJECTS holds its "
-            "projects root, which is deliberately not consulted here: whether a "
-            "fleet rollout may run against a shadow is undecided "
-            "(teable:coilyco-flight-deck/agentic-os#7628)."
+            "$PROJECTS_ROOT to the root you mean. In a native AOS session "
+            "$HOME is the session shadow, which omits the projects entry so a "
+            "habitual path fails here rather than editing a canonical checkout "
+            "by accident. $AOS_NATIVE_SESSION_PROJECTS holds the session's own "
+            "root. Naming the root you mean is the sanctioned way through, "
+            "because the omission removes the accident and not the capability "
+            "(docs/native-shadow.md)."
         )
 
     def visible(path: Path) -> bool:
