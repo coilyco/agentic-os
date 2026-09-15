@@ -30,9 +30,9 @@ A dead lease waits out a 24-hour grace, because a crash and a clean exit look id
 
 ## Why a landed branch used to be unreapable
 
-A session branch goes once its commits exist somewhere else, which `git rev-list <branch> --not --remotes=origin` answered until the forge started squash-merging and deleting the remote branch. After that the branch's commits are on no remote ref and never will be, so the test said "unpushed" forever and the ref count only ever went up.
+A session branch goes once its commits exist somewhere else, which `git rev-list <branch> --not --remotes=origin` answered until the forge started squash-merging and deleting the remote branch. After that the branch's commits are on no remote ref, so the test said "unpushed" forever.
 
-Patch identity cannot see it either, since a two-commit branch squashed into one shows both as unmerged under `git cherry`. Content can: a branch is spent when it changes nothing the default branch lacks, tested as an empty `git diff origin/main <branch> -- <paths it touched>`, and only when it had a configured upstream that has since been pruned. A branch never pushed may hold the only copy of its commits and stays out of that path. A path the default branch has since changed again fails the test, which errs toward keeping.
+Patch identity cannot see it either, since a two-commit squash shows both as unmerged under `git cherry`. Content can, two ways. Reaping needs an empty `git diff origin/main <branch> -- <paths it touched>` and a pruned upstream, so a never-pushed branch survives, and so does one main moved past. The warnings only silence a line, so they ask wider: `merge-tree --write-tree -X ours origin/main <branch>` returning main's own tree means merging changes nothing, and `-X ours` drops only the hunks main resolved itself, so a branch-only hunk still warns. Needs git 2.43 (agentic-os#7687).
 
 Session branches are also the ID ledger `reserveNativeSession` reads, so one is reaped only when no lease and no worktree still names it. Recycling the ID of a session nothing references is correct, recycling a live one is the hazard, and the lease is what tells them apart.
 

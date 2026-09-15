@@ -70,3 +70,23 @@ func nativeDefaultRemoteRef(repository string) string {
 	}
 	return ""
 }
+
+// Wider than nativeBranchLanded, which deletes a ref rather than silencing a
+// warning. Needs git 2.43 for `-X`. docs/native-shadow.md
+func nativeBranchSubsumed(repository, branch string) bool {
+	base := nativeDefaultRemoteRef(repository)
+	if base == "" {
+		return false
+	}
+	landed, err := nativeGit(repository, "rev-parse", base+"^{tree}")
+	if err != nil || landed == "" {
+		return false
+	}
+	merged, err := nativeGit(repository, "merge-tree", "--write-tree",
+		"-X", "ours", base, "refs/heads/"+branch)
+	if err != nil {
+		return false
+	}
+	merged, _, _ = strings.Cut(merged, "\n")
+	return merged == landed
+}

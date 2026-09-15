@@ -880,6 +880,11 @@ func nativeStuckReading(session string, artifact nativeArtifact) (nativeStuckArt
 	if err != nil || unpushed == 0 {
 		return nativeStuckArtifact{}, false
 	}
+	// The count is reachability, which a squash merge destroys while keeping the
+	// content, so it alone flags every landed branch forever. agentic-os#7687
+	if nativeBranchSubsumed(artifact.Repository, artifact.Branch) {
+		return nativeStuckArtifact{}, false
+	}
 	return nativeStuckArtifact{session: session, artifact: artifact, unpushed: unpushed}, true
 }
 
@@ -1228,8 +1233,8 @@ func nativeCheckedOutBranches(path string) map[string]struct{} {
 	return held
 }
 
-// Patch-id, not reachability: a squashed branch is reachable from no origin ref
-// while holding no work. docs/native-session-start.md
+// Reachability misses a squash, and patch-id misses one that collapsed more
+// than a single commit, so content is asked first. docs/native-session-start.md
 func nativeUnlandedCount(path, branch string) int {
 	ahead, err := nativeGit(path, "rev-list", "--count",
 		"refs/heads/"+branch, "--not", "--remotes=origin")
@@ -1237,6 +1242,11 @@ func nativeUnlandedCount(path, branch string) int {
 		return 0
 	}
 	if count, err := strconv.Atoi(strings.TrimSpace(ahead)); err != nil || count == 0 {
+		return 0
+	}
+	// Patch-id cannot see a squash either, so it marks a landed multi-commit
+	// branch `+` forever. Content answers first. agentic-os#7687
+	if nativeBranchSubsumed(path, branch) {
 		return 0
 	}
 	listed, err := nativeGit(path, "cherry", "origin/main", "refs/heads/"+branch)

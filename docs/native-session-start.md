@@ -60,8 +60,8 @@ a dead session's branch whose worktree is gone and whose commits are local-only,
 
 Neither reading sees a branch no lease recorded, made by hand or outliving its lease: one checkout held 78 branches with 13 reported
 (agentic-os#1286). Startup now names a branch no worktree or lease holds, with no `origin` counterpart, carrying a commit `git
-cherry origin/main` marks `+`. Patch-id not reachability: the merge style is squash, so the test above calls every landed branch
-unpushed.
+cherry origin/main` marks `+`. Patch-id not reachability, and content before both, since a squash matches
+neither commit (agentic-os#7687).
 
 ## Resident checkout drift
 
