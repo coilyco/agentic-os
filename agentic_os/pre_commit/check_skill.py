@@ -460,9 +460,15 @@ def check_size_caps(
     md_path: Path, spec: Spec, report: Report, role: str | None = None
 ) -> None:
     # Frozen-archive exemption: loaded by name on revisit, not by trigger.
+    # Repo-relative: md_path is absolute, so an ancestor dir name would exempt all.
     archive_parts = set(spec.archive_path_components)
-    if archive_parts and archive_parts.intersection(md_path.parts):
-        return
+    if archive_parts:
+        try:
+            scoped = md_path.relative_to(REPO_ROOT).parts
+        except ValueError:
+            scoped = md_path.parts
+        if archive_parts.intersection(scoped):
+            return
     if role == "thin":
         max_lines, max_bytes = THIN_MAX_LINES, THIN_MAX_BYTES
         cap_note = " (role: thin, 1/4 cap)"
