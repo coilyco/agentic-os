@@ -66,4 +66,4 @@ def test_audit_honours_per_repo_skips() -> None:
     )
     result = audit.audit_config("lore", config, expected)
     assert result["status"] == "ok", result
-    assert "check-skills" not in expected
+    assert "repo-pointer-skills" not in expected

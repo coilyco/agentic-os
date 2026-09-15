@@ -61,8 +61,14 @@ def test_undeclared_shipped_ids_flags_an_id_the_catalog_never_defines(
 
 def test_hook_ids_for_drops_the_repos_declared_skips() -> None:
     ids = hook_catalog.hook_ids_for("lore")
-    assert "check-skills" not in ids
+    assert "repo-pointer-skills" not in ids
     assert "documentation-size" in ids
+
+
+# lore declared a 4000-char entry cap that nothing evaluated until this hook
+# shipped there alongside its categories.yaml (teable:coilyco-bridge/lore#7753).
+def test_hook_ids_for_ships_check_skills_to_lore() -> None:
+    assert "check-skills" in hook_catalog.hook_ids_for("lore")
 
 
 def test_hook_ids_for_drops_the_eco_skip() -> None:
