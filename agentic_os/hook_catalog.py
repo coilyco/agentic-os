@@ -120,6 +120,8 @@ def unarmed_spec_hooks(repo_dir: Path, referenced: set[str]) -> list[str]:
     manual-only one, which never runs. This one runs, passes, and checks
     nothing, so only a filesystem look tells it apart from real coverage.
     """
+    from agentic_os.generators.generate_repo_pointer_skill import SKILL_PREFIX
+
     out: list[str] = []
     for hook_id, (roots, spec_name, entrypoint) in sorted(SPEC_REQUIRED.items()):
         if hook_id not in referenced:
@@ -128,7 +130,13 @@ def unarmed_spec_hooks(repo_dir: Path, referenced: set[str]) -> list[str]:
             base = repo_dir / root
             if not base.is_dir():
                 continue
-            if any(base.glob(f"*/{entrypoint}")) and not (base / spec_name).is_file():
+            owned = [p for p in base.glob(f"*/{entrypoint}")]
+            # repo-pointer-skills owns a generated pointer, so a tree of
+            # nothing else has no check going unperformed. docs/FEATURES.md.
+            hand_written = [
+                p for p in owned if not p.parent.name.startswith(SKILL_PREFIX)
+            ]
+            if hand_written and not (base / spec_name).is_file():
                 out.append(f"{hook_id}: no {root}/{spec_name}")
             break
     return out

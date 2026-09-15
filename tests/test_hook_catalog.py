@@ -145,6 +145,27 @@ def test_a_repo_that_does_not_run_the_hook_is_not_reported(tmp_path: Path) -> No
     assert hook_catalog.unarmed_spec_hooks(repo, set()) == []
 
 
+# repo-pointer-skills owns a generated pointer, so a tree of nothing else has
+# no check going unperformed and a finding here would never be acted on.
+def test_a_tree_of_only_generated_pointers_is_not_reported(tmp_path: Path) -> None:
+    pointer = tmp_path / ".agents" / "skills" / "repo-eco-app"
+    pointer.mkdir(parents=True)
+    (pointer / "SKILL.md").write_text("x", encoding="utf-8")
+
+    assert hook_catalog.unarmed_spec_hooks(tmp_path, {"check-skills"}) == []
+
+
+def test_one_hand_written_skill_beside_a_pointer_is_reported(tmp_path: Path) -> None:
+    skills = tmp_path / ".agents" / "skills"
+    for name in ("repo-eco-app", "coding-go"):
+        (skills / name).mkdir(parents=True)
+        (skills / name / "SKILL.md").write_text("x", encoding="utf-8")
+
+    assert hook_catalog.unarmed_spec_hooks(tmp_path, {"check-skills"}) == [
+        "check-skills: no .agents/skills/categories.yaml"
+    ]
+
+
 def test_a_repo_with_no_skills_at_all_is_not_reported(tmp_path: Path) -> None:
     # Nothing to check is not the same as checking nothing.
     assert hook_catalog.unarmed_spec_hooks(tmp_path, {"check-skills"}) == []
