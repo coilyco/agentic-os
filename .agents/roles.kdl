@@ -67,28 +67,4 @@ roles {
         composed-skill "personal-preference-*"
         composed-skill "personal-preferences"
     }
-
-    // Live in the launch profiles and the roster since it landed, with only
-    // this allowlist and its icon lagging. Selected off the role's purpose.
-    role analyst {
-        composed-skill writing-system-improvement-vocab
-        composed-skill tooling-code-review
-        composed-skill tooling-tpm-causal-claim-audit
-        composed-skill tooling-tpm-evidence-synthesis
-        composed-skill coding-python
-        composed-skill "tooling-eval-*"
-        composed-skill "coding-core-*"
-    }
-
-    // Declared for the app icon. Empty was asked for and this hook refuses it,
-    // so psych takes the baseline only: teable:coilyco-flight-deck/agentic-os#7557.
-    role psych {
-        composed-skill writing-system-improvement-vocab
-    }
-
-    role reporter {
-        composed-skill writing-system-improvement-vocab
-        composed-skill coding-python
-        composed-skill "coding-core-*"
-    }
 }

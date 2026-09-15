@@ -28,10 +28,15 @@ func TestCompletionOffersEveryLiveRoleFirst(t *testing.T) {
 		}
 		slugs = append(slugs, slug)
 	}
-	for _, want := range []string{"platform", "sysadmin", "science", "frontend", "gamedev", "director", "advocate", "analyst"} {
+	for _, want := range []string{"platform", "sysadmin", "science", "frontend", "gamedev", "director", "advocate"} {
 		if !contains(slugs, want) {
 			t.Fatalf("completion should offer %q: %v", want, slugs)
 		}
+	}
+	// The fixture archives analyst, and completing into a refusal is the one
+	// thing completion exists to prevent.
+	if contains(slugs, "analyst") {
+		t.Fatalf("completion should not offer the archived role: %v", slugs)
 	}
 }
 

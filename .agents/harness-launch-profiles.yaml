@@ -13,9 +13,3 @@ roles:
     agent: claude
   advocate:
     agent: claude
-  analyst:
-    agent: claude
-  psych:
-    agent: claude
-  reporter:
-    agent: claude

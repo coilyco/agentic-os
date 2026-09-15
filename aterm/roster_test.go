@@ -36,6 +36,43 @@ func TestParseRosterRejectsDriftedContracts(t *testing.T) {
 	}
 }
 
+// Archiving is how a seat retires, and an archived role still ships its native
+// seats, so nothing downstream can tell it apart once the flag is dropped.
+func TestParseRosterDropsArchivedRoles(t *testing.T) {
+	raw := `{"format":"agent-compose.catalog.v1","items":[
+		{"slug":"platform","seats":[{"harness":"claude"}]},
+		{"slug":"analyst","archived":true,"seats":[{"harness":"claude"},{"harness":"codex"}]}
+	]}`
+	document, err := parseRoster([]byte(raw))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if got := document.slugs(); len(got) != 1 || got[0] != "platform" {
+		t.Fatalf("slugs = %v, want only the live role", got)
+	}
+	if _, ok := document.role("analyst"); ok {
+		t.Fatal("an archived role must not resolve, or a named launch still reaches it")
+	}
+	for _, role := range listRoster(document).Roles {
+		if role.Slug == "analyst" {
+			t.Fatal("an archived role must not be listed or completed")
+		}
+	}
+}
+
+// A roster where every role retired is not the same failure as an empty one,
+// and an operator reading "empty" would go looking at the wrong end.
+func TestParseRosterSeparatesAllArchivedFromEmpty(t *testing.T) {
+	raw := `{"format":"agent-compose.catalog.v1","items":[{"slug":"analyst","archived":true}]}`
+	_, err := parseRoster([]byte(raw))
+	if err == nil {
+		t.Fatal("expected an all-archived roster to be rejected")
+	}
+	if !strings.Contains(err.Error(), "archived") {
+		t.Fatalf("the refusal should name archiving: %v", err)
+	}
+}
+
 func TestNativeSeatsDropsSeatsWithNoNativeHarness(t *testing.T) {
 	document := loadRosterFixture(t)
 	frontend, ok := document.role("frontend")

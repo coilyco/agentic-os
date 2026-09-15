@@ -26,7 +26,7 @@ Major shipped capabilities, not files.
 - [Toolchain update gate](native-session-start.md) - startup blocks daily on a
   stale `aos`, refuses off-TTY, fails open. `AOS_SKIP_UPDATE_GATE=1` bypasses.
 - [Agent-compose provider](context-budget.md) - scoped skills,
-  personality, and eight deployed roles across the Agent Compose v3 roster.
+  personality, and the deployed roles of the Agent Compose v3 roster.
 - [Agent tool evaluation](../.agents/skills/tooling-agent-tool-evaluation/SKILL.md) - cross-harness tool evals.
 - [Role-composed skills](role-composed-skills.md) - v2 Core Roster method slices.
 - [AOS launcher](aos-cli.md) - role context with

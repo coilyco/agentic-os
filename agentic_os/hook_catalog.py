@@ -34,6 +34,9 @@ DEFAULT_HOOK_IDS = [
     "actions-run-one-line",
     "source-doc-refs",
     "check-skills",
+    # Sibling of check-skills over .agents/composed, authored #1073 and never
+    # shipped, so aosk grew six unselected sources green. Inert without one.
+    "check-composed-skills",
     "dead-cross-links",
     "repo-pointer-skills",
     "misplaced-skills",

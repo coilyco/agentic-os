@@ -55,6 +55,9 @@ type rosterRole struct {
 	Seats         []rosterSeat   `json:"seats"`
 	Personalities []string       `json:"personalities"`
 	FavoriteColor string         `json:"favorite_color"`
+	// An archived role arrives fully populated, native seats included, so this
+	// flag is all that separates it from a live one.
+	Archived bool `json:"archived,omitempty"`
 }
 
 type rosterDocument struct {
@@ -156,6 +159,18 @@ func parseRoster(raw []byte) (rosterDocument, error) {
 			return rosterDocument{}, fmt.Errorf("the Agent Compose roster has unsafe role %q", item.Slug)
 		}
 	}
+	// Dropping archived roles at this seam is what takes a retired seat out of
+	// the picker, completion, a named launch, and bundles at once. docs/aterm.md.
+	live := make([]rosterRole, 0, len(document.Items))
+	for _, item := range document.Items {
+		if !item.Archived {
+			live = append(live, item)
+		}
+	}
+	if len(live) == 0 {
+		return rosterDocument{}, fmt.Errorf("every role in the Agent Compose roster is archived")
+	}
+	document.Items = live
 	return document, nil
 }
 

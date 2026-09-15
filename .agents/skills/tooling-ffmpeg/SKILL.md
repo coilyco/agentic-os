@@ -32,7 +32,13 @@ options.
    ```
 
 4. The agent starts each write with `ffmpeg -hide_banner -n` so FFmpeg refuses
-   to overwrite an existing file.
+   to overwrite an existing file. `-n` guards only the path the agent never
+   meant to overwrite. When the deliverable must land where a file already
+   sits, the agent writes a new sibling and renames it into place on success,
+   because FFmpeg 5.x truncates the output during option parsing, before the
+   filter graph initialises. A run that fails on a bad filter argument has
+   destroyed that file already, and a cleanup keyed on the output existing
+   after a failure then deletes a file it never created.
 5. The agent maps streams explicitly, keeps optional streams optional, and uses
    stream copy when the task changes only the container or timing:
 
@@ -51,6 +57,9 @@ options.
 
 7. The agent probes the output, compares its streams and duration with the
    intended result, and previews representative video frames or audio.
+   Anything that renders text or composites an image is verified by looking at
+   a frame. libass and drawtext draw an empty box for every character they have
+   no glyph for, and FFmpeg still exits 0, so no stream summary carries it.
 
 ## Guardrails
 
@@ -66,3 +75,27 @@ options.
 * The agent treats a successful exit as necessary but insufficient. A valid
   container can still contain the wrong streams, duration, dimensions, or
   channel layout.
+* The agent reads `r_frame_rate` against `avg_frame_rate`. When they disagree
+  the source is variable frame rate, which is ordinary for phone and screen
+  captures. A stream-copy cut there lands on a frozen or wrong frame while
+  reporting success, and a re-encode needs `-fps_mode cfr` at a rate the agent
+  chose, because a dropped-frame average arrives at values like 23.4.
+* The agent reads the transfer and primaries before it picks an encoder.
+  Pushing a BT.2020, PQ, HLG, or Dolby Vision source through an SDR path
+  flattens the colours and reports nothing, and tagging BT.709 onto BT.2020
+  pixels is wrong twice over. The agent keeps the source tags or tonemaps on
+  purpose.
+* The agent brings the frame to its delivery size before burning text into it.
+  Text burned before a crop or resize lands off-frame, and text burned at an
+  intermediate size and upscaled later comes out soft, because a 1280x720
+  source fit to 9:16 is 406x720 until something scales it.
+* The agent rounds width and height to even values for `yuv420p`, and reads the
+  rotation tag phone footage carries before computing the output frame rather
+  than after the result looks sideways.
+* The agent checks true peak alongside integrated loudness, because a file
+  normalised to a LUFS target still clips. A clip measuring at or below
+  -40 LUFS is room tone, wind, or nothing, and raising it to a speech target
+  raises the noise, so the agent says so instead.
+* The agent collapses work that can be one filter graph into one filter graph.
+  Three re-encodes chained by hand cost three generations of quality for one
+  result.

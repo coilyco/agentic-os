@@ -19,6 +19,8 @@ The window opens fullscreen at font size 14.5, which `--start-as` and `--font-si
 
 **It refuses a stale role before it opens anything.** Role slugs turn over, so `aterm` reads `agent-compose catalog roles --json` on every run and names the live roster in the refusal. A transposed slug comes back as `is not a live role. Did you mean platform?` plus every live slug. A seat is checked twice: it must belong to the role and be a harness `agent-compose launch` can start. `penpot` is real but not launchable, and the refusal says which check it failed.
 
+**An archived role is not a live one.** A seat retires by being archived rather than deleted, because `agent-compose overlay` refuses an undefined slug and aosx renders the retired identities through it. The catalogue keeps shipping the role with its native seats, so `archived` is all that separates it from a live one. `parseRoster` drops them at the decode seam, taking a retired seat out of the picker, completion, a named launch, and `aterm bundles` at once.
+
 **Tab completes from the same roster.** `aterm <TAB>` offers the live slugs, `aterm sysadmin <TAB>` only that role's launchable seats, so a slug that turned over stops completing rather than completing into a refusal. The read is under 10ms, so no cache goes stale. `shell/common.sh` registers bash and zsh through `aterm completion <shell>`, after `compinit` in zsh. A missing `agent-compose` yields silence, never a diagnostic mid-keystroke.
 
 **A slow pre-flight names itself.** `aterm` shells out for a seat, roster, and overlay before opening anything and captures their output, so a wrapped `aos` converging the host read as a launcher that had stopped. After two seconds it names the command it waits on.

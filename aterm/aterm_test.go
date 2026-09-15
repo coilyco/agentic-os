@@ -251,13 +251,18 @@ func TestListPrintsEveryLiveRole(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	for _, slug := range []string{"platform", "sysadmin", "science", "frontend", "gamedev", "director", "advocate", "analyst"} {
+	for _, slug := range []string{"platform", "sysadmin", "science", "frontend", "gamedev", "director", "advocate"} {
 		if !strings.Contains(out, slug) {
 			t.Fatalf("listing should name %q: %s", slug, out)
 		}
 	}
 	if strings.Contains(out, "penpot") {
 		t.Fatal("the listing should only offer launchable seats")
+	}
+	// The fixture archives analyst, so the listing is the launchable view
+	// rather than a relay of the catalogue.
+	if strings.Contains(out, "analyst") {
+		t.Fatalf("the listing should drop the archived role: %s", out)
 	}
 }
 
