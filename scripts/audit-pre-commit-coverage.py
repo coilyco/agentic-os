@@ -176,6 +176,7 @@ def main(argv=None) -> int:
     # Local mode drives off the on-disk checkout set so it spans every org dir.
     # Github mode keeps querying the coilysiren owner via the contents API.
     results = []
+    unarmed: list[tuple[str, list[str]]] = []
     if args.source == "local":
         dirs = cfg.iter_workspace_repos()
         if args.repo:
@@ -196,11 +197,15 @@ def main(argv=None) -> int:
                     {"repo": d.name, "status": "exempt", "missing": [], "why": why}
                 )
                 continue
+            config_text = read_local_config(d)
             results.append(
-                audit_config(
-                    d.name, read_local_config(d), hook_catalog.hook_ids_for(d.name)
-                )
+                audit_config(d.name, config_text, hook_catalog.hook_ids_for(d.name))
             )
+            # Needs the filesystem, so github mode cannot answer it.
+            referenced = referenced_hook_ids(config_text or "")
+            found = hook_catalog.unarmed_spec_hooks(d, referenced)
+            if found:
+                unarmed.append((d.name, found))
     else:
         names = [args.repo] if args.repo else [
             r for r in list_active_repos() if r not in skip
@@ -245,6 +250,14 @@ def main(argv=None) -> int:
                 print(f"  {r['repo']:28}")
         print()
 
+    # Runs, passes, and evaluates nothing, so it reads as coverage in every
+    # surface except a filesystem look. Remediation is agentic-os#7770.
+    if unarmed:
+        print(f"== unarmed ({len(unarmed)}) ==")
+        for name, ids in unarmed:
+            print(f"  {name:28} {', '.join(ids)}")
+        print()
+
     # A shipped id that cannot fire is one defect for the whole fleet rather
     # than a finding per repo, so it prints once and still fails the run.
     inert = hook_catalog.inert_shipped_ids()
@@ -272,7 +285,12 @@ def main(argv=None) -> int:
         print(f"Coverage incomplete: {bad_repos} repo(s) need attention.")
     if inert or undeclared:
         print("Catalog incomplete: the shipped set carries a hook that cannot run.")
-    if bad_repos or inert or undeclared:
+    if unarmed:
+        print(
+            f"Enforcement incomplete: {len(unarmed)} repo(s) run a hook with no "
+            f"spec for it to read."
+        )
+    if bad_repos or inert or undeclared or unarmed:
         return 1
     print("Coverage complete.")
     return 0

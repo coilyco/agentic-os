@@ -102,6 +102,38 @@ def ships_to(repo_dir: Path) -> bool:
     return not opted_out(repo_dir)[0] and repo_dir.name != SOURCE_REPO
 
 
+# A hook that reads a spec file checks nothing without it and pre-commit still
+# renders it Passed. Roots mirror check_skill.detect_skills_dir, longest first.
+SPEC_REQUIRED: dict[str, tuple[tuple[str, ...], str, str]] = {
+    "check-skills": (
+        (".agents/skills", ".claude/skills", "skills"),
+        "categories.yaml",
+        "SKILL.md",
+    ),
+}
+
+
+def unarmed_spec_hooks(repo_dir: Path, referenced: set[str]) -> list[str]:
+    """Ids this repo runs that have no spec to read, so they evaluate nothing.
+
+    Distinct from a missing hook, which is visibly absent, and from a
+    manual-only one, which never runs. This one runs, passes, and checks
+    nothing, so only a filesystem look tells it apart from real coverage.
+    """
+    out: list[str] = []
+    for hook_id, (roots, spec_name, entrypoint) in sorted(SPEC_REQUIRED.items()):
+        if hook_id not in referenced:
+            continue
+        for root in roots:
+            base = repo_dir / root
+            if not base.is_dir():
+                continue
+            if any(base.glob(f"*/{entrypoint}")) and not (base / spec_name).is_file():
+                out.append(f"{hook_id}: no {root}/{spec_name}")
+            break
+    return out
+
+
 def hook_stages(hooks_file: Path | None = None) -> dict[str, list[str]]:
     """Declared stages per hook id, straight from the catalog definition."""
     import yaml

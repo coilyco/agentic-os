@@ -67,3 +67,51 @@ def test_audit_honours_per_repo_skips() -> None:
     result = audit.audit_config("lore", config, expected)
     assert result["status"] == "ok", result
     assert "repo-pointer-skills" not in expected
+
+
+# The audit has to see this from the filesystem: the config that runs the hook
+# looks identical whether or not a spec exists for it to read.
+def test_the_audit_reports_a_hook_with_no_spec(tmp_path, monkeypatch, capsys) -> None:
+    audit = _load_script()
+    from agentic_os import hook_catalog
+
+    repo = tmp_path / "lore"
+    (repo / ".agents" / "skills" / "lore-x").mkdir(parents=True)
+    (repo / ".agents" / "skills" / "lore-x" / "SKILL.md").write_text("x")
+    ids = hook_catalog.hook_ids_for("lore")
+    (repo / ".pre-commit-config.yaml").write_text(
+        "repos:\n  - repo: local\n    hooks:\n"
+        + "".join(f"      - id: {h}\n" for h in ids)
+    )
+
+    monkeypatch.setattr(audit.cfg, "iter_workspace_repos", lambda: [repo])
+    monkeypatch.setattr(audit, "_print_freshness", lambda dirs: None)
+
+    code = audit.main([])
+    out = capsys.readouterr().out
+
+    assert "== unarmed (1) ==" in out
+    assert "check-skills: no .agents/skills/categories.yaml" in out
+    assert code == 1
+
+
+def test_the_audit_is_quiet_once_the_spec_lands(tmp_path, monkeypatch, capsys) -> None:
+    audit = _load_script()
+    from agentic_os import hook_catalog
+
+    repo = tmp_path / "lore"
+    (repo / ".agents" / "skills" / "lore-x").mkdir(parents=True)
+    (repo / ".agents" / "skills" / "lore-x" / "SKILL.md").write_text("x")
+    (repo / ".agents" / "skills" / "categories.yaml").write_text("x")
+    ids = hook_catalog.hook_ids_for("lore")
+    (repo / ".pre-commit-config.yaml").write_text(
+        "repos:\n  - repo: local\n    hooks:\n"
+        + "".join(f"      - id: {h}\n" for h in ids)
+    )
+
+    monkeypatch.setattr(audit.cfg, "iter_workspace_repos", lambda: [repo])
+    monkeypatch.setattr(audit, "_print_freshness", lambda dirs: None)
+
+    audit.main([])
+
+    assert "unarmed" not in capsys.readouterr().out

@@ -111,3 +111,57 @@ def test_an_ordinary_repo_takes_the_block() -> None:
 def test_eco_skip_needs_the_hyphen() -> None:
     assert "code-comments" not in hook_catalog.hook_ids_for("eco-app")
     assert "code-comments" in hook_catalog.hook_ids_for("ecommerce-storefront")
+
+
+def _skill_repo(root: Path, *, spec: bool, entry: bool = True) -> Path:
+    skills = root / ".agents" / "skills" / "coding-go"
+    skills.mkdir(parents=True)
+    if entry:
+        (skills / "SKILL.md").write_text("x", encoding="utf-8")
+    if spec:
+        (root / ".agents" / "skills" / "categories.yaml").write_text("x", encoding="utf-8")
+    return root
+
+
+# The failure this catches runs, passes, and evaluates nothing, so it is
+# invisible to every surface that reads config rather than the filesystem.
+def test_a_hook_with_no_spec_to_read_is_unarmed(tmp_path: Path) -> None:
+    repo = _skill_repo(tmp_path, spec=False)
+
+    found = hook_catalog.unarmed_spec_hooks(repo, {"check-skills"})
+
+    assert found == ["check-skills: no .agents/skills/categories.yaml"]
+
+
+def test_a_hook_with_its_spec_is_armed(tmp_path: Path) -> None:
+    repo = _skill_repo(tmp_path, spec=True)
+
+    assert hook_catalog.unarmed_spec_hooks(repo, {"check-skills"}) == []
+
+
+def test_a_repo_that_does_not_run_the_hook_is_not_reported(tmp_path: Path) -> None:
+    repo = _skill_repo(tmp_path, spec=False)
+
+    assert hook_catalog.unarmed_spec_hooks(repo, set()) == []
+
+
+def test_a_repo_with_no_skills_at_all_is_not_reported(tmp_path: Path) -> None:
+    # Nothing to check is not the same as checking nothing.
+    assert hook_catalog.unarmed_spec_hooks(tmp_path, {"check-skills"}) == []
+
+
+def test_an_empty_skills_dir_is_not_reported(tmp_path: Path) -> None:
+    repo = _skill_repo(tmp_path, spec=False, entry=False)
+
+    assert hook_catalog.unarmed_spec_hooks(repo, {"check-skills"}) == []
+
+
+# detect_skills_dir takes the first root that exists, so the audit has to agree
+# with it or it reports against a directory the hook never reads.
+def test_the_first_matching_root_decides(tmp_path: Path) -> None:
+    repo = _skill_repo(tmp_path, spec=True)
+    legacy = repo / "skills" / "coding-go"
+    legacy.mkdir(parents=True)
+    (legacy / "SKILL.md").write_text("x", encoding="utf-8")
+
+    assert hook_catalog.unarmed_spec_hooks(repo, {"check-skills"}) == []
