@@ -57,6 +57,20 @@ def test_an_unset_credential_is_not_a_bare_shell_error() -> None:
     assert "::error::" in stderr
 
 
+def test_a_present_credential_gets_past_the_guard() -> None:
+    """The five refusals above all pass if the guard rejects everything.
+
+    Inverting `-z` to `-n` satisfies every one of them, so the set needs a case
+    that must NOT be refused. A bogus token still fails at the push, which is
+    the point: the assertion is about which failure it is.
+    """
+    result = _run({"PAT": "not-a-real-token"})
+
+    assert "GITHUB_MIRROR_PAT is empty" not in result.stderr, (
+        "a supplied credential was rejected by the empty-credential guard"
+    )
+
+
 def test_an_unknown_verb_still_refuses() -> None:
     result = subprocess.run(
         ["sh", str(SCRIPT), "nonsense"], check=False, capture_output=True, text=True
