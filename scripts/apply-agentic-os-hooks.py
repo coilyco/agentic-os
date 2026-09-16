@@ -182,10 +182,24 @@ def actionlint_args(repo_dir: Path | None) -> str:
     )
 
 
-def _exclude_line(hook: dict, vendored: str) -> str:
-    """A hook's own fixed exclude, or the repo's vendored trees for a fixer."""
-    if "exclude" in hook:
-        return f"\n        exclude: {hook['exclude']}"
+def _exclude_line(hook: dict, vendored: str, repo_dir: Path | None = None) -> str:
+    """A hook's fixed exclude plus any the repo declares, or its vendored trees.
+
+    A hook carrying a fixed exclude used to return early, so a consumer could
+    never add to it and check-json could gate a whole repo on one generated
+    file nobody wrote (agentic-os#6892). `vendored` is not the lever for that:
+    it means "do not rewrite", and reporting hooks read a vendored tree on
+    purpose. `[tool.agentic-os.<hook-id>] excludes` is the surface every other
+    catalog validator already reads, so this adds no new mechanism.
+    """
+    declared = cfg.load_excludes(hook["id"], repo_dir) if repo_dir is not None else []
+    fixed = hook.get("exclude")
+    if fixed or declared:
+        patterns = ([fixed] if fixed else []) + [
+            "^" + re.escape(t.rstrip("/")) + "/" for t in sorted(declared)
+        ]
+        joined = patterns[0] if len(patterns) == 1 else "(" + "|".join(patterns) + ")"
+        return f"\n        exclude: {joined}"
     return vendored if hook.get("rewrites") else ""
 
 
@@ -217,7 +231,7 @@ def managed_block(
     precommit_hook_lines = "\n".join(
         "      - id: {id}{exclude}{args}".format(
             id=hook["id"],
-            exclude=_exclude_line(hook, vendored),
+            exclude=_exclude_line(hook, vendored, repo_dir),
             args=(
                 f"\n        args: [{', '.join(hook['args'])}]"
                 if "args" in hook

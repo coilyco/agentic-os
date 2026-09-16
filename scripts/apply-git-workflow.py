@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agentic_os import config as cfg  # noqa: E402
+from agentic_os import hook_catalog  # noqa: E402
 from agentic_os.generators.generate_git_workflow import (  # noqa: E402
     BODY_FULL,
     apply_to_text,
@@ -27,7 +28,17 @@ from agentic_os.generators.generate_git_workflow import (  # noqa: E402
 
 
 def apply_to_repo(repo_dir: Path, dry_run: bool) -> tuple[str, str]:
-    """Apply the block to one repo. Returns (action, detail) for reporting."""
+    """Apply the block to one repo. Returns (action, detail) for reporting.
+
+    The opt-out gate is fail-closed and sits ahead of the read, because this
+    writes agent-facing doctrine into AGENTS.md and that is exactly what a repo
+    carrying `.agentic-os-ignore` has opted out of (agentic-os#6894). There is
+    no `--repo` override, the marker documenting itself as presence-skips.
+    """
+    opted, why = hook_catalog.opted_out(repo_dir)
+    if opted:
+        return "skip", why
+
     agents = repo_dir / "AGENTS.md"
     if not agents.exists():
         return "skip", "no AGENTS.md"

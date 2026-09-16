@@ -85,6 +85,11 @@ def opted_out(repo_dir: Path) -> tuple[bool, str]:
 
     Vendor clones and marker files owe no coverage, so the audit reports them
     as exempt rather than as gaps (agentic-os#7628, #7635, #7638).
+
+    This is the one gate for every fleet-wide mutator in this repo, and any new
+    one calls it before it reads or writes. scripts/apply-git-workflow.py did
+    not, and wrote a managed block into a repo carrying the marker
+    (agentic-os#6894), which is the failure a shared helper exists to prevent.
     """
     if repo_dir.parent.name in VENDOR_ORGS:
         return True, f"vendor org ({repo_dir.parent.name})"

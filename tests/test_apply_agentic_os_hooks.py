@@ -289,6 +289,62 @@ def test_check_json_always_skips_vscode_jsonc(tmp_path: Path) -> None:
     assert expected in block
 
 
+def test_a_repo_can_add_to_a_hooks_fixed_exclude(tmp_path: Path) -> None:
+    """agentic-os#6892: check-json gated a repo on one generated file nobody wrote.
+
+    Unity writes ProjectSettings JSON that is not always parseable. The hook
+    carried a fixed .vscode/ exclude and returned early, so no consumer could
+    add to it and the whole repo sat behind a file it does not author.
+    """
+    script = _load_script()
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.agentic-os.check-json]\nexcludes = ["unity/ProjectSettings/"]\n',
+        encoding="utf-8",
+    )
+
+    block = script.managed_block("v1.0.0", ["catalog-trifecta"], tmp_path)
+
+    line = "      - id: check-json\n        exclude: "
+    assert line + "((^|/)" + chr(92) + ".vscode/|^unity/ProjectSettings/)" in block
+
+
+def test_a_declared_exclude_does_not_displace_the_fixed_one(tmp_path: Path) -> None:
+    """The .vscode/ carve-out is the hook's own and survives a repo adding to it."""
+    script = _load_script()
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.agentic-os.check-json]\nexcludes = ["unity/"]\n', encoding="utf-8"
+    )
+
+    block = script.managed_block("v1.0.0", ["catalog-trifecta"], tmp_path)
+
+    assert chr(92) + ".vscode/" in block
+
+
+def test_declared_excludes_reach_a_hook_with_no_fixed_exclude(tmp_path: Path) -> None:
+    script = _load_script()
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.agentic-os.check-toml]\nexcludes = ["vendor/"]\n', encoding="utf-8"
+    )
+
+    block = script.managed_block("v1.0.0", ["catalog-trifecta"], tmp_path)
+
+    assert "      - id: check-toml\n        exclude: ^vendor/" in block
+
+
+def test_an_undeclared_repo_keeps_the_bare_fixed_exclude(tmp_path: Path) -> None:
+    """The negative control: no declaration changes nothing about the rendering."""
+    script = _load_script()
+
+    block = script.managed_block("v1.0.0", ["catalog-trifecta"], tmp_path)
+
+    expected = "      - id: check-json\n        exclude: (^|/)" + chr(92) + ".vscode/"
+    assert expected in block
+    # check-toml declares no fixed exclude and rewrites nothing, so it renders bare.
+    toml_line = "      - id: check-toml"
+    assert toml_line in block
+    assert not block.split(toml_line, 1)[1].lstrip("\n").startswith("        exclude:")
+
+
 def test_gitattributes_pins_the_working_tree_not_just_text_auto() -> None:
     """text=auto alone still checks out CRLF under core.autocrlf=true."""
     script = _load_script()
