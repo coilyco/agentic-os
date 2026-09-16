@@ -18,11 +18,14 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = ROOT / "scripts" / "ci" / "mirror-to-github.sh"
 
+# bash, matching the shebang and the workflow. Under dash the script dies at
+# `set -o pipefail` before running a line, which macOS `sh` hides.
+
 
 def _run(env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
     base = {k: v for k, v in os.environ.items() if k != "PAT"}
     return subprocess.run(
-        ["sh", str(SCRIPT), "mirror"],
+        ["bash", str(SCRIPT), "mirror"],
         check=False,
         capture_output=True,
         text=True,
@@ -66,7 +69,7 @@ def test_a_present_credential_gets_past_the_guard(tmp_path: Path) -> None:
     it reach `git push` and authenticate against GitHub from CI.
     """
     result = subprocess.run(
-        ["sh", str(SCRIPT), "mirror"],
+        ["bash", str(SCRIPT), "mirror"],
         check=False,
         capture_output=True,
         text=True,
@@ -81,7 +84,7 @@ def test_a_present_credential_gets_past_the_guard(tmp_path: Path) -> None:
 
 def test_an_unknown_verb_still_refuses() -> None:
     result = subprocess.run(
-        ["sh", str(SCRIPT), "nonsense"], check=False, capture_output=True, text=True
+        ["bash", str(SCRIPT), "nonsense"], check=False, capture_output=True, text=True
     )
 
     assert result.returncode == 2
