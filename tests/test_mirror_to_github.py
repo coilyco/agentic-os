@@ -57,14 +57,22 @@ def test_an_unset_credential_is_not_a_bare_shell_error() -> None:
     assert "::error::" in stderr
 
 
-def test_a_present_credential_gets_past_the_guard() -> None:
+def test_a_present_credential_gets_past_the_guard(tmp_path: Path) -> None:
     """The five refusals above all pass if the guard rejects everything.
 
     Inverting `-z` to `-n` satisfies every one of them, so the set needs a case
-    that must NOT be refused. A bogus token still fails at the push, which is
-    the point: the assertion is about which failure it is.
+    that must NOT be refused. Run from a directory that is not a repository, so
+    the next step fails at `git remote add` locally: a real checkout would have
+    it reach `git push` and authenticate against GitHub from CI.
     """
-    result = _run({"PAT": "not-a-real-token"})
+    result = subprocess.run(
+        ["sh", str(SCRIPT), "mirror"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={k: v for k, v in os.environ.items() if k != "PAT"} | {"PAT": "unused"},
+        cwd=tmp_path,
+    )
 
     assert "GITHUB_MIRROR_PAT is empty" not in result.stderr, (
         "a supplied credential was rejected by the empty-credential guard"
