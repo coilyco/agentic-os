@@ -9,9 +9,13 @@ case "${1:-}" in
     bash "$repo_root/scripts/ci-command.sh" bash "$repo_root/scripts/ci/repo-test-gate.sh"
     ;;
   mirror)
-    if [ -z "${PAT}" ]; then
-      echo "mirror-to-github: GITHUB_MIRROR_PAT secret not set; skipping." >&2
-      exit 0
+    # Refuse rather than skip. A green "Mirror to GitHub" job that mirrored
+    # nothing hides the outage it is the only witness to (agentic-os#7797).
+    if [ -z "${PAT:-}" ]; then
+      echo "::error::mirror-to-github: GITHUB_MIRROR_PAT is empty, so nothing was mirrored." >&2
+      echo "The secret is unset or unreadable from this job. GitHub is the module" >&2
+      echo "origin, so an unmirrored tag is a release no Go consumer can resolve." >&2
+      exit 1
     fi
     git remote add github "https://x-access-token:${PAT}@github.com/coilysiren/agentic-os.git"
     if ! git push github main; then
