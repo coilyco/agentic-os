@@ -1,7 +1,7 @@
 # Per-repo task manifest. Run `just` (or `just --list`) to see every verb.
 #
-# Recipes take trailing arguments directly: `just aos-say hello`, where the
-# retired form was `ward exec aos-say -- hello`.
+# Recipes take trailing arguments directly, e.g. `just aos-role-question cloud platform`,
+# where the retired form routed through `ward exec <verb> -- args`.
 #
 # One line of comment per recipe on purpose: just reads only the LAST comment
 # line above a recipe, so a wrapped description silently truncates to its tail.
@@ -85,14 +85,6 @@ aos-release-package *ARGS:
 # Ask one composed role a real question through cloud Codex or Goose with a local model, enforce a bounded run, and require the response to confirm its loaded role. Usage: `just aos-role-question cloud|local ROLE [MODEL]`.
 aos-role-question *ARGS:
     @sh scripts/aos-role-question.sh "$@"
-
-# Speak short status text with the Mac-integrated `aos-say` client. On Darwin it calls `/usr/bin/say` directly, and on other hosts it forwards one JSON request to the configured relay. Use `just aos-say relay` for the relay entrypoint.
-aos-say *ARGS:
-    @go run -C aos-say . "$@"
-
-# Run the `aos-say` Go test suite.
-aos-say-test *ARGS:
-    @go test -C aos-say ./... "$@"
 
 # Launch the selected agent in one standalone AOS container with composed context and the aosguard skill, then print the agent version.
 aos-standalone-composition-smoke *ARGS:

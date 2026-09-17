@@ -11,7 +11,6 @@ Major shipped capabilities, not files.
   [creature background](aterm-creature.md), and `aterm pane on` and `off`
   [split that window](aterm-pane.md) beside a command and put it back.
   Mac and Linux only, since kitty has no Windows build.
-- [Speech helper](aos-roles-and-voice.md) - `aos-say` client plus relay for status speech.
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.
 - [Agents and sessions](features-agents.md) - self-name, composition
   status, harness [and model](native-harness-config.md) policy, and
@@ -49,7 +48,7 @@ Major shipped capabilities, not files.
 - [Teable schema admin](../.agents/skills/tooling-aosguard/references/teable-admin.md) - guarded field and table creation that re-reads through a separate request and refuses unless the write stored as asked. Convert and table-delete are refused by name.
 - [Teable personal records](../.agents/skills/tooling-aosguard/references/teable-personal.md) - guarded record reads and writes over one SSM-pinned base that the caller cannot name. Writes re-read before reporting success, and record-delete is unmounted and refused by name.
 - [Ward integration boundary](ward-specs.md) - one generic runner for every
-  [composed role](aos-roles-and-voice.md), and no role-derived authority.
+  [composed role](aos-roles.md), and no role-derived authority.
 - [Cross-repo tooling and release](release.md) - aos-precommit and release operations.
 - [Telegram CI failure alerts](../actions/telegram-alert/action.yml) - one composite action, no alert program in any repo.
 - [dev-base image](dev-base-image.md) - parallel cached language payloads feeding one automatically released full development surface.

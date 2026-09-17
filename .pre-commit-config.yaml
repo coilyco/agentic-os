@@ -176,20 +176,6 @@ repos:
         always_run: true
         pass_filenames: false
         stages: [pre-commit]
-      - id: aos-say-go-vet
-        name: vet the aos-say module
-        entry: bash -c 'cd aos-say && go vet -p 1 ./...'
-        language: system
-        files: ^aos-say/.*\.go$
-        pass_filenames: false
-        stages: [pre-commit]
-      - id: aos-say-gofmt
-        name: gofmt the aos-say module
-        entry: bash -c 'cd aos-say && gofmt -w .'
-        language: system
-        files: ^aos-say/.*\.go$
-        pass_filenames: false
-        stages: [pre-commit]
       - id: unresolved-placeholder-guard
         name: unresolved placeholder guard
         entry: python -m agentic_os.pre_commit.check_unresolved_placeholders

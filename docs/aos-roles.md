@@ -1,6 +1,6 @@
-# AOS roles and voice
+# AOS roles
 
-What a generic warded role selects, and how a session speaks.
+What a generic warded role selects.
 
 ## Generic warded roles
 
@@ -35,46 +35,3 @@ The distinction is authority, not identity:
 Within a Ward broker group, generic agents may launch other generic peers and
 use Ward's authenticated message channel. Their derived peer capability cannot
 select platform or science or invoke privileged broker operations.
-
-## `aos-say`
-
-`aos-say` speaks short status messages from a shell or relay.
-
-## Direct path
-
-On macOS, `aos-say` runs `/usr/bin/say` directly.
-
-```bash
-just aos-say --voice Samantha --rate 190 build done
-```
-
-Flags:
-
-- `--voice` - pass a voice name to `/usr/bin/say`.
-- `--rate` - pass a speech rate to `/usr/bin/say`.
-- `--dry-run` - print the command or relay request without speaking.
-- `--notification` - also post a desktop notification after speech.
-
-## Relay path
-
-On Linux or in a ward container, `aos-say` sends one JSON request to the configured relay.
-
-```bash
-export AOS_SAY_RELAY=unix:/tmp/aos-say.sock
-just aos-say build done
-```
-
-The relay entrypoint is `aos-say relay`. It reads one request from stdin, runs `/usr/bin/say` by argv, and exits. That keeps the launchd side compatible with socket activation setups that hand the accepted connection to stdin.
-
-## Request shape
-
-The wire request is JSON:
-
-```json
-{"text":"build done","voice":"Samantha","rate":190,"dry_run":false,"notification":false}
-```
-
-## Notes
-
-- No shell eval is used anywhere.
-- The text payload stays one argv element all the way to `/usr/bin/say`.

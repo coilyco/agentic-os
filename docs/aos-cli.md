@@ -36,7 +36,7 @@ context, and Ward cannot change privileged surface. See the
 [context-bundle adapter](aos-context-bundle.md).
 
 Ward ships the `director`, `qa`, and `engineer` repository workflows. Other safe
-roles use its [generic read-only command](aos-roles-and-voice.md). AOS rejects
+roles use its [generic read-only command](aos-roles.md). AOS rejects
 incompatible agents and translated Ward flags before starting a container.
 
 **The root action routes to Ward, the `acompose` subcommand does not.** It once

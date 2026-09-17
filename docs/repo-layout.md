@@ -13,7 +13,6 @@ One shared core, two thin per-shell entries, so bash and zsh run identical env, 
 - `shell/bashrc` - bash entry, symlinked to `~/.bashrc`. Sources `common.sh`, then bash-only bits: completion, the `PROMPT_COMMAND` siren prompt.
 - Host-local overrides: `~/.shellrc.local` (shared, sourced by `common.sh`), `~/.zshrc.local`, `~/.bashrc.local`. Untracked.
 
-- `aos-say/` - speech helper client and relay.
 
 ## karabiner
 

@@ -23,7 +23,6 @@ Windows.
 - `alacritty/` - the same baseline for Alacritty, retained for Windows, where kitty does not ship.
 - `aterm/` - `aterm`, the branded launcher for one composed agent session, and the macOS `.app` bundle it generates per role.
 - `aos-cli/` - the Go composition root for standalone and Ward-governed agent launches.
-- `aos-say/` - the `just aos-say` Go module for the speech helper client and relay.
 - `karabiner/` - Karabiner-Elements complex modification assets (`brew install --cask karabiner-elements`), symlinked into the local Karabiner config tree.
 - `scripts/` - portable utilities (gpg-ssm wrapper, session-name hooks, aws-config lint).
 - `.agents/skills/` - ordinary `SKILL.md` sources that every composed role can discover.
