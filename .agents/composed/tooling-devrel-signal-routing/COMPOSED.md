@@ -12,7 +12,8 @@ preserving evidence that could improve onboarding, product, or operations.
 
 Advocate activates this workflow for onboarding friction, support
 patterns, retention risks, and customer research. A live reliability incident
-routes to sysadmin. A confirmed implementation defect routes to platform after
+routes to senior-sysadmin, the role that owns the modify-live-backend
+boundary. A confirmed implementation defect routes to platform after
 Advocate captures the customer evidence.
 
 ## Classify without flattening

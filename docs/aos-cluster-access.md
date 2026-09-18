@@ -48,7 +48,7 @@ container when AOS owns the standalone runtime:
 ```bash
 aos \
   --agent codex \
-  --role sysadmin \
+  --role senior-sysadmin \
   --composed \
   --kubeconfig "/operator configs/homelab.yaml"
 ```

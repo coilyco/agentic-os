@@ -84,7 +84,8 @@ the role allowlists in [`.agents/roles.kdl`](../.agents/roles.kdl).
 * **Portfolio Director** - `tooling-tpm-*`, scouts, issue decomposition,
   skill authoring, voice linting, code review as a gate, decision-relevant coding.
 * **Platform Engineer** - the coding family whole, vocabulary, design system.
-* **Systems Administrator** - `tooling-sysadmin-*`, coding family, vocabulary.
+* **Senior Sysadmin** - `tooling-sysadmin-*`, coding family, vocabulary.
+* **Junior Sysadmin** - `tooling-sysadmin-*`, coding family, vocabulary.
 * **Applied Scientist** - `tooling-eval-*`, coding family, design system.
 * **Frontend Engineer** - `tooling-frontend-*`, the frontend coding pair,
   three product methods pinned by name, preferences, voice family.
@@ -97,7 +98,7 @@ the role allowlists in [`.agents/roles.kdl`](../.agents/roles.kdl).
 Portfolio Director owns scout discovery, ranking, and portfolio
 recommendations, recording returned evidence without inheriting execution
 authority, and owns code review as a gate decision. Platform Engineer
-or Systems Administrator owns verification, implementation, validation, and
+or Senior Sysadmin owns verification, implementation, validation, and
 landing. Developer Advocate owns routine member interaction, and human stewards
 retain moderation.
 
