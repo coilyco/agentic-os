@@ -84,7 +84,7 @@ the role allowlists in [`.agents/roles.kdl`](../.agents/roles.kdl).
 * **Portfolio Director** - `tooling-tpm-*`, scouts, issue decomposition,
   skill authoring, voice linting, code review as a gate, decision-relevant coding.
 * **Platform Engineer** - the coding family whole, vocabulary, design system.
-* **Systems Administrator** - `tooling-sysadmin-*`, coding family, vocabulary.
+* **Senior Sysadmin**, **Junior Sysadmin** - `tooling-sysadmin-*`, coding family, vocabulary.
 * **Applied Scientist** - `tooling-eval-*`, coding family, design system.
 * **Frontend Engineer** - `tooling-frontend-*`, the frontend coding pair,
   three product methods pinned by name, preferences, voice family.

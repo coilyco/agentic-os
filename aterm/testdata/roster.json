@@ -45,11 +45,11 @@
       "background": "#1f2000"
     },
     {
-      "slug": "sysadmin",
-      "display_name": "Systems Administrator",
+      "slug": "senior-sysadmin",
+      "display_name": "Senior Sysadmin",
       "purpose": "Operate the real hosted systems and release surfaces.",
-      "skill": "role-sysadmin",
-      "skill_source": "roster:core:role:sysadmin",
+      "skill": "role-senior-sysadmin",
+      "skill_source": "roster:core:role:senior-sysadmin",
       "skill_digest": "sha256:7570ac98e2cbff754a752b2295bb3b1c879113157148c76c0f7cd9ebb1851f05",
       "identity": {
         "name": "Vera",

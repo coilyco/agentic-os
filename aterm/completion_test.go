@@ -28,7 +28,7 @@ func TestCompletionOffersEveryLiveRoleFirst(t *testing.T) {
 		}
 		slugs = append(slugs, slug)
 	}
-	for _, want := range []string{"platform", "sysadmin", "science", "frontend", "gamedev", "director", "advocate"} {
+	for _, want := range []string{"platform", "senior-sysadmin", "science", "frontend", "gamedev", "director", "advocate"} {
 		if !contains(slugs, want) {
 			t.Fatalf("completion should offer %q: %v", want, slugs)
 		}
@@ -41,16 +41,16 @@ func TestCompletionOffersEveryLiveRoleFirst(t *testing.T) {
 }
 
 func TestCompletionOffersOnlyTheChosenRoleSeats(t *testing.T) {
-	lines := completionLines(t, "sysadmin")
+	lines := completionLines(t, "senior-sysadmin")
 	seats := make([]string, 0, len(lines))
 	for _, line := range lines {
 		seat, _, _ := strings.Cut(line, ":")
 		seats = append(seats, seat)
 	}
 	if !contains(seats, "goose") {
-		t.Fatalf("sysadmin should offer its goose seat: %v", seats)
+		t.Fatalf("senior-sysadmin should offer its goose seat: %v", seats)
 	}
-	// goose belongs to sysadmin alone, so it must not leak into another role.
+	// goose belongs to senior-sysadmin alone, so it must not leak into another role.
 	platform := completionLines(t, "platform")
 	for _, line := range platform {
 		if strings.HasPrefix(line, "goose:") {

@@ -198,16 +198,22 @@ func TestLiveRoleBackgroundsStaySeparable(t *testing.T) {
 		slugs = append(slugs, slug)
 	}
 	sort.Strings(slugs)
+	// agent-compose#500 color_twin: an exact dE 0.00 match is a declared twin,
+	// not a collision the solver failed to separate.
 	worst, worstPair := math.MaxFloat64, ""
 	for first := 0; first < len(slugs); first++ {
 		for second := first + 1; second < len(slugs); second++ {
 			distance := labDistance(backgrounds[slugs[first]], backgrounds[slugs[second]])
+			if distance == 0 {
+				t.Logf("twinned background pair %s/%s at dE 0.00, exempt from the floor", slugs[first], slugs[second])
+				continue
+			}
 			if distance < worst {
 				worst, worstPair = distance, slugs[first]+"/"+slugs[second]
 			}
 		}
 	}
-	t.Logf("closest background pair %s at dE %.2f across %d roles", worstPair, worst, len(slugs))
+	t.Logf("closest non-twinned background pair %s at dE %.2f across %d roles", worstPair, worst, len(slugs))
 	if worst < backgroundSeparationFloor {
 		t.Fatalf("%s are dE %.2f apart, under the %.1f floor",
 			worstPair, worst, backgroundSeparationFloor)

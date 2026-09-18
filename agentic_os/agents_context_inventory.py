@@ -45,7 +45,8 @@ ROLE_TERMS = {
     "frontend",
     "gamedev",
     "platform",
-    "sysadmin",
+    "senior-sysadmin",
+    "junior-sysadmin",
     "director",
     "analyst",
 }

@@ -5,7 +5,9 @@ roles:
       claude:
         model: sonnet
         effort: high
-  sysadmin:
+  senior-sysadmin:
+    agent: claude
+  junior-sysadmin:
     agent: claude
   science:
     agent: claude
