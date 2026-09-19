@@ -51,9 +51,9 @@ func runningRecord(name string, began time.Time) vibeTunnelRecord {
 
 func TestClearTerminatesARunningSessionAndRemovesItsRecord(t *testing.T) {
 	control, began := t.TempDir(), time.Now()
-	dir := writeSessionRecord(t, control, "fwd_1_1", runningRecord(vibeTunnelSessionName, began))
+	dir := writeSessionRecord(t, control, "fwd_1_1", runningRecord(stableSessionName, began))
 	reaper, sent, _ := fakeReaper(control, func(sent []syscall.Signal) bool { return len(sent) == 0 }, began)
-	if cleared := reaper.clear(vibeTunnelSessionName); cleared != 1 {
+	if cleared := reaper.clear(stableSessionName); cleared != 1 {
 		t.Fatalf("cleared = %d, want 1", cleared)
 	}
 	if !slices.Equal(*sent, []syscall.Signal{syscall.SIGTERM}) {
@@ -66,10 +66,10 @@ func TestClearTerminatesARunningSessionAndRemovesItsRecord(t *testing.T) {
 
 func TestClearEscalatesToKillWhenTerminateIsIgnored(t *testing.T) {
 	control, began := t.TempDir(), time.Now()
-	writeSessionRecord(t, control, "fwd_1_1", runningRecord(vibeTunnelSessionName, began))
+	writeSessionRecord(t, control, "fwd_1_1", runningRecord(stableSessionName, began))
 	killed := func(sent []syscall.Signal) bool { return !slices.Contains(sent, syscall.SIGKILL) }
 	reaper, sent, _ := fakeReaper(control, killed, began)
-	if reaper.clear(vibeTunnelSessionName) != 1 {
+	if reaper.clear(stableSessionName) != 1 {
 		t.Fatal("a killed session should be cleared")
 	}
 	if !slices.Equal(*sent, []syscall.Signal{syscall.SIGTERM, syscall.SIGKILL}) {
@@ -79,9 +79,9 @@ func TestClearEscalatesToKillWhenTerminateIsIgnored(t *testing.T) {
 
 func TestClearKeepsARecordWhoseProcessWillNotEnd(t *testing.T) {
 	control, began := t.TempDir(), time.Now()
-	dir := writeSessionRecord(t, control, "fwd_1_1", runningRecord(vibeTunnelSessionName, began))
+	dir := writeSessionRecord(t, control, "fwd_1_1", runningRecord(stableSessionName, began))
 	reaper, _, notice := fakeReaper(control, func([]syscall.Signal) bool { return true }, began)
-	if cleared := reaper.clear(vibeTunnelSessionName); cleared != 0 {
+	if cleared := reaper.clear(stableSessionName); cleared != 0 {
 		t.Fatalf("cleared = %d, want 0", cleared)
 	}
 	if _, err := os.Stat(dir); err != nil {
@@ -96,7 +96,7 @@ func TestClearLeavesEveryOtherNameAlone(t *testing.T) {
 	control, began := t.TempDir(), time.Now()
 	dir := writeSessionRecord(t, control, "fwd_1_1", runningRecord("claude (~/projects)", began))
 	reaper, sent, _ := fakeReaper(control, func([]syscall.Signal) bool { return true }, began)
-	if reaper.clear(vibeTunnelSessionName) != 0 || len(*sent) != 0 {
+	if reaper.clear(stableSessionName) != 0 || len(*sent) != 0 {
 		t.Fatalf("a session under another name was touched: %v", *sent)
 	}
 	if _, err := os.Stat(dir); err != nil {
@@ -106,11 +106,11 @@ func TestClearLeavesEveryOtherNameAlone(t *testing.T) {
 
 func TestClearRemovesAnEndedRecordWithoutSignalling(t *testing.T) {
 	control, began := t.TempDir(), time.Now()
-	ended := runningRecord(vibeTunnelSessionName, began)
+	ended := runningRecord(stableSessionName, began)
 	ended.Status = "exited"
 	dir := writeSessionRecord(t, control, "fwd_1_1", ended)
 	reaper, sent, _ := fakeReaper(control, func([]syscall.Signal) bool { return true }, began)
-	if reaper.clear(vibeTunnelSessionName) != 1 || len(*sent) != 0 {
+	if reaper.clear(stableSessionName) != 1 || len(*sent) != 0 {
 		t.Fatalf("an ended session needs removal and no signal: %v", *sent)
 	}
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
@@ -120,10 +120,10 @@ func TestClearRemovesAnEndedRecordWithoutSignalling(t *testing.T) {
 
 func TestClearNeverSignalsAPidThatWasReused(t *testing.T) {
 	control, began := t.TempDir(), time.Now()
-	dir := writeSessionRecord(t, control, "fwd_1_1", runningRecord(vibeTunnelSessionName, began))
+	dir := writeSessionRecord(t, control, "fwd_1_1", runningRecord(stableSessionName, began))
 	// The pid is alive, but its process began an hour after the session did.
 	reaper, sent, _ := fakeReaper(control, func([]syscall.Signal) bool { return true }, began.Add(time.Hour))
-	if reaper.clear(vibeTunnelSessionName) != 1 {
+	if reaper.clear(stableSessionName) != 1 {
 		t.Fatal("a stale record should still be removed")
 	}
 	if len(*sent) != 0 {
@@ -136,10 +136,10 @@ func TestClearNeverSignalsAPidThatWasReused(t *testing.T) {
 
 func TestClearLeavesASessionItCannotVerify(t *testing.T) {
 	control, began := t.TempDir(), time.Now()
-	dir := writeSessionRecord(t, control, "fwd_1_1", runningRecord(vibeTunnelSessionName, began))
+	dir := writeSessionRecord(t, control, "fwd_1_1", runningRecord(stableSessionName, began))
 	reaper, sent, notice := fakeReaper(control, func([]syscall.Signal) bool { return true }, began)
 	reaper.startedAt = func(int) (time.Time, error) { return time.Time{}, os.ErrNotExist }
-	if reaper.clear(vibeTunnelSessionName) != 0 || len(*sent) != 0 {
+	if reaper.clear(stableSessionName) != 0 || len(*sent) != 0 {
 		t.Fatalf("an unverifiable process was signalled: %v", *sent)
 	}
 	if _, err := os.Stat(dir); err != nil {
@@ -152,9 +152,9 @@ func TestClearLeavesASessionItCannotVerify(t *testing.T) {
 
 func TestClearIgnoresADirectoryTheServerWouldNeverName(t *testing.T) {
 	control, began := t.TempDir(), time.Now()
-	dir := writeSessionRecord(t, control, "not a session id", runningRecord(vibeTunnelSessionName, began))
+	dir := writeSessionRecord(t, control, "not a session id", runningRecord(stableSessionName, began))
 	reaper, _, _ := fakeReaper(control, func([]syscall.Signal) bool { return false }, began)
-	if reaper.clear(vibeTunnelSessionName) != 0 {
+	if reaper.clear(stableSessionName) != 0 {
 		t.Fatal("a directory outside the server's id pattern was cleared")
 	}
 	if _, err := os.Stat(dir); err != nil {
@@ -164,7 +164,7 @@ func TestClearIgnoresADirectoryTheServerWouldNeverName(t *testing.T) {
 
 func TestClearIsQuietWhenNoServerEverRan(t *testing.T) {
 	reaper, _, _ := fakeReaper(filepath.Join(t.TempDir(), "absent"), func([]syscall.Signal) bool { return false }, time.Now())
-	if reaper.clear(vibeTunnelSessionName) != 0 {
+	if reaper.clear(stableSessionName) != 0 {
 		t.Fatal("a missing control directory has nothing to clear")
 	}
 }
@@ -185,12 +185,12 @@ func TestClearEndsARealProcessThroughTheSystemReaper(t *testing.T) {
 		t.Skipf("this host's ps cannot report a start time: %v", err)
 	}
 	control := t.TempDir()
-	record := runningRecord(vibeTunnelSessionName, began)
+	record := runningRecord(stableSessionName, began)
 	record.PID = child.Process.Pid
 	dir := writeSessionRecord(t, control, "fwd_1_1", record)
 	reaper := systemReaper(&bytes.Buffer{})
 	reaper.control = control
-	if reaper.clear(vibeTunnelSessionName) != 1 {
+	if reaper.clear(stableSessionName) != 1 {
 		t.Fatal("the running session should be cleared")
 	}
 	if reaper.alive(child.Process.Pid) {

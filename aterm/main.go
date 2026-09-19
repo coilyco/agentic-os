@@ -167,6 +167,11 @@ func newCommand(deps commandDeps) *cli.Command {
 				Sources: cli.EnvVars("ATERM_NO_VIBETUNNEL"),
 			},
 			&cli.BoolFlag{
+				Name:    "no-stable-name",
+				Usage:   "keep the name Agent Compose gives a claude session, and do not stop running ones named aterm",
+				Sources: cli.EnvVars("ATERM_NO_STABLE_NAME"),
+			},
+			&cli.BoolFlag{
 				Name:  "dry-run",
 				Usage: "print the resolved identity and launch plan without opening a window",
 			},
@@ -260,6 +265,7 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 		Extra:            extra,
 		Hold:             cmd.Bool("hold"),
 		VibeTunnel:       !cmd.Bool("no-vibetunnel"),
+		StableName:       !cmd.Bool("no-stable-name"),
 	}
 	if creatureWanted(cmd.Bool("no-creature")) {
 		request.Creature = bakeCreaturePlate(role, creaturePresence, creatureWholeWindow)

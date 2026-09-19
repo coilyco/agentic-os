@@ -30,6 +30,7 @@ func renderPlan(writer io.Writer, document overlayDocument, plan launchPlan) err
 		{"directory", plan.WorkingDirectory},
 		{"shadow", shadowLine(plan.Shadowed)},
 		{"vibetunnel", vibeTunnelLine(plan.VibeTunnel)},
+		{"stable name", stableNameLine(plan.StableName)},
 		{"personality", personalityLine(document)},
 		{"brand", brandLine(plan.Brand)},
 		{"creature", creatureLine(plan.Creature)},
@@ -73,6 +74,13 @@ func shadowLine(shadowed bool) string {
 	// Naming the daily converge too: it rides the aos wrapper, which this
 	// window skips entirely. See docs/aterm.md.
 	return "none, the window runs Agent Compose directly and skips daily host convergence"
+}
+
+func stableNameLine(named bool) string {
+	if named {
+		return "claude runs as `aterm`, and running claude sessions of that name are stopped first"
+	}
+	return "off, claude keeps its own name"
 }
 
 func vibeTunnelLine(wrapped bool) string {

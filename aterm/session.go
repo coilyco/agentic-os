@@ -34,11 +34,18 @@ func runSession(options sessionOptions, stdin io.Reader, stdout, stderr io.Write
 	}
 	// After the card, so the browser sees the harness and not the animation.
 	argv, wrapped := wrapChild(argv, options.VibeTunnel, exec.LookPath, stderr)
+	// Both run before this session exists, so it can never be its own target.
+	reaper := systemReaper(stderr)
 	if wrapped {
-		// Before this session exists, so it can never be its own target.
-		if cleared := systemReaper(stderr).clear(vibeTunnelSessionName); cleared > 0 {
+		if cleared := reaper.clear(stableSessionName); cleared > 0 {
 			fmt.Fprintf(stderr, "aterm: cleared %d earlier VibeTunnel session(s) named %s\n",
-				cleared, vibeTunnelSessionName)
+				cleared, stableSessionName)
+		}
+	}
+	if options.StableName {
+		if stopped := reaper.clearClaude(stableSessionName); stopped > 0 {
+			fmt.Fprintf(stderr, "aterm: stopped %d earlier Claude session(s) named %s\n",
+				stopped, stableSessionName)
 		}
 	}
 	command := exec.Command(argv[0], argv[1:]...)
@@ -93,6 +100,7 @@ func holdWindow(stdin io.Reader, stdout io.Writer, notice string) {
 type sessionOptions struct {
 	Hold       bool
 	VibeTunnel bool
+	StableName bool
 	Motion     bool
 	Card       sessionCard
 	// CardPayload is the encoded card exactly as it arrived, so the session can
@@ -113,6 +121,8 @@ func parseSessionArgs(argv []string) (sessionOptions, error) {
 			options.Motion = false
 		case "--vibetunnel":
 			options.VibeTunnel = true
+		case "--stable-name":
+			options.StableName = true
 		case "--card":
 			if index+1 >= len(argv) {
 				return sessionOptions{}, fmt.Errorf("%s --card needs a value", sessionCommand)

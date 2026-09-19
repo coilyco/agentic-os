@@ -24,6 +24,7 @@ type launchRequest struct {
 	Extra            []string
 	Hold             bool
 	VibeTunnel       bool
+	StableName       bool
 	Creature         creaturePlate
 }
 
@@ -49,6 +50,7 @@ type launchPlan struct {
 	Creature         creaturePlate  `json:"creature"`
 	Shadowed         bool           `json:"shadowed"`
 	VibeTunnel       bool           `json:"vibetunnel"`
+	StableName       bool           `json:"stable_name"`
 	Child            []string       `json:"child"`
 	Executable       string         `json:"executable"`
 	Arguments        []string       `json:"arguments"`
@@ -92,6 +94,11 @@ func buildLaunchPlan(
 	brand, err := buildBrand(document, request.TaskTitle, request.Workspace)
 	if err != nil {
 		return launchPlan{}, err
+	}
+	// Only claude takes --name, and a caller's own name is left as theirs.
+	named := request.StableName && request.Seat == "claude" && !hasNameFlag(request.Extra)
+	if named {
+		request.Extra = append([]string{"--name", stableSessionName}, request.Extra...)
 	}
 	child := composeChild(request, agentCompose, aos, shadowed)
 	// kitty's --title permanently fixes the OS window title against the child,
@@ -138,6 +145,7 @@ func buildLaunchPlan(
 		Creature:         request.Creature,
 		Shadowed:         shadowed,
 		VibeTunnel:       request.VibeTunnel,
+		StableName:       named,
 		Child:            child,
 		Executable:       strings.TrimSpace(request.TerminalBin),
 	}
@@ -157,6 +165,9 @@ func buildLaunchPlan(
 	}
 	if request.VibeTunnel {
 		session = append(session, "--vibetunnel")
+	}
+	if named {
+		session = append(session, "--stable-name")
 	}
 	session = append(session, "--card", encoded, "--")
 	// kitty takes the program as trailing arguments, with no -e separator.

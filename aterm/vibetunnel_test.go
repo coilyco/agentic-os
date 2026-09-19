@@ -18,7 +18,7 @@ func stubLookPath(name string) (string, error) { return "/stub/" + name, nil }
 func TestWrapChildPutsTheHarnessBehindVt(t *testing.T) {
 	child := []string{"aos", "_native-shadow", "--harness", "claude", "--", "agent-compose", "launch"}
 	got, wrapped := wrapChild(child, true, stubLookPath, &bytes.Buffer{})
-	trampoline := []string{"/stub/vt", "-S", "/bin/sh", "-c", renameThenRun, "sh", vibeTunnelSessionName, "/stub/vt"}
+	trampoline := []string{"/stub/vt", "-S", "/bin/sh", "-c", renameThenRun, "sh", stableSessionName, "/stub/vt"}
 	want := append(trampoline, child...)
 	// The shadow child carries its own `--`, and vt has to hand it on untouched.
 	if !wrapped || !slices.Equal(got, want) {

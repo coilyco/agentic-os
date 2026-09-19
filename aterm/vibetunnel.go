@@ -8,9 +8,6 @@ import (
 
 const (
 	vibeTunnelBin = "vt"
-	// The one name every aterm session carries, and the one launch clears.
-	// See docs/aterm-bundles.md.
-	vibeTunnelSessionName = "aterm"
 	// vt refuses a nested session, so a window drops this marker.
 	// See docs/aterm-bundles.md.
 	vibeTunnelSessionEnv = "VIBETUNNEL_SESSION_ID"
@@ -22,7 +19,7 @@ const (
 // -S skips vt's re-run through an interactive shell, and vt reads no `--`.
 // See docs/aterm-bundles.md.
 func vibeTunnelArgv(vt string, child []string) []string {
-	trampoline := []string{vt, "-S", "/bin/sh", "-c", renameThenRun, "sh", vibeTunnelSessionName, vt}
+	trampoline := []string{vt, "-S", "/bin/sh", "-c", renameThenRun, "sh", stableSessionName, vt}
 	return append(trampoline, child...)
 }
 

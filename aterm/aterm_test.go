@@ -144,7 +144,7 @@ func TestLaunchPlanRunsTheNativeSessionInsideTheWindow(t *testing.T) {
 	want := []string{
 		"/stub/aos", "_native-shadow", "--harness", "claude",
 		"--role", "platform", "--assigned-role", "--",
-		"/stub/agent-compose", "launch", "platform", "claude",
+		"/stub/agent-compose", "launch", "platform", "claude", "--name", stableSessionName,
 	}
 	if strings.Join(plan.Child, " ") != strings.Join(want, " ") {
 		t.Fatalf("child = %v, want %v", plan.Child, want)
