@@ -33,7 +33,14 @@ func runSession(options sessionOptions, stdin io.Reader, stdout, stderr io.Write
 		playCard(stdout, options.Card, options.Motion)
 	}
 	// After the card, so the browser sees the harness and not the animation.
-	argv = wrapChild(argv, options.VibeTunnel, exec.LookPath, stderr)
+	argv, wrapped := wrapChild(argv, options.VibeTunnel, exec.LookPath, stderr)
+	if wrapped {
+		// Before this session exists, so it can never be its own target.
+		if cleared := systemReaper(stderr).clear(vibeTunnelSessionName); cleared > 0 {
+			fmt.Fprintf(stderr, "aterm: cleared %d earlier VibeTunnel session(s) named %s\n",
+				cleared, vibeTunnelSessionName)
+		}
+	}
 	command := exec.Command(argv[0], argv[1:]...)
 	// The card is already resolved here, so the session carries it rather than
 	// re-resolving it later. `aterm card` re-renders from this.

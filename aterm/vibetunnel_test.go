@@ -17,18 +17,19 @@ func stubLookPath(name string) (string, error) { return "/stub/" + name, nil }
 
 func TestWrapChildPutsTheHarnessBehindVt(t *testing.T) {
 	child := []string{"aos", "_native-shadow", "--harness", "claude", "--", "agent-compose", "launch"}
-	got := wrapChild(child, true, stubLookPath, &bytes.Buffer{})
-	want := append([]string{"/stub/vt", "-S"}, child...)
+	got, wrapped := wrapChild(child, true, stubLookPath, &bytes.Buffer{})
+	trampoline := []string{"/stub/vt", "-S", "/bin/sh", "-c", renameThenRun, "sh", vibeTunnelSessionName, "/stub/vt"}
+	want := append(trampoline, child...)
 	// The shadow child carries its own `--`, and vt has to hand it on untouched.
-	if !slices.Equal(got, want) {
+	if !wrapped || !slices.Equal(got, want) {
 		t.Fatalf("argv = %v, want %v", got, want)
 	}
 }
 
 func TestWrapChildLeavesTheArgvAloneWhenOptedOut(t *testing.T) {
 	notice := &bytes.Buffer{}
-	got := wrapChild([]string{"agent-compose", "launch"}, false, stubLookPath, notice)
-	if !slices.Equal(got, []string{"agent-compose", "launch"}) || notice.Len() != 0 {
+	got, wrapped := wrapChild([]string{"agent-compose", "launch"}, false, stubLookPath, notice)
+	if wrapped || !slices.Equal(got, []string{"agent-compose", "launch"}) || notice.Len() != 0 {
 		t.Fatalf("an opt-out should be silent and unchanged: %v %q", got, notice.String())
 	}
 }
@@ -36,9 +37,9 @@ func TestWrapChildLeavesTheArgvAloneWhenOptedOut(t *testing.T) {
 func TestWrapChildFallsOpenWhenVtIsMissing(t *testing.T) {
 	notice := &bytes.Buffer{}
 	missing := func(string) (string, error) { return "", fmt.Errorf("not found") }
-	got := wrapChild([]string{"agent-compose", "launch"}, true, missing, notice)
+	got, wrapped := wrapChild([]string{"agent-compose", "launch"}, true, missing, notice)
 	// A sidecar the operator may not have installed must not cost the session.
-	if !slices.Equal(got, []string{"agent-compose", "launch"}) {
+	if wrapped || !slices.Equal(got, []string{"agent-compose", "launch"}) {
 		t.Fatalf("a missing vt should still launch the harness: %v", got)
 	}
 	if !strings.Contains(notice.String(), "not in VibeTunnel") {
@@ -91,18 +92,20 @@ func TestLaunchPlanWrapsInVibeTunnelUnlessOptedOut(t *testing.T) {
 	}
 }
 
-func TestRunSessionRunsTheChildThroughVtAndKeepsItsExitCode(t *testing.T) {
+func TestRunSessionRunsTheChildThroughVtNamedAndKeepsItsExitCode(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the fixture is a POSIX script")
 	}
 	dir := t.TempDir()
-	record := filepath.Join(dir, "vt-args")
-	// Stands in for vt: records that it was reached, then runs the child the way
+	record, titles := filepath.Join(dir, "vt-args"), filepath.Join(dir, "vt-titles")
+	// Stands in for vt: records a rename, and otherwise runs the command the way
 	// `vt -S` does.
-	script := "#!/bin/sh\necho \"$*\" > " + record + "\nshift\nexec \"$@\"\n"
+	script := "#!/bin/sh\nif [ \"$1\" = title ]; then echo \"$*\" >> " + titles + "; exit 0; fi\n" +
+		"echo \"$*\" > " + record + "\nshift\nexec \"$@\"\n"
 	if err := os.WriteFile(filepath.Join(dir, "vt"), []byte(script), 0o700); err != nil {
 		t.Fatalf("write: %v", err)
 	}
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	code := runSession(
 		sessionOptions{VibeTunnel: true, Argv: []string{"/bin/sh", "-c", "exit 7"}},
@@ -115,8 +118,12 @@ func TestRunSessionRunsTheChildThroughVtAndKeepsItsExitCode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("the session never reached vt: %v", err)
 	}
-	if got := strings.TrimSpace(string(raw)); got != "-S /bin/sh -c exit 7" {
+	if got := strings.TrimSpace(string(raw)); !strings.HasSuffix(got, "sh aterm "+filepath.Join(dir, "vt")+" /bin/sh -c exit 7") {
 		t.Fatalf("vt argv = %q", got)
+	}
+	// The name is set from inside the session, before the harness starts.
+	if got, _ := os.ReadFile(titles); strings.TrimSpace(string(got)) != "title aterm" {
+		t.Fatalf("the session was not named: %q", got)
 	}
 }
 
