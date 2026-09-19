@@ -96,8 +96,8 @@ matched the command string, missing `just <verb>` while blocking the direct call
   MultiEdit, and NotebookEdit. `autoMemoryEnabled: false` stops the harness
   writing memory files, and the deny stops an agent authoring one by hand.
 
-`BASE_ALLOWED_PERMISSIONS` is empty. An allow rule must name the tool it widens,
-so agentic-os#1165's bare `*` only ever warned at startup and is now retired.
+`BASE_ALLOWED_PERMISSIONS` carries two standing SSH allows for Senior Sysadmin
+diagnosis. Each names its own user and host, avoiding agentic-os#1165's bare `*`.
 
 `effortLevel` is deliberately not a fleet key. It tunes latency and spend per
 host, which makes it operator-local preference under the config-placement axes,
