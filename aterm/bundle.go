@@ -138,6 +138,10 @@ func newBundlesCommand(deps commandDeps) *cli.Command {
 				Name:  "json",
 				Usage: "with --dry-run, the machine plan instead of the rendered one",
 			},
+			&cli.BoolFlag{
+				Name:  "check",
+				Usage: "report each bundle as current or drifted and write nothing; exits 7 on drift",
+			},
 		}...),
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return runBundles(ctx, deps, cmd)
@@ -199,6 +203,12 @@ func runBundles(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 	stdout := cmd.Root().Writer
 	if cmd.Bool("json") && !cmd.Bool("dry-run") {
 		return withExit(exitUsage, fmt.Errorf("--json applies to --dry-run"))
+	}
+	if cmd.Bool("check") && (cmd.Bool("dry-run") || cmd.Bool("json")) {
+		return withExit(exitUsage, fmt.Errorf("--check reports drift itself, so it takes neither --dry-run nor --json"))
+	}
+	if cmd.Bool("check") {
+		return checkBundles(stdout, plan)
 	}
 	if cmd.Bool("dry-run") {
 		if cmd.Bool("json") {

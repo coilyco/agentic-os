@@ -11,6 +11,7 @@ const (
 	exitMissing   = 4
 	exitSpawn     = 5
 	exitNested    = 6
+	exitDrift     = 7
 )
 
 type exitError struct {
