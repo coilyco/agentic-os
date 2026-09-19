@@ -62,6 +62,8 @@ func stubDeps(t *testing.T, spawns *[]recordedSpawn, shadowed bool) commandDeps 
 				return []byte("claude\n"), nil
 			case len(args) > 0 && args[0] == "--version":
 				return []byte("stub 1.0\n"), nil
+			case len(args) > 0 && args[0] == "status":
+				return []byte("VibeTunnel Server Status:\n  Running: Yes\n"), nil
 			case len(args) > 0 && args[0] == "overlay":
 				role, seat := "platform", "claude"
 				for index, value := range args {

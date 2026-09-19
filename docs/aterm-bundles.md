@@ -19,3 +19,15 @@ just aterm-bundles --dry-run         # what would land, rendered
 **A bundle is named for who answers**, the person and role rather than the harness: `Vera // Systems Administrator`. A POSIX filename cannot hold a slash, so it is stored with ` :: `, which macOS renders as one, and only the directory carries it: the executable stays a plain `aterm-<role>`.
 
 **Roles come from the live roster**, the read the launcher and its completion use, so no second list goes stale. A bundle is recognized by a marker inside it rather than its name, so a renamed scheme reports what the last run wrote instead of orphaning it. What this run no longer writes is reported rather than deleted, an app it did not write is never overwritten, and every target is checked first, so a refusal cannot half-regenerate the set. Bundles are per-role on the launch profiles' seat, each Finder-tagged `acompose` so one Spotlight word finds them. `--tag` renames it. kitty outlives its last window by macOS convention, which left the bundle registered and the next click reopening nothing, so `aterm` quits it with the window.
+
+## Running through VibeTunnel
+
+Every session `aterm` opens, from a Dock bundle or the shell, runs through [VibeTunnel](https://vibetunnel.sh/)'s `vt`, so the same terminal also shows in a browser. **`_session` puts the harness behind `vt -S`, and `--no-vibetunnel` (or `ATERM_NO_VIBETUNNEL`) opts out.** The launcher only passes `--vibetunnel` to `_session`. `_session` looks `vt` up on the window's own PATH after the card has drawn, so the browser sees the harness and not the animation. `--dry-run` shows the state on a `vibetunnel` row. `plan.Child` stays the compose command, so the release check that asserts against it does not change.
+
+**`-S` is required.** Without it `vt` re-runs the command through the interactive shell, which re-quotes the argv and sources the rc files a second time. With it the argv reaches the harness untouched, including the shadow child's own `--`. That was run against VibeTunnel 1.0.0-beta.18. `vt` reads no `--` of its own, so the child's first word must not start with a dash. `vt` exits with the child's code, so `_session` still holds the window on a failure.
+
+**A window drops `VIBETUNNEL_SESSION_ID`.** `vt` refuses to start inside a session it opened and exits 1. An aterm launched from a wrapped shell would open a window whose harness never starts. `spawnWindow` filters the marker on every launch, shadow or not.
+
+**A missing `vt` costs the browser view, never the session.** `_session` prints one line and runs the harness directly. `aterm doctor` reports a `vibetunnel` row as a warning when `vt` is missing or `vt status` does not print `Running: Yes`, and never fails the launch chain on it. The status text is vt's own words, so the check is one substring.
+
+**The server's bind address and authentication are the operator's config, not aterm's.** aterm starts no server and sets no credential. It only decides whether a session is visible to the one that is running.

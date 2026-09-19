@@ -23,6 +23,7 @@ type launchRequest struct {
 	NoMotion         bool
 	Extra            []string
 	Hold             bool
+	VibeTunnel       bool
 	Creature         creaturePlate
 }
 
@@ -47,6 +48,7 @@ type launchPlan struct {
 	Card             sessionCard    `json:"card"`
 	Creature         creaturePlate  `json:"creature"`
 	Shadowed         bool           `json:"shadowed"`
+	VibeTunnel       bool           `json:"vibetunnel"`
 	Child            []string       `json:"child"`
 	Executable       string         `json:"executable"`
 	Arguments        []string       `json:"arguments"`
@@ -135,6 +137,7 @@ func buildLaunchPlan(
 		Workspace:        request.Workspace,
 		Creature:         request.Creature,
 		Shadowed:         shadowed,
+		VibeTunnel:       request.VibeTunnel,
 		Child:            child,
 		Executable:       strings.TrimSpace(request.TerminalBin),
 	}
@@ -151,6 +154,9 @@ func buildLaunchPlan(
 	}
 	if request.NoMotion {
 		session = append(session, "--no-motion")
+	}
+	if request.VibeTunnel {
+		session = append(session, "--vibetunnel")
 	}
 	session = append(session, "--card", encoded, "--")
 	// kitty takes the program as trailing arguments, with no -e separator.

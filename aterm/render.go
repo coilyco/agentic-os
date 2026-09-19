@@ -29,6 +29,7 @@ func renderPlan(writer io.Writer, document overlayDocument, plan launchPlan) err
 		{"workspace", planWorkspace(plan)},
 		{"directory", plan.WorkingDirectory},
 		{"shadow", shadowLine(plan.Shadowed)},
+		{"vibetunnel", vibeTunnelLine(plan.VibeTunnel)},
 		{"personality", personalityLine(document)},
 		{"brand", brandLine(plan.Brand)},
 		{"creature", creatureLine(plan.Creature)},
@@ -72,6 +73,13 @@ func shadowLine(shadowed bool) string {
 	// Naming the daily converge too: it rides the aos wrapper, which this
 	// window skips entirely. See docs/aterm.md.
 	return "none, the window runs Agent Compose directly and skips daily host convergence"
+}
+
+func vibeTunnelLine(wrapped bool) string {
+	if wrapped {
+		return "the session runs through `vt`, when it is on the window's PATH"
+	}
+	return "off, the session stays out of the browser view"
 }
 
 // personalityLine is the first place the sensory identity shows up: each

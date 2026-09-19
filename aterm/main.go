@@ -162,6 +162,11 @@ func newCommand(deps commandDeps) *cli.Command {
 				Usage: "keep the window open after a clean exit (a failure always holds)",
 			},
 			&cli.BoolFlag{
+				Name:    "no-vibetunnel",
+				Usage:   "do not run the session through VibeTunnel's `vt`, so it stays out of the browser view",
+				Sources: cli.EnvVars("ATERM_NO_VIBETUNNEL"),
+			},
+			&cli.BoolFlag{
 				Name:  "dry-run",
 				Usage: "print the resolved identity and launch plan without opening a window",
 			},
@@ -254,6 +259,7 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 		NoMotion:         cmd.Bool("no-motion"),
 		Extra:            extra,
 		Hold:             cmd.Bool("hold"),
+		VibeTunnel:       !cmd.Bool("no-vibetunnel"),
 	}
 	if creatureWanted(cmd.Bool("no-creature")) {
 		request.Creature = bakeCreaturePlate(role, creaturePresence, creatureWholeWindow)

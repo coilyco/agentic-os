@@ -32,6 +32,8 @@ func runSession(options sessionOptions, stdin io.Reader, stdout, stderr io.Write
 	if options.Card.Format != "" {
 		playCard(stdout, options.Card, options.Motion)
 	}
+	// After the card, so the browser sees the harness and not the animation.
+	argv = wrapChild(argv, options.VibeTunnel, exec.LookPath, stderr)
 	command := exec.Command(argv[0], argv[1:]...)
 	// The card is already resolved here, so the session carries it rather than
 	// re-resolving it later. `aterm card` re-renders from this.
@@ -82,9 +84,10 @@ func holdWindow(stdin io.Reader, stdout io.Writer, notice string) {
 }
 
 type sessionOptions struct {
-	Hold    bool
-	Motion  bool
-	Card    sessionCard
+	Hold       bool
+	VibeTunnel bool
+	Motion     bool
+	Card       sessionCard
 	// CardPayload is the encoded card exactly as it arrived, so the session can
 	// pass it on without re-encoding what it decoded.
 	CardPayload string
@@ -101,6 +104,8 @@ func parseSessionArgs(argv []string) (sessionOptions, error) {
 			options.Hold = true
 		case "--no-motion":
 			options.Motion = false
+		case "--vibetunnel":
+			options.VibeTunnel = true
 		case "--card":
 			if index+1 >= len(argv) {
 				return sessionOptions{}, fmt.Errorf("%s --card needs a value", sessionCommand)

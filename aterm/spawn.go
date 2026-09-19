@@ -29,9 +29,11 @@ func spawnWindow(name string, args []string) error {
 	command.SysProcAttr = detachAttr()
 	// A new window is a new session, so it opens on the canonical environment
 	// rather than on this one's shadow. agentic-os#1460
-	if environ := canonicalEnviron(os.Environ(), readCanonicalLaunch()); environ != nil {
-		command.Env = environ
+	environ := canonicalEnviron(os.Environ(), readCanonicalLaunch())
+	if environ == nil {
+		environ = os.Environ()
 	}
+	command.Env = withoutVibeTunnelSession(environ)
 	if err := command.Start(); err != nil {
 		return err
 	}
