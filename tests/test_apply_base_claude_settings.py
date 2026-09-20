@@ -34,6 +34,7 @@ def test_base_settings_disable_memory_and_chrome_without_losing_local_denies() -
         "tui",
         "deniedMcpServers",
         "permissions.deny",
+        "permissions.allow",
     }
     assert MODULE.merge_base_settings(settings) == []
 
@@ -86,9 +87,9 @@ def test_permission_rules_are_created_when_the_key_is_absent() -> None:
     changed = MODULE.merge_base_settings(settings)
 
     assert settings["permissions"]["deny"] == MODULE.BASE_DENIED_PERMISSIONS
-    assert settings["permissions"]["allow"] == []
+    assert settings["permissions"]["allow"] == MODULE.BASE_ALLOWED_PERMISSIONS
     assert "permissions.deny" in changed
-    assert "permissions.allow" not in changed
+    assert "permissions.allow" in changed
     assert MODULE.merge_base_settings(settings) == []
 
 
@@ -122,7 +123,10 @@ def test_retired_allow_rules_are_pruned_from_an_already_converged_host() -> None
 
     changed = MODULE.merge_base_settings(settings)
 
-    assert settings["permissions"]["allow"] == ["Bash(coily:*)", "Agent"]
+    assert settings["permissions"]["allow"] == [
+        "Bash(coily:*)",
+        "Agent",
+    ] + MODULE.BASE_ALLOWED_PERMISSIONS
     assert "permissions.allow" in changed
     assert MODULE.merge_base_settings(settings) == []
 
