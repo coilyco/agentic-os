@@ -65,9 +65,9 @@ package tag is present.
 
 `.forgejo/workflows/mirror-to-github.yml` fast-forwards Forgejo `main`, root
 `v*`, and `aos-precommit-v*` tags onto the read-only GitHub mirror
-(`coilysiren/agentic-os`) where downstream refs resolve. It is
-fast-forward-only, never `--force`, and no-ops without the PAT. See
-[forgejo-ops.md](../.agents/skills/tooling-aosguard/references/forgejo-ops.md) for the mirror-side detail.
+(`coilysiren/agentic-os`). `aos-v*` CLI tags stay Forgejo-only on purpose, since
+nothing consumes them from GitHub. Fast-forward-only, never `--force`, and it
+fails without the PAT. See [forgejo-ops.md](../.agents/skills/tooling-aosguard/references/forgejo-ops.md) for the mirror-side detail.
 
 ## Skip markers
 
