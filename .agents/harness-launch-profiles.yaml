@@ -31,3 +31,5 @@ roles:
     agent: claude
   advocate:
     agent: claude
+  admin-assist:
+    agent: goose

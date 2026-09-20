@@ -88,6 +88,8 @@ Major shipped capabilities, not files.
 - [Issue-ref links](../scripts/issue-ref-links.sh) - a Stop hook naming the URL that resolves each
   hash-ref in a reply, read off the payload key rather than the unflushed transcript. Warn first,
   and never a Forgejo issue URL.
+- [PR merge-status check](../scripts/pr-merge-status-check.py) - a Stop hook asking Forgejo
+  whether each cited pull request really merged. Blocks on a contradiction.
 - [Canonical agent-id generator](build-output-is-not-content.md) - short lowercase agent IDs.
 - Skill mounts - `aos skills mount`.
 
