@@ -252,6 +252,9 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 		if command, err = applyRoleModelProfile(command, role, harness); err != nil {
 			return err
 		}
+		if err = applyRoleModelEnvironment(role, harness); err != nil {
+			return err
+		}
 	}
 	runtime.Progress.Ready()
 	runtime.Progress.Exec(command)

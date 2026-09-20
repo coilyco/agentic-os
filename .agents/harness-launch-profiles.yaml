@@ -33,3 +33,7 @@ roles:
     agent: claude
   admin-assist:
     agent: goose
+    harnesses:
+      goose:
+        provider: openai
+        model: chat/default

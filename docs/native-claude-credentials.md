@@ -85,7 +85,7 @@ the authoring-vs-rollout rule in [AGENTS.md](../AGENTS.md).
 `permissions.allow` and removes only the two `RETIRED_*` lists, so operator
 rules and the sibling `ask` / `defaultMode` keys survive, and a rerun no-ops.
 
-One shut, none open:
+One shut, two open:
 
 The live-infrastructure CLI denies (`gcloud`, `kubectl`, `helm`, `terraform`,
 `gsutil`, `mongosh`, `mongo`) are **retired**, Kai's call 2026-09-14: a deny
@@ -96,8 +96,8 @@ matched the command string, missing `just <verb>` while blocking the direct call
   MultiEdit, and NotebookEdit. `autoMemoryEnabled: false` stops the harness
   writing memory files, and the deny stops an agent authoring one by hand.
 
-`BASE_ALLOWED_PERMISSIONS` is empty. An allow rule must name the tool it widens,
-so agentic-os#1165's bare `*` only ever warned at startup and is now retired.
+`BASE_ALLOWED_PERMISSIONS` carries two ssh host rules, Kai's call 2026-09-20.
+Both miss a flagged `ssh -o ...`: `teable:coilyco-flight-deck/agentic-os#7992`.
 
 `effortLevel` is deliberately not a fleet key. It tunes latency and spend per
 host, which makes it operator-local preference under the config-placement axes,

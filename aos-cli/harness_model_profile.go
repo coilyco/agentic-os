@@ -18,12 +18,17 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
-// harnessModelProfile pins the model and effort one role runs a harness at.
-// See docs/native-harness-config.md.
+// harnessModelProfile pins what one role runs a harness at: model and effort
+// for claude, provider and model for goose. See docs/native-harness-config.md.
 type harnessModelProfile struct {
-	Model  string `yaml:"model"`
-	Effort string `yaml:"effort"`
+	Model    string `yaml:"model"`
+	Effort   string `yaml:"effort"`
+	Provider string `yaml:"provider"`
 }
+
+// gooseSettingPattern is the spelling a goose provider or model id may take,
+// which covers route ids such as evaluation/deepseek-v4-pro.
+var gooseSettingPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`)
 
 var claudeEffortLevels = []string{"low", "medium", "high", "xhigh", "max"}
 
@@ -40,14 +45,42 @@ var claudeModelAliases = map[string]string{
 var claudeModelIDPattern = regexp.MustCompile(`^claude-(sonnet|opus|haiku|fable)-[a-z0-9-]*[a-z0-9](\[1m\])?$`)
 
 func validateHarnessModelProfile(role, harness string, profile harnessModelProfile) (harnessModelProfile, error) {
-	if harness != "claude" {
-		return profile, fmt.Errorf(
-			"harness launch profile role %s sets a model for %q, but only claude model profiles are supported",
-			role, harness,
-		)
-	}
 	profile.Model = strings.TrimSpace(profile.Model)
 	profile.Effort = strings.TrimSpace(profile.Effort)
+	profile.Provider = strings.TrimSpace(profile.Provider)
+	switch harness {
+	case "claude":
+		return validateClaudeModelProfile(role, profile)
+	case "goose":
+		return validateGooseModelProfile(role, profile)
+	}
+	return profile, fmt.Errorf(
+		"harness launch profile role %s sets a model for %q, but only claude and goose model profiles are supported",
+		role, harness,
+	)
+}
+
+// validateGooseModelProfile requires both halves, since a model without its
+// provider is read by goose against whichever provider is active.
+func validateGooseModelProfile(role string, profile harnessModelProfile) (harnessModelProfile, error) {
+	if profile.Effort != "" {
+		return profile, fmt.Errorf("harness launch profile role %s goose profile sets effort, which goose does not take", role)
+	}
+	for name, value := range map[string]string{"provider": profile.Provider, "model": profile.Model} {
+		if !gooseSettingPattern.MatchString(value) {
+			return profile, fmt.Errorf(
+				"harness launch profile role %s goose %s %q: want a non-empty id of letters, digits, and . _ : / -",
+				role, name, value,
+			)
+		}
+	}
+	return profile, nil
+}
+
+func validateClaudeModelProfile(role string, profile harnessModelProfile) (harnessModelProfile, error) {
+	if profile.Provider != "" {
+		return profile, fmt.Errorf("harness launch profile role %s claude profile sets a provider, which is a goose setting", role)
+	}
 	if profile.Model == "" && profile.Effort == "" {
 		return profile, fmt.Errorf("harness launch profile role %s claude profile is empty", role)
 	}
@@ -97,7 +130,8 @@ func roleModelArguments(
 	env func(string) string,
 ) []string {
 	profile, ok := document.Roles[role].Harnesses[harness]
-	if !ok {
+	// Only claude takes these flags. A goose profile reaches goose as env.
+	if !ok || harness != "claude" {
 		return nil
 	}
 	var flags []string
@@ -159,6 +193,51 @@ func applyRoleModelProfile(command []string, role, harness string) ([]string, er
 	applied = append(applied, command[:start]...)
 	applied = append(applied, flags...)
 	return append(applied, command[start:]...), nil
+}
+
+// roleModelEnvironment returns the env a role's goose profile sets. Env the
+// human already exported wins, as a typed flag does for claude.
+func roleModelEnvironment(
+	document harnessLaunchProfileDocument,
+	role, harness string,
+	env func(string) string,
+) map[string]string {
+	profile, ok := document.Roles[role].Harnesses[harness]
+	if !ok || harness != "goose" {
+		return nil
+	}
+	set := make(map[string]string)
+	for name, value := range map[string]string{
+		"GOOSE_PROVIDER": profile.Provider,
+		"GOOSE_MODEL":    profile.Model,
+	} {
+		if value != "" && strings.TrimSpace(env(name)) == "" {
+			set[name] = value
+		}
+	}
+	return set
+}
+
+// applyRoleModelEnvironment exports a role's goose provider and model before the
+// native launch replaces this process, which is where the harness reads them.
+func applyRoleModelEnvironment(role, harness string) error {
+	if role == "" || harness != "goose" {
+		return nil
+	}
+	document, err := loadConfiguredHarnessLaunchProfiles()
+	// Release builds embed the profiles, so only a bare dev build finds none.
+	if errors.Is(err, errHarnessLaunchProfilesMissing) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("role %s launch refused: %w", role, err)
+	}
+	for name, value := range roleModelEnvironment(document, role, harness, os.Getenv) {
+		if err := os.Setenv(name, value); err != nil {
+			return fmt.Errorf("set %s for role %s: %w", name, role, err)
+		}
+	}
+	return nil
 }
 
 type anthropicModel struct {

@@ -61,9 +61,12 @@ RETIRED_DENIED_PERMISSIONS = [
     "Bash(gh pr comment:*)",
 ]
 
-# No fleet allow rule. Prompt suppression is defaultMode's job, not an allow
-# rule's, and defaultMode is operator-local like effortLevel below.
-BASE_ALLOWED_PERMISSIONS: list[str] = []
+# Prefix matches, so these bind only when the host is the first argument.
+# A flagged invocation misses them: docs/native-claude-credentials.md.
+BASE_ALLOWED_PERMISSIONS: list[str] = [
+    "Bash(ssh coilysiren@ser8:*)",
+    "Bash(ssh firem@kai-tower-3026:*)",
+]
 RETIRED_ALLOWED_PERMISSIONS = [
     # The harness refuses a bare wildcard in allow and warns at every session
     # start, so this one was inert from the day it landed (agentic-os#1165).

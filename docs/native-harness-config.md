@@ -97,8 +97,12 @@ An assigned-role launch, native or containerized, inserts `--model` and
 effort variable above the flag. A profile the loader rejects refuses the launch
 and names the role, so a seat never quietly falls back to a different model.
 
-Validation has two layers. The loader checks the shape: claude is the only
-harness, effort is `low` to `max`, and the model is an alias the live check can
+A goose seat takes `harnesses.goose` with `provider` and `model`, both required,
+exported at a native launch as `GOOSE_PROVIDER` and `GOOSE_MODEL`. Exported env
+wins, and the provider must be registered in goose's user config (`goose-config`).
+
+Validation has two layers. The loader checks the shape: claude and goose are the
+only harnesses, effort is `low` to `max`, and a claude model is an alias the live check can
 resolve (`sonnet`, `opus`, `haiku`, `fable`, plus `[1m]`) or a `claude-*` id.
 `aos models check` (`just aos-models-check`) then lists the Anthropic API models
 with `ANTHROPIC_API_KEY`. It resolves an alias to the newest id in its family,

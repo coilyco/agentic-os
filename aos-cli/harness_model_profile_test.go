@@ -49,6 +49,11 @@ func TestLoadHarnessLaunchProfilesRejectsMalformedModelProfiles(t *testing.T) {
 		"not a claude id":    "roles:\n  a:\n    agent: claude\n    harnesses:\n      claude: {model: gpt-5}\n",
 		"empty profile":      "roles:\n  a:\n    agent: claude\n    harnesses:\n      claude: {}\n",
 		"unknown key":        "roles:\n  a:\n    agent: claude\n    harnesses:\n      claude: {model: sonnet, verbosity: low}\n",
+		"goose no provider":  "roles:\n  a:\n    agent: goose\n    harnesses:\n      goose: {model: evaluation/x}\n",
+		"goose no model":     "roles:\n  a:\n    agent: goose\n    harnesses:\n      goose: {provider: openai}\n",
+		"goose with effort":  "roles:\n  a:\n    agent: goose\n    harnesses:\n      goose: {provider: openai, model: m, effort: high}\n",
+		"goose spaced model": "roles:\n  a:\n    agent: goose\n    harnesses:\n      goose: {provider: openai, model: 'two words'}\n",
+		"claude provider":    "roles:\n  a:\n    agent: claude\n    harnesses:\n      claude: {model: sonnet, provider: openai}\n",
 	} {
 		if _, err := loadHarnessLaunchProfiles([]byte(body)); err == nil {
 			t.Errorf("%s: loader accepted %q", name, body)
@@ -82,6 +87,85 @@ func TestRoleModelArgumentsYieldToTheHuman(t *testing.T) {
 		if !slices.Equal(got, tc.want) {
 			t.Errorf("%s: got %v, want %v", name, got, tc.want)
 		}
+	}
+}
+
+const gooseProfileFixture = `
+roles:
+  assistant:
+    agent: goose
+    harnesses:
+      goose:
+        provider: openai
+        model: evaluation/deepseek-v4-pro
+  builder:
+    agent: claude
+    harnesses:
+      claude:
+        model: sonnet
+`
+
+func TestGooseProfileReachesGooseAsEnvironmentAndNeverAsFlags(t *testing.T) {
+	t.Parallel()
+	document := loadModelFixture(t, gooseProfileFixture)
+	noEnv := func(string) string { return "" }
+	got := roleModelEnvironment(document, "assistant", "goose", noEnv)
+	want := map[string]string{"GOOSE_PROVIDER": "openai", "GOOSE_MODEL": "evaluation/deepseek-v4-pro"}
+	if len(got) != len(want) || got["GOOSE_PROVIDER"] != want["GOOSE_PROVIDER"] || got["GOOSE_MODEL"] != want["GOOSE_MODEL"] {
+		t.Fatalf("environment = %v, want %v", got, want)
+	}
+	// goose takes no --model, so a goose profile must add nothing to its argv.
+	if flags := roleModelArguments(document, "assistant", "goose", nil, noEnv); len(flags) != 0 {
+		t.Errorf("goose profile produced flags %v", flags)
+	}
+	// A claude profile is no goose environment, and the reverse holds too.
+	if got := roleModelEnvironment(document, "builder", "claude", noEnv); len(got) != 0 {
+		t.Errorf("claude profile produced environment %v", got)
+	}
+	if got := roleModelEnvironment(document, "assistant", "claude", noEnv); len(got) != 0 {
+		t.Errorf("a role with no claude profile produced environment %v", got)
+	}
+}
+
+func TestExportedGooseEnvironmentYieldsToTheHuman(t *testing.T) {
+	t.Parallel()
+	document := loadModelFixture(t, gooseProfileFixture)
+	human := func(name string) string {
+		if name == "GOOSE_MODEL" {
+			return "qwen3-coder:30b"
+		}
+		return ""
+	}
+	got := roleModelEnvironment(document, "assistant", "goose", human)
+	if _, overridden := got["GOOSE_MODEL"]; overridden {
+		t.Errorf("the profile overrode a model the human exported: %v", got)
+	}
+	if got["GOOSE_PROVIDER"] != "openai" {
+		t.Errorf("the provider was dropped along with the model: %v", got)
+	}
+}
+
+func TestApplyRoleModelEnvironmentExportsBeforeLaunch(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profiles.yaml")
+	if err := os.WriteFile(path, []byte(gooseProfileFixture), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AOS_HARNESS_LAUNCH_PROFILES", path)
+	// Registered so the test's own exports are undone afterwards.
+	t.Setenv("GOOSE_PROVIDER", "")
+	t.Setenv("GOOSE_MODEL", "")
+
+	if err := applyRoleModelEnvironment("assistant", "claude"); err != nil {
+		t.Fatal(err)
+	}
+	if os.Getenv("GOOSE_PROVIDER") != "" {
+		t.Fatal("a claude launch exported goose environment")
+	}
+	if err := applyRoleModelEnvironment("assistant", "goose"); err != nil {
+		t.Fatal(err)
+	}
+	if os.Getenv("GOOSE_PROVIDER") != "openai" || os.Getenv("GOOSE_MODEL") != "evaluation/deepseek-v4-pro" {
+		t.Errorf("exported %q and %q", os.Getenv("GOOSE_PROVIDER"), os.Getenv("GOOSE_MODEL"))
 	}
 }
 
