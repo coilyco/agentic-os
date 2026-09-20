@@ -3,6 +3,9 @@
 set -euo pipefail
 
 aosguard --version
+# The system interpreter parses YAML for repo scripts that run in this image, such as
+# deploy's sync-agent-routes. A build-stage install does not reach it.
+/usr/bin/python3 -c 'import yaml; print(yaml.__version__)'
 test -s /opt/agentic-os/aosguard-skill/aosguard/SKILL.md
 test -s /opt/agentic-os/aosguard-skill/aosguard/references/commands.yaml
 test -s /opt/agentic-os/aosguard-skill/aosguard-forgejo/SKILL.md
