@@ -72,6 +72,10 @@ repos:
   umbra:
     band: large
     guides: true
+    excludes: # evaluation records: evidence gating umbra features, one record per file
+    - evaluations/**
+    size_excludes:
+    - evaluations/**
   voice-corpus:
     band: micro # its info lives primarily in skills
   website:
