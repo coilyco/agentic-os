@@ -26,7 +26,7 @@ expect_roster() {
   fi
 }
 expect_roster '.source' 'roster:core'
-expect_roster '.role_order | length' 12
+expect_roster '.role_order | length' 13
 expect_roster '.personalities | length' 11
 test -s "$roster_dir/AGENTS.COMPOSE.md"
 test -n "$(
