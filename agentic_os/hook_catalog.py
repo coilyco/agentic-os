@@ -57,6 +57,9 @@ DEFAULT_HOOK_IDS = [
 # Per-repo hook opt-outs. eco-* repos vendor the Strange Loop Games Unity SDK,
 # whose comments are not ours to lint. lore is a docs-only slice.
 PER_REPO_HOOK_SKIPS: dict[str, set[str]] = {
+    # housecast grades and composes nothing, so it carries no AGENTS.COMPOSE.md for
+    # these to check, and their ids named a consumer it no longer knows about.
+    "housecast": {"agent-compose-size", "agent-compose-dedup"},
     # check-skills left this set once lore committed a categories.yaml carrying
     # its declared 4000-char cap (teable:coilyco-bridge/lore#7753).
     "lore": {
