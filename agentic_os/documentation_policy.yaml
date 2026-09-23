@@ -26,8 +26,10 @@ repos:
     - mcp-servers/**
     - scripts/README.md
     - docs/FEATURES.md
+    - evaluations/** # evaluation records, moved in from housecast
     size_excludes:
     - data/
+    - evaluations/**
   agentic-os-xxx:
     band: micro # its info lives primarily in skills
   coilysiren:
@@ -65,6 +67,10 @@ repos:
     band: micro # its info lives primarily in skills
   sirens-echo:
     band: large
+    excludes: # eval/<record>/ holds Sirens Deep evaluation records
+    - eval/**
+    size_excludes:
+    - eval/**
   steam-ops:
     band: small
   tally:
