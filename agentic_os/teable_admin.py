@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -22,6 +23,16 @@ from agentic_os import shared_ssl_context
 
 
 DEFAULT_BASE_URL = "http://teable:3000/api"
+
+SELECT_TYPES = ("singleSelect", "multipleSelect")
+RECORD_PAGE = 1000
+
+# Teable's colour vocabulary, walked in order for an added choice that names none.
+CHOICE_COLORS = [
+    f"{hue}{shade}"
+    for hue in ("blue", "cyan", "gray", "green", "orange", "pink", "purple", "red", "teal", "yellow")
+    for shade in ("Light2", "Light1", "Bright", "", "Dark1")
+]
 
 EXIT_CODES = {
     "authorization_failure": 77,
@@ -39,7 +50,8 @@ REFUSALS = {
         "convert is the one verb that destroys data while reporting the opposite: it emptied "
         "all 6,536 values in a column it declared required, returning 200 with notNull true. "
         "Do it in the Teable UI with an export in hand, and read the column back before "
-        "trusting the response."
+        "trusting the response. To rename or add select choices, use edit-choices, which "
+        "snapshots every value first and proves each one survived."
     ),
     "delete-table": (
         "Teable has no archive verb for a table, so a delete is unrecoverable outside a restic "
@@ -106,6 +118,30 @@ class TeableAPI:
         if not isinstance(fields, list):
             raise TeableAdminError("api_contract", "field list was not an array")
         return fields
+
+    def field_values(self, table_id: str, field_id: str) -> dict[str, Any]:
+        """Every record's value for one field, keyed by record id."""
+        values: dict[str, Any] = {}
+        skip = 0
+        while True:
+            page = self.request(
+                "GET",
+                f"/table/{table_id}/record",
+                query={
+                    "fieldKeyType": "id",
+                    "projection": [field_id],
+                    "take": RECORD_PAGE,
+                    "skip": skip,
+                },
+            )
+            records = page.get("records") if isinstance(page, dict) else None
+            if not isinstance(records, list):
+                raise TeableAdminError("api_contract", "record page carried no records array")
+            for record in records:
+                values[record["id"]] = (record.get("fields") or {}).get(field_id)
+            if len(records) < RECORD_PAGE:
+                return values
+            skip += RECORD_PAGE
 
     def list_tables(self, base_id: str) -> list[dict[str, Any]]:
         tables = self.request("GET", f"/base/{base_id}/table")
@@ -221,6 +257,152 @@ def create_table(api: TeableAPI, base_id: str, spec: dict[str, Any]) -> dict[str
     return stored
 
 
+def _resolve_field(fields: list[dict[str, Any]], ref: str) -> dict[str, Any]:
+    matches = [f for f in fields if ref in (f.get("id"), f.get("name"))]
+    if len(matches) != 1:
+        raise TeableAdminError("invalid_identifier", f"no single field has id or name {ref!r}")
+    return matches[0]
+
+
+def plan_choices(
+    field: dict[str, Any], renames: dict[str, str], additions: list[str]
+) -> list[dict[str, Any]]:
+    """The whole new choice list: every existing id kept, renamed in place, additions appended.
+
+    Teable deletes a choice, and strips it from every record, when its id is absent
+    from a convert, so nothing here can drop one.
+    """
+    if field.get("type") not in SELECT_TYPES:
+        raise TeableAdminError(
+            "refused", f"{field.get('name')!r} is {field.get('type')}, not a select field"
+        )
+    choices = (field.get("options") or {}).get("choices") or []
+    names: list[str] = [str(c["name"]) for c in choices]
+    if not renames and not additions:
+        raise TeableAdminError("invalid_identifier", "nothing to do: pass --rename or --add")
+    for old in renames:
+        if old not in names:
+            raise TeableAdminError("invalid_identifier", f"no choice named {old!r} to rename")
+    final: list[str] = [renames.get(n, n) for n in names] + list(additions)
+    duplicates = sorted({n for n in final if final.count(n) > 1})
+    if duplicates:
+        raise TeableAdminError(
+            "invalid_identifier", f"the result would carry duplicate choices: {', '.join(duplicates)}"
+        )
+    used = {c.get("color") for c in choices}
+    spare = [c for c in CHOICE_COLORS if c not in used] or CHOICE_COLORS
+    planned = [{**c, "name": renames.get(c["name"], c["name"])} for c in choices]
+    planned += [{"name": n, "color": spare[i % len(spare)]} for i, n in enumerate(additions)]
+    return planned
+
+
+def _expected(value: Any, renames: dict[str, str]) -> Any:
+    if isinstance(value, list):
+        return sorted(renames.get(str(v), str(v)) for v in value)
+    return renames.get(value, value) if value is not None else None
+
+
+def _normalised(value: Any) -> Any:
+    return sorted(value) if isinstance(value, list) else value
+
+
+def edit_choices(
+    api: TeableAPI,
+    table_id: str,
+    field_ref: str,
+    renames: dict[str, str],
+    additions: list[str],
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """Rename or add select choices, then prove no record value was lost.
+
+    The write is the convert endpoint, the one that once emptied 6,536 values while
+    returning 200. So every record's value is snapshotted to disk first, and re-read
+    afterwards against the same snapshot mapped through the renames.
+    """
+    field = _resolve_field(api.list_fields(table_id), field_ref)
+    planned = plan_choices(field, renames, additions)
+    before = api.field_values(table_id, field["id"])
+    # A projection defect once returned every value empty with a 200. An all-empty
+    # snapshot would then "prove" an emptied column, so it proves nothing.
+    if before and all(v in (None, [], "") for v in before.values()):
+        raise TeableAdminError(
+            "api_contract",
+            f"all {len(before)} records read back empty for {field['name']!r}, "
+            "so the snapshot cannot prove preservation; nothing was written",
+        )
+    in_use = {
+        v for value in before.values() for v in (value if isinstance(value, list) else [value]) if v
+    }
+    summary = {
+        "field": field["id"],
+        "records": len(before),
+        "renamed_in_use": sorted(old for old in renames if old in in_use),
+        "choices": [c["name"] for c in planned],
+    }
+    if dry_run:
+        return {"dry_run": True, **summary}
+
+    with tempfile.NamedTemporaryFile(
+        "w", prefix=f"teable-choices-{table_id}-{field['id']}-", suffix=".json", delete=False
+    ) as handle:
+        json.dump({"field": field, "values": before}, handle, ensure_ascii=False)
+        snapshot = handle.name
+    print(f"teable-admin: snapshot of {len(before)} values at {snapshot}", file=sys.stderr)
+
+    options = {**(field.get("options") or {}), "choices": planned}
+    api.request(
+        "PUT",
+        f"/table/{table_id}/field/{field['id']}/convert",
+        body={"type": field["type"], "options": options},
+    )
+
+    stored = _resolve_field(api.list_fields(table_id), field["id"])
+    problems = mismatches(
+        {k: field[k] for k in ("name", "type", "dbFieldName", "notNull") if k in field}, stored
+    )
+    stored_choices = (stored.get("options") or {}).get("choices") or []
+    if [c.get("name") for c in stored_choices] != [c["name"] for c in planned]:
+        problems.append(
+            f"choices: requested {[c['name'] for c in planned]}, "
+            f"stored {[c.get('name') for c in stored_choices]}"
+        )
+    after = api.field_values(table_id, field["id"])
+    lost = [rid for rid in before if rid not in after]
+    changed = [
+        rid
+        for rid, value in before.items()
+        if rid in after and _normalised(after[rid]) != _normalised(_expected(value, renames))
+    ]
+    if lost:
+        problems.append(f"{len(lost)} records missing after the write, first {lost[:5]}")
+    if changed:
+        problems.append(
+            f"{len(changed)} record values differ from the renamed snapshot, first {changed[:5]}"
+        )
+    if problems:
+        raise TeableAdminError(
+            "readback_mismatch",
+            "the convert did not store as requested:\n  "
+            + "\n  ".join(problems)
+            + f"\nEvery prior value is in {snapshot}. A concurrent record edit also reads as a "
+            + "difference, so check the named records before restoring anything.",
+        )
+    return {**summary, "snapshot": snapshot}
+
+
+def _parse_renames(pairs: list[str]) -> dict[str, str]:
+    renames: dict[str, str] = {}
+    for pair in pairs:
+        old, sep, new = pair.partition("=")
+        if not sep or not old or not new:
+            raise TeableAdminError("invalid_identifier", f"--rename takes OLD=NEW, got {pair!r}")
+        if old in renames:
+            raise TeableAdminError("invalid_identifier", f"{old!r} is renamed twice")
+        renames[old] = new
+    return renames
+
+
 def _read_spec(path: str) -> dict[str, Any]:
     try:
         with open(path, encoding="utf-8") as handle:
@@ -255,6 +437,16 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     describe = sub.add_parser("describe-base", help="list the tables in a base")
     describe.add_argument("base", help="base id")
 
+    choices = sub.add_parser(
+        "edit-choices",
+        help="rename or add select choices, carrying every record value, and prove none was lost",
+    )
+    choices.add_argument("table", help="table id")
+    choices.add_argument("field", help="field id or exact field name")
+    choices.add_argument("--rename", action="append", default=[], metavar="OLD=NEW")
+    choices.add_argument("--add", action="append", default=[], metavar="NAME")
+    choices.add_argument("--dry-run", action="store_true", help="plan and count, write nothing")
+
     for refused in REFUSALS:
         sub.add_parser(refused, help="NOT AVAILABLE: refused by policy, run it for the reason")
 
@@ -285,6 +477,10 @@ def main(argv: list[str] | None = None) -> int:
             result: Any = create_field(api, args.table, _read_spec(args.spec))
         elif args.command == "list-fields":
             result = api.list_fields(args.table)
+        elif args.command == "edit-choices":
+            result = edit_choices(
+                api, args.table, args.field, _parse_renames(args.rename), args.add, args.dry_run
+            )
         elif args.command == "create-table":
             result = create_table(api, args.base, _read_spec(args.spec))
         else:

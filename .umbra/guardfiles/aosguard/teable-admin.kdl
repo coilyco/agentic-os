@@ -28,6 +28,11 @@ wrap aosguard ops teable-admin {
         describe "list a table's fields"
     }
 
+    can run edit-choices {
+        argv "-P" "-m" "agentic_os.teable_admin" "edit-choices"
+        describe "rename or add select choices through convert, never dropping one: snapshots every record value to a file first, then re-reads and refuses unless each value survived under its new name, because convert once emptied 6,536 values while returning 200"
+    }
+
     can run create-table {
         argv "-P" "-m" "agentic_os.teable_admin" "create-table"
         describe "create a table, then re-read it through a separate request and refuse unless it stored as requested"

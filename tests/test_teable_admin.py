@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from email.message import Message
@@ -220,3 +221,162 @@ def test_a_non_array_field_list_is_a_contract_failure(monkeypatch):
         api.list_fields("tbl1")
 
     assert caught.value.kind == "api_contract"
+
+
+# --- edit-choices, against the convert that emptied a column ----------------
+
+
+class FakeTracker:
+    """One select field and its records, converted the way Teable's source does it.
+
+    A convert renames a choice by id on every record and strips a choice whose id
+    is absent. `emptying` reproduces the 6,536-value defect instead.
+    """
+
+    def __init__(self, records: dict[str, object], emptying: bool = False) -> None:
+        self.field = {
+            "id": "fldRoles",
+            "name": "roles",
+            "type": "multipleSelect",
+            "notNull": True,
+            "options": {
+                "choices": [
+                    {"id": "cho1", "name": "platform", "color": "blueLight2"},
+                    {"id": "cho2", "name": "science", "color": "blueBright"},
+                ]
+            },
+        }
+        self.records = dict(records)
+        self.emptying = emptying
+        self.converts: list[dict] = []
+
+    def handle(self, request: urllib.request.Request) -> FakeResponse:
+        url = request.full_url
+        if request.get_method() == "PUT":
+            body = json.loads(request.data)
+            self.converts.append(body)
+            old = {c["id"]: c["name"] for c in self.field["options"]["choices"]}
+            new = {c["id"]: c["name"] for c in body["options"]["choices"] if "id" in c}
+            mapping = {name: new.get(cid) for cid, name in old.items()}
+            for rid, value in self.records.items():
+                if self.emptying:
+                    self.records[rid] = None
+                else:
+                    self.records[rid] = [mapping[v] for v in value if mapping.get(v)]
+            self.field = {**self.field, "options": body["options"]}
+            return _json_response(self.field)
+        if "/record" in url:
+            query = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+            skip, take = int(query["skip"][0]), int(query["take"][0])
+            page = list(self.records.items())[skip : skip + take]
+            return _json_response(
+                {"records": [{"id": rid, "fields": {"fldRoles": v}} for rid, v in page]}
+            )
+        return _json_response([self.field])
+
+
+def _tracker(monkeypatch, **kwargs) -> tuple[admin.TeableAPI, FakeTracker]:
+    tracker = FakeTracker(
+        {"rec1": ["platform"], "rec2": ["platform", "science"], "rec3": ["science"]}, **kwargs
+    )
+    api, _ = _install(monkeypatch, tracker.handle)
+    return api, tracker
+
+
+def test_edit_choices_renames_in_place_and_carries_every_record(monkeypatch, tmp_path):
+    monkeypatch.setattr(admin.tempfile, "tempdir", str(tmp_path))
+    api, tracker = _tracker(monkeypatch)
+
+    got = admin.edit_choices(api, "tbl1", "roles", {"platform": "platform-eng"}, ["game-dev"])
+
+    sent = tracker.converts[0]["options"]["choices"]
+    assert [c.get("id") for c in sent] == ["cho1", "cho2", None]
+    assert tracker.records["rec2"] == ["platform-eng", "science"]
+    assert got["choices"] == ["platform-eng", "science", "game-dev"]
+    assert json.loads(open(got["snapshot"]).read())["values"]["rec1"] == ["platform"]
+
+
+def test_edit_choices_catches_a_convert_that_empties_the_column(monkeypatch, tmp_path):
+    monkeypatch.setattr(admin.tempfile, "tempdir", str(tmp_path))
+    api, _ = _tracker(monkeypatch, emptying=True)
+
+    with pytest.raises(admin.TeableAdminError) as caught:
+        admin.edit_choices(api, "tbl1", "fldRoles", {"platform": "platform-eng"}, [])
+
+    assert caught.value.kind == "readback_mismatch"
+    assert "3 record values differ" in str(caught.value)
+    assert str(tmp_path) in str(caught.value)
+
+
+def test_edit_choices_refuses_an_all_empty_snapshot_before_writing(monkeypatch):
+    tracker = FakeTracker({"rec1": None, "rec2": []})
+    api, _ = _install(monkeypatch, tracker.handle)
+
+    with pytest.raises(admin.TeableAdminError, match="cannot prove preservation"):
+        admin.edit_choices(api, "tbl1", "roles", {"platform": "platform-eng"}, [])
+    assert tracker.converts == []
+
+
+def test_edit_choices_dry_run_writes_nothing(monkeypatch):
+    api, tracker = _tracker(monkeypatch)
+    got = admin.edit_choices(api, "tbl1", "roles", {"science": "scientist"}, [], dry_run=True)
+    assert got["records"] == 3 and got["renamed_in_use"] == ["science"]
+    assert tracker.converts == []
+
+
+def test_edit_choices_pages_through_every_record(monkeypatch, tmp_path):
+    monkeypatch.setattr(admin.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setattr(admin, "RECORD_PAGE", 2)
+    api, tracker = _tracker(monkeypatch)
+    admin.edit_choices(api, "tbl1", "roles", {"science": "scientist"}, [])
+    assert tracker.records["rec3"] == ["scientist"]
+
+
+@pytest.mark.parametrize(
+    ("renames", "additions", "message"),
+    [
+        ({"nope": "x"}, [], "no choice named"),
+        ({"platform": "science"}, [], "duplicate"),
+        ({}, ["platform"], "duplicate"),
+        ({}, [], "nothing to do"),
+    ],
+)
+def test_plan_choices_refuses_what_would_collide_or_miss(renames, additions, message):
+    field = FakeTracker({}).field
+    with pytest.raises(admin.TeableAdminError, match=message):
+        admin.plan_choices(field, renames, additions)
+
+
+def test_plan_choices_refuses_a_field_that_is_not_a_select():
+    with pytest.raises(admin.TeableAdminError, match="not a select"):
+        admin.plan_choices({"name": "title", "type": "singleLineText"}, {"a": "b"}, [])
+
+
+def test_edit_choices_main_parses_rename_pairs(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(admin.tempfile, "tempdir", str(tmp_path))
+    monkeypatch.setenv("TEABLE_API_TOKEN", "secret")
+    _, tracker = _tracker(monkeypatch)
+
+    code = admin.main(
+        ["edit-choices", "tbl1", "roles", "--rename", "platform=platform-eng", "--add", "x"]
+    )
+
+    assert code == 0
+    assert tracker.records["rec1"] == ["platform-eng"]
+    assert admin.main(["edit-choices", "tbl1", "roles", "--rename", "bad"]) == 64
+
+
+def test_edit_choices_flags_a_convert_that_drops_not_null(monkeypatch, tmp_path):
+    monkeypatch.setattr(admin.tempfile, "tempdir", str(tmp_path))
+    api, tracker = _tracker(monkeypatch)
+    original = tracker.handle
+
+    def dropping(request):
+        response = original(request)
+        if request.get_method() == "PUT":
+            tracker.field = {k: v for k, v in tracker.field.items() if k != "notNull"}
+        return response
+
+    _install(monkeypatch, dropping)
+    with pytest.raises(admin.TeableAdminError, match="notNull"):
+        admin.edit_choices(api, "tbl1", "roles", {"science": "scientist"}, [])

@@ -19,6 +19,7 @@ evidence.
 
     aosguard ops teable-admin create-field   <table> --spec <field.json>
     aosguard ops teable-admin list-fields    <table>
+    aosguard ops teable-admin edit-choices   <table> <field> --rename OLD=NEW --add NAME [--dry-run]
     aosguard ops teable-admin create-table   <base> --spec <table.json>
     aosguard ops teable-admin describe-base  <base>
 
@@ -32,6 +33,28 @@ attribute here, refused while the query layer contradicts it.
 There is no delete-field verb anywhere in Teable, so **a refused create leaves
 a stray field only the Teable UI can remove**. The refusal says so rather than
 implying a rollback happened.
+
+## `edit-choices`, the one convert that ships
+
+Renaming or adding a select choice is a convert, so it goes through the endpoint
+refused below. It ships anyway because it is narrow and self-checking.
+
+* **Same type, choices only.** It sends the field's own type and options with
+  only the choice list changed. Every existing choice keeps its id, because
+  Teable strips a choice whose id is missing from every record that carries it.
+  A renamed choice keeps its id, and Teable rewrites the name on every record.
+* **Refuses before it writes** when a rename source is missing, when the result
+  would hold duplicate names, when the field is not a select, or when every
+  record reads back empty. An empty snapshot cannot prove that nothing was lost.
+* **Snapshots, then proves.** Before the write it saves every record's value to
+  a temp file and prints the path. After the write it re-reads the field and
+  every value, and exits 65 unless each record holds its old value under the new
+  name. A concurrent record edit also shows up as a difference, so check the
+  named records before restoring anything from the snapshot.
+
+`--dry-run` resolves the field, plans the choice list and counts the records
+that use each renamed choice, and writes nothing. Repeat `--rename` and `--add`
+to batch every change into one convert.
 
 ## What it refuses, and why by name rather than by absence
 
@@ -54,7 +77,8 @@ Neither reaches the network. They exit non-zero with the reason.
 The admin PAT resolves from SSM at exec time, the same shape `ops actions` and
 `ops netlify` use, so it never sits in a caller's environment. It carries
 `field|create`, `table|create`, `table|delete` and `base|update` across two
-bases - breadth that is correct for an admin token and wrong to hold in a
+bases. `edit-choices` also needs `field|update` and `record|read`, and exits 69
+naming the 403 until the token has them - breadth that is correct for an admin token and wrong to hold in a
 shell, which is the reason this surface exists rather than a `curl` and a
 `curlrc`.
 
