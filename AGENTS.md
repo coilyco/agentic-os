@@ -147,6 +147,12 @@ When a question is asked, use the harness's structured question tool (AskUserQue
 
 **A role bundle launches its own role, or a human is present** - a seat fans out sub-agents of its own role freely, never a different role non-interactively.
 
+### Structured decisions go to Jev
+
+**Every structured decision a model makes MUST come from Jev through Agent Proxy.** A structured decision has a closed answer set: pick one option, rate against ordered levels, or say yes or no. It binds call sites in code and verdicts in conversation alike - a go or no-go, a pick, a ranking, a rating, and any likelihood, odds, or percent handed to a human, however casual the question. The reasoning stays generative, the verdict comes from Jev, and the reply reports Jev's probabilities and confidence, never a number the seat produced on its own. A verdict delivered without a Jev call is a failure, not a shortcut.
+
+Before a structured question tool, send whatever the evidence settles to Jev first, and ask the human only what Jev cannot hold - a preference, an authority, a fact only they have, or a Jev answer below confidence. Deterministic checks, arithmetic, and text generation stay out of Jev. Harness overlays name the call surface.
+
 ### Front-load the context you know you need
 
 Before a consequential claim (one a reader could act on, or one entering a durable artifact - issue, plan, review, record, verdict, recommendation, including an assessment or diagnosis), name the source that would settle it and open that source.
