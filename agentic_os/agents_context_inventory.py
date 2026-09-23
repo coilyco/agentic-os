@@ -47,6 +47,7 @@ ROLE_TERMS = {
     "platform",
     "senior-sysadmin",
     "junior-sysadmin",
+    "access-sysadmin",
     "director",
     "analyst",
 }

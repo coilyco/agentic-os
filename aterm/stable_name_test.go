@@ -142,6 +142,7 @@ func TestStableSessionNameIsForWhoAnswers(t *testing.T) {
 		{"Vera", "senior-sysadmin", "vera-senior-sysadmin"},
 		{"Angie", "platform", "angie-platform"},
 		{"Valerie", "junior-sysadmin", "valerie-junior-sysadmin"},
+		{"Vera", "access-sysadmin", "vera-access-sysadmin"},
 		{"Vera", "", ""},
 	} {
 		if got := stableSessionName(testCase.name, testCase.role); got != testCase.want {

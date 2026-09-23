@@ -11,6 +11,12 @@ roles:
     harnesses:
       claude:
         effort: medium
+  access-sysadmin:
+    agent: codex
+    harnesses:
+      goose:
+        provider: openai
+        model: chat/default
   science:
     agent: claude
     harnesses:

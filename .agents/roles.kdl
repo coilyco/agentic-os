@@ -17,6 +17,12 @@ roles {
         composed-skill "coding-*"
     }
 
+    role access-sysadmin {
+        composed-skill writing-system-improvement-vocab
+        composed-skill "tooling-sysadmin-*"
+        composed-skill "coding-*"
+    }
+
     role science {
         composed-skill design-system
         composed-skill "tooling-eval-*"
