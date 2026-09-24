@@ -22,7 +22,7 @@ func loadRosterFixture(t *testing.T) rosterDocument {
 
 func TestParseRosterRejectsDriftedContracts(t *testing.T) {
 	cases := map[string]string{
-		"wrong format": `{"format":"agent-compose.catalog.v2","items":[{"slug":"platform-eng"}]}`,
+		"wrong format": `{"format":"agent-compose.catalog.v2","items":[{"slug":"eng-platform"}]}`,
 		"no items":     `{"format":"agent-compose.catalog.v1","items":[]}`,
 		"unsafe slug":  `{"format":"agent-compose.catalog.v1","items":[{"slug":"../etc"}]}`,
 		"not json":     `{`,
@@ -40,14 +40,14 @@ func TestParseRosterRejectsDriftedContracts(t *testing.T) {
 // seats, so nothing downstream can tell it apart once the flag is dropped.
 func TestParseRosterDropsArchivedRoles(t *testing.T) {
 	raw := `{"format":"agent-compose.catalog.v1","items":[
-		{"slug":"platform-eng","seats":[{"harness":"claude"}]},
+		{"slug":"eng-platform","seats":[{"harness":"claude"}]},
 		{"slug":"analyst","archived":true,"seats":[{"harness":"claude"},{"harness":"codex"}]}
 	]}`
 	document, err := parseRoster([]byte(raw))
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	if got := document.slugs(); len(got) != 1 || got[0] != "platform-eng" {
+	if got := document.slugs(); len(got) != 1 || got[0] != "eng-platform" {
 		t.Fatalf("slugs = %v, want only the live role", got)
 	}
 	if _, ok := document.role("analyst"); ok {
@@ -105,14 +105,14 @@ func TestUnknownRoleErrorNamesEveryLiveRole(t *testing.T) {
 }
 
 func TestSuggestKeepsNearMissesAndDropsShortCollisions(t *testing.T) {
-	roles := []string{"platform-eng", "sysadmin", "scientist", "frontend-eng", "game-dev", "prod-director", "dev-advocate", "analyst"}
+	roles := []string{"eng-platform", "sysadmin", "scientist", "frontend-eng", "game-dev", "prod-director", "dev-advocate", "analyst"}
 	// The near misses are built rather than spelled, so the repo's spell-check
 	// does not read a deliberate typo fixture as a real one.
 	cases := []struct {
 		value string
 		want  string
 	}{
-		{value: transpose("platform-eng", 5), want: "platform-eng"},
+		{value: transpose("eng-platform", 5), want: "eng-platform"},
 		{value: drop("sysadmin", 6), want: "sysadmin"},
 		{value: drop("dev-advocate", 3), want: "dev-advocate"},
 		{value: drop("game-dev", 4), want: "game-dev"},
@@ -171,7 +171,7 @@ func TestHumanList(t *testing.T) {
 }
 
 func TestSafeRoleSlug(t *testing.T) {
-	for _, value := range []string{"platform-eng", "game-dev", "a", "role-2"} {
+	for _, value := range []string{"eng-platform", "game-dev", "a", "role-2"} {
 		if !safeRoleSlug(value) {
 			t.Fatalf("%q should be a safe slug", value)
 		}

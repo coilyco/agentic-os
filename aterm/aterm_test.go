@@ -24,7 +24,7 @@ func fixture(t *testing.T, name string) []byte {
 
 func platformOverlay(t *testing.T) overlayDocument {
 	t.Helper()
-	document, err := parseOverlay(fixture(t, "platform-eng-claude-overlay.json"), "platform-eng", "claude", "acting")
+	document, err := parseOverlay(fixture(t, "eng-platform-claude-overlay.json"), "eng-platform", "claude", "acting")
 	if err != nil {
 		t.Fatalf("parse the platform overlay fixture: %v", err)
 	}
@@ -65,7 +65,7 @@ func stubDeps(t *testing.T, spawns *[]recordedSpawn, shadowed bool) commandDeps 
 			case len(args) > 0 && args[0] == "status":
 				return []byte("VibeTunnel Server Status:\n  Running: Yes\n"), nil
 			case len(args) > 0 && args[0] == "overlay":
-				role, seat := "platform-eng", "claude"
+				role, seat := "eng-platform", "claude"
 				for index, value := range args {
 					if index+1 >= len(args) {
 						break
@@ -127,7 +127,7 @@ func runAtermRaw(t *testing.T, deps commandDeps, argv ...string) (string, error)
 func TestLaunchPlanRunsTheNativeSessionInsideTheWindow(t *testing.T) {
 	var spawns []recordedSpawn
 	deps := stubDeps(t, &spawns, true)
-	out, err := runAterm(t, deps, "--dry-run", "--json", "platform-eng", "claude")
+	out, err := runAterm(t, deps, "--dry-run", "--json", "eng-platform", "claude")
 	if err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
@@ -143,8 +143,8 @@ func TestLaunchPlanRunsTheNativeSessionInsideTheWindow(t *testing.T) {
 	}
 	want := []string{
 		"/stub/aos", "_native-shadow", "--harness", "claude",
-		"--role", "platform-eng", "--assigned-role", "--",
-		"/stub/agent-compose", "launch", "platform-eng", "claude", "--name", stableSessionName("Angie", "platform-eng"),
+		"--role", "eng-platform", "--assigned-role", "--",
+		"/stub/agent-compose", "launch", "eng-platform", "claude", "--name", stableSessionName("Angie", "eng-platform"),
 	}
 	if strings.Join(plan.Child, " ") != strings.Join(want, " ") {
 		t.Fatalf("child = %v, want %v", plan.Child, want)
@@ -164,7 +164,7 @@ func TestLaunchPlanRunsTheNativeSessionInsideTheWindow(t *testing.T) {
 
 func TestLaunchDegradesWhenNoNativeShadowIsAvailable(t *testing.T) {
 	var spawns []recordedSpawn
-	out, err := runAterm(t, stubDeps(t, &spawns, false), "--dry-run", "--json", "platform-eng", "claude")
+	out, err := runAterm(t, stubDeps(t, &spawns, false), "--dry-run", "--json", "eng-platform", "claude")
 	if err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestLaunchDegradesWhenNoNativeShadowIsAvailable(t *testing.T) {
 
 func TestDryRunNeverOpensAWindow(t *testing.T) {
 	var spawns []recordedSpawn
-	if _, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "platform-eng"); err != nil {
+	if _, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "eng-platform"); err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
 	if len(spawns) != 0 {
@@ -192,7 +192,7 @@ func TestDryRunNeverOpensAWindow(t *testing.T) {
 
 func TestLaunchOpensExactlyOneWindow(t *testing.T) {
 	var spawns []recordedSpawn
-	out, err := runAterm(t, stubDeps(t, &spawns, true), "platform-eng", "claude")
+	out, err := runAterm(t, stubDeps(t, &spawns, true), "eng-platform", "claude")
 	if err != nil {
 		t.Fatalf("launch: %v", err)
 	}
@@ -209,7 +209,7 @@ func TestLaunchOpensExactlyOneWindow(t *testing.T) {
 
 func TestHoldFlagReachesTheSessionStage(t *testing.T) {
 	var spawns []recordedSpawn
-	out, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "--hold", "platform-eng")
+	out, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "--hold", "eng-platform")
 	if err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
@@ -253,7 +253,7 @@ func TestListPrintsEveryLiveRole(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	for _, slug := range []string{"platform-eng", "sysadmin-senior", "scientist", "frontend-eng", "game-dev", "prod-director", "dev-advocate"} {
+	for _, slug := range []string{"eng-platform", "sysadmin-senior", "scientist", "frontend-eng", "game-dev", "prod-director", "dev-advocate"} {
 		if !strings.Contains(out, slug) {
 			t.Fatalf("listing should name %q: %s", slug, out)
 		}
@@ -271,7 +271,7 @@ func TestListPrintsEveryLiveRole(t *testing.T) {
 func TestStaleRoleAndSeatAreRejectedBeforeAnyWindowOpens(t *testing.T) {
 	cases := map[string][]string{
 		"stale role":        {"engineer", "claude"},
-		"seat outside role": {"platform-eng", "penpot"},
+		"seat outside role": {"eng-platform", "penpot"},
 		"unsafe role":       {"../etc", "claude"},
 	}
 	for name, argv := range cases {
@@ -290,7 +290,7 @@ func TestStaleRoleAndSeatAreRejectedBeforeAnyWindowOpens(t *testing.T) {
 
 func TestHarnessArgumentsSurviveToTheLaunch(t *testing.T) {
 	var spawns []recordedSpawn
-	out, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "platform-eng", "codex", "--", "--model", "opus")
+	out, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "eng-platform", "codex", "--", "--model", "opus")
 	if err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
@@ -308,7 +308,7 @@ func TestHarnessArgumentsSurviveToTheLaunch(t *testing.T) {
 // binary reports rather than anything this one parses.
 func TestDefaultSeatTakesTheAgentAosReports(t *testing.T) {
 	document := loadRosterFixture(t)
-	role, _ := document.role("platform-eng")
+	role, _ := document.role("eng-platform")
 	var asked []string
 	deps := commandDeps{
 		lookPath: func(name string) (string, error) { return "/stub/" + name, nil },
@@ -320,14 +320,14 @@ func TestDefaultSeatTakesTheAgentAosReports(t *testing.T) {
 	if got := defaultSeat(context.Background(), deps, "aos", role); got != "codex" {
 		t.Fatalf("default seat = %q, want the reported codex", got)
 	}
-	if len(asked) != 1 || !strings.Contains(asked[0], "_launch-agent platform") {
+	if len(asked) != 1 || !strings.Contains(asked[0], "_launch-agent eng-platform") {
 		t.Fatalf("aos should be asked for the role's agent: %v", asked)
 	}
 }
 
 func TestDefaultSeatFallsBackWhenAosCannotAnswer(t *testing.T) {
 	document := loadRosterFixture(t)
-	role, _ := document.role("platform-eng")
+	role, _ := document.role("eng-platform")
 	want := role.nativeSeats()[0].Harness
 	cases := map[string]commandDeps{
 		"no aos on PATH": {
@@ -362,11 +362,11 @@ func TestDefaultSeatFallsBackWhenAosCannotAnswer(t *testing.T) {
 }
 
 func TestParseOverlayRejectsContractAndSelectionDrift(t *testing.T) {
-	raw := fixture(t, "platform-eng-claude-overlay.json")
+	raw := fixture(t, "eng-platform-claude-overlay.json")
 	cases := map[string][3]string{
 		"role drift":       {"prod-director", "claude", "acting"},
-		"seat drift":       {"platform-eng", "codex", "acting"},
-		"expression drift": {"platform-eng", "claude", "reviewing"},
+		"seat drift":       {"eng-platform", "codex", "acting"},
+		"expression drift": {"eng-platform", "claude", "reviewing"},
 	}
 	for name, want := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -375,7 +375,7 @@ func TestParseOverlayRejectsContractAndSelectionDrift(t *testing.T) {
 			}
 		})
 	}
-	if _, err := parseOverlay([]byte(`{"format":"other","schema_version":1}`), "platform-eng", "claude", "acting"); err == nil {
+	if _, err := parseOverlay([]byte(`{"format":"other","schema_version":1}`), "eng-platform", "claude", "acting"); err == nil {
 		t.Fatal("expected an unsupported contract to be rejected")
 	}
 }
@@ -502,7 +502,7 @@ func indexOf(values []string, want string) int {
 // a flag-dialect change could drop every color and still pass the suite.
 func TestBrandReachesTheTerminalArguments(t *testing.T) {
 	var spawns []recordedSpawn
-	out, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "platform-eng", "claude")
+	out, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "eng-platform", "claude")
 	if err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
@@ -535,7 +535,7 @@ func TestBrandReachesTheTerminalArguments(t *testing.T) {
 // still pass. Kai asked for fullscreen. See docs/aterm.md.
 func TestTheWindowOpensFullscreenByDefault(t *testing.T) {
 	var spawns []recordedSpawn
-	out, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "platform-eng", "claude")
+	out, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "eng-platform", "claude")
 	if err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
@@ -570,7 +570,7 @@ func TestWindowOptionsReachKittyAndRefuseNonsense(t *testing.T) {
 // activates an empty app instead of a session. See docs/aterm.md.
 func TestClosingTheWindowQuitsTheTerminalSoAReopenRelaunches(t *testing.T) {
 	var spawns []recordedSpawn
-	out, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "platform-eng", "claude")
+	out, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "eng-platform", "claude")
 	if err != nil {
 		t.Fatalf("dry run: %v", err)
 	}

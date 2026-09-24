@@ -1,7 +1,7 @@
 [
   {
-    "role": "platform-eng",
-    "slug": "aos-platform-eng",
+    "role": "eng-platform",
+    "slug": "aos-eng-platform",
     "theme": {
       "name": "Platform Engineer (Beetle-Ox)",
       "base": "dark",
@@ -24,7 +24,7 @@
       }
     },
     "settings": {
-      "theme": "custom:aos-platform-eng",
+      "theme": "custom:aos-eng-platform",
       "spinnerVerbs": {
         "mode": "replace",
         "verbs": [

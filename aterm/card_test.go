@@ -70,7 +70,7 @@ func TestCardRoundTripsThroughTheSessionStage(t *testing.T) {
 	document := platformOverlay(t)
 	plan, err := buildLaunchPlan(
 		document,
-		launchRequest{Role: "platform-eng", Seat: "claude", Expression: "acting", TerminalBin: "kitty"},
+		launchRequest{Role: "eng-platform", Seat: "claude", Expression: "acting", TerminalBin: "kitty"},
 		t.TempDir(), "/stub/aterm", "/stub/agent-compose", "/stub/aos", true,
 	)
 	if err != nil {

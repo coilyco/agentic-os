@@ -201,11 +201,11 @@ func TestDoctorRendersForAPersonByDefault(t *testing.T) {
 // The role positional and the subcommand share the first argument slot.
 func TestDoctorDoesNotShadowARolePositional(t *testing.T) {
 	var spawns []recordedSpawn
-	out, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "platform-eng", "claude")
+	out, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "eng-platform", "claude")
 	if err != nil {
 		t.Fatalf("a role positional should still launch: %v", err)
 	}
-	if !strings.Contains(out, fmt.Sprintf("%q: %q", "role", "platform-eng")) {
+	if !strings.Contains(out, fmt.Sprintf("%q: %q", "role", "eng-platform")) {
 		t.Fatalf("the role positional was lost: %s", out)
 	}
 }

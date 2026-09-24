@@ -33,7 +33,7 @@ func fakeSpecComposer(t *testing.T, spec nativeLaunchSpec) {
 	script := "#!/bin/sh\n" +
 		"if [ \"$1\" = launch ] && [ \"$2\" = --spec-out ]; then cp '" + filepath.Join(bin, "spec.json") + "' \"$3\"; exit 0; fi\n" +
 		"if [ \"$1\" = catalog ] && [ \"$2\" = snapshot ]; then cat '" + snapshot + "'; exit 0; fi\n" +
-		"if [ \"$1\" = catalog ] && [ \"$2\" = roles ]; then echo '{\"items\":[{\"slug\":\"platform-eng\"},{\"slug\":\"scientist\"}]}'; exit 0; fi\n" +
+		"if [ \"$1\" = catalog ] && [ \"$2\" = roles ]; then echo '{\"items\":[{\"slug\":\"eng-platform\"},{\"slug\":\"scientist\"}]}'; exit 0; fi\n" +
 		"exit 9\n"
 	if err := os.WriteFile(filepath.Join(bin, "agent-compose"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func fakeSpecComposer(t *testing.T, spec nativeLaunchSpec) {
 func specFixture(t *testing.T, harness string) nativeLaunchSpec {
 	t.Helper()
 	home, bundle := t.TempDir(), t.TempDir()
-	if err := os.WriteFile(filepath.Join(bundle, "manifest.json"), []byte(`{"role":"platform-eng"}`), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(bundle, "manifest.json"), []byte(`{"role":"eng-platform"}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	return nativeLaunchSpec{
@@ -75,12 +75,12 @@ func TestSpecLaunchBuildsTheClaudeCommandAndEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	settings := filepath.Join(spec.RuntimeHome, ".claude", "settings.platform-eng.json")
+	settings := filepath.Join(spec.RuntimeHome, ".claude", "settings.eng-platform.json")
 	want := []string{"claude", "--name", "Beetle-Ox-ab12", "--settings", settings, "--model", "opus"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("argv\n got %q\nwant %q", got, want)
 	}
-	if _, err := os.Stat(filepath.Join(spec.RuntimeHome, ".claude", "themes", "aos-platform-eng.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(spec.RuntimeHome, ".claude", "themes", "aos-eng-platform.json")); err != nil {
 		t.Errorf("theme not installed where CLAUDE_CONFIG_DIR points: %v", err)
 	}
 	for name, value := range map[string]string{
@@ -153,7 +153,7 @@ func writeMCPInventory(t *testing.T, body string) string {
 
 const scopedInventory = `{"mcpServers":{
  "shared":{"command":"${HOME}/bin/shared"},
- "mine":{"url":"https://x.invalid/${HOME}","x-aos":{"roles":["platform-eng"]}},
+ "mine":{"url":"https://x.invalid/${HOME}","x-aos":{"roles":["eng-platform"]}},
  "theirs":{"command":"t","x-aos":{"roles":["scientist"]}}}}`
 
 func TestSpecLaunchScopesClaudeMCPToTheRole(t *testing.T) {

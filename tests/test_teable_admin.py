@@ -287,12 +287,12 @@ def test_edit_choices_renames_in_place_and_carries_every_record(monkeypatch, tmp
     monkeypatch.setattr(admin.tempfile, "tempdir", str(tmp_path))
     api, tracker = _tracker(monkeypatch)
 
-    got = admin.edit_choices(api, "tbl1", "roles", {"platform": "platform-eng"}, ["game-dev"])
+    got = admin.edit_choices(api, "tbl1", "roles", {"platform": "eng-platform"}, ["game-dev"])
 
     sent = tracker.converts[0]["options"]["choices"]
     assert [c.get("id") for c in sent] == ["cho1", "cho2", None]
-    assert tracker.records["rec2"] == ["platform-eng", "science"]
-    assert got["choices"] == ["platform-eng", "science", "game-dev"]
+    assert tracker.records["rec2"] == ["eng-platform", "science"]
+    assert got["choices"] == ["eng-platform", "science", "game-dev"]
     assert json.loads(open(got["snapshot"]).read())["values"]["rec1"] == ["platform"]
 
 
@@ -301,7 +301,7 @@ def test_edit_choices_catches_a_convert_that_empties_the_column(monkeypatch, tmp
     api, _ = _tracker(monkeypatch, emptying=True)
 
     with pytest.raises(admin.TeableAdminError) as caught:
-        admin.edit_choices(api, "tbl1", "fldRoles", {"platform": "platform-eng"}, [])
+        admin.edit_choices(api, "tbl1", "fldRoles", {"platform": "eng-platform"}, [])
 
     assert caught.value.kind == "readback_mismatch"
     assert "3 record values differ" in str(caught.value)
@@ -313,7 +313,7 @@ def test_edit_choices_refuses_an_all_empty_snapshot_before_writing(monkeypatch):
     api, _ = _install(monkeypatch, tracker.handle)
 
     with pytest.raises(admin.TeableAdminError, match="cannot prove preservation"):
-        admin.edit_choices(api, "tbl1", "roles", {"platform": "platform-eng"}, [])
+        admin.edit_choices(api, "tbl1", "roles", {"platform": "eng-platform"}, [])
     assert tracker.converts == []
 
 
@@ -358,11 +358,11 @@ def test_edit_choices_main_parses_rename_pairs(monkeypatch, tmp_path, capsys):
     _, tracker = _tracker(monkeypatch)
 
     code = admin.main(
-        ["edit-choices", "tbl1", "roles", "--rename", "platform=platform-eng", "--add", "x"]
+        ["edit-choices", "tbl1", "roles", "--rename", "platform=eng-platform", "--add", "x"]
     )
 
     assert code == 0
-    assert tracker.records["rec1"] == ["platform-eng"]
+    assert tracker.records["rec1"] == ["eng-platform"]
     assert admin.main(["edit-choices", "tbl1", "roles", "--rename", "bad"]) == 64
 
 

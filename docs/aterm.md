@@ -8,8 +8,8 @@
 
 ```text
 aterm                              # pick a role, then a seat
-aterm platform-eng                     # the role's default seat
-aterm platform-eng codex -- --resume   # arguments for the harness
+aterm eng-platform                     # the role's default seat
+aterm eng-platform codex -- --resume   # arguments for the harness
 aterm card                         # this session's card, again
 aterm --list                       # the live roster, no window
 aterm --list --json                # the same roster, for a script

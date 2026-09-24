@@ -12,7 +12,7 @@ import (
 func TestLaunchRefusesFromInsideANativeSessionShadow(t *testing.T) {
 	var spawns []recordedSpawn
 	t.Setenv(nativeSessionEnv, "ds74")
-	out, err := runAtermRaw(t, stubDeps(t, &spawns, true), "platform-eng", "claude")
+	out, err := runAtermRaw(t, stubDeps(t, &spawns, true), "eng-platform", "claude")
 	if err == nil {
 		t.Fatalf("a nested launch should refuse\n%s", out)
 	}
@@ -32,7 +32,7 @@ func TestLaunchRefusesFromInsideANativeSessionShadow(t *testing.T) {
 func TestDryRunStillWorksFromInsideANativeSessionShadow(t *testing.T) {
 	var spawns []recordedSpawn
 	t.Setenv(nativeSessionEnv, "ds74")
-	if _, err := runAtermRaw(t, stubDeps(t, &spawns, true), "--dry-run", "platform-eng", "claude"); err != nil {
+	if _, err := runAtermRaw(t, stubDeps(t, &spawns, true), "--dry-run", "eng-platform", "claude"); err != nil {
 		t.Fatalf("dry run inside a shadow: %v", err)
 	}
 	if _, err := runAtermRaw(t, stubDeps(t, &spawns, true), "--list"); err != nil {
@@ -46,7 +46,7 @@ func TestDryRunStillWorksFromInsideANativeSessionShadow(t *testing.T) {
 func TestLaunchProceedsWithoutANativeSessionShadow(t *testing.T) {
 	var spawns []recordedSpawn
 	t.Setenv(nativeSessionEnv, "")
-	if _, err := runAtermRaw(t, stubDeps(t, &spawns, true), "platform-eng", "claude"); err != nil {
+	if _, err := runAtermRaw(t, stubDeps(t, &spawns, true), "eng-platform", "claude"); err != nil {
 		t.Fatalf("top-level launch: %v", err)
 	}
 	if len(spawns) != 1 {
@@ -110,7 +110,7 @@ func TestRefusalOutrunsTheWorkingDirectoryCheck(t *testing.T) {
 	stdout := &bytes.Buffer{}
 	command := newCommand(stubDeps(t, &spawns, true))
 	command.Writer = stdout
-	err := command.Run(context.Background(), []string{"aterm", "platform-eng", "claude"})
+	err := command.Run(context.Background(), []string{"aterm", "eng-platform", "claude"})
 	if err == nil {
 		t.Fatalf("a nested launch should refuse\n%s", stdout.String())
 	}
@@ -150,7 +150,7 @@ func shadowEnv(t *testing.T) canonicalLaunch {
 func TestLaunchProceedsInsideAShadowThatPublishesTheCanonicalValues(t *testing.T) {
 	var spawns []recordedSpawn
 	shadowEnv(t)
-	if _, err := runAtermRaw(t, stubDeps(t, &spawns, true), "platform-eng", "claude"); err != nil {
+	if _, err := runAtermRaw(t, stubDeps(t, &spawns, true), "eng-platform", "claude"); err != nil {
 		t.Fatalf("launch inside a complete shadow: %v", err)
 	}
 	if len(spawns) != 1 {

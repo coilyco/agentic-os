@@ -16,10 +16,10 @@ func TestFailuresCarryTheirOwnExitCode(t *testing.T) {
 		want int
 	}{
 		"off-roster role":   {[]string{"--dry-run", "engineer", "codex"}, exitOffRoster},
-		"off-roster seat":   {[]string{"--dry-run", "platform-eng", "goose"}, exitOffRoster},
+		"off-roster seat":   {[]string{"--dry-run", "eng-platform", "goose"}, exitOffRoster},
 		"unlaunchable seat": {[]string{"--dry-run", "frontend-eng", "penpot"}, exitOffRoster},
 		"unsafe slug":       {[]string{"--dry-run", "Platform"}, exitUsage},
-		"json on launch":    {[]string{"--json", "platform-eng", "claude"}, exitUsage},
+		"json on launch":    {[]string{"--json", "eng-platform", "claude"}, exitUsage},
 	}
 	for name, want := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -38,7 +38,7 @@ func TestFailuresCarryTheirOwnExitCode(t *testing.T) {
 func TestMissingDependencyAndSpawnFailureSplitApart(t *testing.T) {
 	var spawns []recordedSpawn
 	_, err := runAterm(t, stubDeps(t, &spawns, true),
-		"--agent-compose-bin", "/missing/agent-compose", "platform-eng", "claude")
+		"--agent-compose-bin", "/missing/agent-compose", "eng-platform", "claude")
 	if err == nil || exitCodeFor(err) != exitMissing {
 		t.Fatalf("a missing binary should exit %d: %v", exitMissing, err)
 	}
@@ -46,7 +46,7 @@ func TestMissingDependencyAndSpawnFailureSplitApart(t *testing.T) {
 	failing.spawn = func(context.Context, string, ...string) error {
 		return fmt.Errorf("kitty refused its own arguments")
 	}
-	_, err = runAterm(t, failing, "platform-eng", "claude")
+	_, err = runAterm(t, failing, "eng-platform", "claude")
 	if err == nil || exitCodeFor(err) != exitSpawn {
 		t.Fatalf("a spawn failure should exit %d: %v", exitSpawn, err)
 	}
@@ -67,7 +67,7 @@ func TestUnclassifiedFailuresStayAtOne(t *testing.T) {
 // reading JSON, and the machine form has to stay available behind --json.
 func TestDryRunRendersForAPersonAndStillEmitsJSON(t *testing.T) {
 	var spawns []recordedSpawn
-	human, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "platform-eng", "claude")
+	human, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "eng-platform", "claude")
 	if err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestDryRunRendersForAPersonAndStillEmitsJSON(t *testing.T) {
 			t.Fatalf("the rendered plan should name %q:\n%s", want, human)
 		}
 	}
-	machine, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "platform-eng", "claude")
+	machine, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "eng-platform", "claude")
 	if err != nil {
 		t.Fatalf("dry run --json: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestRenderPlanSkipsEmptyFields(t *testing.T) {
 	document := platformOverlay(t)
 	plan, err := buildLaunchPlan(
 		document,
-		launchRequest{Role: "platform-eng", Seat: "claude", Expression: "acting", TerminalBin: "kitty"},
+		launchRequest{Role: "eng-platform", Seat: "claude", Expression: "acting", TerminalBin: "kitty"},
 		t.TempDir(), "/stub/aterm", "/stub/agent-compose", "/stub/aos", false,
 	)
 	if err != nil {

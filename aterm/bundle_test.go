@@ -12,7 +12,7 @@ import (
 
 func testSpec() bundleSpec {
 	return bundleSpec{
-		Role:             "platform-eng",
+		Role:             "eng-platform",
 		DisplayName:      "Agentic Platform Engineer",
 		Person:           "Angie",
 		Version:          "1.2.3",
@@ -61,7 +61,7 @@ func TestBundleLauncherBakesInEveryResolvedBinary(t *testing.T) {
 func TestBundleLauncherPutsTheWorkingDirectoryBeforeTheRole(t *testing.T) {
 	launcher := bundleLauncher(testSpec())
 	directory := strings.Index(launcher, "--working-directory")
-	role := strings.Index(launcher, "'platform-eng'")
+	role := strings.Index(launcher, "'eng-platform'")
 	if directory < 0 || role < 0 {
 		t.Fatalf("the launcher should carry both the flag and the role:\n%s", launcher)
 	}
@@ -129,7 +129,7 @@ func TestWriteBundleLinksTheTerminalBesideTheLauncher(t *testing.T) {
 	}
 	// The stale scan reads what is beside the launcher, and reading a linked
 	// application binary to look for a marker is a hundred megabytes wasted.
-	if role, ours := generatedRole(item.Path); !ours || role != "platform-eng" {
+	if role, ours := generatedRole(item.Path); !ours || role != "eng-platform" {
 		t.Fatalf("generatedRole = %q, %v", role, ours)
 	}
 }
@@ -155,10 +155,10 @@ func TestMachineArchitectureSpellsBothMacArchitectures(t *testing.T) {
 func TestBundleInfoPlistGivesEachRoleItsOwnIdentifier(t *testing.T) {
 	second := testSpec()
 	second.Role = "sysadmin"
-	if !strings.Contains(bundleInfoPlist(testSpec()), "me.coilysiren.aterm.platform") {
+	if !strings.Contains(bundleInfoPlist(testSpec()), "me.coilysiren.aterm.eng-platform") {
 		t.Fatal("the identifier should carry the role")
 	}
-	if strings.Contains(bundleInfoPlist(second), "me.coilysiren.aterm.platform") {
+	if strings.Contains(bundleInfoPlist(second), "me.coilysiren.aterm.eng-platform") {
 		t.Fatal("two roles sharing an identifier would collide in LaunchServices")
 	}
 }
@@ -272,7 +272,7 @@ func TestRenderBundlePlanNamesEveryBundleAndItsStaleLeftovers(t *testing.T) {
 	plan := bundlePlan{
 		Output: "/Users/kai/Applications",
 		Items: []bundleItem{{
-			Role:   "platform-eng",
+			Role:   "eng-platform",
 			Person: "Angie",
 			Name:   "Angie // Agentic Platform Engineer",
 			Path:   "/Users/kai/Applications/Angie :: Agentic Platform Engineer.app",
@@ -284,7 +284,7 @@ func TestRenderBundlePlanNamesEveryBundleAndItsStaleLeftovers(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 	// The rendered name is the one the Dock draws, not the one on disk.
-	for _, want := range []string{"/Users/kai/Applications", "platform-eng",
+	for _, want := range []string{"/Users/kai/Applications", "eng-platform",
 		"Angie // Agentic Platform Engineer", "Retired"} {
 		if !strings.Contains(rendered.String(), want) {
 			t.Fatalf("the rendered plan should name %q:\n%s", want, rendered)
@@ -320,7 +320,7 @@ func TestBundleNameIsTheRoleAloneAndGetInfoKeepsTheSeat(t *testing.T) {
 		t.Fatalf("Get Info should keep the person and role:\n%s", plist)
 	}
 	spec.DisplayName = ""
-	if got := spec.name(); got != "platform-eng" {
+	if got := spec.name(); got != "eng-platform" {
 		t.Fatalf("a role with no display name falls back to its slug, got %q", got)
 	}
 }
@@ -340,7 +340,7 @@ func TestBundleInfoPlistCarriesTheDisplayNameAndAPlainExecutable(t *testing.T) {
 	if !strings.Contains(plist, "<key>CFBundleDisplayName</key>\n\t<string>Agentic Platform Engineer</string>") {
 		t.Fatalf("the plist should carry the rendered name:\n%s", plist)
 	}
-	if !strings.Contains(plist, "<string>aterm-platform-eng</string>") {
+	if !strings.Contains(plist, "<string>aterm-eng-platform</string>") {
 		t.Fatalf("the executable should stay a plain slug:\n%s", plist)
 	}
 }
@@ -369,7 +369,7 @@ func TestBundlePlanWarnsWhenTheBundlesCallADifferentBuild(t *testing.T) {
 		Launcher:      "/opt/homebrew/bin/aterm",
 		LauncherBuild: "aos-v0.231.0",
 		Build:         "aos-v0.242.0",
-		Items:         []bundleItem{{Role: "platform-eng", Name: "Angie // X"}},
+		Items:         []bundleItem{{Role: "eng-platform", Name: "Angie // X"}},
 	}
 	if !plan.staleLauncher() {
 		t.Fatal("a bundle calling an older aterm carries only what that one does")
@@ -563,7 +563,7 @@ func TestBakedPathKeepsACellarWithNoOptEquivalent(t *testing.T) {
 func TestGeneratedLauncherCarriesNoVersionPinnedPath(t *testing.T) {
 	_, cellar, _ := brewTree(t, "go", "1.26.5", filepath.Join("libexec", "bin"))
 	spec := bundleSpec{
-		Role: "platform-eng", DisplayName: "Platform Engineer", Person: "Angie",
+		Role: "eng-platform", DisplayName: "Platform Engineer", Person: "Angie",
 		BakedPath:       livePathEntries(cellar),
 		ATermBin:        "/opt/homebrew/bin/aterm",
 		AOSBin:          "/opt/homebrew/bin/aos",

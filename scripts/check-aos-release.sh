@@ -134,7 +134,7 @@ if [ -n "$native_aos" ]; then
     fi
     aos_plan=$("$native_aos" \
         --agent codex \
-        --role platform-eng \
+        --role eng-platform \
         --image agentic-os:test \
         --auth=false \
         --dry-run \
@@ -144,7 +144,7 @@ if [ -n "$native_aos" ]; then
     printf '%s\n' "$aos_plan" | grep -F -- "--guarded" >/dev/null
     aoscompose_plan=$("$native_aoscompose" \
         --agent codex \
-        --role platform-eng \
+        --role eng-platform \
         --image agentic-os:test \
         --auth=false \
         --dry-run \
@@ -166,7 +166,7 @@ if [ -n "$native_aos" ]; then
     trap 'rm -rf "$smoke_dir"' EXIT HUP INT TERM
     # The launch profiles own which agent a role defaults to, so read the
     # expected agent from them rather than restating it here.
-    platform_agent=$(role_default_agent platform-eng)
+    platform_agent=$(role_default_agent eng-platform)
     director_agent=$(role_default_agent prod-director)
     (
         cd "$smoke_dir"
@@ -174,8 +174,8 @@ if [ -n "$native_aos" ]; then
             --image agentic-os:test \
             --auth=false \
             --dry-run \
-            platform-eng)
-        printf '%s\n' "$aoscompose_default_plan" | grep -F -- "--role platform-eng" >/dev/null
+            eng-platform)
+        printf '%s\n' "$aoscompose_default_plan" | grep -F -- "--role eng-platform" >/dev/null
         printf '%s\n' "$aoscompose_default_plan" | grep -F -- "--layout $platform_agent" >/dev/null
         printf '%s\n' "$aoscompose_default_plan" | grep -F -- "-- $platform_agent" >/dev/null
         aoscompose_director_plan=$("$native_aoscompose" \

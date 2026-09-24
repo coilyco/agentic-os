@@ -83,7 +83,7 @@ together.
 ```bash
 aoscompose platform                          # role's default agent
 aoscompose platform goose                    # override the agent
-aosward --agent codex --role platform-eng -- owner/repo#267
+aosward --agent codex --role eng-platform -- owner/repo#267
 aos converge                                 # host runtime inputs, --check for drift
 ```
 

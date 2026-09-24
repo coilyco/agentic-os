@@ -1,6 +1,6 @@
 # Per-repo task manifest. Run `just` (or `just --list`) to see every verb.
 #
-# Recipes take trailing arguments directly, e.g. `just aos-role-question cloud platform-eng`,
+# Recipes take trailing arguments directly, e.g. `just aos-role-question cloud eng-platform`,
 # where the retired form routed through `ward exec <verb> -- args`.
 #
 # One line of comment per recipe on purpose: just reads only the LAST comment
@@ -36,7 +36,7 @@ aos-clean *ARGS:
 
 # Render the always-composed, always-guarded Ward launch without starting Docker. Pass the Ward issue or freeform arguments as trailing arguments.
 aos-composition-dry-run *ARGS:
-    @./aos-cli/aos --agent codex --role platform-eng --warded --dry-run -- "$@"
+    @./aos-cli/aos --agent codex --role eng-platform --warded --dry-run -- "$@"
 
 # Materialize the full local context bundle and render Ward's launch without starting an agent container. Pass the Ward issue or freeform arguments as trailing arguments.
 aos-composition-smoke *ARGS:
@@ -44,7 +44,7 @@ aos-composition-smoke *ARGS:
 
 # Launch the full local image through `aos`, compose the platform Codex HOME, verify its container-boundary defaults, hydrate substrate, and print the in-container Codex version.
 aos-container-smoke *ARGS:
-    @go run -C aos-cli . --role platform-eng --layout codex --image agentic-os:aos-local acompose -- sh testdata/codex-smoke.sh "$@"
+    @go run -C aos-cli . --role eng-platform --layout codex --image agentic-os:aos-local acompose -- sh testdata/codex-smoke.sh "$@"
 
 # Launch the full local image as the frontend Codex variant and verify its projected AGENTS.md briefing, selected composed skill, entry-point promotion, and role isolation.
 aos-frontend-smoke *ARGS:
@@ -52,7 +52,7 @@ aos-frontend-smoke *ARGS:
 
 # Render the default standalone composed-container launch without starting Docker.
 aos-dry-run *ARGS:
-    @./aos-cli/aos --role platform-eng --dry-run acompose -- codex --version "$@"
+    @./aos-cli/aos --role eng-platform --dry-run acompose -- codex --version "$@"
 
 # Format the standalone Go `aos` launcher.
 aos-fmt *ARGS:
@@ -88,7 +88,7 @@ aos-role-question *ARGS:
 
 # Launch the selected agent in one standalone AOS container with composed context and the aosguard skill, then print the agent version.
 aos-standalone-composition-smoke *ARGS:
-    @./aos-cli/aos --agent codex --role platform-eng --image agentic-os:aos-local --auth=false -- --version "$@"
+    @./aos-cli/aos --agent codex --role eng-platform --image agentic-os:aos-local --auth=false -- --version "$@"
 
 # Check per-role model profiles against the live provider model list (needs ANTHROPIC_API_KEY, or pass --offline).
 aos-models-check *ARGS:

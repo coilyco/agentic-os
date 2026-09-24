@@ -31,7 +31,7 @@ The collections you lean on constantly, independent of any one tech.
 
 The geerlingguy org is the de-facto role library for host setup. Common ones:
 
-- **Bootstrap** - `robertdebock.bootstrap` or `buluma.bootstrap` (bare-host prep), `singleplatform-eng.users` (user management).
+- **Bootstrap** - `robertdebock.bootstrap` or `buluma.bootstrap` (bare-host prep), `singleeng-platform.users` (user management).
 - **Host services** - `geerlingguy.ntp`, `.nfs`, `.pip`, `.repo-epel`, `.homebrew`, `.certbot`.
 - **Unattended upgrades** - `jnv.unattended-upgrades`.
 

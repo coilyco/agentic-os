@@ -1,5 +1,5 @@
 roles {
-    role platform-eng {
+    role eng-platform {
         composed-skill writing-system-improvement-vocab
         composed-skill design-system
         composed-skill "coding-*"

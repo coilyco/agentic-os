@@ -83,7 +83,7 @@ func TestListJSONThroughTheCommandAndTheFlagGuard(t *testing.T) {
 		t.Fatal("--list --json emitted no roles")
 	}
 	// A flag that silently does nothing is worse than one that says so.
-	_, err = runAterm(t, stubDeps(t, &spawns, true), "--json", "platform-eng", "claude")
+	_, err = runAterm(t, stubDeps(t, &spawns, true), "--json", "eng-platform", "claude")
 	if err == nil || !strings.Contains(err.Error(), "--json applies to") {
 		t.Fatalf("--json on a launch should refuse: %v", err)
 	}

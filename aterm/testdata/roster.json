@@ -2,11 +2,11 @@
   "format": "agent-compose.catalog.v1",
   "items": [
     {
-      "slug": "platform-eng",
+      "slug": "eng-platform",
       "display_name": "Platform Engineer",
       "purpose": "Build and land the foundational software the rest of the estate is built on.",
-      "skill": "role-platform-eng",
-      "skill_source": "roster:core:role:platform-eng",
+      "skill": "role-eng-platform",
+      "skill_source": "roster:core:role:eng-platform",
       "skill_digest": "sha256:a6aee8698eb162f3f4c178aa66c37d41d1061d6072f4dc0dbcb51f8021007d88",
       "identity": {
         "name": "Angie",

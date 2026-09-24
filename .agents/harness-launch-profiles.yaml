@@ -1,5 +1,5 @@
 roles:
-  platform-eng:
+  eng-platform:
     agent: claude
   sysadmin-senior:
     agent: claude

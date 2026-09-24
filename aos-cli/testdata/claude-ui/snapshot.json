@@ -123,7 +123,7 @@
   }
  },
  "role_order": [
-  "platform-eng",
+  "eng-platform",
   "sysadmin-senior",
   "scientist",
   "frontend-eng",
@@ -186,7 +186,7 @@
    ],
    "purpose": "Ship playable games: the code, the assets, and the build that carries both."
   },
-  "platform-eng": {
+  "eng-platform": {
    "display_name": "Platform Engineer",
    "favorite_color": "#709b62",
    "identity": {

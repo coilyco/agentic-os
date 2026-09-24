@@ -86,7 +86,7 @@ func TestBundleTerminalPrefersTheRolesInstalledApp(t *testing.T) {
 	}
 	machOFixture(t, bundle, bundleTerminalName)
 	terminal := filepath.Join(bundle, bundleTerminalName)
-	if got := bundleTerminal("platform-eng"); got != terminal {
+	if got := bundleTerminal("eng-platform"); got != terminal {
 		t.Fatalf("bundleTerminal = %q, want %q", got, terminal)
 	}
 	if got := bundleTerminal("sysadmin"); got != "" {

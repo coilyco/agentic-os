@@ -2,7 +2,7 @@
   "format": "agent-compose.overlay.v1",
   "schema_version": 1,
   "person": "core",
-  "role": "platform-eng",
+  "role": "eng-platform",
   "role_display_name": "Platform Engineer",
   "purpose": "Build and land the foundational software the rest of the estate is built on.",
   "stance": "braced and leaning back against one taut rope, both hands gripping it, heels dug in, hauling",

@@ -139,19 +139,19 @@ func splitSession(t *testing.T, role, tag string) *fakeKitty {
 // The whole point of the verb: a window left split by an agent that has since
 // died still restores, because nothing `on` recorded is needed to do it.
 func TestPaneOffRestoresWithoutAnythingOnLeftBehind(t *testing.T) {
-	fake := splitSession(t, "platform-eng", defaultPaneTag)
+	fake := splitSession(t, "eng-platform", defaultPaneTag)
 	out, err := runPane(t, fake.deps(t), "off", "--json")
 	if err != nil {
 		t.Fatalf("pane off: %v\n%s", err, out)
 	}
 	report := paneResult(t, out)
-	if report.Role != "platform-eng" {
+	if report.Role != "eng-platform" {
 		t.Fatalf("role = %q, want the slug read back out of the session card", report.Role)
 	}
 	if !report.Changed {
 		t.Fatal("pane off closed no pane when one was open")
 	}
-	want := bakeCreaturePlate("platform-eng", creaturePresence, creatureWholeWindow).Path
+	want := bakeCreaturePlate("eng-platform", creaturePresence, creatureWholeWindow).Path
 	if want == "" {
 		t.Fatal("the platform role baked no plate, so this test proves nothing")
 	}
@@ -176,7 +176,7 @@ func TestPaneOffRestoresWithoutAnythingOnLeftBehind(t *testing.T) {
 // A second `off` is the ordinary case, not a failure: the caller does not know
 // whether the pane is still there, which is why it is running the verb.
 func TestPaneOffIsIdempotentWithNoPaneOpen(t *testing.T) {
-	fake := singleSession(t, "platform-eng")
+	fake := singleSession(t, "eng-platform")
 	out, err := runPane(t, fake.deps(t), "off", "--json")
 	if err != nil {
 		t.Fatalf("pane off with no pane: %v\n%s", err, out)
@@ -196,7 +196,7 @@ func TestPaneOffIsIdempotentWithNoPaneOpen(t *testing.T) {
 // escape the session this command is scoped to.
 func TestPaneNeverConfiguresTheBackgroundGlobally(t *testing.T) {
 	for _, argv := range [][]string{{"off"}, {"on", "--", "/bin/sh", "-c", "sleep 60"}} {
-		fake := singleSession(t, "platform-eng")
+		fake := singleSession(t, "eng-platform")
 		if _, err := runPane(t, fake.deps(t), argv...); err != nil {
 			t.Fatalf("pane %v: %v", argv, err)
 		}
@@ -211,7 +211,7 @@ func TestPaneNeverConfiguresTheBackgroundGlobally(t *testing.T) {
 }
 
 func TestPaneOnSplitsTaggedAndMovesTheCreature(t *testing.T) {
-	fake := singleSession(t, "platform-eng")
+	fake := singleSession(t, "eng-platform")
 	out, err := runPane(t, fake.deps(t), "on", "--json", "--", "/bin/sh", "-c", "sleep 60")
 	if err != nil {
 		t.Fatalf("pane on: %v\n%s", err, out)
@@ -220,7 +220,7 @@ func TestPaneOnSplitsTaggedAndMovesTheCreature(t *testing.T) {
 	if report.Share < 0.45 || report.Share > 0.55 {
 		t.Fatalf("measured share %.3f, want about half the window", report.Share)
 	}
-	whole := bakeCreaturePlate("platform-eng", creaturePresence, creatureWholeWindow).Path
+	whole := bakeCreaturePlate("eng-platform", creaturePresence, creatureWholeWindow).Path
 	if report.Plate == whole {
 		t.Fatal("the split plate is the launch plate, so the creature never moved")
 	}
@@ -243,7 +243,7 @@ func TestPaneOnSplitsTaggedAndMovesTheCreature(t *testing.T) {
 // reason the plate is recomposed rather than left alone.
 func TestSplitPlateKeepsTheCreatureInsideTheSurvivingPane(t *testing.T) {
 	const share = 0.5
-	art := creatureArt(roleIcon("platform-eng"))
+	art := creatureArt(roleIcon("eng-platform"))
 	if art == nil {
 		t.Fatal("the platform icon carries no art")
 	}
@@ -261,7 +261,7 @@ func TestSplitPlateKeepsTheCreatureInsideTheSurvivingPane(t *testing.T) {
 }
 
 func TestPaneRefusesASecondPaneOnTheSameTag(t *testing.T) {
-	fake := splitSession(t, "platform-eng", defaultPaneTag)
+	fake := splitSession(t, "eng-platform", defaultPaneTag)
 	out, err := runPane(t, fake.deps(t), "on", "--", "/bin/sh")
 	if err == nil {
 		t.Fatalf("pane on opened a second pane on the same tag: %s", out)
@@ -275,7 +275,7 @@ func TestPaneRefusesASecondPaneOnTheSameTag(t *testing.T) {
 }
 
 func TestPanePreflightNamesAnUnsetSocket(t *testing.T) {
-	fake := singleSession(t, "platform-eng")
+	fake := singleSession(t, "eng-platform")
 	deps := fake.deps(t)
 	t.Setenv(listenEnv, "")
 	out, err := runPane(t, deps, "off")
@@ -293,7 +293,7 @@ func TestPanePreflightNamesAnUnsetSocket(t *testing.T) {
 }
 
 func TestPanePreflightNamesRefusedRemoteControl(t *testing.T) {
-	fake := singleSession(t, "platform-eng")
+	fake := singleSession(t, "eng-platform")
 	fake.refuses = true
 	out, err := runPane(t, fake.deps(t), "off")
 	if err == nil {
@@ -318,7 +318,7 @@ func TestPaneNamesAWindowWithNoSessionCard(t *testing.T) {
 }
 
 func TestPaneTakesAnExplicitRoleOverTheCard(t *testing.T) {
-	fake := splitSession(t, "platform-eng", defaultPaneTag)
+	fake := splitSession(t, "eng-platform", defaultPaneTag)
 	out, err := runPane(t, fake.deps(t), "off", "--json", "--role", "frontend-eng")
 	if err != nil {
 		t.Fatalf("pane off --role: %v\n%s", err, out)
