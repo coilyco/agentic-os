@@ -2,12 +2,21 @@ import { nextUnseen } from "./activity";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
 import { upsertMessage } from "./messages";
 import { MockHost } from "./mock-host";
+import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
 import type { Ask, Host, HostConnection, LaunchState, PeerMessage, Session } from "./protocol";
 import type { Role } from "./roster";
 
+/** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
+export const HOSTED = import.meta.env.VITE_ATERM_HOSTED === "1";
+
+function savedHost(saved: { label: string; address: string }): Host {
+  return { id: `saved:${saved.address}`, label: saved.label, address: saved.address, kind: "daemon", status: { kind: "checking" } };
+}
+
 export const app = $state({
   hosts: [
-    { id: "local", label: hostLabel(location, import.meta.env.DEV), address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } },
+    ...(HOSTED ? [] : [{ id: "local", label: hostLabel(location, import.meta.env.DEV), address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } } as Host]),
+    ...loadSavedHosts().map(savedHost),
     { id: "demo", label: "Demo host", address: "scripted, no daemon", kind: "demo", status: { kind: "online", sessionCount: 4 } },
   ] as Host[],
   selectedHostId: null as string | null,
@@ -40,6 +49,33 @@ export async function checkHost(host: Host): Promise<void> {
   }
   // Picked while the probe was still out, so attach now that it answered.
   if (app.selectedHostId === host.id && app.attachedHostId !== host.id) selectHost(host);
+}
+
+/** Adds a host by tailnet name, remembered on this device. Throws a readable message. */
+export function addHost(input: string): Host {
+  const saved = parseHostInput(input);
+  const existing = app.hosts.find((host) => host.address === saved.address);
+  if (existing) return existing;
+  const host = savedHost(saved);
+  app.hosts.splice(app.hosts.length - 1, 0, host);
+  persist();
+  void checkHost(app.hosts.find((candidate) => candidate.id === host.id)!);
+  return host;
+}
+
+export function removeHost(id: string): void {
+  if (app.attachedHostId === id) {
+    app.connection?.close();
+    app.connection = null;
+    app.attachedHostId = null;
+  }
+  app.hosts = app.hosts.filter((host) => host.id !== id);
+  if (app.selectedHostId === id) app.selectedHostId = null;
+  persist();
+}
+
+function persist(): void {
+  storeSavedHosts(app.hosts.filter((host) => host.id.startsWith("saved:")).map(({ label, address }) => ({ label, address })));
 }
 
 export function selectedHost(): Host | undefined {

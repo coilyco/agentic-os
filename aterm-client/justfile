@@ -53,3 +53,7 @@ sync-creatures SOURCE:
 install-client:
     @just build
     @dir="${ATERM_CLIENT_DIR:-$HOME/.local/share/aterm/client}"; mkdir -p "$dir" && rsync -a --delete dist/ "$dir/" && echo "installed to $dir"
+
+# Build for coilyco.dev/aterm/: base /aterm/, hosts added per device, none baked in.
+build-hosted:
+    @ATERM_CLIENT_BASE=/aterm/ VITE_ATERM_HOSTED=1 {{pnpm}} run build

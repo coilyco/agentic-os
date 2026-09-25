@@ -14,6 +14,7 @@ A coarse inventory of what ships. Architecture: [architecture.md](architecture.m
 * **Composer** - a real text field under the terminal, so dictation tools like Wispr Flow and phone keyboards work. Enter sends as one bracketed paste, with Enter a beat later, when the program asked for it.
 * **Peer message marking** - envelope lines are matched in the terminal buffer and striped in the sender's colour, across wrapped rows.
 * **Messages panel** - each seat's sent and received messages with queued, held, launching, typed in, and failed states, and the daemon's reason.
+* **coilyco.dev/aterm** - the client behind the coilyco.dev sign-in gate, hosts added per device. [deploy.md](deploy.md).
 * **Installable** - a web manifest and icons so Android and the Mac can install it as an app.
 
 Designed, not built: MCP Apps views, the shared browser, and the switchboard.

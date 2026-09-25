@@ -2,4 +2,5 @@
 
 interface ImportMetaEnv {
   readonly VITE_ATERM_DAEMON_WS?: string;
+  readonly VITE_ATERM_HOSTED?: string;
 }
