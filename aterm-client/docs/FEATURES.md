@@ -3,11 +3,12 @@
 A coarse inventory of what ships. Architecture: [architecture.md](architecture.md).
 
 * **Sidebar tabs** - hosts and seats as vertical tab lists with arrow-key focus, collapsing to two scrolling strips below 720px.
-* **Host states** - online, not answering, and sign-in required, each with its own panel. Adding a host by address waits on the daemon.
-* **Seat launch** - a seat that is not running opens a launch panel for each of its harnesses, and a failed launch shows its exit reason.
+* **Live daemon** - "this Mac" speaks `aterm.daemon.v1` over the daemon's loopback websocket: roster, live sessions, attach with replay, typing, resize, and message states. A Demo host keeps a scripted copy for working with no daemon.
+* **Host states** - checking, online, and not answering, each with its own panel and a retry. Hosts beyond this Mac wait on the daemon listening past loopback.
+* **Seat launch** - a seat that is not running shows how to start it on the host, and on the Demo host launches in place. A failed launch shows its exit reason.
 * **Session terminal** - xterm.js with fit-to-pane resizing and the role's accent.
 * **Peer message marking** - envelope lines are matched in the terminal buffer and striped in the sender's colour, across wrapped rows.
-* **Messages panel** - each seat's sent and received messages with typed in, queued, held, and bounced states.
+* **Messages panel** - each seat's sent and received messages with queued, held, launching, typed in, and failed states, and the daemon's reason.
 * **Installable** - a web manifest and icons so Android and the Mac can install it as an app.
 
 Designed, not built: MCP Apps views, the shared browser, and the switchboard.

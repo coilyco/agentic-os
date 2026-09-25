@@ -1,46 +1,43 @@
-// Stands in for the host daemon until teable:coilyco/agentic-os#8219 lands.
-// Everything here is scripted, and nothing reaches a real PTY.
+// The demo host: scripted sessions shaped like aterm.daemon.v1, for working on
+// the surface with no daemon running. Nothing here reaches a real PTY.
 import rosterJson from "./fixtures/roster.json";
 import { envelope } from "./messages";
-import type { Host, HostConnection, HostEvent, PeerMessage, Session } from "./protocol";
+import type { HostConnection, HostEvent, PeerMessage, Session } from "./protocol";
 import { parseRoster } from "./roster";
-
-export const mockHosts: Host[] = [
-  { id: "local", label: "this Mac", address: "localhost", status: { kind: "online", sessionCount: 4 } },
-  { id: "kai-server", label: "kai-server", address: "tailnet", status: { kind: "online", sessionCount: 1 } },
-  { id: "ser8", label: "ser8", address: "tailnet", status: { kind: "unreachable", lastSeen: null } },
-  { id: "dev-base", label: "dev-base container", address: "container", status: { kind: "auth-required" } },
-];
 
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 const PROMPT = "\r\n› ";
 
 const scripts: Record<string, string[]> = {
-  "frontend-eng": ["› check the hosts page with ser8 down", `${DIM}● playwright browser_snapshot${RESET}`, "The alert is announced before the host list."],
-  "eng-platform": ["› build the websocket session channel", `${DIM}• edit aterm/daemon/pty.go (+84 -0)${RESET}`, `${DIM}• run go test ./aterm/...${RESET}  ok`],
+  "frontend-eng": ["› check the hosts page with the daemon down", `${DIM}● playwright browser_snapshot${RESET}`, "The alert is announced before the host list."],
+  "eng-platform": ["› build the websocket session channel", `${DIM}• edit aterm/daemon_ws.go (+84 -0)${RESET}`, `${DIM}• run go test ./aterm/...${RESET}  ok`],
   "sysadmin-senior": ["› how is kai-server doing?", "Root disk is at 74.6%: 364 of 515 GB used.", "Memory is at 53.6% of 33.3 GB."],
   scientist: ["› run the latency sweep", `${DIM}● route 4 of 12, measuring${RESET}`],
 };
 
+function session(id: string, role: string, seat: string, identity: string, state: Session["state"], pending = 0): Session {
+  return { id, role, seat, identity, state, pending, drafting: false };
+}
+
 export class MockHost implements HostConnection {
+  readonly canLaunch = true;
   private listeners = new Set<(event: HostEvent) => void>();
   private timers: ReturnType<typeof setTimeout>[] = [];
   private roles = parseRoster(rosterJson);
   private sessions: Session[] = [
-    { id: "s-frontend", role: "frontend-eng", seat: "claude", identity: "Imp-Dragonfly", state: "idle" },
-    { id: "s-platform", role: "eng-platform", seat: "codex", identity: "Beetle-Ox", state: "working" },
-    { id: "s-sysadmin", role: "sysadmin-senior", seat: "goose", identity: "Turtle-Ox", state: "idle" },
-    { id: "s-scientist", role: "scientist", seat: "claude", identity: "Frog-Ox", state: "working" },
-    { id: "s-access", role: "sysadmin-access", seat: "goose", identity: "Turtle-Ox", state: "failed", failure: "goose did not start. Exit 4, goose is not on this host's PATH." },
+    session("s-frontend", "frontend-eng", "claude", "Imp-Dragonfly", "idle"),
+    session("s-platform", "eng-platform", "codex", "Beetle-Ox", "working"),
+    session("s-sysadmin", "sysadmin-senior", "goose", "Turtle-Ox", "idle"),
+    session("s-scientist", "scientist", "claude", "Frog-Ox", "working", 1),
+    { ...session("s-access", "sysadmin-access", "goose", "Turtle-Ox", "failed"), failure: "goose did not start. Exit 4, goose is not on this host's PATH." },
   ];
   private buffers = new Map<string, string>();
+  private attached = new Set<string>();
   private messages: PeerMessage[] = [];
 
   constructor(private readonly delayMs = 1200) {
-    for (const session of this.sessions) {
-      this.buffers.set(session.id, (scripts[session.role] ?? []).join("\r\n") + PROMPT);
-    }
+    for (const each of this.sessions) this.buffers.set(each.id, (scripts[each.role] ?? []).join("\r\n") + PROMPT);
     this.timers.push(setTimeout(() => this.deliverScriptedMessage(), delayMs));
   }
 
@@ -48,25 +45,31 @@ export class MockHost implements HostConnection {
     this.listeners.add(listener);
     listener({ type: "roster", roles: this.roles });
     listener({ type: "sessions", sessions: this.sessions });
-    for (const [sessionId, data] of this.buffers) listener({ type: "output", sessionId, data });
     for (const message of this.messages) listener({ type: "message", message });
     return () => this.listeners.delete(listener);
+  }
+
+  attach(sessionId: string): void {
+    this.attached.add(sessionId);
+    this.emit({ type: "output", sessionId, data: this.buffers.get(sessionId) ?? "" });
+  }
+
+  detach(sessionId: string): void {
+    this.attached.delete(sessionId);
   }
 
   input(sessionId: string, data: string): void {
     this.write(sessionId, data === "\r" ? PROMPT : data);
   }
 
+  resize(): void {}
+
   launch(role: string, seat: string): void {
     const identity = this.roles.find((candidate) => candidate.slug === role)?.identity ?? role;
     const id = `s-${role}-${seat}`;
-    this.sessions = [
-      ...this.sessions.filter((session) => session.role !== role),
-      { id, role, seat, identity, state: "idle" },
-    ];
-    this.buffers.set(id, "");
+    this.sessions = [...this.sessions.filter((each) => each.role !== role), session(id, role, seat, identity, "idle")];
+    this.buffers.set(id, `${DIM}${seat} started for ${identity}${RESET}${PROMPT}`);
     this.emit({ type: "sessions", sessions: this.sessions });
-    this.write(id, `${DIM}${seat} started for ${identity}${RESET}${PROMPT}`);
   }
 
   close(): void {
@@ -76,23 +79,25 @@ export class MockHost implements HostConnection {
 
   private deliverScriptedMessage(): void {
     const message: PeerMessage = {
-      id: "m-roster-channel",
+      id: "m-roster",
       from: { role: "frontend-eng", identity: "Imp-Dragonfly" },
-      to: { role: "eng-platform", identity: "Beetle-Ox" },
-      body: "The client needs the roster pushed over the socket.\r\nCan milestone one carry a roster channel?",
+      target: "eng-platform",
+      session: "s-platform",
       state: "delivered",
+      reason: null,
     };
     this.messages = [message];
-    this.write("s-platform", `\r\n${envelope(message.from)}\r\n${message.body}${PROMPT}`);
+    this.write("s-platform", `\r\n${envelope(message.from)} Can the roster ride the socket, not aterm --list --json?${PROMPT}`);
     this.emit({ type: "message", message });
     this.timers.push(
       setTimeout(() => {
         const reply: PeerMessage = {
           id: "m-roster-reply",
           from: { role: "eng-platform", identity: "Beetle-Ox" },
-          to: { role: "frontend-eng", identity: "Imp-Dragonfly" },
-          body: "yes, roster rides channel 2",
+          target: "frontend-eng",
+          session: "s-frontend",
           state: "queued",
+          reason: "Imp-Dragonfly is mid-turn",
         };
         this.messages = [...this.messages, reply];
         this.emit({ type: "message", message: reply });
@@ -102,7 +107,7 @@ export class MockHost implements HostConnection {
 
   private write(sessionId: string, data: string): void {
     this.buffers.set(sessionId, (this.buffers.get(sessionId) ?? "") + data);
-    this.emit({ type: "output", sessionId, data });
+    if (this.attached.has(sessionId)) this.emit({ type: "output", sessionId, data });
   }
 
   private emit(event: HostEvent): void {

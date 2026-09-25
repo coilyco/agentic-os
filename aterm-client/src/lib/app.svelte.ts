@@ -1,10 +1,14 @@
+import { DaemonHost, DEFAULT_DAEMON_URL, probe } from "./daemon-host";
 import { upsertMessage } from "./messages";
-import { MockHost, mockHosts } from "./mock-host";
+import { MockHost } from "./mock-host";
 import type { Host, HostConnection, PeerMessage, Session } from "./protocol";
 import type { Role } from "./roster";
 
 export const app = $state({
-  hosts: mockHosts as Host[],
+  hosts: [
+    { id: "local", label: "this Mac", address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } },
+    { id: "demo", label: "Demo host", address: "scripted, no daemon", kind: "demo", status: { kind: "online", sessionCount: 4 } },
+  ] as Host[],
   selectedHostId: null as string | null,
   attachedHostId: null as string | null,
   connection: null as HostConnection | null,
@@ -14,6 +18,16 @@ export const app = $state({
   selectedRole: null as string | null,
   notice: "",
 });
+
+export async function checkHost(host: Host): Promise<void> {
+  if (host.kind !== "daemon") return;
+  host.status = { kind: "checking" };
+  try {
+    host.status = { kind: "online", sessionCount: await probe(host.address) };
+  } catch {
+    host.status = { kind: "unreachable", reason: "No daemon answered." };
+  }
+}
 
 export function selectedHost(): Host | undefined {
   return app.hosts.find((host) => host.id === app.selectedHostId);
@@ -29,13 +43,20 @@ export function selectHost(host: Host): void {
   app.roles = [];
   app.sessions = [];
   app.messages = [];
-  const connection = new MockHost();
+  const connection = host.kind === "daemon" ? new DaemonHost(host.address) : new MockHost();
   app.connection = connection;
   app.attachedHostId = host.id;
   connection.subscribe((event) => {
     if (event.type === "roster") app.roles = event.roles;
     else if (event.type === "sessions") app.sessions = event.sessions;
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
+    else if (event.type === "notice") app.notice = event.text;
+    else if (event.type === "closed") {
+      host.status = { kind: "unreachable", reason: event.reason };
+      app.attachedHostId = null;
+      app.connection = null;
+      app.selectedRole = null;
+    }
   });
 }
 
@@ -50,3 +71,11 @@ export function sessionFor(slug: string): Session | undefined {
 export function colorOf(slug: string): string {
   return app.roles.find((role) => role.slug === slug)?.color ?? "#a4abb9";
 }
+
+/** Messages to or from one session. A target may name its role, identity, or session. */
+export function messagesFor(session: Session): PeerMessage[] {
+  const names = [session.role, session.identity, session.id];
+  return app.messages.filter((message) => message.from.role === session.role || message.session === session.id || names.includes(message.target));
+}
+
+for (const host of app.hosts) void checkHost(host);

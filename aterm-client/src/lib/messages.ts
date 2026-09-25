@@ -1,17 +1,28 @@
 import type { MessageState, PeerMessage } from "./protocol";
 
-/** The line the daemon stamps ahead of every peer message. Human input carries none. */
+/** The prefix the daemon stamps ahead of every peer message. Human input carries none. */
 export function envelope(from: PeerMessage["from"]): string {
   return `[from ${from.role} ${from.identity}]`;
 }
 
-/** Lines that open a known peer message. Why matching is safe: docs/architecture.md. */
+/** Splits the daemon's `from`, which is `<role> <identity>`. */
+export function parseFrom(from: string): PeerMessage["from"] {
+  const space = from.indexOf(" ");
+  return space === -1 ? { role: from, identity: from } : { role: from.slice(0, space), identity: from.slice(space + 1) };
+}
+
+/** Lines holding a stamped envelope from a known sender. See docs/architecture.md. */
 export function envelopeRows(lines: readonly string[], messages: readonly PeerMessage[]): Map<number, PeerMessage> {
-  const byEnvelope = new Map(messages.map((message) => [envelope(message.from), message]));
+  const senders = new Map(messages.map((message) => [envelope(message.from), message]));
   const rows = new Map<number, PeerMessage>();
   lines.forEach((line, row) => {
-    const match = byEnvelope.get(line.trimEnd());
-    if (match) rows.set(row, match);
+    for (const [stamp, message] of senders) {
+      const at = line.indexOf(stamp);
+      if (at !== -1 && line[at - 1] !== "\\") {
+        rows.set(row, message);
+        return;
+      }
+    }
   });
   return rows;
 }
@@ -23,8 +34,9 @@ export function upsertMessage(list: readonly PeerMessage[], next: PeerMessage): 
 }
 
 export const stateLabel: Record<MessageState, string> = {
-  delivered: "typed in",
   queued: "queued",
   held: "held",
-  bounced: "bounced",
+  launching: "launching",
+  delivered: "typed in",
+  failed: "failed",
 };

@@ -4,11 +4,11 @@ The client is one Svelte app with no router. State lives in `src/lib/app.svelte.
 
 ## The host connection
 
-`HostConnection` in `src/lib/protocol.ts` is the whole seam to the daemon: subscribe to events, send input, launch a seat. `MockHost` implements it with scripted sessions so the surface can be built before the daemon exists (`teable:coilyco/agentic-os#8219`). Swapping in the websocket client changes one constructor in `selectHost`.
+`HostConnection` in `src/lib/protocol.ts` is the whole seam: subscribe, attach, detach, type, resize, launch. `DaemonHost` maps it onto `aterm.daemon.v1` over the daemon's loopback websocket (agentic-os `docs/aterm-daemon.md`, Wire contract), and `MockHost` scripts the same events for the Demo host. The terminal subscribes before it attaches, so the replay an attach triggers is never missed. Launching is `canLaunch = false` on the daemon, which has no frame that starts a seat by role yet.
 
 ## Why envelopes are matched, not reported
 
-A peer message is typed into the target harness's input, and the harness decides where it echoes. The daemon cannot know which screen rows hold it. The daemon does escape envelope-shaped lines inside a body, so an unescaped `[from <role> <identity>]` at the start of a logical line can only be one it stamped. The terminal scans its buffer for those lines and draws the stripe, joining wrapped rows first so a narrow pane still marks the whole message.
+A peer message is typed into the target harness's input, and the harness decides where it echoes it, often behind its own prompt. The daemon cannot know which screen rows hold it, and its message events carry no body. The daemon does escape envelope-shaped lines inside a body with a leading backslash, so the client marks a logical line holding an unescaped `[from <role> <identity>]` from a sender it has a message event for. Wrapped rows are joined first, so a narrow pane still marks the whole line. A seat quoting another's envelope in its own output would also be marked, which is cosmetic.
 
 ## Narrow screens
 

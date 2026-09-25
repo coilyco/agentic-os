@@ -16,7 +16,7 @@ Svelte 5, TypeScript, and Vite, with xterm.js for terminals. `src/lib/` holds th
 
 ## Repo boundaries
 
-`src/lib/protocol.ts` is a client-side draft of the daemon contract. When the daemon publishes its schema, the draft is replaced by it, never extended past it. Do not invent daemon behaviour in the mock that the daemon has not agreed to.
+`aterm.daemon.v1` is owned by the daemon in `coilyco/agentic-os` (`docs/aterm-daemon.md`). `src/lib/daemon-host.ts` follows it and never extends it. The mock scripts only behaviour the daemon has, so the Demo host never promises what "this Mac" cannot do.
 
 ## Commands
 

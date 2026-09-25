@@ -54,11 +54,10 @@
     for (const [index, message] of envelopeRows(lines.map((line) => line.text), messages)) {
       const first = lines[index];
       if (!first || marked.has(first.start)) continue;
-      const span = lines.slice(index, index + 1 + message.body.split(/\r?\n/).length);
       const marker = term.registerMarker(first.start - (buffer.baseY + buffer.cursorY));
       if (!marker) continue;
       const color = colorOf(message.from.role);
-      const decoration = term.registerDecoration({ marker, width: term.cols, height: span.reduce((sum, line) => sum + line.rows, 0), layer: "bottom" });
+      const decoration = term.registerDecoration({ marker, width: term.cols, height: first.rows, layer: "bottom" });
       if (!decoration) continue;
       decoration.onRender((element) => {
         // Pulled into the container's left padding so the stripe never covers column 0.
@@ -95,6 +94,7 @@
     fit.fit();
     const observer = new ResizeObserver(() => {
       fit.fit();
+      connection.resize(sessionId, terminal.rows, terminal.cols);
       remark();
     });
     observer.observe(host);
@@ -102,8 +102,11 @@
     const unsubscribe = connection.subscribe((event) => {
       if (event.type === "output" && event.sessionId === sessionId) terminal.write(event.data, markEnvelopes);
     });
+    // Subscribed first, so the replay the attach triggers is not missed.
+    connection.attach(sessionId, terminal.rows, terminal.cols);
     return () => {
       unsubscribe();
+      connection.detach(sessionId);
       input.dispose();
       observer.disconnect();
       terminal.dispose();

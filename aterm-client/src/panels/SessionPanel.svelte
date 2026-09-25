@@ -2,12 +2,12 @@
   import Creature from "../components/Creature.svelte";
   import MessagesPanel from "../components/MessagesPanel.svelte";
   import Terminal from "../components/Terminal.svelte";
-  import { app, colorOf } from "../lib/app.svelte";
+  import { app, colorOf, messagesFor } from "../lib/app.svelte";
   import type { Session } from "../lib/protocol";
   import type { Role } from "../lib/roster";
 
   let { role, session }: { role: Role; session: Session } = $props();
-  const messages = $derived(app.messages.filter((m) => m.from.role === role.slug || m.to.role === role.slug));
+  const messages = $derived(messagesFor(session));
 </script>
 
 <section class="session" style:--accent={role.color}>

@@ -11,15 +11,15 @@
   function hostDetail(host: Host): string {
     if (host.status.kind === "online") return `${host.status.sessionCount} running`;
     if (host.status.kind === "unreachable") return "no answer";
-    return "sign-in required";
+    return "checking";
   }
 
   function seatDetail(slug: string): string {
     const session = sessionFor(slug);
     if (!session) return "not running";
     if (session.state === "failed") return "launch failed";
-    const queued = app.messages.filter((m) => m.to.role === slug && m.state === "queued").length;
-    return `${session.seat} // ${queued ? `${queued} queued` : session.state}`;
+    if (session.drafting) return `${session.seat} // you're typing`;
+    return `${session.seat} // ${session.pending ? `${session.pending} waiting` : session.state}`;
   }
 </script>
 
@@ -86,14 +86,13 @@
   .seat[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--ground)); box-shadow: inset 0 0 0 1px var(--accent); }
   .dot { width: 10px; height: 10px; border-radius: 5px; background: var(--ok); flex: none; }
   [data-kind="unreachable"] .dot { background: none; border: 2px solid var(--danger); }
-  [data-kind="auth-required"] .dot { background: var(--warn); }
+  [data-kind="checking"] .dot { background: none; border: 2px solid var(--muted); }
   .seat[data-state="none"] :global(.creature) { opacity: 0.5; filter: saturate(0.4); }
   .seat[data-state="failed"] :global(.creature) { box-shadow: inset 0 0 0 2px var(--danger); }
   .text { display: flex; flex-direction: column; min-width: 0; }
   .name { font-weight: 600; font-size: 15px; }
   .detail { font-size: 12px; color: var(--muted); }
   [data-kind="unreachable"] .detail, [data-state="failed"] .detail { color: #ff9aa5; }
-  [data-kind="auth-required"] .detail { color: var(--warn-text); }
   .waiting { margin: 0 10px; color: var(--muted); font-size: 14px; }
 
   @media (max-width: 720px) {
