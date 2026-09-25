@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -811,6 +812,7 @@ func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error)
 		pids = append(pids, lease.PID)
 	}
 	probe := probeNativeProcesses(pids)
+	pending := make([]nativePendingLease, 0, len(held))
 	for _, entry := range held {
 		path := entry.path
 		lease := entry.lease
@@ -848,20 +850,28 @@ func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error)
 		// local-only state is released now. docs/native-session-start.md
 		expired := lease.Released != nil ||
 			!runtime.Now.Before(lease.DeadSince.Add(nativeDeadSessionGrace))
+		pending = append(pending, nativePendingLease{
+			path: path, lease: lease, expired: expired,
+			results: make([]nativeArtifactResult, len(lease.Artifacts)),
+		})
+	}
+	cleanNativeArtifactsByRepository(pending)
+	for _, entry := range pending {
+		path := entry.path
+		lease := entry.lease
+		expired := entry.expired
 		remaining := make([]nativeArtifact, 0, len(lease.Artifacts))
-		for _, artifact := range lease.Artifacts {
-			cleaned, err := cleanNativeArtifact(artifact)
-			if err != nil {
-				fmt.Fprintf(runtime.Stderr, "aos: preserving %s: %v\n", artifact.Worktree, err)
+		for index, artifact := range lease.Artifacts {
+			result := entry.results[index]
+			if result.err != nil {
+				fmt.Fprintf(runtime.Stderr, "aos: preserving %s: %v\n", artifact.Worktree, result.err)
 				remaining = append(remaining, artifact)
 				continue
 			}
-			if !cleaned {
+			if !result.cleaned {
 				remaining = append(remaining, artifact)
-				if expired {
-					if item, ok := nativeStuckReading(lease.ID, artifact); ok {
-						stuck = append(stuck, item)
-					}
+				if result.stuck {
+					stuck = append(stuck, result.reading)
 				}
 			}
 		}
@@ -890,6 +900,49 @@ func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error)
 	}
 	reportNativeStuckLeases(runtime, stuck)
 	return live, nil
+}
+
+// nativePendingLease is a dead lease whose worktrees this pass tries to release.
+type nativePendingLease struct {
+	path    string
+	lease   nativeLease
+	expired bool
+	results []nativeArtifactResult
+}
+
+type nativeArtifactResult struct {
+	cleaned bool
+	err     error
+	stuck   bool
+	reading nativeStuckArtifact
+}
+
+// cleanNativeArtifactsByRepository runs repositories side by side, and one
+// repository's worktrees in order, since its refs take one writer at a time.
+func cleanNativeArtifactsByRepository(pending []nativePendingLease) {
+	type job struct{ lease, artifact int }
+	groups := map[string][]job{}
+	order := []string{}
+	for leaseIndex, entry := range pending {
+		for artifactIndex, artifact := range entry.lease.Artifacts {
+			if _, seen := groups[artifact.Repository]; !seen {
+				order = append(order, artifact.Repository)
+			}
+			groups[artifact.Repository] = append(groups[artifact.Repository],
+				job{lease: leaseIndex, artifact: artifactIndex})
+		}
+	}
+	runParallel(len(order), nativeParallelLimit(), func(index int) {
+		for _, item := range groups[order[index]] {
+			entry := pending[item.lease]
+			artifact := entry.lease.Artifacts[item.artifact]
+			result := &entry.results[item.artifact]
+			result.cleaned, result.err = cleanNativeArtifact(artifact)
+			if result.err == nil && !result.cleaned && entry.expired {
+				result.reading, result.stuck = nativeStuckReading(entry.lease.ID, artifact)
+			}
+		}
+	})
 }
 
 // A purged worktree whose branch holds local-only commits is preserved forever,
@@ -1098,31 +1151,41 @@ func runNativeWorkspaceSweep(
 	state nativeSweepState,
 ) error {
 	pass := runtime.Progress.Step("fleet pass over %d repositories", len(repositories))
-	// Fetches overlap because each repository has its own object store.
-	// Normalizing moves checkouts, so it stays serial and runs after the pool.
-	fetchErrors := make([]error, len(repositories))
+	// Every step here touches one repository's own .git, so each repository
+	// runs start to finish on its own worker. Notices print in fleet order.
+	readings := make([]nativeSweepReading, len(repositories))
 	runParallel(len(repositories), nativeParallelLimit(), func(index int) {
 		repository := repositories[index]
+		reading := &readings[index]
 		identity := repository.Owner + "/" + repository.Name
 		runtime.Progress.Item("fetch", index+1, len(repositories), "%s", identity)
 		began := time.Now()
-		_, fetchErrors[index] = nativeGit(repository.Path, "fetch", "--prune", "origin")
-		pass.Track(identity, time.Since(began))
-	})
-	for index, repository := range repositories {
-		identity := repository.Owner + "/" + repository.Name
-		if err := fetchErrors[index]; err != nil {
-			fmt.Fprintf(runtime.Stderr, "aos: fetch skipped for %s: %v\n", identity, err)
-			continue
-		}
-		if err := normalizeNativeRepository(runtime, repository, live); err != nil {
-			fmt.Fprintf(runtime.Stderr, "aos: normalization skipped for %s: %v\n",
+		sweepRuntime := runtime
+		sweepRuntime.Stderr = &reading.notices
+		if _, err := nativeGit(repository.Path, "fetch", "--prune", "origin"); err != nil {
+			fmt.Fprintf(&reading.notices, "aos: fetch skipped for %s: %v\n", identity, err)
+		} else if err := normalizeNativeRepository(sweepRuntime, repository, live); err != nil {
+			fmt.Fprintf(&reading.notices, "aos: normalization skipped for %s: %v\n",
 				repository.Path, err)
 		}
+		if !live.contains(repository.Path) {
+			reading.drift, reading.drifted = nativeResidentDriftReading(repository)
+			reading.orphans = readNativeOrphanBranches(repository, live)
+		}
+		pass.Track(identity, time.Since(began))
+	})
+	drifts := []string{}
+	orphans := []nativeOrphanBranch{}
+	for index := range readings {
+		_, _ = runtime.Stderr.Write(readings[index].notices.Bytes())
+		if readings[index].drifted {
+			drifts = append(drifts, readings[index].drift)
+		}
+		orphans = append(orphans, readings[index].orphans...)
 	}
 	pass.Done("")
-	reportNativeResidentDrift(runtime, repositories, live)
-	reportNativeOrphanBranches(runtime, repositories, live)
+	writeNativeResidentDrift(runtime, drifts)
+	writeNativeOrphanBranches(runtime, orphans)
 	scan := runtime.Progress.Step("scan for unexpected clones")
 	// Counters must not advance either, or three unverified scans delete on the
 	// fourth exactly as three verified ones do.
@@ -1134,14 +1197,25 @@ func runNativeWorkspaceSweep(
 		return nil
 	}
 	next := map[string]nativeCandidate{}
+	unexpected := []nativeRepository{}
 	for _, repository := range scanNativeRepositories(runtime.ProjectsRoot) {
-		if expected.matches(repository.Owner, repository.Name) {
+		if !expected.matches(repository.Owner, repository.Name) {
+			unexpected = append(unexpected, repository)
+		}
+	}
+	// Eligibility only reads, and fetches, one clone. The counters and the
+	// deletion stay serial, in scan order.
+	eligible := make([]bool, len(unexpected))
+	fingerprints := make([]string, len(unexpected))
+	runParallel(len(unexpected), nativeParallelLimit(), func(index int) {
+		eligible[index], fingerprints[index] = unexpectedCloneEligible(
+			runtime, unexpected[index], live, expected.FleetOrgs)
+	})
+	for index, repository := range unexpected {
+		if !eligible[index] {
 			continue
 		}
-		eligible, fingerprint := unexpectedCloneEligible(runtime, repository, live, expected.FleetOrgs)
-		if !eligible {
-			continue
-		}
+		fingerprint := fingerprints[index]
 		candidate := state.Candidates[repository.Path]
 		if candidate.Fingerprint == fingerprint {
 			candidate.Scans++
@@ -1169,6 +1243,15 @@ func runNativeWorkspaceSweep(
 		return fmt.Errorf("write native sweep state: %w", err)
 	}
 	return nil
+}
+
+// nativeSweepReading is what one repository's fleet-pass worker leaves for the
+// serial report after the pool.
+type nativeSweepReading struct {
+	notices bytes.Buffer
+	drift   string
+	drifted bool
+	orphans []nativeOrphanBranch
 }
 
 // nativeBehindOrigin counts commits the checkout is missing, or 0 when there is
@@ -1234,16 +1317,27 @@ func reportNativeResidentDrift(
 		if live.contains(repository.Path) {
 			continue
 		}
-		drift, ok := readNativeResidentDrift(repository)
-		if !ok {
-			continue
+		if reading, ok := nativeResidentDriftReading(repository); ok {
+			readings = append(readings, reading)
 		}
-		reading := filepath.Base(drift.path) + " on " + drift.branch
-		if len(drift.reasons) > 0 {
-			reading += " (" + strings.Join(drift.reasons, ", ") + ")"
-		}
-		readings = append(readings, reading)
 	}
+	writeNativeResidentDrift(runtime, readings)
+}
+
+// nativeResidentDriftReading is one repository's entry in the drift line.
+func nativeResidentDriftReading(repository nativeRepository) (string, bool) {
+	drift, ok := readNativeResidentDrift(repository)
+	if !ok {
+		return "", false
+	}
+	reading := filepath.Base(drift.path) + " on " + drift.branch
+	if len(drift.reasons) > 0 {
+		reading += " (" + strings.Join(drift.reasons, ", ") + ")"
+	}
+	return reading, true
+}
+
+func writeNativeResidentDrift(runtime nativeRuntime, readings []string) {
 	if len(readings) == 0 {
 		return
 	}
@@ -1361,6 +1455,10 @@ func reportNativeOrphanBranches(
 		}
 		orphans = append(orphans, readNativeOrphanBranches(repository, live)...)
 	}
+	writeNativeOrphanBranches(runtime, orphans)
+}
+
+func writeNativeOrphanBranches(runtime nativeRuntime, orphans []nativeOrphanBranch) {
 	if len(orphans) == 0 {
 		return
 	}

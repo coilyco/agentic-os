@@ -104,7 +104,7 @@ Compose or the harness.
 
 `AOS_NATIVE_PROGRESS` selects the volume: `steps` is the default above, `summary` keeps the `ready` total alone, `debug` adds the
 launch command and internal notes and never collapses to one row, and `off` restores silence. Warnings and errors print at every
-level. Fetches and worktree creation overlap on at most eight Git jobs, and `AOS_NATIVE_PARALLEL=1` restores the serial order.
+level. The fleet pass, reclaim, and worktree creation run repositories on at most eight Git jobs, and `AOS_NATIVE_PARALLEL=1` restores the serial order.
 
 ## Waiting on the startup lock
 

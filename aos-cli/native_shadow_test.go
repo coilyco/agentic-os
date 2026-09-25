@@ -1013,6 +1013,46 @@ func TestNativeSweepReturnsExpectedCheckoutToMain(t *testing.T) {
 	}
 }
 
+func TestNativeSweepReportsParallelRepositoriesInFleetOrder(t *testing.T) {
+	root := t.TempDir()
+	names := []string{"one", "two", "three", "four"}
+	repositories := []nativeRepository{}
+	full := map[string]bool{}
+	for _, name := range names {
+		repository, _ := createNativeTestRepository(t, root, "owner", name)
+		testGit(t, repository, "switch", "-c", "task")
+		testGit(t, repository, "commit", "--allow-empty", "-m", "task")
+		testGit(t, repository, "push", "-u", "origin", "task")
+		repositories = append(repositories, nativeRepository{Owner: "owner", Name: name, Path: repository})
+		full[filepath.Join("owner", name)] = true
+	}
+	runtime := nativeTestRuntime(t, root)
+	writeNativeTestPlan(t, runtime.PlanFile, names...)
+	writeNativeTestList(t, runtime.FleetFile, "owner")
+	stderr := &bytes.Buffer{}
+	runtime.Stderr = stderr
+
+	err := runNativeWorkspaceSweep(runtime, repositories, nativeExpected{
+		Full: full, FleetOrgs: map[string]bool{"owner": true}, Authoritative: true,
+	}, nativeLiveWorktrees{}, nativeSweepState{Candidates: map[string]nativeCandidate{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Workers finish in any order, and the notices still read in fleet order.
+	last := -1
+	for _, repository := range repositories {
+		at := strings.Index(stderr.String(), "aos: returned "+repository.Path+" to main")
+		if at <= last {
+			t.Fatalf("%s is missing or out of fleet order:\n%s", repository.Name, stderr.String())
+		}
+		last = at
+		if branch := testGit(t, repository.Path, "branch", "--show-current"); branch != "main" {
+			t.Fatalf("%s branch = %s, want main", repository.Name, branch)
+		}
+	}
+}
+
 func TestNativeSweepReclaimsMainBeforeSwitchingCanonicalCheckout(t *testing.T) {
 	root := t.TempDir()
 	repository, _ := createNativeTestRepository(t, root, "owner", "one")
