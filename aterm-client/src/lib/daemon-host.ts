@@ -13,6 +13,7 @@ interface SessionView {
   identity: string;
   seat: string;
   ready: boolean;
+  bracketed_paste: boolean;
   kai_drafting: boolean;
   pending: number;
 }
@@ -41,15 +42,21 @@ interface Frame {
   error?: string;
 }
 
-export function toSession(view: SessionView): Session {
+/** Output this recent means the seat is busy. A working agent redraws constantly. */
+export const BUSY_WINDOW_MS = 1500;
+/** Echo, replay, and redraw this client caused are not the agent working. */
+const SELF_WINDOW_MS = 800;
+
+export function toSession(view: SessionView, busy = false): Session {
   return {
     id: view.name,
     role: view.role,
     identity: view.identity,
     seat: view.seat,
-    state: view.ready ? "idle" : "working",
+    state: view.ready && !busy ? "idle" : "working",
     pending: view.pending,
     drafting: view.kai_drafting,
+    paste: view.bracketed_paste,
   };
 }
 
@@ -94,12 +101,19 @@ export class DaemonHost implements HostConnection {
   private open = false;
   private nextId = 0;
   private last: { sessions?: Session[]; roles?: HostEvent } = {};
+  private views: SessionView[] = [];
+  private refs = new Map<string, number>();
+  private lastOutput = new Map<string, number>();
+  private lastPoke = new Map<string, number>();
+  private busy = new Set<string>();
+  private ticker: ReturnType<typeof setInterval>;
 
   constructor(url = DEFAULT_DAEMON_URL) {
     this.socket = new WebSocket(url);
     this.socket.addEventListener("open", () => this.socket.send(JSON.stringify({ type: "hello", format: FORMAT })));
     this.socket.addEventListener("message", (event) => this.receive(JSON.parse(String(event.data)) as Frame));
     this.socket.addEventListener("close", () => this.emit({ type: "closed", reason: "The daemon closed the connection." }));
+    this.ticker = setInterval(() => this.settle(), 500);
   }
 
   subscribe(listener: (event: HostEvent) => void): () => void {
@@ -110,18 +124,30 @@ export class DaemonHost implements HostConnection {
   }
 
   attach(sessionId: string, rows: number, cols: number): void {
+    this.refs.set(sessionId, (this.refs.get(sessionId) ?? 0) + 1);
+    this.lastPoke.set(sessionId, Date.now());
     this.request({ type: "attach", session: sessionId, replay: true, rows, cols });
   }
 
+  // The activity monitor holds its own reference, so closing a terminal tab
+  // leaves the seat watched and the daemon never sees a detach for it.
   detach(sessionId: string): void {
+    const left = (this.refs.get(sessionId) ?? 1) - 1;
+    if (left > 0) {
+      this.refs.set(sessionId, left);
+      return;
+    }
+    this.refs.delete(sessionId);
     this.request({ type: "detach", session: sessionId });
   }
 
   input(sessionId: string, data: string): void {
+    this.lastPoke.set(sessionId, Date.now());
     this.request({ type: "input", session: sessionId, data: encode(data) });
   }
 
   resize(sessionId: string, rows: number, cols: number): void {
+    this.lastPoke.set(sessionId, Date.now());
     this.request({ type: "resize", session: sessionId, rows, cols });
   }
 
@@ -132,8 +158,52 @@ export class DaemonHost implements HostConnection {
   }
 
   close(): void {
+    clearInterval(this.ticker);
     this.listeners.clear();
     this.socket.close();
+  }
+
+  /** Watch every live seat without replay or resize, to see when it is busy. */
+  private monitor(): void {
+    const live = new Set(this.views.map((view) => view.name));
+    for (const name of live) {
+      if (this.refs.has(name)) continue;
+      this.refs.set(name, 1);
+      this.request({ type: "attach", session: name, replay: false });
+    }
+    for (const name of [...this.refs.keys()]) {
+      if (!live.has(name)) {
+        this.refs.delete(name);
+        this.busy.delete(name);
+      }
+    }
+  }
+
+  private settle(): void {
+    const now = Date.now();
+    let changed = false;
+    for (const name of [...this.busy]) {
+      if (now - (this.lastOutput.get(name) ?? 0) > BUSY_WINDOW_MS) {
+        this.busy.delete(name);
+        changed = true;
+      }
+    }
+    if (changed) this.publishSessions();
+  }
+
+  private noteOutput(name: string): void {
+    const now = Date.now();
+    if (now - (this.lastPoke.get(name) ?? 0) < SELF_WINDOW_MS) return;
+    this.lastOutput.set(name, now);
+    if (!this.busy.has(name)) {
+      this.busy.add(name);
+      this.publishSessions();
+    }
+  }
+
+  private publishSessions(): void {
+    this.last.sessions = this.views.map((view) => toSession(view, this.busy.has(view.name)));
+    this.emit({ type: "sessions", sessions: this.last.sessions });
   }
 
   private request(frame: Record<string, unknown>): string {
@@ -158,15 +228,18 @@ export class DaemonHost implements HostConnection {
         for (const line of this.outbox.splice(0)) this.socket.send(line);
         return;
       case "sessions":
-        this.last.sessions = (frame.sessions ?? []).map(toSession);
-        this.emit({ type: "sessions", sessions: this.last.sessions });
+        this.views = frame.sessions ?? [];
+        this.monitor();
+        this.publishSessions();
         return;
       case "roster":
         this.last.roles = { type: "roster", roles: parseRoster(frame.roster) };
         this.emit(this.last.roles);
         return;
       case "output":
-        if (frame.session && frame.data) this.emit({ type: "output", sessionId: frame.session, data: decode(frame.data) });
+        if (!frame.session || !frame.data) return;
+        this.noteOutput(frame.session);
+        this.emit({ type: "output", sessionId: frame.session, data: decode(frame.data) });
         return;
       case "message":
         if (frame.message) this.emit({ type: "message", message: toMessage(frame.message) });

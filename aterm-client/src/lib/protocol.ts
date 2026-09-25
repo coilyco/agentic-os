@@ -27,6 +27,8 @@ export interface Session {
   state: SessionState;
   pending: number;
   drafting: boolean;
+  /** The program asked for bracketed paste, so text should arrive as one paste. */
+  paste: boolean;
   failure?: string;
 }
 

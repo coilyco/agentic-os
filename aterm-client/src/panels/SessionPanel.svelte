@@ -1,5 +1,6 @@
 <script lang="ts">
   import Creature from "../components/Creature.svelte";
+  import Composer from "../components/Composer.svelte";
   import MessagesPanel from "../components/MessagesPanel.svelte";
   import Terminal from "../components/Terminal.svelte";
   import { app, colorOf, messagesFor } from "../lib/app.svelte";
@@ -18,11 +19,14 @@
     <span class="state mono">{session.state}</span>
   </header>
   <div class="body">
-    {#if app.connection}
-      {#key session.id}
-        <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} />
-      {/key}
-    {/if}
+    <div class="work">
+      {#if app.connection}
+        {#key session.id}
+          <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} />
+          <Composer connection={app.connection} {session} />
+        {/key}
+      {/if}
+    </div>
     <MessagesPanel {messages} selfRole={role.slug} {colorOf} />
   </div>
 </section>
@@ -33,6 +37,7 @@
   h1 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 22px; }
   .role { font-size: 14px; color: color-mix(in srgb, var(--accent) 55%, white); }
   .state { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--accent); }
+  .work { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 0; }
   @media (max-width: 1000px) {
     .body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr) auto; }

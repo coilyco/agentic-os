@@ -17,7 +17,7 @@ const scripts: Record<string, string[]> = {
 };
 
 function session(id: string, role: string, seat: string, identity: string, state: Session["state"], pending = 0): Session {
-  return { id, role, seat, identity, state, pending, drafting: false };
+  return { id, role, seat, identity, state, pending, drafting: false, paste: true };
 }
 
 export class MockHost implements HostConnection {

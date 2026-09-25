@@ -1,3 +1,4 @@
+import { nextUnseen } from "./activity";
 import { DaemonHost, DEFAULT_DAEMON_URL, probe } from "./daemon-host";
 import { upsertMessage } from "./messages";
 import { MockHost } from "./mock-host";
@@ -18,6 +19,8 @@ export const app = $state({
   selectedRole: null as string | null,
   notice: "",
   launches: {} as Record<string, { state: LaunchState; text: string }>,
+  /** Sessions that finished a turn while you were looking at another one. */
+  unseen: {} as Record<string, boolean>,
 });
 
 export async function checkHost(host: Host): Promise<void> {
@@ -52,7 +55,10 @@ export function selectHost(host: Host): void {
   app.attachedHostId = host.id;
   connection.subscribe((event) => {
     if (event.type === "roster") app.roles = event.roles;
-    else if (event.type === "sessions") app.sessions = event.sessions;
+    else if (event.type === "sessions") {
+      app.unseen = nextUnseen(app.sessions, event.sessions, viewingSession(), app.unseen);
+      app.sessions = event.sessions;
+    }
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
     else if (event.type === "notice") app.notice = event.text;
     else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
@@ -67,6 +73,12 @@ export function selectHost(host: Host): void {
 
 export function selectRole(slug: string): void {
   app.selectedRole = slug;
+  const session = sessionFor(slug);
+  if (session) delete app.unseen[session.id];
+}
+
+function viewingSession(): string | null {
+  return app.selectedRole ? (sessionFor(app.selectedRole)?.id ?? null) : null;
 }
 
 export function sessionFor(slug: string): Session | undefined {

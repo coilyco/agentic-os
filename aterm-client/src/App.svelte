@@ -7,6 +7,10 @@
 
   const role = $derived(app.roles.find((candidate) => candidate.slug === app.selectedRole));
   const session = $derived(role ? sessionFor(role.slug) : undefined);
+  const waiting = $derived(Object.keys(app.unseen).length);
+  $effect(() => {
+    document.title = waiting ? `(${waiting}) aterm` : "aterm";
+  });
   const labelledBy = $derived(role ? `tab-seat-${role.slug}` : app.selectedHostId ? `tab-host-${app.selectedHostId}` : undefined);
 </script>
 

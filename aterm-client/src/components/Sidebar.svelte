@@ -18,8 +18,18 @@
     const session = sessionFor(slug);
     if (!session) return "not running";
     if (session.state === "failed") return "launch failed";
+    if (app.unseen[session.id]) return `${session.seat} // done, your turn`;
     if (session.drafting) return `${session.seat} // you're typing`;
-    return `${session.seat} // ${session.pending ? `${session.pending} waiting` : session.state}`;
+    if (session.pending) return `${session.seat} // ${session.pending} ${session.pending === 1 ? "message" : "messages"} waiting`;
+    return `${session.seat} // ${session.state}`;
+  }
+
+  function activity(slug: string): string {
+    const session = sessionFor(slug);
+    if (!session) return "none";
+    if (session.state === "failed") return "failed";
+    if (app.unseen[session.id]) return "unseen";
+    return session.state;
   }
 </script>
 
@@ -63,10 +73,11 @@
             tabindex={selected || (!app.selectedRole && role === seats[0]) ? 0 : -1}
             class="tab seat"
             data-state={session?.state ?? "none"}
+            data-activity={activity(role.slug)}
             style:--accent={role.color}
             onclick={() => selectRole(role.slug)}
           >
-            <Creature role={role.slug} color={role.color} size={36} />
+            <span class="avatar"><Creature role={role.slug} color={role.color} size={36} /></span>
             <span class="text"><span class="name">{role.identity}</span><span class="detail">{role.displayName} // {seatDetail(role.slug)}</span></span>
           </button>
         {/each}
@@ -88,6 +99,23 @@
   [data-kind="unreachable"] .dot { background: none; border: 2px solid var(--danger); }
   [data-kind="checking"] .dot { background: none; border: 2px solid var(--muted); }
   .seat[data-state="none"] :global(.creature) { opacity: 0.5; filter: saturate(0.4); }
+  .avatar { position: relative; display: inline-flex; flex: none; border-radius: 26%; }
+  [data-activity="working"] .avatar::before {
+    content: ""; position: absolute; inset: -3px; border-radius: 30%;
+    background: conic-gradient(from var(--spin, 0deg), var(--accent), transparent 40%, transparent 60%, var(--accent));
+    animation: spin 1.4s linear infinite; z-index: 0;
+  }
+  [data-activity="working"] .avatar :global(.creature) { position: relative; z-index: 1; }
+  [data-activity="unseen"] .avatar::after {
+    content: ""; position: absolute; top: -4px; right: -4px; width: 12px; height: 12px;
+    border-radius: 6px; background: var(--brand); box-shadow: 0 0 0 2px var(--ground);
+  }
+  [data-activity="unseen"] .name { color: var(--brand); }
+  @property --spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  @keyframes spin { to { --spin: 360deg; } }
+  @media (prefers-reduced-motion: reduce) {
+    [data-activity="working"] .avatar::before { animation: none; background: var(--accent); opacity: 0.6; }
+  }
   .seat[data-state="failed"] :global(.creature) { box-shadow: inset 0 0 0 2px var(--danger); }
   .text { display: flex; flex-direction: column; min-width: 0; }
   .name { font-weight: 600; font-size: 15px; }

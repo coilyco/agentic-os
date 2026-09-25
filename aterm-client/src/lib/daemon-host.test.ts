@@ -3,12 +3,12 @@ import { launchRefusal, toMessage, toSession } from "./daemon-host";
 
 describe("aterm.daemon.v1 mapping", () => {
   it("reads a ready session as idle and carries the draft flag", () => {
-    const session = toSession({ name: "session-48c6d1", role: "frontend-eng", identity: "Imp-Dragonfly", seat: "zsh", ready: true, kai_drafting: true, pending: 2 });
-    expect(session).toEqual({ id: "session-48c6d1", role: "frontend-eng", identity: "Imp-Dragonfly", seat: "zsh", state: "idle", pending: 2, drafting: true });
+    const session = toSession({ name: "session-48c6d1", role: "frontend-eng", identity: "Imp-Dragonfly", seat: "zsh", ready: true, bracketed_paste: true, kai_drafting: true, pending: 2 });
+    expect(session).toEqual({ id: "session-48c6d1", role: "frontend-eng", identity: "Imp-Dragonfly", seat: "zsh", state: "idle", pending: 2, drafting: true, paste: true });
   });
 
   it("reads a session not at its prompt as working", () => {
-    expect(toSession({ name: "s", role: "r", identity: "i", seat: "codex", ready: false, kai_drafting: false, pending: 0 }).state).toBe("working");
+    expect(toSession({ name: "s", role: "r", identity: "i", seat: "codex", ready: false, bracketed_paste: false, kai_drafting: false, pending: 0 }).state).toBe("working");
   });
 
   it("splits the sender and keeps the failure reason", () => {

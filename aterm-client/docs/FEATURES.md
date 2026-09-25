@@ -7,6 +7,8 @@ A coarse inventory of what ships. Architecture: [architecture.md](architecture.m
 * **Host states** - checking, online, and not answering, each with its own panel and a retry. Hosts beyond this Mac wait on the daemon listening past loopback.
 * **Seat launch** - a seat that is not running launches on any of its harnesses through the daemon's `launch` frame, which opens its window on the host. A refused or failed launch says which, with the daemon's reason.
 * **Session terminal** - xterm.js with fit-to-pane resizing and the role's accent.
+* **Activity** - a seat's creature spins a ring in its colour while output flows, and a seat that finishes off screen shows "done, your turn" with a dot, counted in the page title.
+* **Composer** - a real text field under the terminal, so dictation tools like Wispr Flow and phone keyboards work. Enter sends as one bracketed paste, with Enter a beat later, when the program asked for it.
 * **Peer message marking** - envelope lines are matched in the terminal buffer and striped in the sender's colour, across wrapped rows.
 * **Messages panel** - each seat's sent and received messages with queued, held, launching, typed in, and failed states, and the daemon's reason.
 * **Installable** - a web manifest and icons so Android and the Mac can install it as an app.
