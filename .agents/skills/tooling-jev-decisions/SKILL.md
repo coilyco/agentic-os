@@ -87,3 +87,13 @@ fleet work:
 - **Autoresearch feature discovery** - a generative model proposes questions,
   Jev answers them for every labelled row, a small model learns the label from
   the answers, and the worst misses drive the next round.
+
+## Bundled runner
+
+`scripts/feature-retirement.py ROOT OUT` asks, for every `docs/FEATURES.md`
+entry under `ROOT`, whether the feature is worth its upkeep: a noul on lost
+value and a retire, shrink, keep, or core score. Set `JEV_PROXY_URL` to the
+Agent Proxy base URL. The run resumes from `OUT/answers.jsonl` and writes
+`OUT/ranked.json`. FEATURES pages describe themselves favorably and carry no
+usage data, so re-ask a top candidate with the facts the page leaves out
+before acting, as a scheduled event or a live consumer.
