@@ -13,6 +13,7 @@
     accent,
     messages,
     colorOf,
+    onscreen,
   }: {
     connection: HostConnection;
     sessionId: string;
@@ -20,6 +21,8 @@
     accent: string;
     messages: PeerMessage[];
     colorOf: (role: string) => string;
+    /** The visible rows after each write, for readers such as the choice detector. */
+    onscreen?: (rows: string[]) => void;
   } = $props();
 
   let host: HTMLDivElement;
@@ -71,6 +74,19 @@
     }
   }
 
+  function reportScreen(): void {
+    if (!term || !onscreen) return;
+    const buffer = term.buffer.active;
+    const rows: string[] = [];
+    for (let row = buffer.viewportY; row < buffer.viewportY + term.rows; row++) rows.push(buffer.getLine(row)?.translateToString(true) ?? "");
+    onscreen(rows);
+  }
+
+  function afterWrite(): void {
+    markEnvelopes();
+    reportScreen();
+  }
+
   function remark(): void {
     decorations.forEach((decoration) => decoration.dispose());
     decorations = [];
@@ -100,7 +116,7 @@
     observer.observe(host);
     const input = terminal.onData((data) => connection.input(sessionId, data));
     const unsubscribe = connection.subscribe((event) => {
-      if (event.type === "output" && event.sessionId === sessionId) terminal.write(event.data, markEnvelopes);
+      if (event.type === "output" && event.sessionId === sessionId) terminal.write(event.data, afterWrite);
     });
     // Subscribed first, so the replay the attach triggers is not missed.
     connection.attach(sessionId, terminal.rows, terminal.cols);

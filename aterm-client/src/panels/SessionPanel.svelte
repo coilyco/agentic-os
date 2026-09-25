@@ -1,14 +1,60 @@
 <script lang="ts">
   import Creature from "../components/Creature.svelte";
+  import ChoiceCard from "../components/ChoiceCard.svelte";
   import Composer from "../components/Composer.svelte";
   import MessagesPanel from "../components/MessagesPanel.svelte";
   import Terminal from "../components/Terminal.svelte";
   import { app, colorOf, messagesFor } from "../lib/app.svelte";
+  import { CANCEL, detectChoice, keysFor, type Choice } from "../lib/choices";
   import type { Session } from "../lib/protocol";
   import type { Role } from "../lib/roster";
 
   let { role, session }: { role: Role; session: Session } = $props();
   const messages = $derived(messagesFor(session));
+  let choice = $state<Choice | null>(null);
+  let shownKey = $state("");
+  // Hidden once answered, until the screen shows a different menu.
+  let answered = "";
+  // A redraw arrives in pieces, so one frame without the menu is not it closing.
+  let hideTimer: ReturnType<typeof setTimeout> | undefined;
+  const HIDE_AFTER_MS = 400;
+
+  function keyOf(found: Choice): string {
+    return JSON.stringify([found.header, found.question, found.options]);
+  }
+
+  function readScreen(rows: string[]): void {
+    const found = detectChoice(rows);
+    if (!found) {
+      hideTimer ??= setTimeout(() => {
+        choice = null;
+        shownKey = "";
+        answered = "";
+        hideTimer = undefined;
+      }, HIDE_AFTER_MS);
+      return;
+    }
+    clearTimeout(hideTimer);
+    hideTimer = undefined;
+    const key = keyOf(found);
+    if (key === answered) return;
+    if (key !== shownKey) {
+      shownKey = key;
+      choice = found;
+    } else if (choice && choice.cursor !== found.cursor) {
+      choice.cursor = found.cursor;
+    }
+  }
+
+  const KEY_GAP_MS = 150;
+
+  function answer(chunks: string[]): void {
+    if (!choice) return;
+    answered = shownKey;
+    chunks.forEach((chunk, index) => setTimeout(() => app.connection?.input(session.id, chunk), index * KEY_GAP_MS));
+    choice = null;
+    shownKey = "";
+  }
 </script>
 
 <section class="session" style:--accent={role.color}>
@@ -22,7 +68,18 @@
     <div class="work">
       {#if app.connection}
         {#key session.id}
-          <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} />
+          <!-- The card overlays the terminal so it never resizes it, which would make the harness redraw its menu. -->
+          <div class="screen">
+            <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} />
+            {#if choice}
+              {@const current = choice}
+              {#key shownKey}
+                <div class="overlay">
+                  <ChoiceCard choice={current} identity={session.identity} onpick={(index, text) => answer(keysFor(current, index, text))} oncancel={() => answer(CANCEL)} />
+                </div>
+              {/key}
+            {/if}
+          </div>
           <Composer connection={app.connection} {session} />
         {/key}
       {/if}
@@ -38,6 +95,8 @@
   .role { font-size: 14px; color: color-mix(in srgb, var(--accent) 55%, white); }
   .state { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--accent); }
   .work { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .screen { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+  .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 75%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
   .body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 0; }
   @media (max-width: 1000px) {
     .body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr) auto; }
