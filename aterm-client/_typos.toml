@@ -1,0 +1,3 @@
+[default.extend-words]
+# ser8 is a host name.
+ser = "ser"

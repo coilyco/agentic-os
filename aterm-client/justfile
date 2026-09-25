@@ -1,0 +1,50 @@
+# Per-repo task manifest. Run `just` to see every verb.
+#
+# One comment line per recipe: just reads only the last comment line above a recipe.
+
+set positional-arguments
+
+# pnpm from PATH, else through corepack, which the dev-base image's Node ships.
+pnpm := if `command -v pnpm || true` != "" { "pnpm" } else { "corepack pnpm" }
+
+# Default target: list every available recipe.
+default:
+    @just --list --unsorted
+
+# Install dependencies from pnpm-lock.yaml (frozen).
+install *ARGS:
+    @{{pnpm}} install --frozen-lockfile "$@"
+
+# Serve the client with hot reload on port 5173, against the mock host.
+dev *ARGS:
+    @{{pnpm}} run dev "$@"
+
+# Type-check and lint every Svelte and TypeScript file, failing on warnings.
+check *ARGS:
+    @{{pnpm}} run check "$@"
+
+# Run the unit tests once.
+test *ARGS:
+    @{{pnpm}} run test "$@"
+
+# Build the production bundle into dist/.
+build *ARGS:
+    @{{pnpm}} run build "$@"
+
+# Serve the built dist/ bundle locally.
+preview *ARGS:
+    @{{pnpm}} run preview "$@"
+
+# The CI gate: check, test, and build, in that order.
+gate:
+    @just check
+    @just test
+    @just build
+
+# Report dependencies with newer releases available.
+deps-outdated *ARGS:
+    @{{pnpm}} outdated "$@"
+
+# Refresh src/assets/creatures from an agentic-os checkout's aterm icons (macOS).
+sync-creatures SOURCE:
+    @bash scripts/sync-creatures.sh "$1"
