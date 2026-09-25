@@ -1,7 +1,7 @@
 import { DaemonHost, DEFAULT_DAEMON_URL, probe } from "./daemon-host";
 import { upsertMessage } from "./messages";
 import { MockHost } from "./mock-host";
-import type { Host, HostConnection, PeerMessage, Session } from "./protocol";
+import type { Host, HostConnection, LaunchState, PeerMessage, Session } from "./protocol";
 import type { Role } from "./roster";
 
 export const app = $state({
@@ -17,6 +17,7 @@ export const app = $state({
   messages: [] as PeerMessage[],
   selectedRole: null as string | null,
   notice: "",
+  launches: {} as Record<string, { state: LaunchState; text: string }>,
 });
 
 export async function checkHost(host: Host): Promise<void> {
@@ -51,6 +52,7 @@ export function selectHost(host: Host): void {
     else if (event.type === "sessions") app.sessions = event.sessions;
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
     else if (event.type === "notice") app.notice = event.text;
+    else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
     else if (event.type === "closed") {
       host.status = { kind: "unreachable", reason: event.reason };
       app.attachedHostId = null;

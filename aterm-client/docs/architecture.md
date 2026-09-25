@@ -4,7 +4,7 @@ The client is one Svelte app with no router. State lives in `src/lib/app.svelte.
 
 ## The host connection
 
-`HostConnection` in `src/lib/protocol.ts` is the whole seam: subscribe, attach, detach, type, resize, launch. `DaemonHost` maps it onto `aterm.daemon.v1` over the daemon's loopback websocket (agentic-os `docs/aterm-daemon.md`, Wire contract), and `MockHost` scripts the same events for the Demo host. The terminal subscribes before it attaches, so the replay an attach triggers is never missed. Launching is `canLaunch = false` on the daemon, which has no frame that starts a seat by role yet.
+`HostConnection` in `src/lib/protocol.ts` is the whole seam: subscribe, attach, detach, type, resize, launch. `DaemonHost` maps it onto `aterm.daemon.v1` over the daemon's loopback websocket (agentic-os `docs/aterm-daemon.md`, Wire contract), and `MockHost` scripts the same events for the Demo host. The terminal subscribes before it attaches, so the replay an attach triggers is never missed. Launching sends the daemon's `launch` frame, which runs `aterm <role> [seat]` on the host and opens a real window there. The launch state lives per role until the session appears on the sessions channel.
 
 ## Why envelopes are matched, not reported
 

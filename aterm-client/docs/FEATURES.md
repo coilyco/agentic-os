@@ -5,7 +5,7 @@ A coarse inventory of what ships. Architecture: [architecture.md](architecture.m
 * **Sidebar tabs** - hosts and seats as vertical tab lists with arrow-key focus, collapsing to two scrolling strips below 720px.
 * **Live daemon** - "this Mac" speaks `aterm.daemon.v1` over the daemon's loopback websocket: roster, live sessions, attach with replay, typing, resize, and message states. A Demo host keeps a scripted copy for working with no daemon.
 * **Host states** - checking, online, and not answering, each with its own panel and a retry. Hosts beyond this Mac wait on the daemon listening past loopback.
-* **Seat launch** - a seat that is not running shows how to start it on the host, and on the Demo host launches in place. A failed launch shows its exit reason.
+* **Seat launch** - a seat that is not running launches on any of its harnesses through the daemon's `launch` frame, which opens its window on the host. A refused or failed launch says which, with the daemon's reason.
 * **Session terminal** - xterm.js with fit-to-pane resizing and the role's accent.
 * **Peer message marking** - envelope lines are matched in the terminal buffer and striped in the sender's colour, across wrapped rows.
 * **Messages panel** - each seat's sent and received messages with queued, held, launching, typed in, and failed states, and the daemon's reason.

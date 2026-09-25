@@ -69,6 +69,7 @@ export class MockHost implements HostConnection {
     const id = `s-${role}-${seat}`;
     this.sessions = [...this.sessions.filter((each) => each.role !== role), session(id, role, seat, identity, "idle")];
     this.buffers.set(id, `${DIM}${seat} started for ${identity}${RESET}${PROMPT}`);
+    this.emit({ type: "launch", role, state: "started", text: `${role} launched on the demo host.` });
     this.emit({ type: "sessions", sessions: this.sessions });
   }
 

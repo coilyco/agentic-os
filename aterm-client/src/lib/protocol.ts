@@ -30,6 +30,8 @@ export interface Session {
   failure?: string;
 }
 
+export type LaunchState = "starting" | "started" | "failed";
+
 export type MessageState = "queued" | "held" | "launching" | "delivered" | "failed";
 
 export interface PeerMessage {
@@ -47,10 +49,10 @@ export type HostEvent =
   | { type: "output"; sessionId: string; data: string | Uint8Array }
   | { type: "message"; message: PeerMessage }
   | { type: "notice"; text: string }
+  | { type: "launch"; role: string; state: LaunchState; text: string }
   | { type: "closed"; reason: string };
 
 export interface HostConnection {
-  /** False until the daemon grows a frame that launches a seat by role. */
   readonly canLaunch: boolean;
   subscribe(listener: (event: HostEvent) => void): () => void;
   attach(sessionId: string, rows: number, cols: number): void;

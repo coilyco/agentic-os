@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toMessage, toSession } from "./daemon-host";
+import { launchRefusal, toMessage, toSession } from "./daemon-host";
 
 describe("aterm.daemon.v1 mapping", () => {
   it("reads a ready session as idle and carries the draft flag", () => {
@@ -14,5 +14,12 @@ describe("aterm.daemon.v1 mapping", () => {
   it("splits the sender and keeps the failure reason", () => {
     const message = toMessage({ id: "a1", from: "eng-platform Beetle-Ox", target: "game-dev", state: "failed", reason: "no live session" });
     expect(message).toEqual({ id: "a1", from: { role: "eng-platform", identity: "Beetle-Ox" }, target: "game-dev", session: null, state: "failed", reason: "no live session" });
+  });
+});
+
+describe("launchRefusal", () => {
+  it("names a refused slug or seat apart from a launch that failed on the host", () => {
+    expect(launchRefusal(2, "launch needs a role slug")).toMatch(/would not launch/);
+    expect(launchRefusal(5, "exit status 4")).toMatch(/failed on the host: exit status 4/);
   });
 });

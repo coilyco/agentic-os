@@ -5,6 +5,8 @@
 
   let { role }: { role: Role } = $props();
   const session = $derived(sessionFor(role.slug));
+  const launch = $derived(app.launches[role.slug]);
+  const starting = $derived(launch?.state === "starting" || launch?.state === "started");
 </script>
 
 <section class="panel" style:--accent={role.color}>
@@ -22,11 +24,12 @@
   {#if app.connection?.canLaunch}
     <div class="seats" role="group" aria-label="Launch on a harness">
       {#each role.seats as seat, index (seat.key)}
-        <button class="button" class:primary={index === 0 && session?.state !== "failed"} onclick={() => app.connection?.launch(role.slug, seat.key)}>
+        <button class="button" class:primary={index === 0 && session?.state !== "failed"} disabled={starting} onclick={() => app.connection?.launch(role.slug, seat.key)}>
           Launch on {seat.key}
         </button>
       {/each}
     </div>
+    <p class="launch-state" data-state={launch?.state ?? "idle"} role="status">{launch?.text ?? ""}</p>
   {:else}
     <p class="howto">Not running. Launching from this window is not wired to the daemon yet, so start it on the host:</p>
     <pre class="mono">aterm {role.slug}</pre>
@@ -42,5 +45,8 @@
   .failure { margin: 0; padding: 12px 16px; border: 1px solid var(--danger); border-radius: 10px; background: var(--danger-fill); color: var(--danger-text); }
   .seats { display: flex; gap: 10px; flex-wrap: wrap; }
   .howto { margin: 0; color: var(--muted); }
+  .launch-state { margin: 0; min-height: 1.4em; color: var(--muted); }
+  .launch-state[data-state="failed"] { color: var(--danger-text); }
+  button:disabled { opacity: 0.6; cursor: progress; }
   pre { margin: 0; padding: 12px 16px; border-radius: 8px; background: var(--terminal); border: 1px solid var(--line); color: var(--text); overflow-x: auto; }
 </style>

@@ -35,6 +35,9 @@ interface Frame {
   sessions?: SessionView[];
   message?: MessageView;
   roster?: unknown;
+  role?: string;
+  seat?: string;
+  code?: number;
   error?: string;
 }
 
@@ -75,8 +78,16 @@ function decode(base64: string): Uint8Array {
   return bytes;
 }
 
+/** What a person reads when the daemon refuses a launch, keyed by its exit code. */
+export function launchRefusal(code: number | undefined, error: string | undefined): string {
+  if (code === 2) return `The daemon would not launch that seat: ${error ?? "unknown role or seat"}.`;
+  if (code === 5) return `The launch failed on the host: ${error ?? "no reason given"}.`;
+  return error ?? "The daemon refused a request.";
+}
+
 export class DaemonHost implements HostConnection {
-  readonly canLaunch = false;
+  readonly canLaunch = true;
+  private launches = new Map<string, string>();
   private socket: WebSocket;
   private listeners = new Set<(event: HostEvent) => void>();
   private outbox: string[] = [];
@@ -114,8 +125,10 @@ export class DaemonHost implements HostConnection {
     this.request({ type: "resize", session: sessionId, rows, cols });
   }
 
-  launch(): void {
-    this.emit({ type: "notice", text: "This daemon cannot launch a seat from a browser yet." });
+  launch(role: string, seat: string): void {
+    const id = this.request({ type: "launch", role, seat });
+    this.launches.set(id, role);
+    this.emit({ type: "launch", role, state: "starting", text: `Opening ${role} on ${seat}. Its window opens on the host.` });
   }
 
   close(): void {
@@ -123,10 +136,12 @@ export class DaemonHost implements HostConnection {
     this.socket.close();
   }
 
-  private request(frame: Record<string, unknown>): void {
-    const line = JSON.stringify({ id: `c${++this.nextId}`, ...frame });
+  private request(frame: Record<string, unknown>): string {
+    const id = `c${++this.nextId}`;
+    const line = JSON.stringify({ id, ...frame });
     if (this.open) this.socket.send(line);
     else this.outbox.push(line);
+    return id;
   }
 
   private receive(frame: Frame): void {
@@ -156,9 +171,20 @@ export class DaemonHost implements HostConnection {
       case "message":
         if (frame.message) this.emit({ type: "message", message: toMessage(frame.message) });
         return;
-      case "error":
-        this.emit({ type: "notice", text: frame.error ?? "The daemon refused a request." });
+      case "launched":
+        if (frame.id) this.launches.delete(frame.id);
+        this.emit({ type: "launch", role: frame.role ?? "", state: "started", text: `${frame.role} launched. It appears here once its session starts.` });
         return;
+      case "error": {
+        const role = frame.id ? this.launches.get(frame.id) : undefined;
+        if (role !== undefined && frame.id) {
+          this.launches.delete(frame.id);
+          this.emit({ type: "launch", role, state: "failed", text: launchRefusal(frame.code, frame.error) });
+        } else {
+          this.emit({ type: "notice", text: frame.error ?? "The daemon refused a request." });
+        }
+        return;
+      }
     }
   }
 
