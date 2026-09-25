@@ -3,9 +3,12 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"io"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParseSessionArgsSplitsOnTheFirstDash(t *testing.T) {
@@ -147,5 +150,33 @@ func TestUpdateClaudeReportsAFailureWithoutPanicking(t *testing.T) {
 	)
 	if !strings.Contains(stderr.String(), "claude update") || !strings.Contains(stderr.String(), "network unreachable") {
 		t.Fatalf("failure should name the command and its detail: %q", stderr.String())
+	}
+}
+
+func TestUnderCardRunsTheStepsBesideTheCardAndHoldsTheirNotices(t *testing.T) {
+	const span = 300 * time.Millisecond
+	stderr := &bytes.Buffer{}
+	early := ""
+	began := time.Now()
+	underCard(stderr, func() {
+		time.Sleep(span)
+		early = stderr.String()
+	}, func(notice io.Writer) {
+		time.Sleep(span)
+		fmt.Fprintln(notice, "first")
+	}, func(notice io.Writer) {
+		// Finishes ahead of the first step, which must not reorder the notices.
+		time.Sleep(span / 3)
+		fmt.Fprintln(notice, "second")
+	})
+	// In series this is three spans. Beside the card it is one.
+	if elapsed := time.Since(began); elapsed > 2*span {
+		t.Fatalf("the steps ran after the card: %v", elapsed)
+	}
+	if early != "" {
+		t.Fatalf("a notice landed inside the card: %q", early)
+	}
+	if stderr.String() != "first\nsecond\n" {
+		t.Fatalf("notices = %q, want them in step order", stderr.String())
 	}
 }

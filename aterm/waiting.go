@@ -24,7 +24,11 @@ func whileWaiting[T any](notice io.Writer, command []string, call func() T) T {
 		return call()
 	}
 	finished := make(chan struct{})
+	// Joined before returning, so a notice never lands after the caller has
+	// moved on to the writer.
+	quiet := make(chan struct{})
 	go func() {
+		defer close(quiet)
 		select {
 		case <-finished:
 		case <-time.After(slowCallNotice):
@@ -33,6 +37,7 @@ func whileWaiting[T any](notice io.Writer, command []string, call func() T) T {
 	}()
 	result := call()
 	close(finished)
+	<-quiet
 	return result
 }
 

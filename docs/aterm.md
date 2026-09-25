@@ -25,7 +25,7 @@ The window opens fullscreen at font size 14.5, which `--start-as` and `--font-si
 
 **A slow pre-flight names itself.** `aterm` shells out for a seat, roster, and overlay before opening anything and captures their output, so a wrapped `aos` converging the host read as a launcher that had stopped. After two seconds it names the command it waits on.
 
-**A failing launch stays on screen.** A terminal closes the window the moment its child exits, so a failure used to vanish before anyone read why. `aterm` runs the child through its own `_session` stage rather than handing the harness to kitty. That stage passes the exit code through and holds the window on any non-zero exit, and `--hold` holds after a clean one too. The launcher watches for a startup failure, so "no window appeared" names its cause. A claude seat also runs `claude update` first, silent unless it fails.
+**A failing launch stays on screen.** A terminal closes the window the moment its child exits, so a failure used to vanish before anyone read why. `aterm` runs the child through its own `_session` stage rather than handing the harness to kitty. That stage passes the exit code through and holds the window on any non-zero exit, and `--hold` holds after a clean one too. The launcher watches for a startup failure, so "no window appeared" names its cause. A claude seat runs `claude update` under the card animation, silent unless it fails.
 
 **The title leads with what separates two windows.** A window manager truncates near 30 characters, so segments run workspace, task title, role, emblems and seat name, expression. The workspace is `repo@branch` for the checkout `--working-directory` names, left out when that is the default projects root.
 

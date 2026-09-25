@@ -2,12 +2,14 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -27,34 +29,40 @@ func runSession(options sessionOptions, stdin io.Reader, stdout, stderr io.Write
 		fmt.Fprintln(stderr, "aterm: "+sessionCommand+" needs a command after `--`")
 		return 2
 	}
-	// The card is the only moment aterm owns the window by itself, so it is
-	// drawn here rather than by the launcher the operator typed in.
-	if options.Card.Format != "" {
-		playCard(stdout, options.Card, options.Motion)
-	}
-	// After the card, so the browser sees the harness and not the animation.
 	name := stableSessionName(options.Card.Name, options.Card.Role)
-	argv, wrapped := wrapChild(argv, name, options.VibeTunnel, exec.LookPath, stderr)
-	// Both run before this session exists, so it can never be its own target.
-	reaper := systemReaper(stderr)
-	if wrapped {
-		if cleared := reaper.clear(name); cleared > 0 {
-			fmt.Fprintf(stderr, "aterm: cleared %d earlier VibeTunnel session(s) named %s\n",
-				cleared, name)
+	// The card is drawn here, not by the launcher, and the work ahead of the
+	// harness runs under it. See docs/aterm.md.
+	underCard(stderr, func() {
+		if options.Card.Format != "" {
+			playCard(stdout, options.Card, options.Motion)
 		}
-	}
-	if options.StableName {
-		if stopped := reaper.clearClaude(name); stopped > 0 {
-			fmt.Fprintf(stderr, "aterm: stopped %d earlier Claude session(s) named %s\n",
-				stopped, name)
+	}, func(notice io.Writer) {
+		// The wrap only names the child, so the browser still sees the harness
+		// and not the animation.
+		var wrapped bool
+		argv, wrapped = wrapChild(argv, name, options.VibeTunnel, exec.LookPath, notice)
+		// Both run before this session exists, so it can never be its own target.
+		reaper := systemReaper(notice)
+		if wrapped {
+			if cleared := reaper.clear(name); cleared > 0 {
+				fmt.Fprintf(notice, "aterm: cleared %d earlier VibeTunnel session(s) named %s\n",
+					cleared, name)
+			}
 		}
-	}
-	// Best-effort ahead of the harness. See docs/aterm.md.
-	if options.Card.Seat == "claude" {
-		updateClaude(exec.LookPath, func(name string, args ...string) ([]byte, error) {
-			return exec.Command(name, args...).CombinedOutput()
-		}, stderr)
-	}
+		if options.StableName {
+			if stopped := reaper.clearClaude(name); stopped > 0 {
+				fmt.Fprintf(notice, "aterm: stopped %d earlier Claude session(s) named %s\n",
+					stopped, name)
+			}
+		}
+	}, func(notice io.Writer) {
+		// Best-effort ahead of the harness. See docs/aterm.md.
+		if options.Card.Seat == "claude" {
+			updateClaude(exec.LookPath, func(name string, args ...string) ([]byte, error) {
+				return exec.Command(name, args...).CombinedOutput()
+			}, notice)
+		}
+	})
 	command := exec.Command(argv[0], argv[1:]...)
 	// The card is already resolved here, so the session carries it rather than
 	// re-resolving it later. `aterm card` re-renders from this.
@@ -86,6 +94,25 @@ func runSession(options sessionOptions, stdin io.Reader, stdout, stderr io.Write
 		fmt.Sprintf("Session failed (exit %d). Press Enter to close.", code),
 	))
 	return code
+}
+
+// underCard runs the steps beside the card. Their notices are held until the
+// card is drawn, so none lands inside a frame, and print in step order.
+func underCard(stderr io.Writer, card func(), steps ...func(notice io.Writer)) {
+	notices := make([]bytes.Buffer, len(steps))
+	var group sync.WaitGroup
+	for index, step := range steps {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			step(&notices[index])
+		}()
+	}
+	card()
+	group.Wait()
+	for index := range notices {
+		_, _ = stderr.Write(notices[index].Bytes())
+	}
 }
 
 // updateClaude runs `claude update`, silent on success. See docs/aterm.md.

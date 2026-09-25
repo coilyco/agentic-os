@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/urfave/cli/v3"
 )
@@ -260,15 +261,11 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 		AgentComposeBin:  cmd.String("agent-compose-bin"),
 		AOSBin:           cmd.String("aos-bin"),
 		TerminalBin:      cmd.String("terminal-bin"),
-		Workspace:        workspaceLabel(ctx, deps, cwd, cmd.IsSet("working-directory")),
 		NoMotion:         cmd.Bool("no-motion"),
 		Extra:            extra,
 		Hold:             cmd.Bool("hold"),
 		VibeTunnel:       !cmd.Bool("no-vibetunnel"),
 		StableName:       !cmd.Bool("no-stable-name"),
-	}
-	if creatureWanted(cmd.Bool("no-creature")) {
-		request.Creature = bakeCreaturePlate(role, creaturePresence, creatureWholeWindow)
 	}
 	aos, err := requireBinary(deps.lookPath, request.AOSBin)
 	if err != nil {
@@ -278,11 +275,24 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 	if err != nil {
 		return fmt.Errorf("resolve the aterm executable: %w", err)
 	}
+	// None of these reads another's result, so they run beside the overlay
+	// read rather than after it.
+	var shadowed bool
+	var group sync.WaitGroup
+	group.Go(func() { shadowed = nativeShadowAvailable(ctx, deps, aos) })
+	group.Go(func() {
+		request.Workspace = workspaceLabel(ctx, deps, cwd, cmd.IsSet("working-directory"))
+	})
+	if creatureWanted(cmd.Bool("no-creature")) {
+		group.Go(func() {
+			request.Creature = bakeCreaturePlate(role, creaturePresence, creatureWholeWindow)
+		})
+	}
 	document, err := loadOverlay(ctx, deps, agentCompose, role, seat, request.Expression)
+	group.Wait()
 	if err != nil {
 		return err
 	}
-	shadowed := nativeShadowAvailable(ctx, deps, aos)
 	plan, err := buildLaunchPlan(document, request, cwd, self, agentCompose, aos, shadowed)
 	if err != nil {
 		return err
