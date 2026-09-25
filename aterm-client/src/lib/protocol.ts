@@ -45,12 +45,27 @@ export interface PeerMessage {
   reason: string | null;
 }
 
+/** A seat's `ask_choice` call, waiting on a person. */
+export interface Ask {
+  id: string;
+  session: string;
+  header: string;
+  question: string;
+  options: { label: string; description: string }[];
+  allowOther: boolean;
+  multi: boolean;
+}
+
+export type AskOutcome = "answered" | "cancelled" | "timed_out";
+
 export type HostEvent =
   | { type: "roster"; roles: Role[] }
   | { type: "sessions"; sessions: Session[] }
   | { type: "output"; sessionId: string; data: string | Uint8Array }
   | { type: "message"; message: PeerMessage }
   | { type: "notice"; text: string }
+  | { type: "ask"; ask: Ask }
+  | { type: "asked"; id: string; outcome: AskOutcome }
   | { type: "launch"; role: string; state: LaunchState; text: string }
   | { type: "closed"; reason: string };
 
@@ -62,5 +77,7 @@ export interface HostConnection {
   input(sessionId: string, data: string): void;
   resize(sessionId: string, rows: number, cols: number): void;
   launch(role: string, seat: string): void;
+  answer(askId: string, picks: number[], text?: string): void;
+  cancelAsk(askId: string): void;
   close(): void;
 }

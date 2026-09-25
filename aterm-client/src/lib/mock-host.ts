@@ -2,7 +2,7 @@
 // the surface with no daemon running. Nothing here reaches a real PTY.
 import rosterJson from "./fixtures/roster.json";
 import { envelope } from "./messages";
-import type { HostConnection, HostEvent, PeerMessage, Session } from "./protocol";
+import type { Ask, HostConnection, HostEvent, PeerMessage, Session } from "./protocol";
 import { parseRoster } from "./roster";
 
 const DIM = "\x1b[2m";
@@ -35,10 +35,60 @@ export class MockHost implements HostConnection {
   private buffers = new Map<string, string>();
   private attached = new Set<string>();
   private messages: PeerMessage[] = [];
+  private asks: Ask[] = [];
 
   constructor(private readonly delayMs = 1200) {
     for (const each of this.sessions) this.buffers.set(each.id, (scripts[each.role] ?? []).join("\r\n") + PROMPT);
     this.timers.push(setTimeout(() => this.deliverScriptedMessage(), delayMs));
+    this.timers.push(setTimeout(() => this.scriptedAsks(), delayMs * 2));
+  }
+
+  answer(askId: string, picks: number[], text?: string): void {
+    const ask = this.asks.find((each) => each.id === askId);
+    if (!ask) return;
+    this.asks = this.asks.filter((each) => each.id !== askId);
+    const labels = picks.map((pick) => ask.options[pick]?.label ?? text ?? "");
+    this.write(ask.session, `\r\n${DIM}● ask_choice answered: ${labels.join(", ")}${RESET}${PROMPT}`);
+    this.emit({ type: "asked", id: askId, outcome: "answered" });
+  }
+
+  cancelAsk(askId: string): void {
+    const ask = this.asks.find((each) => each.id === askId);
+    if (!ask) return;
+    this.asks = this.asks.filter((each) => each.id !== askId);
+    this.write(ask.session, `\r\n${DIM}● ask_choice cancelled${RESET}${PROMPT}`);
+    this.emit({ type: "asked", id: askId, outcome: "cancelled" });
+  }
+
+  private scriptedAsks(): void {
+    this.asks = [
+      {
+        id: "ask-sweep",
+        session: "s-scientist",
+        header: "Sweep",
+        question: "Which routes should the latency sweep cover first?",
+        options: [
+          { label: "Local Qwen", description: "Fastest to turn around." },
+          { label: "Local Llama", description: "The current default." },
+          { label: "Hosted frontier", description: "Costs money per run." },
+        ],
+        allowOther: true,
+        multi: true,
+      },
+      {
+        id: "ask-disk",
+        session: "s-sysadmin",
+        header: "Disk",
+        question: "kai-server root disk is at 74.6%. Where should daemon logs go?",
+        options: [
+          { label: "/var/log on the data volume", description: "Off the root disk." },
+          { label: "Keep them on root", description: "No change, revisit at 80%." },
+        ],
+        allowOther: true,
+        multi: false,
+      },
+    ];
+    for (const ask of this.asks) this.emit({ type: "ask", ask });
   }
 
   subscribe(listener: (event: HostEvent) => void): () => void {
@@ -46,6 +96,7 @@ export class MockHost implements HostConnection {
     listener({ type: "roster", roles: this.roles });
     listener({ type: "sessions", sessions: this.sessions });
     for (const message of this.messages) listener({ type: "message", message });
+    for (const ask of this.asks) listener({ type: "ask", ask });
     return () => this.listeners.delete(listener);
   }
 

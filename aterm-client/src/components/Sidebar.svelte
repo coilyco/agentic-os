@@ -1,6 +1,6 @@
 <script lang="ts">
   import Creature from "./Creature.svelte";
-  import { app, selectHost, selectRole, sessionFor } from "../lib/app.svelte";
+  import { app, asksFor, selectHost, selectRole, sessionFor } from "../lib/app.svelte";
   import type { Host } from "../lib/protocol";
   import { tablistKeys } from "../lib/tabs";
 
@@ -18,6 +18,7 @@
     const session = sessionFor(slug);
     if (!session) return "not running";
     if (session.state === "failed") return "launch failed";
+    if (asksFor(session.id).length) return `${session.seat} // asking you`;
     if (app.unseen[session.id]) return `${session.seat} // done, your turn`;
     if (session.drafting) return `${session.seat} // you're typing`;
     if (session.pending) return `${session.seat} // ${session.pending} ${session.pending === 1 ? "message" : "messages"} waiting`;
@@ -28,6 +29,7 @@
     const session = sessionFor(slug);
     if (!session) return "none";
     if (session.state === "failed") return "failed";
+    if (asksFor(session.id).length) return "asking";
     if (app.unseen[session.id]) return "unseen";
     return session.state;
   }
@@ -110,7 +112,12 @@
     content: ""; position: absolute; top: -4px; right: -4px; width: 12px; height: 12px;
     border-radius: 6px; background: var(--brand); box-shadow: 0 0 0 2px var(--ground);
   }
-  [data-activity="unseen"] .name { color: var(--brand); }
+  [data-activity="unseen"] .name, [data-activity="asking"] .name { color: var(--brand); }
+  [data-activity="asking"] .avatar::after {
+    content: "?"; position: absolute; top: -6px; right: -6px; width: 18px; height: 18px;
+    border-radius: 9px; background: var(--brand); color: var(--brand-ink); box-shadow: 0 0 0 2px var(--ground);
+    font: 700 12px/18px var(--font-body); text-align: center;
+  }
   @property --spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
   @keyframes spin { to { --spin: 360deg; } }
   @media (prefers-reduced-motion: reduce) {

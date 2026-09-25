@@ -1,7 +1,7 @@
 // aterm.daemon.v1 over the daemon's loopback websocket. The frame reference is
 // the Wire contract section of the aterm daemon page in coilyco/agentic-os.
 import { parseFrom } from "./messages";
-import type { HostConnection, HostEvent, MessageState, PeerMessage, Session } from "./protocol";
+import type { Ask, AskOutcome, HostConnection, HostEvent, MessageState, PeerMessage, Session } from "./protocol";
 import { parseRoster } from "./roster";
 
 export const FORMAT = "aterm.daemon.v1";
@@ -27,6 +27,29 @@ interface MessageView {
   reason?: string;
 }
 
+// Proposed to eng-platform for ask_choice, not yet on the wire. The daemon's shape wins.
+interface AskView {
+  id: string;
+  session: string;
+  header?: string;
+  question: string;
+  options: { label: string; description?: string }[];
+  allow_other?: boolean;
+  multi?: boolean;
+}
+
+export function toAsk(view: AskView): Ask {
+  return {
+    id: view.id,
+    session: view.session,
+    header: view.header ?? "",
+    question: view.question,
+    options: view.options.map((option) => ({ label: option.label, description: option.description ?? "" })),
+    allowOther: view.allow_other ?? false,
+    multi: view.multi ?? false,
+  };
+}
+
 interface Frame {
   type: string;
   id?: string;
@@ -40,6 +63,9 @@ interface Frame {
   seat?: string;
   code?: number;
   error?: string;
+  ask?: AskView;
+  asks?: AskView[];
+  state?: string;
 }
 
 /** Output this recent means the seat is busy. A working agent redraws constantly. */
@@ -151,6 +177,14 @@ export class DaemonHost implements HostConnection {
     this.request({ type: "resize", session: sessionId, rows, cols });
   }
 
+  answer(askId: string, picks: number[], text?: string): void {
+    this.request({ type: "answer", ask: askId, picks, ...(text ? { text } : {}) });
+  }
+
+  cancelAsk(askId: string): void {
+    this.request({ type: "answer", ask: askId, cancelled: true });
+  }
+
   launch(role: string, seat: string): void {
     const id = this.request({ type: "launch", role, seat });
     this.launches.set(id, role);
@@ -227,7 +261,14 @@ export class DaemonHost implements HostConnection {
         this.request({ type: "roster" });
         for (const line of this.outbox.splice(0)) this.socket.send(line);
         return;
+      case "ask":
+        if (frame.ask) this.emit({ type: "ask", ask: toAsk(frame.ask) });
+        return;
+      case "asked":
+        if (frame.id) this.emit({ type: "asked", id: frame.id, outcome: (frame.state ?? "answered") as AskOutcome });
+        return;
       case "sessions":
+        for (const pending of frame.asks ?? []) this.emit({ type: "ask", ask: toAsk(pending) });
         this.views = frame.sessions ?? [];
         this.monitor();
         this.publishSessions();

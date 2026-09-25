@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { launchRefusal, toMessage, toSession } from "./daemon-host";
+import { launchRefusal, toAsk, toMessage, toSession } from "./daemon-host";
 
 describe("aterm.daemon.v1 mapping", () => {
   it("reads a ready session as idle and carries the draft flag", () => {
@@ -21,5 +21,13 @@ describe("launchRefusal", () => {
   it("names a refused slug or seat apart from a launch that failed on the host", () => {
     expect(launchRefusal(2, "launch needs a role slug")).toMatch(/would not launch/);
     expect(launchRefusal(5, "exit status 4")).toMatch(/failed on the host: exit status 4/);
+  });
+});
+
+describe("toAsk", () => {
+  it("fills the optional ask_choice fields", () => {
+    expect(toAsk({ id: "a", session: "s", question: "Which?", options: [{ label: "One" }] })).toEqual({
+      id: "a", session: "s", header: "", question: "Which?", options: [{ label: "One", description: "" }], allowOther: false, multi: false,
+    });
   });
 });

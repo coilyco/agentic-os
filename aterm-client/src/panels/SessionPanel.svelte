@@ -4,13 +4,15 @@
   import Composer from "../components/Composer.svelte";
   import MessagesPanel from "../components/MessagesPanel.svelte";
   import Terminal from "../components/Terminal.svelte";
-  import { app, colorOf, messagesFor } from "../lib/app.svelte";
-  import { CANCEL, detectChoice, keysFor, type Choice } from "../lib/choices";
+  import { app, asksFor, colorOf, messagesFor } from "../lib/app.svelte";
+  import { CANCEL, choiceFromAsk, detectChoice, keysFor, type Choice } from "../lib/choices";
   import type { Session } from "../lib/protocol";
   import type { Role } from "../lib/roster";
 
   let { role, session }: { role: Role; session: Session } = $props();
   const messages = $derived(messagesFor(session));
+  // A structured ask beats a menu read off the screen: it is the seat's own words.
+  const ask = $derived(asksFor(session.id)[0]);
   let choice = $state<Choice | null>(null);
   let shownKey = $state("");
   // Hidden once answered, until the screen shows a different menu.
@@ -71,11 +73,22 @@
           <!-- The card overlays the terminal so it never resizes it, which would make the harness redraw its menu. -->
           <div class="screen">
             <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} />
-            {#if choice}
+            {#if ask}
+              {#key ask.id}
+                <div class="overlay">
+                  <ChoiceCard
+                    choice={choiceFromAsk(ask)}
+                    identity={session.identity}
+                    onanswer={(picks, text) => app.connection?.answer(ask.id, picks, text)}
+                    oncancel={() => app.connection?.cancelAsk(ask.id)}
+                  />
+                </div>
+              {/key}
+            {:else if choice}
               {@const current = choice}
               {#key shownKey}
                 <div class="overlay">
-                  <ChoiceCard choice={current} identity={session.identity} onpick={(index, text) => answer(keysFor(current, index, text))} oncancel={() => answer(CANCEL)} />
+                  <ChoiceCard choice={current} identity={session.identity} onanswer={(picks, text) => answer(keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
                 </div>
               {/key}
             {/if}

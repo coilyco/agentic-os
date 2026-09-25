@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectChoice, keysFor } from "./choices";
+import { choiceFromAsk, detectChoice, keysFor } from "./choices";
 
 // Captured from Claude Code's workspace trust prompt in an aterm daemon session.
 const trust = [
@@ -123,5 +123,18 @@ describe("keysFor", () => {
   it("types a free-text answer on its row before confirming", () => {
     const choice = detectChoice(ask)!;
     expect(keysFor(choice, 3, "Magenta")).toEqual(["\x1b[B\x1b[B\x1b[B", "Magenta", "\r"]);
+  });
+});
+
+describe("choiceFromAsk", () => {
+  it("adds a typed row for allow_other and keeps multi", () => {
+    const choice = choiceFromAsk({
+      id: "a", session: "s", header: "Sweep", question: "Which routes?",
+      options: [{ label: "Qwen", description: "fast" }, { label: "Llama", description: "" }],
+      allowOther: true, multi: true,
+    });
+    expect(choice.options.map((option) => [option.label, option.freeText])).toEqual([["Qwen", false], ["Llama", false], ["Type something.", true]]);
+    expect(choice.multi).toBe(true);
+    expect(choice.cancellable).toBe(true);
   });
 });

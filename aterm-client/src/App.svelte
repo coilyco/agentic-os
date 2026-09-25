@@ -7,7 +7,7 @@
 
   const role = $derived(app.roles.find((candidate) => candidate.slug === app.selectedRole));
   const session = $derived(role ? sessionFor(role.slug) : undefined);
-  const waiting = $derived(Object.keys(app.unseen).length);
+  const waiting = $derived(Object.keys(app.unseen).length + Object.keys(app.asks).length);
   $effect(() => {
     document.title = waiting ? `(${waiting}) aterm` : "aterm";
   });

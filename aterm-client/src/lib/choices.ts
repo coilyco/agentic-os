@@ -1,5 +1,6 @@
 // Reads a harness's own select menu off the screen so the client can offer
 // native buttons for it. Shape and safeguards: docs/choices.md.
+import type { Ask } from "./protocol";
 
 export interface ChoiceOption {
   label: string;
@@ -14,6 +15,8 @@ export interface Choice {
   options: ChoiceOption[];
   cursor: number;
   cancellable: boolean;
+  /** Several options may be picked, then submitted together. */
+  multi: boolean;
 }
 
 const CURSOR = "❯";
@@ -68,7 +71,7 @@ export function detectChoice(screen: readonly string[]): Choice | null {
   const chipped = first !== undefined && CHIP.test(first);
   const header = chipped ? first.replace(CHIP, "") : "";
   const question = (chipped ? rest : [first ?? "", ...rest]).join("\n\n").trim();
-  return { header, question, options, cursor, cancellable: /Esc to/.test(footer) };
+  return { header, question, options, cursor, cancellable: /Esc to/.test(footer), multi: false };
 }
 
 function isDescription(line: string, column: number): boolean {
@@ -104,3 +107,10 @@ export function keysFor(choice: Choice, target: number, text = ""): string[] {
 }
 
 export const CANCEL = ["\x1b"];
+
+/** An `ask_choice` from the daemon, in the card's shape. "Other" becomes a typed row. */
+export function choiceFromAsk(ask: Ask): Choice {
+  const options = ask.options.map((option) => ({ label: option.label, description: option.description, freeText: false }));
+  if (ask.allowOther) options.push({ label: "Type something.", description: "", freeText: true });
+  return { header: ask.header, question: ask.question, options, cursor: 0, cancellable: true, multi: ask.multi };
+}

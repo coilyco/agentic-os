@@ -2,7 +2,7 @@ import { nextUnseen } from "./activity";
 import { DaemonHost, DEFAULT_DAEMON_URL, probe } from "./daemon-host";
 import { upsertMessage } from "./messages";
 import { MockHost } from "./mock-host";
-import type { Host, HostConnection, LaunchState, PeerMessage, Session } from "./protocol";
+import type { Ask, Host, HostConnection, LaunchState, PeerMessage, Session } from "./protocol";
 import type { Role } from "./roster";
 
 export const app = $state({
@@ -21,6 +21,8 @@ export const app = $state({
   launches: {} as Record<string, { state: LaunchState; text: string }>,
   /** Sessions that finished a turn while you were looking at another one. */
   unseen: {} as Record<string, boolean>,
+  /** ask_choice calls waiting on a person, by ask id. */
+  asks: {} as Record<string, Ask>,
 });
 
 export async function checkHost(host: Host): Promise<void> {
@@ -50,6 +52,7 @@ export function selectHost(host: Host): void {
   app.roles = [];
   app.sessions = [];
   app.messages = [];
+  app.asks = {};
   const connection = host.kind === "daemon" ? new DaemonHost(host.address) : new MockHost();
   app.connection = connection;
   app.attachedHostId = host.id;
@@ -61,6 +64,8 @@ export function selectHost(host: Host): void {
     }
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
     else if (event.type === "notice") app.notice = event.text;
+    else if (event.type === "ask") app.asks[event.ask.id] = event.ask;
+    else if (event.type === "asked") delete app.asks[event.id];
     else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
     else if (event.type === "closed") {
       host.status = { kind: "unreachable", reason: event.reason };
@@ -96,3 +101,7 @@ export function messagesFor(session: Session): PeerMessage[] {
 }
 
 for (const host of app.hosts) void checkHost(host);
+
+export function asksFor(sessionId: string): Ask[] {
+  return Object.values(app.asks).filter((ask) => ask.session === sessionId);
+}

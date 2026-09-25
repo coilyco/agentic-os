@@ -8,6 +8,7 @@ A coarse inventory of what ships. Architecture: [architecture.md](architecture.m
 * **Seat launch** - a seat that is not running launches on any of its harnesses through the daemon's `launch` frame, which opens its window on the host. A refused or failed launch says which, with the daemon's reason.
 * **Session terminal** - xterm.js with fit-to-pane resizing and the role's accent.
 * **Activity** - a seat's creature spins a ring in its colour while output flows, and a seat that finishes off screen shows "done, your turn" with a dot, counted in the page title.
+* **ask_choice** - a seat's structured `ask_choice` call shows as the same card, single or multi-select with an optional typed answer, and flags the seat "asking you" with a ? badge from any tab. The Demo host scripts two asks. Waiting on the daemon frames.
 * **Native choices** - when a harness shows a select menu (Claude Code's AskUserQuestion, its trust prompt), a card offers the question and options as buttons, a typed answer for "Type something.", and Cancel. Picking one sends the harness its own keys.
 * **Composer** - a real text field under the terminal, so dictation tools like Wispr Flow and phone keyboards work. Enter sends as one bracketed paste, with Enter a beat later, when the program asked for it.
 * **Peer message marking** - envelope lines are matched in the terminal buffer and striped in the sender's colour, across wrapped rows.

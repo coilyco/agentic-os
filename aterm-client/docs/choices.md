@@ -8,4 +8,4 @@ A harness draws its own select menu, so the client reads the visible rows for on
 
 ## The durable path
 
-Screen reading is per harness and breaks when a harness redraws its menu differently. The durable path is a structured ask over the daemon's MCP server that any harness can call, answered by the same card.
+Screen reading is per harness and breaks when a harness redraws its menu differently. Kai chose `ask_choice`: a tool on the daemon's MCP server that any seat can call. The daemon broadcasts an `ask` frame, the client answers with the picked indexes and any typed text, and an `asked` frame closes the card everywhere. An ask outranks a screen menu in the same seat, and because it is a daemon event it can flag a seat you are not viewing. The frame shape in `daemon-host.ts` is the one proposed to eng-platform, and the daemon's version wins.
