@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { launchRefusal, toAsk, toMessage, toSession } from "./daemon-host";
+import { daemonUrl, hostLabel, launchRefusal, toAsk, toMessage, toSession } from "./daemon-host";
 
 describe("aterm.daemon.v1 mapping", () => {
   it("reads a ready session as idle and carries the draft flag", () => {
@@ -29,5 +29,27 @@ describe("toAsk", () => {
     expect(toAsk({ id: "a", session: "s", question: "Which?", options: [{ label: "One" }] })).toEqual({
       id: "a", session: "s", header: "", question: "Which?", options: [{ label: "One", description: "" }], allowOther: false, multi: false,
     });
+  });
+});
+
+describe("daemonUrl", () => {
+  it("dials the local daemon from the dev server", () => {
+    expect(daemonUrl({ protocol: "http:", host: "localhost:5173" }, true)).toBe("ws://127.0.0.1:7419");
+  });
+
+  it("dials back to the origin that served a build, secure when the page is", () => {
+    expect(daemonUrl({ protocol: "https:", host: "mac.example.ts.net" }, false)).toBe("wss://mac.example.ts.net/");
+    expect(daemonUrl({ protocol: "http:", host: "127.0.0.1:7419" }, false)).toBe("ws://127.0.0.1:7419/");
+  });
+
+  it("lets an explicit address win", () => {
+    expect(daemonUrl({ protocol: "https:", host: "x" }, false, "ws://127.0.0.1:7420")).toBe("ws://127.0.0.1:7420");
+  });
+});
+
+describe("hostLabel", () => {
+  it("names the machine from the tower, and says this Mac locally", () => {
+    expect(hostLabel({ hostname: "kais-macbook-pro.example.ts.net" }, false)).toBe("kais-macbook-pro");
+    expect(hostLabel({ hostname: "localhost" }, false)).toBe("this Mac");
   });
 });

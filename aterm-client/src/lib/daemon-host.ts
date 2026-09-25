@@ -5,7 +5,25 @@ import type { Ask, AskOutcome, HostConnection, HostEvent, MessageState, PeerMess
 import { parseRoster } from "./roster";
 
 export const FORMAT = "aterm.daemon.v1";
-export const DEFAULT_DAEMON_URL = import.meta.env.VITE_ATERM_DAEMON_WS ?? "ws://127.0.0.1:7419";
+const LOOPBACK_DAEMON = "ws://127.0.0.1:7419";
+
+// The dev server reaches the local daemon. A build is served by the daemon
+// itself, so it dials the origin it came from.
+export function daemonUrl(page: Pick<Location, "protocol" | "host">, dev: boolean, override?: string): string {
+  if (override) return override;
+  if (dev || page.protocol === "file:") return LOOPBACK_DAEMON;
+  return `${page.protocol === "https:" ? "wss" : "ws"}://${page.host}/`;
+}
+
+/** The daemon's machine by name, or "this Mac" when it is the machine you are on. */
+export function hostLabel(page: Pick<Location, "hostname">, dev: boolean): string {
+  const name = page.hostname;
+  if (dev || !name || name === "localhost" || name === "127.0.0.1" || name === "[::1]") return "this Mac";
+  return name.split(".")[0] ?? name;
+}
+
+export const DEFAULT_DAEMON_URL =
+  typeof location === "undefined" ? LOOPBACK_DAEMON : daemonUrl(location, import.meta.env.DEV, import.meta.env.VITE_ATERM_DAEMON_WS);
 
 interface SessionView {
   name: string;

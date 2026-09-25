@@ -1,5 +1,5 @@
 import { nextUnseen } from "./activity";
-import { DaemonHost, DEFAULT_DAEMON_URL, probe } from "./daemon-host";
+import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
 import { upsertMessage } from "./messages";
 import { MockHost } from "./mock-host";
 import type { Ask, Host, HostConnection, LaunchState, PeerMessage, Session } from "./protocol";
@@ -7,7 +7,7 @@ import type { Role } from "./roster";
 
 export const app = $state({
   hosts: [
-    { id: "local", label: "this Mac", address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } },
+    { id: "local", label: hostLabel(location, import.meta.env.DEV), address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } },
     { id: "demo", label: "Demo host", address: "scripted, no daemon", kind: "demo", status: { kind: "online", sessionCount: 4 } },
   ] as Host[],
   selectedHostId: null as string | null,

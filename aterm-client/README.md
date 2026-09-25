@@ -22,7 +22,7 @@ just dev        # http://localhost:5173
 just gate       # check, test, build
 ```
 
-"this Mac" needs `aterm daemon` running (any `aterm` launch starts it). `VITE_ATERM_DAEMON_WS` points the client at another port. The Demo host is scripted and needs nothing. See [docs/architecture.md](docs/architecture.md).
+In dev, "this Mac" needs `aterm daemon` running (any `aterm` launch starts it), and `VITE_ATERM_DAEMON_WS` points the client at another port. A build dials the origin that served it, so a daemon serving `dist/` needs no configuration, and the host tab names that machine. The Demo host is scripted and needs nothing. See [docs/architecture.md](docs/architecture.md).
 
 ## License
 
