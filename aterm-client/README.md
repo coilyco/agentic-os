@@ -12,7 +12,9 @@ It talks `aterm.daemon.v1` to the aterm daemon's loopback websocket, so "this Ma
 
 ## Alt-tab use
 
-Made for tabbing out of a game to answer seats. The window title says who is waiting, tabbing in lands on the seat that needs you with its answer focused, and a number key answers and moves on. Using it from another machine, such as a gaming PC, waits on the daemon listening past loopback.
+Made for tabbing out of a game to answer seats. The window title says who is waiting, tabbing in lands on the seat that needs you with its answer focused, and a number key answers and moves on.
+
+From another machine on the tailnet, such as a gaming PC: run `just install-client` on the Mac once, then open `https://<mac tailnet name>:7419/` and install it as an app for its own alt-tab entry and taskbar badge. The daemon serves it over HTTPS and admits only your own devices, by `tailscale whois`.
 
 ## Running it
 

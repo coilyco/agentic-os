@@ -48,3 +48,8 @@ deps-outdated *ARGS:
 # Refresh src/assets/creatures from an agentic-os checkout's aterm icons (macOS).
 sync-creatures SOURCE:
     @bash scripts/sync-creatures.sh "$1"
+
+# Build and install the client where the aterm daemon serves it: ATERM_CLIENT_DIR, else ~/.local/share/aterm/client.
+install-client:
+    @just build
+    @dir="${ATERM_CLIENT_DIR:-$HOME/.local/share/aterm/client}"; mkdir -p "$dir" && rsync -a --delete dist/ "$dir/" && echo "installed to $dir"
