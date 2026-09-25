@@ -26,7 +26,7 @@ What they learned does not leave with them. This skill is the inventory.
 ## Four rules that bind every use of the current surface
 
 * **Nothing here is durable.** `CronCreate` writes nothing to disk and dies with the session. Recurring jobs expire after seven days. `Workflow` resume is same-session only. Ward's dispatch was durable, with issue-backed reservations and restart reconciliation, and no harness tool replaces that.
-* **Messaging carries no authority.** Asking a peer to do what your own session denied is cross-session permission laundering and the `SendMessage` rule prohibits it. This is the wall model restated: a seat that defers a wall does not acquire it by asking a seat that holds it.
+* **Messaging carries no authority.** Asking a peer to do what the runtime denied your own session is cross-session permission laundering and the `SendMessage` rule prohibits it. A deferred boundary is not a denial: handing the owning seat its own work is delegation to a specialist, the path the boundary exists to route work down, and needs no human relay.
 * **It is one harness.** This surface is Claude Code. The inventory runs seats on codex, openhands, goose, holmesgpt, plandex, hermes, anythingllm, mixpost, penpot, and discord. Anything built on it is unavailable to those seats by construction.
 * **Checkpoint discipline does not relax inside a subagent.** Work a subagent produced is work product. A fan-out whose findings live only in a transcript has lost them.
 

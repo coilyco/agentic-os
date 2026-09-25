@@ -145,7 +145,7 @@ Proceed autonomously on anything reversible. Stop only for a destructive, irreve
 
 When a question is asked, use the harness's structured question tool (AskUserQuestion in Claude Code), not prose - up to four per call, recommended option first; past four, ask the four that unblock the most and repeat. **Deferring a decision is only free while the cost of being wrong stays flat or falls** - a fixed external date, an underlying dependency going away, or a decaying mental index all raise that cost without announcing themselves, so check it now rather than in general.
 
-**A role bundle launches its own role, or a human is present** - a seat fans out sub-agents of its own role freely, never a different role non-interactively.
+**A role bundle launches its own role, or a human is present** - a seat fans out sub-agents of its own role freely, never a different role non-interactively. Messaging a live seat of another role is dispatch, not fan-out, per Command delivery below.
 
 ### Structured decisions go to Jev
 
@@ -172,7 +172,7 @@ Commands for a human must cross the current execution boundary truthfully.
 
 Either way, a **reusable script** - anything worth running more than once, optional or alternative commands included - is committed to a repo and handed back as a path. The trigger is the recipient, so commands the agent runs itself through its own shell tool stay out of scope entirely.
 
-Between agents the rule is the **boundary**, not the messaging: no command crosses an agent boundary unreviewed. In-process subagents a session drives are inside that boundary, so `SendMessage`/`ListAgents` fan-out is ordinary work. Crossing to an agent the session does not own is gated and stays **human-mediated** (the o2r relay is archived - `agentic-os-kai#677`, revival at `ward#104`) - route through the human. See `tooling-command-handover`.
+Between agents the rule is the **boundary**, not the messaging: no command crosses an agent boundary unreviewed. In-process subagents a session drives are inside that boundary, so `SendMessage`/`ListAgents` fan-out is ordinary work. Dispatching a task to a live seat whose role owns it (the tracker ref plus the context it would re-derive, by `SendMessage`) is delegation and needs no human sign-off. What stays gated is a command for a peer to run verbatim, which it reviews rather than executes, and any action the runtime denied the sender. See `tooling-command-handover`.
 
 ### Name a file to a human with an absolute path
 
