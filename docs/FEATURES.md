@@ -6,11 +6,11 @@ Major shipped capabilities, not files.
 
 - [Shell and secrets](install.md) - shared shells, SSM, and GPG.
 - [Branded agent terminal](aterm.md) - `aterm` opens one composed agent session in its own Sombra kitty
-  window, completing and refusing roles against the live roster, and writes a macOS `.app` launcher
-  per [role bundle](aterm-bundles.md). The window opens on an identity card over that role's own
-  [creature background](aterm-creature.md), and `aterm pane on` and `off`
-  [split that window](aterm-pane.md) beside a command and put it back.
-  Mac and Linux only, since kitty has no Windows build.
+  window, checked against the live roster, and writes a macOS `.app` launcher per
+  [role bundle](aterm-bundles.md). The window opens on an identity card over the role's
+  [creature background](aterm-creature.md), and `aterm pane` [splits it](aterm-pane.md).
+  A [host daemon](aterm-daemon.md) owns sessions, and `aterm send` messages between them.
+  Mac and Linux only (no Windows kitty).
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.
 - [Agents and sessions](features-agents.md) - self-name, composition
   status, harness [and model](native-harness-config.md) policy, and
@@ -48,7 +48,7 @@ Major shipped capabilities, not files.
 - [Teable schema admin](../.agents/skills/tooling-aosguard/references/teable-admin.md) - guarded field and table creation plus select-choice rename/add, each re-read and refused unless it stored as asked. Free convert and table-delete are refused by name.
 - [Teable personal records](../.agents/skills/tooling-aosguard/references/teable-personal.md) - guarded record reads and writes over one SSM-pinned base that the caller cannot name. Writes re-read before reporting success, and record-delete is unmounted and refused by name.
 - [Ward integration boundary](ward-specs.md) - one generic runner for every
-  [composed role](aos-roles.md), and no role-derived authority.
+  [composed role](aos-cli.md#generic-warded-roles), and no role-derived authority.
 - [Cross-repo tooling and release](release.md) - aos-precommit and release operations.
 - [Telegram CI failure alerts](../actions/telegram-alert/action.yml) - one composite action, no alert program in any repo.
 - [dev-base image](dev-base-image.md) - parallel cached language payloads feeding one automatically released full development surface.

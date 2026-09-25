@@ -54,7 +54,7 @@ func runDoctor(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 	checkProjectsRoot(&report, cmd.String("working-directory"))
 	roster := checkAgentCompose(ctx, deps, cmd, &report)
 	checkTerminal(ctx, deps, cmd, &report)
-	checkVibeTunnel(ctx, deps, &report)
+	checkDaemon(&report)
 	checkAOS(ctx, deps, cmd, &report, roster)
 	report.Ready = true
 	for _, check := range report.Checks {
@@ -401,20 +401,24 @@ func writeDoctorReport(writer io.Writer, report doctorReport, asJSON bool) error
 	return err
 }
 
-// vt is optional, so its absence is a warning: the session still launches, only
-// outside the browser view. The status line is vt's own words, not a verdict.
-func checkVibeTunnel(ctx context.Context, deps commandDeps, report *doctorReport) {
-	vt, err := deps.lookPath(vibeTunnelBin)
+// A daemon that is not running is ordinary, since the next session starts
+// it. Only a socket directory it would refuse is worth a warning.
+func checkDaemon(report *doctorReport) {
+	socket := daemonSocket()
+	if err := ensureSocketDir(filepath.Dir(socket)); err != nil {
+		report.add("daemon", doctorWarn, "%v, so sessions run outside the daemon and cannot take messages", err)
+		return
+	}
+	c, err := dialDaemon(false)
 	if err != nil {
-		report.add("vibetunnel", doctorWarn,
-			"%s is not on PATH, so sessions open outside the browser view", vibeTunnelBin)
+		report.add("daemon", doctorOK, "not running, the next session starts it at %s", socket)
 		return
 	}
-	raw, err := deps.output(ctx, vt, "status")
-	if err != nil || !strings.Contains(string(raw), "Running: Yes") {
-		report.add("vibetunnel", doctorWarn,
-			"%s is installed but its server is not running, so sessions wait unseen", vt)
+	defer c.Close()
+	reply, err := c.request(frame{Type: "list"})
+	if err != nil {
+		report.add("daemon", doctorWarn, "running at %s but did not list its sessions: %v", socket, err)
 		return
 	}
-	report.add("vibetunnel", doctorOK, "%s, server running", vt)
+	report.add("daemon", doctorOK, "running at %s, %d session(s)", socket, len(reply.Sessions))
 }

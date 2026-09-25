@@ -50,9 +50,9 @@ The window opens fullscreen at font size 14.5, which `--start-as` and `--font-si
 Every window stands its role's own creature behind the session. See
 [the aterm creature background](aterm-creature.md).
 
-## VibeTunnel
+## The host daemon
 
-Sessions run through `vt`. See [the bundles page](aterm-bundles.md#running-through-vibetunnel).
+It owns every session. See [the aterm host daemon](aterm-daemon.md).
 
 ## macOS app bundles
 

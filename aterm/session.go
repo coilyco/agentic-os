@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/term"
 )
 
 const sessionCommand = "_session"
@@ -30,6 +31,7 @@ func runSession(options sessionOptions, stdin io.Reader, stdout, stderr io.Write
 		return 2
 	}
 	name := stableSessionName(options.Card.Name, options.Card.Role)
+	var daemon *conn
 	// The card is drawn here, not by the launcher, and the work ahead of the
 	// harness runs under it. See docs/aterm.md.
 	underCard(stderr, func() {
@@ -37,20 +39,21 @@ func runSession(options sessionOptions, stdin io.Reader, stdout, stderr io.Write
 			playCard(stdout, options.Card, options.Motion)
 		}
 	}, func(notice io.Writer) {
-		// The wrap only names the child, so the browser still sees the harness
-		// and not the animation.
-		var wrapped bool
-		argv, wrapped = wrapChild(argv, name, options.VibeTunnel, exec.LookPath, notice)
-		// Both run before this session exists, so it can never be its own target.
-		reaper := systemReaper(notice)
-		if wrapped {
-			if cleared := reaper.clear(name); cleared > 0 {
-				fmt.Fprintf(notice, "aterm: cleared %d earlier VibeTunnel session(s) named %s\n",
-					cleared, name)
-			}
+		if !options.Daemon {
+			return
 		}
+		// A missing daemon costs messaging and every other client, never the
+		// session. See docs/aterm-daemon.md.
+		connected, err := dialDaemon(true)
+		if err != nil {
+			fmt.Fprintf(notice, "aterm: %v, so this session runs outside it and cannot take messages\n", err)
+			return
+		}
+		daemon = connected
+	}, func(notice io.Writer) {
+		// Runs before this session exists, so it can never be its own target.
 		if options.StableName {
-			if stopped := reaper.clearClaude(name); stopped > 0 {
+			if stopped := systemReaper(notice).clearClaude(name); stopped > 0 {
 				fmt.Fprintf(notice, "aterm: stopped %d earlier Claude session(s) named %s\n",
 					stopped, name)
 			}
@@ -63,6 +66,10 @@ func runSession(options sessionOptions, stdin io.Reader, stdout, stderr io.Write
 			}, notice)
 		}
 	})
+	if daemon != nil {
+		defer daemon.Close()
+		return runDaemonSession(daemon, options, name, stdout, stderr)
+	}
 	command := exec.Command(argv[0], argv[1:]...)
 	// The card is already resolved here, so the session carries it rather than
 	// re-resolving it later. `aterm card` re-renders from this.
@@ -151,7 +158,7 @@ func holdWindow(stdin io.Reader, stdout io.Writer, notice string) {
 
 type sessionOptions struct {
 	Hold       bool
-	VibeTunnel bool
+	Daemon     bool
 	StableName bool
 	Motion     bool
 	Card       sessionCard
@@ -171,8 +178,8 @@ func parseSessionArgs(argv []string) (sessionOptions, error) {
 			options.Hold = true
 		case "--no-motion":
 			options.Motion = false
-		case "--vibetunnel":
-			options.VibeTunnel = true
+		case "--daemon":
+			options.Daemon = true
 		case "--stable-name":
 			options.StableName = true
 		case "--card":
@@ -198,4 +205,54 @@ func parseSessionArgs(argv []string) (sessionOptions, error) {
 		}
 	}
 	return sessionOptions{}, fmt.Errorf("%s needs a command after `--`", sessionCommand)
+}
+
+// runDaemonSession hands the harness to the daemon and attaches this window to
+// it as one client among any others. See docs/aterm-daemon.md.
+func runDaemonSession(daemon *conn, options sessionOptions, name string, stdout, stderr io.Writer) int {
+	environ := os.Environ()
+	if options.CardPayload != "" {
+		environ = append(environ, cardEnv+"="+options.CardPayload)
+	}
+	cwd, _ := os.Getwd()
+	rows, cols := 24, 80
+	if width, height, err := term.GetSize(os.Stdout.Fd()); err == nil {
+		rows, cols = height, width
+	}
+	pump := startPump(os.Stdin)
+	_, err := daemon.request(frame{
+		Type:     "spawn",
+		Session:  name,
+		Role:     options.Card.Role,
+		Identity: options.Card.Name,
+		Seat:     options.Card.Seat,
+		Argv:     options.Argv,
+		Env:      environ,
+		Cwd:      cwd,
+		Rows:     rows,
+		Cols:     cols,
+	})
+	if err != nil {
+		fmt.Fprintf(stderr, "\naterm: %v\n", err)
+		return holdAttached(pump, stdout, 1, options.Hold)
+	}
+	result := attachLoop(daemon, name, pump, os.Stdout, false)
+	if result.lost {
+		fmt.Fprintf(stderr, "\r\naterm: lost the aterm daemon, and %s with it\r\n", name)
+	}
+	return holdAttached(pump, stdout, result.code, options.Hold)
+}
+
+func holdAttached(pump *inputPump, stdout io.Writer, code int, hold bool) int {
+	switch {
+	case code != 0:
+		fmt.Fprintf(stdout, "\n%s\n", sessionFailureStyle.Render(
+			fmt.Sprintf("Session failed (exit %d). Press Enter to close.", code)))
+	case hold:
+		fmt.Fprintf(stdout, "\n%s\n", sessionNoticeStyle.Render("Session ended. Press Enter to close."))
+	default:
+		return 0
+	}
+	pump.waitLine()
+	return code
 }

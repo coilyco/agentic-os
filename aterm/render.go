@@ -29,7 +29,6 @@ func renderPlan(writer io.Writer, document overlayDocument, plan launchPlan) err
 		{"workspace", planWorkspace(plan)},
 		{"directory", plan.WorkingDirectory},
 		{"shadow", shadowLine(plan.Shadowed)},
-		{"vibetunnel", vibeTunnelLine(plan.VibeTunnel)},
 		{"stable name", stableNameLine(plan.StableName)},
 		{"personality", personalityLine(document)},
 		{"brand", brandLine(plan.Brand)},
@@ -81,13 +80,6 @@ func stableNameLine(named bool) string {
 		return "claude runs as `aterm`, and running claude sessions of that name are stopped first"
 	}
 	return "off, claude keeps its own name"
-}
-
-func vibeTunnelLine(wrapped bool) string {
-	if wrapped {
-		return "runs through `vt` as `aterm`, ending earlier sessions of that name, when `vt` is on the window's PATH"
-	}
-	return "off, the session stays out of the browser view"
 }
 
 // personalityLine is the first place the sensory identity shows up: each

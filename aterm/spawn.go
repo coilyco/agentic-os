@@ -33,7 +33,7 @@ func spawnWindow(name string, args []string) error {
 	if environ == nil {
 		environ = os.Environ()
 	}
-	command.Env = withoutVibeTunnelSession(environ)
+	command.Env = environ
 	if err := command.Start(); err != nil {
 		return err
 	}

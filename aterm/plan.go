@@ -23,7 +23,6 @@ type launchRequest struct {
 	NoMotion         bool
 	Extra            []string
 	Hold             bool
-	VibeTunnel       bool
 	StableName       bool
 	Creature         creaturePlate
 }
@@ -49,7 +48,6 @@ type launchPlan struct {
 	Card             sessionCard    `json:"card"`
 	Creature         creaturePlate  `json:"creature"`
 	Shadowed         bool           `json:"shadowed"`
-	VibeTunnel       bool           `json:"vibetunnel"`
 	StableName       bool           `json:"stable_name"`
 	Child            []string       `json:"child"`
 	Executable       string         `json:"executable"`
@@ -145,7 +143,6 @@ func buildLaunchPlan(
 		Workspace:        request.Workspace,
 		Creature:         request.Creature,
 		Shadowed:         shadowed,
-		VibeTunnel:       request.VibeTunnel,
 		StableName:       named,
 		Child:            child,
 		Executable:       strings.TrimSpace(request.TerminalBin),
@@ -164,9 +161,9 @@ func buildLaunchPlan(
 	if request.NoMotion {
 		session = append(session, "--no-motion")
 	}
-	if request.VibeTunnel {
-		session = append(session, "--vibetunnel")
-	}
+	// The daemon is not optional: without one answering, _session runs the
+	// harness directly. See docs/aterm-daemon.md.
+	session = append(session, "--daemon")
 	if named {
 		session = append(session, "--stable-name")
 	}
