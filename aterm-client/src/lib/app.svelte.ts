@@ -27,7 +27,10 @@ export async function checkHost(host: Host): Promise<void> {
     host.status = { kind: "online", sessionCount: await probe(host.address) };
   } catch {
     host.status = { kind: "unreachable", reason: "No daemon answered." };
+    return;
   }
+  // Picked while the probe was still out, so attach now that it answered.
+  if (app.selectedHostId === host.id && app.attachedHostId !== host.id) selectHost(host);
 }
 
 export function selectedHost(): Host | undefined {
