@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	nativeSweepInterval         = 10 * time.Minute
+	nativeSweepInterval         = 24 * time.Hour
 	nativeDeadSessionGrace      = 24 * time.Hour
 	nativeLockPoll              = 100 * time.Millisecond
 	nativeLockNotice            = 5 * time.Second
@@ -508,6 +508,8 @@ func prepareNativeLaunchWorkspaceWithOptions(
 		resolve.Done("%d resident, %d projected",
 			len(projection.Resident), len(projection.Projected))
 		due, state := nativeSweepDue(runtime)
+		// The pass is the only fetch on a launch that runs it. Otherwise the
+		// session fetches its own repositories. docs/native-agent-workspaces.md
 		if due {
 			if err := runNativeWorkspaceSweep(
 				runtime, projection.Resident, projection.Expected, live, state); err != nil {
@@ -522,6 +524,7 @@ func prepareNativeLaunchWorkspaceWithOptions(
 			harness,
 			projection.Projected,
 			options,
+			due,
 		)
 		return err
 	})
@@ -1755,6 +1758,7 @@ func createNativeSession(
 	harness string,
 	repositories []nativeRepository,
 	options nativeLaunchOptions,
+	fetched bool,
 ) (nativeLaunchWorkspace, error) {
 	relative, inside := relativeWithin(runtime.ProjectsRoot, runtime.CWD)
 	id, sessionRoot, err := reserveNativeSession(runtime, harness, repositories)
@@ -1808,15 +1812,24 @@ func createNativeSession(
 	// One worktree per repository and every repository has its own .git, so
 	// the adds overlap. Results are read back in repository order.
 	addErrors := make([]error, len(repositories))
+	fetchErrors := make([]error, len(repositories))
 	runParallel(len(repositories), nativeParallelLimit(), func(index int) {
 		repository := repositories[index]
-		runtime.Progress.Item("worktree", index+1, len(repositories), "%s/%s", repository.Owner, repository.Name)
 		began := time.Now()
+		if !fetched {
+			runtime.Progress.Item("fetch", index+1, len(repositories), "%s/%s", repository.Owner, repository.Name)
+			_, fetchErrors[index] = nativeGit(repository.Path, "fetch", "--quiet", "origin")
+		}
+		runtime.Progress.Item("worktree", index+1, len(repositories), "%s/%s", repository.Owner, repository.Name)
 		_, addErrors[index] = nativeGit(repository.Path,
 			"worktree", "add", "--quiet", "-b", branch, targets[index], nativeWorktreeBase)
 		link.Track(repository.Owner+"/"+repository.Name, time.Since(began))
 	})
 	for index, repository := range repositories {
+		if err := fetchErrors[index]; err != nil {
+			fmt.Fprintf(runtime.Stderr, "aos: fetch skipped for %s/%s, so its worktree starts from the last fetched %s: %v\n",
+				repository.Owner, repository.Name, nativeWorktreeBase, err)
+		}
 		if err := addErrors[index]; err != nil {
 			fmt.Fprintf(runtime.Stderr, "aos: worktree skipped for %s/%s: %v\n",
 				repository.Owner, repository.Name, err)

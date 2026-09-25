@@ -202,6 +202,40 @@ func TestNativeLaunchCreatesFleetWorkspaceFromProjectsRoot(t *testing.T) {
 	}
 }
 
+func TestNativeLaunchFetchesItsRepositoriesWhenThePassIsNotDue(t *testing.T) {
+	root := t.TempDir()
+	repository, remote := createNativeTestRepository(t, root, "owner", "one")
+	runtime := nativeTestRuntime(t, root)
+	writeNativeTestPlan(t, runtime.PlanFile, "one")
+	writeNativeTestList(t, runtime.FleetFile, "owner")
+	if err := writeNativeJSON(nativeStatePath(runtime, "sweep.json"), nativeSweepState{
+		Format: "agentic-os.native-sweep.v1", LastSweep: runtime.Now,
+		Candidates: map[string]nativeCandidate{},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Origin moves after the checkout's last fetch, as it does between passes.
+	other := filepath.Join(root, "other")
+	testGit(t, root, "clone", "--quiet", "file://"+remote, other)
+	testGit(t, other, "config", "user.email", "test@example.com")
+	testGit(t, other, "config", "user.name", "AOS Test")
+	testGit(t, other, "commit", "--allow-empty", "-m", "landed elsewhere")
+	testGit(t, other, "push", "--quiet", "origin", "main")
+	want := testGit(t, other, "rev-parse", "HEAD")
+
+	launch, err := prepareNativeLaunch(runtime, "codex")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := testGit(t, filepath.Join(launch, "owner", "one"), "rev-parse", "HEAD"); got != want {
+		t.Fatalf("session started at %s, want origin's %s", got, want)
+	}
+	if got := testGit(t, repository, "rev-parse", "HEAD"); got == want {
+		t.Fatal("the canonical checkout moved, but only the pass may fast-forward it")
+	}
+}
+
 func TestNativeLaunchMapsRepositorySubdirectoryIntoSession(t *testing.T) {
 	root := t.TempDir()
 	repository, _ := createNativeTestRepository(t, root, "owner", "one")
@@ -1252,7 +1286,7 @@ func TestUnexpectedCloneCounterResetsWhenStateChanges(t *testing.T) {
 	}
 }
 
-func TestNativeSweepCacheIsFreshForTenMinutes(t *testing.T) {
+func TestNativeSweepCacheIsFreshForItsInterval(t *testing.T) {
 	root := t.TempDir()
 	runtime := nativeTestRuntime(t, root)
 	state := nativeSweepState{
@@ -1265,11 +1299,11 @@ func TestNativeSweepCacheIsFreshForTenMinutes(t *testing.T) {
 
 	runtime.Now = runtime.Now.Add(nativeSweepInterval - time.Second)
 	if due, _ := nativeSweepDue(runtime); due {
-		t.Fatal("sweep became due before ten minutes")
+		t.Fatal("sweep became due before its interval")
 	}
 	runtime.Now = runtime.Now.Add(time.Second)
 	if due, _ := nativeSweepDue(runtime); !due {
-		t.Fatal("sweep was not due at ten minutes")
+		t.Fatal("sweep was not due at its interval")
 	}
 }
 

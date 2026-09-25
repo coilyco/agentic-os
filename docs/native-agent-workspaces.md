@@ -60,10 +60,10 @@ removes each clean worktree whose branch tip is reachable from `origin`, then
 deletes its local branch. Dirty, untracked, unpushed, unreadable, and `*-workdir`
 state stays, so clean siblings may go alone. The grace holds the session root.
 
-## Ten-minute fleet pass
+## Daily fleet pass
 
-Every ten minutes at most, startup pulls resident repositories already on disk.
-It fetches `origin`, then:
+Once a day at most, startup pulls resident repositories already on disk (a launch
+between passes fetches only its own). It fetches `origin`, then:
 
 * A clean, inactive checkout on a remotely recoverable non-main branch switches
   to `main`, then deletes that local branch.
