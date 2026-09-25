@@ -104,6 +104,13 @@
       theme: { background: "#101216", foreground: "#d4d8e0", cursor: accent, selectionBackground: `${accent}55` },
     });
     term = terminal;
+    // The seat's own window answers terminal queries. A reply from here would be
+    // duplicate input, and replayed history would re-ask old ones. See docs/architecture.md.
+    const swallow = () => true;
+    terminal.parser.registerCsiHandler({ final: "n" }, swallow);
+    terminal.parser.registerCsiHandler({ final: "c" }, swallow);
+    terminal.parser.registerCsiHandler({ prefix: ">", final: "c" }, swallow);
+    for (const color of [10, 11, 12]) terminal.parser.registerOscHandler(color, (data) => data.includes("?"));
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(host);

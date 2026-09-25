@@ -27,10 +27,11 @@ interface MessageView {
   reason?: string;
 }
 
-// Proposed to eng-platform for ask_choice, not yet on the wire. The daemon's shape wins.
+// ask_choice as the daemon sends it (coilyco/agentic-os#1724).
 interface AskView {
   id: string;
   session: string;
+  from?: string;
   header?: string;
   question: string;
   options: { label: string; description?: string }[];
@@ -64,7 +65,7 @@ interface Frame {
   code?: number;
   error?: string;
   ask?: AskView;
-  asks?: AskView[];
+  ask_id?: string;
   state?: string;
 }
 
@@ -178,11 +179,11 @@ export class DaemonHost implements HostConnection {
   }
 
   answer(askId: string, picks: number[], text?: string): void {
-    this.request({ type: "answer", ask: askId, picks, ...(text ? { text } : {}) });
+    this.request({ type: "answer", ask_id: askId, picks, ...(text ? { text } : {}) });
   }
 
   cancelAsk(askId: string): void {
-    this.request({ type: "answer", ask: askId, cancelled: true });
+    this.request({ type: "cancel_ask", ask_id: askId });
   }
 
   launch(role: string, seat: string): void {
@@ -265,10 +266,9 @@ export class DaemonHost implements HostConnection {
         if (frame.ask) this.emit({ type: "ask", ask: toAsk(frame.ask) });
         return;
       case "asked":
-        if (frame.id) this.emit({ type: "asked", id: frame.id, outcome: (frame.state ?? "answered") as AskOutcome });
+        if (frame.ask_id) this.emit({ type: "asked", id: frame.ask_id, outcome: (frame.state ?? "answered") as AskOutcome });
         return;
       case "sessions":
-        for (const pending of frame.asks ?? []) this.emit({ type: "ask", ask: toAsk(pending) });
         this.views = frame.sessions ?? [];
         this.monitor();
         this.publishSessions();
@@ -290,6 +290,7 @@ export class DaemonHost implements HostConnection {
         this.emit({ type: "launch", role: frame.role ?? "", state: "started", text: `${frame.role} launched. It appears here once its session starts.` });
         return;
       case "error": {
+        // Code 2: the answer does not fit the ask. Code 3: the ask is gone or settled.
         const role = frame.id ? this.launches.get(frame.id) : undefined;
         if (role !== undefined && frame.id) {
           this.launches.delete(frame.id);

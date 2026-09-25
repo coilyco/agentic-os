@@ -114,3 +114,10 @@ export function choiceFromAsk(ask: Ask): Choice {
   if (ask.allowOther) options.push({ label: "Type something.", description: "", freeText: true });
   return { header: ask.header, question: ask.question, options, cursor: 0, cancellable: true, multi: ask.multi };
 }
+
+/** Card picks as the daemon wants them: its own options, with "Other" as text only. */
+export function askAnswer(ask: Ask, picks: number[], text?: string): { picks: number[]; text?: string } {
+  const own = picks.filter((pick) => pick < ask.options.length);
+  const typed = ask.allowOther && picks.some((pick) => pick >= ask.options.length) ? text?.trim() : undefined;
+  return typed ? { picks: own, text: typed } : { picks: own };
+}

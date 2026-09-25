@@ -4,8 +4,8 @@
   import Composer from "../components/Composer.svelte";
   import MessagesPanel from "../components/MessagesPanel.svelte";
   import Terminal from "../components/Terminal.svelte";
-  import { app, asksFor, colorOf, messagesFor } from "../lib/app.svelte";
-  import { CANCEL, choiceFromAsk, detectChoice, keysFor, type Choice } from "../lib/choices";
+  import { app, asksFor, colorOf, jumpToWaiting, messagesFor } from "../lib/app.svelte";
+  import { askAnswer, CANCEL, choiceFromAsk, detectChoice, keysFor, type Choice } from "../lib/choices";
   import type { Session } from "../lib/protocol";
   import type { Role } from "../lib/roster";
 
@@ -56,6 +56,12 @@
     chunks.forEach((chunk, index) => setTimeout(() => app.connection?.input(session.id, chunk), index * KEY_GAP_MS));
     choice = null;
     shownKey = "";
+    nextIfTriaging();
+  }
+
+  // Alt-tabbed in to clear the queue, so an answer moves straight to the next seat.
+  function nextIfTriaging(): void {
+    if (app.triage) setTimeout(jumpToWaiting, 250);
   }
 </script>
 
@@ -79,8 +85,16 @@
                   <ChoiceCard
                     choice={choiceFromAsk(ask)}
                     identity={session.identity}
-                    onanswer={(picks, text) => app.connection?.answer(ask.id, picks, text)}
-                    oncancel={() => app.connection?.cancelAsk(ask.id)}
+                    focusToken={app.focusCard}
+                    onanswer={(picks, text) => {
+                      const reply = askAnswer(ask, picks, text);
+                      app.connection?.answer(ask.id, reply.picks, reply.text);
+                      nextIfTriaging();
+                    }}
+                    oncancel={() => {
+                      app.connection?.cancelAsk(ask.id);
+                      nextIfTriaging();
+                    }}
                   />
                 </div>
               {/key}
@@ -109,7 +123,7 @@
   .state { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--accent); }
   .work { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .screen { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
-  .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 75%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
+  .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
   .body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 0; }
   @media (max-width: 1000px) {
     .body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr) auto; }

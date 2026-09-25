@@ -23,6 +23,10 @@ export const app = $state({
   unseen: {} as Record<string, boolean>,
   /** ask_choice calls waiting on a person, by ask id. */
   asks: {} as Record<string, Ask>,
+  /** True from alt-tabbing in until you leave, while answers walk the waiting seats. */
+  triage: false,
+  /** Bumped to ask the visible choice card to take keyboard focus. */
+  focusCard: 0,
 });
 
 export async function checkHost(host: Host): Promise<void> {
@@ -104,4 +108,38 @@ for (const host of app.hosts) void checkHost(host);
 
 export function asksFor(sessionId: string): Ask[] {
   return Object.values(app.asks).filter((ask) => ask.session === sessionId);
+}
+
+export interface Waiting {
+  sessionId: string;
+  role: string;
+  identity: string;
+  kind: "asking" | "done";
+}
+
+/** Seats that need you, asks before finished turns, in the order they arrived. */
+export function waitingSeats(): Waiting[] {
+  const bySession = new Map(app.sessions.map((session) => [session.id, session]));
+  const asking = Object.values(app.asks)
+    .map((ask) => bySession.get(ask.session))
+    .filter((session): session is Session => session !== undefined);
+  const done = Object.keys(app.unseen)
+    .map((id) => bySession.get(id))
+    .filter((session): session is Session => session !== undefined && !asking.includes(session));
+  const seen = new Set<string>();
+  return [
+    ...asking.map((session) => ({ session, kind: "asking" as const })),
+    ...done.map((session) => ({ session, kind: "done" as const })),
+  ]
+    .filter(({ session }) => (seen.has(session.id) ? false : (seen.add(session.id), true)))
+    .map(({ session, kind }) => ({ sessionId: session.id, role: session.role, identity: session.identity, kind }));
+}
+
+/** Opens the seat that most needs you and hands its answer card the keyboard. */
+export function jumpToWaiting(): boolean {
+  const next = waitingSeats()[0];
+  if (!next) return false;
+  selectRole(next.role);
+  if (next.kind === "asking") app.focusCard++;
+  return true;
 }

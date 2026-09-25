@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { choiceFromAsk, detectChoice, keysFor } from "./choices";
+import { askAnswer, choiceFromAsk, detectChoice, keysFor } from "./choices";
 
 // Captured from Claude Code's workspace trust prompt in an aterm daemon session.
 const trust = [
@@ -136,5 +136,25 @@ describe("choiceFromAsk", () => {
     expect(choice.options.map((option) => [option.label, option.freeText])).toEqual([["Qwen", false], ["Llama", false], ["Type something.", true]]);
     expect(choice.multi).toBe(true);
     expect(choice.cancellable).toBe(true);
+  });
+});
+
+describe("askAnswer", () => {
+  const ask = {
+    id: "a", session: "s", header: "", question: "Which?",
+    options: [{ label: "Qwen", description: "" }, { label: "Llama", description: "" }, { label: "Hosted", description: "" }],
+    allowOther: true, multi: true,
+  };
+
+  it("keeps the ask's own picks and sends Other as text only", () => {
+    expect(askAnswer(ask, [0, 3], "Mistral")).toEqual({ picks: [0], text: "Mistral" });
+  });
+
+  it("sends a lone typed answer with no picks", () => {
+    expect(askAnswer(ask, [3], "Mistral")).toEqual({ picks: [], text: "Mistral" });
+  });
+
+  it("drops text the ask did not allow", () => {
+    expect(askAnswer({ ...ask, allowOther: false }, [1], "stray")).toEqual({ picks: [1] });
   });
 });

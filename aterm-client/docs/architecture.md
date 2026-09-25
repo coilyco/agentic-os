@@ -18,6 +18,10 @@ The daemon's `ready` means a seat has once been ready for a message, and some TU
 
 Native choice cards read a harness's own select menu off the screen. See [choices.md](choices.md).
 
+## The browser never answers terminal queries
+
+A program reads the reply to a terminal query as input. The seat's kitty window already answers, so a browser reply is a second copy, and replayed history re-answers old queries: a live test typed `^[]11;rgb:...^[[4;1R` into a seat. The browser swallows status, attribute, and colour queries.
+
 ## Why a composer
 
 Dictation tools insert text into a focused text field. xterm.js takes keys through a hidden textarea it clears as it reads, which dictation does not reliably drive. The composer is an ordinary textarea, so whatever can type into a browser can type to a seat.
