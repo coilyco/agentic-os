@@ -32,6 +32,8 @@ repos:
     - evaluations/**
   agentic-os-xxx:
     band: micro # its info lives primarily in skills
+  aterm-client:
+    band: small
   coilysiren:
     band: micro # fundamentally a simple repo
   deploy:
