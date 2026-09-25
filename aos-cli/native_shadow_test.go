@@ -1918,6 +1918,38 @@ func TestRoleProjectionLinksOnlyTheRoleSelections(t *testing.T) {
 	}
 }
 
+func TestRoleProjectionIncludesCheckoutBehindLogicalOwnerAlias(t *testing.T) {
+	root := t.TempDir()
+	physical, _ := createNativeTestRepository(t, root, "physical", "provider")
+	projects := filepath.Join(root, "projects")
+	if err := os.Symlink("physical", filepath.Join(projects, "logical")); err != nil {
+		t.Fatal(err)
+	}
+	createNativeTestRepository(t, root, "physical", "application")
+	testRuntime := nativeTestRuntime(t, root)
+	testRuntime.Role = "platform"
+	writeNativeTestRolePlan(t, testRuntime.PlanFile, "platform",
+		[]string{"logical/provider", "physical/application"},
+		[]string{"logical/provider", "physical/application"})
+
+	projection, err := resolveExpectedRepositories(testRuntime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projection.Projected) != 2 {
+		t.Fatalf("projected %v, want both role repositories", projection.Projected)
+	}
+	if projection.Projected[0].Owner != "logical" || projection.Projected[0].Name != "provider" {
+		t.Fatalf("provider lost its planned identity: %v", projection.Projected[0])
+	}
+	if !samePath(projection.Projected[0].Path, physical) {
+		t.Fatalf("projected provider is not the checkout behind the alias: %v", projection.Projected[0])
+	}
+	if !projection.Expected.matches("physical", "provider") {
+		t.Fatal("the physical checkout is exposed to unexpected-clone cleanup")
+	}
+}
+
 func TestGamedevProjectionLinksTheGamingCheckouts(t *testing.T) {
 	root := t.TempDir()
 	createNativeTestRepository(t, root, "coilyco-gaming", "galaxy-gen")

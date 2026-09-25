@@ -2400,6 +2400,7 @@ func resolveExpectedRepositories(
 		Authoritative: !plan.Unverified,
 	}
 	prior := ""
+	physicalRoot, physicalRootErr := filepath.EvalSymlinks(runtime.ProjectsRoot)
 	for _, entry := range plan.Residency {
 		parts := strings.Split(entry.Identity, "/")
 		if len(parts) != 2 || !safePathSegment(parts[0]) || !safePathSegment(parts[1]) || entry.Identity <= prior {
@@ -2407,14 +2408,28 @@ func resolveExpectedRepositories(
 		}
 		prior = entry.Identity
 		expected.Full[filepath.FromSlash(entry.Identity)] = true
+		// The plan selects a logical owner, while cleanup scans its physical
+		// directory. Both names must count as resident.
+		if physicalRootErr == nil {
+			if physicalPath, err := filepath.EvalSymlinks(entry.Path); err == nil {
+				if relative, ok := relativeWithin(physicalRoot, physicalPath); ok {
+					parts := strings.Split(relative, string(filepath.Separator))
+					if len(parts) == 2 && safePathSegment(parts[0]) && safePathSegment(parts[1]) {
+						expected.Full[relative] = true
+					}
+				}
+			}
+		}
 	}
 	reportMissingRequiredRepositories(runtime, plan)
 	var repositories []nativeRepository
-	for _, repository := range scanNativeRepositories(runtime.ProjectsRoot) {
+	for _, entry := range plan.Residency {
+		owner, name, _ := strings.Cut(entry.Identity, "/")
+		repository := nativeRepository{Owner: owner, Name: name, Path: entry.Path}
 		if nativeSerialized(repository.Owner, repository.Name) {
 			continue
 		}
-		if expected.matches(repository.Owner, repository.Name) {
+		if _, err := os.Stat(filepath.Join(repository.Path, ".git")); err == nil {
 			repositories = append(repositories, repository)
 		}
 	}
