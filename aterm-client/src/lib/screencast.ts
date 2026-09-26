@@ -1,7 +1,7 @@
 // The shared browser as the client sees it: CDP screencast frames in, CDP
 // Input.dispatch* params out. Shapes follow the Chrome DevTools Protocol.
 
-export type BrowserState = "none" | "idle" | "live" | "closed";
+export type BrowserState = "none" | "live" | "closed";
 export type Driver = "agent" | "person";
 
 /** CDP Page.ScreencastFrameMetadata, the part the client uses. */
@@ -18,8 +18,18 @@ export interface SharedBrowser {
   driver: Driver;
   url: string;
   title: string;
+  /** The daemon's name for the client holding control, when a person does. */
+  holder?: string;
+  /** This client is the holder. The host decides, since only it knows its own name. */
+  heldHere: boolean;
   reason?: string;
-  frame?: { src: string; metadata: FrameMetadata; at: number };
+  /** `seq` counts frames, so a gap is frames the daemon dropped for a slow client. */
+  frame?: { src: string; metadata: FrameMetadata; at: number; seq: number };
+}
+
+/** Pointer and keys go to the page only from the client holding control. */
+export function isDriving(browser: SharedBrowser | undefined): boolean {
+  return browser?.state === "live" && browser.driver === "person" && browser.heldHere;
 }
 
 export type InputKind = "mouse" | "wheel" | "key" | "text";
@@ -104,6 +114,7 @@ export function keyParams(type: "keyDown" | "keyUp", event: Modifiers & { key: s
 /** What a person reads above the page, by who holds it. */
 export function driverLabel(browser: SharedBrowser, identity: string): string {
   if (browser.state === "closed") return browser.reason ? `The browser closed: ${browser.reason}` : "The browser closed.";
-  if (browser.driver === "person") return `You have control. ${identity} waits until you hand it back.`;
+  if (browser.driver === "person" && browser.heldHere) return `You have control. ${identity} waits until you hand it back.`;
+  if (browser.driver === "person") return `Another screen has control. ${identity} waits until it's handed back.`;
   return `${identity} is driving.`;
 }

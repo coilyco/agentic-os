@@ -1,6 +1,6 @@
 // The client's view of a host. `DaemonHost` maps aterm.daemon.v1 onto it,
 // and `MockHost` scripts it for the demo. Why: docs/architecture.md.
-import type { View } from "./mcp-apps";
+import type { ToolResult, View } from "./mcp-apps";
 import type { Role } from "./roster";
 import type { InputKind, SharedBrowser } from "./screencast";
 
@@ -71,6 +71,7 @@ export type HostEvent =
   | { type: "launch"; role: string; state: LaunchState; text: string }
   | { type: "closed"; reason: string }
   | { type: "view"; view: View }
+  | { type: "view_update"; id: string; toolResult?: ToolResult; cancelled?: string }
   | { type: "view_closed"; id: string }
   | { type: "browser"; browser: SharedBrowser };
 
@@ -84,7 +85,8 @@ export interface ViewChannel {
 export interface BrowserChannel {
   watch(sessionId: string): void;
   unwatch(sessionId: string): void;
-  control(sessionId: string, take: boolean): void;
+  /** `force` takes control from another screen that holds it. */
+  control(sessionId: string, take: boolean, force?: boolean): void;
   input(sessionId: string, kind: InputKind, params: Record<string, unknown>): void;
   navigate(sessionId: string, url: string): void;
 }

@@ -1,13 +1,14 @@
 <script lang="ts">
   import { app } from "../lib/app.svelte";
   import type { Session } from "../lib/protocol";
-  import { driverLabel, isStalled, keyParams, mouseParams, toPagePoint, wheelParams } from "../lib/screencast";
+  import { driverLabel, isDriving, isStalled, keyParams, mouseParams, toPagePoint, wheelParams } from "../lib/screencast";
 
   let { session }: { session: Session } = $props();
 
   const channel = $derived(app.connection?.browser);
   const browser = $derived(app.browsers[session.id]);
-  const driving = $derived(browser?.state === "live" && browser.driver === "person");
+  const driving = $derived(isDriving(browser));
+  const heldElsewhere = $derived(browser?.state === "live" && browser.driver === "person" && !browser.heldHere);
   /** Mouse moves with no button held are sent at most this often. */
   const MOVE_EVERY_MS = 40;
 
@@ -87,17 +88,23 @@
     <p class="empty">This host doesn't stream a browser yet. Once its daemon does, you'll see the page {session.identity} is working in here, and you can take control of it.</p>
   {:else if !browser || browser.state === "none"}
     <p class="empty">{session.identity} hasn't opened a browser yet. The page shows up here as soon as it loads one.</p>
+    {#if browser?.reason}<p class="empty">{browser.reason}</p>{/if}
   {:else}
-    <div class="bar" data-driver={browser.state === "closed" ? "closed" : browser.driver}>
+    <div class="bar" data-driver={browser.state === "closed" ? "closed" : heldElsewhere ? "elsewhere" : browser.driver}>
       <p class="who" role="status">{driverLabel(browser, session.identity)}</p>
       {#if browser.state !== "closed"}
         {#if driving}
           <button bind:this={handBack} type="button" class="button" onclick={() => channel?.control(session.id, false)}>Hand back to {session.identity}</button>
+        {:else if heldElsewhere}
+          <button type="button" class="button" onclick={() => channel?.control(session.id, true, true)}>Take over on this screen</button>
         {:else}
           <button type="button" class="button primary" onclick={() => channel?.control(session.id, true)}>Take control</button>
         {/if}
       {/if}
     </div>
+    {#if browser.state === "live" && browser.reason}
+      <p class="note">{browser.reason}</p>
+    {/if}
     <form class="address" onsubmit={go}>
       <label class="visually-hidden" for={`address-${session.id}`}>Page address</label>
       <input id={`address-${session.id}`} class="mono" bind:value={address} readonly={!driving} spellcheck="false" autocomplete="off" />
@@ -114,7 +121,7 @@
       class:driving
       role="application"
       aria-roledescription="remote page"
-      aria-label={driving ? `${browser.title || "Page"}. Keys go to the page. Escape leaves it.` : `${browser.title || "Page"}, driven by ${session.identity}`}
+      aria-label={driving ? `${browser.title || "Page"}. Keys go to the page. Escape leaves it.` : `${browser.title || "Page"}, ${heldElsewhere ? "controlled from another screen" : `driven by ${session.identity}`}`}
       tabindex={driving ? 0 : -1}
       onpointerdown={(event) => mouse("mousePressed", event)}
       onpointerup={(event) => mouse("mouseReleased", event)}
@@ -137,6 +144,8 @@
   .empty { margin: 0; color: var(--muted); font-size: 13px; }
   .bar { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
   .bar[data-driver="person"] { border-color: var(--brand); }
+  .bar[data-driver="elsewhere"] { border-color: #4a3d25; background: var(--warn-fill); }
+  .note { margin: 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
   .bar[data-driver="closed"] { border-color: #5a3a41; background: var(--danger-fill); }
   .who { margin: 0; flex: 1 1 160px; font-size: 14px; }
   .bar[data-driver="closed"] .who { color: var(--danger-text); }

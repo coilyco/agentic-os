@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { driverLabel, isStalled, keyParams, modifiersOf, mouseParams, toPagePoint, type SharedBrowser } from "./screencast";
+import { driverLabel, isDriving, isStalled, keyParams, modifiersOf, mouseParams, toPagePoint, type SharedBrowser } from "./screencast";
 
 const metadata = { deviceWidth: 1280, deviceHeight: 800, offsetTop: 0, pageScaleFactor: 1 };
 const none = { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
@@ -40,18 +40,31 @@ describe("input params", () => {
   });
 });
 
+describe("isDriving", () => {
+  const base: SharedBrowser = { session: "s", state: "live", driver: "person", heldHere: true, url: "", title: "" };
+
+  it("drives only from the screen that took control", () => {
+    expect(isDriving(base)).toBe(true);
+    expect(isDriving({ ...base, heldHere: false, holder: "phone" })).toBe(false);
+    expect(isDriving({ ...base, driver: "agent" })).toBe(false);
+    expect(isDriving({ ...base, state: "closed" })).toBe(false);
+    expect(isDriving(undefined)).toBe(false);
+  });
+});
+
 describe("browser state", () => {
-  const live: SharedBrowser = { session: "s", state: "live", driver: "agent", url: "", title: "", frame: { src: "", metadata, at: 1000 } };
+  const live: SharedBrowser = { session: "s", state: "live", driver: "agent", heldHere: false, url: "", title: "", frame: { src: "", metadata, at: 1000, seq: 1 } };
 
   it("calls a live stream stalled after five quiet seconds", () => {
     expect(isStalled(live, 5999)).toBe(false);
     expect(isStalled(live, 6001)).toBe(true);
-    expect(isStalled({ ...live, state: "idle" }, 60_000)).toBe(false);
+    expect(isStalled({ ...live, state: "none" }, 60_000)).toBe(false);
   });
 
   it("says who is driving", () => {
     expect(driverLabel(live, "Frog-Ox")).toBe("Frog-Ox is driving.");
-    expect(driverLabel({ ...live, driver: "person" }, "Frog-Ox")).toMatch(/^You have control/);
+    expect(driverLabel({ ...live, driver: "person", heldHere: true }, "Frog-Ox")).toMatch(/^You have control/);
+    expect(driverLabel({ ...live, driver: "person", holder: "phone" }, "Frog-Ox")).toMatch(/^Another screen has control/);
     expect(driverLabel({ ...live, state: "closed", reason: "the seat exited" }, "Frog-Ox")).toBe("The browser closed: the seat exited");
   });
 });

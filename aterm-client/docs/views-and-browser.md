@@ -12,7 +12,7 @@ The MCP Apps spec asks a web host for a sandbox proxy on a second origin. This c
 
 ## The browser is a picture
 
-The shared browser is the host's own Chromium, shown by CDP screencast. The pane draws each frame contained in its box and maps pointer and keys back to page pixels as CDP `Input` events. It sends them only while the person holds control. Escape leaves the page, so the keyboard is never trapped in it.
+The shared browser is the host's own Chromium, shown by CDP screencast. The pane draws each frame contained in its box and maps pointer and keys back to page pixels as CDP `Input` events. It sends them only from the screen holding control, and taking over from another screen is a forced take. Escape leaves the page, so the keyboard is never trapped in it.
 
 ## Narrow screens
 

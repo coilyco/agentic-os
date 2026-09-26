@@ -115,6 +115,10 @@ export function selectHost(host: Host): void {
     else if (event.type === "ask") app.asks[event.ask.id] = event.ask;
     else if (event.type === "asked") delete app.asks[event.id];
     else if (event.type === "view") app.views[event.view.id] = event.view;
+    else if (event.type === "view_update") {
+      const view = app.views[event.id];
+      if (view) Object.assign(view, { toolResult: event.toolResult ?? view.toolResult, cancelled: event.cancelled ?? view.cancelled });
+    }
     else if (event.type === "view_closed") delete app.views[event.id];
     else if (event.type === "browser") app.browsers[event.browser.session] = event.browser;
     else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
