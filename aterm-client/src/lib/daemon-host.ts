@@ -146,7 +146,7 @@ export class DaemonHost implements HostConnection {
   private open = false;
   private nextId = 0;
   private last: { sessions?: Session[]; roles?: HostEvent } = {};
-  private views: SessionView[] = [];
+  private sessionViews: SessionView[] = [];
   private refs = new Map<string, number>();
   private lastOutput = new Map<string, number>();
   private lastPoke = new Map<string, number>();
@@ -218,7 +218,7 @@ export class DaemonHost implements HostConnection {
 
   /** Watch every live seat without replay or resize, to see when it is busy. */
   private monitor(): void {
-    const live = new Set(this.views.map((view) => view.name));
+    const live = new Set(this.sessionViews.map((view) => view.name));
     for (const name of live) {
       if (this.refs.has(name)) continue;
       this.refs.set(name, 1);
@@ -255,7 +255,7 @@ export class DaemonHost implements HostConnection {
   }
 
   private publishSessions(): void {
-    this.last.sessions = this.views.map((view) => toSession(view, this.busy.has(view.name)));
+    this.last.sessions = this.sessionViews.map((view) => toSession(view, this.busy.has(view.name)));
     this.emit({ type: "sessions", sessions: this.last.sessions });
   }
 
@@ -287,7 +287,7 @@ export class DaemonHost implements HostConnection {
         if (frame.ask_id) this.emit({ type: "asked", id: frame.ask_id, outcome: (frame.state ?? "answered") as AskOutcome });
         return;
       case "sessions":
-        this.views = frame.sessions ?? [];
+        this.sessionViews = frame.sessions ?? [];
         this.monitor();
         this.publishSessions();
         return;

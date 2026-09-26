@@ -6,8 +6,7 @@
   let { messages, selfRole, colorOf }: { messages: PeerMessage[]; selfRole: string; colorOf: (role: string) => string } = $props();
 </script>
 
-<aside class="panel" aria-labelledby="messages-heading">
-  <h2 id="messages-heading">Messages</h2>
+<div class="messages">
   {#if messages.length === 0}
     <p class="empty">No other seat has written to this one yet. Messages they send show up here and in the terminal.</p>
   {:else}
@@ -29,11 +28,10 @@
     </ol>
   {/if}
   <p class="footnote">The daemon stamps other seats' messages. Anything you type in the terminal is yours and carries no stamp.</p>
-</aside>
+</div>
 
 <style>
-  .panel { display: flex; flex-direction: column; gap: 12px; padding: 16px; border-left: 1px solid var(--line); overflow-y: auto; }
-  h2 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 18px; }
+  .messages { flex: 1; display: flex; flex-direction: column; gap: 12px; }
   ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
   li { padding: 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); }
   li[data-state="queued"], li[data-state="held"], li[data-state="launching"] { border-color: #4a3d25; background: var(--warn-fill); }

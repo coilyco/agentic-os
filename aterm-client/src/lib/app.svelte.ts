@@ -2,6 +2,8 @@ import { nextUnseen } from "./activity";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
 import { upsertMessage } from "./messages";
 import { MockHost } from "./mock-host";
+import type { View } from "./mcp-apps";
+import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
 import type { Ask, Host, HostConnection, LaunchState, PeerMessage, Session } from "./protocol";
 import type { Role } from "./roster";
@@ -36,6 +38,10 @@ export const app = $state({
   triage: false,
   /** Bumped to ask the visible choice card to take keyboard focus. */
   focusCard: 0,
+  /** MCP Apps views by view id, newest last. */
+  views: {} as Record<string, View>,
+  /** Each seat's shared browser, by session id. */
+  browsers: {} as Record<string, SharedBrowser>,
 });
 
 export async function checkHost(host: Host): Promise<void> {
@@ -93,6 +99,8 @@ export function selectHost(host: Host): void {
   app.sessions = [];
   app.messages = [];
   app.asks = {};
+  app.views = {};
+  app.browsers = {};
   const connection = host.kind === "daemon" ? new DaemonHost(host.address) : new MockHost();
   app.connection = connection;
   app.attachedHostId = host.id;
@@ -106,6 +114,9 @@ export function selectHost(host: Host): void {
     else if (event.type === "notice") app.notice = event.text;
     else if (event.type === "ask") app.asks[event.ask.id] = event.ask;
     else if (event.type === "asked") delete app.asks[event.id];
+    else if (event.type === "view") app.views[event.view.id] = event.view;
+    else if (event.type === "view_closed") delete app.views[event.id];
+    else if (event.type === "browser") app.browsers[event.browser.session] = event.browser;
     else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
     else if (event.type === "closed") {
       host.status = { kind: "unreachable", reason: event.reason };
@@ -141,6 +152,11 @@ export function messagesFor(session: Session): PeerMessage[] {
 }
 
 for (const host of app.hosts) void checkHost(host);
+
+/** A session's views, newest first. */
+export function viewsFor(sessionId: string): View[] {
+  return Object.values(app.views).filter((view) => view.session === sessionId).reverse();
+}
 
 export function asksFor(sessionId: string): Ask[] {
   return Object.values(app.asks).filter((ask) => ask.session === sessionId);

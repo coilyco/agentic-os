@@ -26,6 +26,10 @@ A program reads the reply to a terminal query as input. The seat's kitty window 
 
 Dictation tools insert text into a focused text field. xterm.js takes keys through a hidden textarea it clears as it reads, which dictation does not reliably drive. The composer is an ordinary textarea, so whatever can type into a browser can type to a seat.
 
+## Views and the browser
+
+See [views-and-browser.md](views-and-browser.md).
+
 ## Narrow screens
 
-Below 720px the sidebar becomes two horizontal tab strips, and below 1000px the messages panel moves under the terminal.
+Below 720px the sidebar becomes two horizontal tab strips, and below 1000px the side panel moves under the terminal.

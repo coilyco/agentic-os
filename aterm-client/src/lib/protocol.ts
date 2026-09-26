@@ -1,6 +1,8 @@
 // The client's view of a host. `DaemonHost` maps aterm.daemon.v1 onto it,
 // and `MockHost` scripts it for the demo. Why: docs/architecture.md.
+import type { View } from "./mcp-apps";
 import type { Role } from "./roster";
+import type { InputKind, SharedBrowser } from "./screencast";
 
 export type HostKind = "daemon" | "demo";
 
@@ -67,10 +69,30 @@ export type HostEvent =
   | { type: "ask"; ask: Ask }
   | { type: "asked"; id: string; outcome: AskOutcome }
   | { type: "launch"; role: string; state: LaunchState; text: string }
-  | { type: "closed"; reason: string };
+  | { type: "closed"; reason: string }
+  | { type: "view"; view: View }
+  | { type: "view_closed"; id: string }
+  | { type: "browser"; browser: SharedBrowser };
+
+/** MCP Apps views. Only a daemon that forwards them has this. */
+export interface ViewChannel {
+  call(viewId: string, method: "tools/call" | "resources/read", params: Record<string, unknown>): Promise<unknown>;
+  close(viewId: string): void;
+}
+
+/** The seat's shared browser. Only a daemon that streams one has this. */
+export interface BrowserChannel {
+  watch(sessionId: string): void;
+  unwatch(sessionId: string): void;
+  control(sessionId: string, take: boolean): void;
+  input(sessionId: string, kind: InputKind, params: Record<string, unknown>): void;
+  navigate(sessionId: string, url: string): void;
+}
 
 export interface HostConnection {
   readonly canLaunch: boolean;
+  readonly views?: ViewChannel;
+  readonly browser?: BrowserChannel;
   subscribe(listener: (event: HostEvent) => void): () => void;
   attach(sessionId: string, rows: number, cols: number): void;
   detach(sessionId: string): void;
