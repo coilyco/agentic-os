@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -53,6 +54,9 @@ type nativeCodexPolicy struct {
 	// server, which otherwise gets a filtered environment.
 	EnvVars        []string `json:"envVars"`
 	ToolTimeoutSec int      `json:"toolTimeoutSec"`
+	// EnvHTTPHeaders maps a header to the variable Codex reads it from, since
+	// Codex sends `headers` literally where Claude expands `${VAR}` in them.
+	EnvHTTPHeaders map[string]string `json:"envHttpHeaders"`
 }
 
 type nativeMCPInventory struct {
@@ -185,6 +189,9 @@ func loadNativeMCPInventory(path string) (nativeMCPInventory, error) {
 			)
 		}
 		config.Codex.DefaultToolsApprovalMode = mode
+		if err := validateNativeEnvHTTPHeaders(name, config); err != nil {
+			return nativeMCPInventory{}, err
+		}
 		servers[name] = config
 	}
 	return nativeMCPInventory{
@@ -200,6 +207,47 @@ func validNativeCodexApprovalMode(mode string) bool {
 	default:
 		return false
 	}
+}
+
+var nativeEnvVarName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func validateNativeEnvHTTPHeaders(name string, config nativeMCPServer) error {
+	if len(config.Codex.EnvHTTPHeaders) == 0 {
+		return nil
+	}
+	if config.endpoint() == "" {
+		return fmt.Errorf("native MCP: server %q sets x-codex.envHttpHeaders without a URL", name)
+	}
+	for header, variable := range config.Codex.EnvHTTPHeaders {
+		if strings.TrimSpace(header) == "" || !nativeEnvVarName.MatchString(variable) {
+			return fmt.Errorf(
+				"native MCP: server %q maps header %q to %q, which is not an environment variable name",
+				name,
+				header,
+				variable,
+			)
+		}
+	}
+	return nil
+}
+
+// nativeCodexStaticHeaders drops every header Codex reads from the environment,
+// so the literal `${VAR}` form meant for Claude never reaches the wire.
+func nativeCodexStaticHeaders(config nativeMCPServer) map[string]string {
+	static := make(map[string]string, len(config.Headers))
+	for header, value := range config.Headers {
+		fromEnv := false
+		for envHeader := range config.Codex.EnvHTTPHeaders {
+			if strings.EqualFold(header, envHeader) {
+				fromEnv = true
+				break
+			}
+		}
+		if !fromEnv {
+			static[header] = value
+		}
+	}
+	return static
 }
 
 func (server nativeMCPServer) endpoint() string {
@@ -308,11 +356,18 @@ func nativeCodexBlock(servers map[string]nativeMCPServer, home string) string {
 				"url = %s\n",
 				strconv.Quote(expandNativeHome(endpoint, home)),
 			)
-			if len(config.Headers) > 0 {
+			if static := nativeCodexStaticHeaders(config); len(static) > 0 {
 				fmt.Fprintf(
 					&output,
 					"http_headers = %s\n",
-					nativeTOMLMap(expandNativeMap(config.Headers, home)),
+					nativeTOMLMap(expandNativeMap(static, home)),
+				)
+			}
+			if len(config.Codex.EnvHTTPHeaders) > 0 {
+				fmt.Fprintf(
+					&output,
+					"env_http_headers = %s\n",
+					nativeTOMLMap(config.Codex.EnvHTTPHeaders),
 				)
 			}
 		} else {

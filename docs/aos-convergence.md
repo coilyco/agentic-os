@@ -45,6 +45,10 @@ imports remain an error. AOS always copies the safe inventory to
 * maps `x-codex.envVars` to Codex `env_vars`, the variables Codex forwards
   to a stdio server from its filtered environment, and
   `x-codex.toolTimeoutSec` to `tool_timeout_sec`
+* maps `x-codex.envHttpHeaders` (header to variable name) to Codex
+  `env_http_headers` and drops those headers from `http_headers`, because
+  Claude expands a `${VAR:-default}` header value itself and Codex would send
+  it literally. Codex skips a header whose variable is unset or blank
 
 Supported Codex approval modes are `auto`, `prompt`, `writes`, and `approve`.
 An omitted mode leaves the default in force. The first projection absorbs the

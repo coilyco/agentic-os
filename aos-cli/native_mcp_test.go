@@ -272,3 +272,59 @@ func TestProjectNativeMCPRejectsNonEmptyImports(t *testing.T) {
 		t.Fatalf("non-empty imports error = %v", err)
 	}
 }
+
+func TestProjectNativeMCPReadsEnvSourcedHeadersPerHarness(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	inventoryPath := filepath.Join(root, "mcporter.json")
+	writeNativeMCPTestFile(t, inventoryPath, `{
+  "imports": [],
+  "mcpServers": {
+    "jev": {"baseUrl": "http://mcp.example.test/mcp", "headers": {"x-agent-origin": "${ATERM_SESSION:-unseated}", "X-Static": "fixed"}, "x-codex": {"envHttpHeaders": {"x-agent-origin": "ATERM_SESSION"}}}
+  }
+}
+`)
+	if _, err := projectNativeMCP(nativeMCPOptions{Inventory: inventoryPath, Home: home, ProjectNative: true}); err != nil {
+		t.Fatal(err)
+	}
+	var claude map[string]any
+	raw, err := os.ReadFile(filepath.Join(home, ".claude.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(raw, &claude); err != nil {
+		t.Fatal(err)
+	}
+	headers := claude["mcpServers"].(map[string]any)["jev"].(map[string]any)["headers"].(map[string]any)
+	if headers["x-agent-origin"] != "${ATERM_SESSION:-unseated}" || headers["X-Static"] != "fixed" {
+		t.Fatalf("Claude headers = %v, want the ${VAR} form Claude expands itself", headers)
+	}
+	codexRaw, err := os.ReadFile(filepath.Join(home, ".codex", "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	codex := string(codexRaw)
+	if !strings.Contains(codex, `env_http_headers = { "x-agent-origin" = "ATERM_SESSION" }`) {
+		t.Fatalf("Codex projection missing env_http_headers:\n%s", codex)
+	}
+	if !strings.Contains(codex, `"X-Static" = "fixed"`) {
+		t.Fatalf("Codex projection lost the static header:\n%s", codex)
+	}
+	if strings.Contains(codex, "${ATERM_SESSION") {
+		t.Fatalf("Codex would send the literal ${VAR} text:\n%s", codex)
+	}
+}
+
+func TestLoadNativeMCPInventoryRefusesAMalformedEnvHeaderMapping(t *testing.T) {
+	cases := map[string]string{
+		"not a variable name": `"remote": {"baseUrl": "http://x.test/mcp", "x-codex": {"envHttpHeaders": {"x-agent-origin": "${ATERM_SESSION}"}}}`,
+		"stdio server":        `"local": {"command": "server", "x-codex": {"envHttpHeaders": {"x-agent-origin": "ATERM_SESSION"}}}`,
+	}
+	for label, server := range cases {
+		path := filepath.Join(t.TempDir(), "mcporter.json")
+		writeNativeMCPTestFile(t, path, `{"imports": [], "mcpServers": {`+server+`}}`)
+		if _, err := loadNativeMCPInventory(path); err == nil {
+			t.Errorf("%s: inventory loaded, want a refusal", label)
+		}
+	}
+}
