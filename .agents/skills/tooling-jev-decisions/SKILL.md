@@ -75,6 +75,16 @@ extra round trip.
 6. Send nothing that is a secret. Everything else may go. The provider does not
    train on requests.
 
+## Where Jev runs
+
+Jev is TypeSafe's hosted API (`api.typesafe.ai`), not a model the fleet
+serves, so it needs no GPU and no homelab host. Agent Proxy's `/v1/systemone`
+shim forwards to it with the one provider key, mounted as a file, and answers
+503 when the shim is disabled. Wherever Agent Proxy runs, Jev comes with it once
+that key is mounted and outbound HTTPS is open. Hosted chat routes are the
+separate dependency: they go through LiteLLM and fail closed in direct mode, so
+relocating the proxy for answers relocates LiteLLM too.
+
 ## Worked patterns
 
 The upstream cookbooks are the reference implementations. The three mapped onto
