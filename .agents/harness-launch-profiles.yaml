@@ -11,6 +11,7 @@ roles:
     agent: claude
     harnesses:
       claude:
+        model: claude-opus-5-5
         effort: high
   sysadmin-junior:
     agent: claude
@@ -30,13 +31,20 @@ roles:
         effort: high
   game-dev:
     agent: claude
+    harnesses:
+      claude:
+        model: claude-opus-5-5
   prod-director:
     agent: claude
     harnesses:
       claude:
+        model: claude-opus-5-5
         effort: high
   dev-advocate:
     agent: claude
+    harnesses:
+      claude:
+        model: claude-opus-5-5
   prod-manager:
     agent: goose
     harnesses:
