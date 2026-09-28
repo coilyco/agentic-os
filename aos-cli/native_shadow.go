@@ -261,10 +261,10 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 		}
 	}
 	if cmd.Bool("assigned-role") {
-		if command, err = applyRoleModelProfile(command, role, harness); err != nil {
+		if command, err = applyRoleModelProfile(ctx, command, role, harness, runtime.Stderr, listHarnessModels); err != nil {
 			return err
 		}
-		if err = applyRoleModelEnvironment(role, harness); err != nil {
+		if err = applyRoleModelEnvironment(ctx, role, harness, runtime.Stderr, listHarnessModels); err != nil {
 			return err
 		}
 	}

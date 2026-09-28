@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -161,7 +162,13 @@ func hasHarnessFlag(arguments []string, flag string) bool {
 
 // applyRoleModelProfile inserts a role's model flags into the harness argv,
 // which is either `<harness> ...` or `agent-compose launch <role> <harness> ...`.
-func applyRoleModelProfile(command []string, role, harness string) ([]string, error) {
+func applyRoleModelProfile(
+	ctx context.Context,
+	command []string,
+	role, harness string,
+	stderr io.Writer,
+	list modelLister,
+) ([]string, error) {
 	if role == "" || len(command) == 0 {
 		return command, nil
 	}
@@ -186,6 +193,12 @@ func applyRoleModelProfile(command []string, role, harness string) ([]string, er
 		return nil, fmt.Errorf("role %s launch refused: %w", role, err)
 	}
 	flags := roleModelArguments(document, role, harness, command[start:], os.Getenv)
+	if slices.Contains(flags, "--model") {
+		profile, notice := resolvePinnedModel(ctx, role, harness, document.Roles[role].Harnesses[harness], list)
+		reportModelNotice(stderr, notice)
+		document = withRoleModelProfile(document, role, harness, profile)
+		flags = roleModelArguments(document, role, harness, command[start:], os.Getenv)
+	}
 	if len(flags) == 0 {
 		return command, nil
 	}
@@ -193,6 +206,35 @@ func applyRoleModelProfile(command []string, role, harness string) ([]string, er
 	applied = append(applied, command[:start]...)
 	applied = append(applied, flags...)
 	return append(applied, command[start:]...), nil
+}
+
+// withRoleModelProfile returns a copy of document whose role runs harness at
+// profile, leaving the loaded document untouched.
+func withRoleModelProfile(
+	document harnessLaunchProfileDocument,
+	role, harness string,
+	profile harnessModelProfile,
+) harnessLaunchProfileDocument {
+	entry := document.Roles[role]
+	harnesses := make(map[string]harnessModelProfile, len(entry.Harnesses))
+	for name, existing := range entry.Harnesses {
+		harnesses[name] = existing
+	}
+	harnesses[harness] = profile
+	entry.Harnesses = harnesses
+	roles := make(map[string]harnessLaunchRole, len(document.Roles))
+	for name, existing := range document.Roles {
+		roles[name] = existing
+	}
+	roles[role] = entry
+	document.Roles = roles
+	return document
+}
+
+func reportModelNotice(stderr io.Writer, notice string) {
+	if notice != "" && stderr != nil {
+		fmt.Fprintln(stderr, notice)
+	}
 }
 
 // roleModelEnvironment returns the env a role's goose profile sets. Env the
@@ -220,7 +262,12 @@ func roleModelEnvironment(
 
 // applyRoleModelEnvironment exports a role's goose provider and model before the
 // native launch replaces this process, which is where the harness reads them.
-func applyRoleModelEnvironment(role, harness string) error {
+func applyRoleModelEnvironment(
+	ctx context.Context,
+	role, harness string,
+	stderr io.Writer,
+	list modelLister,
+) error {
 	if role == "" || harness != "goose" {
 		return nil
 	}
@@ -232,7 +279,13 @@ func applyRoleModelEnvironment(role, harness string) error {
 	if err != nil {
 		return fmt.Errorf("role %s launch refused: %w", role, err)
 	}
-	for name, value := range roleModelEnvironment(document, role, harness, os.Getenv) {
+	set := roleModelEnvironment(document, role, harness, os.Getenv)
+	if _, pinned := set["GOOSE_MODEL"]; pinned {
+		profile, notice := resolvePinnedModel(ctx, role, harness, document.Roles[role].Harnesses[harness], list)
+		reportModelNotice(stderr, notice)
+		set = roleModelEnvironment(withRoleModelProfile(document, role, harness, profile), role, harness, os.Getenv)
+	}
+	for name, value := range set {
 		if err := os.Setenv(name, value); err != nil {
 			return fmt.Errorf("set %s for role %s: %w", name, role, err)
 		}

@@ -84,20 +84,11 @@ directly.
 
 ## Role model profiles
 
-A role can pin the model and effort its Claude seat runs at, in
-[`harness-launch-profiles.yaml`](../.agents/harness-launch-profiles.yaml) under
-`roles.<role>.harnesses.claude` with `model` and `effort`. A role without the
-block keeps the harness default. Model is deployment tuning, so it sits beside
-the role's default agent, the one registry AOS already owns
-(`teable:coilyco-flight-deck/agentic-os#7835`).
+`roles.<role>.harnesses` in [`harness-launch-profiles.yaml`](../.agents/harness-launch-profiles.yaml) pins a seat's model (`teable:coilyco-flight-deck/agentic-os#7835`). `claude` takes `model` and `effort`, inserted as `--model` and `--effort` after the harness. `goose` takes `provider` and `model`, both required, exported as `GOOSE_PROVIDER` and `GOOSE_MODEL`. A typed flag or exported env (`ANTHROPIC_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL`, the goose pair) wins. A profile the loader rejects refuses the launch.
 
-An assigned-role launch, native or containerized, inserts `--model` and `--effort` directly after the harness. A flag the human typed wins, and so do `ANTHROPIC_MODEL` and `CLAUDE_CODE_EFFORT_LEVEL`, because Claude Code ranks the effort variable above the flag. A profile the loader rejects refuses the launch and names the role, so a seat never quietly falls back to a different model.
+A pin its source does not list launches on the harness default, with one warning naming the role, the pin, and the source. A pin whose source cannot be read within three seconds launches as pinned and says why it went unchecked (`teable:coilyco/agentic-os#8438`). Claude asks the Anthropic API, which needs `ANTHROPIC_API_KEY`, so a subscription seat launches unchecked. Agent Proxy lists no Claude routes, and the subscription token is no documented models credential. Goose asks `/v1/models` on its own `OPENAI_HOST`, which is Agent Proxy, for the `openai` provider only, and drops provider and model together.
 
-A goose seat takes `harnesses.goose` with `provider` and `model`, both required,
-exported at a native launch as `GOOSE_PROVIDER` and `GOOSE_MODEL`. Exported env
-wins, and the provider must be registered in goose's user config (`goose-config`).
-
-Validation has two layers. The loader checks the shape: claude and goose are the only harnesses, effort is `low` to `max`, and a claude model is an alias the live check can resolve (`sonnet`, `opus`, `haiku`, `fable`, plus `[1m]`) or a `claude-*` id. `aos models check` (`just aos-models-check`) then lists the Anthropic API models with `ANTHROPIC_API_KEY`. It resolves an alias to the newest id in its family, fails an absent id or an unsupported effort, and warns when a pinned id has a newer sibling. It refuses a Bedrock, Vertex, or Foundry session, where aliases resolve to different models. `--offline` runs the loader alone. The API returns no retirement dates, so only a scheduled run would catch a retirement. The schedule is off until an API key exists (`teable:coilyco-flight-deck/agentic-os#7838`).
+The loader checks shape: effort is `low` to `max`, and a claude model is an alias (`sonnet`, `opus`, `haiku`, `fable`, plus `[1m]`) or a `claude-*` id. `aos models check` (`just aos-models-check`) lists the Anthropic API models, resolves an alias to the newest in its family, fails an absent id or unsupported effort, warns on a newer sibling, and refuses Bedrock, Vertex, or Foundry. `--offline` runs the loader alone. Its schedule is off until an API key exists (`teable:coilyco-flight-deck/agentic-os#7838`).
 
 ## Claude UI
 

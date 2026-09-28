@@ -247,7 +247,14 @@ func runStandaloneIntegratedLaunch(
 	cmd *cli.Command,
 	opts integratedLaunchOptions,
 ) (returnErr error) {
-	command, err := applyRoleModelProfile(append([]string{opts.Agent}, opts.Arguments...), opts.Role, opts.Agent)
+	command, err := applyRoleModelProfile(
+		ctx,
+		append([]string{opts.Agent}, opts.Arguments...),
+		opts.Role,
+		opts.Agent,
+		cmd.Root().ErrWriter,
+		listHarnessModels,
+	)
 	if err != nil {
 		return err
 	}

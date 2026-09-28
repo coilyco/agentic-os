@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -155,13 +157,13 @@ func TestApplyRoleModelEnvironmentExportsBeforeLaunch(t *testing.T) {
 	t.Setenv("GOOSE_PROVIDER", "")
 	t.Setenv("GOOSE_MODEL", "")
 
-	if err := applyRoleModelEnvironment("assistant", "claude"); err != nil {
+	if err := applyRoleModelEnvironment(context.Background(), "assistant", "claude", io.Discard, listedModels("evaluation/deepseek-v4-pro")); err != nil {
 		t.Fatal(err)
 	}
 	if os.Getenv("GOOSE_PROVIDER") != "" {
 		t.Fatal("a claude launch exported goose environment")
 	}
-	if err := applyRoleModelEnvironment("assistant", "goose"); err != nil {
+	if err := applyRoleModelEnvironment(context.Background(), "assistant", "goose", io.Discard, listedModels("evaluation/deepseek-v4-pro")); err != nil {
 		t.Fatal(err)
 	}
 	if os.Getenv("GOOSE_PROVIDER") != "openai" || os.Getenv("GOOSE_MODEL") != "evaluation/deepseek-v4-pro" {
@@ -178,8 +180,9 @@ func TestApplyRoleModelProfileInsertsAfterTheHarness(t *testing.T) {
 	t.Setenv("ANTHROPIC_MODEL", "")
 	t.Setenv("CLAUDE_CODE_EFFORT_LEVEL", "")
 
-	got, err := applyRoleModelProfile(
-		[]string{"agent-compose", "launch", "builder", "claude", "-p", "hi"}, "builder", "claude")
+	listed := listedModels("claude-sonnet-5")
+	got, err := applyRoleModelProfile(context.Background(),
+		[]string{"agent-compose", "launch", "builder", "claude", "-p", "hi"}, "builder", "claude", io.Discard, listed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +190,7 @@ func TestApplyRoleModelProfileInsertsAfterTheHarness(t *testing.T) {
 	if !slices.Equal(got, want) {
 		t.Fatalf("native argv = %v, want %v", got, want)
 	}
-	got, err = applyRoleModelProfile([]string{"/usr/bin/claude"}, "builder", "claude")
+	got, err = applyRoleModelProfile(context.Background(), []string{"/usr/bin/claude"}, "builder", "claude", io.Discard, listed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +201,7 @@ func TestApplyRoleModelProfileInsertsAfterTheHarness(t *testing.T) {
 	if err := os.WriteFile(path, []byte("roles:\n  builder:\n    agent: claude\n    harnesses:\n      claude: {model: gpt-5}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, err = applyRoleModelProfile([]string{"claude"}, "builder", "claude")
+	_, err = applyRoleModelProfile(context.Background(), []string{"claude"}, "builder", "claude", io.Discard, listed)
 	if err == nil || !strings.Contains(err.Error(), "builder") || !strings.Contains(err.Error(), "gpt-5") {
 		t.Fatalf("invalid profile error = %v, want one naming the role and model", err)
 	}
@@ -265,5 +268,170 @@ func TestFetchAnthropicModelsFollowsPages(t *testing.T) {
 	}
 	if _, err := fetchAnthropicModels(context.Background(), server.Client(), server.URL, "wrong"); err == nil {
 		t.Fatal("an unauthorized response did not fail")
+	}
+}
+
+// listedModels is a model source that answers with ids, and never errors.
+func listedModels(ids ...string) modelLister {
+	return func(context.Context, string, harnessModelProfile) ([]string, string, error) {
+		return ids, "the fixture source", nil
+	}
+}
+
+func unreachableModels(context.Context, string, harnessModelProfile) ([]string, string, error) {
+	return nil, "", errors.New("no ANTHROPIC_API_KEY to list the Anthropic API models")
+}
+
+func writeProfilesFixture(t *testing.T, body string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "profiles.yaml")
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AOS_HARNESS_LAUNCH_PROFILES", path)
+	t.Setenv("ANTHROPIC_MODEL", "")
+	t.Setenv("CLAUDE_CODE_EFFORT_LEVEL", "")
+}
+
+func TestPinnedClaudeModelFallsBackWhenTheSourceDoesNotListIt(t *testing.T) {
+	writeProfilesFixture(t, modelProfileFixture)
+	for name, tc := range map[string]struct {
+		list        modelLister
+		want        []string
+		wantNotices []string
+	}{
+		"absent pin launches on the default": {
+			list: listedModels("claude-sonnet-5"),
+			want: []string{"claude", "--effort", "xhigh"},
+			wantNotices: []string{
+				"aos: warning: role pinned pins claude model claude-sonnet-4-6, which the fixture source does not list; " +
+					"launching on the claude default model",
+			},
+		},
+		"present pin launches unchanged": {
+			list: listedModels("claude-sonnet-5", "claude-sonnet-4-6"),
+			want: []string{"claude", "--model", "claude-sonnet-4-6", "--effort", "xhigh"},
+		},
+		"unknown availability launches as pinned": {
+			list: unreachableModels,
+			want: []string{"claude", "--model", "claude-sonnet-4-6", "--effort", "xhigh"},
+			wantNotices: []string{
+				"aos: role pinned launches on pinned claude model claude-sonnet-4-6 unchecked: " +
+					"no ANTHROPIC_API_KEY to list the Anthropic API models",
+			},
+		},
+	} {
+		var stderr strings.Builder
+		got, err := applyRoleModelProfile(context.Background(), []string{"claude"}, "pinned", "claude", &stderr, tc.list)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if !slices.Equal(got, tc.want) {
+			t.Errorf("%s: argv = %v, want %v", name, got, tc.want)
+		}
+		notices := strings.FieldsFunc(stderr.String(), func(r rune) bool { return r == '\n' })
+		if !slices.Equal(notices, tc.wantNotices) {
+			t.Errorf("%s: stderr = %q, want %q", name, notices, tc.wantNotices)
+		}
+	}
+}
+
+func TestModelAvailabilityIsNotAskedWhenTheHumanChoseTheModel(t *testing.T) {
+	writeProfilesFixture(t, modelProfileFixture)
+	asked := false
+	list := func(context.Context, string, harnessModelProfile) ([]string, string, error) {
+		asked = true
+		return nil, "", nil
+	}
+	got, err := applyRoleModelProfile(context.Background(),
+		[]string{"claude", "--model", "opus"}, "pinned", "claude", io.Discard, list)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if asked || !slices.Equal(got, []string{"claude", "--effort", "xhigh", "--model", "opus"}) {
+		t.Errorf("asked=%v argv=%v", asked, got)
+	}
+}
+
+func TestClaudeAliasIsListedByAnyFamilyMember(t *testing.T) {
+	t.Parallel()
+	if !modelListed("claude", "sonnet", []string{"claude-opus-5", "claude-sonnet-5"}) {
+		t.Error("sonnet alias not listed beside a sonnet id")
+	}
+	if modelListed("claude", "haiku", []string{"claude-sonnet-5"}) {
+		t.Error("haiku alias listed with no haiku id")
+	}
+	if !modelListed("claude", "claude-opus-5[1m]", []string{"claude-opus-5"}) {
+		t.Error("[1m] pin not matched to its base id")
+	}
+}
+
+func TestPinnedGooseModelFallsBackAsAPair(t *testing.T) {
+	writeProfilesFixture(t, gooseProfileFixture)
+	t.Setenv("GOOSE_PROVIDER", "")
+	t.Setenv("GOOSE_MODEL", "")
+	var stderr strings.Builder
+	if err := applyRoleModelEnvironment(context.Background(), "assistant", "goose", &stderr,
+		listedModels("chat/default")); err != nil {
+		t.Fatal(err)
+	}
+	if os.Getenv("GOOSE_PROVIDER") != "" || os.Getenv("GOOSE_MODEL") != "" {
+		t.Errorf("absent pin exported %q and %q", os.Getenv("GOOSE_PROVIDER"), os.Getenv("GOOSE_MODEL"))
+	}
+	want := "aos: warning: role assistant pins goose model evaluation/deepseek-v4-pro, " +
+		"which the fixture source does not list; launching on the goose default model\n"
+	if stderr.String() != want {
+		t.Errorf("stderr = %q, want %q", stderr.String(), want)
+	}
+
+	stderr.Reset()
+	if err := applyRoleModelEnvironment(context.Background(), "assistant", "goose", &stderr,
+		unreachableModels); err != nil {
+		t.Fatal(err)
+	}
+	if os.Getenv("GOOSE_MODEL") != "evaluation/deepseek-v4-pro" || !strings.Contains(stderr.String(), "unchecked") {
+		t.Errorf("unknown availability exported %q with stderr %q", os.Getenv("GOOSE_MODEL"), stderr.String())
+	}
+}
+
+func TestListGooseModelsAsksTheHostGooseIsConfiguredWith(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"chat/default"},{"id":"evaluation/deepseek-v4-pro"}]}`))
+	}))
+	t.Cleanup(server.Close)
+	config := filepath.Join(t.TempDir(), "config.yaml")
+	body := "OPENAI_HOST: " + server.URL + "\nOPENAI_BASE_PATH: v1/chat/completions\nextensions: {}\n"
+	if err := os.WriteFile(config, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	noEnv := func(string) string { return "" }
+	profile := harnessModelProfile{Provider: "openai", Model: "chat/default"}
+	ids, source, err := listGooseModels(context.Background(), server.Client(), profile, noEnv, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(ids, []string{"chat/default", "evaluation/deepseek-v4-pro"}) || source != server.URL+"/v1/models" {
+		t.Errorf("ids=%v source=%s", ids, source)
+	}
+	if _, _, err := listGooseModels(context.Background(), server.Client(),
+		harnessModelProfile{Provider: "ollama", Model: "m"}, noEnv, config); err == nil {
+		t.Error("a provider with no list source was treated as determined")
+	}
+	if _, _, err := listGooseModels(context.Background(), server.Client(), profile, noEnv,
+		filepath.Join(t.TempDir(), "absent.yaml")); err == nil {
+		t.Error("a missing OPENAI_HOST was treated as determined")
+	}
+}
+
+func TestListClaudeModelsNeedsAnAPIKey(t *testing.T) {
+	t.Parallel()
+	_, _, err := listClaudeModels(context.Background(), http.DefaultClient, func(string) string { return "" })
+	if err == nil || !strings.Contains(err.Error(), "ANTHROPIC_API_KEY") {
+		t.Errorf("err = %v, want one naming the missing key", err)
 	}
 }
