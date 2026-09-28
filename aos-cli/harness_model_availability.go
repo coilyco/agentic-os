@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -81,6 +82,10 @@ func listHarnessModels(ctx context.Context, harness string, profile harnessModel
 		return listClaudeModels(ctx, client, os.Getenv)
 	case "goose":
 		return listGooseModels(ctx, client, profile, os.Getenv, gooseConfigPath())
+	case "codex":
+		return listCodexModels(ctx)
+	case "opencode":
+		return listOpencodeModels(ctx, profile)
 	}
 	return nil, "", fmt.Errorf("no model list source for %s", harness)
 }
@@ -200,6 +205,110 @@ func fetchOpenAIModels(ctx context.Context, client *http.Client, endpoint, apiKe
 		ids = append(ids, model.ID)
 	}
 	return ids, nil
+}
+
+// listCodexModels asks codex app-server for the models the signed-in account
+// can use, which works for a ChatGPT login that holds no API key.
+func listCodexModels(ctx context.Context) ([]string, string, error) {
+	binary, err := exec.LookPath("codex")
+	if err != nil {
+		return nil, "", fmt.Errorf("resolve codex: %w", err)
+	}
+	command := exec.CommandContext(ctx, binary, "app-server", "--listen", "stdio://")
+	stdin, err := command.StdinPipe()
+	if err != nil {
+		return nil, "", err
+	}
+	stdout, err := command.StdoutPipe()
+	if err != nil {
+		return nil, "", err
+	}
+	if err := command.Start(); err != nil {
+		return nil, "", fmt.Errorf("start codex app-server: %w", err)
+	}
+	ids, protocolErr := listCodexModelsRPC(json.NewEncoder(stdin), json.NewDecoder(stdout))
+	_ = stdin.Close()
+	_ = command.Wait()
+	if protocolErr != nil {
+		return nil, "", protocolErr
+	}
+	return ids, "codex app-server model/list", nil
+}
+
+func listCodexModelsRPC(encoder *json.Encoder, decoder *json.Decoder) ([]string, error) {
+	if err := encoder.Encode(map[string]any{
+		"method": "initialize",
+		"id":     1,
+		"params": map[string]any{
+			"clientInfo": map[string]string{"name": "agentic_os", "title": "Agentic OS", "version": version},
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("initialize codex app-server: %w", err)
+	}
+	if _, err := readCodexRPCResponse(decoder, 1); err != nil {
+		return nil, fmt.Errorf("initialize codex app-server: %w", err)
+	}
+	if err := encoder.Encode(map[string]any{"method": "initialized", "params": map[string]any{}}); err != nil {
+		return nil, fmt.Errorf("acknowledge codex app-server initialization: %w", err)
+	}
+	var ids []string
+	cursor := ""
+	for request := 2; request < 52; request++ {
+		params := map[string]any{"includeHidden": true}
+		if cursor != "" {
+			params["cursor"] = cursor
+		}
+		if err := encoder.Encode(map[string]any{"method": "model/list", "id": request, "params": params}); err != nil {
+			return nil, fmt.Errorf("list codex models: %w", err)
+		}
+		raw, err := readCodexRPCResponse(decoder, request)
+		if err != nil {
+			return nil, fmt.Errorf("list codex models: %w", err)
+		}
+		var page struct {
+			Data []struct {
+				ID    string `json:"id"`
+				Model string `json:"model"`
+			} `json:"data"`
+			NextCursor *string `json:"nextCursor"`
+		}
+		if err := json.Unmarshal(raw, &page); err != nil {
+			return nil, fmt.Errorf("decode codex models: %w", err)
+		}
+		for _, model := range page.Data {
+			ids = append(ids, model.ID, model.Model)
+		}
+		if page.NextCursor == nil || *page.NextCursor == "" {
+			return ids, nil
+		}
+		cursor = *page.NextCursor
+	}
+	return nil, errors.New("list codex models: pagination did not terminate")
+}
+
+// listOpencodeModels runs `opencode models <provider>`, which reads the same
+// config and credentials the launched opencode will.
+func listOpencodeModels(ctx context.Context, profile harnessModelProfile) ([]string, string, error) {
+	binary, err := exec.LookPath("opencode")
+	if err != nil {
+		return nil, "", fmt.Errorf("resolve opencode: %w", err)
+	}
+	provider, _, _ := strings.Cut(profile.Model, "/")
+	output, err := exec.CommandContext(ctx, binary, "models", provider).Output()
+	if err != nil {
+		return nil, "", fmt.Errorf("opencode models %s: %w", provider, err)
+	}
+	return parseOpencodeModels(output), "opencode models " + provider, nil
+}
+
+func parseOpencodeModels(output []byte) []string {
+	var ids []string
+	for _, line := range strings.Split(string(output), "\n") {
+		if id := strings.TrimSpace(line); strings.Contains(id, "/") && !strings.ContainsAny(id, " \t") {
+			ids = append(ids, id)
+		}
+	}
+	return ids
 }
 
 func firstNonEmpty(values ...string) string {

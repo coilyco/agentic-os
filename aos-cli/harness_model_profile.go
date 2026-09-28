@@ -11,8 +11,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,16 +20,19 @@ import (
 )
 
 // harnessModelProfile pins what one role runs a harness at: model and effort
-// for claude, provider and model for goose. See docs/native-harness-config.md.
+// for claude, provider and model for goose, model alone for codex and opencode.
 type harnessModelProfile struct {
 	Model    string `yaml:"model"`
 	Effort   string `yaml:"effort"`
 	Provider string `yaml:"provider"`
 }
 
-// gooseSettingPattern is the spelling a goose provider or model id may take,
-// which covers route ids such as evaluation/deepseek-v4-pro.
-var gooseSettingPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`)
+// modelSettingPattern is the spelling a provider or model id may take, which
+// covers route ids such as evaluation/deepseek-v4-pro.
+var modelSettingPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`)
+
+// opencodeModelPattern is opencode's provider/model form.
+var opencodeModelPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*/[A-Za-z0-9][A-Za-z0-9._:/-]*$`)
 
 var claudeEffortLevels = []string{"low", "medium", "high", "xhigh", "max"}
 
@@ -54,11 +57,31 @@ func validateHarnessModelProfile(role, harness string, profile harnessModelProfi
 		return validateClaudeModelProfile(role, profile)
 	case "goose":
 		return validateGooseModelProfile(role, profile)
+	case "codex":
+		return validateModelOnlyProfile(role, harness, profile, modelSettingPattern,
+			"a non-empty id of letters, digits, and . _ : / -")
+	case "opencode":
+		return validateModelOnlyProfile(role, harness, profile, opencodeModelPattern, "provider/model")
 	}
 	return profile, fmt.Errorf(
-		"harness launch profile role %s sets a model for %q, but only claude and goose model profiles are supported",
-		role, harness,
+		"harness launch profile role %s sets a model for %q, but only %s model profiles are supported",
+		role, harness, nativeHarnessList(),
 	)
+}
+
+func validateModelOnlyProfile(
+	role, harness string,
+	profile harnessModelProfile,
+	pattern *regexp.Regexp,
+	want string,
+) (harnessModelProfile, error) {
+	if profile.Effort != "" || profile.Provider != "" {
+		return profile, fmt.Errorf("harness launch profile role %s %s profile takes a model and nothing else", role, harness)
+	}
+	if !pattern.MatchString(profile.Model) {
+		return profile, fmt.Errorf("harness launch profile role %s %s model %q: want %s", role, harness, profile.Model, want)
+	}
+	return profile, nil
 }
 
 // validateGooseModelProfile requires both halves, since a model without its
@@ -68,7 +91,7 @@ func validateGooseModelProfile(role string, profile harnessModelProfile) (harnes
 		return profile, fmt.Errorf("harness launch profile role %s goose profile sets effort, which goose does not take", role)
 	}
 	for name, value := range map[string]string{"provider": profile.Provider, "model": profile.Model} {
-		if !gooseSettingPattern.MatchString(value) {
+		if !modelSettingPattern.MatchString(value) {
 			return profile, fmt.Errorf(
 				"harness launch profile role %s goose %s %q: want a non-empty id of letters, digits, and . _ : / -",
 				role, name, value,
@@ -131,21 +154,60 @@ func roleModelArguments(
 	env func(string) string,
 ) []string {
 	profile, ok := document.Roles[role].Harnesses[harness]
-	// Only claude takes these flags. A goose profile reaches goose as env.
-	if !ok || harness != "claude" {
+	if !ok {
 		return nil
 	}
-	var flags []string
-	if profile.Model != "" && !hasHarnessFlag(arguments, "--model") &&
-		strings.TrimSpace(env("ANTHROPIC_MODEL")) == "" {
-		flags = append(flags, "--model", profile.Model)
-	}
+	flags := roleModelFlag(harness, profile, arguments, env)
 	// Claude Code ranks CLAUDE_CODE_EFFORT_LEVEL above --effort.
-	if profile.Effort != "" && !hasHarnessFlag(arguments, "--effort") &&
+	if harness == "claude" && profile.Effort != "" && !hasHarnessFlag(arguments, "--effort") &&
 		strings.TrimSpace(env("CLAUDE_CODE_EFFORT_LEVEL")) == "" {
 		flags = append(flags, "--effort", profile.Effort)
 	}
 	return flags
+}
+
+// roleModelFlag is the model half of roleModelArguments. A goose profile
+// reaches goose as env, so it adds no flag.
+func roleModelFlag(harness string, profile harnessModelProfile, arguments []string, env func(string) string) []string {
+	if profile.Model == "" {
+		return nil
+	}
+	switch harness {
+	case "claude":
+		if !hasHarnessFlag(arguments, "--model") && strings.TrimSpace(env("ANTHROPIC_MODEL")) == "" {
+			return []string{"--model", profile.Model}
+		}
+	case "codex":
+		// A root -c override reaches every codex subcommand, where --model does not.
+		if !hasHarnessFlag(arguments, "--model") && !hasHarnessFlag(arguments, "-m") &&
+			!hasCodexConfigOverride(arguments, "model") {
+			return []string{"-c", "model=" + strconv.Quote(profile.Model)}
+		}
+	case "opencode":
+		if !hasHarnessFlag(arguments, "--model") && !hasHarnessFlag(arguments, "-m") {
+			return []string{"--model", profile.Model}
+		}
+	}
+	return nil
+}
+
+func hasCodexConfigOverride(arguments []string, key string) bool {
+	for index, argument := range arguments {
+		if argument == "--" {
+			return false
+		}
+		value, inline := strings.CutPrefix(argument, "--config=")
+		if !inline {
+			value = ""
+			if (argument == "-c" || argument == "--config") && index+1 < len(arguments) {
+				value = arguments[index+1]
+			}
+		}
+		if strings.HasPrefix(strings.TrimSpace(value), key+"=") {
+			return true
+		}
+	}
+	return false
 }
 
 func hasHarnessFlag(arguments []string, flag string) bool {
@@ -193,8 +255,9 @@ func applyRoleModelProfile(
 		return nil, fmt.Errorf("role %s launch refused: %w", role, err)
 	}
 	flags := roleModelArguments(document, role, harness, command[start:], os.Getenv)
-	if slices.Contains(flags, "--model") {
-		profile, notice := resolvePinnedModel(ctx, role, harness, document.Roles[role].Harnesses[harness], list)
+	pinned := document.Roles[role].Harnesses[harness]
+	if len(roleModelFlag(harness, pinned, command[start:], os.Getenv)) > 0 {
+		profile, notice := resolvePinnedModel(ctx, role, harness, pinned, list)
 		reportModelNotice(stderr, notice)
 		document = withRoleModelProfile(document, role, harness, profile)
 		flags = roleModelArguments(document, role, harness, command[start:], os.Getenv)

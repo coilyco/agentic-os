@@ -45,7 +45,11 @@ func loadModelFixture(t *testing.T, data string) harnessLaunchProfileDocument {
 func TestLoadHarnessLaunchProfilesRejectsMalformedModelProfiles(t *testing.T) {
 	t.Parallel()
 	for name, body := range map[string]string{
-		"non-claude harness": "roles:\n  a:\n    agent: codex\n    harnesses:\n      codex: {model: gpt-5}\n",
+		"unknown harness":    "roles:\n  a:\n    agent: codex\n    harnesses:\n      aider: {model: gpt-5}\n",
+		"codex with effort":  "roles:\n  a:\n    agent: codex\n    harnesses:\n      codex: {model: gpt-6-sol, effort: high}\n",
+		"codex no model":     "roles:\n  a:\n    agent: codex\n    harnesses:\n      codex: {}\n",
+		"opencode bare id":   "roles:\n  a:\n    agent: opencode\n    harnesses:\n      opencode: {model: deepseek-v4-pro}\n",
+		"opencode provider":  "roles:\n  a:\n    agent: opencode\n    harnesses:\n      opencode: {provider: x, model: a/b}\n",
 		"effort off enum":    "roles:\n  a:\n    agent: claude\n    harnesses:\n      claude: {model: sonnet, effort: extreme}\n",
 		"unresolvable alias": "roles:\n  a:\n    agent: claude\n    harnesses:\n      claude: {model: best}\n",
 		"not a claude id":    "roles:\n  a:\n    agent: claude\n    harnesses:\n      claude: {model: gpt-5}\n",
@@ -433,5 +437,137 @@ func TestListClaudeModelsNeedsAnAPIKey(t *testing.T) {
 	_, _, err := listClaudeModels(context.Background(), http.DefaultClient, func(string) string { return "" })
 	if err == nil || !strings.Contains(err.Error(), "ANTHROPIC_API_KEY") {
 		t.Errorf("err = %v, want one naming the missing key", err)
+	}
+}
+
+const modelOnlyProfileFixture = `
+roles:
+  operator:
+    agent: codex
+    harnesses:
+      codex:
+        model: gpt-6-sol
+  junior:
+    agent: opencode
+    harnesses:
+      opencode:
+        model: agent-proxy/evaluation/deepseek-v4-pro
+`
+
+func TestCodexAndOpencodePinsReachTheirHarness(t *testing.T) {
+	t.Parallel()
+	document := loadModelFixture(t, modelOnlyProfileFixture)
+	noEnv := func(string) string { return "" }
+	for name, tc := range map[string]struct {
+		role, harness string
+		args          []string
+		want          []string
+	}{
+		"codex pin":           {"operator", "codex", nil, []string{"-c", `model="gpt-6-sol"`}},
+		"codex typed -m":      {"operator", "codex", []string{"-m", "o3"}, nil},
+		"codex typed -c":      {"operator", "codex", []string{"-c", "model=o3"}, nil},
+		"codex inline config": {"operator", "codex", []string{"--config=model=o3"}, nil},
+		"codex prompt text":   {"operator", "codex", []string{"exec", "model=o3"}, []string{"-c", `model="gpt-6-sol"`}},
+		"codex other -c":      {"operator", "codex", []string{"-c", "sandbox_mode=x"}, []string{"-c", `model="gpt-6-sol"`}},
+		"opencode pin":        {"junior", "opencode", nil, []string{"--model", "agent-proxy/evaluation/deepseek-v4-pro"}},
+		"opencode typed -m":   {"junior", "opencode", []string{"-m", "a/b"}, nil},
+		"wrong harness":       {"junior", "codex", nil, nil},
+	} {
+		got := roleModelArguments(document, tc.role, tc.harness, tc.args, noEnv)
+		if !slices.Equal(got, tc.want) {
+			t.Errorf("%s: got %v, want %v", name, got, tc.want)
+		}
+	}
+}
+
+func TestPinnedCodexAndOpencodeModelsFallBack(t *testing.T) {
+	writeProfilesFixture(t, modelOnlyProfileFixture)
+	for name, tc := range map[string]struct {
+		command    []string
+		role       string
+		list       modelLister
+		want       []string
+		wantNotice string
+	}{
+		"codex absent": {
+			[]string{"codex"}, "operator", listedModels("gpt-6-astra"),
+			[]string{"codex"}, "role operator pins codex model gpt-6-sol, which the fixture source does not list",
+		},
+		"codex present": {
+			[]string{"codex", "exec"}, "operator", listedModels("gpt-6-sol"),
+			[]string{"codex", "-c", `model="gpt-6-sol"`, "exec"}, "",
+		},
+		"opencode absent": {
+			[]string{"opencode"}, "junior", listedModels("agent-proxy/evaluation/deepseek-v4-flash"),
+			[]string{"opencode"}, "role junior pins opencode model agent-proxy/evaluation/deepseek-v4-pro",
+		},
+		"opencode unknown": {
+			[]string{"opencode"}, "junior", unreachableModels,
+			[]string{"opencode", "--model", "agent-proxy/evaluation/deepseek-v4-pro"}, "unchecked",
+		},
+	} {
+		var stderr strings.Builder
+		got, err := applyRoleModelProfile(context.Background(), tc.command, tc.role, tc.command[0], &stderr, tc.list)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if !slices.Equal(got, tc.want) {
+			t.Errorf("%s: argv = %v, want %v", name, got, tc.want)
+		}
+		if tc.wantNotice == "" && stderr.Len() != 0 || !strings.Contains(stderr.String(), tc.wantNotice) {
+			t.Errorf("%s: stderr = %q, want %q", name, stderr.String(), tc.wantNotice)
+		}
+	}
+}
+
+func TestListCodexModelsRPCFollowsCursors(t *testing.T) {
+	t.Parallel()
+	requestsR, requestsW := io.Pipe()
+	responsesR, responsesW := io.Pipe()
+	go func() {
+		decoder := json.NewDecoder(requestsR)
+		encoder := json.NewEncoder(responsesW)
+		for {
+			var request struct {
+				ID     *int           `json:"id"`
+				Method string         `json:"method"`
+				Params map[string]any `json:"params"`
+			}
+			if err := decoder.Decode(&request); err != nil {
+				return
+			}
+			if request.ID == nil {
+				continue
+			}
+			result := map[string]any{}
+			if request.Method == "model/list" {
+				if request.Params["includeHidden"] != true {
+					t.Errorf("model/list without includeHidden: %v", request.Params)
+				}
+				if request.Params["cursor"] == nil {
+					result = map[string]any{"data": []map[string]string{{"id": "gpt-6-sol", "model": "gpt-6-sol"}}, "nextCursor": "page2"}
+				} else {
+					result = map[string]any{"data": []map[string]string{{"id": "gpt-5.5", "model": "gpt-5.5"}}, "nextCursor": nil}
+				}
+			}
+			_ = encoder.Encode(map[string]any{"id": *request.ID, "result": result})
+		}
+	}()
+	t.Cleanup(func() { _ = requestsW.Close(); _ = responsesW.Close() })
+	ids, err := listCodexModelsRPC(json.NewEncoder(requestsW), json.NewDecoder(responsesR))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(ids, "gpt-6-sol") || !slices.Contains(ids, "gpt-5.5") {
+		t.Errorf("ids = %v, want both pages", ids)
+	}
+}
+
+func TestParseOpencodeModelsKeepsProviderModelLines(t *testing.T) {
+	t.Parallel()
+	got := parseOpencodeModels([]byte("agent-proxy/evaluation/deepseek-v4-flash\nagent-proxy/evaluation/deepseek-v4-pro\n\nWarning: cache stale\n"))
+	want := []string{"agent-proxy/evaluation/deepseek-v4-flash", "agent-proxy/evaluation/deepseek-v4-pro"}
+	if !slices.Equal(got, want) {
+		t.Errorf("got %v, want %v", got, want)
 	}
 }

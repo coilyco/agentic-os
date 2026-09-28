@@ -7,6 +7,9 @@ roles:
         effort: high
   eng-junior:
     agent: opencode
+    harnesses:
+      opencode:
+        model: agent-proxy/evaluation/deepseek-v4-pro
   sysadmin-senior:
     agent: claude
     harnesses:
@@ -17,6 +20,9 @@ roles:
     agent: claude
   sysadmin-access:
     agent: codex
+    harnesses:
+      codex:
+        model: gpt-6-sol
   scientist:
     agent: claude
     harnesses:
