@@ -67,6 +67,8 @@ repos:
     - eco-server/**
   lore:
     band: micro # its info lives primarily in skills
+  sentry-bridge:
+    band: small # one small poller service
   sirens-echo:
     band: large
     excludes: # eval/<record>/ holds Sirens Deep evaluation records
