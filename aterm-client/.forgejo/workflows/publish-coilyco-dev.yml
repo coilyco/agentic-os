@@ -34,6 +34,8 @@ jobs:
       - run: just install
       - run: just gate
       - run: just build-hosted
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
       - uses: actions/upload-artifact@v3
         with:
           name: hosted-dist
