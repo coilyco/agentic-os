@@ -90,7 +90,7 @@ aos-role-question *ARGS:
 aos-standalone-composition-smoke *ARGS:
     @./aos-cli/aos --agent codex --role eng-platform --image agentic-os:aos-local --auth=false -- --version "$@"
 
-# Check per-role model profiles against the live provider model list (needs ANTHROPIC_API_KEY, or pass --offline).
+# Check per-role model profiles against the live provider model list (needs the operational-only ANTHROPIC_MODELS_API_KEY, or pass --offline).
 aos-models-check *ARGS:
     @go run -C aos-cli . models check "$@"
 

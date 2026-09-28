@@ -276,6 +276,11 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 	if err := prependNativeShimPath(workspace.SessionHome); err != nil {
 		return err
 	}
+	for _, key := range withheldAnthropicKeys {
+		if strings.TrimSpace(os.Getenv(key)) != "" {
+			fmt.Fprintf(runtime.Stderr, "aos: withheld %s from %s: an Anthropic API key is for operational checks only\n", key, harness)
+		}
+	}
 	runtime.Progress.Ready()
 	runtime.Progress.Exec(command)
 	return execNative(command)

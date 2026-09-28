@@ -498,8 +498,8 @@ func orDefault(value string) string {
 	return value
 }
 
-// runModelsCheck is `aos models check`. It needs a first-party API key, and
-// refuses a Bedrock or Vertex session whose aliases resolve differently.
+// runModelsCheck is `aos models check`. It reads only the operational key
+// name, and refuses a Bedrock or Vertex session whose aliases resolve differently.
 func runModelsCheck(ctx context.Context, cmd *cli.Command) error {
 	if cmd.Bool("offline") {
 		if _, err := loadConfiguredHarnessLaunchProfiles(); err != nil {
@@ -513,9 +513,9 @@ func runModelsCheck(ctx context.Context, cmd *cli.Command) error {
 			return fmt.Errorf("models check covers the Anthropic API only, and %s is set", variable)
 		}
 	}
-	apiKey := strings.TrimSpace(os.Getenv("ANTHROPIC_API_KEY"))
+	apiKey := strings.TrimSpace(os.Getenv("ANTHROPIC_MODELS_API_KEY"))
 	if apiKey == "" {
-		return fmt.Errorf("models check needs ANTHROPIC_API_KEY to list the provider's models")
+		return fmt.Errorf("models check needs ANTHROPIC_MODELS_API_KEY, the operational-only key, and never reads ANTHROPIC_API_KEY")
 	}
 	document, err := loadConfiguredHarnessLaunchProfiles()
 	if err != nil {

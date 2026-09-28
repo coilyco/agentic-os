@@ -651,7 +651,7 @@ func makeTreeReadOnly(root string) error {
 
 func environmentWith(overrides map[string]string) []string {
 	values := map[string]string{}
-	for _, pair := range os.Environ() {
+	for _, pair := range harnessEnvironment(os.Environ()) {
 		key, value, ok := strings.Cut(pair, "=")
 		if ok {
 			values[key] = value

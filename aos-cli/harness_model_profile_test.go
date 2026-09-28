@@ -283,7 +283,7 @@ func listedModels(ids ...string) modelLister {
 }
 
 func unreachableModels(context.Context, string, harnessModelProfile) ([]string, string, error) {
-	return nil, "", errors.New("no ANTHROPIC_API_KEY to list the Anthropic API models")
+	return nil, "", errors.New("list models: connection refused")
 }
 
 func writeProfilesFixture(t *testing.T, body string) {
@@ -321,7 +321,7 @@ func TestPinnedClaudeModelFallsBackWhenTheSourceDoesNotListIt(t *testing.T) {
 			want: []string{"claude", "--model", "claude-sonnet-4-6", "--effort", "xhigh"},
 			wantNotices: []string{
 				"aos: role pinned launches on pinned claude model claude-sonnet-4-6 unchecked: " +
-					"no ANTHROPIC_API_KEY to list the Anthropic API models",
+					"list models: connection refused",
 			},
 		},
 	} {
@@ -432,11 +432,14 @@ func TestListGooseModelsAsksTheHostGooseIsConfiguredWith(t *testing.T) {
 	}
 }
 
-func TestListClaudeModelsNeedsAnAPIKey(t *testing.T) {
-	t.Parallel()
-	_, _, err := listClaudeModels(context.Background(), http.DefaultClient, func(string) string { return "" })
-	if err == nil || !strings.Contains(err.Error(), "ANTHROPIC_API_KEY") {
-		t.Errorf("err = %v, want one naming the missing key", err)
+func TestClaudePinsAreNeverCheckedAtLaunch(t *testing.T) {
+	// A claude list needs an API key, and a launch must never carry one.
+	t.Setenv("ANTHROPIC_API_KEY", "synthetic")
+	t.Setenv("ANTHROPIC_MODELS_API_KEY", "synthetic")
+	profile := harnessModelProfile{Model: "claude-sonnet-9-9"}
+	got, notice := resolvePinnedModel(context.Background(), "pinned", "claude", profile, listHarnessModels)
+	if got != profile || notice != "" {
+		t.Errorf("claude pin = %+v with notice %q, want it kept silently", got, notice)
 	}
 }
 

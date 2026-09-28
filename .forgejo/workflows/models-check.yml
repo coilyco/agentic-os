@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v6
       - name: Check role model profiles against the provider
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_MODELS_API_KEY }}
+          ANTHROPIC_MODELS_API_KEY: ${{ secrets.ANTHROPIC_MODELS_API_KEY }}
         run: just aos-models-check
       - name: Alert Telegram on failure
         if: ${{ failure() }}

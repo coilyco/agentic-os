@@ -48,7 +48,7 @@ func processStartIdentities(pids []int) (map[int]string, error) {
 
 func execNative(command []string) error {
 	child := exec.Command(command[0], command[1:]...)
-	child.Env = os.Environ()
+	child.Env = harnessEnvironment(os.Environ())
 	child.Stdin = os.Stdin
 	child.Stdout = os.Stdout
 	child.Stderr = os.Stderr

@@ -10,8 +10,9 @@ before it starts Docker, mirroring [aos-auth.md](aos-auth.md).
 
 ## Host discovery
 
-`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, and `CLAUDE_CODE_OAUTH_TOKEN`
-cross the container boundary by name when present, so nothing is projected.
+`ANTHROPIC_AUTH_TOKEN` and `CLAUDE_CODE_OAUTH_TOKEN` cross the container
+boundary by name when present, so nothing is projected. `ANTHROPIC_API_KEY` is
+not a login, per the rule below.
 
 Otherwise AOS resolves `~/.claude/.credentials.json`. The file must be readable
 and regular. AOS reports unreadable and non-file credentials without printing
@@ -35,12 +36,24 @@ keeps the login in the Keychain. AOS previously treated a missing file as
 projected it, and only then reported `Not logged in`.
 
 Discovery now fails before Docker starts and names the three ways forward: run
-`claude /login` on the host, export `ANTHROPIC_API_KEY`, or pass `--auth=false`
-for unauthenticated commands.
+`claude /login` on the host, export `CLAUDE_CODE_OAUTH_TOKEN`, or pass
+`--auth=false` for unauthenticated commands.
 
 A dry run starts no container, so it reports the same message on stderr and
 still renders the plan, matching
 [aos-auth.md](aos-auth.md#container-staging).
+
+## Anthropic API keys are operational-only
+
+Seats run on the Claude subscription. An Anthropic API key, when one exists,
+serves operational checks such as `aos models check`, and never a seat's
+inference. Kai set this as a hard stop on 2026-09-28.
+
+The launcher enforces it. `ANTHROPIC_API_KEY` counts as no Claude login and never
+crosses into a container. Every native launch and container bootstrap strips it,
+along with `ANTHROPIC_MODELS_API_KEY`, from the harness environment and says so
+on stderr. The models check reads only `ANTHROPIC_MODELS_API_KEY`, so the
+operational key never shares the name Claude Code consumes.
 
 ## Standalone Codex authentication
 

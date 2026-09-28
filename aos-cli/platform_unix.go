@@ -93,7 +93,7 @@ func execNative(command []string) error {
 	if err != nil {
 		return err
 	}
-	return syscall.Exec(path, command, os.Environ())
+	return syscall.Exec(path, command, harnessEnvironment(os.Environ()))
 }
 
 func execAs(uid, gid int, spec execSpec) error {

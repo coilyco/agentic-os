@@ -366,7 +366,6 @@ func readClaudeKeyringSecret(ctx context.Context, service, account string) ([]by
 // forwarded projects nothing, so the harness starts logged out.
 var (
 	claudeEnvironmentAuthKeys = []string{
-		"ANTHROPIC_API_KEY",
 		"ANTHROPIC_AUTH_TOKEN",
 		"CLAUDE_CODE_OAUTH_TOKEN",
 	}
@@ -376,6 +375,22 @@ var (
 		"OPENAI_API_KEY",
 	}
 )
+
+// withheldAnthropicKeys never reach a harness, because an Anthropic API key is
+// for operational checks only. See docs/aos-auth.md.
+var withheldAnthropicKeys = []string{"ANTHROPIC_API_KEY", "ANTHROPIC_MODELS_API_KEY"}
+
+// harnessEnvironment is environ without the withheld keys.
+func harnessEnvironment(environ []string) []string {
+	kept := make([]string, 0, len(environ))
+	for _, pair := range environ {
+		key, _, _ := strings.Cut(pair, "=")
+		if !containsString(withheldAnthropicKeys, key) {
+			kept = append(kept, pair)
+		}
+	}
+	return kept
+}
 
 func environmentAuthPresent(keys []string) bool {
 	for _, key := range keys {
@@ -443,7 +458,7 @@ func discoverClaudeAuthProjection(
 		return authProjection{}, fmt.Errorf("claude auth: macOS Keychain credentials are unreadable: %w", keyringErr)
 	}
 	return authProjection{}, fmt.Errorf(
-		"claude auth: credentials were not found at %s or in the macOS Keychain under service %s; run `claude /login` on the host, export ANTHROPIC_API_KEY, or use --auth=false for unauthenticated commands",
+		"claude auth: credentials were not found at %s or in the macOS Keychain under service %s; run `claude /login` on the host, export CLAUDE_CODE_OAUTH_TOKEN, or use --auth=false for unauthenticated commands",
 		source,
 		service,
 	)

@@ -20,6 +20,10 @@ import (
 // source it asked. An error means availability could not be determined.
 type modelLister func(ctx context.Context, harness string, profile harnessModelProfile) ([]string, string, error)
 
+// errNoLaunchModelSource marks a harness whose pins are checked only by the
+// operational `aos models check`, so a launch keeps the pin and says nothing.
+var errNoLaunchModelSource = errors.New("no launch-time model list source")
+
 // modelAvailabilityTimeout bounds the one list call a launch makes, so an
 // unreachable source costs a launch seconds and never blocks it.
 const modelAvailabilityTimeout = 3 * time.Second
@@ -38,6 +42,9 @@ func resolvePinnedModel(
 	ctx, cancel := context.WithTimeout(ctx, modelAvailabilityTimeout)
 	defer cancel()
 	ids, source, err := list(ctx, harness, profile)
+	if errors.Is(err, errNoLaunchModelSource) {
+		return profile, ""
+	}
 	if err != nil {
 		return profile, fmt.Sprintf(
 			"aos: role %s launches on pinned %s model %s unchecked: %v",
@@ -79,7 +86,8 @@ func listHarnessModels(ctx context.Context, harness string, profile harnessModel
 	client := &http.Client{Timeout: modelAvailabilityTimeout}
 	switch harness {
 	case "claude":
-		return listClaudeModels(ctx, client, os.Getenv)
+		// The only listing credential is an API key, which never reaches a launch.
+		return nil, "", errNoLaunchModelSource
 	case "goose":
 		return listGooseModels(ctx, client, profile, os.Getenv, gooseConfigPath())
 	case "codex":
@@ -88,31 +96,6 @@ func listHarnessModels(ctx context.Context, harness string, profile harnessModel
 		return listOpencodeModels(ctx, profile)
 	}
 	return nil, "", fmt.Errorf("no model list source for %s", harness)
-}
-
-func listClaudeModels(ctx context.Context, client *http.Client, env func(string) string) ([]string, string, error) {
-	for _, variable := range []string{"CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"} {
-		if strings.TrimSpace(env(variable)) != "" {
-			return nil, "", fmt.Errorf("%s is set, and only the Anthropic API is checked", variable)
-		}
-	}
-	apiKey := strings.TrimSpace(env("ANTHROPIC_API_KEY"))
-	if apiKey == "" {
-		return nil, "", errors.New("no ANTHROPIC_API_KEY to list the Anthropic API models")
-	}
-	endpoint := anthropicModelsURL
-	if override := strings.TrimSpace(env("AOS_MODELS_API_URL")); override != "" {
-		endpoint = override
-	}
-	models, err := fetchAnthropicModels(ctx, client, endpoint, apiKey)
-	if err != nil {
-		return nil, "", err
-	}
-	ids := make([]string, 0, len(models))
-	for _, model := range models {
-		ids = append(ids, model.ID)
-	}
-	return ids, "the Anthropic API", nil
 }
 
 // listGooseModels asks the OpenAI-compatible host goose itself is configured

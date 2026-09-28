@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -269,10 +270,13 @@ func TestCodexEnvironmentAuthAndDisabledAuthForwarding(t *testing.T) {
 		t.Fatalf("Codex environment auth mounts = %#v, error = %v", projection.Mounts, err)
 	}
 	withAuth := forwardedEnvironment(true)
-	for _, want := range []string{"CODEX_API_KEY", "ANTHROPIC_API_KEY", "GOOSE_MODEL"} {
+	for _, want := range []string{"CODEX_API_KEY", "GOOSE_MODEL"} {
 		if !containsArg(withAuth, want) {
 			t.Errorf("authenticated environment omitted %s: %v", want, withAuth)
 		}
+	}
+	if containsArg(withAuth, "ANTHROPIC_API_KEY") {
+		t.Errorf("an Anthropic API key crossed into a container: %v", withAuth)
 	}
 	withoutAuth := forwardedEnvironment(false)
 	if containsArg(withoutAuth, "CODEX_API_KEY") || containsArg(withoutAuth, "ANTHROPIC_API_KEY") {
@@ -940,7 +944,9 @@ func TestClaudeAuthProjectionFailsClosedWithoutACredential(t *testing.T) {
 // An environment credential crosses by name, so no file needs projecting.
 func TestClaudeAuthProjectionDefersToTheEnvironment(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("ANTHROPIC_API_KEY", "sk-test")
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
+	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "synthetic")
 
 	projection, err := discoverClaudeAuthProjection(
 		context.Background(),
@@ -954,5 +960,31 @@ func TestClaudeAuthProjectionDefersToTheEnvironment(t *testing.T) {
 	}
 	if len(projection.Mounts) != 0 {
 		t.Errorf("environment credential still projected a mount: %+v", projection.Mounts)
+	}
+}
+
+// An Anthropic API key is operational-only, so it is no claude login and is
+// stripped from every environment a harness starts with.
+func TestAnthropicAPIKeyNeverReachesAHarness(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	t.Setenv("ANTHROPIC_AUTH_TOKEN", "")
+	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "")
+	t.Setenv("ANTHROPIC_API_KEY", "synthetic")
+	if claudeEnvironmentAuthPresent() {
+		t.Error("ANTHROPIC_API_KEY counted as a claude login")
+	}
+	if _, err := discoverClaudeAuthProjection(
+		context.Background(),
+		func(context.Context, string, string) ([]byte, error) { return nil, errClaudeKeyringNotFound },
+	); err == nil {
+		t.Error("ANTHROPIC_API_KEY alone let a claude container start")
+	}
+	got := harnessEnvironment([]string{
+		"ANTHROPIC_API_KEY=a", "ANTHROPIC_MODELS_API_KEY=b", "ANTHROPIC_API_KEY_FILE=c", "PATH=/bin",
+	})
+	if !slices.Equal(got, []string{"ANTHROPIC_API_KEY_FILE=c", "PATH=/bin"}) {
+		t.Errorf("harness environment = %v", got)
 	}
 }
