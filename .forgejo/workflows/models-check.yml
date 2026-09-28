@@ -4,6 +4,8 @@
 name: models-check
 
 on:
+  schedule:
+    - cron: "17 14 * * *"
   workflow_dispatch:
 
 permissions:
@@ -23,7 +25,8 @@ jobs:
       - name: Check role model profiles against the provider
         env:
           ANTHROPIC_MODELS_API_KEY: ${{ secrets.ANTHROPIC_MODELS_API_KEY }}
-        run: just aos-models-check
+          EVENT_NAME: ${{ github.event_name }}
+        run: sh scripts/ci/models-check.sh
       - name: Alert Telegram on failure
         if: ${{ failure() }}
         continue-on-error: true

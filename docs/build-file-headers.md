@@ -13,7 +13,7 @@ uv builds the local packages through PEP 517, which resolves setuptools from PyP
 
 ## `.forgejo/workflows/models-check.yml`
 
-Live check of per-role model profiles against the Anthropic model list, so a retired model or unsupported effort turns red before a seat launch hits it. It runs on dispatch only: the daily cron is off until an API key exists, which Kai deferred on 2026-09-16 (`teable:coilyco-flight-deck/agentic-os#7838`). A missing `ANTHROPIC_MODELS_API_KEY` secret fails a dispatched run rather than skipping. Contract: [native harness configuration](native-harness-config.md).
+Live check of per-role model profiles against the Anthropic model list, so a retired model or unsupported effort turns red before a seat launch hits it. It runs daily and on dispatch. The key is operational-only: it lives only in the `ANTHROPIC_MODELS_API_KEY` secret, and every harness launch strips that name ([aos auth](aos-auth.md), Kai's rule of 2026-09-28). Until the secret exists, a scheduled run skips with a warning and a dispatched run fails (`teable:coilyco-flight-deck/agentic-os#7838`). Contract: [native harness configuration](native-harness-config.md).
 
 ## `.forgejo/workflows/agent-compose-roster-watch.yml`
 
