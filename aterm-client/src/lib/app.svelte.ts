@@ -27,6 +27,9 @@ export const app = $state({
   roles: [] as Role[],
   sessions: [] as Session[],
   messages: [] as PeerMessage[],
+  /** The session on screen. Instances are peers, so selection is by session, not role. */
+  selectedSession: null as string | null,
+  /** A role picked to start, when no session is on screen. */
   selectedRole: null as string | null,
   notice: "",
   launches: {} as Record<string, { state: LaunchState; text: string }>,
@@ -91,6 +94,7 @@ export function selectedHost(): Host | undefined {
 /** Selecting an online host attaches to it, so one tap reaches its seats. */
 export function selectHost(host: Host): void {
   app.selectedHostId = host.id;
+  app.selectedSession = null;
   app.selectedRole = null;
   app.notice = "";
   if (host.status.kind !== "online" || app.attachedHostId === host.id) return;
@@ -126,23 +130,35 @@ export function selectHost(host: Host): void {
       host.status = { kind: "unreachable", reason: event.reason };
       app.attachedHostId = null;
       app.connection = null;
+      app.selectedSession = null;
       app.selectedRole = null;
     }
   });
 }
 
+export function selectSession(id: string): void {
+  app.selectedSession = id;
+  app.selectedRole = null;
+  delete app.unseen[id];
+}
+
+/** Opens a role's start panel. */
 export function selectRole(slug: string): void {
   app.selectedRole = slug;
-  const session = sessionFor(slug);
-  if (session) delete app.unseen[session.id];
+  app.selectedSession = null;
 }
 
 function viewingSession(): string | null {
-  return app.selectedRole ? (sessionFor(app.selectedRole)?.id ?? null) : null;
+  return app.selectedSession;
 }
 
-export function sessionFor(slug: string): Session | undefined {
-  return app.sessions.find((session) => session.role === slug);
+export function sessionById(id: string | null): Session | undefined {
+  return id ? app.sessions.find((session) => session.id === id) : undefined;
+}
+
+/** A role's most recent failed launch, the one thing its start panel still reports. */
+export function failedLaunchOf(slug: string): Session | undefined {
+  return app.sessions.find((session) => session.role === slug && session.state === "failed");
 }
 
 export function colorOf(slug: string): string {
@@ -152,7 +168,9 @@ export function colorOf(slug: string): string {
 /** Messages to or from one session. A target may name its role, identity, or session. */
 export function messagesFor(session: Session): PeerMessage[] {
   const names = [session.role, session.identity, session.id];
-  return app.messages.filter((message) => message.from.role === session.role || message.session === session.id || names.includes(message.target));
+  // A delivered message names its session, so a sibling instance does not claim it.
+  const inbound = (message: PeerMessage) => (message.session ? message.session === session.id : names.includes(message.target));
+  return app.messages.filter((message) => message.from.role === session.role || inbound(message));
 }
 
 for (const host of app.hosts) void checkHost(host);
@@ -195,7 +213,7 @@ export function waitingSeats(): Waiting[] {
 export function jumpToWaiting(): boolean {
   const next = waitingSeats()[0];
   if (!next) return false;
-  selectRole(next.role);
+  selectSession(next.sessionId);
   if (next.kind === "asking") app.focusCard++;
   return true;
 }

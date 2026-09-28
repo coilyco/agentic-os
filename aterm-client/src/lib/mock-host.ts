@@ -17,7 +17,7 @@ const scripts: Record<string, string[]> = {
 };
 
 function session(id: string, role: string, seat: string, identity: string, state: Session["state"], pending = 0): Session {
-  return { id, role, seat, identity, state, pending, drafting: false, paste: true };
+  return { id, role, seat, identity, state, pending, drafting: false, paste: true, degraded: [] };
 }
 
 export class MockHost implements HostConnection {
@@ -25,12 +25,14 @@ export class MockHost implements HostConnection {
   private listeners = new Set<(event: HostEvent) => void>();
   private timers: ReturnType<typeof setTimeout>[] = [];
   private roles = parseRoster(rosterJson);
+  // Real-shaped names: one role on two harnesses, and a degraded start.
   private sessions: Session[] = [
-    session("s-frontend", "frontend-eng", "claude", "Imp-Dragonfly", "idle"),
-    session("s-platform", "eng-platform", "codex", "Beetle-Ox", "working"),
-    session("s-sysadmin", "sysadmin-senior", "goose", "Turtle-Ox", "idle"),
-    session("s-scientist", "scientist", "claude", "Frog-Ox", "working", 1),
-    { ...session("s-access", "sysadmin-access", "goose", "Turtle-Ox", "failed"), failure: "goose did not start. Exit 4, goose is not on this host's PATH." },
+    session("frontend-eng-imp-dragonfly-dj99", "frontend-eng", "claude", "Imp-Dragonfly", "idle"),
+    session("eng-platform-beetle-ox-gd85", "eng-platform", "codex", "Beetle-Ox", "working"),
+    session("eng-platform-beetle-ox-eb64", "eng-platform", "claude", "Beetle-Ox", "idle"),
+    { ...session("sysadmin-senior-turtle-ox-gj84", "sysadmin-senior", "goose", "Turtle-Ox", "idle"), degraded: ["host-converge", "telemetry"] },
+    session("scientist-frog-ox-va67", "scientist", "claude", "Frog-Ox", "working", 1),
+    { ...session("sysadmin-access-turtle-ox-kt21", "sysadmin-access", "goose", "Turtle-Ox", "failed"), failure: "goose did not start. Exit 4, goose is not on this host's PATH." },
   ];
   private buffers = new Map<string, string>();
   private attached = new Set<string>();
@@ -64,7 +66,7 @@ export class MockHost implements HostConnection {
     this.asks = [
       {
         id: "ask-sweep",
-        session: "s-scientist",
+        session: "scientist-frog-ox-va67",
         header: "Sweep",
         question: "Which routes should the latency sweep cover first?",
         options: [
@@ -77,7 +79,7 @@ export class MockHost implements HostConnection {
       },
       {
         id: "ask-disk",
-        session: "s-sysadmin",
+        session: "sysadmin-senior-turtle-ox-gj84",
         header: "Disk",
         question: "kai-server root disk is at 74.6%. Where should daemon logs go?",
         options: [
@@ -117,8 +119,10 @@ export class MockHost implements HostConnection {
 
   launch(role: string, seat: string): void {
     const identity = this.roles.find((candidate) => candidate.slug === role)?.identity ?? role;
-    const id = `s-${role}-${seat}`;
-    this.sessions = [...this.sessions.filter((each) => each.role !== role), session(id, role, seat, identity, "idle")];
+    const code = `${seat.slice(0, 2)}${String(this.sessions.length).padStart(2, "0")}`;
+    const id = `${role}-${identity.toLowerCase()}-${code}`;
+    // Like the daemon, a launch opens another instance beside any that are running.
+    this.sessions = [...this.sessions.filter((each) => !(each.role === role && each.state === "failed")), session(id, role, seat, identity, "idle")];
     this.buffers.set(id, `${DIM}${seat} started for ${identity}${RESET}${PROMPT}`);
     this.emit({ type: "launch", role, state: "started", text: `${role} launched on the demo host.` });
     this.emit({ type: "sessions", sessions: this.sessions });
@@ -134,12 +138,12 @@ export class MockHost implements HostConnection {
       id: "m-roster",
       from: { role: "frontend-eng", identity: "Imp-Dragonfly" },
       target: "eng-platform",
-      session: "s-platform",
+      session: "eng-platform-beetle-ox-gd85",
       state: "delivered",
       reason: null,
     };
     this.messages = [message];
-    this.write("s-platform", `\r\n${envelope(message.from)} Can the roster ride the socket, not aterm --list --json?${PROMPT}`);
+    this.write("eng-platform-beetle-ox-gd85", `\r\n${envelope(message.from)} Can the roster ride the socket, not aterm --list --json?${PROMPT}`);
     this.emit({ type: "message", message });
     this.timers.push(
       setTimeout(() => {
@@ -147,7 +151,7 @@ export class MockHost implements HostConnection {
           id: "m-roster-reply",
           from: { role: "eng-platform", identity: "Beetle-Ox" },
           target: "frontend-eng",
-          session: "s-frontend",
+          session: "frontend-eng-imp-dragonfly-dj99",
           state: "queued",
           reason: "Imp-Dragonfly is mid-turn",
         };

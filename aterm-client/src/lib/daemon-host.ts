@@ -34,6 +34,7 @@ interface SessionView {
   bracketed_paste: boolean;
   kai_drafting: boolean;
   pending: number;
+  degraded?: string[];
 }
 
 interface MessageView {
@@ -102,6 +103,7 @@ export function toSession(view: SessionView, busy = false): Session {
     pending: view.pending,
     drafting: view.kai_drafting,
     paste: view.bracketed_paste,
+    degraded: view.degraded ?? [],
   };
 }
 

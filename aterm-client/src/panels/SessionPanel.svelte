@@ -8,6 +8,7 @@
   import { askAnswer, CANCEL, choiceFromAsk, detectChoice, keysFor, type Choice } from "../lib/choices";
   import type { Session } from "../lib/protocol";
   import type { Role } from "../lib/roster";
+  import { sessionCode } from "../lib/sessions";
 
   let { role, session }: { role: Role; session: Session } = $props();
   const messages = $derived(messagesFor(session));
@@ -73,8 +74,11 @@
   <header>
     <Creature role={role.slug} color={role.color} size={40} />
     <h1>{session.identity}</h1>
-    <span class="role">{role.displayName} // {session.seat}</span>
+    <span class="role">{role.displayName} // {session.seat}{sessionCode(session) ? ` // ${sessionCode(session)}` : ""}</span>
     <span class="state mono">{session.state}</span>
+    {#if session.degraded.length}
+      <p class="degraded">Started without {session.degraded.join(", ")}. agent-compose skipped these steps at launch, so this seat may be missing what they set up.</p>
+    {/if}
   </header>
   <div class="body" class:wide>
     <div class="work">
@@ -124,6 +128,7 @@
   header { min-height: 64px; padding: 8px 24px; display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; border-bottom: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--ground)); }
   h1 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 22px; }
   .role { font-size: 14px; color: color-mix(in srgb, var(--accent) 55%, white); }
+  .degraded { flex-basis: 100%; margin: 0; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--warn); background: var(--warn-fill); color: var(--warn-text); font-size: 13px; }
   .state { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--accent); }
   .work { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .screen { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }

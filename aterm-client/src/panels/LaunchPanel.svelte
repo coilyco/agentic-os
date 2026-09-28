@@ -1,12 +1,15 @@
 <script lang="ts">
   import Creature from "../components/Creature.svelte";
-  import { app, sessionFor } from "../lib/app.svelte";
+  import { app, failedLaunchOf, selectSession } from "../lib/app.svelte";
   import type { Role } from "../lib/roster";
+  import { sessionCode } from "../lib/sessions";
 
   let { role }: { role: Role } = $props();
-  const session = $derived(sessionFor(role.slug));
+  const session = $derived(failedLaunchOf(role.slug));
   const launch = $derived(app.launches[role.slug]);
-  const starting = $derived(launch?.state === "starting" || launch?.state === "started");
+  // A role runs as many instances as you start, so only an open request holds the buttons.
+  const starting = $derived(launch?.state === "starting");
+  const running = $derived(app.sessions.filter((each) => each.role === role.slug && each.state !== "failed"));
 </script>
 
 <section class="panel" style:--accent={role.color}>
@@ -20,6 +23,16 @@
   <p class="purpose">{role.purpose}</p>
   {#if session?.state === "failed"}
     <p class="failure" role="alert"><strong>The last launch failed.</strong> {session.failure}</p>
+  {/if}
+  {#if running.length}
+    <div class="running">
+      <p>Running now, and a launch opens another beside {running.length === 1 ? "it" : "them"}:</p>
+      <ul>
+        {#each running as each (each.id)}
+          <li><button class="link" onclick={() => selectSession(each.id)}>{each.identity} on {each.seat}{sessionCode(each) ? ` // ${sessionCode(each)}` : ""}</button></li>
+        {/each}
+      </ul>
+    </div>
   {/if}
   {#if app.connection?.canLaunch}
     <div class="seats" role="group" aria-label="Launch on a harness">
@@ -45,6 +58,10 @@
   .failure { margin: 0; padding: 12px 16px; border: 1px solid var(--danger); border-radius: 10px; background: var(--danger-fill); color: var(--danger-text); }
   .seats { display: flex; gap: 10px; flex-wrap: wrap; }
   .howto { margin: 0; color: var(--muted); }
+  .running p { margin: 0 0 6px; color: var(--muted); }
+  .running ul { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
+  .link { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--text); font: inherit; }
+  .link:hover { border-color: var(--accent); }
   .launch-state { margin: 0; min-height: 1.4em; color: var(--muted); }
   .launch-state[data-state="failed"] { color: var(--danger-text); }
   button:disabled { opacity: 0.6; cursor: progress; }

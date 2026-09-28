@@ -2,13 +2,14 @@
 
 A coarse inventory of what ships. Architecture: [architecture.md](architecture.md).
 
-* **Sidebar tabs** - hosts and seats as vertical tab lists with arrow-key focus, collapsing to two scrolling strips below 720px.
+* **Sidebar tabs** - hosts, running sessions, and roles to start as tab lists with arrow keys, scrolling strips below 720px.
+* **Sessions as peers** - one tab per live session with its harness and code, so instances of a role on claude and codex sit side by side. A degraded startup names its skipped steps in the tab and header.
 * **Live daemon** - "this Mac" speaks `aterm.daemon.v1` over the daemon's loopback websocket: roster, live sessions, attach with replay, typing, resize, and message states. A Demo host keeps a scripted copy for working with no daemon.
-* **Host states** - checking, online, and not answering, each with its own panel and a retry. Hosts beyond this Mac wait on the daemon listening past loopback.
-* **Seat launch** - a seat that is not running launches on any of its harnesses through the daemon's `launch` frame, which opens its window on the host. A refused or failed launch says which, with the daemon's reason.
-* **Session terminal** - xterm.js with fit-to-pane resizing and the role's accent.
+* **Host states** - checking, online, and not answering, each with its own panel and a retry.
+* **Seat launch** - any role launches on any of its harnesses through the daemon's `launch` frame, beside running instances. A refused or failed launch says which, with the daemon's reason.
+* **Session terminal** - xterm.js, fit to its pane.
 * **Activity** - a seat's creature spins a ring in its colour while output flows, and a seat that finishes off screen shows "done, your turn" with a dot, counted in the page title.
-* **Alt-tab triage** - built for alt-tabbing out of a game. The window title names who is waiting, e.g. "(2) Frog-Ox asking // aterm", for the Windows alt-tab switcher, and an installed app badges its taskbar icon. Tabbing in opens the seat that most needs you with its answer focused, number keys answer, Enter submits a multi-select, and each answer moves to the next waiting seat.
+* **Alt-tab triage** - the window title names who is waiting, e.g. "(2) Frog-Ox asking // aterm", and an installed app badges its icon. Tabbing in opens the seat that most needs you with its answer focused, number keys answer, Enter submits a multi-select, and each answer moves to the next waiting seat.
 * **ask_choice** - a seat's structured `ask_choice` call shows as the same card, single or multi-select with an optional typed answer, and flags the seat "asking you" with a ? badge from any tab. The Demo host scripts two asks.
 * **Native choices** - when a harness shows a select menu (Claude Code's AskUserQuestion, its trust prompt), a card offers the question and options as buttons, a typed answer for "Type something.", and Cancel. Picking one sends the harness its own keys.
 * **Composer** - a real text field under the terminal, so dictation tools like Wispr Flow and phone keyboards work. Enter sends as one bracketed paste, with Enter a beat later, when the program asked for it.

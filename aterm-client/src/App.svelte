@@ -1,13 +1,14 @@
 <script lang="ts">
   import Sidebar from "./components/Sidebar.svelte";
   import { onMount } from "svelte";
-  import { app, jumpToWaiting, sessionFor, waitingSeats } from "./lib/app.svelte";
+  import { app, jumpToWaiting, sessionById, waitingSeats } from "./lib/app.svelte";
+  import { roleFor } from "./lib/sessions";
   import HostPanel from "./panels/HostPanel.svelte";
   import LaunchPanel from "./panels/LaunchPanel.svelte";
   import SessionPanel from "./panels/SessionPanel.svelte";
 
-  const role = $derived(app.roles.find((candidate) => candidate.slug === app.selectedRole));
-  const session = $derived(role ? sessionFor(role.slug) : undefined);
+  const session = $derived(sessionById(app.selectedSession));
+  const role = $derived(session ? roleFor(session, app.roles) : app.roles.find((candidate) => candidate.slug === app.selectedRole));
   const waiting = $derived(waitingSeats());
   // The title is what the Windows alt-tab switcher shows, so it names who is waiting.
   $effect(() => {
@@ -20,7 +21,7 @@
 
   function arrive(): void {
     if (document.visibilityState !== "visible" || !app.attachedHostId) return;
-    const current = app.selectedRole ? sessionFor(app.selectedRole) : undefined;
+    const current = sessionById(app.selectedSession);
     const alreadyThere = current && waiting.some((each) => each.sessionId === current.id);
     app.triage = true;
     if (!alreadyThere) jumpToWaiting();
@@ -37,7 +38,9 @@
       document.removeEventListener("visibilitychange", arrive);
     };
   });
-  const labelledBy = $derived(role ? `tab-seat-${role.slug}` : app.selectedHostId ? `tab-host-${app.selectedHostId}` : undefined);
+  const labelledBy = $derived(
+    session ? `tab-session-${session.id}` : role ? `tab-role-${role.slug}` : app.selectedHostId ? `tab-host-${app.selectedHostId}` : undefined,
+  );
 </script>
 
 <div class="shell">
@@ -45,7 +48,9 @@
   <main>
     <div id="main-panel" class="panel-root" role="tabpanel" aria-labelledby={labelledBy}>
     {#if role && session && session.state !== "failed"}
-      <SessionPanel {role} {session} />
+      {#key session.id}
+        <SessionPanel {role} {session} />
+      {/key}
     {:else if role}
       <LaunchPanel {role} />
     {:else}

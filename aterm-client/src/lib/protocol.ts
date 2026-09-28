@@ -31,6 +31,8 @@ export interface Session {
   drafting: boolean;
   /** The program asked for bracketed paste, so text should arrive as one paste. */
   paste: boolean;
+  /** Startup steps agent-compose launched without, named as the daemon names them. */
+  degraded: string[];
   failure?: string;
 }
 

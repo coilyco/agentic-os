@@ -4,7 +4,12 @@ import { daemonUrl, hostLabel, launchRefusal, toAsk, toMessage, toSession } from
 describe("aterm.daemon.v1 mapping", () => {
   it("reads a ready session as idle and carries the draft flag", () => {
     const session = toSession({ name: "session-48c6d1", role: "frontend-eng", identity: "Imp-Dragonfly", seat: "zsh", ready: true, bracketed_paste: true, kai_drafting: true, pending: 2 });
-    expect(session).toEqual({ id: "session-48c6d1", role: "frontend-eng", identity: "Imp-Dragonfly", seat: "zsh", state: "idle", pending: 2, drafting: true, paste: true });
+    expect(session).toEqual({ id: "session-48c6d1", role: "frontend-eng", identity: "Imp-Dragonfly", seat: "zsh", state: "idle", pending: 2, drafting: true, paste: true, degraded: [] });
+  });
+
+  it("carries the startup steps a session launched without", () => {
+    const view = { name: "s", role: "r", identity: "i", seat: "codex", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0, degraded: ["card", "telemetry"] };
+    expect(toSession(view).degraded).toEqual(["card", "telemetry"]);
   });
 
   it("reads a session not at its prompt as working", () => {

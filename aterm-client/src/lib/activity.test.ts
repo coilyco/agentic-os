@@ -3,7 +3,7 @@ import { nextUnseen } from "./activity";
 import type { Session } from "./protocol";
 
 function seat(id: string, state: Session["state"]): Session {
-  return { id, role: id, seat: "claude", identity: id, state, pending: 0, drafting: false, paste: true };
+  return { id, role: id, seat: "claude", identity: id, state, pending: 0, drafting: false, paste: true, degraded: [] };
 }
 
 describe("nextUnseen", () => {

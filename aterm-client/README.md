@@ -4,7 +4,7 @@ The window onto aterm agent sessions, for the web, Android, and the Mac. Session
 
 ## What it does
 
-* Hosts and seats sit as tabs in a sidebar. Pick a host to attach, then a seat to open its terminal or launch it.
+* Hosts, running sessions, and roles to start sit as tabs in a sidebar. Every session is its own tab with its harness named, so instances of one role on different harnesses sit as peers.
 * Each session's terminal renders in xterm.js, with messages from other seats marked in the sender's colour.
 * A messages panel lists what each seat sent and received, and whether it was typed in, queued, held, or bounced.
 
