@@ -1,6 +1,10 @@
 roles:
   eng-platform:
     agent: claude
+    harnesses:
+      claude:
+        model: claude-sonnet-5-5
+        effort: high
   eng-junior:
     agent: opencode
   sysadmin-senior:
@@ -14,8 +18,16 @@ roles:
     agent: codex
   scientist:
     agent: claude
+    harnesses:
+      claude:
+        model: claude-sonnet-5-5
+        effort: high
   frontend-eng:
     agent: claude
+    harnesses:
+      claude:
+        model: claude-sonnet-5-5
+        effort: high
   game-dev:
     agent: claude
   prod-director:
