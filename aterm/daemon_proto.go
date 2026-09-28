@@ -63,6 +63,8 @@ type frame struct {
 	Launch bool   `json:"launch,omitempty"`
 	// New opens a fresh instance of the role even when one is live.
 	New bool `json:"new,omitempty"`
+	// Force closes a session even while it holds a draft or undelivered messages.
+	Force bool `json:"force,omitempty"`
 
 	// replies and events
 	Message  *peerMessage  `json:"message,omitempty"`
@@ -127,6 +129,9 @@ type conn struct {
 // sendNewFeature is how a client knows the daemon reads `new` on a send. A
 // daemon predating it ignores the field and delivers to the live session.
 const sendNewFeature = "send-new"
+
+// closeFeature is how a client knows the daemon answers a close frame.
+const closeFeature = "close"
 
 // newConn frames a stream as one JSON object per line.
 func newConn(raw net.Conn) *conn {

@@ -19,7 +19,7 @@ const mcpProtocol = "2025-06-18"
 func newMCPCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "mcp",
-		Usage: "serve list_agents and send_message over MCP stdio, the tool front door to `aterm send`",
+		Usage: "serve list_agents, send_message, close_session and ask_choice over MCP stdio",
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			return serveMCP(os.Stdin, cmd.Root().Writer)
 		},
@@ -93,6 +93,21 @@ var mcpTools = []map[string]any{
 				"launch":  map[string]any{"type": "boolean", "description": "open the role when no session answers, and deliver into it"},
 				"new": map[string]any{"type": "boolean", "description": "open a new instance of the role even when one is live, " +
 					"deliver into it, and return its session name. `to` must be a role slug"},
+			},
+		},
+	},
+	{
+		"name": "close_session",
+		"description": "End another live agent session and drop it from aterm, which closing its window does not. " +
+			"`to` resolves as in send_message, and a target matching several sessions refuses. It will not " +
+			"close your own session or one you run inside, and one holding Kai's unsent draft or undelivered " +
+			"messages stays open unless force is set.",
+		"inputSchema": map[string]any{
+			"type":     "object",
+			"required": []string{"to"},
+			"properties": map[string]any{
+				"to":    map[string]any{"type": "string", "description": "session name from list_agents, or role, identity, or harness"},
+				"force": map[string]any{"type": "boolean", "description": "close even while it holds a draft or undelivered messages"},
 			},
 		},
 	},
@@ -204,6 +219,19 @@ func callMCPTool(name string, arguments json.RawMessage) (string, bool) {
 			return err.Error(), true
 		}
 		return describeMessage(state), state.State == "failed"
+	case "close_session":
+		var params struct {
+			To    string `json:"to"`
+			Force bool   `json:"force"`
+		}
+		if err := json.Unmarshal(arguments, &params); err != nil {
+			return err.Error(), true
+		}
+		name, code, err := closeSession(params.To, params.Force)
+		if err != nil {
+			return err.Error(), true
+		}
+		return fmt.Sprintf("closed %s (exit %d)", name, code), false
 	}
 	return fmt.Sprintf("no tool named %q", name), true
 }

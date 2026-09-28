@@ -217,7 +217,7 @@ func (d *daemon) serveConn(c *conn, pid int, browser bool) {
 		_ = c.write(frame{Type: "welcome", Format: daemonFormat, Error: "unsupported format " + hello.Format})
 		return
 	}
-	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature}}); err != nil {
+	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, closeFeature}}); err != nil {
 		return
 	}
 	d.mu.Lock()
@@ -302,6 +302,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return nil
 	case "send":
 		return d.send(cl.c, message)
+	case "close":
+		return d.closeSession(cl, message)
 	case "list":
 		return cl.c.write(frame{Type: "sessions", ID: message.ID, Sessions: d.views()})
 	case "launch":
@@ -514,6 +516,53 @@ func (d *daemon) reportSent(c *conn, id string, pending *pendingSend) {
 	_ = c.write(frame{Type: "sent", ID: id, Message: &snapshot})
 }
 
+// closeSession ends a live session and drops it, which closing its window does
+// not. It never ends the caller or a session the caller runs inside.
+func (d *daemon) closeSession(cl *client, message frame) error {
+	targets := d.resolve(message.Target)
+	switch {
+	case len(targets) == 0:
+		return withExit(exitOffRoster, fmt.Errorf("no live session answers to %q. Live: %s",
+			message.Target, d.liveNames()))
+	case len(targets) > 1:
+		names := make([]string, 0, len(targets))
+		for _, target := range targets {
+			names = append(names, target.name)
+		}
+		return withExit(exitUsage, fmt.Errorf("%q matches %s, name one", message.Target, strings.Join(names, ", ")))
+	}
+	s := targets[0]
+	caller := d.byToken(message.Token)
+	if caller == s {
+		return withExit(exitUsage, fmt.Errorf("%s is this session", s.name))
+	}
+	if !cl.browser && d.descendsFrom(cl.peerPID, map[int]bool{s.pid: true}) {
+		return withExit(exitUsage, fmt.Errorf("this caller runs inside %s, so closing it would end the caller too", s.name))
+	}
+	if view := s.view(); !message.Force && (view.Drafted || view.Pending > 0) {
+		held := "Kai's unsent draft"
+		if !view.Drafted {
+			held = fmt.Sprintf("%d undelivered message(s)", view.Pending)
+		}
+		return withExit(exitUsage, fmt.Errorf("%s holds %s, so it stays open unless forced", s.name, held))
+	}
+	by := "a client outside every session"
+	if caller != nil {
+		by = caller.name
+	}
+	d.logf("closing session %s (pid %d) for %s", s.name, s.pid, by)
+	s.end()
+	select {
+	case <-s.done:
+	default:
+		return fmt.Errorf("%s (pid %d) did not end after SIGKILL", s.name, s.pid)
+	}
+	s.mu.Lock()
+	code := s.exitCode
+	s.mu.Unlock()
+	return cl.c.write(frame{Type: "closed", ID: message.ID, Session: s.name, Code: code})
+}
+
 func (d *daemon) liveNames() string {
 	views := d.views()
 	if len(views) == 0 {
@@ -594,15 +643,21 @@ func (d *daemon) broadcast(message frame) {
 // insideSession reports whether pid runs under a session this daemon started,
 // an unreadable pid counting as inside. See docs/aterm-daemon.md.
 func (d *daemon) insideSession(pid int) bool {
-	if pid <= 0 {
-		return true
-	}
 	d.mu.Lock()
 	roots := map[int]bool{}
 	for _, s := range d.sessions {
 		roots[s.pid] = true
 	}
 	d.mu.Unlock()
+	return d.descendsFrom(pid, roots)
+}
+
+// descendsFrom reports whether pid is one of roots or runs under one. An
+// unreadable pid or process table counts as under, the cautious answer.
+func (d *daemon) descendsFrom(pid int, roots map[int]bool) bool {
+	if pid <= 0 {
+		return true
+	}
 	entries, err := d.processes()
 	if err != nil {
 		return true

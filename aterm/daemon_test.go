@@ -160,7 +160,7 @@ func TestMCPListsBothTools(t *testing.T) {
 	if !strings.Contains(lines[0], `"protocolVersion":"2025-03-26"`) {
 		t.Fatalf("initialize should echo the client's revision: %s", lines[0])
 	}
-	for _, tool := range []string{"list_agents", "send_message", "ask_choice"} {
+	for _, tool := range []string{"list_agents", "send_message", "ask_choice", "close_session"} {
 		if !strings.Contains(lines[1], `"name":"`+tool+`"`) {
 			t.Fatalf("tools/list is missing %s: %s", tool, lines[1])
 		}
