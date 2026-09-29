@@ -110,9 +110,13 @@ func gateNativeUpdate(ctx context.Context, runtime nativeRuntime, gate nativeUpd
 		return fmt.Errorf(
 			"refusing to launch on a stale toolchain with nobody present to accept the update")
 	}
+	// The row stays off through the question and an accepted upgrade's brew
+	// output. Only a decline resumes it, the one path with more startup to run.
+	runtime.Progress.Pause()
 	fmt.Fprint(runtime.Stderr, message)
 	if !nativeUpdateAccepted(runtime, gate.Stdin) {
 		fmt.Fprintf(runtime.Stderr, "aos: warning: declined, launching on the stale toolchain\n")
+		runtime.Progress.Resume()
 		return nil
 	}
 	if err := gate.Apply(ctx, nativeUpdateFormulae); err != nil {

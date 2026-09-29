@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -102,6 +103,41 @@ func TestUpdateGateDeclineLaunchesStale(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "declined") {
 		t.Errorf("a decline must still narrate the staleness:\n%s", stderr.String())
+	}
+}
+
+// The live row repaints on a timer, so a prompt written while it runs is drawn
+// over by the spinner and the person is asked a question they cannot read.
+func TestUpdateGatePromptOwnsTheTerminalWhileWaiting(t *testing.T) {
+	progress, _, out := newLiveTestProgress(t)
+	runtime, _ := updateTestRuntime(t)
+	runtime.Progress = progress
+	runtime.Stderr = progress.Writer(out)
+	gate, _ := updateTestGate([]nativeUpdate{{
+		Formula: "aos", Installed: "0.313.0", Available: "0.314.0",
+	}}, nil)
+	gate.TTY = true
+	answers, reply := io.Pipe()
+	gate.Stdin = answers
+	finished := make(chan error, 1)
+	go func() { finished <- gateNativeUpdate(context.Background(), runtime, gate) }()
+
+	prompt := "[y/N] "
+	deadline := time.Now().Add(5 * time.Second)
+	for !strings.Contains(out.String(), prompt) {
+		if time.Now().After(deadline) {
+			t.Fatalf("the prompt never appeared:\n%q", out.String())
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	time.Sleep(4 * nativeProgressTick)
+	text := out.String()
+	if after := text[strings.Index(text, prompt)+len(prompt):]; after != "" {
+		t.Fatalf("the live row painted after the prompt while it waited: %q", after)
+	}
+	fmt.Fprint(reply, "n\n")
+	if err := <-finished; err != nil {
+		t.Fatalf("a decline is not an error: %v", err)
 	}
 }
 

@@ -36,6 +36,7 @@ type nativeProgressLive struct {
 	detail  string
 	begun   time.Time
 	painted int
+	paused  bool
 	stopped bool
 	done    chan struct{}
 }
@@ -99,6 +100,23 @@ func (live *nativeProgressLive) Passthrough(write func() error) error {
 	return err
 }
 
+// Pause erases the row and holds it off the terminal until Resume, so a prompt
+// waiting on the person is not repainted under their cursor.
+func (live *nativeProgressLive) Pause() {
+	live.mutex.Lock()
+	defer live.mutex.Unlock()
+	live.paused = true
+	live.erase()
+}
+
+// Resume brings the row back below whatever the pause left on screen.
+func (live *nativeProgressLive) Resume() {
+	live.mutex.Lock()
+	defer live.mutex.Unlock()
+	live.paused = false
+	live.paint()
+}
+
 // Stop ends the animation and leaves the cursor on an empty line, so whatever
 // prints next owns the row.
 func (live *nativeProgressLive) Stop() {
@@ -114,7 +132,7 @@ func (live *nativeProgressLive) Stop() {
 
 // paint rewrites the row in place. The caller holds the mutex.
 func (live *nativeProgressLive) paint() {
-	if live.stopped || strings.TrimSpace(live.label) == "" {
+	if live.stopped || live.paused || strings.TrimSpace(live.label) == "" {
 		return
 	}
 	frame := nativeProgressFrames[live.frame%len(nativeProgressFrames)]

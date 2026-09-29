@@ -229,6 +229,20 @@ func (progress *nativeProgress) Exec(command []string) {
 	progress.line("exec", "%s", command[0])
 }
 
+// Pause takes the live row off the terminal for a question the person must
+// read, and Resume puts it back. Both are no-ops off a terminal.
+func (progress *nativeProgress) Pause() {
+	if progress != nil && progress.live != nil {
+		progress.live.Pause()
+	}
+}
+
+func (progress *nativeProgress) Resume() {
+	if progress != nil && progress.live != nil {
+		progress.live.Resume()
+	}
+}
+
 // Stop ends the live row without closing the narration, so a failing launch
 // does not leave a spinner turning behind its own error.
 func (progress *nativeProgress) Stop() {
