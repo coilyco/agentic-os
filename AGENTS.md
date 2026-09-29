@@ -104,7 +104,7 @@ Rules here use two nouns for people: **the human** (whoever is in front of the a
 
 * No em-dashes, no `·` separators - use periods, commas, parens, ` - `, or ` // ` (rendered rows/titles take ` // `). Covers rendered output, not only prose.
 * No italics - bold only, for structural anchors. No semicolons in prose. No idioms - name the literal action, not "circle back". No prose tables - flat bullets `* <anchor> - <cats> - <details>`.
-* `coilyco` is lowercase wherever it reads as a name, sentence-initial included - like `adidas`. Code spans, fenced blocks, URLs, and paths are exempt; a capitalized external identifier takes an allowlist entry. The `brand-case` hook covers tracked files; this line covers chat, tracker records, artifacts, commits, and PR text.
+* `coilyco` is lowercase wherever it reads as a name in running prose, sentence-initial included - like `adidas`. Where the name stands alone as a title or account name (an org page name like LinkedIn's, a social display name, a page header, an email signature, a slide title), it is all caps, `COILYCO`, because a lone lowercase name reads as a handle. Those are the only two spellings, so title case is always wrong. Code spans, fenced blocks, URLs, and paths are exempt; a capitalized external identifier takes an allowlist entry. The `brand-case` hook covers tracked files; this line covers chat, tracker records, artifacts, commits, and PR text.
 
 ### Action-first communication
 
