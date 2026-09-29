@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-// Fixtures come from one agent-compose v2.166.0: a trimmed `catalog snapshot`
-// and `native-ui`. Parity with the replaced renderer is the contract.
+// Fixtures come from agent-compose v2.166.0: a trimmed `catalog snapshot` and
+// `native-ui`, less the cluster deny agent-compose later removed. Parity is the contract.
 func TestClaudeUIMatchesAgentComposeNativeUI(t *testing.T) {
 	var snapshot claudeUISnapshot
 	readJSON(t, filepath.Join("testdata", "claude-ui", "snapshot.json"), &snapshot)

@@ -53,16 +53,6 @@
       "subagentStatusLine": {
         "type": "command",
         "command": "acompose statusline --subagent --color"
-      },
-      "permissions": {
-        "deny": [
-          "Bash(kubectl)",
-          "Bash(kubectl *)",
-          "Bash(*/kubectl *)",
-          "Bash(helm)",
-          "Bash(helm *)",
-          "Bash(*/helm *)"
-        ]
       }
     }
   },
@@ -177,16 +167,6 @@
       "subagentStatusLine": {
         "type": "command",
         "command": "acompose statusline --subagent --color"
-      },
-      "permissions": {
-        "deny": [
-          "Bash(kubectl)",
-          "Bash(kubectl *)",
-          "Bash(*/kubectl *)",
-          "Bash(helm)",
-          "Bash(helm *)",
-          "Bash(*/helm *)"
-        ]
       }
     }
   },
@@ -244,16 +224,6 @@
       "subagentStatusLine": {
         "type": "command",
         "command": "acompose statusline --subagent --color"
-      },
-      "permissions": {
-        "deny": [
-          "Bash(kubectl)",
-          "Bash(kubectl *)",
-          "Bash(*/kubectl *)",
-          "Bash(helm)",
-          "Bash(helm *)",
-          "Bash(*/helm *)"
-        ]
       }
     }
   },
@@ -311,16 +281,6 @@
       "subagentStatusLine": {
         "type": "command",
         "command": "acompose statusline --subagent --color"
-      },
-      "permissions": {
-        "deny": [
-          "Bash(kubectl)",
-          "Bash(kubectl *)",
-          "Bash(*/kubectl *)",
-          "Bash(helm)",
-          "Bash(helm *)",
-          "Bash(*/helm *)"
-        ]
       }
     }
   },
@@ -378,16 +338,6 @@
       "subagentStatusLine": {
         "type": "command",
         "command": "acompose statusline --subagent --color"
-      },
-      "permissions": {
-        "deny": [
-          "Bash(kubectl)",
-          "Bash(kubectl *)",
-          "Bash(*/kubectl *)",
-          "Bash(helm)",
-          "Bash(helm *)",
-          "Bash(*/helm *)"
-        ]
       }
     }
   },
@@ -445,16 +395,6 @@
       "subagentStatusLine": {
         "type": "command",
         "command": "acompose statusline --subagent --color"
-      },
-      "permissions": {
-        "deny": [
-          "Bash(kubectl)",
-          "Bash(kubectl *)",
-          "Bash(*/kubectl *)",
-          "Bash(helm)",
-          "Bash(helm *)",
-          "Bash(*/helm *)"
-        ]
       }
     }
   },
@@ -512,16 +452,6 @@
       "subagentStatusLine": {
         "type": "command",
         "command": "acompose statusline --subagent --color"
-      },
-      "permissions": {
-        "deny": [
-          "Bash(kubectl)",
-          "Bash(kubectl *)",
-          "Bash(*/kubectl *)",
-          "Bash(helm)",
-          "Bash(helm *)",
-          "Bash(*/helm *)"
-        ]
       }
     }
   },
@@ -579,16 +509,6 @@
       "subagentStatusLine": {
         "type": "command",
         "command": "acompose statusline --subagent --color"
-      },
-      "permissions": {
-        "deny": [
-          "Bash(kubectl)",
-          "Bash(kubectl *)",
-          "Bash(*/kubectl *)",
-          "Bash(helm)",
-          "Bash(helm *)",
-          "Bash(*/helm *)"
-        ]
       }
     }
   },
@@ -646,16 +566,6 @@
       "subagentStatusLine": {
         "type": "command",
         "command": "acompose statusline --subagent --color"
-      },
-      "permissions": {
-        "deny": [
-          "Bash(kubectl)",
-          "Bash(kubectl *)",
-          "Bash(*/kubectl *)",
-          "Bash(helm)",
-          "Bash(helm *)",
-          "Bash(*/helm *)"
-        ]
       }
     }
   },
@@ -713,16 +623,6 @@
       "subagentStatusLine": {
         "type": "command",
         "command": "acompose statusline --subagent --color"
-      },
-      "permissions": {
-        "deny": [
-          "Bash(kubectl)",
-          "Bash(kubectl *)",
-          "Bash(*/kubectl *)",
-          "Bash(helm)",
-          "Bash(helm *)",
-          "Bash(*/helm *)"
-        ]
       }
     }
   },
@@ -780,16 +680,6 @@
       "subagentStatusLine": {
         "type": "command",
         "command": "acompose statusline --subagent --color"
-      },
-      "permissions": {
-        "deny": [
-          "Bash(kubectl)",
-          "Bash(kubectl *)",
-          "Bash(*/kubectl *)",
-          "Bash(helm)",
-          "Bash(helm *)",
-          "Bash(*/helm *)"
-        ]
       }
     }
   },
@@ -847,16 +737,6 @@
       "subagentStatusLine": {
         "type": "command",
         "command": "acompose statusline --subagent --color"
-      },
-      "permissions": {
-        "deny": [
-          "Bash(kubectl)",
-          "Bash(kubectl *)",
-          "Bash(*/kubectl *)",
-          "Bash(helm)",
-          "Bash(helm *)",
-          "Bash(*/helm *)"
-        ]
       }
     }
   }

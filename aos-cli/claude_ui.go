@@ -40,9 +40,6 @@ type claudeUISnapshot struct {
 	RoleOrder     []string                       `json:"role_order"`
 	Roles         map[string]claudeUIRole        `json:"roles"`
 	Personalities map[string]claudeUIPersonality `json:"personalities"`
-	Boundaries    map[string]struct {
-		Owner string `json:"owner"`
-	} `json:"boundaries"`
 }
 
 type claudeUIRole struct {
@@ -81,22 +78,6 @@ type claudeUISettings struct {
 		Type    string `json:"type"`
 		Command string `json:"command"`
 	} `json:"subagentStatusLine"`
-	Permissions *claudeUIPermissions `json:"permissions,omitempty"`
-}
-
-type claudeUIPermissions struct {
-	Deny []string `json:"deny"`
-}
-
-// claudeUIClusterCLIDenies mirrors agent-compose nativeui: only the
-// live-backend owner keeps bare kubectl and helm. docs/native-claude-credentials.md
-var claudeUIClusterCLIDenies = []string{
-	"Bash(kubectl)",
-	"Bash(kubectl *)",
-	"Bash(*/kubectl *)",
-	"Bash(helm)",
-	"Bash(helm *)",
-	"Bash(*/helm *)",
 }
 
 type claudeUIBundle struct {
@@ -148,9 +129,6 @@ func buildClaudeUI(snapshot claudeUISnapshot, roleName, spinnerMode string) (cla
 	bundle.Settings.SpinnerTips.Tips = claudeUITips(role)
 	bundle.Settings.SubagentStatusLine.Type = "command"
 	bundle.Settings.SubagentStatusLine.Command = claudeUISubagentStatusLine
-	if snapshot.Boundaries["modify-live-backend"].Owner != roleName {
-		bundle.Settings.Permissions = &claudeUIPermissions{Deny: append([]string(nil), claudeUIClusterCLIDenies...)}
-	}
 	return bundle, nil
 }
 
