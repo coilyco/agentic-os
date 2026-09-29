@@ -21,7 +21,7 @@ opinion about which repository serves which charter: the plan decided, and
 `--role` is how the launch hands AOS that answer.
 
 Residency stays the full set, and everything except projection reads it: the
-[ten-minute fleet pass](#ten-minute-fleet-pass) fetches and normalizes every
+[daily fleet pass](#daily-fleet-pass) fetches and normalizes every
 resident checkout, and [unexpected-clone detection](#unexpected-clones) counts
 every resident identity as belonging on disk.
 
@@ -62,8 +62,8 @@ state stays, so clean siblings may go alone. The grace holds the session root.
 
 ## Daily fleet pass
 
-Once a day at most, startup pulls resident repositories already on disk (a launch
-between passes fetches only its own). It fetches `origin`, then:
+Once a day at most, startup pulls resident repositories already on disk. A launch between passes fetches
+its own (60 second bound) and fast-forwards a clean `main`. The pass fetches `origin`, then:
 
 * A clean, inactive checkout on a remotely recoverable non-main branch switches
   to `main`, then deletes that local branch.
@@ -86,8 +86,8 @@ owner must match its directory owner.
 
 The cache records an exact origin, HEAD, and branch fingerprint. The third
 consecutive qualifying fleet pass deletes the clone. Any failed proof or
-changed fingerprint resets its count. With the ten-minute pass interval, three
-qualifying startups span at least twenty minutes.
+changed fingerprint resets its count. With the daily pass interval, three
+qualifying passes span at least two days.
 
 ## Serialized repositories
 

@@ -23,6 +23,7 @@ import (
 
 const (
 	nativeSweepInterval        = 24 * time.Hour
+	nativeFetchTimeout         = 60 * time.Second
 	nativeDeadSessionGrace     = 24 * time.Hour
 	nativeLockPoll             = 100 * time.Millisecond
 	nativeLockNotice           = 5 * time.Second
@@ -540,6 +541,7 @@ func prepareNativeLaunchWorkspaceWithOptions(
 			harness,
 			projection.Projected,
 			options,
+			live,
 			due,
 		)
 		return err
@@ -737,10 +739,25 @@ func writeNativeJSON(path string, value any) error {
 }
 
 func nativeGit(directory string, args ...string) (string, error) {
-	command := exec.Command("git", append([]string{"-C", directory}, args...)...)
+	return runNativeGit(context.Background(), directory, args...)
+}
+
+// nativeGitBounded ends a git call that outlives its bound, so an unreachable
+// remote cannot stall a launch.
+func nativeGitBounded(directory string, bound time.Duration, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), bound)
+	defer cancel()
+	return runNativeGit(ctx, directory, args...)
+}
+
+func runNativeGit(ctx context.Context, directory string, args ...string) (string, error) {
+	command := exec.CommandContext(ctx, "git", append([]string{"-C", directory}, args...)...)
 	command.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
 	output, err := command.CombinedOutput()
 	if err != nil {
+		if ctx.Err() != nil {
+			return "", fmt.Errorf("git -C %s %s: %w", directory, strings.Join(args, " "), ctx.Err())
+		}
 		return "", fmt.Errorf("git -C %s %s: %w: %s",
 			directory, strings.Join(args, " "), err, strings.TrimSpace(string(output)))
 	}
@@ -1181,7 +1198,7 @@ func runNativeWorkspaceSweep(
 		began := time.Now()
 		sweepRuntime := runtime
 		sweepRuntime.Stderr = &reading.notices
-		if _, err := nativeGit(repository.Path, "fetch", "--prune", "origin"); err != nil {
+		if _, err := nativeGitBounded(repository.Path, nativeFetchTimeout, "fetch", "--prune", "origin"); err != nil {
 			fmt.Fprintf(&reading.notices, "aos: fetch skipped for %s: %v\n", identity, err)
 		} else if err := normalizeNativeRepository(sweepRuntime, repository, live); err != nil {
 			fmt.Fprintf(&reading.notices, "aos: normalization skipped for %s: %v\n",
@@ -1494,19 +1511,39 @@ func writeNativeOrphanBranches(runtime nativeRuntime, orphans []nativeOrphanBran
 		len(orphans), commits, strings.Join(names, ", "))
 }
 
+// nativeCheckoutMovable reports whether automation may move a canonical checkout:
+// no live session or workdir on it, no Git operation running, nothing modified.
+func nativeCheckoutMovable(path string, live nativeLiveWorktrees) (bool, error) {
+	if live.contains(path) || humanWorkdir(path) {
+		return false, nil
+	}
+	if inProgress, err := nativeGitOperationInProgress(path); err != nil || inProgress {
+		return false, err
+	}
+	return nativeWorktreeClean(path, false)
+}
+
+// fastForwardNativeCanonical moves a clean canonical main to the fetched origin/main.
+// It never switches a branch. The daily pass keeps the switch and cleanup.
+func fastForwardNativeCanonical(repository nativeRepository, live nativeLiveWorktrees) error {
+	movable, err := nativeCheckoutMovable(repository.Path, live)
+	if err != nil || !movable {
+		return err
+	}
+	if branch, err := nativeGit(repository.Path, "symbolic-ref", "--short", "-q", "HEAD"); err != nil || branch != "main" {
+		return nil
+	}
+	_, err = nativeGit(repository.Path, "merge", "--ff-only", "origin/main")
+	return err
+}
+
 func normalizeNativeRepository(
 	runtime nativeRuntime,
 	repository nativeRepository,
 	live nativeLiveWorktrees,
 ) error {
-	if live.contains(repository.Path) || humanWorkdir(repository.Path) {
-		return nil
-	}
-	if inProgress, err := nativeGitOperationInProgress(repository.Path); err != nil || inProgress {
-		return err
-	}
-	clean, err := nativeWorktreeClean(repository.Path, false)
-	if err != nil || !clean {
+	movable, err := nativeCheckoutMovable(repository.Path, live)
+	if err != nil || !movable {
 		return err
 	}
 	branch, err := nativeGit(repository.Path, "symbolic-ref", "--short", "-q", "HEAD")
@@ -1774,6 +1811,7 @@ func createNativeSession(
 	harness string,
 	repositories []nativeRepository,
 	options nativeLaunchOptions,
+	live nativeLiveWorktrees,
 	fetched bool,
 ) (nativeLaunchWorkspace, error) {
 	relative, inside := relativeWithin(runtime.ProjectsRoot, runtime.CWD)
@@ -1829,12 +1867,16 @@ func createNativeSession(
 	// the adds overlap. Results are read back in repository order.
 	addErrors := make([]error, len(repositories))
 	fetchErrors := make([]error, len(repositories))
+	fastForwardErrors := make([]error, len(repositories))
 	runParallel(len(repositories), nativeParallelLimit(), func(index int) {
 		repository := repositories[index]
 		began := time.Now()
 		if !fetched {
 			runtime.Progress.Item("fetch", index+1, len(repositories), "%s/%s", repository.Owner, repository.Name)
-			_, fetchErrors[index] = nativeGit(repository.Path, "fetch", "--quiet", "origin")
+			_, fetchErrors[index] = nativeGitBounded(repository.Path, nativeFetchTimeout, "fetch", "--quiet", "origin")
+			if fetchErrors[index] == nil {
+				fastForwardErrors[index] = fastForwardNativeCanonical(repository, live)
+			}
 		}
 		runtime.Progress.Item("worktree", index+1, len(repositories), "%s/%s", repository.Owner, repository.Name)
 		_, addErrors[index] = nativeGit(repository.Path,
@@ -1845,6 +1887,10 @@ func createNativeSession(
 		if err := fetchErrors[index]; err != nil {
 			fmt.Fprintf(runtime.Stderr, "aos: fetch skipped for %s/%s, so its worktree starts from the last fetched %s: %v\n",
 				repository.Owner, repository.Name, nativeWorktreeBase, err)
+		}
+		if err := fastForwardErrors[index]; err != nil {
+			fmt.Fprintf(runtime.Stderr, "aos: fast-forward skipped for %s/%s: %v\n",
+				repository.Owner, repository.Name, err)
 		}
 		if err := addErrors[index]; err != nil {
 			fmt.Fprintf(runtime.Stderr, "aos: worktree skipped for %s/%s: %v\n",

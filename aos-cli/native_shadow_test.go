@@ -231,8 +231,76 @@ func TestNativeLaunchFetchesItsRepositoriesWhenThePassIsNotDue(t *testing.T) {
 	if got := testGit(t, filepath.Join(launch, "owner", "one"), "rev-parse", "HEAD"); got != want {
 		t.Fatalf("session started at %s, want origin's %s", got, want)
 	}
-	if got := testGit(t, repository, "rev-parse", "HEAD"); got == want {
-		t.Fatal("the canonical checkout moved, but only the pass may fast-forward it")
+	if got := testGit(t, repository, "rev-parse", "HEAD"); got != want {
+		t.Fatalf("clean canonical main is at %s, want origin's %s", got, want)
+	}
+}
+
+// A launch that is not a pass day moves a clean canonical main, and leaves every
+// checkout it cannot move safely exactly as it found it.
+func TestNativeLaunchFastForwardSkipsWhatItCannotMoveSafely(t *testing.T) {
+	cases := []struct {
+		name  string
+		setup func(t *testing.T, repository string)
+	}{
+		{"dirty tracked file", func(t *testing.T, repository string) {
+			if err := os.WriteFile(filepath.Join(repository, "README.md"), []byte("edited\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"untracked file", func(t *testing.T, repository string) {
+			if err := os.WriteFile(filepath.Join(repository, "scratch.txt"), []byte("x\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"task branch checked out", func(t *testing.T, repository string) {
+			testGit(t, repository, "switch", "-c", "task/other")
+		}},
+		{"merge in progress", func(t *testing.T, repository string) {
+			gitDir := testGit(t, repository, "rev-parse", "--absolute-git-dir")
+			if err := os.WriteFile(filepath.Join(gitDir, "MERGE_HEAD"),
+				[]byte(testGit(t, repository, "rev-parse", "HEAD")+"\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{"local commit not on origin", func(t *testing.T, repository string) {
+			testGit(t, repository, "commit", "--allow-empty", "-m", "local only")
+		}},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			root := t.TempDir()
+			repository, remote := createNativeTestRepository(t, root, "owner", "one")
+			runtime := nativeTestRuntime(t, root)
+			writeNativeTestPlan(t, runtime.PlanFile, "one")
+			writeNativeTestList(t, runtime.FleetFile, "owner")
+			if err := writeNativeJSON(nativeStatePath(runtime, "sweep.json"), nativeSweepState{
+				Format: "agentic-os.native-sweep.v1", LastSweep: runtime.Now,
+				Candidates: map[string]nativeCandidate{},
+			}); err != nil {
+				t.Fatal(err)
+			}
+			other := filepath.Join(root, "other")
+			testGit(t, root, "clone", "--quiet", "file://"+remote, other)
+			testGit(t, other, "config", "user.email", "test@example.com")
+			testGit(t, other, "config", "user.name", "AOS Test")
+			testGit(t, other, "commit", "--allow-empty", "-m", "landed elsewhere")
+			testGit(t, other, "push", "--quiet", "origin", "main")
+			testCase.setup(t, repository)
+			before := testGit(t, repository, "rev-parse", "HEAD")
+			statusBefore := testGit(t, repository, "branch", "--show-current") + "\n" + testGit(t, repository, "status", "--porcelain=v2")
+
+			if _, err := prepareNativeLaunch(runtime, "codex"); err != nil {
+				t.Fatal(err)
+			}
+
+			if got := testGit(t, repository, "rev-parse", "HEAD"); got != before {
+				t.Fatalf("HEAD moved from %s to %s", before, got)
+			}
+			if got := testGit(t, repository, "branch", "--show-current") + "\n" + testGit(t, repository, "status", "--porcelain=v2"); got != statusBefore {
+				t.Fatalf("checkout state changed:\nbefore %s\nafter  %s", statusBefore, got)
+			}
+		})
 	}
 }
 
@@ -2374,5 +2442,23 @@ func TestCanonicalPnpmStoreDirResolvesUnderTheCanonicalHome(t *testing.T) {
 func TestCanonicalPnpmStoreDirIsEmptyWithoutAHome(t *testing.T) {
 	if got := canonicalPnpmStoreDir("  "); got != "" {
 		t.Fatalf("store = %q, want empty so nothing is pinned", got)
+	}
+}
+
+// A remote that never answers must not hold a launch open past the bound.
+func TestNativeGitBoundedEndsAHungCall(t *testing.T) {
+	bin := t.TempDir()
+	stub := "#!/bin/sh\nexec sleep 30\n"
+	if err := os.WriteFile(filepath.Join(bin, "git"), []byte(stub), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	began := time.Now()
+	_, err := nativeGitBounded(t.TempDir(), 200*time.Millisecond, "fetch", "origin")
+	if err == nil || !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("want a deadline error, got %v", err)
+	}
+	if took := time.Since(began); took > 5*time.Second {
+		t.Fatalf("the call ran %s past its 200ms bound", took)
 	}
 }
