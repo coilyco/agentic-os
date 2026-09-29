@@ -19,6 +19,9 @@ generative, and the verdict goes to Jev. Write the state before forming a view,
 so Jev grades the evidence rather than the seat's framing, and report the
 probabilities beside the call.
 
+This covers decisions with a closed answer the evidence settles. It does not cover
+grading subjective behavior, which stays with a human (see Where Jev stops).
+
 A likelihood is the easiest verdict to miss, because "what are the chances of X"
 reads as factual. Any percent or odds you would otherwise state is a Score over
 probability bands, asked once per horizon in one request. Report the modal band,
@@ -55,6 +58,14 @@ extra round trip.
 - **Generation stays generative.** Jev writes no text, code, or summaries.
 - **Counting, arithmetic, and date comparison stay in code.** Jev extracts the
   parts, code does the math.
+- **A human grades subjective behavior.** Whether an answer keeps a persona's
+  commitment, voice or tone is not a closed question an agent settles, so no
+  agent writes PASS or FAIL for it, and Jev does not either. Agents orchestrate
+  the runs and produce programmatic checks: a regex count, a tag present or
+  absent, the options named, a command-output pattern. Jev may appear as a
+  measurement, such as the stance divergence across answers, and never as the
+  verdict. Report a check as its count and name what it counts. Where no check
+  exists, say it is not machine-checkable and the reader decides.
 - **No images.** Jev takes text only.
 
 ## The call contract
