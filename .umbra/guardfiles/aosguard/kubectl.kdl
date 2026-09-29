@@ -5,8 +5,8 @@ wrap aosguard ops kubectl {
     exec kubectl
     // Wrap-level so a later grant cannot forget it, and an absent selector fails
     // a non-deny guard closed, which is what makes the flag mandatory.
-    only pass when context is kai-server ser8 {
-        describe "the cluster this call runs against; required, and one of kai-server or ser8"
+    only pass when context is kai-server ser8 "gke_coilyco_us-west1-a_coilyco" {
+        describe "the cluster this call runs against; required, and one of kai-server, ser8, or gke_coilyco_us-west1-a_coilyco (the GKE cluster, under the context name gcloud get-credentials writes)"
     }
     // reads - cluster and workload inspection
     can run get {
