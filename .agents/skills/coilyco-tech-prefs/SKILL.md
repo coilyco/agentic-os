@@ -37,6 +37,10 @@ When a ward/eco tool needs interactive prompts, fancy output, or a TUI, bias tow
 - [Don't suggest dead or dormant repos](references/dead-repos.md) - 12-month-commit bright line before recommending any OSS dependency.
 - [Aliases and pagers](references/aliases-and-pagers.md) - no renamed-command aliases, pagers configured off.
 
+## Devtool config
+
+**Every devtool config is owned by source control, in aos or in infrastructure.** Kitty, Alacritty, shell and the rest are edited at their canonical source (`kitty/kitty.conf`, `alacritty/`, `shell/` in aos, ansible roles in infrastructure) and land by pull request. Never edit the live file under `~/.config` or `$HOME` to fix a setting: the next convergence overwrites it, and the fix never reaches the other hosts. Find the owner with `grep -rl <tool>` across both repos before touching anything.
+
 ## Docs
 
 No "Repo layout" / "Project structure" sections in README. Filesystem is self-documenting. If a dir layout needs **explanation** (non-obvious separation, unusual build output), brief prose under a purpose-focused heading, not an ASCII tree.
