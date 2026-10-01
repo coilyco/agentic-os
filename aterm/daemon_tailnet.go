@@ -37,6 +37,33 @@ var defaultAllowOrigins = []string{"https://coilyco.dev"}
 
 var tailscaleBin = "tailscale"
 
+// tailnetGate says whether the tailscale CLI may run without starting the
+// tunnel. Platform files set it, and tests replace it.
+var tailnetGate = platformTailnetGate
+
+// tailnetBackoff paces listenTailnet retries, capped well above a login's
+// settling time so a standing refusal costs one CLI call every few minutes.
+var tailnetBackoff = struct{ first, max time.Duration }{2 * time.Second, 5 * time.Minute}
+
+// vpnGate reads the first line of `scutil --nc status <service>`. No service
+// means no macsys VPN, so the CLI cannot start one (docs/aterm-daemon.md).
+func vpnGate(statusLine string) error {
+	switch state := strings.TrimSpace(statusLine); state {
+	case "Connected", "No service":
+		return nil
+	default:
+		return fmt.Errorf("the Tailscale VPN is %q, and the tailscale CLI would start it", state)
+	}
+}
+
+// tailscaleCommand is the only way the daemon builds a tailscale CLI call.
+func tailscaleCommand(args ...string) (*exec.Cmd, error) {
+	if err := tailnetGate(); err != nil {
+		return nil, err
+	}
+	return exec.Command(tailscaleBin, args...), nil
+}
+
 // tailnetNode is this host as the tailnet names it.
 type tailnetNode struct {
 	FQDN  string
@@ -55,12 +82,17 @@ type tailnetPeer struct {
 }
 
 func readTailnetNode() (tailnetNode, error) {
-	raw, err := exec.Command(tailscaleBin, "status", "--json").Output()
+	command, err := tailscaleCommand("status", "--json")
+	if err != nil {
+		return tailnetNode{}, err
+	}
+	raw, err := command.Output()
 	if err != nil {
 		return tailnetNode{}, fmt.Errorf("tailscale status: %w", err)
 	}
 	var status struct {
-		Self struct {
+		BackendState string `json:"BackendState"`
+		Self         struct {
 			DNSName      string   `json:"DNSName"`
 			TailscaleIPs []string `json:"TailscaleIPs"`
 			UserID       int64    `json:"UserID"`
@@ -82,6 +114,9 @@ func readTailnetNode() (tailnetNode, error) {
 			break
 		}
 	}
+	if status.BackendState != "Running" {
+		return tailnetNode{}, fmt.Errorf("the tailscale backend is %q, not Running", status.BackendState)
+	}
 	if node.FQDN == "" || node.IPv4 == "" || node.Owner == "" {
 		return tailnetNode{}, errors.New("tailscale reports no name, address, or owner for this node")
 	}
@@ -89,7 +124,11 @@ func readTailnetNode() (tailnetNode, error) {
 }
 
 func tailscaleWhois(address string) (tailnetPeer, error) {
-	raw, err := exec.Command(tailscaleBin, "whois", "--json", address).Output()
+	command, err := tailscaleCommand("whois", "--json", address)
+	if err != nil {
+		return tailnetPeer{}, err
+	}
+	raw, err := command.Output()
 	if err != nil {
 		return tailnetPeer{}, fmt.Errorf("tailscale whois: %w", err)
 	}
@@ -160,6 +199,30 @@ func tailnetPolicy(node tailnetNode, allowTags, allowOrigins []string, whois fun
 	}
 }
 
+// serveTailnetWhenUp retries listen with backoff until it binds, then holds
+// the server until done closes. It never changes Tailscale's state.
+func (d *daemon) serveTailnetWhenUp(done <-chan struct{}, listen func() (*http.Server, error)) {
+	delay, last := tailnetBackoff.first, ""
+	for {
+		server, err := listen()
+		if err == nil {
+			<-done
+			_ = server.Close()
+			return
+		}
+		if reason := err.Error(); reason != last {
+			d.logf("no tailnet listener yet, so other devices cannot attach, retrying: %v", err)
+			last = reason
+		}
+		select {
+		case <-done:
+			return
+		case <-time.After(delay):
+		}
+		delay = min(delay*2, tailnetBackoff.max)
+	}
+}
+
 // listenTailnet serves HTTPS on this node's tailnet address, certified by
 // tailscaled. A failure costs remote clients, never the daemon.
 func (d *daemon) listenTailnet(port string, allowTags, allowOrigins []string, certDir string) (*http.Server, error) {
@@ -171,7 +234,11 @@ func (d *daemon) listenTailnet(port string, allowTags, allowOrigins []string, ce
 		return nil, err
 	}
 	certFile, keyFile := filepath.Join(certDir, "tls.crt"), filepath.Join(certDir, "tls.key")
-	if output, err := exec.Command(tailscaleBin, "cert", "--cert-file", certFile, "--key-file", keyFile, node.FQDN).CombinedOutput(); err != nil {
+	command, err := tailscaleCommand("cert", "--cert-file", certFile, "--key-file", keyFile, node.FQDN)
+	if err != nil {
+		return nil, err
+	}
+	if output, err := command.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("tailscale cert: %v: %s", err, strings.TrimSpace(string(output)))
 	}
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
