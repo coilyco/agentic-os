@@ -1,0 +1,56 @@
+# Builds the hosted client and publishes it to coilyco.dev/aterm/. See docs/deploy.md.
+name: publish-coilyco-dev
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "vite.config.ts"
+      - "scripts/publish-coilyco-dev.sh"
+      - ".forgejo/workflows/publish-coilyco-dev.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-coilyco-dev
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: docker
+    timeout-minutes: 15
+    container: forgejo.coilysiren.me/coilyco/agentic-os:release
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - run: just install
+      - run: just gate
+      - run: just build-hosted
+        env:
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      - uses: actions/upload-artifact@v3
+        with:
+          name: hosted-dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: deploy
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v3
+        with:
+          name: hosted-dist
+          path: dist/
+      - run: bash scripts/publish-coilyco-dev.sh

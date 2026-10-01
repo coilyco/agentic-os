@@ -1,0 +1,316 @@
+{
+  "format": "aterm.roster.v1",
+  "roles": [
+    {
+      "slug": "eng-platform",
+      "display_name": "Platform Engineer",
+      "purpose": "Build and land the foundational software the rest of the estate is built on.",
+      "favorite_color": "#709b62",
+      "identity": {
+        "name": "Beetle-Ox",
+        "pronouns": ""
+      },
+      "launchable": true,
+      "seats": [
+        {
+          "key": "claude",
+          "harness": "claude",
+          "name": "Beetle-Ox",
+          "pronouns": "",
+          "tier": "frontier"
+        },
+        {
+          "key": "codex",
+          "harness": "codex",
+          "name": "Beetle-Ox",
+          "pronouns": "",
+          "tier": "frontier"
+        }
+      ]
+    },
+    {
+      "slug": "sysadmin-senior",
+      "display_name": "Senior Sysadmin",
+      "purpose": "Operate the real hosted systems and release surfaces.",
+      "favorite_color": "#0d9c92",
+      "identity": {
+        "name": "Turtle-Ox",
+        "pronouns": ""
+      },
+      "launchable": true,
+      "seats": [
+        {
+          "key": "claude",
+          "harness": "claude",
+          "name": "Turtle-Ox",
+          "pronouns": "",
+          "tier": "frontier"
+        },
+        {
+          "key": "codex",
+          "harness": "codex",
+          "name": "Turtle-Ox",
+          "pronouns": "",
+          "tier": "frontier"
+        },
+        {
+          "key": "goose",
+          "harness": "goose",
+          "name": "Turtle-Ox",
+          "pronouns": "",
+          "tier": ""
+        }
+      ]
+    },
+    {
+      "slug": "scientist",
+      "display_name": "Applied Scientist",
+      "purpose": "Measure how agents, models, and inference actually behave on real hardware.",
+      "favorite_color": "#14d5b8",
+      "identity": {
+        "name": "Frog-Ox",
+        "pronouns": ""
+      },
+      "launchable": true,
+      "seats": [
+        {
+          "key": "claude",
+          "harness": "claude",
+          "name": "Frog-Ox",
+          "pronouns": "",
+          "tier": "frontier"
+        },
+        {
+          "key": "codex",
+          "harness": "codex",
+          "name": "Frog-Ox",
+          "pronouns": "",
+          "tier": "frontier"
+        }
+      ]
+    },
+    {
+      "slug": "frontend-eng",
+      "display_name": "Frontend Engineer",
+      "purpose": "Shape and build the surfaces a person navigates.",
+      "favorite_color": "#ee7eea",
+      "identity": {
+        "name": "Imp-Dragonfly",
+        "pronouns": ""
+      },
+      "launchable": true,
+      "seats": [
+        {
+          "key": "claude",
+          "harness": "claude",
+          "name": "Imp-Dragonfly",
+          "pronouns": "",
+          "tier": "frontier"
+        },
+        {
+          "key": "codex",
+          "harness": "codex",
+          "name": "Imp-Dragonfly",
+          "pronouns": "",
+          "tier": "frontier"
+        }
+      ]
+    },
+    {
+      "slug": "game-dev",
+      "display_name": "Game Developer",
+      "purpose": "Ship playable games: the code, the assets, and the build that carries both.",
+      "favorite_color": "#3b82ff",
+      "identity": {
+        "name": "Whale-Dragonfly",
+        "pronouns": ""
+      },
+      "launchable": true,
+      "seats": [
+        {
+          "key": "claude",
+          "harness": "claude",
+          "name": "Whale-Dragonfly",
+          "pronouns": "",
+          "tier": "frontier"
+        },
+        {
+          "key": "codex",
+          "harness": "codex",
+          "name": "Whale-Dragonfly",
+          "pronouns": "",
+          "tier": "frontier"
+        }
+      ]
+    },
+    {
+      "slug": "prod-director",
+      "display_name": "Portfolio Director",
+      "purpose": "Decide what the portfolio does next, and carry each decision to its gate.",
+      "favorite_color": "#da656f",
+      "identity": {
+        "name": "Griffin-Goose",
+        "pronouns": ""
+      },
+      "launchable": true,
+      "seats": [
+        {
+          "key": "claude",
+          "harness": "claude",
+          "name": "Griffin-Goose",
+          "pronouns": "",
+          "tier": "frontier"
+        },
+        {
+          "key": "codex",
+          "harness": "codex",
+          "name": "Griffin-Goose",
+          "pronouns": "",
+          "tier": "frontier"
+        }
+      ]
+    },
+    {
+      "slug": "dev-advocate",
+      "display_name": "Developer Advocate",
+      "purpose": "Turn real portfolio work and audience evidence into accurate content, respectful conversations, and informed commitments.",
+      "favorite_color": "#f7a060",
+      "identity": {
+        "name": "Panda-Goose",
+        "pronouns": ""
+      },
+      "launchable": true,
+      "seats": [
+        {
+          "key": "claude",
+          "harness": "claude",
+          "name": "Panda-Goose",
+          "pronouns": "",
+          "tier": "frontier"
+        },
+        {
+          "key": "codex",
+          "harness": "codex",
+          "name": "Panda-Goose",
+          "pronouns": "",
+          "tier": "frontier"
+        }
+      ]
+    },
+    {
+      "slug": "sysadmin-junior",
+      "display_name": "Junior Sysadmin",
+      "purpose": "Diagnose the real hosted systems and release surfaces, and prepare exact changes for the human's own hands to run.",
+      "favorite_color": "#0d9c92",
+      "identity": {
+        "name": "Turtle-Ox",
+        "pronouns": ""
+      },
+      "launchable": true,
+      "seats": [
+        {
+          "key": "claude",
+          "harness": "claude",
+          "name": "Turtle-Ox",
+          "pronouns": "",
+          "tier": "frontier"
+        },
+        {
+          "key": "codex",
+          "harness": "codex",
+          "name": "Turtle-Ox",
+          "pronouns": "",
+          "tier": "frontier"
+        },
+        {
+          "key": "goose",
+          "harness": "goose",
+          "name": "Turtle-Ox",
+          "pronouns": "",
+          "tier": ""
+        }
+      ]
+    },
+    {
+      "slug": "prod-manager",
+      "display_name": "Project Manager",
+      "purpose": "Keep intake and the tracker true, and carry each decision to the Portfolio Director and each outward action to the human's own hands.",
+      "favorite_color": "#da656f",
+      "identity": {
+        "name": "Griffin-Goose",
+        "pronouns": ""
+      },
+      "launchable": true,
+      "seats": [
+        {
+          "key": "claude",
+          "harness": "claude",
+          "name": "Griffin-Goose",
+          "pronouns": "",
+          "tier": "frontier"
+        },
+        {
+          "key": "codex",
+          "harness": "codex",
+          "name": "Griffin-Goose",
+          "pronouns": "",
+          "tier": "frontier"
+        },
+        {
+          "key": "goose",
+          "harness": "goose",
+          "name": "Griffin-Goose",
+          "pronouns": "",
+          "tier": ""
+        }
+      ]
+    },
+    {
+      "slug": "sysadmin-access",
+      "display_name": "Access Sysadmin",
+      "purpose": "Own agent permission and harness configuration values across the operating estate.",
+      "favorite_color": "#0d9c92",
+      "identity": {
+        "name": "Turtle-Ox",
+        "pronouns": ""
+      },
+      "launchable": true,
+      "seats": [
+        {
+          "key": "codex",
+          "harness": "codex",
+          "name": "Turtle-Ox",
+          "pronouns": "",
+          "tier": "frontier"
+        },
+        {
+          "key": "goose",
+          "harness": "goose",
+          "name": "Turtle-Ox",
+          "pronouns": "",
+          "tier": ""
+        }
+      ]
+    },
+    {
+      "slug": "eng-junior",
+      "display_name": "Junior Engineer",
+      "purpose": "Build scoped changes to the foundational software on a task branch, and hand the landing to the Platform Engineer.",
+      "favorite_color": "#709b62",
+      "identity": {
+        "name": "Beetle-Ox",
+        "pronouns": ""
+      },
+      "launchable": true,
+      "seats": [
+        {
+          "key": "opencode",
+          "harness": "opencode",
+          "name": "Beetle-Ox",
+          "pronouns": "",
+          "tier": ""
+        }
+      ]
+    }
+  ]
+}

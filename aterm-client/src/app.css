@@ -1,0 +1,49 @@
+@import "@fontsource/chakra-petch/600.css";
+@import "@fontsource/chakra-petch/700.css";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/jetbrains-mono/400.css";
+
+:root {
+  --ground: #0b0c10;
+  --terminal: #101216;
+  --surface: #13151b;
+  --line: #2a2f3a;
+  --control-line: #3a3f4b;
+  --text: #f5f7fa;
+  --text-soft: #d4d8e0;
+  --muted: #a4abb9;
+  --brand: #c9a4ff;
+  --brand-ink: #14101d;
+  --ok: #5ee6a8;
+  --warn: #ffb454;
+  --warn-text: #ffc98a;
+  --warn-fill: #1a1712;
+  --danger: #ff6b7a;
+  --danger-text: #ffc2c8;
+  --danger-fill: #2a1419;
+  --font-display: "Chakra Petch", sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body, #app { height: 100%; margin: 0; }
+body { background: var(--ground); color: var(--text); font-family: var(--font-body); }
+button, input { font: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.button {
+  min-height: 44px; padding: 0 16px; border-radius: 8px;
+  border: 1px solid var(--control-line); background: transparent; color: var(--text-soft);
+  display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
+}
+.button.primary { border: none; background: var(--brand); color: var(--brand-ink); font-weight: 600; }
+.mono { font-family: var(--font-mono); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
