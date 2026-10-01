@@ -127,6 +127,8 @@ type conn struct {
 	closer    func() error
 	mu        sync.Mutex
 	features  []string
+	// peerVersion is the build the daemon reported in its welcome.
+	peerVersion string
 }
 
 // sendNewFeature is how a client knows the daemon reads `new` on a send. A
@@ -135,6 +137,10 @@ const sendNewFeature = "send-new"
 
 // closeFeature is how a client knows the daemon answers a close frame.
 const closeFeature = "close"
+
+// holdFeature is how a client knows sessions live in holders, so stopping the
+// daemon leaves them running. A daemon without it ends every session when it stops.
+const holdFeature = "holders"
 
 // newConn frames a stream as one JSON object per line.
 func newConn(raw net.Conn) *conn {
@@ -190,6 +196,12 @@ func daemonSocket() string {
 	if override := os.Getenv(daemonSocketEnv); override != "" {
 		return override
 	}
+	return defaultDaemonSocket()
+}
+
+// defaultDaemonSocket is where the launchd agent's daemon listens, so only a
+// caller on it asks launchd to start one.
+func defaultDaemonSocket() string {
 	return filepath.Join("/tmp", "aterm-"+strconv.Itoa(os.Getuid()), "daemon.sock")
 }
 
@@ -248,12 +260,16 @@ func dialDaemon(start bool) (*conn, error) {
 			reply.Format, daemonFormat, reply.Error)
 	}
 	c.features = reply.Features
+	c.peerVersion = reply.Version
 	return c, nil
 }
 
 // startDaemon runs this binary's daemon verb detached, logging beside the
 // socket. A second start loses the lock race and exits on its own.
 func startDaemon(socket string) error {
+	if startViaLaunchd(socket) {
+		return nil
+	}
 	dir := filepath.Dir(socket)
 	if err := ensureSocketDir(dir); err != nil {
 		return fmt.Errorf("prepare the daemon directory: %w", err)
