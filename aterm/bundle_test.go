@@ -688,3 +688,134 @@ func TestRemoveStaleTakesOnlyMarkedBundles(t *testing.T) {
 		t.Fatalf("the foreign app must survive, stat = %v", err)
 	}
 }
+
+// runEnvReader runs the launcher's env reader under a real sh with the given
+// daemon.env, and returns the environment it leaves behind.
+func runEnvReader(t *testing.T, content *string) map[string]string {
+	t.Helper()
+	home := t.TempDir()
+	if content != nil {
+		directory := filepath.Join(home, ".config", "aterm")
+		if err := os.MkdirAll(directory, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(directory, "daemon.env"), []byte(*content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	command := exec.Command("/bin/sh", "-c", "set -u\n"+bundleEnvReader+"\nenv")
+	command.Env = []string{"HOME=" + home, "PATH=/usr/bin:/bin"}
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("the reader must never fail a launch: %v\n%s", err, output)
+	}
+	environment := map[string]string{}
+	for _, line := range strings.Split(string(output), "\n") {
+		if key, value, found := strings.Cut(line, "="); found {
+			environment[key] = value
+		}
+	}
+	return environment
+}
+
+// The daemon is started from the launcher's environment, and a Finder launch
+// loads no shell profile, so this file is the only way a host sets its options.
+func TestBundleLauncherExportsATermSettingsFromDaemonEnv(t *testing.T) {
+	content := "# written by the host rollout\nATERM_DAEMON_ALLOW_ORIGINS=https://coilyco.dev\nATERM_SPACED=a b  c\n"
+	environment := runEnvReader(t, &content)
+	if got := environment["ATERM_DAEMON_ALLOW_ORIGINS"]; got != "https://coilyco.dev" {
+		t.Fatalf("ATERM_DAEMON_ALLOW_ORIGINS = %q, want the file's value", got)
+	}
+	if got := environment["ATERM_SPACED"]; got != "a b  c" {
+		t.Fatalf("a value with spaces must arrive whole, got %q", got)
+	}
+}
+
+// The file is rendered by a rollout, so it is read as data. A line that is not a
+// plain ATERM_ assignment is skipped rather than obeyed or allowed to move PATH.
+func TestBundleLauncherReadsDaemonEnvAsDataNotCode(t *testing.T) {
+	content := "PATH=/hijacked\nAGENT_COMPOSE_BIN=/hijacked\nATERM_BAD-NAME=x\nATERM_NOEQUALS\n" +
+		"ATERM_EXEC=$(touch pwned)\n$(touch pwned2)\nATERM_OK=1\n"
+	environment := runEnvReader(t, &content)
+	if environment["PATH"] != "/usr/bin:/bin" {
+		t.Fatalf("PATH must not be settable from the file, got %q", environment["PATH"])
+	}
+	for _, key := range []string{"AGENT_COMPOSE_BIN", "ATERM_BAD-NAME", "ATERM_NOEQUALS"} {
+		if _, present := environment[key]; present {
+			t.Fatalf("%s must be skipped", key)
+		}
+	}
+	if got := environment["ATERM_EXEC"]; got != "$(touch pwned)" {
+		t.Fatalf("a value is literal text, never expanded, got %q", got)
+	}
+	if environment["ATERM_OK"] != "1" {
+		t.Fatal("a valid line after rejected ones must still apply")
+	}
+}
+
+// A host that has not been given the file, or one whose file is unreadable,
+// must launch exactly as before.
+func TestBundleLauncherIgnoresAMissingOrGarbageDaemonEnv(t *testing.T) {
+	if environment := runEnvReader(t, nil); environment["ATERM_DAEMON_ALLOW_ORIGINS"] != "" {
+		t.Fatal("no file must leave the environment untouched")
+	}
+	garbage := "\x00\x01\x02 not an env file\n\xff\xfe\n=\n"
+	runEnvReader(t, &garbage)
+}
+
+func TestBundleLauncherCarriesTheEnvReaderBeforeItsOwnBinaries(t *testing.T) {
+	launcher := bundleLauncher(testSpec())
+	reader := strings.Index(launcher, "aterm/daemon.env")
+	own := strings.Index(launcher, "ATERM_TERMINAL_BIN=")
+	if reader < 0 || own < 0 || reader > own {
+		t.Fatalf("the reader must come first so a file cannot override the bundle's own binaries:\n%s", launcher)
+	}
+}
+
+// The whole launcher, not only the reader: the binary it starts must see the file.
+// The launcher's `mktemp -t` is the BSD form, so this runs on macOS and skips elsewhere.
+func TestBundleLauncherHandsDaemonEnvToTheBinaryItStarts(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("the launcher is a macOS wrapper")
+	}
+	directory := t.TempDir()
+	seen := filepath.Join(directory, "seen")
+	stub := filepath.Join(directory, "aterm")
+	script := "#!/bin/sh\nprintf '%s' \"${ATERM_DAEMON_ALLOW_ORIGINS:-unset}\" >" + shellQuote(seen) + "\n"
+	if err := os.WriteFile(stub, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	spec := testSpec()
+	spec.ATermBin = stub
+	launcher := filepath.Join(directory, "launcher")
+	if err := os.WriteFile(launcher, []byte(bundleLauncher(spec)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, ".config", "aterm"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	envFile := filepath.Join(home, ".config", "aterm", "daemon.env")
+	if err := os.WriteFile(envFile, []byte("ATERM_DAEMON_ALLOW_ORIGINS=https://coilyco.dev\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(launcher)
+	command.Env = []string{"HOME=" + home, "PATH=/usr/bin:/bin"}
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("the launcher failed: %v\n%s", err, output)
+	}
+	if got, err := os.ReadFile(seen); err != nil || string(got) != "https://coilyco.dev" {
+		t.Fatalf("the started binary saw %q (%v), want the file's value", got, err)
+	}
+	if err := os.Remove(envFile); err != nil {
+		t.Fatal(err)
+	}
+	again := exec.Command(launcher)
+	again.Env = command.Env
+	if output, err := again.CombinedOutput(); err != nil {
+		t.Fatalf("with no file the launcher must still start the binary: %v\n%s", err, output)
+	}
+	if got, _ := os.ReadFile(seen); string(got) != "unset" {
+		t.Fatalf("with no file the binary saw %q, want it untouched", got)
+	}
+}

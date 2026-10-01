@@ -55,6 +55,19 @@ func bundleInfoPlist(spec bundleSpec) string {
 	return plistPreamble + body.String() + plistEpilogue
 }
 
+// bundleEnvReader exports ATERM_* settings from daemon.env, since a Finder launch loads
+// no shell profile. Lines are read as data, never sourced. See docs/aterm-bundles.md.
+const bundleEnvReader = `envfile="${XDG_CONFIG_HOME:-${HOME:-}/.config}/aterm/daemon.env"
+if [ -r "$envfile" ]; then
+	while IFS= read -r line || [ -n "$line" ]; do
+		case $line in *=*) ;; *) continue ;; esac
+		key=${line%%=*}
+		case $key in ATERM_*) ;; *) continue ;; esac
+		case $key in *[!A-Za-z0-9_]*) continue ;; esac
+		export "$line"
+	done <"$envfile" 2>/dev/null
+fi`
+
 // bundleLauncher rebuilds the environment a Finder launch does not get, PATH
 // included, since `agent-compose launch` resolves the harness. See docs/aterm.md.
 func bundleLauncher(spec bundleSpec) string {
@@ -76,6 +89,8 @@ func bundleLauncher(spec bundleSpec) string {
 		`live=$(/bin/zsh -lc 'printf %s "$PATH"' 2>/dev/null) || live=''`,
 		`if [ -n "$live" ]; then PATH="$live:$baked"; else PATH="$baked"; fi`,
 		"export PATH",
+		"",
+		bundleEnvReader,
 		"",
 		"AGENT_COMPOSE_BIN=" + shellQuote(spec.AgentComposeBin),
 		"AOS_BIN=" + shellQuote(spec.AOSBin),
