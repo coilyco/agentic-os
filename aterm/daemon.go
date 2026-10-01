@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -144,12 +145,11 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		}
 	}
 	if options.TailnetPort != "" {
-		server, err := d.listenTailnet(options.TailnetPort, options.AllowTags, options.AllowOrigins, filepath.Join(dir, "tailnet"))
-		if err != nil {
-			logf("no tailnet listener, so other devices cannot attach: %v", err)
-		} else {
-			defer server.Close()
-		}
+		done := make(chan struct{})
+		defer close(done)
+		go d.serveTailnetWhenUp(done, func() (*http.Server, error) {
+			return d.listenTailnet(options.TailnetPort, options.AllowTags, options.AllowOrigins, filepath.Join(dir, "tailnet"))
+		})
 	}
 	go d.watchIdle(listener, idle)
 	for {

@@ -160,3 +160,120 @@ func TestLoopbackServesTheClientWhenOneIsInstalled(t *testing.T) {
 	}
 	response.Body.Close()
 }
+
+func TestVPNGateOnlyOpensOnAConnectedTunnelOrNoMacVPN(t *testing.T) {
+	for state, open := range map[string]bool{
+		"Connected":     true,
+		"No service":    true,
+		"Disconnected":  false,
+		"Connecting":    false,
+		"Disconnecting": false,
+		"":              false,
+	} {
+		if err := vpnGate(state); (err == nil) != open {
+			t.Fatalf("%q: open=%v, want %v (%v)", state, err == nil, open, err)
+		}
+	}
+}
+
+// fakeTailscale installs a tailscale CLI that records each call in a file,
+// and answers `status --json` with the given backend state.
+func fakeTailscale(t *testing.T, backendState string) (calls string) {
+	t.Helper()
+	dir := t.TempDir()
+	calls = filepath.Join(dir, "calls")
+	script := "#!/bin/sh\necho \"$@\" >> '" + calls + "'\n" +
+		`echo '{"BackendState":"` + backendState + `","Self":{"DNSName":"mac.example.ts.net.","TailscaleIPs":["100.64.0.1","fd7a::1"],"UserID":7},"User":{"7":{"LoginName":"kai@example.com"}}}'` + "\n"
+	bin := filepath.Join(dir, "tailscale")
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	prevBin, prevGate := tailscaleBin, tailnetGate
+	t.Cleanup(func() { tailscaleBin, tailnetGate = prevBin, prevGate })
+	tailscaleBin = bin
+	return calls
+}
+
+func TestTailscaleCLINeverRunsWhileTheGateIsClosed(t *testing.T) {
+	calls := fakeTailscale(t, "Running")
+	tailnetGate = func() error { return errors.New("the Tailscale VPN is \"Disconnected\"") }
+	if _, err := readTailnetNode(); err == nil {
+		t.Fatal("readTailnetNode succeeded through a closed gate")
+	}
+	if _, err := tailscaleWhois("100.64.0.2"); err == nil {
+		t.Fatal("tailscaleWhois succeeded through a closed gate")
+	}
+	if _, err := os.Stat(calls); !os.IsNotExist(err) {
+		t.Fatalf("the CLI ran while the gate was closed: %v", err)
+	}
+}
+
+func TestReadTailnetNodeNeedsARunningBackend(t *testing.T) {
+	fakeTailscale(t, "Running")
+	tailnetGate = func() error { return nil }
+	node, err := readTailnetNode()
+	if err != nil || node.FQDN != testFQDN || node.IPv4 != "100.64.0.1" || node.Owner != "kai@example.com" {
+		t.Fatalf("node = %+v, %v", node, err)
+	}
+	fakeTailscale(t, "Stopped")
+	tailnetGate = func() error { return nil }
+	if _, err := readTailnetNode(); err == nil || !strings.Contains(err.Error(), "Stopped") {
+		t.Fatalf("a Stopped backend read as up: %v", err)
+	}
+}
+
+func TestServeTailnetWhenUpRetriesUntilItBindsThenClosesOnDone(t *testing.T) {
+	prev := tailnetBackoff
+	t.Cleanup(func() { tailnetBackoff = prev })
+	tailnetBackoff.first, tailnetBackoff.max = time.Millisecond, 4*time.Millisecond
+
+	var attempts atomic.Int32
+	server := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(server.Close)
+	var logged atomic.Int32
+	d := newDaemon(func(string, ...any) { logged.Add(1) })
+	done, finished := make(chan struct{}), make(chan struct{})
+	go func() {
+		d.serveTailnetWhenUp(done, func() (*http.Server, error) {
+			if attempts.Add(1) < 4 {
+				return nil, errors.New("the Tailscale VPN is \"Disconnected\"")
+			}
+			return server.Config, nil
+		})
+		close(finished)
+	}()
+	for attempts.Load() < 4 {
+		time.Sleep(time.Millisecond)
+	}
+	if got := logged.Load(); got != 1 {
+		t.Fatalf("one standing reason logged %d times", got)
+	}
+	close(done)
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("serveTailnetWhenUp outlived done")
+	}
+	if conn, err := net.Dial("tcp", server.Listener.Addr().String()); err == nil {
+		conn.Close()
+		t.Fatal("the bound server kept accepting after done")
+	}
+}
+
+func TestServeTailnetWhenUpStopsRetryingOnDone(t *testing.T) {
+	prev := tailnetBackoff
+	t.Cleanup(func() { tailnetBackoff = prev })
+	tailnetBackoff.first, tailnetBackoff.max = time.Hour, time.Hour
+	d := newDaemon(func(string, ...any) {})
+	done, finished := make(chan struct{}), make(chan struct{})
+	go func() {
+		d.serveTailnetWhenUp(done, func() (*http.Server, error) { return nil, errors.New("down") })
+		close(finished)
+	}()
+	close(done)
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Fatal("a pending retry held the daemon past done")
+	}
+}
