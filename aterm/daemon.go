@@ -40,7 +40,10 @@ type daemon struct {
 	clientDir  string
 	// holdDir is where each session's holder keeps its socket. A restarted
 	// daemon adopts what it finds there.
-	holdDir     string
+	holdDir string
+	// ended remembers how recent sessions exited, so a window that was
+	// disconnected when its session ended still learns the code.
+	ended       map[string]endedSession
 	subscribers map[*conn]bool
 	conns       int
 	lastActive  time.Time
@@ -55,6 +58,7 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		sessions:    map[string]*ptySession{},
 		tokens:      map[string]*ptySession{},
 		asks:        map[string]*pendingAsk{},
+		ended:       map[string]endedSession{},
 		askTimeout:  defaultAskTimeout,
 		subscribers: map[*conn]bool{},
 		lastActive:  time.Now(),
@@ -329,19 +333,22 @@ func (d *daemon) handle(cl *client, message frame) error {
 		if err := cl.c.write(frame{Type: "spawned", ID: message.ID, Session: s.name, PID: s.pid}); err != nil {
 			return err
 		}
-		s.attach(cl.c, true)
+		s.attach(cl.c, true, 0)
 		d.pushSessions()
 		return nil
 	case "attach":
 		s := d.session(message.Session)
 		if s == nil {
+			if code, ok := d.endedCode(message.Session); ok {
+				return cl.c.write(frame{Type: "exited", ID: message.ID, Session: message.Session, Code: code})
+			}
 			return withExit(exitOffRoster, fmt.Errorf("no live session named %q", message.Session))
 		}
 		cl.attached[s.name] = s
 		if err := cl.c.write(frame{Type: "attached", ID: message.ID, Session: s.name, PID: s.pid}); err != nil {
 			return err
 		}
-		s.attach(cl.c, message.Replay)
+		s.attach(cl.c, message.Replay, message.Offset)
 		s.resize(message.Rows, message.Cols)
 		d.pushSessions()
 		return nil
@@ -495,6 +502,21 @@ func (d *daemon) spawn(message frame) (*ptySession, error) {
 	return s, nil
 }
 
+// endedMemory is how long a finished session's exit code stays answerable.
+const endedMemory = 10 * time.Minute
+
+type endedSession struct {
+	code int
+	at   time.Time
+}
+
+func (d *daemon) endedCode(name string) (int, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	earlier, ok := d.ended[name]
+	return earlier.code, ok && time.Since(earlier.at) <= endedMemory
+}
+
 // forget drops an ended session, unless a newer one already took its name.
 func (d *daemon) forget(s *ptySession) {
 	d.mu.Lock()
@@ -503,6 +525,12 @@ func (d *daemon) forget(s *ptySession) {
 	}
 	delete(d.tokens, s.token)
 	d.lastActive = time.Now()
+	d.ended[s.name] = endedSession{code: s.exitCode, at: time.Now()}
+	for name, earlier := range d.ended {
+		if time.Since(earlier.at) > endedMemory {
+			delete(d.ended, name)
+		}
+	}
 	d.mu.Unlock()
 	d.settleWhere(func(ask choiceAsk) bool { return ask.Session == s.name }, s.name+" ended")
 	d.pushSessions()

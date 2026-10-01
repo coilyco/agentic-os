@@ -362,18 +362,35 @@ func (s *ptySession) sendTo(clients []*conn, message frame) {
 	}
 }
 
-func (s *ptySession) attach(c *conn, replay bool) {
+// attach registers a client and replays the scrollback. From is a stream offset
+// a client already drew, so a reconnecting window gets only what it missed.
+func (s *ptySession) attach(c *conn, replay bool, from int64) {
 	s.mu.Lock()
 	s.clients[c] = true
 	var history []byte
+	var offset int64
 	if replay {
-		history = withoutQueries(s.scrollback)
+		history, offset = replayFrom(s, from)
 	}
-	offset := s.outputOffset - int64(len(history))
 	s.mu.Unlock()
 	if len(history) > 0 {
 		s.sendTo([]*conn{c}, frame{Type: "output", Session: s.name, Data: history, Offset: offset})
 	}
+}
+
+// replayFrom is the scrollback after offset from, without terminal queries, and
+// the stream offset it ends at. Caller holds mu.
+func replayFrom(s *ptySession, from int64) ([]byte, int64) {
+	held := s.scrollback
+	if start := s.outputOffset - int64(len(held)); from > start {
+		if from >= s.outputOffset {
+			held = nil
+		} else {
+			held = held[from-start:]
+		}
+	}
+	history := withoutQueries(held)
+	return history, s.outputOffset - int64(len(history))
 }
 
 func (s *ptySession) detach(c *conn) {

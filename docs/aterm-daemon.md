@@ -28,9 +28,11 @@ aterm mcp                             # list_agents, send_message, close_session
 
 **A launch the daemon starts has no window.** The web client's `launch` frame and `send --launch`/`--new` run `aterm --headless <role>`, where `_session` spawns and exits, leaving the session to a client or `aterm attach`.
 
-**A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary run once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn as one stdin line since the environment holds credentials. It listens at `hold/<name>-<hash>.sock` beside the daemon socket and speaks `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running (`--end-sessions` ends them). The next one adopts each, drops a socket nobody answers, and logs the exit of a session that ended meanwhile. An adopted session has a typing hold, and a message pending at the restart is lost.
+**A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn as one stdin line since the environment holds credentials. It listens at `hold/<name>-<hash>.sock` beside the daemon socket and speaks `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running (`--end-sessions` ends them). The next one adopts each, drops a socket nobody answers, and logs the exit of a session that ended meanwhile. An adopted session has a typing hold, and pending messages are lost.
 
-**A missing daemon costs messaging, never the session.** `_session` starts the daemon when none answers, else runs the harness directly (never headless). A [launchd agent](aterm-bundles.md) can run it.
+**A window that loses the daemon redials, starting one, and attaches again.** It replays only what it had not drawn, and a session that ended meanwhile answers `exited` with its code.
+
+**A missing daemon costs messaging, never the session.** `_session` starts the daemon if none answers, else runs the harness directly. [launchd](aterm-bundles.md) can run it.
 
 **The socket is `/tmp/aterm-<uid>/daemon.sock`, keyed by uid rather than `HOME`**, because a session shadow moves `HOME` and every seat must reach one daemon. `ATERM_DAEMON_SOCKET` overrides it. The directory must be the user's alone, which is all of local client auth. An idle daemon exits after five minutes.
 
@@ -44,7 +46,7 @@ aterm mcp                             # list_agents, send_message, close_session
 
 **Delivery serializes with the keyboard.** One lock covers every PTY write, so a message never interleaves with keystrokes. A message is `queued` until the target is ready, `held` while Kai typed in the last 1.5 seconds or has a draft touched in the last minute, then `delivered` or `failed`. Enter, Ctrl-C or Ctrl-U clear the draft, and a held message lands after.
 
-**A program that asked for bracketed paste gets the message as one paste, then Enter 300ms later**, since an Enter inside the paste reads as a newline. Without it, lines are joined with spaces so a newline cannot submit early. claude and codex turn it on at their prompt, so **ready means bracketed paste for them, never a quiet screen**, since a gate or slow start is quiet too. goose and opencode fall back to ready after 30 quiet seconds, and opencode drops a multi-line send (teable:coilyco/agentic-os#8453).
+**A program that asked for bracketed paste gets the message as one paste, then Enter 300ms later**, since an Enter inside the paste reads as a newline. Without it, lines are joined with spaces so a newline cannot submit early. claude and codex turn it on at their prompt, so **ready means bracketed paste for them, never a quiet screen**, since a gate or slow start is quiet too.
 
 **A process inside a session cannot type into one.** The daemon reads the connecting pid from the kernel and walks its parents. Such a process may send, stamped, but not type, unless it spawned that session. This guards mistakes, not a double-forking process.
 
