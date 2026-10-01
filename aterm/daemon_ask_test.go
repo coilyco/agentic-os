@@ -135,6 +135,7 @@ func TestAnswerIsHeldToWhatTheAskOffered(t *testing.T) {
 // rather than changing a value another test's daemon is reading.
 func TestAskTimesOut(t *testing.T) {
 	d := newDaemon(func(string, ...any) {})
+	d.holdDir = testHoldDir(t)
 	d.askTimeout = 300 * time.Millisecond
 	t.Cleanup(d.endAll)
 	pipe := func() *conn {

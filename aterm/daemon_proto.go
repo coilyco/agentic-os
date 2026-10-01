@@ -81,6 +81,9 @@ type frame struct {
 	Error   string        `json:"error,omitempty"`
 	Channel string        `json:"channel,omitempty"`
 	PID     int           `json:"pid,omitempty"`
+	// Hold is what a session holder reports on attach, and is not part of the
+	// client wire.
+	Hold *holdInfo `json:"hold,omitempty"`
 }
 
 // sessionView is one live session as a client sees it. It is the roster the

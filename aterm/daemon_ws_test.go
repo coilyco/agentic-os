@@ -32,6 +32,7 @@ func TestRequireLoopbackRefusesAnyOtherAddress(t *testing.T) {
 func wsDaemon(t *testing.T) (*daemon, string) {
 	t.Helper()
 	d := newDaemon(func(string, ...any) {})
+	d.holdDir = testHoldDir(t)
 	d.roster = func(context.Context) (listedRoster, error) {
 		document, err := parseRoster(fixture(t, "roster.json"))
 		return listRoster(document), err

@@ -50,6 +50,7 @@ func newDaemonCommand() *cli.Command {
 			},
 			&cli.StringFlag{Name: "client-dir", Value: defaultClientDir(), Usage: "built aterm client served at /"},
 			&cli.DurationFlag{Name: "idle", Value: daemonIdle, Usage: "exit after this long with no session and no client"},
+			&cli.BoolFlag{Name: "end-sessions", Usage: "end every session when the daemon stops, instead of leaving them for the next daemon"},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			return runDaemon(daemonOptions{
@@ -60,6 +61,7 @@ func newDaemonCommand() *cli.Command {
 				AllowOrigins: cmd.StringSlice("allow-origins"),
 				ClientDir:    cmd.String("client-dir"),
 				Idle:         cmd.Duration("idle"),
+				EndSessions:  cmd.Bool("end-sessions"),
 			}, cmd.Root().ErrWriter)
 		},
 	}

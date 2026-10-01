@@ -167,6 +167,18 @@ func TestMCPListsBothTools(t *testing.T) {
 	}
 }
 
+// testHoldDir is where a daemon built without runDaemon keeps its holders,
+// under /tmp since a socket path has a short ceiling.
+func testHoldDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("/tmp", "aterm-hold-")
+	if err != nil {
+		t.Fatalf("temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
+}
+
 // testDaemon serves on a short socket path, since macOS caps one near 104
 // bytes and a test temp directory there is most of that.
 func testDaemon(t *testing.T) string {
@@ -181,9 +193,10 @@ func testDaemon(t *testing.T) string {
 	socket := filepath.Join(dir, "d.sock")
 	t.Setenv(daemonSocketEnv, socket)
 	stopped := make(chan struct{})
+	stop := make(chan struct{})
 	go func() {
 		defer close(stopped)
-		_ = runDaemon(daemonOptions{Socket: socket, Idle: time.Hour}, io.Discard)
+		_ = runDaemon(daemonOptions{Socket: socket, Idle: time.Hour, EndSessions: true, Stop: stop}, io.Discard)
 	}()
 	for waited := 0; waited < 100; waited++ {
 		if _, err := os.Stat(socket); err == nil {
@@ -192,8 +205,10 @@ func testDaemon(t *testing.T) string {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Cleanup(func() {
-		if pid := os.Getpid(); pid > 0 {
-			_ = os.Remove(socket)
+		close(stop)
+		select {
+		case <-stopped:
+		case <-time.After(10 * time.Second):
 		}
 		_ = os.RemoveAll(dir)
 	})

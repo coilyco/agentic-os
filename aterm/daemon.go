@@ -31,13 +31,16 @@ const (
 )
 
 type daemon struct {
-	mu          sync.Mutex
-	sessions    map[string]*ptySession
-	tokens      map[string]*ptySession
-	orphans     []*pendingSend
-	asks        map[string]*pendingAsk
-	askTimeout  time.Duration
-	clientDir   string
+	mu         sync.Mutex
+	sessions   map[string]*ptySession
+	tokens     map[string]*ptySession
+	orphans    []*pendingSend
+	asks       map[string]*pendingAsk
+	askTimeout time.Duration
+	clientDir  string
+	// holdDir is where each session's holder keeps its socket. A restarted
+	// daemon adopts what it finds there.
+	holdDir     string
 	subscribers map[*conn]bool
 	conns       int
 	lastActive  time.Time
@@ -96,6 +99,11 @@ type daemonOptions struct {
 	AllowOrigins []string
 	ClientDir    string
 	Idle         time.Duration
+	// EndSessions ends every session when the daemon stops. By default they
+	// keep running in their holders for the next daemon to adopt.
+	EndSessions bool
+	// Stop ends the daemon when closed, as a signal does. A test's handle.
+	Stop <-chan struct{}
 }
 
 // runDaemon holds the lock, owns the socket, and serves until idle. A second
@@ -128,13 +136,19 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		fmt.Fprintf(stderr, "%s aterm daemon: %s\n", time.Now().UTC().Format(time.RFC3339), fmt.Sprintf(format, args...))
 	}
 	d := newDaemon(logf)
+	d.holdDir = filepath.Join(dir, "hold")
 	logf("serving %s as pid %d, build %s", socket, os.Getpid(), version)
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
+	defer signal.Stop(stop)
 	go func() {
-		<-stop
+		select {
+		case <-stop:
+		case <-options.Stop:
+		}
 		_ = listener.Close()
 	}()
+	d.adoptHolders()
 	d.clientDir = options.ClientDir
 	if options.Websocket != "" {
 		server, err := d.listenWebsocket(options.Websocket)
@@ -160,7 +174,11 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		go d.serve(raw)
 	}
 	_ = os.Remove(socket)
-	d.endAll()
+	if options.EndSessions {
+		d.endAll()
+	} else {
+		d.letGoAll()
+	}
 	logf("stopped")
 	return nil
 }
@@ -176,6 +194,54 @@ func (d *daemon) watchIdle(listener net.Listener, idle time.Duration) {
 			_ = listener.Close()
 			return
 		}
+	}
+}
+
+// adoptHolders takes over the sessions a earlier daemon left running. A socket
+// nobody answers is a holder that ended, so it is removed.
+func (d *daemon) adoptHolders() {
+	if err := ensureSocketDir(d.holdDir); err != nil {
+		d.logf("no holder directory, so earlier sessions are not adopted: %v", err)
+		return
+	}
+	sockets, _ := filepath.Glob(filepath.Join(d.holdDir, "*.sock"))
+	for _, socket := range sockets {
+		s, err := d.connectHolder(socket, true)
+		if err != nil {
+			if errors.Is(err, syscall.ECONNREFUSED) || errors.Is(err, os.ErrNotExist) {
+				d.logf("dropped %s, no holder answers there", filepath.Base(socket))
+				_ = os.Remove(socket)
+				_ = os.Remove(strings.TrimSuffix(socket, ".sock") + ".log")
+				continue
+			}
+			d.logf("could not adopt %s: %v", filepath.Base(socket), err)
+			continue
+		}
+		d.mu.Lock()
+		if d.sessions[s.name] != nil {
+			d.mu.Unlock()
+			d.logf("holder %s names a session already adopted, left alone", filepath.Base(socket))
+			s.letGo()
+			continue
+		}
+		d.sessions[s.name] = s
+		d.tokens[s.token] = s
+		d.mu.Unlock()
+		d.logf("adopted %s as pid %d", s.name, s.pid)
+	}
+	d.pushSessions()
+}
+
+// letGoAll detaches from every session and leaves each one running.
+func (d *daemon) letGoAll() {
+	d.mu.Lock()
+	sessions := make([]*ptySession, 0, len(d.sessions))
+	for _, s := range d.sessions {
+		sessions = append(sessions, s)
+	}
+	d.mu.Unlock()
+	for _, s := range sessions {
+		s.letGo()
 	}
 }
 

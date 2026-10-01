@@ -3,16 +3,14 @@ package main
 import (
 	"errors"
 	"fmt"
+	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
-
-	"github.com/creack/pty"
 )
 
 const (
@@ -60,8 +58,10 @@ type ptySession struct {
 	token    string
 	pid      int
 	started  time.Time
-	cmd      *exec.Cmd
-	ptmx     *os.File
+	// holder is the connection to the aterm hold process that owns the PTY
+	// and the child. It outlives this daemon, which adopts it again.
+	holder     *conn
+	finishOnce sync.Once
 
 	// writeMu serializes every write to the PTY, so a message typed in never
 	// interleaves with a person's keystrokes.
@@ -71,18 +71,17 @@ type ptySession struct {
 	clients      map[*conn]bool
 	scrollback   []byte
 	outputOffset int64
-	paste        bool
-	pasteSeen    bool
-	degraded     []string
-	tail         []byte
-	lastOutput   time.Time
-	lastInput    time.Time
-	draft        int
-	keys         keyState
-	pending      []*pendingSend
-	wake         chan struct{}
-	done         chan struct{}
-	exitCode     int
+	modeTracker
+	lastOutput time.Time
+	lastInput  time.Time
+	draft      int
+	keys       keyState
+	pending    []*pendingSend
+	wake       chan struct{}
+	done       chan struct{}
+	exitCode   int
+	// released is a daemon letting go of a session that keeps running.
+	released bool
 }
 
 // keyState carries a partly read escape sequence across input chunks.
@@ -99,43 +98,126 @@ type keyState struct {
 	skip int
 }
 
+// startPTYSession starts a holder for the spawn and attaches to it. The
+// session's environment goes to the holder over a pipe, never to disk.
 func startPTYSession(d *daemon, name string, message frame) (*ptySession, error) {
-	program, err := lookPathIn(message.Argv[0], message.Env)
-	if err != nil {
-		return nil, withExit(exitMissing, fmt.Errorf("start %s: %w", message.Argv[0], err))
+	if len(message.Argv) == 0 {
+		return nil, withExit(exitUsage, errors.New("spawn needs an argv"))
+	}
+	if d.holdDir == "" {
+		return nil, errors.New("this daemon has no directory for session holders")
+	}
+	if err := ensureSocketDir(d.holdDir); err != nil {
+		return nil, err
 	}
 	token := randomID(24)
-	command := exec.Command(program, message.Argv[1:]...)
-	command.Args[0] = message.Argv[0]
-	command.Env = sessionEnv(message.Env, name, token)
-	command.Dir = message.Cwd
-	size := &pty.Winsize{Rows: uint16(clampSize(message.Rows, 24)), Cols: uint16(clampSize(message.Cols, 80))}
-	ptmx, err := pty.StartWithSize(command, size)
-	if err != nil {
-		return nil, fmt.Errorf("start %s: %w", message.Argv[0], err)
+	spec := frame{
+		Type: "spawn", Session: name, Role: message.Role, Identity: message.Identity, Seat: message.Seat,
+		Argv: message.Argv, Env: sessionEnv(message.Env, name, token), Cwd: message.Cwd,
+		Rows: message.Rows, Cols: message.Cols, Token: token,
 	}
+	socket := holdSocketPath(d.holdDir, name)
+	if _, err := startHolder(socket, spec); err != nil {
+		return nil, err
+	}
+	s, err := d.connectHolder(socket, false)
+	if err != nil {
+		return nil, fmt.Errorf("attach to the holder of %s: %w", name, err)
+	}
+	return s, nil
+}
+
+// connectHolder attaches to a holder with replay. An adopted session's typing
+// state is unknown, so a message waits out the typing hold.
+func (d *daemon) connectHolder(socket string, adopted bool) (*ptySession, error) {
+	raw, err := net.DialTimeout("unix", socket, 2*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	c := newConn(raw)
+	_ = raw.SetDeadline(time.Now().Add(holdStartWait))
+	fail := func(err error) (*ptySession, error) {
+		_ = c.Close()
+		return nil, err
+	}
+	if err := c.write(frame{Type: "hello", Format: holdFormat, Version: version}); err != nil {
+		return fail(err)
+	}
+	welcome, err := c.read()
+	if err != nil {
+		return fail(err)
+	}
+	if welcome.Type != "welcome" || welcome.Format != holdFormat {
+		return fail(fmt.Errorf("holder speaks %q, this daemon speaks %s: %s", welcome.Format, holdFormat, welcome.Error))
+	}
+	if err := c.write(frame{Type: "attach", Replay: true}); err != nil {
+		return fail(err)
+	}
+	attached, err := c.read()
+	if err != nil {
+		return fail(err)
+	}
+	if attached.Type != "attached" || attached.Hold == nil {
+		return fail(fmt.Errorf("holder answered %q to an attach", attached.Type))
+	}
+	_ = raw.SetDeadline(time.Time{})
+	info := attached.Hold
 	now := time.Now()
 	s := &ptySession{
-		d:          d,
-		name:       name,
-		role:       message.Role,
-		identity:   message.Identity,
-		seat:       message.Seat,
-		token:      token,
-		pid:        command.Process.Pid,
-		started:    now,
-		cmd:        command,
-		ptmx:       ptmx,
-		clients:    map[*conn]bool{},
-		lastOutput: now,
-		wake:       make(chan struct{}, 1),
-		done:       make(chan struct{}),
+		d:            d,
+		name:         info.Name,
+		role:         info.Role,
+		identity:     info.Identity,
+		seat:         info.Seat,
+		token:        info.Token,
+		pid:          info.PID,
+		started:      info.Started,
+		holder:       c,
+		clients:      map[*conn]bool{},
+		outputOffset: info.ReplayStart,
+		lastOutput:   now,
+		wake:         make(chan struct{}, 1),
+		done:         make(chan struct{}),
 	}
-	readDone := make(chan struct{})
-	go s.readOutput(readDone)
-	go s.waitExit(readDone)
+	s.paste, s.pasteSeen, s.degraded = info.Paste, info.PasteSeen, append([]string(nil), info.Degraded...)
+	if adopted {
+		s.lastInput = now
+	}
+	go s.readHold()
 	go s.deliverLoop()
 	return s, nil
+}
+
+// readHold feeds the holder's output into the session until it exits. A
+// holder that goes without an exit frame took its child with it.
+func (s *ptySession) readHold() {
+	for {
+		message, err := s.holder.read()
+		if err != nil {
+			s.mu.Lock()
+			released := s.released
+			s.mu.Unlock()
+			if !released {
+				s.finish(1)
+			}
+			return
+		}
+		switch message.Type {
+		case "output":
+			s.output(message.Data)
+		case "exit":
+			s.finish(message.Code)
+			return
+		}
+	}
+}
+
+// writePTY types bytes into the session through its holder.
+func (s *ptySession) writePTY(data []byte) error {
+	if s.holder == nil {
+		return errors.New("the session has no holder")
+	}
+	return s.holder.write(frame{Type: "input", Data: data})
 }
 
 // sessionEnv replaces rather than appends, so a window opened from inside a
@@ -183,20 +265,6 @@ func clampSize(value, fallback int) int {
 	return value
 }
 
-func (s *ptySession) readOutput(readDone chan struct{}) {
-	defer close(readDone)
-	buffer := make([]byte, 32<<10)
-	for {
-		n, err := s.ptmx.Read(buffer)
-		if n > 0 {
-			s.output(append([]byte(nil), buffer[:n]...))
-		}
-		if err != nil {
-			return
-		}
-	}
-}
-
 func (s *ptySession) output(chunk []byte) {
 	s.mu.Lock()
 	offset := s.outputOffset
@@ -222,39 +290,7 @@ func (s *ptySession) output(chunk []byte) {
 	}
 }
 
-// scanModes follows bracketed paste across chunk boundaries by keeping the
-// tail a split sequence would start in. Caller holds mu.
-func (s *ptySession) scanModes(chunk []byte) {
-	combined := append(append([]byte(nil), s.tail...), chunk...)
-	for _, match := range decset.FindAllSubmatchIndex(combined, -1) {
-		if match[1] <= len(s.tail) {
-			continue
-		}
-		params := strings.Split(string(combined[match[2]:match[3]]), ";")
-		if !containsString(params, "2004") {
-			continue
-		}
-		s.paste = combined[match[4]] == 'h'
-		if s.paste {
-			s.pasteSeen = true
-		}
-	}
-	for _, match := range degradedMark.FindAllSubmatchIndex(combined, -1) {
-		if match[1] <= len(s.tail) {
-			continue
-		}
-		s.degraded = nil
-		for _, step := range strings.Split(string(combined[match[2]:match[3]]), ",") {
-			if step != "" {
-				s.degraded = append(s.degraded, step)
-			}
-		}
-	}
-	if len(combined) > scanTail {
-		combined = combined[len(combined)-scanTail:]
-	}
-	s.tail = combined
-}
+func (s *ptySession) scanModes(chunk []byte) { s.modeTracker.scan(chunk) }
 
 func containsString(values []string, want string) bool {
 	for _, value := range values {
@@ -265,38 +301,33 @@ func containsString(values []string, want string) bool {
 	return false
 }
 
-func (s *ptySession) waitExit(readDone chan struct{}) {
-	err := s.cmd.Wait()
-	code := 0
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
-		code = exitErr.ExitCode()
-		if code < 0 {
-			code = 1
+// finish records the exit once and tells the holder it can go.
+func (s *ptySession) finish(code int) {
+	s.finishOnce.Do(func() {
+		s.mu.Lock()
+		s.exitCode = code
+		clients := s.clientList()
+		pending := s.pending
+		s.pending = nil
+		s.mu.Unlock()
+		close(s.done)
+		_ = s.holder.write(frame{Type: "release"})
+		_ = s.holder.Close()
+		s.sendTo(clients, frame{Type: "exit", Session: s.name, Code: code})
+		for _, p := range pending {
+			p.setState("failed", s.name+" ended before it was delivered")
 		}
-	} else if err != nil {
-		code = 1
-	}
-	// A background child still holding the terminal keeps the reader open,
-	// so the drain is bounded.
-	select {
-	case <-readDone:
-	case <-time.After(500 * time.Millisecond):
-	}
+		s.d.logf("session %s (pid %d) exited %d", s.name, s.pid, code)
+		s.d.forget(s)
+	})
+}
+
+// letGo detaches from a session that keeps running, as a daemon stopping does.
+func (s *ptySession) letGo() {
 	s.mu.Lock()
-	s.exitCode = code
-	clients := s.clientList()
-	pending := s.pending
-	s.pending = nil
+	s.released = true
 	s.mu.Unlock()
-	close(s.done)
-	_ = s.ptmx.Close()
-	s.sendTo(clients, frame{Type: "exit", Session: s.name, Code: code})
-	for _, p := range pending {
-		p.setState("failed", s.name+" ended before it was delivered")
-	}
-	s.d.logf("session %s (pid %d) exited %d", s.name, s.pid, code)
-	s.d.forget(s)
+	_ = s.holder.Close()
 }
 
 // end stops the session the way closing its terminal would, then harder.
@@ -355,14 +386,16 @@ func (s *ptySession) resize(rows, cols int) {
 	if rows <= 0 || cols <= 0 {
 		return
 	}
-	_ = pty.Setsize(s.ptmx, &pty.Winsize{Rows: uint16(clampSize(rows, 24)), Cols: uint16(clampSize(cols, 80))})
+	if s.holder != nil {
+		_ = s.holder.write(frame{Type: "resize", Rows: clampSize(rows, 24), Cols: clampSize(cols, 80)})
+	}
 }
 
 // typeInput is a person at a client. It is the only path that is not stamped.
 func (s *ptySession) typeInput(data []byte) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
-	_, err := s.ptmx.Write(data)
+	err := s.writePTY(data)
 	s.mu.Lock()
 	s.lastInput = time.Now()
 	drafting := s.draft > 0
@@ -534,12 +567,11 @@ func (s *ptySession) inject(text string, paste bool) error {
 	if paste {
 		body = "\x1b[200~" + text + "\x1b[201~"
 	}
-	if _, err := s.ptmx.Write([]byte(body)); err != nil {
+	if err := s.writePTY([]byte(body)); err != nil {
 		return err
 	}
 	time.Sleep(submitDelay)
-	_, err := s.ptmx.Write([]byte("\r"))
-	return err
+	return s.writePTY([]byte("\r"))
 }
 
 func (s *ptySession) view() sessionView {
