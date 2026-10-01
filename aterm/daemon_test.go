@@ -219,10 +219,16 @@ func dialTest(t *testing.T) *testClient {
 // until reads frames until the session's output holds want, or fails.
 func (tc *testClient) until(want string) {
 	tc.t.Helper()
+	tc.untilMatch(want, func(output string) bool { return strings.Contains(output, want) })
+}
+
+// untilMatch reads frames until done accepts the whole output so far, or fails.
+func (tc *testClient) untilMatch(label string, done func(output string) bool) {
+	tc.t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
-	for !strings.Contains(tc.output.String(), want) {
+	for !done(tc.output.String()) {
 		if time.Now().After(deadline) {
-			tc.t.Fatalf("output never held %q:\n%q", want, tc.output.String())
+			tc.t.Fatalf("output never held %q:\n%q", label, tc.output.String())
 		}
 		_ = tc.c.raw.SetReadDeadline(deadline)
 		message, err := tc.c.read()
@@ -248,13 +254,13 @@ func (tc *testClient) spawn(name, role, identity, script string) {
 
 func (tc *testClient) token() string {
 	tc.t.Helper()
-	tc.until("TOKEN=")
+	// Judged on the output as it stands, because a split read can deliver the
+	// line in pieces and a snapshot taken early would never see its end.
+	tc.untilMatch("a TOKEN= line", func(output string) bool {
+		_, rest, found := strings.Cut(output, "TOKEN=")
+		return found && strings.Contains(rest, "\n")
+	})
 	_, rest, _ := strings.Cut(tc.output.String(), "TOKEN=")
-	tc.until("\n")
-	for !strings.Contains(rest, "\n") {
-		tc.until(rest + "\n")
-		_, rest, _ = strings.Cut(tc.output.String(), "TOKEN=")
-	}
 	token, _, _ := strings.Cut(rest, "\n")
 	return strings.TrimSpace(token)
 }
@@ -556,5 +562,17 @@ func TestScanModesReadsADegradedMarkSplitAcrossReads(t *testing.T) {
 	s.scanModes([]byte("\x1b]7750;agent-compose;degraded=\x07"))
 	if len(s.degraded) != 0 {
 		t.Fatalf("an empty mark clears it, got %v", s.degraded)
+	}
+}
+
+// A PTY delivers output in whatever chunks its reads fall on, so a token line can arrive
+// split. The helper once kept the first half and waited for a string that never appeared.
+func TestTokenIsReadWhenTheLineArrivesInTwoChunks(t *testing.T) {
+	testDaemon(t)
+	seat := dialTest(t)
+	seat.spawn("eng-platform-beetle-ox", "eng-platform", "Beetle-Ox",
+		`printf 'TOKEN=ab'; sleep 0.5; printf 'cd\n'; sleep 30`)
+	if got := seat.token(); got != "abcd" {
+		t.Fatalf("token = %q, want the whole line", got)
 	}
 }
