@@ -41,6 +41,8 @@ type daemon struct {
 	// holdDir is where each session's holder keeps its socket. A restarted
 	// daemon adopts what it finds there.
 	holdDir string
+	// ledgerDir holds a record per session for `aterm resume`. Empty keeps none.
+	ledgerDir string
 	// ended remembers how recent sessions exited, so a window that was
 	// disconnected when its session ended still learns the code.
 	ended       map[string]endedSession
@@ -141,6 +143,8 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	}
 	d := newDaemon(logf)
 	d.holdDir = filepath.Join(dir, "hold")
+	d.ledgerDir = ledgerDir()
+	pruneLedger(d.ledgerDir, time.Now())
 	logf("serving %s as pid %d, build %s", socket, os.Getpid(), version)
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
@@ -499,6 +503,7 @@ func (d *daemon) spawn(message frame) (*ptySession, error) {
 		s.enqueue(orphan)
 	}
 	d.logf("spawned %s as pid %d: %s", name, s.pid, strings.Join(message.Argv, " "))
+	d.recordSession(s, message)
 	return s, nil
 }
 
@@ -517,6 +522,38 @@ func (d *daemon) endedCode(name string) (int, bool) {
 	return earlier.code, ok && time.Since(earlier.at) <= endedMemory
 }
 
+// recordSession writes the session's ledger record. A failure costs resuming
+// this one session, so it is logged and the session goes on.
+func (d *daemon) recordSession(s *ptySession, message frame) {
+	if d.ledgerDir == "" {
+		return
+	}
+	entry := ledgerEntry{
+		Name: s.name, Role: s.role, Identity: s.identity, Seat: s.seat,
+		Cwd: message.Cwd, Argv: message.Argv, Conversation: conversationOf(message.Argv), Started: s.started.UTC(),
+	}
+	if err := writeLedger(d.ledgerDir, entry); err != nil {
+		d.logf("could not record %s for resume: %v", s.name, err)
+	}
+}
+
+// markEnded stamps the exit onto a session's record, which stays resumable.
+func (d *daemon) markEnded(s *ptySession) {
+	if d.ledgerDir == "" {
+		return
+	}
+	for _, entry := range readLedger(d.ledgerDir) {
+		if entry.Name != s.name {
+			continue
+		}
+		now, code := time.Now().UTC(), s.exitCode
+		entry.Ended, entry.Code = &now, &code
+		if err := writeLedger(d.ledgerDir, entry); err != nil {
+			d.logf("could not mark %s ended: %v", s.name, err)
+		}
+	}
+}
+
 // forget drops an ended session, unless a newer one already took its name.
 func (d *daemon) forget(s *ptySession) {
 	d.mu.Lock()
@@ -526,6 +563,7 @@ func (d *daemon) forget(s *ptySession) {
 	delete(d.tokens, s.token)
 	d.lastActive = time.Now()
 	d.ended[s.name] = endedSession{code: s.exitCode, at: time.Now()}
+	defer d.markEnded(s)
 	for name, earlier := range d.ended {
 		if time.Since(earlier.at) > endedMemory {
 			delete(d.ended, name)

@@ -121,14 +121,16 @@ type holder struct {
 
 // holdSocketPath names a holder socket. A client chooses the name, so it is
 // reduced to a safe slug plus a hash that keeps names reducing alike apart.
-func holdSocketPath(dir, name string) string {
+func holdSocketPath(dir, name string) string { return filepath.Join(dir, fileStem(name)+".sock") }
+
+func fileStem(name string) string {
 	slug := regexp.MustCompile(`[^A-Za-z0-9._-]+`).ReplaceAllString(name, "_")
 	slug = strings.TrimLeft(slug, ".")
 	if len(slug) > 48 {
 		slug = slug[:48]
 	}
 	sum := sha256.Sum256([]byte(name))
-	return filepath.Join(dir, slug+"-"+hex.EncodeToString(sum[:4])+".sock")
+	return slug + "-" + hex.EncodeToString(sum[:4])
 }
 
 // runHold is the holder verb. The spawn arrives as one stdin line, never argv or

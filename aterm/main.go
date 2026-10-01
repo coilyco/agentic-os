@@ -213,6 +213,7 @@ func newCommand(deps commandDeps) *cli.Command {
 			newPaneCommand(deps),
 			newDaemonCommand(),
 			newAttachCommand(),
+			newResumeCommand(),
 			newSendCommand(),
 			newCloseCommand(),
 			newAskCommand(),
@@ -280,6 +281,9 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 		Hold:             cmd.Bool("hold"),
 		Headless:         cmd.Bool("headless"),
 		StableName:       !cmd.Bool("no-stable-name"),
+	}
+	if seat == "claude" {
+		request.Conversation = newConversationID()
 	}
 	aos, err := requireBinary(deps.lookPath, request.AOSBin)
 	if err != nil {

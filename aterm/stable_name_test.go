@@ -106,7 +106,7 @@ func TestLaunchPlanWithoutAMintingAOSStaysUnsuffixed(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &plan); err != nil {
 		t.Fatalf("decode plan: %v", err)
 	}
-	if plan.Card.Instance != "" || slices.Contains(plan.Child, "--session-id") {
+	if plan.Card.Instance != "" || slices.Contains(withoutConversation(plan.Child), "--session-id") {
 		t.Fatalf("an aos that cannot mint should leave no instance: %+v", plan.Child)
 	}
 	if !slices.Contains(plan.Child, sessionName("Angie", "eng-platform", "")) {
