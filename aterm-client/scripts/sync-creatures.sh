@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Copy each role's creature out of an agentic-os checkout as a small WebP.
-# macOS only: iconutil unpacks the .icns aterm embeds. Provenance: docs/architecture.md.
+# Copy each role's creature out of this repository's aterm/icons as a small WebP.
+# macOS only: iconutil unpacks the .icns aterm embeds. Provenance: the architecture
+# reference of the tooling-aterm-client skill.
 set -euo pipefail
 
-source_dir="${1:?usage: sync-creatures.sh <agentic-os checkout>}/aterm/icons"
-target_dir="$(cd "$(dirname "$0")/.." && pwd)/src/assets/creatures"
+client_dir="$(cd "$(dirname "$0")/.." && pwd)"
+source_dir="${client_dir}/../aterm/icons"
+target_dir="${client_dir}/src/assets/creatures"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 

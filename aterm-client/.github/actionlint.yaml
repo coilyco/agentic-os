@@ -1,9 +1,0 @@
-# Forgejo's artifact backend refuses v4 as GHES, so artifacts stay on v3.
-self-hosted-runner:
-  labels:
-    - docker
-    - deploy
-paths:
-  .forgejo/workflows/**/*.yml:
-    ignore:
-      - 'the runner of "actions/(upload|download)-artifact@v3" action is too old'

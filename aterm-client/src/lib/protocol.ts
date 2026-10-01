@@ -1,5 +1,5 @@
 // The client's view of a host. `DaemonHost` maps aterm.daemon.v1 onto it,
-// and `MockHost` scripts it for the demo. Why: docs/architecture.md.
+// and `MockHost` scripts it for the demo. Why: the architecture reference.
 import type { ToolResult, View } from "./mcp-apps";
 import type { Role } from "./roster";
 import type { InputKind, SharedBrowser } from "./screencast";

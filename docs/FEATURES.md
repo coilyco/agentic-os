@@ -5,12 +5,12 @@ Major shipped capabilities, not files.
 ## Inventory
 
 - [Shell and secrets](install.md) - shared shells, SSM, and GPG.
-- [Branded agent terminal](aterm.md) - `aterm` opens one composed agent session in its own Sombra kitty
-  window, checked against the live roster, and writes a macOS `.app` launcher per
-  [role bundle](aterm-bundles.md). The window opens on an identity card over the role's
-  [creature background](aterm-creature.md), and `aterm pane` [splits it](aterm-pane.md).
-  A [host daemon](aterm-daemon.md) owns sessions, and `aterm send` messages between them.
-  Mac and Linux only (no Windows kitty).
+- [Branded agent terminal](aterm.md) - `aterm` opens a composed agent session in its own Sombra kitty
+  window, checked against the roster, with a macOS `.app` per
+  [role bundle](aterm-bundles.md). Its window opens on an identity card over the role's
+  [creature](aterm-creature.md), and `aterm pane` [splits it](aterm-pane.md). A
+  [host daemon](aterm-daemon.md) owns sessions, `aterm send` messages between them,
+  and a [web client](../aterm-client/README.md) attaches. Mac and Linux only.
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.
 - [Agents and sessions](features-agents.md) - self-name, composition
   status, harness [and model](native-harness-config.md) policy, and

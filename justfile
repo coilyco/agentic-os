@@ -10,6 +10,9 @@
 
 set positional-arguments
 
+# pnpm from PATH, else through corepack, which the dev-base image's Node ships.
+pnpm := if `command -v pnpm || true` != "" { "pnpm" } else { "corepack pnpm" }
+
 # Default target: list every available recipe.
 default:
     @just --list --unsorted
@@ -164,6 +167,45 @@ aterm-test *ARGS:
 # Reconcile the branded session launcher's Go module metadata.
 aterm-tidy *ARGS:
     @go mod tidy -C aterm "$@"
+
+# Install the aterm web client's dependencies from its frozen pnpm-lock.yaml. See aterm-client/README.md.
+aterm-client-install *ARGS:
+    @{{pnpm}} --dir aterm-client install --frozen-lockfile "$@"
+
+# Serve the aterm web client with hot reload on port 5173, against the mock host.
+aterm-client-dev *ARGS:
+    @{{pnpm}} --dir aterm-client run dev "$@"
+
+# Type-check and lint every Svelte and TypeScript file of the aterm web client, failing on warnings.
+aterm-client-check *ARGS:
+    @{{pnpm}} --dir aterm-client run check "$@"
+
+# Run the aterm web client's unit tests once.
+aterm-client-test *ARGS:
+    @{{pnpm}} --dir aterm-client run test "$@"
+
+# Build the aterm web client's production bundle into aterm-client/dist/.
+aterm-client-build *ARGS:
+    @{{pnpm}} --dir aterm-client run build "$@"
+
+# The aterm web client's CI gate: check, test, and build, in that order.
+aterm-client-gate:
+    @just aterm-client-check
+    @just aterm-client-test
+    @just aterm-client-build
+
+# Build the aterm web client and install it where the daemon serves it: ATERM_CLIENT_DIR, else ~/.local/share/aterm/client.
+aterm-client-install-dir:
+    @just aterm-client-build
+    @dir="${ATERM_CLIENT_DIR:-$HOME/.local/share/aterm/client}"; mkdir -p "$dir" && rsync -a --delete aterm-client/dist/ "$dir/" && echo "installed to $dir"
+
+# Build the aterm web client for a hosted deployment: ATERM_CLIENT_BASE sets the base path, hosts are added per device and none are baked in.
+aterm-client-build-hosted:
+    @ATERM_CLIENT_BASE="${ATERM_CLIENT_BASE:?set ATERM_CLIENT_BASE to the base path of the deployment, e.g. /aterm/}" VITE_ATERM_HOSTED=1 {{pnpm}} --dir aterm-client run build
+
+# Refresh the aterm web client's creature art from this repo's aterm icons (macOS: iconutil and ImageMagick).
+aterm-client-sync-creatures:
+    @bash aterm-client/scripts/sync-creatures.sh
 
 # Roll out the canonical pre-commit hook block to every consumer repo under ~/projects/<org>/* (all org dirs). Idempotent.
 apply-agentic-os-hooks *ARGS:

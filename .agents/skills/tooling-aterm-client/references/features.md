@@ -16,12 +16,12 @@ A coarse inventory of what ships. Architecture: [architecture.md](architecture.m
 * **Peer message marking** - envelope lines are matched in the terminal buffer and striped in the sender's colour, across wrapped rows.
 * **Messages** - each seat's sent and received messages with queued, held, launching, typed in, and failed states, and the daemon's reason.
 * **Views and Browser tabs** - MCP Apps views and the seat's streamed browser, awaiting daemon frames. [views-and-browser.md](views-and-browser.md).
-* **coilyco.dev/aterm** - the client behind the coilyco.dev sign-in gate, hosts added per device. [deploy.md](deploy.md).
+* **Hosted build** - the client under a path prefix behind a deployment's own sign-in, hosts added per device. [deploy.md](deploy.md).
 * **Installable** - a web manifest and icons so Android and the Mac can install it as an app.
 
 Designed, not built: the switchboard.
 
 ## See also
 
-* [README.md](../README.md) - what this is and how to run it.
-* [AGENTS.md](../AGENTS.md) - agent operating rules for this repo.
+* [running.md](running.md) - what this is and how to run it.
+* [SKILL.md](../SKILL.md) - the rules for changing the client.

@@ -1,6 +1,6 @@
 // The host side of an MCP Apps view: the JSON-RPC a view speaks over
 // postMessage. Spec: modelcontextprotocol/ext-apps, specification/2026-01-26.
-// Why one sandboxed iframe rather than the spec's double iframe: docs/architecture.md.
+// Why one sandboxed iframe, not the spec's double iframe: see the architecture notes.
 
 export const PROTOCOL_VERSION = "2026-01-26";
 

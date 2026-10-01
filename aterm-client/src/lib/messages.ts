@@ -11,7 +11,7 @@ export function parseFrom(from: string): PeerMessage["from"] {
   return space === -1 ? { role: from, identity: from } : { role: from.slice(0, space), identity: from.slice(space + 1) };
 }
 
-/** Lines holding a stamped envelope from a known sender. See docs/architecture.md. */
+/** Lines holding a stamped envelope from a known sender. See the architecture notes. */
 export function envelopeRows(lines: readonly string[], messages: readonly PeerMessage[]): Map<number, PeerMessage> {
   const senders = new Map(messages.map((message) => [envelope(message.from), message]));
   const rows = new Map<number, PeerMessage>();

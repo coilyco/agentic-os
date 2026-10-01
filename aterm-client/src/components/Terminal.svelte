@@ -105,7 +105,7 @@
     });
     term = terminal;
     // The seat's own window answers terminal queries. A reply from here would be
-    // duplicate input, and replayed history would re-ask old ones. See docs/architecture.md.
+    // duplicate input, and replayed history would re-ask old ones. See the architecture reference.
     const swallow = () => true;
     terminal.parser.registerCsiHandler({ final: "n" }, swallow);
     terminal.parser.registerCsiHandler({ final: "c" }, swallow);

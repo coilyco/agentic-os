@@ -1,5 +1,5 @@
 // Reads a harness's own select menu off the screen so the client can offer
-// native buttons for it. Shape and safeguards: docs/choices.md.
+// native buttons for it. Shape and safeguards: the choices reference.
 import type { Ask } from "./protocol";
 
 export interface ChoiceOption {
@@ -98,7 +98,7 @@ function questionAbove(lines: readonly string[], top: number): string {
   return found.reduce((text, line) => (line === "" ? `${text}\n` : text.endsWith("\n") || !text ? `${text}${line}` : `${text} ${line}`), "").replace(/\n/g, "\n\n").trim();
 }
 
-/** Key chunks to reach `target`, type `text`, and confirm. See docs/choices.md. */
+/** Key chunks to reach `target`, type `text`, and confirm. See the choices reference. */
 export function keysFor(choice: Choice, target: number, text = ""): string[] {
   const steps = target - choice.cursor;
   const arrow = steps > 0 ? "\x1b[B" : "\x1b[A";

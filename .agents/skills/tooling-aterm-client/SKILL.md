@@ -1,0 +1,54 @@
+---
+name: tooling-aterm-client
+description: Work on the aterm web client in aterm-client/ (Svelte 5, TypeScript, Vite, xterm.js), the window onto aterm agent sessions. Covers its architecture, native choice cards, views and browser, how it is built and served, and the rules for changing it. Triggers - aterm client, aterm-client, svelte, xterm, aterm.daemon.v1 client, alt-tab triage.
+---
+
+# aterm client
+
+The client surface for aterm sessions: layout, components, terminal rendering, and
+the words on screen. It lives in `aterm-client/`, beside the daemon in `aterm/`
+that owns the protocol and the PTYs.
+
+## Shape
+
+Svelte 5, TypeScript, and Vite, with xterm.js for terminals. `src/lib/` holds the
+state, the roster decoder, and the mock host. `src/components/` and `src/panels/`
+hold the surface. The design reference is the aterm host app flows canvas linked
+from `teable:coilyco/agentic-os#8220`.
+
+## Boundaries
+
+`aterm.daemon.v1` is owned by the daemon in `aterm/` ([aterm-daemon.md](../../../docs/aterm-daemon.md)).
+`src/lib/daemon-host.ts` follows it and never extends it. The mock scripts only
+behaviour the daemon has, so the Demo host never promises what "this Mac" cannot do.
+
+Deployment config does not live here: hosts, allowed origins, tags, which roles
+appear, and publishing belong to the deployment, which passes them in at build
+time. Nothing here fetches it at runtime.
+
+## Commands
+
+Every command is a root `just` verb: `aterm-client-install`, `-dev`, `-check`,
+`-test`, `-build`, `-gate` (the CI gate), `-install-dir`, `-build-hosted`, and
+`-sync-creatures`. [running.md](references/running.md) says what each does.
+
+## Validation
+
+Run `just aterm-client-gate` and `pre-commit run --all-files` before committing. A
+layout change is not done until it has been rendered at 320px wide and walked by
+keyboard.
+
+## Contracts
+
+The roster fixture in `src/lib/fixtures/roster.json` is a snapshot of
+`aterm --list --json` (`aterm.roster.v1`). Refresh it from the live command rather
+than editing it by hand.
+
+## References
+
+* [features.md](references/features.md) - what ships today.
+* [architecture.md](references/architecture.md) - the host seam, envelopes, activity, the composer.
+* [choices.md](references/choices.md) - native choice cards and `ask_choice`.
+* [views-and-browser.md](references/views-and-browser.md) - MCP Apps views and the shared browser.
+* [deploy.md](references/deploy.md) - served by a daemon, or hosted.
+* [running.md](references/running.md) - alt-tab use and running it.
