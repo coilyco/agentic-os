@@ -90,6 +90,9 @@ func main() {
 		options.Motion = options.Motion && cardMotionWanted(os.Stdout, false)
 		os.Exit(runSession(options, os.Stdin, os.Stdout, os.Stderr))
 	}
+	if len(os.Args) > 1 && os.Args[1] == holdCommand {
+		os.Exit(runHoldVerb(os.Args[2:]))
+	}
 	if err := newCommand(systemDeps()).Run(context.Background(), os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, "aterm:", err)
 		os.Exit(exitCodeFor(err))
