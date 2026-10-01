@@ -187,7 +187,7 @@ func (d *daemon) watchIdle(listener net.Listener, idle time.Duration) {
 	for range time.Tick(time.Second) {
 		d.expireOrphans(time.Now())
 		d.mu.Lock()
-		quiet := len(d.sessions) == 0 && d.conns == 0 && time.Since(d.lastActive) > idle
+		quiet := idle > 0 && len(d.sessions) == 0 && d.conns == 0 && time.Since(d.lastActive) > idle
 		d.mu.Unlock()
 		if quiet {
 			d.logf("idle for %s with no session, exiting", idle)
@@ -283,7 +283,7 @@ func (d *daemon) serveConn(c *conn, pid int, browser bool) {
 		_ = c.write(frame{Type: "welcome", Format: daemonFormat, Error: "unsupported format " + hello.Format})
 		return
 	}
-	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, closeFeature}}); err != nil {
+	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, closeFeature, holdFeature}}); err != nil {
 		return
 	}
 	d.mu.Lock()

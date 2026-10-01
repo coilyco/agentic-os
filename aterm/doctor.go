@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -420,5 +422,30 @@ func checkDaemon(report *doctorReport) {
 		report.add("daemon", doctorWarn, "running at %s but did not list its sessions: %v", socket, err)
 		return
 	}
-	report.add("daemon", doctorOK, "running at %s, %d session(s)", socket, len(reply.Sessions))
+	report.add("daemon", daemonStatus(c, len(reply.Sessions)), "%s", daemonDetail(c, socket, len(reply.Sessions)))
+}
+
+// daemonStatus warns when stopping the running daemon would end its sessions.
+func daemonStatus(c *conn, sessions int) string {
+	if sessions > 0 && !slices.Contains(c.features, holdFeature) {
+		return doctorWarn
+	}
+	return doctorOK
+}
+
+func daemonDetail(c *conn, socket string, sessions int) string {
+	detail := fmt.Sprintf("running at %s, %d session(s), build %s", socket, sessions, c.peerVersion)
+	switch {
+	case !slices.Contains(c.features, holdFeature):
+		detail += ", predates session holders, so stopping it ends every session"
+	case c.peerVersion != version:
+		detail += fmt.Sprintf(", this aterm is %s, and a restart adopts its sessions", version)
+	}
+	if runtime.GOOS == "darwin" {
+		if launchdLoaded() {
+			return detail + ", launchd agent loaded"
+		}
+		return detail + ", launchd agent not loaded"
+	}
+	return detail
 }

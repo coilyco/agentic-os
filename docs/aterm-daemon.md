@@ -28,9 +28,9 @@ aterm mcp                             # list_agents, send_message, close_session
 
 **A launch the daemon starts has no window.** The web client's `launch` frame and `send --launch`/`--new` run `aterm --headless <role>`, where `_session` spawns and exits, leaving the session to a client or `aterm attach`.
 
-**A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary run once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn as one stdin line since the environment holds credentials. It listens at `hold/<name>-<hash>.sock` beside the daemon socket and speaks `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running (`--end-sessions` ends them). The next one adopts each, drops a socket nobody answers, and logs the exit code of a session that ended while it was away. An adopted session has a typing hold, and a message pending at the restart is lost. teable:coilyco/agentic-os#8569
+**A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary run once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn as one stdin line since the environment holds credentials. It listens at `hold/<name>-<hash>.sock` beside the daemon socket and speaks `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running (`--end-sessions` ends them). The next one adopts each, drops a socket nobody answers, and logs the exit of a session that ended meanwhile. An adopted session has a typing hold, and a message pending at the restart is lost.
 
-**A missing daemon costs messaging, never the session.** `_session` starts the daemon when none answers, else runs the harness directly (never headless).
+**A missing daemon costs messaging, never the session.** `_session` starts the daemon when none answers, else runs the harness directly (never headless). A [launchd agent](aterm-bundles.md) can run it.
 
 **The socket is `/tmp/aterm-<uid>/daemon.sock`, keyed by uid rather than `HOME`**, because a session shadow moves `HOME` and every seat must reach one daemon. `ATERM_DAEMON_SOCKET` overrides it. The directory must be the user's alone, which is all of local client auth. An idle daemon exits after five minutes.
 

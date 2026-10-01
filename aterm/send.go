@@ -19,9 +19,10 @@ const agentsFormat = "aterm.agents.v1"
 func newDaemonCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "daemon",
-		Usage: "run the host daemon that owns every session's terminal, in the foreground",
+		Usage: "run the host daemon that routes every session, in the foreground",
 		Description: "A session starts the daemon on its own, so this verb is for a service\n" +
-			"manager or for watching one. It exits after five idle minutes.",
+			"manager or for watching one. It exits after five idle minutes, or never with --idle 0.",
+		Commands: []*cli.Command{newDaemonLaunchdCommand()},
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "socket", Value: daemonSocket(), Usage: "unix socket to serve"},
 			&cli.StringFlag{
@@ -49,7 +50,7 @@ func newDaemonCommand() *cli.Command {
 				Sources: cli.EnvVars(daemonAllowOrigins),
 			},
 			&cli.StringFlag{Name: "client-dir", Value: defaultClientDir(), Usage: "built aterm client served at /"},
-			&cli.DurationFlag{Name: "idle", Value: daemonIdle, Usage: "exit after this long with no session and no client"},
+			&cli.DurationFlag{Name: "idle", Value: daemonIdle, Usage: "exit after this long with no session and no client, 0 for never"},
 			&cli.BoolFlag{Name: "end-sessions", Usage: "end every session when the daemon stops, instead of leaving them for the next daemon"},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
