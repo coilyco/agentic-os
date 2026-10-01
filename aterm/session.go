@@ -232,9 +232,9 @@ func runDaemonSession(daemon *conn, options sessionOptions, name string, stdout,
 		fmt.Fprintf(stderr, "\naterm: %v\n", err)
 		return holdAttached(pump, stdout, 1, options.Hold)
 	}
-	result := attachLoop(daemon, name, pump, os.Stdout, false)
+	result := attachReconnecting(daemon, name, pump, os.Stdout, false, stderr)
 	if result.lost {
-		fmt.Fprintf(stderr, "\r\naterm: lost the aterm daemon, and %s with it\r\n", name)
+		fmt.Fprintf(stderr, "\r\naterm: lost the aterm daemon for good, and %s with it\r\n", name)
 	}
 	return holdAttached(pump, stdout, result.code, options.Hold)
 }

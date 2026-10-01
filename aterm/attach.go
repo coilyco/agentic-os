@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/charmbracelet/x/term"
 	"github.com/urfave/cli/v3"
@@ -55,9 +56,9 @@ type attachResult struct {
 	detached bool
 }
 
-// attachLoop is one terminal on one session. It returns when the session
-// exits, the daemon goes away, or, with detach set, at Ctrl-].
-func attachLoop(c *conn, session string, pump *inputPump, stdout *os.File, detach bool) attachResult {
+// attachLoop is one terminal on one session, returning when it exits, the
+// daemon goes away, or at Ctrl-] with detach set. Next is the offset drawn.
+func attachLoop(c *conn, session string, pump *inputPump, stdout *os.File, detach bool, next *int64) attachResult {
 	fd := stdout.Fd()
 	if state, err := term.MakeRaw(os.Stdin.Fd()); err == nil {
 		defer func() { _ = term.Restore(os.Stdin.Fd(), state) }()
@@ -84,6 +85,7 @@ func attachLoop(c *conn, session string, pump *inputPump, stdout *os.File, detac
 			case "output":
 				if message.Session == session {
 					_, _ = stdout.Write(message.Data)
+					*next = message.Offset + int64(len(message.Data))
 				}
 			case "exit":
 				if message.Session == session {
@@ -126,6 +128,60 @@ func attachLoop(c *conn, session string, pump *inputPump, stdout *os.File, detac
 	}
 }
 
+// reconnectWait is how long a terminal redials a daemon that went away, past
+// the launchd agent's 10 second throttle.
+var reconnectWait = 60 * time.Second
+
+// attachReconnecting is attachLoop that redials a lost daemon, starting one, and
+// attaches again from the offset it drew. See docs/aterm-daemon.md.
+func attachReconnecting(c *conn, session string, pump *inputPump, stdout *os.File, detach bool, stderr io.Writer) attachResult {
+	var next int64
+	for {
+		result := attachLoop(c, session, pump, stdout, detach, &next)
+		if !result.lost {
+			return result
+		}
+		_ = c.Close()
+		fmt.Fprintf(stderr, "\r\naterm: lost the daemon, reconnecting to %s\r\n", session)
+		again, reply, err := redialSession(session, next)
+		if err != nil {
+			fmt.Fprintf(stderr, "\r\naterm: could not reconnect: %v\r\n", err)
+			return result
+		}
+		if reply.Type == "exited" {
+			return attachResult{code: reply.Code}
+		}
+		c = again
+	}
+}
+
+// redialSession attaches on whatever daemon answers, starting one. A refusal
+// ends it at once, and an unreachable daemon is retried until reconnectWait.
+func redialSession(session string, next int64) (*conn, frame, error) {
+	deadline := time.Now().Add(reconnectWait)
+	var last error
+	for {
+		c, err := dialDaemon(true)
+		if err == nil {
+			width, height, _ := term.GetSize(os.Stdout.Fd())
+			reply, requestErr := c.request(frame{Type: "attach", Session: session, Replay: true, Offset: next, Rows: height, Cols: width})
+			if requestErr == nil {
+				return c, reply, nil
+			}
+			_ = c.Close()
+			if reply.Type == "error" {
+				return nil, frame{}, requestErr
+			}
+			err = requestErr
+		}
+		last = err
+		if time.Now().After(deadline) {
+			return nil, frame{}, fmt.Errorf("the daemon did not come back within %s: %w", reconnectWait, last)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
 func indexByte(chunk []byte, want byte) int {
 	for index, b := range chunk {
 		if b == want {
@@ -157,7 +213,7 @@ func newAttachCommand() *cli.Command {
 			if _, err := c.request(frame{Type: "attach", Session: name, Replay: true, Rows: height, Cols: width}); err != nil {
 				return withExit(exitOffRoster, err)
 			}
-			result := attachLoop(c, name, startPump(os.Stdin), os.Stdout, true)
+			result := attachReconnecting(c, name, startPump(os.Stdin), os.Stdout, true, cmd.Root().ErrWriter)
 			switch {
 			case result.detached:
 				fmt.Fprintf(cmd.Root().ErrWriter, "\r\naterm: detached from %s, which keeps running\r\n", name)

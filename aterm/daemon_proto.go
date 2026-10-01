@@ -264,6 +264,10 @@ func dialDaemon(start bool) (*conn, error) {
 	return c, nil
 }
 
+// daemonStartArgs are extra flags for a daemon a client starts, which a test
+// uses to keep it off the host's listeners.
+var daemonStartArgs []string
+
 // startDaemon runs this binary's daemon verb detached, logging beside the
 // socket. A second start loses the lock race and exits on its own.
 func startDaemon(socket string) error {
@@ -283,7 +287,7 @@ func startDaemon(socket string) error {
 		return err
 	}
 	defer log.Close()
-	command := exec.Command(self, "daemon", "--socket", socket)
+	command := exec.Command(self, append([]string{"daemon", "--socket", socket}, daemonStartArgs...)...)
 	command.Stdout = log
 	command.Stderr = log
 	command.Dir = "/"

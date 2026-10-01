@@ -54,6 +54,7 @@ func newHoldRig(t *testing.T) *holdRig {
 	t.Setenv(daemonSocketEnv, rig.socket)
 	t.Cleanup(func() {
 		rig.killDaemon(syscall.SIGKILL)
+		rig.killServing()
 		// A session this test left running would outlive it, so end each one.
 		sockets, _ := filepath.Glob(filepath.Join(dir, "hold", "*.sock"))
 		for _, socket := range sockets {
@@ -82,6 +83,21 @@ func (r *holdRig) endHolder(socket string) {
 		_ = syscall.Kill(-reply.Hold.PID, syscall.SIGKILL)
 	}
 	_ = c.write(frame{Type: "release"})
+}
+
+// killServing ends whatever daemon answers on the rig's socket, one a client
+// started and the rig does not hold.
+func (r *holdRig) killServing() {
+	raw, err := net.DialTimeout("unix", r.socket, time.Second)
+	if err != nil {
+		return
+	}
+	c := newConn(raw)
+	defer c.Close()
+	_ = c.write(frame{Type: "hello", Format: daemonFormat})
+	if welcome, err := c.read(); err == nil && welcome.PID > 0 {
+		_ = syscall.Kill(welcome.PID, syscall.SIGKILL)
+	}
 }
 
 func (r *holdRig) startDaemon() {
@@ -123,6 +139,20 @@ func (r *holdRig) sessions() []sessionView {
 	reply, err := c.request(frame{Type: "list"})
 	if err != nil {
 		r.t.Fatalf("list: %v", err)
+	}
+	return reply.Sessions
+}
+
+// sessionsQuiet lists sessions, or nothing while no daemon answers.
+func (r *holdRig) sessionsQuiet() []sessionView {
+	c, err := dialDaemon(false)
+	if err != nil {
+		return nil
+	}
+	defer c.Close()
+	reply, err := c.request(frame{Type: "list"})
+	if err != nil {
+		return nil
 	}
 	return reply.Sessions
 }
