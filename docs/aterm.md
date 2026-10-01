@@ -19,11 +19,11 @@ The window opens fullscreen at font size 14.5, which `--start-as` and `--font-si
 
 **It refuses a stale role before it opens anything.** Role slugs turn over, so `aterm` reads `agent-compose catalog roles --json` on every run and names the live roster in the refusal. A transposed slug comes back as `is not a live role. Did you mean platform?` plus every live slug. A seat is checked twice: it must belong to the role and be a harness `agent-compose launch` can start. `penpot` is real but not launchable, and the refusal says which check it failed.
 
-**An archived role is not a live one.** A seat retires by being archived rather than deleted, because `agent-compose overlay` refuses an undefined slug and aosx renders the retired identities through it. The catalogue keeps shipping the role with its native seats, so `archived` is all that separates it from a live one. `parseRoster` drops them at the decode seam, taking a retired seat out of the picker, completion, a named launch, and `aterm bundles` at once.
+**An archived role is not a live one.** A seat retires by being archived, and `parseRoster` drops archived roles at the decode seam, taking them out of the picker, completion, a named launch, and `aterm bundles`.
 
 **Tab completes from the same roster.** `aterm <TAB>` offers the live slugs, `aterm sysadmin-senior <TAB>` only that role's launchable seats, so a slug that turned over stops completing rather than completing into a refusal. The read is under 10ms, so no cache goes stale. `shell/common.sh` registers bash and zsh through `aterm completion <shell>`, after `compinit` in zsh. A missing `agent-compose` yields silence, never a diagnostic mid-keystroke.
 
-**A slow pre-flight names itself.** `aterm` shells out for a seat, roster, and overlay before opening anything and captures their output, so a wrapped `aos` converging the host read as a launcher that had stopped. After two seconds it names the command it waits on.
+**A slow pre-flight names itself.** After two seconds `aterm` names the command it waits on.
 
 **A failing launch stays on screen.** A terminal closes the window the moment its child exits, so a failure used to vanish before anyone read why. `aterm` runs the child through its own `_session` stage rather than handing the harness to kitty. That stage passes the exit code through and holds the window on any non-zero exit, and `--hold` holds after a clean one too. The launcher watches for a startup failure, so "no window appeared" names its cause. A claude seat runs `claude update` under the card animation, silent unless it fails.
 
@@ -31,7 +31,7 @@ The window opens fullscreen at font size 14.5, which `--start-as` and `--font-si
 
 **`--dry-run` reads for a person, and failures split by code.** The default renders the identity, workspace, brand swatches, each personality in its color, and the child argv. `--dry-run --json` keeps the machine plan `scripts/check-aos-release.sh` asserts against. Exit codes: 2 usage, 3 off-roster role or seat, 4 a missing dependency, 5 the window failed to open, 1 anything else, and a child's own code passes through.
 
-**The picker follows the terminal, not stdout.** `aterm > log` used to refuse with "a role is required", because the check wanted stdin and stdout both to be character devices. It runs on `/dev/tty`.
+**The picker reads `/dev/tty`, so `aterm > log` still prompts.**
 
 **`aterm doctor` preflights the whole chain**, exits 1 on a broken link, and names the unleased-shadow case a launch makes silently. `--json` is `aterm.doctor.v1`.
 
@@ -52,7 +52,9 @@ Every window stands its role's own creature behind the session. See
 
 ## The host daemon
 
-It owns every session. See [the aterm host daemon](aterm-daemon.md).
+It routes every session. See [the aterm host daemon](aterm-daemon.md).
+
+**`aterm resume` reopens the conversation of a session that is no longer live.** The daemon records each session's role, seat, argv and directory, never its environment, under `~/.local/state/aterm/sessions` (`ATERM_STATE_DIR` overrides), and keeps an ended one 30 days. A claude launch carries a minted `--session-id`, so the record names the conversation. `aterm resume <session or role>` relaunches the role with `--resume <id> --name <old name>`, and `--list` shows what can be resumed. Only claude is recorded, and a live session points at `aterm attach`.
 
 ## macOS app bundles
 

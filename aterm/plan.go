@@ -25,6 +25,9 @@ type launchRequest struct {
 	Hold             bool
 	Headless         bool
 	StableName       bool
+	// Conversation is the claude conversation id minted for this launch, so a
+	// later `aterm resume` can name it. Empty leaves the harness to pick.
+	Conversation string
 	// Instance is the dictatable code that tells two sessions of one role apart.
 	Instance string
 	Creature creaturePlate
@@ -124,6 +127,10 @@ func buildLaunchPlan(
 	named := request.StableName && request.Seat == "claude" && name != "" && !hasNameFlag(request.Extra)
 	if named {
 		request.Extra = append([]string{"--name", name}, request.Extra...)
+	}
+	if request.Seat == "claude" && request.Conversation != "" &&
+		!hasAnyFlag(request.Extra, "--session-id", "--resume", "-r", "--continue", "-c") {
+		request.Extra = append([]string{"--session-id", request.Conversation}, request.Extra...)
 	}
 	child := composeChild(request, agentCompose, aos, shadowed)
 	// kitty's --title permanently fixes the OS window title against the child,

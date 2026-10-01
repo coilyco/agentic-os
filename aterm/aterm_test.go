@@ -138,6 +138,20 @@ func runAtermRaw(t *testing.T, deps commandDeps, argv ...string) (string, error)
 	return stdout.String(), err
 }
 
+// withoutConversation drops the claude conversation id a launch mints, so a test
+// of the rest of the child compares what it always did.
+func withoutConversation(child []string) []string {
+	kept := make([]string, 0, len(child))
+	for index := 0; index < len(child); index++ {
+		if child[index] == "--session-id" && index+1 < len(child) && conversationFlag.MatchString(child[index+1]) {
+			index++
+			continue
+		}
+		kept = append(kept, child[index])
+	}
+	return kept
+}
+
 func TestLaunchPlanRunsTheNativeSessionInsideTheWindow(t *testing.T) {
 	var spawns []recordedSpawn
 	deps := stubDeps(t, &spawns, true)
@@ -160,8 +174,11 @@ func TestLaunchPlanRunsTheNativeSessionInsideTheWindow(t *testing.T) {
 		"--role", "eng-platform", "--session-id", stubInstance, "--assigned-role", "--",
 		"/stub/agent-compose", "launch", "eng-platform", "claude", "--name", sessionName("Angie", "eng-platform", stubInstance),
 	}
-	if strings.Join(plan.Child, " ") != strings.Join(want, " ") {
-		t.Fatalf("child = %v, want %v", plan.Child, want)
+	if conversationOf(plan.Child) == "" {
+		t.Fatalf("a claude launch should carry a minted conversation id: %v", plan.Child)
+	}
+	if child := withoutConversation(plan.Child); strings.Join(child, " ") != strings.Join(want, " ") {
+		t.Fatalf("child = %v, want %v", child, want)
 	}
 	// Derived from the fixture, not spelled out. Roster titles turn over, and a
 	// hardcoded one makes an upstream retitle look like a launcher regression.
