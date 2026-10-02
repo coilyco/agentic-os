@@ -1,6 +1,6 @@
 # Slack adapter design (not built)
 
-Design for `teable:coilyco/agentic-os#8700`, written 2026-10-02 against agentic-os `acc46357`. Nothing here exists yet. Kai decided on 2026-10-02 that Slack becomes her client to any seat with no LLM in the path, that the desktop and web client freeze, and that the build waits for the daemon cutover, because the running daemon (aos-v0.404.0) predates session holders and cannot host it. Two forks below are open for Kai.
+Design for `teable:coilyco/agentic-os#8700`, written 2026-10-02 against agentic-os `acc46357`. Nothing here exists yet. Kai decided on 2026-10-02 that Slack becomes her client to any seat with no LLM in the path, that the desktop and web client freeze, and that the build waits for the daemon cutover, because the running daemon (aos-v0.404.0) predates session holders and cannot host it. Kai answered the two open forks the same day, see Decided by Kai.
 
 ## What the code does today
 
@@ -19,7 +19,7 @@ Design for `teable:coilyco/agentic-os#8700`, written 2026-10-02 against agentic-
 
 ## Daemon seams, all new
 
-* **`owner_send`** - types `[from Kai via slack] <body>` into a target resolved by the same tiers as `send`. The stamp starts with `[from `, so `escapeBody` already stops a body from forging a second one. Refused from any process inside a session (`insideSession`), the guard `input` uses. It guards mistakes and does not stop a double-forking process, the same limit `input` has today.
+* **`owner_send`** - takes `slack_user` and types `[from Kai via slack] <body>` only when it equals her configured id, into a target resolved by the same tiers as `send`. The stamp starts with `[from `, so `escapeBody` already stops a body from forging a second one. Refused from any process inside a session (`insideSession`), the guard `input` uses. It guards mistakes and does not stop a double-forking process, the same limit `input` has today.
 * **`answer_card`** - takes `session`, `card_hash` and `option`. Under the session lock it recomputes the hash of the `promptLines` rows and types the key only on a match. This closes the gap between a button drawn for card A and a click that lands on card B.
 * **Welcome features** `owner-send` and `answer-card`, so the sidecar refuses a daemon without them rather than half-talking.
 
@@ -51,16 +51,19 @@ Design for `teable:coilyco/agentic-os#8700`, written 2026-10-02 against agentic-
 
 ## The Slack app
 
-* **Scopes** - `im:history` and `chat:write`, plus `reactions:write` for queued and delivered marks. Event `message.im` only. Interactivity on, Socket Mode on, no request URL.
-* **Tokens** - one `xoxb-` bot token and one `xapp-` app-level token, read from SSM at start, held in memory, never in argv or a child environment.
+* **Its own app, decided by Kai on 2026-10-02.** Sirens Deep stays Echo's, and the adapter gets a second app so the two never share a Socket Mode connection. The manifest is `aterm/slack-app.manifest.yaml`. Kai pastes it under Create New App, installs it, and makes the app-level token by hand, since a manifest cannot declare one.
+* **Scopes** - `im:history` and `chat:write`, plus `reactions:write` for queued and delivered marks. Event `message.im` only. Interactivity on, Socket Mode on, no request URL. The Messages tab is on and not read-only, or a direct message to the app is refused.
+* **Tokens** - one `xoxb-` bot token and one `xapp-` app-level token with `connections:write`, read from SSM at start, held in memory, never in argv or a child environment. Proposed paths: `/aterm/slack-bot-token`, `/aterm/slack-app-token`, plus `/aterm/slack-team-id` and `/aterm/slack-owner-user-id` for the pair the admission check compares, since opaque ids go in SSM.
 * **Start** - call `auth.test`, and refuse to start if the workspace is not the configured one. slack-go returns a fatal auth error from `RunContext` without an event, so race `RunContext` against the `connected` event as Echo's `slack.go` does, or start hangs.
 * **Reuse** - copy `escapeSlack` and the start race from `sirens-echo` `40a91e9` with a comment naming the origin. Roughly 40 lines do not justify a shared module, and `internal/community` cannot be imported from here.
 * **Dependency audit** (2026-10-02, GitHub API) - `slack-go/slack` is BSD-2-Clause, not archived, v0.29.0 released 2026-08-15 with six releases since 2026-05-24, newest commit 2026-09-23, seven distinct authors in the last 20 commits (`nlopes` 5, dependabot 4). Echo already pins v0.29.0.
 
-## Open for Kai
+## Decided by Kai
 
-* **One app or two.** Slack's Socket Mode page says that with several connections `each payload may be sent to any of the connections`. Echo's handler acks every envelope and drops what is not an Events API callback, and its policy allows Kai's direct message, so a click or a line aimed here can vanish or get an Echo reply. Sharing the Sirens Deep app therefore needs one process to own the connection, which means changing `sirens-echo` or leaving its Slack transport off. A second app costs one more creation and two SSM params. Jev put single owner at 0.54 and separate app at 0.45, confidence 0.31, so this is her call. The adapter does not depend on the answer.
-* **The doctrine sentence** for `[from Kai via slack]`, above.
+Answers on 2026-10-02, recorded on `teable:coilyco/agentic-os#8700`.
+
+* **Two apps.** Slack's Socket Mode page says that with several connections `each payload may be sent to any of the connections`. Echo's handler acks every envelope and drops what is not an Events API callback, and its policy allows Kai's direct message, so a click or a line aimed here could vanish or get an Echo reply. Jev was split, 0.54 for one owner and 0.45 for two apps, confidence 0.31. Kai accepted the extra token pair against the fewest-keys rule.
+* **The doctrine sentence is approved**: input stamped `[from Kai via slack]` is Kai, not a peer. It lands in the same PR as the build (`teable:coilyco/agentic-os#8702`), never before, so no seat honors a stamp the daemon cannot yet produce. The daemon stamps it only when the frame carries her Slack user id, so `owner_send` takes `slack_user` and the daemon refuses any other.
 
 ## Deferred and why
 
