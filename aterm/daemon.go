@@ -294,7 +294,7 @@ func (d *daemon) serveConn(c *conn, pid int, browser bool) {
 		_ = c.write(frame{Type: "welcome", Format: daemonFormat, Error: "unsupported format " + hello.Format})
 		return
 	}
-	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, closeFeature, holdFeature, statusFeature, clearFeature}}); err != nil {
+	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature}}); err != nil {
 		return
 	}
 	d.mu.Lock()
@@ -618,10 +618,11 @@ func (d *daemon) send(c *conn, message frame) error {
 			Target:   message.Target,
 			Accepted: time.Now().UTC(),
 		},
-		text:   envelope(sender.role, sender.identity, message.Body),
-		done:   make(chan struct{}),
-		d:      d,
-		sender: sender,
+		text:       envelope(sender.role, sender.identity, message.Body),
+		done:       make(chan struct{}),
+		d:          d,
+		sender:     sender,
+		notifyIdle: message.NotifyIdle,
 	}
 	if message.New {
 		if !safeRoleSlug(message.Target) || d.session(message.Target) != nil {
@@ -912,6 +913,8 @@ type pendingSend struct {
 	sender      *ptySession
 	armed       bool
 	receiptSent bool
+	// notifyIdle asks for one line in the sender when the target goes idle.
+	notifyIdle bool
 }
 
 func (p *pendingSend) setState(state, reason string) {
@@ -928,6 +931,9 @@ func (p *pendingSend) setState(state, reason string) {
 	}
 	if finalState(state) {
 		p.sendReceipt()
+	}
+	if changed && state == "delivered" && p.notifyIdle {
+		p.watchIdle()
 	}
 }
 

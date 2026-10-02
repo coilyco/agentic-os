@@ -39,6 +39,11 @@ func (p *pendingSend) sendReceipt() {
 // deliverReceipt queues a daemon-stamped line in the sender's session, behind Kai's
 // draft like any message. Its own state is neither reported nor receipted.
 func deliverReceipt(sender *ptySession, message peerMessage) {
+	tellSender(sender, receiptText(message))
+}
+
+// tellSender queues one daemon-stamped line in the sender's session, unless it ended.
+func tellSender(sender *ptySession, text string) {
 	select {
 	case <-sender.done:
 		return
@@ -46,7 +51,7 @@ func deliverReceipt(sender *ptySession, message peerMessage) {
 	}
 	notice := &pendingSend{
 		msg:  peerMessage{ID: randomID(6), From: "aterm daemon", Target: sender.name, Accepted: time.Now().UTC()},
-		text: envelope("aterm", "daemon", receiptText(message)),
+		text: envelope("aterm", "daemon", text),
 		done: make(chan struct{}),
 	}
 	sender.enqueue(notice)

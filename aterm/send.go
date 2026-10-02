@@ -80,6 +80,7 @@ func newSendCommand() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "launch", Usage: "when no session answers to a role, open one and deliver into it"},
 			&cli.BoolFlag{Name: "new", Usage: "open a new instance of the role even when one is live, and deliver into it"},
+			&cli.BoolFlag{Name: "notify-idle", Usage: "type one line into this session when the target next goes idle after the message lands"},
 			&cli.DurationFlag{Name: "wait", Usage: "wait up to this long for delivered or failed, 3s when absent, and exit 1 on failed"},
 			&cli.BoolFlag{Name: "json", Usage: "print the message state as JSON"},
 		},
@@ -97,7 +98,8 @@ func newSendCommand() *cli.Command {
 				body = string(raw)
 			}
 			wait := cmd.Duration("wait")
-			state, err := sendMessage(args[0], body, cmd.Bool("launch"), cmd.Bool("new"), wait)
+			state, err := sendMessage(args[0], body, sendOptions{Launch: cmd.Bool("launch"), Fresh: cmd.Bool("new"),
+				NotifyIdle: cmd.Bool("notify-idle"), Wait: wait})
 			if err != nil {
 				return err
 			}
@@ -115,9 +117,15 @@ func newSendCommand() *cli.Command {
 	}
 }
 
+// sendOptions are the choices a send takes beyond its target and body.
+type sendOptions struct {
+	Launch, Fresh, NotifyIdle bool
+	Wait                      time.Duration
+}
+
 // sendMessage is the one path both front doors take, the CLI and the MCP
 // tool, so the two cannot drift.
-func sendMessage(target, body string, launch, fresh bool, wait time.Duration) (peerMessage, error) {
+func sendMessage(target, body string, opts sendOptions) (peerMessage, error) {
 	token := strings.TrimSpace(os.Getenv(sessionTokenEnv))
 	if token == "" {
 		return peerMessage{}, withExit(exitUsage, fmt.Errorf(
@@ -128,16 +136,20 @@ func sendMessage(target, body string, launch, fresh bool, wait time.Duration) (p
 		return peerMessage{}, withExit(exitMissing, err)
 	}
 	defer c.Close()
-	if fresh && !slices.Contains(c.features, sendNewFeature) {
+	if opts.Fresh && !slices.Contains(c.features, sendNewFeature) {
 		return peerMessage{}, fmt.Errorf("the running aterm daemon predates new-instance sends and would deliver " +
 			"to the live session. It restarts on the upgraded binary after five idle minutes")
 	}
-	if wait > 0 && !slices.Contains(c.features, sendWaitFeature) {
+	if opts.Wait > 0 && !slices.Contains(c.features, sendWaitFeature) {
 		return peerMessage{}, fmt.Errorf("the running aterm daemon predates send --wait and would answer after 3 seconds. " +
 			"It restarts on the upgraded binary after five idle minutes")
 	}
-	reply, err := c.request(frame{Type: "send", Token: token, Target: target, Body: body, Launch: launch, New: fresh,
-		Wait: int(math.Ceil(wait.Seconds()))})
+	if opts.NotifyIdle && !slices.Contains(c.features, sendIdleFeature) {
+		return peerMessage{}, fmt.Errorf("the running aterm daemon predates send --notify-idle and would send no notice. " +
+			"It restarts on the upgraded binary after five idle minutes")
+	}
+	reply, err := c.request(frame{Type: "send", Token: token, Target: target, Body: body, Launch: opts.Launch, New: opts.Fresh,
+		NotifyIdle: opts.NotifyIdle, Wait: int(math.Ceil(opts.Wait.Seconds()))})
 	if err != nil {
 		if reply.Code != 0 {
 			return peerMessage{}, withExit(reply.Code, err)

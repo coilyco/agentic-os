@@ -65,6 +65,8 @@ type frame struct {
 	New bool `json:"new,omitempty"`
 	// Wait is seconds a send holds its reply for the final state, 3 when absent.
 	Wait int `json:"wait,omitempty"`
+	// NotifyIdle asks for one notice typed into the sender when the target next goes idle.
+	NotifyIdle bool `json:"notify_idle,omitempty"`
 	// Force closes a session even while it holds a draft or undelivered messages.
 	Force bool `json:"force,omitempty"`
 
@@ -146,6 +148,9 @@ const sendNewFeature = "send-new"
 
 // sendWaitFeature is how a client knows the daemon reads `wait` on a send.
 const sendWaitFeature = "send-wait"
+
+// sendIdleFeature is how a client knows the daemon reads `notify_idle` on a send.
+const sendIdleFeature = "send-idle"
 
 // closeFeature is how a client knows the daemon answers a close frame.
 const closeFeature = "close"

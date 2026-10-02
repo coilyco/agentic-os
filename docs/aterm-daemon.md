@@ -7,13 +7,13 @@ attached to it, and `aterm send` types a stamped message from one session into a
 aterm agents                          # the targets send takes
 aterm send frontend-eng "ready for review"
 aterm send --launch scientist -       # open the role if none answers
-aterm attach eng-platform-beetle-ox   # a second terminal, Ctrl-] detaches
+aterm attach eng-platform-beetle-ox   # Ctrl-] detaches
 aterm status scientist-frog-ox-ya97   # state and screen
 aterm clear scientist-frog-ox-ya97
 aterm close scientist-frog-ox-ya97
 aterm daemon                          # foreground, websocket on 127.0.0.1:7419
 aterm ask "Ship it?" yes no           # a choice card
-aterm mcp                             # the MCP tools
+aterm mcp
 ```
 
 ## What the daemon owns
@@ -32,7 +32,7 @@ aterm mcp                             # the MCP tools
 
 **A launch the daemon starts has no window.** The web client's `launch` frame and `send --launch`/`--new` run `aterm --headless <role>`, where `_session` spawns and exits, leaving the session to a client or `aterm attach`.
 
-**A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn as one stdin line since the environment holds credentials. It listens at `hold/<name>-<hash>.sock` and speaks `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running. The next one adopts each, drops a socket nobody answers,. An adopted session has a typing hold, and pending messages are lost.
+**A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn as one stdin line since the environment holds credentials. It listens at `hold/<name>-<hash>.sock` and speaks `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running. The next one adopts each, drops a socket nobody answers. An adopted session has a typing hold, and pending messages are lost.
 
 **A window that loses the daemon redials, starting one, and attaches again.** It replays only what it had not drawn, and a session that ended meanwhile answers `exited` with its code.
 
@@ -59,7 +59,7 @@ aterm mcp                             # the MCP tools
 `aterm.daemon.v1` is one JSON object per line over the socket, and one per text message over the websocket. Both sides open with `hello` and `welcome` naming the format, and a mismatch refuses. A request's `id` is echoed on the reply or on an `error` with `code`.
 
 * `spawn`, `attach`, `detach`, `input` and `output` (base64 `data`), `resize`, `exit` with `code`.
-* `send` answers `sent` with the message state, waiting 3 seconds, or `wait` (at most 120), for delivery unless `launching`. One not yet final earns the sender a `[from aterm daemon] message <id> to <session>: <state>` line, never the body.
+* `send` answers `sent` with the message state, waiting 3 seconds, or `wait` (at most 120), for delivery unless `launching`. One not yet final earns the sender `[from aterm daemon] message <id> to <session>: <state>`, never the body. `notify_idle` adds `<session> is idle` or `ended`.
 * `status` (with `lines`), `clear` and `close` (with optional `force`), each with a `target`, answer `status`, `cleared` and `closed` with the exit `code`.
 * `list` answers `sessions`, each with `state` and `quiet_seconds`. `subscribe` to channel `sessions` pushes the roster on every change, and `message` events carry each state change, never the body.
 * `whoami` resolves a token to its session. `roster` answers `aterm.roster.v1`, the launchable roles `aterm --list --json` prints. `launch` with a `role` and optional `seat` opens it headless, answering `launched`.

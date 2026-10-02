@@ -91,7 +91,8 @@ var mcpTools = []map[string]any{
 			"Address it by role slug, identity, harness, or session name from list_agents. Returns " +
 			"queued, held (with the reason), delivered, or failed. A message still queued or held when " +
 			"this returns is followed by a `[from aterm daemon]` receipt typed into your own session " +
-			"when it lands or fails, so do not poll.",
+			"when it lands or fails, so do not poll. `notify_when_idle` adds one `[from aterm daemon]` line " +
+			"when the recipient next goes idle, or ends.",
 		"inputSchema": map[string]any{
 			"type":     "object",
 			"required": []string{"to", "message"},
@@ -101,6 +102,8 @@ var mcpTools = []map[string]any{
 				"launch":  map[string]any{"type": "boolean", "description": "open the role when no session answers, and deliver into it"},
 				"wait_seconds": map[string]any{"type": "integer", "description": "hold the answer up to this long, " +
 					"at most 120, for delivered or failed, instead of 3 seconds"},
+				"notify_when_idle": map[string]any{"type": "boolean", "description": "type one line into your session " +
+					"when the recipient next goes idle after the message lands"},
 				"new": map[string]any{"type": "boolean", "description": "open a new instance of the role even when one is live, " +
 					"deliver into it, and return its session name. `to` must be a role slug"},
 			},
@@ -239,12 +242,13 @@ func callMCPTool(name string, arguments json.RawMessage) (string, bool) {
 			Launch  bool   `json:"launch"`
 			New     bool   `json:"new"`
 			Wait    int    `json:"wait_seconds"`
+			Idle    bool   `json:"notify_when_idle"`
 		}
 		if err := json.Unmarshal(arguments, &params); err != nil {
 			return err.Error(), true
 		}
-		state, err := sendMessage(params.To, params.Message, params.Launch, params.New,
-			time.Duration(params.Wait)*time.Second)
+		state, err := sendMessage(params.To, params.Message, sendOptions{Launch: params.Launch, Fresh: params.New,
+			NotifyIdle: params.Idle, Wait: time.Duration(params.Wait) * time.Second})
 		if err != nil {
 			return err.Error(), true
 		}
