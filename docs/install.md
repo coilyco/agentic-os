@@ -32,6 +32,8 @@ git config --global credential.https://forgejo.coilysiren.me.helper \
   "!C:/Users/firem/.local/bin/git-credential-forgejo-ssm.cmd"
 ```
 
+The helper keeps the token in git's `credential-cache` daemon, in memory and never in a file, so a burst of requests costs one SSM read. A partial clone's lazy fetches each ask the helper, and a blobless clone of 120 commits under `git log -p -M` made 52 requests and 52 SSM reads before, and 1 after. `FORGEJO_CREDENTIAL_CACHE_SECONDS` sets the lifetime, 600 by default and 0 for none. When Forgejo rejects the token, git tells the helper, which drops its copy, so a rotated token takes effect on the next command and not after the lifetime. Where git has no `credential-cache`, as on native Windows, every request reads SSM as before.
+
 ## Per-host notes
 
 - **Linux (kai-server)** - Login-shell switch is on the operator: `chsh -s "$(command -v zsh)"`.
