@@ -4,7 +4,7 @@
 attached to it, and `aterm send` types a stamped message from one session into another. Its window is [the native agent terminal](aterm.md).
 
 ```text
-aterm agents                          # the targets send takes
+aterm agents
 aterm send frontend-eng "ready for review"
 aterm send --launch scientist -       # open the role if none answers
 aterm attach eng-platform-beetle-ox   # Ctrl-] detaches
@@ -48,7 +48,7 @@ aterm mcp
 
 **Targets resolve in tiers**: session name, role slug, identity, then harness. The first tier with a match wins, several matches in it refuse and name them, and none exits 3 with the live sessions listed. `--launch` on a role slug opens the role and holds the message up to three minutes. `--new` always opens another instance and names it.
 
-**Delivery serializes with the keyboard.** One lock covers every PTY write, so a message never interleaves with keystrokes. A message is `queued` until the target is ready, `held` while Kai typed in the last 1.5 seconds or has a draft touched in the last minute, then `delivered` or `failed`. Enter, Ctrl-C or Ctrl-U clear the draft.
+**Delivery serializes with the keyboard.** One lock covers every PTY write, so a message never interleaves with keystrokes. A message is `queued` until the target is ready, `held` while Kai typed in the last 1.5 seconds, has a draft touched in the last minute, or a permission or choice card is up, then `delivered` or `failed`. Enter, Ctrl-C or Ctrl-U clear the draft.
 
 **A program that asked for bracketed paste gets the message as one paste, then Enter 300ms later**, since an Enter inside the paste reads as a newline. Without it, lines join with spaces. codex turns it on at its prompt, so **ready means paste is on, never a quiet screen**. claude and opencode drop a paste before the prompt mounts, so **ready means `Try "` or `Ask anything` showed**, or 20s passed.
 

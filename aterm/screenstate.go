@@ -47,6 +47,16 @@ var busyScreens = map[string]*regexp.Regexp{
 	"opencode": regexp.MustCompile(`(?i)esc interrupt`),
 }
 
+// showsCard is whether the screen text holds a permission or choice card.
+func showsCard(seat, text string) bool {
+	for _, mark := range promptScreens[seat] {
+		if mark.MatchString(text) {
+			return true
+		}
+	}
+	return false
+}
+
 // classify names what a session is doing from its screen lines, its seat, whether
 // it can take a message yet, and how long it has been quiet.
 func classify(seat string, lines []string, ready bool, quiet time.Duration) string {
@@ -54,10 +64,8 @@ func classify(seat string, lines []string, ready bool, quiet time.Duration) stri
 		return stateStarting
 	}
 	text := strings.Join(lines, "\n")
-	for _, mark := range promptScreens[seat] {
-		if mark.MatchString(text) {
-			return statePrompt
-		}
+	if showsCard(seat, text) {
+		return statePrompt
 	}
 	if quiet < busyWindow {
 		return stateBusy

@@ -601,6 +601,15 @@ func (s *ptySession) holdReason(now time.Time) string {
 	return ""
 }
 
+// cardReason is why a message waits behind a permission or choice card, since the Enter
+// that submits it would answer the card. Caller holds mu.
+func (s *ptySession) cardReason() string {
+	if s.scr != nil && showsCard(s.seat, strings.Join(s.scr.text(), "\n")) {
+		return s.name + " is held at a prompt card"
+	}
+	return ""
+}
+
 func (s *ptySession) deliverNext(now time.Time) {
 	s.mu.Lock()
 	if len(s.pending) == 0 {
@@ -610,6 +619,9 @@ func (s *ptySession) deliverNext(now time.Time) {
 	next := s.pending[0]
 	ready := s.ready(now)
 	hold := s.holdReason(now)
+	if hold == "" {
+		hold = s.cardReason()
+	}
 	paste := s.paste
 	s.mu.Unlock()
 	switch {
@@ -622,8 +634,12 @@ func (s *ptySession) deliverNext(now time.Time) {
 	}
 	s.writeMu.Lock()
 	s.mu.Lock()
-	// Kai may have started typing while this waited for the lock.
-	if hold := s.holdReason(time.Now()); hold != "" {
+	// Kai may have started typing, or a card come up, while this waited for the lock.
+	hold = s.holdReason(time.Now())
+	if hold == "" {
+		hold = s.cardReason()
+	}
+	if hold != "" {
 		s.mu.Unlock()
 		s.writeMu.Unlock()
 		next.setState("held", hold)
