@@ -61,7 +61,7 @@ That is the change worth knowing about. The retired `agent-name.sh` computed a
 name from harness, OS, hostname, and a tag sliced out of the raw session UUID.
 It could not know the composed seat, so an agent introduced itself as one thing
 while its status line said another, and the tag used the full alphabet rather
-than the [dictatable](https://forgejo.coilysiren.me/coilyco/agent-compose/src/branch/main/docs/short-id.md)
+than the dictatable
 one, so it was not reliably speakable.
 
 It also had to exist twice - a host copy and a format-identical container copy -

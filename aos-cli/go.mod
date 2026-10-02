@@ -1,4 +1,4 @@
-module forgejo.coilysiren.me/coilyco/agentic-os/aos
+module github.com/coilyco/agentic-os/aos
 
 go 1.26.5
 

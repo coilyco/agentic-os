@@ -1,4 +1,4 @@
-module forgejo.coilysiren.me/coilyco/agentic-os/aterm
+module github.com/coilyco/agentic-os/aterm
 
 go 1.25.0
 

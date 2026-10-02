@@ -52,7 +52,7 @@ composed layout and content. `documentation-layout`, `dead-cross-links`, and
 rather than a person's: the `personal-preference-*` family and the social
 writing family. They are public because a consumer outside Kai's personal fleet
 needs them, the first being
-[sirens-echo](https://forgejo.coilysiren.me/coilyco/sirens-echo), whose
+sirens-echo, whose
 Discord agent reaches no private catalogue. **The voice family is the exception
 and left in 2026-09** for the private `coilyco/voice-corpus`, so Echo
 lost house style until `teable:coilyco-gaming/sirens-echo#7138` restores it.
@@ -105,9 +105,9 @@ Composition grants knowledge only. Ward's fixed workflow and the separately
 selected AOSguard surface still control tools, credentials, and write
 authority. Role composition is the current coarse gate for skill authoring,
 refined by
-[agent-compose#70](https://forgejo.coilysiren.me/coilyco/agent-compose/issues/70)
+agent-compose#70
 and
-[agentic-os#716](https://forgejo.coilysiren.me/coilyco/agentic-os/issues/716):
+agentic-os#716:
 deterministic structure checks stay the required gate, with budget-bounded
 evaluation offered for admission decisions.
 

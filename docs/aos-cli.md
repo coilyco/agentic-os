@@ -44,7 +44,7 @@ Assets group `aos-*`, `aos-bundle-*`, `aoscompose-*`, `aosward-*`, `aosguard-*`,
 
 ## Install
 
-Homebrew on macOS or Linux taps `coilyco-flight-deck/tap`, Scoop on Windows adds the `coilyco` bucket, and Forgejo also serves every checksummed binary from [releases](https://forgejo.coilysiren.me/coilyco/agentic-os/releases). Exact commands are in [the README](../README.md).
+Homebrew on macOS or Linux taps `coilyco-flight-deck/tap`, Scoop on Windows adds the `coilyco` bucket. Exact commands are in [the README](../README.md).
 
 Both put `aos`, `aoscompose`, `aoscomposed`, `aosward`, `aosguard`, and `aterm` on `PATH`. `aoscomposed` aliases `aoscompose`, `aosward` forces warded mode from its executable name, `aosguard` carries the operator CLI and Actions bridge, and `aterm` is the [branded session launcher](aterm.md).
 
