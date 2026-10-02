@@ -19,7 +19,7 @@ const mcpProtocol = "2025-06-18"
 func newMCPCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "mcp",
-		Usage: "serve list_agents, send_message, session_status, close_session and ask_choice over MCP stdio",
+		Usage: "serve list_agents, send_message, session_status, clear_session, close_session and ask_choice over MCP stdio",
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			return serveMCP(os.Stdin, cmd.Root().Writer)
 		},
@@ -108,6 +108,21 @@ var mcpTools = []map[string]any{
 			"properties": map[string]any{
 				"to":    map[string]any{"type": "string", "description": "session name from list_agents, or role, identity, or harness"},
 				"lines": map[string]any{"type": "integer", "description": "screen rows to return, default 30, at most 200"},
+			},
+		},
+	},
+	{
+		"name": "clear_session",
+		"description": "Start another live agent session over by typing its harness's clear command, which " +
+			"discards its context. Only the director role may call it. `to` resolves as in send_message. " +
+			"It refuses your own session, a session on a permission or choice prompt, and unless force is " +
+			"set one that is busy, holds Kai's unsent draft, or has undelivered messages.",
+		"inputSchema": map[string]any{
+			"type":     "object",
+			"required": []string{"to"},
+			"properties": map[string]any{
+				"to":    map[string]any{"type": "string", "description": "session name from list_agents, or role, identity, or harness"},
+				"force": map[string]any{"type": "boolean", "description": "clear even a busy session, or one holding a draft or undelivered messages"},
 			},
 		},
 	},
@@ -248,6 +263,19 @@ func callMCPTool(name string, arguments json.RawMessage) (string, bool) {
 		}
 		encoded, _ := json.MarshalIndent(status, "", "  ")
 		return string(encoded), false
+	case "clear_session":
+		var params struct {
+			To    string `json:"to"`
+			Force bool   `json:"force"`
+		}
+		if err := json.Unmarshal(arguments, &params); err != nil {
+			return err.Error(), true
+		}
+		name, command, err := clearTarget(params.To, params.Force)
+		if err != nil {
+			return err.Error(), true
+		}
+		return fmt.Sprintf("typed %s into %s", command, name), false
 	case "close_session":
 		var params struct {
 			To    string `json:"to"`

@@ -148,6 +148,9 @@ const closeFeature = "close"
 // statusFeature is how a client knows the daemon answers a status frame.
 const statusFeature = "status"
 
+// clearFeature is how a client knows the daemon answers a clear frame.
+const clearFeature = "clear"
+
 // holdFeature is how a client knows sessions live in holders, so stopping the
 // daemon leaves them running. A daemon without it ends every session when it stops.
 const holdFeature = "holders"

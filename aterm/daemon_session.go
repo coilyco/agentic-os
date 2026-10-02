@@ -464,6 +464,18 @@ func (s *ptySession) typeInput(data []byte) error {
 	return err
 }
 
+// typeCommand types a command and Enter into the session as a person would,
+// without counting it as Kai's typing, so it does not hold the next message.
+func (s *ptySession) typeCommand(command string) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	if err := s.writePTY([]byte(command)); err != nil {
+		return err
+	}
+	time.Sleep(submitDelay)
+	return s.writePTY([]byte("\r"))
+}
+
 // trackDraft counts what Kai has typed and not sent. Escape sequences and a
 // terminal's replies to queries are not text. Caller holds mu.
 func (s *ptySession) trackDraft(data []byte) {

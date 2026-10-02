@@ -294,7 +294,7 @@ func (d *daemon) serveConn(c *conn, pid int, browser bool) {
 		_ = c.write(frame{Type: "welcome", Format: daemonFormat, Error: "unsupported format " + hello.Format})
 		return
 	}
-	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, closeFeature, holdFeature, statusFeature}}); err != nil {
+	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, closeFeature, holdFeature, statusFeature, clearFeature}}); err != nil {
 		return
 	}
 	d.mu.Lock()
@@ -391,6 +391,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		}
 		status := s.status(message.Lines)
 		return cl.c.write(frame{Type: "status", ID: message.ID, Session: s.name, Status: &status})
+	case "clear":
+		return d.clearSession(cl, message)
 	case "list":
 		return cl.c.write(frame{Type: "sessions", ID: message.ID, Sessions: d.views()})
 	case "launch":
@@ -708,6 +710,54 @@ func (d *daemon) closeSession(cl *client, message frame) error {
 	code := s.exitCode
 	s.mu.Unlock()
 	return cl.c.write(frame{Type: "closed", ID: message.ID, Session: s.name, Code: code})
+}
+
+// clearCommands is the line each harness reads as "start over", typed unstamped.
+// A seat not listed cannot be cleared, since the line would arrive as text.
+var clearCommands = map[string]string{"claude": "/clear"}
+
+// clearRoles may clear another seat. Kai's own client always may, and clearing
+// discards a seat's context, so no other role does.
+var clearRoles = map[string]bool{"prod-director": true}
+
+// clearSession types a harness's clear command into an idle session, for Kai or
+// the director. See docs/aterm-daemon.md.
+func (d *daemon) clearSession(cl *client, message frame) error {
+	s, err := d.oneTarget(message.Target)
+	if err != nil {
+		return err
+	}
+	caller := d.byToken(message.Token)
+	switch {
+	case caller != nil && !clearRoles[caller.role]:
+		return withExit(exitUsage, fmt.Errorf("the %s role may not clear a session, only Kai and the director do", caller.role))
+	case caller == nil && !cl.browser && d.insideSession(cl.peerPID):
+		return withExit(exitUsage, errors.New("a process inside a session must present its session token to clear another"))
+	case caller == s:
+		return withExit(exitUsage, fmt.Errorf("%s is this session, and clearing it would discard the context doing the clearing", s.name))
+	}
+	command, known := clearCommands[s.seat]
+	if !known {
+		return withExit(exitUsage, fmt.Errorf("%s runs the %s harness, which has no clear command aterm knows", s.name, s.seat))
+	}
+	view := s.view()
+	switch {
+	case view.State == statePrompt:
+		return withExit(exitUsage, fmt.Errorf("%s sits on a prompt, and the command would answer it", s.name))
+	case !message.Force && (view.Drafted || view.Pending > 0):
+		return withExit(exitUsage, fmt.Errorf("%s holds Kai's draft or undelivered messages, so it stays unless forced", s.name))
+	case !message.Force && view.State != stateIdle:
+		return withExit(exitUsage, fmt.Errorf("%s is %s, so it stays unless forced", s.name, view.State))
+	}
+	by := "Kai's client"
+	if caller != nil {
+		by = caller.name
+	}
+	d.logf("clearing session %s (%s) for %s", s.name, command, by)
+	if err := s.typeCommand(command); err != nil {
+		return err
+	}
+	return cl.c.write(frame{Type: "cleared", ID: message.ID, Session: s.name, Text: command})
 }
 
 // oneTarget resolves a target to exactly one live session, or says why not.
