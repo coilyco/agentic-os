@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -258,8 +259,13 @@ func (tc *testClient) untilMatch(label string, done func(output string) bool) {
 
 func (tc *testClient) spawn(name, role, identity, script string) {
 	tc.t.Helper()
+	tc.spawnSeat(name, role, identity, "claude", script)
+}
+
+func (tc *testClient) spawnSeat(name, role, identity, seat, script string) {
+	tc.t.Helper()
 	_, err := tc.c.request(frame{
-		Type: "spawn", Session: name, Role: role, Identity: identity, Seat: "claude",
+		Type: "spawn", Session: name, Role: role, Identity: identity, Seat: seat,
 		Argv: []string{"/bin/sh", "-c", script}, Env: os.Environ(), Cwd: "/", Rows: 24, Cols: 200,
 	})
 	if err != nil {
@@ -589,5 +595,116 @@ func TestTokenIsReadWhenTheLineArrivesInTwoChunks(t *testing.T) {
 		`printf 'TOKEN=ab'; sleep 0.5; printf 'cd\n'; sleep 30`)
 	if got := seat.token(); got != "abcd" {
 		t.Fatalf("token = %q, want the whole line", got)
+	}
+}
+
+// opencode turns paste on two seconds before its prompt and drops a paste typed in
+// between, one line or several (teable:coilyco/agentic-os#8453).
+func TestReadyWaitsForTheOpencodePromptNotBracketedPaste(t *testing.T) {
+	now := time.Now()
+	seat := &ptySession{seat: "opencode", started: now.Add(-3 * time.Second), lastOutput: now}
+	seat.pasteSeen = true
+	if seat.ready(now) {
+		t.Fatal("paste seen alone is not ready for opencode: its prompt is not there yet")
+	}
+	// A mark split across two chunks still counts, and the settle beat still applies.
+	seat.scanPrompt([]byte("\x1b[?2004h Ask any"), now)
+	if !seat.promptSeen.IsZero() {
+		t.Fatal("half a mark is not a mark")
+	}
+	seat.scanPrompt([]byte("thing\u2026 \"Fix broken tests\""), now)
+	if seat.promptSeen.IsZero() {
+		t.Fatal("a mark split across chunks should be found")
+	}
+	if seat.ready(now.Add(promptSettle / 2)) {
+		t.Fatal("the input needs a beat after the mark")
+	}
+	if !seat.ready(now.Add(promptSettle + time.Millisecond)) {
+		t.Fatal("a seat that painted its prompt is ready after the settle beat")
+	}
+	lost := &ptySession{seat: "opencode", started: now.Add(-promptWait - time.Second), lastOutput: now.Add(-time.Hour)}
+	if !lost.ready(now) {
+		t.Fatal("a seat whose mark never showed still gets the message after promptWait")
+	}
+	other := &ptySession{seat: "codex", started: now.Add(-3 * time.Second), lastOutput: now}
+	other.pasteSeen = true
+	if !other.ready(now) {
+		t.Fatal("seats without a prompt mark keep the paste rule")
+	}
+}
+
+var odOffset = regexp.MustCompile(`^[0-7]{7}$`)
+
+func TestDaemonHoldsAMultiLineMessageForAnOpencodePromptThenSubmitsIt(t *testing.T) {
+	testDaemon(t)
+	sender := dialTest(t)
+	sender.spawn("eng-platform-beetle-ox", "eng-platform", "Beetle-Ox", `echo TOKEN=$ATERM_SESSION_TOKEN; sleep 30`)
+	token := sender.token()
+	target := dialTest(t)
+	// Paste mode comes on at once, the prompt four seconds later. The paste rule
+	// alone would deliver at 1.5s, a good second and a half too early.
+	target.spawnSeat("eng-junior-beetle-ox", "eng-junior", "Beetle-Ox", "opencode",
+		`printf 'READY\033[?2004h\n'; sleep 4; printf 'Ask anything\n'; stty raw -echo; od -c`)
+	target.until("READY")
+	state := sendAs(t, token, "eng-junior", "first line\nsecond line")
+	if state.State != "queued" {
+		t.Fatalf("state = %+v, want queued while the prompt is not there", state)
+	}
+	// A fresh connection per question: target's own is subscribed to pushes, and a
+	// push from before the message was queued would answer a list with 0 pending.
+	pending := func() int {
+		asker, err := dialDaemon(false)
+		if err != nil {
+			t.Fatalf("dial: %v", err)
+		}
+		defer asker.Close()
+		reply, err := asker.request(frame{Type: "list"})
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		for _, view := range reply.Sessions {
+			if view.Name == "eng-junior-beetle-ox" {
+				return view.Pending
+			}
+		}
+		t.Fatal("the target session is gone")
+		return -1
+	}
+	// Judged from the send, since spawning takes its own second: the paste rule
+	// would have delivered by now, and the prompt rule must still be waiting.
+	time.Sleep(900 * time.Millisecond)
+	if got := pending(); got != 1 {
+		t.Fatalf("pending = %d before the prompt showed, want the message still waiting for it", got)
+	}
+	if strings.Contains(target.output.String(), "Ask anything") {
+		t.Fatal("the prompt showed already, so this test no longer separates the two rules")
+	}
+	target.until("Ask anything")
+	for deadline := time.Now().Add(8 * time.Second); pending() != 0; {
+		if time.Now().After(deadline) {
+			t.Fatal("the message was never delivered after the prompt showed")
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	// od prints a row per 16 bytes, so padding pushes the last bytes out.
+	if err := target.c.write(frame{Type: "input", Session: "eng-junior-beetle-ox", Data: []byte("zzzzzzzzzzzzzzzz")}); err != nil {
+		t.Fatalf("pad: %v", err)
+	}
+	target.until(`\r`)
+	// od starts each row with its octal offset, which lands mid-message at a row boundary.
+	var bytesRead []string
+	for _, field := range strings.Fields(target.output.String()) {
+		if !odOffset.MatchString(field) {
+			bytesRead = append(bytesRead, field)
+		}
+	}
+	seen := strings.Join(bytesRead, "")
+	for _, want := range []string{`033[200~[from`, `f i r s t`, `\n s e c o n d`, `033[201~`, `\r`} {
+		if !strings.Contains(seen, strings.ReplaceAll(want, " ", "")) {
+			t.Fatalf("the seat read no %q:\n%s", want, target.output.String())
+		}
+	}
+	if got := pending(); got != 0 {
+		t.Fatalf("pending = %d after delivery, want 0", got)
 	}
 }

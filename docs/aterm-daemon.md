@@ -3,13 +3,13 @@
 `aterm daemon` routes every session `aterm` opens. The kitty window is one client
 attached to it, and `aterm send` types a stamped message from one session into another. Its window is
 [the native agent terminal](aterm.md). Records: teable:coilyco/agentic-os#8219
-(send) and teable:coilyco/agentic-os#8220 (daemon and client).
+(send), #8220 (daemon, client).
 
 ```text
 aterm agents                          # live sessions, the targets send takes
 aterm send frontend-eng "ready for review"
-aterm send --launch scientist -       # open the role if none answers, body on stdin
-aterm attach eng-platform-beetle-ox   # another terminal on a live session, Ctrl-] detaches
+aterm send --launch scientist -       # open the role if none answers
+aterm attach eng-platform-beetle-ox   # a second terminal, Ctrl-] detaches
 aterm close scientist-frog-ox-ya97    # end a session
 aterm daemon                          # foreground, websocket on 127.0.0.1:7419
 aterm ask "Ship it?" yes no           # a choice card on Kai's client
@@ -46,7 +46,7 @@ aterm mcp                             # list_agents, send_message, close_session
 
 **Delivery serializes with the keyboard.** One lock covers every PTY write, so a message never interleaves with keystrokes. A message is `queued` until the target is ready, `held` while Kai typed in the last 1.5 seconds or has a draft touched in the last minute, then `delivered` or `failed`. Enter, Ctrl-C or Ctrl-U clear the draft, and a held message lands after.
 
-**A program that asked for bracketed paste gets the message as one paste, then Enter 300ms later**, since an Enter inside the paste reads as a newline. Without it, lines are joined with spaces so a newline cannot submit early. claude and codex turn it on at their prompt, so **ready means bracketed paste for them, never a quiet screen**, since a gate or slow start is quiet too.
+**A program that asked for bracketed paste gets the message as one paste, then Enter 300ms later**, since an Enter inside the paste reads as a newline. Without it, lines join with spaces. claude and codex turn it on at their prompt, so **ready means paste is on, never a quiet screen**. opencode turns it on two seconds before its prompt and drops a paste until then, so **ready means its `Ask anything` prompt showed**, or 20s passed.
 
 **A process inside a session cannot type into one.** The daemon reads the connecting pid from the kernel and walks its parents. Such a process may send, stamped, but not type, unless it spawned that session. This guards mistakes, not a double-forking process.
 

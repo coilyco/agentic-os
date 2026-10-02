@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
@@ -74,6 +75,10 @@ type ptySession struct {
 	modeTracker
 	lastOutput time.Time
 	lastInput  time.Time
+	// promptSeen is when the seat's promptMarks text first showed, and promptTail
+	// keeps a mark split across two chunks.
+	promptSeen time.Time
+	promptTail []byte
 	draft      int
 	keys       keyState
 	pending    []*pendingSend
@@ -273,6 +278,9 @@ func (s *ptySession) output(chunk []byte) {
 	pasteBefore := s.paste
 	degradedBefore := len(s.degraded)
 	s.scanModes(chunk)
+	promptBefore := s.promptSeen.IsZero()
+	s.scanPrompt(chunk, s.lastOutput)
+	promptShown := promptBefore && !s.promptSeen.IsZero()
 	s.scrollback = append(s.scrollback, chunk...)
 	if over := len(s.scrollback) - scrollbackLimit; over > 0 {
 		s.scrollback = append([]byte(nil), s.scrollback[over:]...)
@@ -282,7 +290,7 @@ func (s *ptySession) output(chunk []byte) {
 	degradedChanged := degradedBefore != len(s.degraded)
 	s.mu.Unlock()
 	s.sendTo(clients, frame{Type: "output", Session: s.name, Data: chunk, Offset: offset})
-	if pasteChanged {
+	if pasteChanged || promptShown {
 		s.nudge()
 	}
 	if pasteChanged || degradedChanged {
@@ -291,6 +299,24 @@ func (s *ptySession) output(chunk []byte) {
 }
 
 func (s *ptySession) scanModes(chunk []byte) { s.modeTracker.scan(chunk) }
+
+// scanPrompt notes when the seat's prompt mark first shows. Caller holds mu.
+func (s *ptySession) scanPrompt(chunk []byte, now time.Time) {
+	mark, marked := promptMarks[s.seat]
+	if !marked || !s.promptSeen.IsZero() {
+		return
+	}
+	combined := append(append([]byte(nil), s.promptTail...), chunk...)
+	if bytes.Contains(combined, mark) {
+		s.promptSeen = now
+		s.promptTail = nil
+		return
+	}
+	if keep := len(mark) - 1; len(combined) > keep {
+		combined = combined[len(combined)-keep:]
+	}
+	s.promptTail = combined
+}
 
 func containsString(values []string, want string) bool {
 	for _, value := range values {
@@ -510,9 +536,27 @@ func (s *ptySession) deliverLoop() {
 // them a quiet screen is not ready. See docs/aterm-daemon.md.
 var pasteSeats = map[string]bool{"claude": true, "codex": true}
 
+// promptMarks is text a harness paints once its prompt takes input. opencode turns
+// paste on two seconds before that and drops one until then. See docs/aterm-daemon.md.
+var promptMarks = map[string][]byte{"opencode": []byte("Ask anything")}
+
+const (
+	// promptSettle is the beat after the mark, so the input is mounted.
+	promptSettle = 250 * time.Millisecond
+	// promptWait is how long a seat waits for its mark before trying anyway, for
+	// a version that words it differently or a session adopted long after it.
+	promptWait = 20 * time.Second
+)
+
 // ready is whether the program can take a message yet. Caller holds mu.
 func (s *ptySession) ready(now time.Time) bool {
 	age := now.Sub(s.started)
+	if _, marked := promptMarks[s.seat]; marked {
+		if s.promptSeen.IsZero() {
+			return age > promptWait
+		}
+		return now.Sub(s.promptSeen) > promptSettle
+	}
 	if s.pasteSeen {
 		return age > 1500*time.Millisecond
 	}
