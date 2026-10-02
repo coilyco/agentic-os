@@ -264,6 +264,11 @@ func (tc *testClient) spawn(name, role, identity, script string) {
 
 func (tc *testClient) spawnSeat(name, role, identity, seat, script string) {
 	tc.t.Helper()
+	// A seat with a prompt mark is not ready until it paints one, so a fake that
+	// does not paint its own gets one up front, erased so the screen is unchanged.
+	if mark, marked := promptMarks[seat]; marked && !strings.Contains(script, string(mark)) {
+		script = `printf '` + string(mark) + `\r\033[2K'; ` + script
+	}
 	_, err := tc.c.request(frame{
 		Type: "spawn", Session: name, Role: role, Identity: identity, Seat: seat,
 		Argv: []string{"/bin/sh", "-c", script}, Env: os.Environ(), Cwd: "/", Rows: 24, Cols: 200,
@@ -633,9 +638,38 @@ func TestReadyWaitsForTheOpencodePromptNotBracketedPaste(t *testing.T) {
 	}
 }
 
+// claude turns paste on about a second before its prompt mounts and drops a paste
+// typed in between, which the paste rule alone delivered into a launching seat.
+func TestReadyWaitsForTheClaudePromptNotBracketedPaste(t *testing.T) {
+	now := time.Now()
+	seat := &ptySession{seat: "claude", started: now.Add(-12 * time.Second), lastOutput: now}
+	seat.pasteSeen = true
+	if seat.ready(now) {
+		t.Fatal("paste seen alone is not ready for claude, however old the session is")
+	}
+	seat.scanPrompt([]byte("\x1b[?2004h\x1b[2mTry \"how do I log an error?\""), now)
+	if seat.promptSeen.IsZero() {
+		t.Fatal("claude's placeholder is its prompt mark")
+	}
+	if !seat.ready(now.Add(promptSettle + time.Millisecond)) {
+		t.Fatal("a claude that painted its prompt is ready after the settle beat")
+	}
+}
+
 var odOffset = regexp.MustCompile(`^[0-7]{7}$`)
 
 func TestDaemonHoldsAMultiLineMessageForAnOpencodePromptThenSubmitsIt(t *testing.T) {
+	holdsForPrompt(t, "opencode", "Ask anything")
+}
+
+func TestDaemonHoldsAMessageForAClaudePromptThenSubmitsIt(t *testing.T) {
+	holdsForPrompt(t, "claude", `Try "`)
+}
+
+// holdsForPrompt starts a seat that turns paste on at once and paints mark four
+// seconds later, and checks a message waits for the mark and then arrives whole.
+func holdsForPrompt(t *testing.T, seat, mark string) {
+	t.Helper()
 	testDaemon(t)
 	sender := dialTest(t)
 	sender.spawn("eng-platform-beetle-ox", "eng-platform", "Beetle-Ox", `echo TOKEN=$ATERM_SESSION_TOKEN; sleep 30`)
@@ -643,8 +677,8 @@ func TestDaemonHoldsAMultiLineMessageForAnOpencodePromptThenSubmitsIt(t *testing
 	target := dialTest(t)
 	// Paste mode comes on at once, the prompt four seconds later. The paste rule
 	// alone would deliver at 1.5s, a good second and a half too early.
-	target.spawnSeat("eng-junior-beetle-ox", "eng-junior", "Beetle-Ox", "opencode",
-		`printf 'READY\033[?2004h\n'; sleep 4; printf 'Ask anything\n'; stty raw -echo; od -c`)
+	target.spawnSeat("eng-junior-beetle-ox", "eng-junior", "Beetle-Ox", seat,
+		`printf 'READY\033[?2004h\n'; sleep 4; printf '`+mark+`\n'; stty raw -echo; od -c`)
 	target.until("READY")
 	state := sendAs(t, token, "eng-junior", "first line\nsecond line")
 	if state.State != "queued" {
@@ -676,10 +710,10 @@ func TestDaemonHoldsAMultiLineMessageForAnOpencodePromptThenSubmitsIt(t *testing
 	if got := pending(); got != 1 {
 		t.Fatalf("pending = %d before the prompt showed, want the message still waiting for it", got)
 	}
-	if strings.Contains(target.output.String(), "Ask anything") {
+	if strings.Contains(target.output.String(), mark) {
 		t.Fatal("the prompt showed already, so this test no longer separates the two rules")
 	}
-	target.until("Ask anything")
+	target.until(mark)
 	for deadline := time.Now().Add(8 * time.Second); pending() != 0; {
 		if time.Now().After(deadline) {
 			t.Fatal("the message was never delivered after the prompt showed")
