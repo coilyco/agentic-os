@@ -160,13 +160,38 @@ func TestLiveRosterRefusesEveryNonNativeSeat(t *testing.T) {
 			if exitCodeFor(err) != exitOffRoster {
 				t.Fatalf("%s %s refused with exit %d", role.Slug, seat.Harness, exitCodeFor(err))
 			}
-			if !strings.Contains(err.Error(), "no native harness to launch") {
-				t.Fatalf("%s %s refused with %q", role.Slug, seat.Harness, err)
+			// A role with no native seat at all is refused as a role, before any seat is read.
+			want := "no native harness to launch"
+			if len(role.nativeSeats()) == 0 {
+				want = "has no launchable native seat"
+			}
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("%s %s refused with %q, want it to say %q", role.Slug, seat.Harness, err, want)
 			}
 		}
 	}
 	if checked == 0 {
 		t.Skip("the live roster ships no unlaunchable catalogue seat to refuse")
+	}
+}
+
+// The two refusals a non-native seat can meet, held on a fixture so they stay
+// covered whatever shape the live roster has today.
+func TestResolveInvocationRefusesNonNativeSeatsInBothRoleShapes(t *testing.T) {
+	roster := rosterDocument{Items: []rosterRole{
+		{Slug: "only-hermes", Seats: []rosterSeat{{Harness: "hermes"}}},
+		{Slug: "mixed", Seats: []rosterSeat{{Harness: "claude"}, {Harness: "hermes"}}},
+	}}
+	deps := commandDeps{tty: func() bool { return false }}
+	for _, testCase := range []struct{ role, want string }{
+		{"only-hermes", "has no launchable native seat"},
+		{"mixed", "no native harness to launch"},
+	} {
+		_, _, _, err := resolveInvocation(context.Background(), deps, "/stub/aos", roster, []string{testCase.role, "hermes"})
+		if err == nil || exitCodeFor(err) != exitOffRoster || !strings.Contains(err.Error(), testCase.want) {
+			t.Fatalf("%s hermes: err = %v (exit %d), want exit %d saying %q",
+				testCase.role, err, exitCodeFor(err), exitOffRoster, testCase.want)
+		}
 	}
 }
 

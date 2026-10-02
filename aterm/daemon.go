@@ -43,6 +43,9 @@ type daemon struct {
 	holdDir string
 	// ledgerDir holds a record per session for `aterm resume`. Empty keeps none.
 	ledgerDir string
+	// ledgerMu keeps a record's write and its end stamp in one order, however
+	// fast the child exits.
+	ledgerMu sync.Mutex
 	// ended remembers how recent sessions exited, so a window that was
 	// disconnected when its session ended still learns the code.
 	ended       map[string]endedSession
@@ -522,15 +525,25 @@ func (d *daemon) endedCode(name string) (int, bool) {
 	return earlier.code, ok && time.Since(earlier.at) <= endedMemory
 }
 
-// recordSession writes the session's ledger record. A failure costs resuming
-// this one session, so it is logged and the session goes on.
+// recordSession writes the session's ledger record, logging a failure. A child
+// that already exited gets its end stamp here, since markEnded ran first.
 func (d *daemon) recordSession(s *ptySession, message frame) {
 	if d.ledgerDir == "" {
 		return
 	}
+	d.ledgerMu.Lock()
+	defer d.ledgerMu.Unlock()
 	entry := ledgerEntry{
 		Name: s.name, Role: s.role, Identity: s.identity, Seat: s.seat,
 		Cwd: message.Cwd, Argv: message.Argv, Conversation: conversationOf(message.Argv), Started: s.started.UTC(),
+	}
+	select {
+	case <-s.done:
+		s.mu.Lock()
+		now, code := time.Now().UTC(), s.exitCode
+		s.mu.Unlock()
+		entry.Ended, entry.Code = &now, &code
+	default:
 	}
 	if err := writeLedger(d.ledgerDir, entry); err != nil {
 		d.logf("could not record %s for resume: %v", s.name, err)
@@ -542,11 +555,15 @@ func (d *daemon) markEnded(s *ptySession) {
 	if d.ledgerDir == "" {
 		return
 	}
+	d.ledgerMu.Lock()
+	defer d.ledgerMu.Unlock()
 	for _, entry := range readLedger(d.ledgerDir) {
 		if entry.Name != s.name {
 			continue
 		}
+		s.mu.Lock()
 		now, code := time.Now().UTC(), s.exitCode
+		s.mu.Unlock()
 		entry.Ended, entry.Code = &now, &code
 		if err := writeLedger(d.ledgerDir, entry); err != nil {
 			d.logf("could not mark %s ended: %v", s.name, err)
