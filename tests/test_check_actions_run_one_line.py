@@ -125,7 +125,7 @@ def test_long_inlined_body_fails(tmp_path: Path) -> None:
         "python3 -c 'import sys; print(sys.version_info[0])'",
         "node -e 'console.log(process.version)'",
         "ruby -e 'puts 1'",
-        'python3 "$GITHUB_WORKSPACE/scripts/ci/alert-telegram.py"',
+        'python3 "$GITHUB_WORKSPACE/scripts/ci/alert_sentry.py"',
         r"printf 'first\nsecond\n' > /tmp/values",
         "echo hello <<< world",
         "echo $(( 1 << 3 ))",

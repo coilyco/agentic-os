@@ -57,21 +57,18 @@ jobs:
           DRAFT_TAG_OVERRIDE: ${{ github.event.inputs.tag || '' }}
         run: bash "$GITHUB_WORKSPACE/scripts/ci/derive-draft-tag.sh"
 
-      - name: Alert Telegram on release failure
+      - name: Alert Sentry on release failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
         continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-
-      - name: Alert Telegram on main failure
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py
+      - name: Alert Sentry on main failure
         if: ${{ failure() && github.ref == 'refs/heads/main' }}
         continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py
   publish-language-payloads:
     name: publish-${{ matrix.tier }}
     needs: [plan-draft]
@@ -114,14 +111,12 @@ jobs:
           tag: ${{ needs.plan-draft.outputs.draft_tag }}
           source-tag: ${{ needs.plan-draft.outputs.draft_tag }}
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
-      - name: Alert Telegram on release failure
+      - name: Alert Sentry on release failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
         continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py
   publish-full:
     needs: [plan-draft, publish-language-payloads]
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.tier == 'all' || github.event.inputs.tier == 'full' }}
@@ -134,21 +129,18 @@ jobs:
           tier: full
           tag: ${{ needs.plan-draft.outputs.draft_tag }}
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
-      - name: Alert Telegram on release failure
+      - name: Alert Sentry on release failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
         continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-      - name: Alert Telegram on main failure
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py
+      - name: Alert Sentry on main failure
         if: ${{ failure() && github.ref == 'refs/heads/main' }}
         continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py
   publish-release:
     needs: [plan-draft, publish-full]
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.tier == 'all' || github.event.inputs.tier == 'full' }}
@@ -175,17 +167,15 @@ jobs:
           extra-aliases: latest
           source-tag: ${{ needs.plan-draft.outputs.draft_tag }}
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
-      - name: Alert Telegram on release failure
+      - name: Alert Sentry on release failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
         continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
-      - name: Alert Telegram on main failure
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py
+      - name: Alert Sentry on main failure
         if: ${{ failure() && github.ref == 'refs/heads/main' }}
         continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py

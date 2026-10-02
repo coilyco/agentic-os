@@ -21,7 +21,7 @@ Scheduled read-only watch that the roles baked into `agentic-os:release` match t
 
 It runs every six hours, since nothing else touches the pin between `docker/` changes, and inside the published image so it reads what shipped rather than what the Dockerfile says. It asks agent-compose itself for the live roles of the baked roster and of the latest release, meaning `role_order` minus archived roles, since a consumer bakes only those and the flag moves without `role_order` changing. The latest release is checked against its `SHA256SUMS`. It fails naming the roles the image lacks and any it still bakes that upstream dropped or archived. It compares membership only, because from 2.141.0 to 2.156.0 the roster data changed in 8 of 15 releases and the role set in 2. A run that cannot read either side exits 69 and never passes.
 
-It does not advance the pin, since that publishes a new `release` image and stays a reviewed push. A red scheduled run alerts Telegram. Fix it by advancing `AGENT_COMPOSE_VERSION` in `docker/dev-base/full/Dockerfile` together with the role count in `docker/dev-base/verify-common.sh`, which moves with the pin and so cannot notice one that lags. The pull-request trigger covers only the workflow's own two files and does not alert.
+It does not advance the pin, since that publishes a new `release` image and stays a reviewed push. A red scheduled run alerts Sentry. Fix it by advancing `AGENT_COMPOSE_VERSION` in `docker/dev-base/full/Dockerfile` together with the role count in `docker/dev-base/verify-common.sh`, which moves with the pin and so cannot notice one that lags. The pull-request trigger covers only the workflow's own two files and does not alert.
 
 ## `.forgejo/workflows/promote.yml`
 

@@ -28,10 +28,9 @@ jobs:
       - uses: actions/checkout@v6
       - name: Compare the shipped roster against the latest agent-compose release
         run: just agent-compose-roster-watch
-      - name: Alert Telegram on roster drift
+      - name: Alert Sentry on roster drift
         if: ${{ failure() && github.event_name != 'pull_request' }}
         continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py

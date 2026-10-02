@@ -15,42 +15,12 @@ import re
 import subprocess
 import sys
 import urllib.request
-from pathlib import Path
 
 from agentic_os import shared_ssl_context
 
 FORGEJO_BASE = "https://forgejo.coilysiren.me/api/v1"
 OWNER = "coilyco"
-TELEGRAM_DEFAULTS_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "actions"
-    / "telegram-alert"
-    / "defaults.json"
-)
 
-
-def load_secret_sources(path: Path) -> dict[str, str]:
-    """Load Actions-secret to SSM-parameter mappings from an action manifest."""
-    try:
-        manifest = json.loads(path.read_text(encoding="utf-8"))
-        if manifest["schema-version"] != 1:
-            raise ValueError("unsupported schema-version")
-        secrets = manifest["secrets"]
-        sources = {
-            value["actions-secret"]: value["ssm-parameter"]
-            for value in secrets.values()
-        }
-    except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        raise SystemExit(f"invalid action defaults manifest {path}: {exc}") from exc
-    if not sources or any(
-        not name or not parameter.startswith("/")
-        for name, parameter in sources.items()
-    ):
-        raise SystemExit(f"invalid action secret sources in {path}")
-    return sources
-
-
-TELEGRAM_SECRET_SOURCES = load_secret_sources(TELEGRAM_DEFAULTS_PATH)
 
 def slug(repo: str, owner: str = OWNER) -> str:
     """Return the ``owner/repo`` key the Forgejo secrets API addresses."""
@@ -61,17 +31,14 @@ def slug(repo: str, owner: str = OWNER) -> str:
 # owner-qualified key letting one mapping span orgs. Writers rotate separately.
 MAPPING: dict[str, dict[str, str]] = {
     slug("agentic-os"): {
-        **TELEGRAM_SECRET_SOURCES,
         "CI_RELEASE_TOKEN": "/forgejo/coilyco-ops/ci-release-token",
         "TAP_WRITE_TOKEN": "/forgejo/coilyco-ops/tap-bump-token",
         "SCOOP_WRITE_TOKEN": "/forgejo/coilyco-ops/scoop-write-token",
     },
     slug("ward"): {
-        **TELEGRAM_SECRET_SOURCES,
         "CI_RELEASE_TOKEN": "/forgejo/coilyco-ops/ci-release-token",
     },
     slug("umbra"): {
-        **TELEGRAM_SECRET_SOURCES,
         "CI_RELEASE_TOKEN": "/forgejo/coilyco-ops/ci-release-token",
     },
     # housecast's PyPI train, read by its publish workflow. Trusted publishing
@@ -79,8 +46,7 @@ MAPPING: dict[str, dict[str, str]] = {
     slug("housecast"): {
         "PYPI_TOKEN": "/coilysiren/pypi/token",
     },
-    # deploy's scheduled pin reconciler. Telegram is deliberately absent: the
-    # repo already sets those two, and their live values are unreadable here.
+    # deploy's scheduled pin reconciler.
     slug("deploy"): {
         "DEPLOY_PUSH_TOKEN": "/forgejo/coilyco-ops/ci-release-token",
         "REGISTRY_READ_TOKEN": "/forgejo/coilyco-ops/registry-read-token",

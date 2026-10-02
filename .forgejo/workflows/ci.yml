@@ -52,10 +52,9 @@ jobs:
 
       - name: Test the Python package and pre-commit hooks
         run: bash "$GITHUB_WORKSPACE/scripts/ci-command.sh" bash "$GITHUB_WORKSPACE/scripts/ci/repo-test-gate.sh"
-      - name: Alert Telegram on main failure
+      - name: Alert Sentry on main failure
         if: ${{ failure() && github.ref == 'refs/heads/main' }}
         continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py

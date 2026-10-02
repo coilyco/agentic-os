@@ -63,10 +63,9 @@ jobs:
           name: aos-precommit ${{ steps.tag.outputs.new_tag }}
           body: ${{ steps.tag.outputs.changelog }}
 
-      - name: Alert Telegram on release failure
+      - name: Alert Sentry on release failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
         continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py

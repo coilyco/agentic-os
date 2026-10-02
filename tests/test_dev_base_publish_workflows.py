@@ -77,7 +77,7 @@ def _assert_alert_steps_are_non_blocking(text: str) -> None:
     alert_indexes = [
         index
         for index, line in enumerate(lines)
-        if line.strip().startswith("- name: Alert Telegram on")
+        if line.strip().startswith("- name: Alert Sentry on")
     ]
     assert alert_indexes
     for index in alert_indexes:

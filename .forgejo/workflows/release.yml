@@ -91,13 +91,12 @@ jobs:
           DRAFT_TAG_OVERRIDE: ${{ inputs['source-tag'] || '' }}
         run: bash "$GITHUB_WORKSPACE/scripts/ci/derive-draft-tag.sh"
 
-      - name: Alert Telegram on main failure
+      - name: Alert Sentry on main failure
         if: ${{ failure() && github.ref == 'refs/heads/main' }}
         continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py
   retag-full:
     needs: [plan-release]
     if: ${{ needs.plan-release.outputs.tag != '' }}
@@ -117,13 +116,12 @@ jobs:
           registry-token: ${{ secrets.REGISTRY_TOKEN }}
           build-timeout: 80m
 
-      - name: Alert Telegram on main failure
+      - name: Alert Sentry on main failure
         if: ${{ failure() && github.ref == 'refs/heads/main' }}
         continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py
   release:
     needs: [plan-release, retag-full]
     if: ${{ needs.plan-release.outputs.tag != '' }}
@@ -149,10 +147,9 @@ jobs:
           name: ${{ needs.plan-release.outputs.tag }}
           body: ${{ needs.plan-release.outputs.changelog }}
 
-      - name: Alert Telegram on main failure
+      - name: Alert Sentry on main failure
         if: ${{ failure() && github.ref == 'refs/heads/main' }}
         continue-on-error: true
-        uses: ./actions/telegram-alert
-        with:
-          bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          chat-id: ${{ secrets.TELEGRAM_RED_CHAT_ID }}
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py

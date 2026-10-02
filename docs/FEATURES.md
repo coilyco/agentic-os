@@ -50,7 +50,6 @@ Major shipped capabilities, not files.
 - [Ward integration boundary](ward-specs.md) - one generic runner for every
   [composed role](aos-cli.md#generic-warded-roles), and no role-derived authority.
 - [Cross-repo tooling and release](release.md) - aos-precommit and release operations.
-- [Telegram CI failure alerts](../actions/telegram-alert/action.yml) - one composite action, no alert program in any repo.
 - [dev-base image](dev-base-image.md) - parallel cached language payloads feeding one automatically released full development surface.
 - [Pinned and vendored build inputs](vendor-forgejo-policy.md) - the Forgejo policy pushes down to deploy, and the WASM toolchain is baked so no build downloads it.
 - [CI parity in dev-base](ci-in-dev-base.md) - CI runs inside the moving :release dev-base image.
