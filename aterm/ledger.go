@@ -49,13 +49,26 @@ func ledgerDir() string {
 	if override := strings.TrimSpace(os.Getenv(stateDirEnv)); override != "" {
 		return override
 	}
+	return defaultLedgerDir()
+}
+
+// defaultLedgerDir is the user's own ledger, which the tests must never touch.
+func defaultLedgerDir() string {
 	return filepath.Join(realHome(), ".local", "state", "aterm", "sessions")
 }
+
+// ledgerGuard is nil in the shipped binary. The tests set it to refuse the real dir.
+var ledgerGuard func(dir string) error
 
 func (e ledgerEntry) file(dir string) string { return filepath.Join(dir, fileStem(e.Name)+".json") }
 
 // writeLedger replaces a record atomically, so a crash never leaves half of one.
 func writeLedger(dir string, entry ledgerEntry) error {
+	if ledgerGuard != nil {
+		if err := ledgerGuard(dir); err != nil {
+			return err
+		}
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
@@ -113,6 +126,9 @@ func sortLedger(entries []ledgerEntry) {
 
 // pruneLedger removes records of sessions that ended past ledgerKeep ago.
 func pruneLedger(dir string, now time.Time) {
+	if ledgerGuard != nil && ledgerGuard(dir) != nil {
+		return
+	}
 	for _, entry := range readLedger(dir) {
 		if entry.Ended != nil && now.Sub(*entry.Ended) > ledgerKeep {
 			_ = os.Remove(entry.file(dir))
