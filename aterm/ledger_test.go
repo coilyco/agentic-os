@@ -162,6 +162,33 @@ func TestDaemonRecordsASessionForResumeWithoutItsEnvironment(t *testing.T) {
 	}
 }
 
+// A child that exits at once finishes before its record is written, so its end
+// stamp must not depend on the record already existing. CI hit this with `exit 3`.
+func TestLedgerEndStampSurvivesAChildThatExitsBeforeItsRecord(t *testing.T) {
+	for _, order := range []string{"record then end", "end then record"} {
+		t.Run(order, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "state")
+			d := newDaemon(func(string, ...any) {})
+			d.ledgerDir = dir
+			s := &ptySession{d: d, name: "eng-platform-race", role: "eng-platform", seat: "claude",
+				started: time.Now(), done: make(chan struct{}), exitCode: 3}
+			close(s.done)
+			message := frame{Cwd: "/", Argv: []string{"x", "--session-id", newConversationID()}}
+			if order == "record then end" {
+				d.recordSession(s, message)
+				d.markEnded(s)
+			} else {
+				d.markEnded(s)
+				d.recordSession(s, message)
+			}
+			entries := readLedger(dir)
+			if len(entries) != 1 || entries[0].Ended == nil || entries[0].Code == nil || *entries[0].Code != 3 {
+				t.Fatalf("%s: record = %+v", order, entries)
+			}
+		})
+	}
+}
+
 func TestFindResumablePicksByNameThenByRoleAndRefusesALiveSession(t *testing.T) {
 	older, newer := time.Now().Add(-2*time.Hour), time.Now().Add(-time.Hour)
 	entries := []ledgerEntry{
