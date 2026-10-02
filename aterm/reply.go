@@ -12,6 +12,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v3"
 )
@@ -101,17 +102,106 @@ func realHome() string {
 	return home
 }
 
+// harnessDirVars are the variables that move where a harness keeps its files.
+var harnessDirVars = []string{"CODEX_HOME", "CLAUDE_CONFIG_DIR", "XDG_DATA_HOME"}
+
+// harnessDirsOf is the harness path variables a spawn set. A relative one is dropped,
+// since nothing here knows what it was relative to. The last assignment wins.
+func harnessDirsOf(env []string) map[string]string {
+	dirs := map[string]string{}
+	for _, entry := range env {
+		for _, name := range harnessDirVars {
+			if value, ok := strings.CutPrefix(entry, name+"="); ok && filepath.IsAbs(value) {
+				dirs[name] = filepath.Clean(value)
+			}
+		}
+	}
+	if len(dirs) == 0 {
+		return nil
+	}
+	return dirs
+}
+
+// dir is where a seat's harness keeps files: the variable it was spawned with, else
+// a path under its recorded HOME, else under the real one.
+func (e ledgerEntry) dir(variable string, rel ...string) string {
+	if value := e.Dirs[variable]; value != "" {
+		return value
+	}
+	home := e.Home
+	if home == "" {
+		home = realHome()
+	}
+	return filepath.Join(append([]string{home}, rel...)...)
+}
+
+// candidate is a session a store holds that could be a seat's, with when it began.
+type candidate struct {
+	ref     string
+	started time.Time
+}
+
+// peersOf are the other seats on the same harness, cwd and store whose lifetime overlaps
+// this one's, since their sessions are the ones this seat's could be mistaken for.
+func peersOf(entry ledgerEntry, all []ledgerEntry, store func(ledgerEntry) string) []ledgerEntry {
+	var peers []ledgerEntry
+	for _, other := range all {
+		if other.Name != entry.Name && other.Seat == entry.Seat && other.Cwd == entry.Cwd &&
+			store(other) == store(entry) && overlaps(entry, other) {
+			peers = append(peers, other)
+		}
+	}
+	return peers
+}
+
+func overlaps(a, b ledgerEntry) bool {
+	end := func(e ledgerEntry) time.Time {
+		if e.Ended != nil {
+			return *e.Ended
+		}
+		return time.Now().Add(24 * time.Hour)
+	}
+	return !a.Started.After(end(b)) && !b.Started.After(end(a))
+}
+
+// ownCandidate picks a seat's session. Alone the newest wins, which follows a new session
+// in the seat. With a peer it must be the only one before the next peer began, or none.
+func ownCandidate(entry ledgerEntry, peers []ledgerEntry, cands []candidate) (candidate, error) {
+	if len(peers) == 0 {
+		best := cands[0]
+		for _, c := range cands {
+			if c.started.After(best.started) {
+				best = c
+			}
+		}
+		return best, nil
+	}
+	var upper time.Time
+	for _, peer := range peers {
+		if peer.Started.After(entry.Started) && (upper.IsZero() || peer.Started.Before(upper)) {
+			upper = peer.Started
+		}
+	}
+	var own []candidate
+	for _, c := range cands {
+		if upper.IsZero() || c.started.Before(upper.Add(-5*time.Second)) {
+			own = append(own, c)
+		}
+	}
+	if len(own) != 1 {
+		return candidate{}, withExit(exitOffRoster, fmt.Errorf(
+			"%s shares %s with %d other seat(s), so which session is its own cannot be told: %w", entry.Name, entry.Cwd, len(peers), errNoTranscript))
+	}
+	return own[0], nil
+}
+
 // transcriptPath finds a claude seat's transcript under its recorded home. It lists
 // the directory instead of globbing, so a bracket in the home cannot change a pattern.
 func transcriptPath(entry ledgerEntry) (string, error) {
 	if entry.Seat != "claude" || !conversationFlag.MatchString(entry.Conversation) {
 		return "", withExit(exitUsage, fmt.Errorf("%s keeps no claude transcript aterm can read: %w", entry.Name, errNoTranscript))
 	}
-	home := entry.Home
-	if home == "" {
-		home = realHome()
-	}
-	projects := filepath.Join(home, ".claude", "projects")
+	projects := filepath.Join(entry.dir("CLAUDE_CONFIG_DIR", ".claude"), "projects")
 	dirs, err := os.ReadDir(projects)
 	if err != nil {
 		return "", withExit(exitOffRoster, fmt.Errorf("no claude projects directory at %s: %w", projects, errNoTranscript))
@@ -127,14 +217,14 @@ func transcriptPath(entry ledgerEntry) (string, error) {
 
 // replyOf reads one recorded session's latest reply from its harness's own files.
 // The Slack sidecar calls it in-process, since it runs as the same user.
-func replyOf(entry ledgerEntry) (replyView, error) {
+func replyOf(entry ledgerEntry, all []ledgerEntry) (replyView, error) {
 	switch entry.Seat {
 	case "claude":
 		return claudeReply(entry)
 	case "codex":
-		return codexReply(entry)
+		return codexReply(entry, all)
 	case "opencode":
-		return opencodeReply(entry)
+		return opencodeReply(entry, all)
 	}
 	return replyView{}, withExit(exitUsage, fmt.Errorf("%s runs %q, which keeps no transcript aterm reads: %w", entry.Name, entry.Seat, errNoTranscript))
 }
@@ -198,11 +288,12 @@ func newReplyCommand() *cli.Command {
 			if target == "" {
 				return withExit(exitUsage, errors.New("aterm reply needs one target. `aterm agents` lists them"))
 			}
-			entry, err := findRecorded(readLedger(ledgerDir()), target)
+			recorded := readLedger(ledgerDir())
+			entry, err := findRecorded(recorded, target)
 			if err != nil {
 				return err
 			}
-			reply, err := replyOf(entry)
+			reply, err := replyOf(entry, recorded)
 			if errors.Is(err, errNoTranscript) {
 				fmt.Fprintf(cmd.Root().ErrWriter, "%v, so this is the visible screen\n", err)
 				reply, err = screenReply(entry, err)

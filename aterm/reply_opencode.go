@@ -54,28 +54,41 @@ func sqlQuote(value string) (string, error) {
 	return "'" + strings.ReplaceAll(value, "'", "''") + "'", nil
 }
 
-// opencodeSession is the newest top-level session in the seat's directory that
-// began no earlier than the seat. A subagent session has a parent and is skipped.
-func opencodeSession(db string, entry ledgerEntry) (string, error) {
+// opencodeDB is the database a seat's opencode writes, under its own XDG_DATA_HOME.
+func opencodeDB(entry ledgerEntry) string {
+	return filepath.Join(entry.dir("XDG_DATA_HOME", ".local", "share"), "opencode", "opencode.db")
+}
+
+// opencodeSession finds a seat's top-level session in its directory that began no earlier
+// than the seat. A subagent session has a parent and is skipped.
+func opencodeSession(db string, entry ledgerEntry, all []ledgerEntry) (string, error) {
 	dir, err := sqlQuote(entry.Cwd)
 	if err != nil {
 		return "", withExit(exitUsage, fmt.Errorf("%s: %v: %w", entry.Name, err, errNoTranscript))
 	}
-	query := fmt.Sprintf("SELECT id FROM session WHERE directory = %s AND parent_id IS NULL AND time_created >= %d",
+	query := fmt.Sprintf("SELECT id, time_created FROM session WHERE directory = %s AND parent_id IS NULL AND time_created >= %d",
 		dir, entry.Started.Add(-5*time.Second).UnixMilli())
 	if entry.Ended != nil {
 		query += fmt.Sprintf(" AND time_created <= %d", entry.Ended.Add(5*time.Second).UnixMilli())
 	}
 	var rows []struct {
-		ID string `json:"id"`
+		ID      string `json:"id"`
+		Created int64  `json:"time_created"`
 	}
-	if err := sqliteJSON(db, query+" ORDER BY time_created DESC LIMIT 1", &rows); err != nil {
+	if err := sqliteJSON(db, query, &rows); err != nil {
 		return "", err
 	}
-	if len(rows) == 0 || !opencodeSessionID.MatchString(rows[0].ID) {
+	var cands []candidate
+	for _, row := range rows {
+		if opencodeSessionID.MatchString(row.ID) {
+			cands = append(cands, candidate{ref: row.ID, started: time.UnixMilli(row.Created)})
+		}
+	}
+	if len(cands) == 0 {
 		return "", withExit(exitOffRoster, fmt.Errorf("no opencode session for %s in %s: %w", entry.Name, entry.Cwd, errNoTranscript))
 	}
-	return rows[0].ID, nil
+	own, err := ownCandidate(entry, peersOf(entry, all, opencodeDB), cands)
+	return own.ref, err
 }
 
 // opencodeRows reads the assistant parts since the last user message, in order.
@@ -113,13 +126,9 @@ func replyFromOpencodeRows(rows []opencodeRow) (string, bool) {
 	return strings.Join(parts, "\n\n"), finish != "" && finish != "tool-calls"
 }
 
-func opencodeReply(entry ledgerEntry) (replyView, error) {
-	home := entry.Home
-	if home == "" {
-		home = realHome()
-	}
-	db := filepath.Join(home, ".local", "share", "opencode", "opencode.db")
-	session, err := opencodeSession(db, entry)
+func opencodeReply(entry ledgerEntry, all []ledgerEntry) (replyView, error) {
+	db := opencodeDB(entry)
+	session, err := opencodeSession(db, entry, all)
 	if err != nil {
 		return replyView{}, err
 	}

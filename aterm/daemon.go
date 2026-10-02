@@ -544,7 +544,7 @@ func (d *daemon) recordSession(s *ptySession, message frame) {
 	defer d.ledgerMu.Unlock()
 	entry := ledgerEntry{
 		Name: s.name, Role: s.role, Identity: s.identity, Seat: s.seat,
-		Cwd: message.Cwd, Argv: message.Argv, Conversation: conversationOf(message.Argv), Home: homeOf(message.Env), Started: s.started.UTC(),
+		Cwd: message.Cwd, Argv: message.Argv, Conversation: conversationOf(message.Argv), Home: homeOf(message.Env), Dirs: harnessDirsOf(message.Env), Started: s.started.UTC(),
 	}
 	select {
 	case <-s.done:

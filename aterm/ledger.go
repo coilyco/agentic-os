@@ -34,10 +34,13 @@ type ledgerEntry struct {
 	Conversation string `json:"conversation,omitempty"`
 	// Home is the HOME the seat was spawned with, a path and not the environment.
 	// A shadow moves it, and the harness keeps its transcript there.
-	Home    string     `json:"home,omitempty"`
-	Started time.Time  `json:"started"`
-	Ended   *time.Time `json:"ended,omitempty"`
-	Code    *int       `json:"code,omitempty"`
+	Home string `json:"home,omitempty"`
+	// Dirs are the path variables a harness reads its own files from, if the seat set
+	// them. They and Home are the only environment that reaches a record.
+	Dirs    map[string]string `json:"dirs,omitempty"`
+	Started time.Time         `json:"started"`
+	Ended   *time.Time        `json:"ended,omitempty"`
+	Code    *int              `json:"code,omitempty"`
 }
 
 // ledgerDir is under the real home from the password database, since a shadow

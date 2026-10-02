@@ -39,7 +39,8 @@ Design for `teable:coilyco/agentic-os#8700`, written 2026-10-02 against agentic-
 * **A seat's reply comes from its harness transcript.** On a `busy` to `idle` push for a seat Kai addressed, the sidecar calls `replyOf` (`aterm/reply.go`, `teable:coilyco/agentic-os#8703` and `#8710`, also `aterm reply <session>`), so a long reply arrives whole. The ledger records the seat's `HOME` for it, since a shadow moves it.
 * **One reader per harness.** Claude: the JSONL under `.claude/projects`, the text since the last user line. Codex: the rollout under `.codex/sessions` matched by cwd and start, the `final_answer` of the latest turn. Opencode: `opencode.db`, the text of the last assistant message, read through the system `sqlite3` with `-readonly` (Jev chose it over a Go driver, confidence 1.00).
 * **No transcript found, the screen tail.** The verb then prints the visible rows from `status` and says so, with source `screen`, and the post says `screen tail, earlier text scrolled off`. That covers a missing `sqlite3`, an unrecorded `HOME`, and a seat whose harness has no reader. A daemon too old for `status` leaves no screen to show, and the error names both causes.
-* **Formats are the harnesses' own and unversioned.** Each reader uses a handful of fields and skips a line it cannot decode. Codex and opencode match a seat by cwd and a start no earlier than its own, which a session shadow makes unique. Two seats sharing one cwd could read each other's reply.
+* **Formats are the harnesses' own and unversioned.** Each reader uses a handful of fields and skips a line it cannot decode. The ledger records `HOME` plus `CODEX_HOME`, `CLAUDE_CONFIG_DIR` and `XDG_DATA_HOME` from the seat's own spawn, and each reader looks there first. Neither codex nor opencode lets a launcher pre-assign a session id, so a seat is matched by cwd and start. A subagent session is skipped (codex `parent_thread_id`, opencode `parent_id`), and on this host all 246 codex subagent rollouts share their parent's cwd.
+* **Two seats in one cwd are told apart by start, or refused.** A seat with an overlapping peer on the same harness, cwd and store may only read a session that began before the next peer started, and only if it is the one such session. A second session in that window, such as a new one inside the seat, is refused and the verb shows the screen.
 * **Scrub, then truncate, then escape.** Redact `xox[abposr]-`, `xapp-`, `AKIA`, `ghp_`, JWT-shaped values, `--api-key=`, `--password=`, `-token=` and the adapter's own two tokens by exact value. A line the scrubber cannot judge is withheld and counted. Escape `&`, `<` and `>` so no seat output forms a mention or a link, the rule of Echo's `escapeSlack`. Cap a post at 4,000 characters, the length Slack recommends.
 * **One message per turn, edited in place** with `chat.update`, then a final post on idle. Slack allows about one post per second per channel.
 
@@ -69,7 +70,7 @@ Answers on 2026-10-02, recorded on `teable:coilyco/agentic-os#8700`.
 
 ## Deferred and why
 
-* **`CODEX_HOME`, `CLAUDE_CONFIG_DIR` and `XDG_DATA_HOME`** - `aos` spec mode exports them, and the readers look under `HOME` only, so such a seat falls back to the screen tail.
+* **A launch-time session id** - neither codex nor opencode takes one for a fresh session (`codex resume` and `opencode --session` only continue an existing one), so the start-time match stays a heuristic.
 * **Persisted thread bindings** - blocked on whether a Slack timestamp counts as Slack data under its API terms.
 
 ## Build order

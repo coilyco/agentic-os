@@ -25,6 +25,8 @@ type codexLine struct {
 		LastAgentMessage string          `json:"last_agent_message"`
 		Cwd              string          `json:"cwd"`
 		Timestamp        string          `json:"timestamp"`
+		ParentThreadID   string          `json:"parent_thread_id"`
+		ThreadSource     string          `json:"thread_source"`
 	} `json:"payload"`
 }
 
@@ -79,7 +81,8 @@ func lastCodexReply(r io.Reader) (string, bool, error) {
 	}
 }
 
-// codexMeta is the cwd and start of the rollout in a file, from its first line.
+// codexMeta is the cwd and start of a top-level rollout, from its first line. A subagent
+// rollout has a parent thread and shares its parent's cwd, so it is never a seat's own.
 func codexMeta(path string) (cwd string, started time.Time, ok bool) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -91,16 +94,22 @@ func codexMeta(path string) (cwd string, started time.Time, ok bool) {
 	if (err != nil && err != io.EOF) || json.Unmarshal(raw, &line) != nil || line.Type != "session_meta" {
 		return "", time.Time{}, false
 	}
+	if line.Payload.ParentThreadID != "" || line.Payload.ThreadSource == "subagent" {
+		return "", time.Time{}, false
+	}
 	started, err = time.Parse(time.RFC3339Nano, line.Payload.Timestamp)
 	return line.Payload.Cwd, started, err == nil && line.Payload.Cwd != ""
 }
 
-// codexRollout finds a seat's rollout by cwd and a start no earlier than its own, newest
-// first. The scan starts a day early, since a date directory is local and a start is UTC.
-func codexRollout(home string, entry ledgerEntry) (string, error) {
-	root := filepath.Join(home, ".codex", "sessions")
+// codexHome is where a codex seat keeps its files, from its own spawn.
+func codexHome(entry ledgerEntry) string { return entry.dir("CODEX_HOME", ".codex") }
+
+// codexRollout finds a seat's rollout in its cwd, no earlier than the seat. The scan
+// starts a day early, since a date directory is local time and a start is UTC.
+func codexRollout(entry ledgerEntry, all []ledgerEntry) (string, error) {
+	root := filepath.Join(codexHome(entry), "sessions")
 	firstDay := entry.Started.AddDate(0, 0, -1).Format("2006/01/02")
-	best, bestStart := "", time.Time{}
+	var cands []candidate
 	for _, year := range subdirs(root) {
 		for _, month := range subdirs(filepath.Join(root, year)) {
 			for _, day := range subdirs(filepath.Join(root, year, month)) {
@@ -116,17 +125,16 @@ func codexRollout(home string, entry ledgerEntry) (string, error) {
 					if entry.Ended != nil && started.After(entry.Ended.Add(5*time.Second)) {
 						continue
 					}
-					if started.After(bestStart) {
-						best, bestStart = path, started
-					}
+					cands = append(cands, candidate{ref: path, started: started})
 				}
 			}
 		}
 	}
-	if best == "" {
+	if len(cands) == 0 {
 		return "", withExit(exitOffRoster, fmt.Errorf("no codex rollout for %s under %s: %w", entry.Name, root, errNoTranscript))
 	}
-	return best, nil
+	own, err := ownCandidate(entry, peersOf(entry, all, codexHome), cands)
+	return own.ref, err
 }
 
 // subdirs lists a directory's subdirectories in order, or none when it is missing.
@@ -142,12 +150,8 @@ func subdirs(path string) []string {
 	return names
 }
 
-func codexReply(entry ledgerEntry) (replyView, error) {
-	home := entry.Home
-	if home == "" {
-		home = realHome()
-	}
-	path, err := codexRollout(home, entry)
+func codexReply(entry ledgerEntry, all []ledgerEntry) (replyView, error) {
+	path, err := codexRollout(entry, all)
 	if err != nil {
 		return replyView{}, err
 	}

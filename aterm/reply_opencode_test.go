@@ -57,10 +57,14 @@ func needSqlite(t *testing.T) {
 	}
 }
 
-// opencodeDB builds a database with the tables and columns the reader touches.
-func opencodeDB(t *testing.T, home string, statements ...string) {
+// makeOpencodeDB builds a database with the tables and columns the reader touches.
+func makeOpencodeDB(t *testing.T, home string, statements ...string) {
 	t.Helper()
-	dir := filepath.Join(home, ".local", "share", "opencode")
+	makeOpencodeDBIn(t, filepath.Join(home, ".local", "share", "opencode"), statements...)
+}
+
+func makeOpencodeDBIn(t *testing.T, dir string, statements ...string) {
+	t.Helper()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +86,7 @@ func TestOpencodeReplyReadsTheSeatsOwnTopLevelSessionFromARealDatabase(t *testin
 	home, cwd := t.TempDir(), "/shadow/it's/projects"
 	start := time.Date(2026, 9, 28, 23, 15, 0, 0, time.UTC)
 	ms := func(offset time.Duration) int64 { return start.Add(offset).UnixMilli() }
-	opencodeDB(t, home,
+	makeOpencodeDB(t, home,
 		`INSERT INTO session VALUES ('ses_old', '/shadow/it''s/projects', NULL, `+itoa(ms(-time.Hour))+`);`,
 		`INSERT INTO session VALUES ('ses_child', '/shadow/it''s/projects', 'ses_mine', `+itoa(ms(2*time.Minute))+`);`,
 		`INSERT INTO session VALUES ('ses_mine', '/shadow/it''s/projects', NULL, `+itoa(ms(time.Second))+`);`,
@@ -99,7 +103,7 @@ func TestOpencodeReplyReadsTheSeatsOwnTopLevelSessionFromARealDatabase(t *testin
 		`INSERT INTO part VALUES ('prt_5', 'msg_5', 'ses_mine', `+itoa(ms(8*time.Second))+`, '{"type":"text","synthetic":true,"text":"harness note"}');`,
 	)
 	entry := ledgerEntry{Name: "dev-advocate-a-1111", Seat: "opencode", Cwd: cwd, Home: home, Started: start}
-	view, err := replyOf(entry)
+	view, err := replyOf(entry, nil)
 	if err != nil || view.Text != "The whole answer." || !view.Complete || !strings.HasSuffix(view.Source, "opencode.db#ses_mine") {
 		t.Fatalf("reply = %+v err = %v", view, err)
 	}
@@ -107,23 +111,23 @@ func TestOpencodeReplyReadsTheSeatsOwnTopLevelSessionFromARealDatabase(t *testin
 		t.Fatal("the reader must never touch the account table")
 	}
 	// A prompt with no answer yet reads empty and not complete.
-	opencodeDB(t, home, `INSERT OR IGNORE INTO message VALUES ('msg_6', 'ses_mine', `+itoa(ms(9*time.Second))+`, '{"role":"user"}');`)
-	if view, err = replyOf(entry); err != nil || view.Text != "" || view.Complete {
+	makeOpencodeDB(t, home, `INSERT OR IGNORE INTO message VALUES ('msg_6', 'ses_mine', `+itoa(ms(9*time.Second))+`, '{"role":"user"}');`)
+	if view, err = replyOf(entry, nil); err != nil || view.Text != "" || view.Complete {
 		t.Fatalf("a new prompt = %+v err = %v", view, err)
 	}
 	entry.Cwd = "/nobody/here"
-	if _, err = replyOf(entry); !errorsIsNoTranscript(err) || exitCodeFor(err) != exitOffRoster {
+	if _, err = replyOf(entry, nil); !errorsIsNoTranscript(err) || exitCodeFor(err) != exitOffRoster {
 		t.Fatalf("no session in the cwd: %v", err)
 	}
 }
 
 func TestOpencodeWithoutSqlite3OrADatabaseIsNoTranscript(t *testing.T) {
 	entry := ledgerEntry{Name: "s", Seat: "opencode", Cwd: "/x", Home: t.TempDir(), Started: time.Now()}
-	if _, err := replyOf(entry); !errorsIsNoTranscript(err) {
+	if _, err := replyOf(entry, nil); !errorsIsNoTranscript(err) {
 		t.Fatalf("no database file: %v", err)
 	}
 	t.Setenv("PATH", t.TempDir())
-	if _, err := replyOf(entry); !errorsIsNoTranscript(err) || exitCodeFor(err) != exitMissing || !strings.Contains(err.Error(), "sqlite3 is not on PATH") {
+	if _, err := replyOf(entry, nil); !errorsIsNoTranscript(err) || exitCodeFor(err) != exitMissing || !strings.Contains(err.Error(), "sqlite3 is not on PATH") {
 		t.Fatalf("no sqlite3 binary: %v", err)
 	}
 }
