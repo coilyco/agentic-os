@@ -27,6 +27,7 @@ repos:
     - scripts/README.md
     - docs/FEATURES.md
     - evaluations/** # evaluation records, moved in from housecast
+    - config/roster/data/** # overlay role bodies, which agent-compose loads from exactly this path
     size_excludes:
     - data/
     - evaluations/**
