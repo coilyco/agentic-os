@@ -23,7 +23,13 @@ type replyView struct {
 	Text    string `json:"text"`
 	// Complete is whether the turn ended. Mid-turn the text is what exists so far.
 	Complete bool `json:"complete"`
+	// Source is the transcript path or session read, or "screen" for the visible rows.
+	Source string `json:"source"`
 }
+
+// errNoTranscript is a seat whose transcript is missing or unreadable, which the
+// verb answers with the screen rows. Its wrapper keeps the exit code.
+var errNoTranscript = errors.New("no transcript")
 
 // transcriptLine is the part of a claude transcript line the reader uses. The
 // format is claude's and unversioned, so a field not named here is never read.
@@ -99,7 +105,7 @@ func realHome() string {
 // the directory instead of globbing, so a bracket in the home cannot change a pattern.
 func transcriptPath(entry ledgerEntry) (string, error) {
 	if entry.Seat != "claude" || !conversationFlag.MatchString(entry.Conversation) {
-		return "", withExit(exitUsage, fmt.Errorf("%s keeps no claude transcript aterm can read", entry.Name))
+		return "", withExit(exitUsage, fmt.Errorf("%s keeps no claude transcript aterm can read: %w", entry.Name, errNoTranscript))
 	}
 	home := entry.Home
 	if home == "" {
@@ -108,7 +114,7 @@ func transcriptPath(entry ledgerEntry) (string, error) {
 	projects := filepath.Join(home, ".claude", "projects")
 	dirs, err := os.ReadDir(projects)
 	if err != nil {
-		return "", withExit(exitOffRoster, fmt.Errorf("no claude projects directory at %s", projects))
+		return "", withExit(exitOffRoster, fmt.Errorf("no claude projects directory at %s: %w", projects, errNoTranscript))
 	}
 	for _, dir := range dirs {
 		path := filepath.Join(projects, dir.Name(), entry.Conversation+".jsonl")
@@ -116,12 +122,24 @@ func transcriptPath(entry ledgerEntry) (string, error) {
 			return path, nil
 		}
 	}
-	return "", withExit(exitOffRoster, fmt.Errorf("no transcript for %s under %s", entry.Name, projects))
+	return "", withExit(exitOffRoster, fmt.Errorf("no transcript for %s under %s: %w", entry.Name, projects, errNoTranscript))
 }
 
-// replyOf reads one recorded session's latest reply. The sidecar for the Slack
-// adapter calls this same function, since it runs as the same user.
+// replyOf reads one recorded session's latest reply from its harness's own files.
+// The Slack sidecar calls it in-process, since it runs as the same user.
 func replyOf(entry ledgerEntry) (replyView, error) {
+	switch entry.Seat {
+	case "claude":
+		return claudeReply(entry)
+	case "codex":
+		return codexReply(entry)
+	case "opencode":
+		return opencodeReply(entry)
+	}
+	return replyView{}, withExit(exitUsage, fmt.Errorf("%s runs %q, which keeps no transcript aterm reads: %w", entry.Name, entry.Seat, errNoTranscript))
+}
+
+func claudeReply(entry ledgerEntry) (replyView, error) {
 	path, err := transcriptPath(entry)
 	if err != nil {
 		return replyView{}, err
@@ -135,7 +153,16 @@ func replyOf(entry ledgerEntry) (replyView, error) {
 	if err != nil {
 		return replyView{}, err
 	}
-	return replyView{Session: entry.Name, Text: text, Complete: complete}, nil
+	return replyView{Session: entry.Name, Text: text, Complete: complete, Source: path}, nil
+}
+
+// screenReply is the fallback: the rows the session shows now, from the daemon.
+func screenReply(entry ledgerEntry, cause error) (replyView, error) {
+	status, err := sessionStatusOf(entry.Name, maxStatusLines)
+	if err != nil {
+		return replyView{}, withExit(exitCodeFor(err), fmt.Errorf("%w, and no live screen to read instead: %v", cause, err))
+	}
+	return replyView{Session: entry.Name, Text: strings.Join(status.Screen, "\n"), Complete: status.State == stateIdle, Source: "screen"}, nil
 }
 
 // findRecorded picks the record a name or role slug means, live or ended. A role
@@ -159,11 +186,12 @@ func findRecorded(entries []ledgerEntry, target string) (ledgerEntry, error) {
 func newReplyCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "reply",
-		Usage:     "print a claude seat's latest reply in full, from its transcript",
+		Usage:     "print a seat's latest reply in full, from its harness's transcript",
 		ArgsUsage: "<session or role>",
-		Description: "Reads the transcript claude keeps for the session's recorded conversation, so a reply\n" +
-			"longer than the screen comes back whole where `aterm status` shows only visible rows. It\n" +
-			"never types into the session. A turn still running prints the text so far and says so.",
+		Description: "Reads the transcript the seat's harness keeps (claude, codex, opencode), so a reply\n" +
+			"longer than the screen comes back whole where `aterm status` shows only visible rows. With\n" +
+			"no transcript found it prints the visible screen and says so. It never types into the\n" +
+			"session. A turn still running prints the text so far and says so.",
 		Flags: []cli.Flag{&cli.BoolFlag{Name: "json", Usage: "machine-readable, the reply object"}},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			target := strings.TrimSpace(cmd.Args().First())
@@ -175,6 +203,10 @@ func newReplyCommand() *cli.Command {
 				return err
 			}
 			reply, err := replyOf(entry)
+			if errors.Is(err, errNoTranscript) {
+				fmt.Fprintf(cmd.Root().ErrWriter, "%v, so this is the visible screen\n", err)
+				reply, err = screenReply(entry, err)
+			}
 			if err != nil {
 				return err
 			}

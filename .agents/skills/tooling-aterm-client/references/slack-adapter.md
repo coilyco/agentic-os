@@ -36,9 +36,10 @@ Design for `teable:coilyco/agentic-os#8700`, written 2026-10-02 against agentic-
 
 ## Output
 
-* **A claude seat's reply comes from its transcript.** On a `busy` to `idle` push for a seat Kai addressed, the sidecar calls `replyOf` (`aterm/reply.go`, built for `teable:coilyco/agentic-os#8703`, also `aterm reply <session>`). It reads the text claude wrote since the last user line, so a long reply arrives whole. The ledger records the seat's `HOME` for it, since a shadow moves it.
-* **Codex and opencode seats fall back to the screen tail.** They have no reader yet, so the sidecar calls `status` and posts the rows with `screen tail, earlier text scrolled off`. Jev had put screen tail at 0.54 over screen plus a transcript seam at 0.38, confidence 0.31, before the reader proved cheap to build.
-* **Transcripts are claude's unversioned format.** The reader uses five fields and skips a line it cannot decode. A seat that sets `CLAUDE_CONFIG_DIR` keeps its files elsewhere and falls back to the screen tail.
+* **A seat's reply comes from its harness transcript.** On a `busy` to `idle` push for a seat Kai addressed, the sidecar calls `replyOf` (`aterm/reply.go`, `teable:coilyco/agentic-os#8703` and `#8710`, also `aterm reply <session>`), so a long reply arrives whole. The ledger records the seat's `HOME` for it, since a shadow moves it.
+* **One reader per harness.** Claude: the JSONL under `.claude/projects`, the text since the last user line. Codex: the rollout under `.codex/sessions` matched by cwd and start, the `final_answer` of the latest turn. Opencode: `opencode.db`, the text of the last assistant message, read through the system `sqlite3` with `-readonly` (Jev chose it over a Go driver, confidence 1.00).
+* **No transcript found, the screen tail.** The verb then prints the visible rows from `status` and says so, with source `screen`, and the post says `screen tail, earlier text scrolled off`. That covers a missing `sqlite3`, an unrecorded `HOME`, and a seat whose harness has no reader. A daemon too old for `status` leaves no screen to show, and the error names both causes.
+* **Formats are the harnesses' own and unversioned.** Each reader uses a handful of fields and skips a line it cannot decode. Codex and opencode match a seat by cwd and a start no earlier than its own, which a session shadow makes unique. Two seats sharing one cwd could read each other's reply.
 * **Scrub, then truncate, then escape.** Redact `xox[abposr]-`, `xapp-`, `AKIA`, `ghp_`, JWT-shaped values, `--api-key=`, `--password=`, `-token=` and the adapter's own two tokens by exact value. A line the scrubber cannot judge is withheld and counted. Escape `&`, `<` and `>` so no seat output forms a mention or a link, the rule of Echo's `escapeSlack`. Cap a post at 4,000 characters, the length Slack recommends.
 * **One message per turn, edited in place** with `chat.update`, then a final post on idle. Slack allows about one post per second per channel.
 
@@ -68,7 +69,7 @@ Answers on 2026-10-02, recorded on `teable:coilyco/agentic-os#8700`.
 
 ## Deferred and why
 
-* **Codex and opencode transcript readers** - their formats are unread, so those seats use the screen tail.
+* **`CODEX_HOME`, `CLAUDE_CONFIG_DIR` and `XDG_DATA_HOME`** - `aos` spec mode exports them, and the readers look under `HOME` only, so such a seat falls back to the screen tail.
 * **Persisted thread bindings** - blocked on whether a Slack timestamp counts as Slack data under its API terms.
 
 ## Build order

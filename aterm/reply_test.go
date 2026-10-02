@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -156,7 +157,8 @@ func TestReplyVerbReadsByNameOrRoleAndSaysWhenATurnIsRunning(t *testing.T) {
 	if err := writeLedger(state, ledgerEntry{Name: "eng-platform-a-1111", Role: "eng-platform", Seat: "claude", Conversation: id, Home: home, Started: started}); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeLedger(state, ledgerEntry{Name: "scientist-b-2222", Role: "scientist", Seat: "codex", Started: started}); err != nil {
+	t.Setenv(daemonSocketEnv, filepath.Join(t.TempDir(), "none.sock"))
+	if err := writeLedger(state, ledgerEntry{Name: "scientist-b-2222", Role: "scientist", Seat: "codex", Cwd: "/x", Home: t.TempDir(), Started: started}); err != nil {
 		t.Fatal(err)
 	}
 	run := func(args ...string) (string, string, error) {
@@ -179,13 +181,39 @@ func TestReplyVerbReadsByNameOrRoleAndSaysWhenATurnIsRunning(t *testing.T) {
 	if out, errOut, err := run("eng-platform"); err != nil || out != "Working.\n" || !strings.Contains(errOut, "mid-turn") {
 		t.Fatalf("mid-turn: out = %q err = %q %v", out, errOut, err)
 	}
-	if _, _, err := run("scientist"); exitCodeFor(err) != exitUsage {
-		t.Fatalf("a codex session has no transcript: %v", err)
+	if _, errOut, err := run("scientist"); exitCodeFor(err) != exitMissing || !strings.Contains(err.Error(), "no codex rollout") || !strings.Contains(errOut, "visible screen") {
+		t.Fatalf("no rollout and no daemon should say both: %q %v", errOut, err)
 	}
 	if _, _, err := run("nobody"); exitCodeFor(err) != exitOffRoster {
 		t.Fatalf("an unknown name is off the roster: %v", err)
 	}
 	if _, _, err := run(); exitCodeFor(err) != exitUsage {
 		t.Fatalf("reply with no name is a usage error: %v", err)
+	}
+}
+
+func errorsIsNoTranscript(err error) bool { return errors.Is(err, errNoTranscript) }
+
+func TestReplyVerbFallsBackToTheVisibleScreenWhenNoTranscriptIsFound(t *testing.T) {
+	state := t.TempDir()
+	t.Setenv(stateDirEnv, state)
+	testDaemon(t)
+	dialTest(t).spawn("reply-fallback", "eng-platform", "Beetle-Ox", `printf 'rows the screen shows\r\n'; exec cat`)
+	if err := writeLedger(state, ledgerEntry{Name: "reply-fallback", Role: "eng-platform", Seat: "goose", Cwd: "/", Home: t.TempDir(), Started: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	var out, errOut string
+	waitFor(t, "the spawned screen", 8*time.Second, func() bool {
+		stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+		command := &cli.Command{Name: "aterm", Writer: stdout, ErrWriter: stderr, Commands: []*cli.Command{newReplyCommand()}}
+		if err := command.Run(context.Background(), []string{"aterm", "reply", "--json", "reply-fallback"}); err != nil {
+			t.Fatal(err)
+		}
+		out, errOut = stdout.String(), stderr.String()
+		return strings.Contains(out, "rows the screen shows")
+	})
+	var view replyView
+	if err := json.Unmarshal([]byte(out), &view); err != nil || view.Source != "screen" || !strings.Contains(errOut, "visible screen") {
+		t.Fatalf("view = %+v err = %v stderr = %q", view, err, errOut)
 	}
 }
