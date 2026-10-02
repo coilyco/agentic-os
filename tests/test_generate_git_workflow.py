@@ -235,6 +235,17 @@ def test_every_lane_carries_both_merge_directions():
         assert f"**NEVER merge on `{PULL_REQUEST}` or `{BRANCH_ONLY}`.**" in block
 
 
+def test_every_lane_names_the_recovery_from_a_behind_base_405():
+    # 17 of 33 merge asks to Kai followed this 405 (teable:coilyco/agentic-os#8656).
+    for lane in LANES:
+        block = render_block(lane)
+        assert 'is yours to fix, never a reason to ask' in block
+        assert "head branch is behind the base branch" in block
+        assert "aosguard ops forgejo pr update" in block
+        assert "`update_pull-request`" in block
+        assert "never by force" in block
+
+
 def test_no_lane_hands_the_and_merge_pull_request_to_someone_else():
     for lane in LANES:
         block = render_block(lane)
