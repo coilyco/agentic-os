@@ -5,7 +5,7 @@
 # print username/password. The token stays in process memory, never written to disk.
 # Wire via `git config --global credential.<host>.helper` pointing at this path.
 # A burst of requests, such as a partial clone's lazy fetches, rides git's
-# credential-cache daemon (memory only) instead of an SSM read each. docs/install.md
+# credential-cache daemon (memory only) instead of an SSM read each, as install.md says.
 # store is a no-op, and erase drops the cached copy so a rotated token is fetched anew.
 set -euo pipefail
 
