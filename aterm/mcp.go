@@ -92,7 +92,7 @@ var mcpTools = []map[string]any{
 			"queued, held (with the reason), delivered, or failed. A message still queued or held when " +
 			"this returns is followed by a `[from aterm daemon]` receipt typed into your own session " +
 			"when it lands or fails, so do not poll. `notify_when_idle` adds one `[from aterm daemon]` line " +
-			"when the recipient next goes idle, or ends.",
+			"when the recipient next goes idle, is held at a permission or question card, or ends.",
 		"inputSchema": map[string]any{
 			"type":     "object",
 			"required": []string{"to", "message"},

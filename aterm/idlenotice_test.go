@@ -77,3 +77,27 @@ func TestNotifyIdleNamesATargetThatEndsInstead(t *testing.T) {
 	sendNotifying(t, token, "scientist", "last words")
 	sender.until("[from aterm daemon] scientist-evie ended")
 }
+
+func TestPromptDueTellsOncePerWatch(t *testing.T) {
+	if !promptDue(statePrompt, false) || promptDue(statePrompt, true) || promptDue(stateBusy, false) || promptDue(stateIdle, false) {
+		t.Fatal("a card is announced once, and only a card")
+	}
+}
+
+func TestNotifyIdleTellsTheSenderOnceWhenTheTargetStopsAtACard(t *testing.T) {
+	card := `printf 'Do you want to proceed?\r\n1. Yes\r\nEsc to cancel\r\n'`
+	token, sender, _ := spawnPair(t, `printf 'READY\033[?2004h\n'; read -r _; `+card+`; sleep 30`)
+	time.Sleep(600 * time.Millisecond)
+	sendNotifying(t, token, "scientist", "run the push")
+	sender.until("[from aterm daemon] scientist-evie is held at a prompt")
+	// One notice shows twice, the sender's terminal echo and its cat. A card that
+	// is still up must not also read as idle, nor repeat.
+	sender.drain(6 * time.Second)
+	out := sender.output.String()
+	if got := strings.Count(out, "held at a prompt"); got > 2 {
+		t.Fatalf("the card was announced more than once, %d mentions:\n%q", got, out)
+	}
+	if strings.Contains(out, "is idle") {
+		t.Fatalf("a target held at a card is not idle:\n%q", out)
+	}
+}
