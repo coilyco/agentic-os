@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/urfave/cli/v3"
@@ -51,11 +50,16 @@ var mcpTools = []map[string]any{
 		"name": "ask_choice",
 		"description": "Ask Kai a multiple-choice question on her aterm client and wait for the pick. " +
 			"aterm stamps your seat on it. Returns the picked labels and any free text. A cancelled " +
-			"or timed-out ask returns an error saying which.",
+			"or timed-out ask returns an error saying which. Give one question, or `questions` for up " +
+			"to four, which Kai answers one card at a time and which return an answer each.",
 		"inputSchema": map[string]any{
-			"type":     "object",
-			"required": []string{"question", "options"},
+			"type": "object",
 			"properties": map[string]any{
+				"questions": map[string]any{
+					"type":        "array",
+					"description": "up to four questions, each shaped like the single-question fields here, instead of them",
+					"items":       map[string]any{"type": "object"},
+				},
 				"question":    map[string]any{"type": "string"},
 				"header":      map[string]any{"type": "string", "description": "a short label above the question"},
 				"allow_other": map[string]any{"type": "boolean", "description": "let Kai type an answer instead"},
@@ -227,19 +231,7 @@ func callMCPTool(name string, arguments json.RawMessage) (string, bool) {
 		encoded, _ := json.MarshalIndent(agentsDocument(views), "", "  ")
 		return string(encoded), false
 	case "ask_choice":
-		var ask choiceAsk
-		if err := json.Unmarshal(arguments, &ask); err != nil {
-			return err.Error(), true
-		}
-		answer, err := askChoice(ask)
-		if err != nil {
-			return err.Error(), true
-		}
-		if answer.State != "answered" {
-			return fmt.Sprintf("the ask was %s: %s", strings.ReplaceAll(answer.State, "_", " "), answer.Reason), true
-		}
-		encoded, _ := json.Marshal(map[string]any{"picks": answer.Picks, "labels": answer.Labels, "text": answer.Text})
-		return string(encoded), false
+		return askFromArguments(arguments, askChoice)
 	case "send_message":
 		var params struct {
 			To      string `json:"to"`
