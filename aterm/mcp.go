@@ -19,7 +19,7 @@ const mcpProtocol = "2025-06-18"
 func newMCPCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "mcp",
-		Usage: "serve list_agents, send_message, close_session and ask_choice over MCP stdio",
+		Usage: "serve list_agents, send_message, session_status, close_session and ask_choice over MCP stdio",
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			return serveMCP(os.Stdin, cmd.Root().Writer)
 		},
@@ -93,6 +93,21 @@ var mcpTools = []map[string]any{
 				"launch":  map[string]any{"type": "boolean", "description": "open the role when no session answers, and deliver into it"},
 				"new": map[string]any{"type": "boolean", "description": "open a new instance of the role even when one is live, " +
 					"deliver into it, and return its session name. `to` must be a role slug"},
+			},
+		},
+	},
+	{
+		"name": "session_status",
+		"description": "Read another live agent session without typing into it: its state (starting, prompt, " +
+			"busy, idle), whether it sits on a permission or choice prompt and the prompt text, seconds since " +
+			"it last wrote and since anyone typed, whether Kai has a draft, and the last rows of its screen. " +
+			"`to` resolves as in send_message. Use it to tell a seat waiting on Kai from one still working.",
+		"inputSchema": map[string]any{
+			"type":     "object",
+			"required": []string{"to"},
+			"properties": map[string]any{
+				"to":    map[string]any{"type": "string", "description": "session name from list_agents, or role, identity, or harness"},
+				"lines": map[string]any{"type": "integer", "description": "screen rows to return, default 30, at most 200"},
 			},
 		},
 	},
@@ -219,6 +234,20 @@ func callMCPTool(name string, arguments json.RawMessage) (string, bool) {
 			return err.Error(), true
 		}
 		return describeMessage(state), state.State == "failed"
+	case "session_status":
+		var params struct {
+			To    string `json:"to"`
+			Lines int    `json:"lines"`
+		}
+		if err := json.Unmarshal(arguments, &params); err != nil {
+			return err.Error(), true
+		}
+		status, err := sessionStatusOf(params.To, params.Lines)
+		if err != nil {
+			return err.Error(), true
+		}
+		encoded, _ := json.MarshalIndent(status, "", "  ")
+		return string(encoded), false
 	case "close_session":
 		var params struct {
 			To    string `json:"to"`

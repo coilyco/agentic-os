@@ -67,3 +67,52 @@ func classify(seat string, lines []string, ready bool, quiet time.Duration) stri
 	}
 	return stateIdle
 }
+
+// sessionStatus is the read-only answer to `aterm status`: what the session is
+// doing and what its screen shows, without typing into it or focusing a window.
+type sessionStatus struct {
+	Name  string `json:"name"`
+	State string `json:"state"`
+	Ready bool   `json:"ready"`
+	// QuietSeconds is the time since the session last wrote, and InputSeconds the
+	// time since anyone typed into it, or -1 when no one has.
+	QuietSeconds int  `json:"quiet_seconds"`
+	InputSeconds int  `json:"input_seconds"`
+	Drafted      bool `json:"kai_drafting"`
+	Pending      int  `json:"pending"`
+	Clients      int  `json:"clients"`
+	Rows         int  `json:"rows"`
+	Cols         int  `json:"cols"`
+	// Prompt is the screen around a permission or choice card, when one is up.
+	Prompt []string `json:"prompt,omitempty"`
+	Screen []string `json:"screen"`
+}
+
+const (
+	defaultStatusLines = 30
+	maxStatusLines     = 200
+	// promptBefore and promptAfter bound the rows kept around a prompt's first line.
+	promptBefore = 4
+	promptAfter  = 12
+)
+
+// promptLines is the rows around the first one a prompt mark matches, or nil.
+func promptLines(seat string, lines []string) []string {
+	for index, line := range lines {
+		for _, mark := range promptScreens[seat] {
+			if mark.MatchString(line) {
+				return lines[max(index-promptBefore, 0):min(index+promptAfter, len(lines))]
+			}
+		}
+	}
+	return nil
+}
+
+// tailLines is the last n rows, with n held between 1 and maxStatusLines.
+func tailLines(lines []string, n int) []string {
+	if n <= 0 {
+		n = defaultStatusLines
+	}
+	n = min(n, maxStatusLines)
+	return append([]string{}, lines[max(len(lines)-n, 0):]...)
+}

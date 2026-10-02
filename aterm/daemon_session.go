@@ -647,6 +647,30 @@ func (s *ptySession) inject(text string, paste bool) error {
 	return s.writePTY([]byte("\r"))
 }
 
+// status reads the session as it stands, under the lock and without touching it.
+func (s *ptySession) status(lines int) sessionStatus {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	ready := s.ready(now)
+	quiet := now.Sub(s.lastOutput)
+	var text []string
+	var rows, cols int
+	if s.scr != nil {
+		text, rows, cols = s.scr.text(), s.scr.rows, s.scr.cols
+	}
+	input := -1
+	if !s.lastInput.IsZero() {
+		input = int(now.Sub(s.lastInput) / time.Second)
+	}
+	return sessionStatus{
+		Name: s.name, State: classify(s.seat, text, ready, quiet), Ready: ready,
+		QuietSeconds: int(quiet / time.Second), InputSeconds: input,
+		Drafted: s.draft > 0, Pending: len(s.pending), Clients: len(s.clients),
+		Rows: rows, Cols: cols, Prompt: promptLines(s.seat, text), Screen: tailLines(text, lines),
+	}
+}
+
 func (s *ptySession) view() sessionView {
 	s.mu.Lock()
 	defer s.mu.Unlock()

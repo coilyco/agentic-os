@@ -216,6 +216,7 @@ func newCommand(deps commandDeps) *cli.Command {
 			newResumeCommand(),
 			newSendCommand(),
 			newCloseCommand(),
+			newStatusCommand(),
 			newAskCommand(),
 			newAgentsCommand(),
 			newMCPCommand(),

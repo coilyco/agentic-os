@@ -8,21 +8,22 @@ aterm agents                          # live sessions, the targets send takes
 aterm send frontend-eng "ready for review"
 aterm send --launch scientist -       # open the role if none answers
 aterm attach eng-platform-beetle-ox   # a second terminal, Ctrl-] detaches
-aterm close scientist-frog-ox-ya97    # end one
+aterm status scientist-frog-ox-ya97   # state and screen
+aterm close scientist-frog-ox-ya97
 aterm daemon                          # foreground, websocket on 127.0.0.1:7419
 aterm ask "Ship it?" yes no           # a choice card on Kai's client
-aterm mcp                             # list_agents, send_message, close_session, ask_choice
+aterm mcp                             # list_agents, send_message, session_status, close_session, ask_choice
 ```
 
 ## What the daemon owns
 
 **`_session` hands the harness to the daemon instead of running it.** After the card it sends a `spawn` with the argv, environment, directory and window size, then attaches as one client. The argv reaches the harness untouched, and the window holds on a non-zero exit.
 
-**A session is named `<role>-<identity>-<code>`, and a spawn under a live session's name is refused.** The code comes from `aos _session-id` and goes to the shadow as `--session-id`, so it doubles as `AOS_NATIVE_SESSION` unless taken. The claude seat also gets the name as `--name`, unless the caller named it or set `--no-stable-name`.
+**A session is named `<role>-<identity>-<code>`, and a spawn under a live session's name is refused.** The code comes from `aos _session-id` and goes to the shadow as `--session-id`, so it doubles as `AOS_NATIVE_SESSION` unless taken. The claude seat also gets the name as `--name`.
 
 **The harness starts without agent-compose's Enter gate**, since the window drew its own card (`AGENT_COMPOSE_NO_PAUSE=1`). `_session` flushes unread input before attaching, so the card's color-query reply is not read as Kai typing. agent-compose's `ESC ] 7750 ; agent-compose ; degraded=<steps> BEL` becomes the session's `degraded` field.
 
-**`list` reads each session's screen.** The daemon rebuilds what each terminal shows from its output and reports `state`: `starting`, `prompt` (a permission or choice card is up), `busy` (recent output or the interrupt hint), else `idle`. The harness texts it matches live in `screenstate.go`.
+**`list` reads each session's screen.** The daemon rebuilds what each terminal shows from its output and reports `state`: `starting`, `prompt` (a permission or choice card is up), `busy` (recent output or the interrupt hint), else `idle`. `aterm status` adds the prompt text, seconds since output and input, the draft, and the last rows, and never types. Texts: `screenstate.go`.
 
 **A session outlives its window.** Closing it detaches that client, and the harness runs on until `aterm close` sends SIGTERM, then SIGKILL after 3 seconds. Close refuses the caller's own session or one it runs inside, and without `--force` one holding Kai's draft or queued messages. `aterm attach` reattaches from any terminal and replays the last megabyte, minus queries it would answer again.
 
@@ -56,9 +57,10 @@ aterm mcp                             # list_agents, send_message, close_session
 
 * `spawn`, `attach`, `detach`, `input` and `output` (base64 `data`), `resize`, `exit` with `code`.
 * `send` answers `sent` with the message state, waiting up to 3 seconds for delivery unless `launching`.
+* `status` with a `target` and `lines` answers `status`.
 * `close` with a `target` and optional `force` answers `closed` with the session and exit `code`.
 * `list` answers `sessions`, each with `state` and `quiet_seconds`. `subscribe` to channel `sessions` pushes the roster on every change, and `message` events carry each state change, never the body.
 * `whoami` resolves a token to its session. `roster` answers `aterm.roster.v1`, the launchable roles `aterm --list --json` prints. `launch` with a `role` and optional `seat` opens it headless, answering `launched`.
 * `ask` takes a `question`, `options` (`label`, `description`), `header`, `allow_other`, `multi`. The daemon stamps the asker and pushes `ask` to subscribers, replayed on subscribe. `answer` (`ask_id`, `picks`, `text`) or `cancel_ask` settles it, and `asked` tells every client to drop the card. An asker leaving cancels its asks, 15 minutes times one out, and an answer takes the typing guard as Kai's input.
 
-**Browsers get the client from `--client-dir` at `/`, and a websocket there.** Loopback is `127.0.0.1:7419` (`--websocket`) and refuses a non-loopback Host or Origin. The tailnet is HTTPS on this node's tailnet name, port 7419 (`--tailnet-port`, empty for none), and on macOS the CLI runs only while `scutil --nc status Tailscale` reads Connected, since it starts a down VPN. `tailscale whois` admits a peer, never the request: this node owner's untagged device or one tagged `tag:physical` (`--allow-tags`). A websocket opens only from the served page or `https://coilyco.dev` (`--allow-origins`).
+**Browsers get the client from `--client-dir` at `/`, and a websocket there.** Loopback is `127.0.0.1:7419` (`--websocket`) and refuses a non-loopback Host or Origin. The tailnet is HTTPS on this node's tailnet name, port 7419 (`--tailnet-port`). `tailscale whois` admits a peer, never the request: this node owner's untagged device or one tagged `tag:physical`. A websocket opens only from the served page or `https://coilyco.dev`.

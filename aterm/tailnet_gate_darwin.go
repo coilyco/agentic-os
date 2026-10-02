@@ -9,8 +9,8 @@ import (
 // macVPNService is the name the Tailscale GUI gives its VPN configuration.
 const macVPNService = "Tailscale"
 
-// platformTailnetGate reads the macOS VPN state without touching Tailscale.
-// A failed read counts as down, since the cost of waiting is a retry.
+// platformTailnetGate reads the macOS VPN state without touching Tailscale, whose
+// CLI starts a down VPN. A failed read counts as down: waiting costs a retry.
 func platformTailnetGate() error {
 	output, err := exec.Command("scutil", "--nc", "status", macVPNService).Output()
 	if err != nil {

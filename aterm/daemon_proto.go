@@ -69,6 +69,9 @@ type frame struct {
 	// replies and events
 	Message  *peerMessage  `json:"message,omitempty"`
 	Sessions []sessionView `json:"sessions,omitempty"`
+	// Lines is how many screen rows a status asks for, and Status is its answer.
+	Lines  int            `json:"lines,omitempty"`
+	Status *sessionStatus `json:"status,omitempty"`
 	// ask_choice
 	Ask     *choiceAsk    `json:"ask,omitempty"`
 	AskID   string        `json:"ask_id,omitempty"`
@@ -141,6 +144,9 @@ const sendNewFeature = "send-new"
 
 // closeFeature is how a client knows the daemon answers a close frame.
 const closeFeature = "close"
+
+// statusFeature is how a client knows the daemon answers a status frame.
+const statusFeature = "status"
 
 // holdFeature is how a client knows sessions live in holders, so stopping the
 // daemon leaves them running. A daemon without it ends every session when it stops.

@@ -294,7 +294,7 @@ func (d *daemon) serveConn(c *conn, pid int, browser bool) {
 		_ = c.write(frame{Type: "welcome", Format: daemonFormat, Error: "unsupported format " + hello.Format})
 		return
 	}
-	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, closeFeature, holdFeature}}); err != nil {
+	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, closeFeature, holdFeature, statusFeature}}); err != nil {
 		return
 	}
 	d.mu.Lock()
@@ -384,6 +384,13 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return d.send(cl.c, message)
 	case "close":
 		return d.closeSession(cl, message)
+	case "status":
+		s, err := d.oneTarget(message.Target)
+		if err != nil {
+			return err
+		}
+		status := s.status(message.Lines)
+		return cl.c.write(frame{Type: "status", ID: message.ID, Session: s.name, Status: &status})
 	case "list":
 		return cl.c.write(frame{Type: "sessions", ID: message.ID, Sessions: d.views()})
 	case "launch":
@@ -668,19 +675,10 @@ func (d *daemon) reportSent(c *conn, id string, pending *pendingSend) {
 // closeSession ends a live session and drops it, which closing its window does
 // not. It never ends the caller or a session the caller runs inside.
 func (d *daemon) closeSession(cl *client, message frame) error {
-	targets := d.resolve(message.Target)
-	switch {
-	case len(targets) == 0:
-		return withExit(exitOffRoster, fmt.Errorf("no live session answers to %q. Live: %s",
-			message.Target, d.liveNames()))
-	case len(targets) > 1:
-		names := make([]string, 0, len(targets))
-		for _, target := range targets {
-			names = append(names, target.name)
-		}
-		return withExit(exitUsage, fmt.Errorf("%q matches %s, name one", message.Target, strings.Join(names, ", ")))
+	s, err := d.oneTarget(message.Target)
+	if err != nil {
+		return err
 	}
-	s := targets[0]
 	caller := d.byToken(message.Token)
 	if caller == s {
 		return withExit(exitUsage, fmt.Errorf("%s is this session", s.name))
@@ -710,6 +708,22 @@ func (d *daemon) closeSession(cl *client, message frame) error {
 	code := s.exitCode
 	s.mu.Unlock()
 	return cl.c.write(frame{Type: "closed", ID: message.ID, Session: s.name, Code: code})
+}
+
+// oneTarget resolves a target to exactly one live session, or says why not.
+func (d *daemon) oneTarget(target string) (*ptySession, error) {
+	targets := d.resolve(target)
+	switch {
+	case len(targets) == 0:
+		return nil, withExit(exitOffRoster, fmt.Errorf("no live session answers to %q. Live: %s", target, d.liveNames()))
+	case len(targets) > 1:
+		names := make([]string, 0, len(targets))
+		for _, match := range targets {
+			names = append(names, match.name)
+		}
+		return nil, withExit(exitUsage, fmt.Errorf("%q matches %s, name one", target, strings.Join(names, ", ")))
+	}
+	return targets[0], nil
 }
 
 func (d *daemon) liveNames() string {
