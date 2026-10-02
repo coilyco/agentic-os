@@ -102,6 +102,10 @@ type sessionView struct {
 	Ready   bool `json:"ready"`
 	Drafted bool `json:"kai_drafting"`
 	Pending int  `json:"pending"`
+	// State is what the screen shows: starting, busy, idle, or prompt. Both fields
+	// are absent from a daemon that predates them. See docs/aterm-daemon.md.
+	State        string `json:"state,omitempty"`
+	QuietSeconds int    `json:"quiet_seconds"`
 	// Degraded names the startup steps agent-compose launched without.
 	Degraded []string `json:"degraded,omitempty"`
 }

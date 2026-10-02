@@ -284,3 +284,20 @@ func TestHolderSocketNamesStaySafeAndDistinct(t *testing.T) {
 		t.Fatal("two names that reduce alike must stay apart")
 	}
 }
+
+// A daemon that adopts a session rebuilds its screen from the holder's replay,
+// at the size the holder reports, so a prompt held across a restart still shows.
+func TestAdoptedSessionStillShowsItsPrompt(t *testing.T) {
+	rig := newHoldRig(t)
+	rig.startDaemon()
+	first := dialTest(t)
+	first.spawn("adopt-state", "eng-platform", "Beetle-Ox",
+		`printf '\033[?2004h'; printf 'Do you want to proceed?\r\n1. Yes\r\nEsc to cancel\r\n'; exec cat`)
+	first.until("Esc to cancel")
+	rig.killDaemon(syscall.SIGKILL)
+	rig.startDaemon()
+	waitFor(t, "the adopted session to read as a prompt", 8*time.Second, func() bool {
+		views := rig.sessionsQuiet()
+		return len(views) == 1 && views[0].State == statePrompt
+	})
+}

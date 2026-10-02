@@ -50,8 +50,12 @@ type holdInfo struct {
 	Paste       bool     `json:"paste,omitempty"`
 	PasteSeen   bool     `json:"paste_seen,omitempty"`
 	Degraded    []string `json:"degraded,omitempty"`
-	Exited      bool     `json:"exited,omitempty"`
-	Code        int      `json:"code,omitempty"`
+	// Rows and Cols are the PTY's size now, so a daemon rebuilding the screen
+	// from the replay lays it out the way the program drew it.
+	Rows   int  `json:"rows,omitempty"`
+	Cols   int  `json:"cols,omitempty"`
+	Exited bool `json:"exited,omitempty"`
+	Code   int  `json:"code,omitempty"`
 }
 
 // modeTracker follows what a session's output asked of the terminal. The
@@ -354,6 +358,7 @@ func (h *holder) attach(c *conn, message frame) error {
 	if message.Replay {
 		history = append([]byte(nil), h.ring...)
 	}
+	rows, cols, _ := pty.Getsize(h.ptmx)
 	info := holdInfo{
 		Name:        h.spec.Session,
 		Role:        h.spec.Role,
@@ -366,6 +371,8 @@ func (h *holder) attach(c *conn, message frame) error {
 		Paste:       h.modes.paste,
 		PasteSeen:   h.modes.pasteSeen,
 		Degraded:    append([]string(nil), h.modes.degraded...),
+		Rows:        rows,
+		Cols:        cols,
 		Exited:      h.exited,
 		Code:        h.code,
 	}

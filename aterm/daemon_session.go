@@ -79,12 +79,14 @@ type ptySession struct {
 	// keeps a mark split across two chunks.
 	promptSeen time.Time
 	promptTail []byte
-	draft      int
-	keys       keyState
-	pending    []*pendingSend
-	wake       chan struct{}
-	done       chan struct{}
-	exitCode   int
+	// scr is the screen the output so far draws, read for the session's state.
+	scr      *screen
+	draft    int
+	keys     keyState
+	pending  []*pendingSend
+	wake     chan struct{}
+	done     chan struct{}
+	exitCode int
 	// released is a daemon letting go of a session that keeps running.
 	released bool
 }
@@ -180,6 +182,7 @@ func (d *daemon) connectHolder(socket string, adopted bool) (*ptySession, error)
 		holder:       c,
 		clients:      map[*conn]bool{},
 		outputOffset: info.ReplayStart,
+		scr:          newScreen(clampSize(info.Rows, 24), clampSize(info.Cols, 80)),
 		lastOutput:   now,
 		wake:         make(chan struct{}, 1),
 		done:         make(chan struct{}),
@@ -282,6 +285,9 @@ func (s *ptySession) output(chunk []byte) {
 	s.scanPrompt(chunk, s.lastOutput)
 	promptShown := promptBefore && !s.promptSeen.IsZero()
 	s.scrollback = append(s.scrollback, chunk...)
+	if s.scr != nil {
+		s.scr.write(chunk)
+	}
 	if over := len(s.scrollback) - scrollbackLimit; over > 0 {
 		s.scrollback = append([]byte(nil), s.scrollback[over:]...)
 	}
@@ -429,9 +435,15 @@ func (s *ptySession) resize(rows, cols int) {
 	if rows <= 0 || cols <= 0 {
 		return
 	}
+	rows, cols = clampSize(rows, 24), clampSize(cols, 80)
 	if s.holder != nil {
-		_ = s.holder.write(frame{Type: "resize", Rows: clampSize(rows, 24), Cols: clampSize(cols, 80)})
+		_ = s.holder.write(frame{Type: "resize", Rows: rows, Cols: cols})
 	}
+	s.mu.Lock()
+	if s.scr != nil {
+		s.scr.resize(rows, cols)
+	}
+	s.mu.Unlock()
 }
 
 // typeInput is a person at a client. It is the only path that is not stamped.
@@ -638,18 +650,27 @@ func (s *ptySession) inject(text string, paste bool) error {
 func (s *ptySession) view() sessionView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	now := time.Now()
+	ready := s.ready(now)
+	quiet := now.Sub(s.lastOutput)
+	var lines []string
+	if s.scr != nil {
+		lines = s.scr.text()
+	}
 	return sessionView{
-		Name:     s.name,
-		Role:     s.role,
-		Identity: s.identity,
-		Seat:     s.seat,
-		PID:      s.pid,
-		Started:  s.started.UTC(),
-		Clients:  len(s.clients),
-		Paste:    s.paste,
-		Ready:    s.ready(time.Now()),
-		Drafted:  s.draft > 0,
-		Pending:  len(s.pending),
-		Degraded: append([]string(nil), s.degraded...),
+		State:        classify(s.seat, lines, ready, quiet),
+		QuietSeconds: int(quiet / time.Second),
+		Name:         s.name,
+		Role:         s.role,
+		Identity:     s.identity,
+		Seat:         s.seat,
+		PID:          s.pid,
+		Started:      s.started.UTC(),
+		Clients:      len(s.clients),
+		Paste:        s.paste,
+		Ready:        ready,
+		Drafted:      s.draft > 0,
+		Pending:      len(s.pending),
+		Degraded:     append([]string(nil), s.degraded...),
 	}
 }

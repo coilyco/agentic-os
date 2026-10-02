@@ -257,7 +257,9 @@ func agentsDocument(views []sessionView) agentsDoc {
 
 func agentState(view sessionView) string {
 	parts := []string{}
-	if !view.Ready {
+	if view.State != "" {
+		parts = append(parts, agentStateWord(view))
+	} else if !view.Ready {
 		parts = append(parts, "starting")
 	}
 	if len(view.Degraded) > 0 {
@@ -271,6 +273,18 @@ func agentState(view sessionView) string {
 	}
 	parts = append(parts, fmt.Sprintf("%d client(s), up %s", view.Clients, time.Since(view.Started).Round(time.Second)))
 	return strings.Join(parts, ", ")
+}
+
+// agentStateWord is the screen state for a line, with how long a quiet session
+// has been quiet, since "idle for a minute" and "idle for an hour" differ.
+func agentStateWord(view sessionView) string {
+	switch view.State {
+	case statePrompt:
+		return "waiting on a prompt"
+	case stateIdle:
+		return fmt.Sprintf("idle %s", (time.Duration(view.QuietSeconds) * time.Second).String())
+	}
+	return view.State
 }
 
 func listAgents() ([]sessionView, error) {
