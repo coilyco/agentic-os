@@ -54,7 +54,7 @@ Every window stands its role's own creature behind the session. See
 
 It routes every session. See [the aterm host daemon](aterm-daemon.md).
 
-**`aterm resume` reopens the conversation of a session that is no longer live.** The daemon records each session's role, seat, argv and directory, never its environment, under `~/.local/state/aterm/sessions` (`ATERM_STATE_DIR` overrides), and keeps an ended one 30 days. A claude launch carries a minted `--session-id`, so the record names the conversation. `aterm resume <session or role>` relaunches the role with `--resume <id> --name <old name>`, and `--list` shows what can be resumed. Only claude is recorded, and a live session points at `aterm attach`.
+**`aterm resume` reopens the conversation of a session that is no longer live.** The daemon records each session's role, seat, argv, directory and home, never its environment, under `~/.local/state/aterm/sessions` (`ATERM_STATE_DIR` overrides), and keeps an ended one 30 days. A claude launch carries a minted `--session-id`, so the record names the conversation. `aterm resume <session or role>` relaunches the role with `--resume <id> --name <old name>`, and `--list` shows what can be resumed. Only claude is recorded, and a live session points at `aterm attach`.
 
 ## macOS app bundles
 

@@ -1,0 +1,194 @@
+package main
+
+import (
+	"bufio"
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/user"
+	"path/filepath"
+	"strings"
+
+	"github.com/urfave/cli/v3"
+)
+
+// replyView is a seat's latest reply as its harness wrote it down. `aterm status`
+// shows only the visible rows, so a long reply that scrolled off is read here.
+type replyView struct {
+	Session string `json:"session"`
+	Text    string `json:"text"`
+	// Complete is whether the turn ended. Mid-turn the text is what exists so far.
+	Complete bool `json:"complete"`
+}
+
+// transcriptLine is the part of a claude transcript line the reader uses. The
+// format is claude's and unversioned, so a field not named here is never read.
+type transcriptLine struct {
+	Type        string `json:"type"`
+	IsSidechain bool   `json:"isSidechain"`
+	Message     struct {
+		Content    json.RawMessage `json:"content"`
+		StopReason string          `json:"stop_reason"`
+	} `json:"message"`
+}
+
+type contentBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+// lastReply is the text claude wrote since the last user line, and whether the turn
+// ended. A tool result is a user line, so narration before a tool call is dropped.
+func lastReply(r io.Reader) (string, bool, error) {
+	reader := bufio.NewReaderSize(r, 1<<20)
+	var parts []string
+	complete := false
+	for {
+		raw, err := reader.ReadBytes('\n')
+		var line transcriptLine
+		if len(bytes.TrimSpace(raw)) > 0 && json.Unmarshal(raw, &line) == nil && !line.IsSidechain {
+			switch line.Type {
+			case "user":
+				parts, complete = nil, false
+			case "assistant":
+				var blocks []contentBlock
+				_ = json.Unmarshal(line.Message.Content, &blocks)
+				for _, block := range blocks {
+					if text := strings.TrimSpace(block.Text); block.Type == "text" && text != "" {
+						parts = append(parts, text)
+					}
+				}
+				complete = line.Message.StopReason != "" && line.Message.StopReason != "tool_use"
+			}
+		}
+		if err == io.EOF {
+			return strings.Join(parts, "\n\n"), complete, nil
+		}
+		if err != nil {
+			return "", false, err
+		}
+	}
+}
+
+// homeOf is the HOME a spawn asked for, since a session shadow moves it and the
+// harness keeps its own files there. The last assignment wins, as in a process.
+func homeOf(env []string) string {
+	home := ""
+	for _, entry := range env {
+		if value, ok := strings.CutPrefix(entry, "HOME="); ok {
+			home = value
+		}
+	}
+	return home
+}
+
+// realHome is the user's home from the password database, not $HOME.
+func realHome() string {
+	if current, err := user.Current(); err == nil && current.HomeDir != "" {
+		return current.HomeDir
+	}
+	home, _ := os.UserHomeDir()
+	return home
+}
+
+// transcriptPath finds a claude seat's transcript under its recorded home. It lists
+// the directory instead of globbing, so a bracket in the home cannot change a pattern.
+func transcriptPath(entry ledgerEntry) (string, error) {
+	if entry.Seat != "claude" || !conversationFlag.MatchString(entry.Conversation) {
+		return "", withExit(exitUsage, fmt.Errorf("%s keeps no claude transcript aterm can read", entry.Name))
+	}
+	home := entry.Home
+	if home == "" {
+		home = realHome()
+	}
+	projects := filepath.Join(home, ".claude", "projects")
+	dirs, err := os.ReadDir(projects)
+	if err != nil {
+		return "", withExit(exitOffRoster, fmt.Errorf("no claude projects directory at %s", projects))
+	}
+	for _, dir := range dirs {
+		path := filepath.Join(projects, dir.Name(), entry.Conversation+".jsonl")
+		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
+			return path, nil
+		}
+	}
+	return "", withExit(exitOffRoster, fmt.Errorf("no transcript for %s under %s", entry.Name, projects))
+}
+
+// replyOf reads one recorded session's latest reply. The sidecar for the Slack
+// adapter calls this same function, since it runs as the same user.
+func replyOf(entry ledgerEntry) (replyView, error) {
+	path, err := transcriptPath(entry)
+	if err != nil {
+		return replyView{}, err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return replyView{}, err
+	}
+	defer file.Close()
+	text, complete, err := lastReply(file)
+	if err != nil {
+		return replyView{}, err
+	}
+	return replyView{Session: entry.Name, Text: text, Complete: complete}, nil
+}
+
+// findRecorded picks the record a name or role slug means, live or ended. A role
+// slug takes its most recent record.
+func findRecorded(entries []ledgerEntry, target string) (ledgerEntry, error) {
+	var byRole *ledgerEntry
+	for index, entry := range entries {
+		if entry.Name == target {
+			return entry, nil
+		}
+		if entry.Role == target {
+			byRole = &entries[index]
+		}
+	}
+	if byRole != nil {
+		return *byRole, nil
+	}
+	return ledgerEntry{}, withExit(exitOffRoster, fmt.Errorf("no recorded session answers to %q. `aterm agents` lists the live ones", target))
+}
+
+func newReplyCommand() *cli.Command {
+	return &cli.Command{
+		Name:      "reply",
+		Usage:     "print a claude seat's latest reply in full, from its transcript",
+		ArgsUsage: "<session or role>",
+		Description: "Reads the transcript claude keeps for the session's recorded conversation, so a reply\n" +
+			"longer than the screen comes back whole where `aterm status` shows only visible rows. It\n" +
+			"never types into the session. A turn still running prints the text so far and says so.",
+		Flags: []cli.Flag{&cli.BoolFlag{Name: "json", Usage: "machine-readable, the reply object"}},
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			target := strings.TrimSpace(cmd.Args().First())
+			if target == "" {
+				return withExit(exitUsage, errors.New("aterm reply needs one target. `aterm agents` lists them"))
+			}
+			entry, err := findRecorded(readLedger(ledgerDir()), target)
+			if err != nil {
+				return err
+			}
+			reply, err := replyOf(entry)
+			if err != nil {
+				return err
+			}
+			writer := cmd.Root().Writer
+			if cmd.Bool("json") {
+				encoded, _ := json.MarshalIndent(reply, "", "  ")
+				_, err := fmt.Fprintf(writer, "%s\n", encoded)
+				return err
+			}
+			if !reply.Complete {
+				fmt.Fprintf(cmd.Root().ErrWriter, "%s is mid-turn, so this is the text so far\n", reply.Session)
+			}
+			_, err = fmt.Fprintln(writer, reply.Text)
+			return err
+		},
+	}
+}

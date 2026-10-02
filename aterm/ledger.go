@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/user"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -32,10 +31,13 @@ type ledgerEntry struct {
 	Argv     []string `json:"argv"`
 	// Conversation is the harness conversation id a relaunch resumes, claude's
 	// today. Empty means this seat cannot be resumed.
-	Conversation string     `json:"conversation,omitempty"`
-	Started      time.Time  `json:"started"`
-	Ended        *time.Time `json:"ended,omitempty"`
-	Code         *int       `json:"code,omitempty"`
+	Conversation string `json:"conversation,omitempty"`
+	// Home is the HOME the seat was spawned with, a path and not the environment.
+	// A shadow moves it, and the harness keeps its transcript there.
+	Home    string     `json:"home,omitempty"`
+	Started time.Time  `json:"started"`
+	Ended   *time.Time `json:"ended,omitempty"`
+	Code    *int       `json:"code,omitempty"`
 }
 
 // ledgerDir is under the real home from the password database, since a shadow
@@ -44,14 +46,7 @@ func ledgerDir() string {
 	if override := strings.TrimSpace(os.Getenv(stateDirEnv)); override != "" {
 		return override
 	}
-	home := ""
-	if current, err := user.Current(); err == nil {
-		home = current.HomeDir
-	}
-	if home == "" {
-		home, _ = os.UserHomeDir()
-	}
-	return filepath.Join(home, ".local", "state", "aterm", "sessions")
+	return filepath.Join(realHome(), ".local", "state", "aterm", "sessions")
 }
 
 func (e ledgerEntry) file(dir string) string { return filepath.Join(dir, fileStem(e.Name)+".json") }

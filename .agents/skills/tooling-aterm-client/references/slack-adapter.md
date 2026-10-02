@@ -36,8 +36,9 @@ Design for `teable:coilyco/agentic-os#8700`, written 2026-10-02 against agentic-
 
 ## Output
 
-* **v1 reads the screen tail.** On a `busy` to `idle` push for a seat Kai addressed, call `status` and post the rows. Jev put screen tail at 0.54 over screen plus a transcript seam at 0.38, confidence 0.31, so it is a lean and Kai can overrule it.
-* **The gap is named in the message.** A reply longer than the visible rows is cut, and the post says `screen tail, earlier text scrolled off`. The full reply needs the harness transcript, whose reader is deferred (see below).
+* **A claude seat's reply comes from its transcript.** On a `busy` to `idle` push for a seat Kai addressed, the sidecar calls `replyOf` (`aterm/reply.go`, built for `teable:coilyco/agentic-os#8703`, also `aterm reply <session>`). It reads the text claude wrote since the last user line, so a long reply arrives whole. The ledger records the seat's `HOME` for it, since a shadow moves it.
+* **Codex and opencode seats fall back to the screen tail.** They have no reader yet, so the sidecar calls `status` and posts the rows with `screen tail, earlier text scrolled off`. Jev had put screen tail at 0.54 over screen plus a transcript seam at 0.38, confidence 0.31, before the reader proved cheap to build.
+* **Transcripts are claude's unversioned format.** The reader uses five fields and skips a line it cannot decode. A seat that sets `CLAUDE_CONFIG_DIR` keeps its files elsewhere and falls back to the screen tail.
 * **Scrub, then truncate, then escape.** Redact `xox[abposr]-`, `xapp-`, `AKIA`, `ghp_`, JWT-shaped values, `--api-key=`, `--password=`, `-token=` and the adapter's own two tokens by exact value. A line the scrubber cannot judge is withheld and counted. Escape `&`, `<` and `>` so no seat output forms a mention or a link, the rule of Echo's `escapeSlack`. Cap a post at 4,000 characters, the length Slack recommends.
 * **One message per turn, edited in place** with `chat.update`, then a final post on idle. Slack allows about one post per second per channel.
 
@@ -67,7 +68,7 @@ Answers on 2026-10-02, recorded on `teable:coilyco/agentic-os#8700`.
 
 ## Deferred and why
 
-* **Harness transcript reader** - full-fidelity replies, claude first since the ledger records its conversation id. Deferred until v1 shows how often replies scroll off.
+* **Codex and opencode transcript readers** - their formats are unread, so those seats use the screen tail.
 * **Persisted thread bindings** - blocked on whether a Slack timestamp counts as Slack data under its API terms.
 
 ## Build order
