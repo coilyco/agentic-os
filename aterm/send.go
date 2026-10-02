@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"os/exec"
 	"slices"
@@ -79,6 +80,7 @@ func newSendCommand() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "launch", Usage: "when no session answers to a role, open one and deliver into it"},
 			&cli.BoolFlag{Name: "new", Usage: "open a new instance of the role even when one is live, and deliver into it"},
+			&cli.DurationFlag{Name: "wait", Usage: "wait up to this long for delivered or failed, 3s when absent, and exit 1 on failed"},
 			&cli.BoolFlag{Name: "json", Usage: "print the message state as JSON"},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
@@ -94,16 +96,20 @@ func newSendCommand() *cli.Command {
 				}
 				body = string(raw)
 			}
-			state, err := sendMessage(args[0], body, cmd.Bool("launch"), cmd.Bool("new"))
+			wait := cmd.Duration("wait")
+			state, err := sendMessage(args[0], body, cmd.Bool("launch"), cmd.Bool("new"), wait)
 			if err != nil {
 				return err
 			}
 			if cmd.Bool("json") {
 				encoded, _ := json.MarshalIndent(state, "", "  ")
 				_, err = fmt.Fprintf(cmd.Root().Writer, "%s\n", encoded)
-				return err
+			} else {
+				_, err = fmt.Fprintln(cmd.Root().Writer, describeMessage(state))
 			}
-			_, err = fmt.Fprintln(cmd.Root().Writer, describeMessage(state))
+			if err == nil && wait > 0 && state.State == "failed" {
+				err = fmt.Errorf("the message failed: %s", state.Reason)
+			}
 			return err
 		},
 	}
@@ -111,7 +117,7 @@ func newSendCommand() *cli.Command {
 
 // sendMessage is the one path both front doors take, the CLI and the MCP
 // tool, so the two cannot drift.
-func sendMessage(target, body string, launch, fresh bool) (peerMessage, error) {
+func sendMessage(target, body string, launch, fresh bool, wait time.Duration) (peerMessage, error) {
 	token := strings.TrimSpace(os.Getenv(sessionTokenEnv))
 	if token == "" {
 		return peerMessage{}, withExit(exitUsage, fmt.Errorf(
@@ -126,7 +132,12 @@ func sendMessage(target, body string, launch, fresh bool) (peerMessage, error) {
 		return peerMessage{}, fmt.Errorf("the running aterm daemon predates new-instance sends and would deliver " +
 			"to the live session. It restarts on the upgraded binary after five idle minutes")
 	}
-	reply, err := c.request(frame{Type: "send", Token: token, Target: target, Body: body, Launch: launch, New: fresh})
+	if wait > 0 && !slices.Contains(c.features, sendWaitFeature) {
+		return peerMessage{}, fmt.Errorf("the running aterm daemon predates send --wait and would answer after 3 seconds. " +
+			"It restarts on the upgraded binary after five idle minutes")
+	}
+	reply, err := c.request(frame{Type: "send", Token: token, Target: target, Body: body, Launch: launch, New: fresh,
+		Wait: int(math.Ceil(wait.Seconds()))})
 	if err != nil {
 		if reply.Code != 0 {
 			return peerMessage{}, withExit(reply.Code, err)

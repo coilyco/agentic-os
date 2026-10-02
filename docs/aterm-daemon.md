@@ -4,7 +4,7 @@
 attached to it, and `aterm send` types a stamped message from one session into another. Its window is [the native agent terminal](aterm.md).
 
 ```text
-aterm agents                          # live sessions, the targets send takes
+aterm agents                          # the targets send takes
 aterm send frontend-eng "ready for review"
 aterm send --launch scientist -       # open the role if none answers
 aterm attach eng-platform-beetle-ox   # a second terminal, Ctrl-] detaches
@@ -12,8 +12,8 @@ aterm status scientist-frog-ox-ya97   # state and screen
 aterm clear scientist-frog-ox-ya97
 aterm close scientist-frog-ox-ya97
 aterm daemon                          # foreground, websocket on 127.0.0.1:7419
-aterm ask "Ship it?" yes no           # a choice card on Kai's client
-aterm mcp                             # list_agents, send_message, session_status, clear_session, close_session, ask_choice
+aterm ask "Ship it?" yes no           # a choice card
+aterm mcp                             # the MCP tools
 ```
 
 ## What the daemon owns
@@ -50,7 +50,7 @@ aterm mcp                             # list_agents, send_message, session_statu
 
 **Delivery serializes with the keyboard.** One lock covers every PTY write, so a message never interleaves with keystrokes. A message is `queued` until the target is ready, `held` while Kai typed in the last 1.5 seconds or has a draft touched in the last minute, then `delivered` or `failed`. Enter, Ctrl-C or Ctrl-U clear the draft, and a held message lands after.
 
-**A program that asked for bracketed paste gets the message as one paste, then Enter 300ms later**, since an Enter inside the paste reads as a newline. Without it, lines join with spaces. claude and codex turn it on at their prompt, so **ready means paste is on, never a quiet screen**. opencode turns it on two seconds before its prompt and drops a paste until then, so **ready means its `Ask anything` prompt showed**, or 20s passed.
+**A program that asked for bracketed paste gets the message as one paste, then Enter 300ms later**, since an Enter inside the paste reads as a newline. Without it, lines join with spaces. claude and codex turn it on at their prompt, so **ready means paste is on, never a quiet screen**. opencode drops a paste until its prompt exists, so **ready means `Ask anything` showed**, or 20s passed.
 
 **A process inside a session cannot type into one.** The daemon reads the connecting pid from the kernel and walks its parents. Such a process may send, stamped, but not type, unless it spawned that session. This guards mistakes, not a double-forking process.
 
@@ -59,7 +59,7 @@ aterm mcp                             # list_agents, send_message, session_statu
 `aterm.daemon.v1` is one JSON object per line over the socket, and one per text message over the websocket. Both sides open with `hello` and `welcome` naming the format, and a mismatch refuses. A request's `id` is echoed on the reply or on an `error` with `code`.
 
 * `spawn`, `attach`, `detach`, `input` and `output` (base64 `data`), `resize`, `exit` with `code`.
-* `send` answers `sent` with the message state, waiting up to 3 seconds for delivery unless `launching`.
+* `send` answers `sent` with the message state, waiting 3 seconds, or `wait` (at most 120), for delivery unless `launching`. One not yet final earns the sender a `[from aterm daemon] message <id> to <session>: <state>` line, never the body.
 * `status` (with `lines`), `clear` and `close` (with optional `force`), each with a `target`, answer `status`, `cleared` and `closed` with the exit `code`.
 * `list` answers `sessions`, each with `state` and `quiet_seconds`. `subscribe` to channel `sessions` pushes the roster on every change, and `message` events carry each state change, never the body.
 * `whoami` resolves a token to its session. `roster` answers `aterm.roster.v1`, the launchable roles `aterm --list --json` prints. `launch` with a `role` and optional `seat` opens it headless, answering `launched`.

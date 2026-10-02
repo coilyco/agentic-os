@@ -63,6 +63,8 @@ type frame struct {
 	Launch bool   `json:"launch,omitempty"`
 	// New opens a fresh instance of the role even when one is live.
 	New bool `json:"new,omitempty"`
+	// Wait is seconds a send holds its reply for the final state, 3 when absent.
+	Wait int `json:"wait,omitempty"`
 	// Force closes a session even while it holds a draft or undelivered messages.
 	Force bool `json:"force,omitempty"`
 
@@ -141,6 +143,9 @@ type conn struct {
 // sendNewFeature is how a client knows the daemon reads `new` on a send. A
 // daemon predating it ignores the field and delivers to the live session.
 const sendNewFeature = "send-new"
+
+// sendWaitFeature is how a client knows the daemon reads `wait` on a send.
+const sendWaitFeature = "send-wait"
 
 // closeFeature is how a client knows the daemon answers a close frame.
 const closeFeature = "close"

@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v3"
 )
@@ -83,7 +84,10 @@ var mcpTools = []map[string]any{
 		"name": "send_message",
 		"description": "Type a message into another live agent session. The recipient sees it prefixed " +
 			"`[from <your role> <your identity>]`, which aterm stamps and you cannot change. " +
-			"Address it by role slug, identity, harness, or session name from list_agents.",
+			"Address it by role slug, identity, harness, or session name from list_agents. Returns " +
+			"queued, held (with the reason), delivered, or failed. A message still queued or held when " +
+			"this returns is followed by a `[from aterm daemon]` receipt typed into your own session " +
+			"when it lands or fails, so do not poll.",
 		"inputSchema": map[string]any{
 			"type":     "object",
 			"required": []string{"to", "message"},
@@ -91,6 +95,8 @@ var mcpTools = []map[string]any{
 				"to":      map[string]any{"type": "string", "description": "role slug, identity, harness, or session name"},
 				"message": map[string]any{"type": "string"},
 				"launch":  map[string]any{"type": "boolean", "description": "open the role when no session answers, and deliver into it"},
+				"wait_seconds": map[string]any{"type": "integer", "description": "hold the answer up to this long, " +
+					"at most 120, for delivered or failed, instead of 3 seconds"},
 				"new": map[string]any{"type": "boolean", "description": "open a new instance of the role even when one is live, " +
 					"deliver into it, and return its session name. `to` must be a role slug"},
 			},
@@ -240,11 +246,13 @@ func callMCPTool(name string, arguments json.RawMessage) (string, bool) {
 			Message string `json:"message"`
 			Launch  bool   `json:"launch"`
 			New     bool   `json:"new"`
+			Wait    int    `json:"wait_seconds"`
 		}
 		if err := json.Unmarshal(arguments, &params); err != nil {
 			return err.Error(), true
 		}
-		state, err := sendMessage(params.To, params.Message, params.Launch, params.New)
+		state, err := sendMessage(params.To, params.Message, params.Launch, params.New,
+			time.Duration(params.Wait)*time.Second)
 		if err != nil {
 			return err.Error(), true
 		}

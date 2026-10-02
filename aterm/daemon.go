@@ -294,7 +294,7 @@ func (d *daemon) serveConn(c *conn, pid int, browser bool) {
 		_ = c.write(frame{Type: "welcome", Format: daemonFormat, Error: "unsupported format " + hello.Format})
 		return
 	}
-	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, closeFeature, holdFeature, statusFeature, clearFeature}}); err != nil {
+	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, closeFeature, holdFeature, statusFeature, clearFeature}}); err != nil {
 		return
 	}
 	d.mu.Lock()
@@ -618,9 +618,10 @@ func (d *daemon) send(c *conn, message frame) error {
 			Target:   message.Target,
 			Accepted: time.Now().UTC(),
 		},
-		text: envelope(sender.role, sender.identity, message.Body),
-		done: make(chan struct{}),
-		d:    d,
+		text:   envelope(sender.role, sender.identity, message.Body),
+		done:   make(chan struct{}),
+		d:      d,
+		sender: sender,
 	}
 	if message.New {
 		if !safeRoleSlug(message.Target) || d.session(message.Target) != nil {
@@ -631,7 +632,7 @@ func (d *daemon) send(c *conn, message frame) error {
 		d.mu.Lock()
 		d.orphans = append(d.orphans, pending)
 		d.mu.Unlock()
-		go d.reportSent(c, message.ID, pending)
+		go d.reportSent(c, message.ID, pending, message.Wait)
 		return nil
 	}
 	targets := d.resolve(message.Target)
@@ -657,21 +658,28 @@ func (d *daemon) send(c *conn, message frame) error {
 		return withExit(exitOffRoster, fmt.Errorf("no live session answers to %q. Live: %s",
 			message.Target, d.liveNames()))
 	}
-	go d.reportSent(c, message.ID, pending)
+	go d.reportSent(c, message.ID, pending, message.Wait)
 	return nil
 }
 
-// reportSent waits briefly so a message delivered at once reports delivered.
-// A launching one answers at once, since the sender launches after the reply.
-func (d *daemon) reportSent(c *conn, id string, pending *pendingSend) {
+// reportSent waits 3s, or as long as the sender asked, for a final state. A launching
+// message answers at once. One not final by then owes its sender a receipt.
+func (d *daemon) reportSent(c *conn, id string, pending *pendingSend, wait int) {
+	limit := 3 * time.Second
+	if wait > 0 {
+		limit = min(time.Duration(wait)*time.Second, maxSendWait)
+	}
 	if pending.snapshot().State != "launching" {
 		select {
 		case <-pending.done:
-		case <-time.After(3 * time.Second):
+		case <-time.After(limit):
 		}
 	}
 	snapshot := pending.snapshot()
 	_ = c.write(frame{Type: "sent", ID: id, Message: &snapshot})
+	if !finalState(snapshot.State) {
+		pending.armReceipt()
+	}
 }
 
 // closeSession ends a live session and drops it, which closing its window does
@@ -900,6 +908,10 @@ type pendingSend struct {
 	done   chan struct{}
 	once   sync.Once
 	d      *daemon
+	// sender, armed and receiptSent drive the receipt. See receipt.go.
+	sender      *ptySession
+	armed       bool
+	receiptSent bool
 }
 
 func (p *pendingSend) setState(state, reason string) {
@@ -908,11 +920,14 @@ func (p *pendingSend) setState(state, reason string) {
 	p.msg.State, p.msg.Reason = state, reason
 	snapshot := p.msg
 	p.mu.Unlock()
-	if state == "delivered" || state == "failed" {
+	if finalState(state) {
 		p.once.Do(func() { close(p.done) })
 	}
 	if changed && p.d != nil {
 		p.d.broadcast(frame{Type: "message", Message: &snapshot})
+	}
+	if finalState(state) {
+		p.sendReceipt()
 	}
 }
 
