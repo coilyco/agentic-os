@@ -38,13 +38,13 @@ The portable CLI has an independent `aos-vMAJOR.MINOR.PATCH` clock inside the ag
 
 ## Automatic release
 
-The promoted `release` branch drives `.forgejo/workflows/aos-cli-release.yml`, whose path filter covers the shipped Go roots, AOSguard specs and bridges, the Specgen pin, and release scripts, and manual dispatch is the retry path. The release job validates through Ward, bumps the CLI minor version without reading commit messages, cross-compiles and tag-stamps every native binary, packages each target bundle, renders checksums plus Homebrew and Scoop metadata, creates or reuses the Forgejo release, replaces every asset from a clean `dist/`, and updates the tap and bucket when their write tokens exist.
+The promoted `release` branch drives `.forgejo/workflows/aos-cli-release.yml`, whose path filter covers the shipped Go roots, AOSguard specs and bridges, the Specgen pin, and release scripts, and manual dispatch is the retry path. The release job validates through Ward, bumps the CLI minor version without reading commit messages, cross-compiles and tag-stamps every native binary, packages each target bundle, renders checksums plus Homebrew and Scoop metadata, creates or reuses the Forgejo release, replaces every asset from a clean `dist/`, then waits for the GitHub copy of those assets (the formula and manifest name GitHub URLs, and the ser8 mirror copies them across) and updates the tap and bucket when their write tokens exist.
 
 Assets group `aos-*`, `aos-bundle-*`, `aoscompose-*`, `aosward-*`, `aosguard-*`, and `aterm-*` per target, with `SHA256SUMS`, `aos.rb`, and `aos.json` covering the version-aligned set. `aterm` reads its own [target list](../aterm/release-targets.txt), which has no Windows entry, so the Scoop manifest installs everything but it.
 
 ## Install
 
-Homebrew on macOS or Linux taps `coilyco-flight-deck/tap`, Scoop on Windows adds the `coilyco` bucket. Exact commands are in [the README](../README.md).
+Homebrew on macOS or Linux taps `coilyco/tap` (github.com/coilyco/homebrew-tap), Scoop on Windows adds `https://github.com/coilyco/scoop-bucket`, since Forgejo is tailnet-only. Exact commands are in [the README](../README.md).
 
 Both put `aos`, `aoscompose`, `aoscomposed`, `aosward`, `aosguard`, and `aterm` on `PATH`. `aoscomposed` aliases `aoscompose`, `aosward` forces warded mode from its executable name, `aosguard` carries the operator CLI and Actions bridge, and `aterm` is the [branded session launcher](aterm.md).
 

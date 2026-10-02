@@ -8,7 +8,8 @@ version=${AOS_RELEASE_VERSION:-$(
     git -C "$repo_root" describe --tags --exact-match --match 'aos-v*'
 )}
 bare=${version#aos-v}
-base="https://forgejo.coilysiren.me/coilyco/agentic-os/releases/download/${version}"
+# GitHub, because Forgejo is tailnet-only and a brew or scoop install runs anywhere.
+base="https://github.com/coilyco/agentic-os/releases/download/${version}"
 
 if ! printf '%s\n' "$version" | grep -Eq '^aos-v[0-9]+\.[0-9]+\.[0-9]+$'; then
     echo "aos release version must match aos-vMAJOR.MINOR.PATCH: $version" >&2
@@ -46,7 +47,7 @@ aterm_linux_arm64=$(sha "$dist/aterm-linux-arm64")
 cat > "$dist/aos.rb" <<EOF
 class Aos < Formula
   desc "Agent runtime composition root for Agentic OS"
-  homepage "https://forgejo.coilysiren.me/coilyco/agentic-os"
+  homepage "https://github.com/coilyco/agentic-os"
   version "${bare}"
   license "MIT"
 
@@ -139,7 +140,7 @@ cat > "$dist/aos.json" <<EOF
 {
     "version": "${bare}",
     "description": "Agent runtime composition root for Agentic OS",
-    "homepage": "https://forgejo.coilysiren.me/coilyco/agentic-os",
+    "homepage": "https://github.com/coilyco/agentic-os",
     "license": "MIT",
     "architecture": {
         "64bit": {

@@ -38,7 +38,7 @@ permissions:
 jobs:
   release:
     runs-on: docker
-    timeout-minutes: 30
+    timeout-minutes: 50
     container:
       image: forgejo.coilysiren.me/coilyco/agentic-os:release
     outputs:
@@ -79,6 +79,9 @@ jobs:
           RELEASE_ID: ${{ steps.create.outputs.release_id }}
           FORGEJO_API: https://forgejo.coilysiren.me/api/v1/repos/${{ github.repository }}
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aos-cli-release.sh" attach
+
+      - name: Wait for the GitHub copy of the release assets
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aos-cli-release.sh" wait-github-assets
 
       - name: Update the Homebrew tap
         env:

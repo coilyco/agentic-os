@@ -90,6 +90,9 @@ def test_packaging_covers_every_release_binary(tmp_path: Path) -> None:
 
     assert manifest["version"] == version.removeprefix("aos-v")
     assert f"/releases/download/{version}/" in rendered
+    # A brew or scoop install runs off the tailnet, where Forgejo does not answer.
+    assert "forgejo.coilysiren.me" not in rendered
+    assert f"https://github.com/coilyco/agentic-os/releases/download/{version}/" in rendered
     bins = manifest["architecture"]["64bit"]["bin"]
     assert ["aoscompose-windows-amd64.exe", "aoscompose"] in bins
     assert ["aoscompose-windows-amd64.exe", "aoscomposed"] in bins
@@ -220,3 +223,63 @@ def test_umbra_pin_is_owned_by_the_dependency_lock() -> None:
     assert '"cliGuard"' in builder
     assert "UMBRA_VERSION" not in builder
     assert f"ARG UMBRA_VERSION={pinned}\n" in dockerfile
+
+
+def _serve_assets(tmp_path: Path, missing_requests: int):
+    """A local release server whose assets 404 for the first requests, then answer."""
+    import http.server
+    import threading
+
+    served = {"count": 0}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802
+            served["count"] += 1
+            self.send_response(404 if served["count"] <= missing_requests else 200)
+            self.send_header("Content-Length", "1")
+            self.end_headers()
+            self.wfile.write(b"x")
+
+        def log_message(self, *args: object) -> None:
+            return
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    base = f"http://127.0.0.1:{server.server_address[1]}/releases/download/aos-v1.2.3"
+    (dist / "aos.rb").write_text(f'url "{base}/aos-darwin-arm64"\n', encoding="utf-8")
+    (dist / "aos.json").write_text(f'{{"url": "{base}/aos-windows-amd64.exe"}}\n', encoding="utf-8")
+    return server, served
+
+
+def _wait(tmp_path: Path, **env: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", str(ROOT / "scripts" / "ci" / "aos-cli-release.sh"), "wait-github-assets"],
+        cwd=tmp_path,
+        env=os.environ | env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
+def test_the_tap_bump_waits_until_every_release_asset_answers(tmp_path: Path) -> None:
+    server, served = _serve_assets(tmp_path, missing_requests=2)
+    try:
+        done = _wait(tmp_path, AOS_ASSET_WAIT="30", AOS_ASSET_POLL="0")
+    finally:
+        server.shutdown()
+    assert done.returncode == 0, done.stderr
+    assert served["count"] > 2
+
+
+def test_the_tap_bump_fails_loudly_when_an_asset_never_appears(tmp_path: Path) -> None:
+    server, _ = _serve_assets(tmp_path, missing_requests=10**6)
+    try:
+        done = _wait(tmp_path, AOS_ASSET_WAIT="1", AOS_ASSET_POLL="0")
+    finally:
+        server.shutdown()
+    assert done.returncode == 1
+    assert "still missing" in done.stderr
+    assert "aos-darwin-arm64" in done.stderr
