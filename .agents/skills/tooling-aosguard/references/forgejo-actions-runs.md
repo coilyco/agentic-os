@@ -1,6 +1,6 @@
 # Forgejo Actions runs and logs
 
-Listing runs, re-running one, and reading their logs.
+Listing runs, reading their logs, and why none can be re-run from here.
 
 ## Forgejo Actions listing
 
@@ -17,11 +17,20 @@ Use AOSguard for live inspection:
 Raw API examples include `page=1` whenever they include `limit`, on both
 `/actions/runs` and `/actions/tasks`.
 
-## There is no rerun bridge
+## There is no rerun route
 
-`aosguard ops actions rerun` and `rerun-failed-jobs` were removed in agentic-os#1428. They 404'd on this Forgejo, and the packaged `forgejo_actions_rerun` module went with them. Re-run a workflow from the Forgejo web UI, or push a new commit.
+Forgejo 16.0.2 serves no API route to rerun a run. Its swagger has `cancel` and nothing for rerun, and `POST .../actions/runs/{run}/rerun` and `.../rerun-failed-jobs` return 404. The packaged modules went in agentic-os#1428 and the fetch overlays that still pinned those routes went after them. Re-run from the Forgejo web UI, or push a new commit. The web UI route needs a session cookie and CSRF token, which this surface never uses. When Forgejo ships a rerun route it appears as a swagger verb, as `cancel` did.
 
-The fetch overlay in [AOSguard's Forgejo spec](../../../../.umbra/guardfiles/aosguard/forgejo.kdl) still pins the dead API rerun routes from agentic-os#473, so the dead shape stays documented rather than becoming another hand-coded HTTP call.
+## Which id is which
+
+One run carries four numbers, and the verbs take different ones:
+
+- **run id** - `id` in `action-run list`. Taken by `action-run get`, `action-run cancel` and `action-run-job list <run_id>`.
+- **run number** - `index_in_repo` in `action-run list`, `run_number` in `tasks list`, and the number in the run's `html_url`. Taken by `aosguard ops actions logs`, and by no `ops forgejo` verb.
+- **task id** - `id` in `tasks list`, `task_id` in `action-run-job list`. No verb takes it.
+- **job id** - `id` in `action-run-job list`. Taken by `action-job logs <job_id>`.
+
+To read a failed run, pass its run number to `aosguard ops actions logs` and skip the ids. To drive the `ops forgejo` verbs, match `run_number` in `tasks list` to `index_in_repo` in `action-run list` and read that row's `id`.
 
 
 ## Forgejo Actions logs
