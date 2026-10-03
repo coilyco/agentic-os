@@ -1,6 +1,6 @@
 # Forgejo Actions runs and logs
 
-Listing runs, reading their logs, and why none can be re-run from here.
+Listing runs, reading their logs, and rerunning a failed one.
 
 ## Forgejo Actions listing
 
@@ -17,9 +17,17 @@ Use AOSguard for live inspection:
 Raw API examples include `page=1` whenever they include `limit`, on both
 `/actions/runs` and `/actions/tasks`.
 
-## There is no rerun route
+## Rerunning a run
 
-Forgejo 16.0.2 serves no API route to rerun a run. Its swagger has `cancel` and nothing for rerun, and `POST .../actions/runs/{run}/rerun` and `.../rerun-failed-jobs` return 404. The packaged modules went in agentic-os#1428 and the fetch overlays that still pinned those routes went after them. Re-run from the Forgejo web UI, or push a new commit. The web UI route needs a session cookie and CSRF token, which this surface never uses. When Forgejo ships a rerun route it appears as a swagger verb, as `cancel` did.
+Forgejo 16.0.2 serves no API route to rerun a run. Its swagger has `cancel` and nothing for rerun, and `POST .../actions/runs/{run}/rerun` and `.../rerun-failed-jobs` return 404. So the rerun goes through the web UI route, the one the Re-run button posts to:
+
+```text
+aosguard ops actions-rerun rerun <owner> <repo> <run> [--job <job>] [--dry-run]
+```
+
+The verb logs in as the bot with a password aosguard injects from SSM, then posts `.../actions/runs/{run}/rerun`, or `.../jobs/{index}/rerun` with `--job`. Forgejo 16 guards POSTs with Go's cross-origin check and not a token, so a login and a session cookie are all it needs. It reads the run through the API first and refuses anything but a failed or cancelled `pull_request` run, because a push or schedule run can be a release or a deploy. `--dry-run` stops after that check and before the login.
+
+The guard cannot tell whose pull request a run belongs to, since every pull request is opened by the one bot. A seat reruns its own PR by convention. Pushing an empty commit to the PR branch also starts a new cycle.
 
 ## Which id is which
 

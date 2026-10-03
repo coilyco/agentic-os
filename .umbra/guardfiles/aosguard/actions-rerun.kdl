@@ -1,0 +1,24 @@
+// AOSguard's Forgejo Actions rerun bridge, its own wrap so the bot password stays here.
+// Rationale: tooling-aosguard references/guardfile-headers.md.
+
+wrap aosguard ops actions-rerun {
+    provider ssm {
+        exec aws ssm get-parameter --with-decryption --output text --query "Parameter.Value" --name
+    }
+
+    exec python3 {
+        env FORGEJO_TOKEN {
+            value ssm "/forgejo/coilyco-ops/api-token"
+        }
+        env FORGEJO_WEB_PASSWORD {
+            value ssm "/forgejo/coilyco-ops/password"
+        }
+    }
+
+    // -P keeps the caller's cwd off sys.path (agentic-os#6837).
+    can run rerun {
+        argv "-P" "-m" "agentic_os.forgejo_actions_rerun"
+        when arg0 matches coily*
+        describe "rerun a failed or cancelled pull_request Actions run through the Forgejo web route, since Forgejo 16 has no API route for it"
+    }
+}

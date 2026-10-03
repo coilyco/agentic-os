@@ -8,6 +8,9 @@ skill's `references/` takes no size cap, so it lands here whole.
 
 AOSguard's Forgejo Actions log bridge. One verb, because it is the only Actions operation that still needs code: it unpacks a run ZIP, resumes by byte range in chunks, and caps the read, none of which a REST passthrough does. Listing left this file in agentic-os#1502's follow-up - `ops forgejo action-run list` and friends resolve the same endpoints from the spec on Forgejo 16, so the packaged list and rerun modules were redundant and are gone. Rerun went with them, and it 404'd on this Forgejo (agentic-os#1428).
 
+## `actions-rerun.kdl`
+
+AOSguard's Forgejo Actions rerun bridge. Forgejo 16 has no REST rerun route, so the verb logs in as the bot and posts to the web UI route, with the bot password injected from SSM. It is its own wrap so that password reaches only this process and never the log bridge's. The code refuses anything but a failed or cancelled `pull_request` run before it logs in (teable:coilyco/agentic-os#8735).
 
 ## `aws.kdl`
 

@@ -203,7 +203,7 @@ wrap aosguard ops forgejo {
     // capacity-1 queue until the runner's own ceiling kills it (agentic-os#7318).
     can cancel action-run {
         op CancelActionRun
-        describe "Cancel a pending or running Actions run (POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel). Returns 204 with no body. Irreversible for that run: the run ends as cancelled and cannot be resumed. Forgejo 16 has no API rerun route, so a restart is the web UI or a new commit."
+        describe "Cancel a pending or running Actions run (POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel). Returns 204 with no body. Irreversible for that run: the run ends as cancelled and cannot be resumed. Restart it with `aosguard ops actions-rerun rerun`, since Forgejo 16 has no API rerun route."
     }
     action list action-run {
         describe "List Actions runs with a safe page-1 default."
