@@ -83,14 +83,21 @@ def test_aos_is_installed_from_a_versioned_release() -> None:
     assert "COPY --from=aos-cli" not in text
 
 
-def test_nothing_in_the_full_image_is_built_from_source() -> None:
-    """Every tool arrives as a released asset. This outlived the Ward install it
-    was written for: that binary went when its repository did."""
+def test_nothing_in_the_full_image_is_built_from_source_but_imagemagick() -> None:
+    """Every tool arrives as a released asset, bar ImageMagick 7: Ubuntu ships 6
+    and upstream has no Linux arm64 binary. Its stage compiles a checksummed
+    release tarball, and no other stage may compile anything."""
     text = FULL_DOCKERFILE.read_text(encoding="utf-8")
+    stage = _stage_text(text, "dev-base-magick-builder")
+    outside = text.replace(stage, "")
 
     assert "sha256sum -c -" in text
     assert "git clone" not in text
     assert "go build" not in text
+    assert "./configure" in stage
+    assert 'echo "${IMAGEMAGICK_SHA256}' in stage
+    assert "./configure" not in outside
+    assert "make install" not in outside
 
 
 def test_the_retired_ward_binary_is_not_reinstalled() -> None:
@@ -121,6 +128,22 @@ def test_common_verification_covers_the_composed_runtime_surface() -> None:
     assert "import agentic_os; print(agentic_os.SENTINEL)" in text
     assert "test -s /opt/agentic-os/aosguard-skill/aosguard/SKILL.md" in text
     assert "references/commands.yaml" in text
+
+
+def test_the_brand_build_toolchain_is_installed_and_verified() -> None:
+    """The website brand build calls five tools, and `magick` is ImageMagick 7."""
+    install = INSTALL_COMMON.read_text(encoding="utf-8")
+    verify = VERIFY_COMMON.read_text(encoding="utf-8")
+    full = FULL_DOCKERFILE.read_text(encoding="utf-8")
+
+    for package in ("librsvg2-bin", "libxml2-utils", "webp", "ffmpeg"):
+        assert re.search(rf"^\s+{re.escape(package)} \\$", install, re.MULTILINE)
+    # Without its config dirs a static magick warns about colors.xml on every call.
+    for path in ("bin/magick", "etc/ImageMagick-7", "share/ImageMagick-7"):
+        assert f"COPY --from=dev-base-magick-builder /usr/local/{path}" in full
+    for tool in ("rsvg-convert", "ffmpeg", "img2webp", "magick", "xmllint"):
+        assert tool in verify
+    assert "ImageMagick 7" in verify
 
 
 def test_substrate_seed_parser_accepts_windows_line_endings() -> None:

@@ -57,6 +57,33 @@ RUN set -eux; \
     test -s /opt/agentic-os/aosguard-skill/aosguard-forgejo/SKILL.md; \
     rm -rf /tmp/aosguard-spec /tmp/aosguard-python; aosguard --version
 
+# The one source build: Ubuntu 24.04 ships ImageMagick 6 and upstream has no Linux arm64 binary.
+FROM ubuntu:24.04 AS dev-base-magick-builder
+ARG IMAGEMAGICK_VERSION=7.1.2-32
+ARG IMAGEMAGICK_SHA256=abc38dad4adfbab671857822499e69c8745278a914f5d38517baecd400b820c2
+RUN set -eux; \
+    apt-get update; DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      build-essential ca-certificates curl libpng-dev pkg-config xz-utils zlib1g-dev; \
+    rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
+      "https://github.com/ImageMagick/ImageMagick/releases/download/${IMAGEMAGICK_VERSION}/ImageMagick-${IMAGEMAGICK_VERSION}.tar.xz" \
+      -o /tmp/imagemagick.tar.xz; \
+    echo "${IMAGEMAGICK_SHA256}  /tmp/imagemagick.tar.xz" | sha256sum -c -; \
+    mkdir /tmp/imagemagick; \
+    tar -xJf /tmp/imagemagick.tar.xz -C /tmp/imagemagick --strip-components=1; \
+    cd /tmp/imagemagick; \
+    ./configure --prefix=/usr/local --disable-shared --enable-static --disable-openmp \
+      --disable-docs --enable-hdri --with-quantum-depth=16 --with-png=yes \
+      --without-modules --without-magick-plus-plus --without-perl --without-x \
+      --without-jpeg --without-tiff --without-webp --without-xml --without-lzma \
+      --without-bzlib --without-zstd --without-freetype --without-fontconfig \
+      --without-lcms --without-heic --without-openexr --without-raw --without-djvu \
+      --without-wmf --without-openjp2 --without-jxl --without-raqm --without-fftw \
+      --without-gslib --without-lqr --without-pango --without-rsvg --without-zip; \
+    make -j"$(nproc)"; make install; \
+    magick -version | grep -q "ImageMagick ${IMAGEMAGICK_VERSION} Q16-HDRI"
+
 FROM ${BASE_IMAGE} AS dev-base-full
 ARG AGENT_COMPOSE_VERSION=2.173.0
 ARG CLAUDE_VERSION=2.1.282
@@ -107,6 +134,9 @@ COPY --chmod=0644 claude-managed-settings.json /etc/claude-code/managed-settings
 COPY --from=repo-lists --chmod=0644 substrate-repos.txt /opt/agentic-os/substrate-repos.txt
 COPY --from=dev-base-tool-builder /usr/local/bin/aos /usr/local/bin/aos
 COPY --from=dev-base-tool-builder /usr/local/bin/aosguard /usr/local/bin/aosguard
+COPY --from=dev-base-magick-builder /usr/local/bin/magick /usr/local/bin/magick
+COPY --from=dev-base-magick-builder /usr/local/etc/ImageMagick-7 /usr/local/etc/ImageMagick-7
+COPY --from=dev-base-magick-builder /usr/local/share/ImageMagick-7 /usr/local/share/ImageMagick-7
 COPY --from=dev-base-tool-builder /opt/agentic-os/aosguard-skill /opt/agentic-os/aosguard-skill
 # aos#771: the system interpreter carries the operator modules. A global
 # PYTHONPATH would also reach every isolated venv and void a pinned hook rev.

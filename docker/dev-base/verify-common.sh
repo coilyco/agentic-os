@@ -11,6 +11,15 @@ test -s /opt/agentic-os/aosguard-skill/aosguard/references/commands.yaml
 test -s /opt/agentic-os/aosguard-skill/aosguard-forgejo/SKILL.md
 test -s /opt/agentic-os/aosguard-skill/aosguard-forgejo/references/commands.yaml
 
+# The website brand build calls all five and needs ImageMagick 7, which is
+# `magick`, where Ubuntu's ImageMagick 6 only has `convert` (agentic-os#8740).
+for tool in rsvg-convert ffmpeg img2webp magick xmllint; do
+  command -v "$tool" >/dev/null || { echo "missing brand tool: $tool" >&2; exit 1; }
+done
+magick -version | head -1 | grep -q 'ImageMagick 7\.'
+ffmpeg -hide_banner -encoders | grep -q libx264
+ffmpeg -hide_banner -encoders | grep -q libvpx-vp9
+
 roster_dir="$(mktemp -d)"
 trap 'rm -rf "$roster_dir"' EXIT
 agent-compose version

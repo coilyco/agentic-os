@@ -18,7 +18,8 @@ from the same-commit Rust payload, grafts the other four, and installs the
 shared agent and operator surface once. Only the full image carries the
 entrypoint, common verification, release-pinned `aos`, `aosguard`,
 agent-compose, harnesses, operator CLIs, and full-only gate tools such as
-`golangci-lint`, `trufflehog`, and `kdlfmt`.
+`golangci-lint`, `trufflehog`, and `kdlfmt`. It also carries the brand-build
+tools, with ImageMagick 7 the one thing compiled here.
 
 The full image includes `kubectl`, but image builds own no host mounts,
 kubeconfig, or cluster transport: the standalone launcher may add an
@@ -54,10 +55,9 @@ Every managed version has one default `ARG` across the two Dockerfiles: a
 language pin in its payload target, and shared agents, internal tools, operator
 CLIs, and full-only gates in the full Dockerfile, so changing them reuses cached
 payloads rather than rebuilding toolchains. Every pin is manual, and only the
-agent-compose pin is [watched](build-file-headers.md) against upstream.
-Each other pin is only as current as the last person who checked it. The image owns this deployment's
-Git identity and maps it onto Ward's `WARD_GIT_*` contract, without redefining
-Ward policy, AOSguard policy, or agent-compose source data.
+agent-compose pin is [watched](build-file-headers.md) against upstream. The
+image owns this deployment's Git identity and maps it onto Ward's `WARD_GIT_*`
+contract, without redefining Ward or AOSguard policy or agent-compose data.
 ## dev-base build cache
 
 Every multi-architecture payload and full-image build reuses a persistent Buildx

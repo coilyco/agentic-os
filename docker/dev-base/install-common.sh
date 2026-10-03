@@ -29,6 +29,9 @@ for attempt in 1 2 3; do
       jq \
       less \
       libicu74 \
+      libpng16-16t64 \
+      librsvg2-bin \
+      libxml2-utils \
       openssh-client \
       patch \
       procps \
@@ -41,6 +44,7 @@ for attempt in 1 2 3; do
       shellcheck \
       socat \
       unzip \
+      webp \
       wget \
       xz-utils; then
     rm -rf /var/lib/apt/lists/*
