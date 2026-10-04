@@ -12,9 +12,10 @@ import (
 
 func newCloseCommand() *cli.Command {
 	return &cli.Command{
-		Name:      "close",
-		Usage:     "end a live session and drop it, which closing its window does not",
-		ArgsUsage: "<role|identity|seat|session>",
+		Name:          "close",
+		ShellComplete: completeSessionName,
+		Usage:         "end a live session and drop it, which closing its window does not",
+		ArgsUsage:     "<role|identity|seat|session>",
 		Description: "Targets resolve as `aterm send`'s do, and one that matches several sessions\n" +
 			"refuses. The harness gets SIGTERM, then SIGKILL after a grace period. A session\n" +
 			"holding Kai's unsent draft or undelivered messages stays open unless --force.",

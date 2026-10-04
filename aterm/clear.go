@@ -12,9 +12,10 @@ import (
 
 func newClearCommand() *cli.Command {
 	return &cli.Command{
-		Name:      "clear",
-		Usage:     "start a live session over by typing its harness's clear command, for Kai and the director",
-		ArgsUsage: "<role|identity|seat|session>",
+		Name:          "clear",
+		ShellComplete: completeSessionName,
+		Usage:         "start a live session over by typing its harness's clear command, for Kai and the director",
+		ArgsUsage:     "<role|identity|seat|session>",
 		Description: "Targets resolve as `aterm close`'s do. The command is typed unstamped, so it lands as\n" +
 			"input rather than text. It refuses an idle session's opposite: one on a prompt always,\n" +
 			"and one busy, holding Kai's draft, or with undelivered messages unless --force. It never\n" +

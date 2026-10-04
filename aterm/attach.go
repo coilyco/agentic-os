@@ -193,9 +193,10 @@ func indexByte(chunk []byte, want byte) int {
 
 func newAttachCommand() *cli.Command {
 	return &cli.Command{
-		Name:      "attach",
-		Usage:     "attach this terminal to a live session the daemon holds, Ctrl-] to detach",
-		ArgsUsage: "<session>",
+		Name:          "attach",
+		ShellComplete: completeSessionName,
+		Usage:         "attach this terminal to a live session the daemon holds, Ctrl-] to detach",
+		ArgsUsage:     "<session>",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			name := cmd.Args().First()
 			if name == "" {

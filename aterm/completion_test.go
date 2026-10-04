@@ -3,8 +3,11 @@ package main
 import (
 	"bytes"
 	"context"
+	"io"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func completionLines(t *testing.T, args ...string) []string {
@@ -161,4 +164,117 @@ func contains(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func sessionCompletionLines(views ...sessionView) []string {
+	out := &bytes.Buffer{}
+	writeSessionCompletions(out, views)
+	text := strings.TrimSpace(out.String())
+	if text == "" {
+		return nil
+	}
+	return strings.Split(text, "\n")
+}
+
+func TestSessionCompletionOffersTheNameWithRoleAndIdentity(t *testing.T) {
+	lines := sessionCompletionLines(
+		sessionView{Name: "scientist-evie-cd12", Role: "scientist", Identity: "Evie"},
+		sessionView{Name: "eng-platform-beetle-ox-dj89", Role: "eng-platform", Identity: "Beetle-Ox"},
+	)
+	want := []string{
+		"eng-platform-beetle-ox-dj89:eng-platform // Beetle-Ox",
+		"scientist-evie-cd12:scientist // Evie",
+	}
+	if strings.Join(lines, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("lines = %q, want %q", lines, want)
+	}
+}
+
+func TestSessionCompletionDegradesAndNeverBreaksTheColonSplit(t *testing.T) {
+	cases := []struct {
+		view sessionView
+		want string
+	}{
+		{sessionView{Name: "a", Role: "scientist"}, "a:scientist"},
+		{sessionView{Name: "a", Identity: "Evie"}, "a:Evie"},
+		{sessionView{Name: "a"}, "a"},
+		{sessionView{Name: "a:b", Role: "scientist"}, `a\:b:scientist`},
+		{sessionView{Name: "a", Role: "sci:entist", Identity: "Evie\nsecond line"}, "a:sci entist // Evie"},
+	}
+	for _, testCase := range cases {
+		lines := sessionCompletionLines(testCase.view)
+		if len(lines) != 1 || lines[0] != testCase.want {
+			t.Fatalf("%+v -> %q, want %q", testCase.view, lines, testCase.want)
+		}
+	}
+	if lines := sessionCompletionLines(sessionView{Role: "scientist"}); lines != nil {
+		t.Fatalf("a session with no name is not completable: %q", lines)
+	}
+}
+
+func headlessSession(t *testing.T, role, name, instance string) {
+	t.Helper()
+	options := sessionOptions{
+		Daemon:   true,
+		Headless: true,
+		Card:     sessionCard{Role: role, Name: name, Seat: "claude", Instance: instance},
+		Argv:     []string{"/bin/sh", "-c", `printf 'UP\033[?2004h\n'; cat`},
+	}
+	var stderr bytes.Buffer
+	if code := runSession(options, strings.NewReader(""), io.Discard, &stderr); code != 0 {
+		t.Fatalf("headless stage exited %d: %s", code, stderr.String())
+	}
+}
+
+func completeThrough(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	var spawns []recordedSpawn
+	command := newCommand(stubDeps(t, &spawns, true))
+	out := &bytes.Buffer{}
+	command.Writer = out
+	err := command.Run(context.Background(), append([]string{"aterm"}, append(args, "--generate-shell-completion")...))
+	return out.String(), err
+}
+
+// Every command whose first argument is a live session offers the daemon's
+// list, the one `aterm agents` prints, with no new verb on the daemon.
+func TestEverySessionCommandCompletesTheLiveSessions(t *testing.T) {
+	testDaemon(t)
+	headlessSession(t, "eng-platform", "Beetle-Ox", "dj89")
+	headlessSession(t, "scientist", "Evie", "cd12")
+	for deadline := time.Now().Add(5 * time.Second); len(liveSessionViews(time.Second)) < 2; time.Sleep(50 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("the daemon never listed both sessions")
+		}
+	}
+	want := "eng-platform-beetle-ox-dj89:eng-platform // Beetle-Ox\nscientist-evie-cd12:scientist // Evie\n"
+	for _, sub := range []string{"attach", "send", "status", "close", "clear"} {
+		got, err := completeThrough(t, sub)
+		if err != nil {
+			t.Fatalf("%s completion must not fail the shell: %v", sub, err)
+		}
+		if got != want {
+			t.Fatalf("%s completed %q, want %q", sub, got, want)
+		}
+	}
+}
+
+func TestSessionCompletionIsSilentPastTheSessionArgument(t *testing.T) {
+	testDaemon(t)
+	headlessSession(t, "scientist", "Evie", "cd12")
+	// For `send` the second argument is the message, which is not ours to complete.
+	got, err := completeThrough(t, "send", "scientist-evie-cd12")
+	if err != nil || got != "" {
+		t.Fatalf("send past its target completed %q, %v", got, err)
+	}
+}
+
+func TestSessionCompletionStaysSilentWithoutADaemon(t *testing.T) {
+	t.Setenv(daemonSocketEnv, filepath.Join(t.TempDir(), "d.sock"))
+	for _, sub := range []string{"attach", "send", "status", "close", "clear"} {
+		got, err := completeThrough(t, sub)
+		if err != nil || got != "" {
+			t.Fatalf("%s with no daemon completed %q, %v", sub, got, err)
+		}
+	}
 }

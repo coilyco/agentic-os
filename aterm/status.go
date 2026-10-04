@@ -14,9 +14,10 @@ import (
 
 func newStatusCommand() *cli.Command {
 	return &cli.Command{
-		Name:      "status",
-		Usage:     "read a live session's state and screen without typing into it",
-		ArgsUsage: "<role|identity|seat|session>",
+		Name:          "status",
+		ShellComplete: completeSessionName,
+		Usage:         "read a live session's state and screen without typing into it",
+		ArgsUsage:     "<role|identity|seat|session>",
 		Description: "Targets resolve as `aterm close`'s do. It reports whether the session sits on a\n" +
 			"permission or choice prompt (with the text), how long since it wrote and since\n" +
 			"anyone typed, whether Kai has a draft, and the last rows of the screen. It is\n" +

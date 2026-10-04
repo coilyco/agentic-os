@@ -71,9 +71,10 @@ func newDaemonCommand() *cli.Command {
 
 func newSendCommand() *cli.Command {
 	return &cli.Command{
-		Name:      "send",
-		Usage:     "type a message into another live session, stamped with this session's seat",
-		ArgsUsage: "<role|seat|session> <message...>",
+		Name:          "send",
+		ShellComplete: completeSessionName,
+		Usage:         "type a message into another live session, stamped with this session's seat",
+		ArgsUsage:     "<role|seat|session> <message...>",
 		Description: "The daemon stamps `[from <role> <identity>]` from this session's token,\n" +
 			"so the sender cannot choose that line. A message of `-` reads stdin.\n" +
 			"It waits while Kai is typing in the target and lands after her draft.",

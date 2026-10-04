@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v3"
 )
@@ -80,4 +82,75 @@ func seatDetail(seat rosterSeat) string {
 		detail += " // " + tier
 	}
 	return detail
+}
+
+// sessionCompletionTimeout bounds the daemon read, because `request` waits for
+// a reply with no deadline and a stuck daemon would otherwise hold the shell.
+const sessionCompletionTimeout = 750 * time.Millisecond
+
+// completeSessionName offers the live sessions the daemon holds, the list
+// `aterm agents` prints, for the commands whose first argument names one.
+func completeSessionName(ctx context.Context, cmd *cli.Command) {
+	args := cmd.Args().Slice()
+	if len(args) > 0 && strings.HasPrefix(args[len(args)-1], "-") {
+		cli.DefaultCompleteWithFlags(ctx, cmd)
+		return
+	}
+	// Only the first argument is a session, and for `send` what follows is the message.
+	if len(args) > 0 {
+		return
+	}
+	writeSessionCompletions(cmd.Root().Writer, liveSessionViews(sessionCompletionTimeout))
+}
+
+// liveSessionViews is silent on every failure, as the roster completion is.
+func liveSessionViews(timeout time.Duration) []sessionView {
+	type listed struct {
+		views []sessionView
+		err   error
+	}
+	done := make(chan listed, 1)
+	go func() {
+		views, err := listAgents()
+		done <- listed{views, err}
+	}()
+	select {
+	case result := <-done:
+		if result.err != nil {
+			return nil
+		}
+		return result.views
+	case <-time.After(timeout):
+		return nil
+	}
+}
+
+func writeSessionCompletions(writer io.Writer, views []sessionView) {
+	sorted := append([]sessionView(nil), views...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Name < sorted[j].Name })
+	for _, view := range sorted {
+		name := strings.TrimSpace(view.Name)
+		if name == "" {
+			continue
+		}
+		// A bare colon would end the name early, and `\:` is a literal one to `_describe`.
+		name = strings.ReplaceAll(name, ":", `\:`)
+		if detail := sessionCompletionDetail(view); detail != "" {
+			fmt.Fprintf(writer, "%s:%s\n", name, detail)
+			continue
+		}
+		fmt.Fprintln(writer, name)
+	}
+}
+
+func sessionCompletionDetail(view sessionView) string {
+	role := strings.TrimSpace(view.Role)
+	identity := strings.TrimSpace(view.Identity)
+	switch {
+	case role != "" && identity != "":
+		return completionDetail(role + " // " + identity)
+	case role != "":
+		return completionDetail(role)
+	}
+	return completionDetail(identity)
 }
