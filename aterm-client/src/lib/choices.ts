@@ -98,6 +98,13 @@ function questionAbove(lines: readonly string[], top: number): string {
   return found.reduce((text, line) => (line === "" ? `${text}\n` : text.endsWith("\n") || !text ? `${text}${line}` : `${text} ${line}`), "").replace(/\n/g, "\n\n").trim();
 }
 
+const ADVANCE = /^(next|submit( answers)?|done)$/i;
+
+/** The row that moves a multi-step menu on, or -1. The card pins it. */
+export function advanceIndex(choice: Choice): number {
+  return choice.multi ? -1 : choice.options.findIndex((option) => !option.freeText && ADVANCE.test(option.label));
+}
+
 /** Key chunks to reach `target`, type `text`, and confirm. See the choices reference. */
 export function keysFor(choice: Choice, target: number, text = ""): string[] {
   const steps = target - choice.cursor;
