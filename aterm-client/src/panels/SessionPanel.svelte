@@ -115,7 +115,7 @@
               {/key}
             {/if}
           </div>
-          <Composer connection={app.connection} {session} />
+          <Composer connection={app.connection} {session} sessions={app.sessions} />
         {/key}
       {/if}
     </div>
