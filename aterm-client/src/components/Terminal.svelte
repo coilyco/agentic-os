@@ -4,6 +4,7 @@
   import "@xterm/xterm/css/xterm.css";
   import { onMount } from "svelte";
   import { envelopeRows } from "../lib/messages";
+  import { screenRows } from "../lib/screen";
   import type { HostConnection, PeerMessage } from "../lib/protocol";
 
   let {
@@ -76,10 +77,7 @@
 
   function reportScreen(): void {
     if (!term || !onscreen) return;
-    const buffer = term.buffer.active;
-    const rows: string[] = [];
-    for (let row = buffer.viewportY; row < buffer.viewportY + term.rows; row++) rows.push(buffer.getLine(row)?.translateToString(true) ?? "");
-    onscreen(rows);
+    onscreen(screenRows(term.buffer.active, term.rows));
   }
 
   function afterWrite(): void {

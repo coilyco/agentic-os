@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { Choice } from "../lib/choices";
+  import { advanceIndex, type Choice } from "../lib/choices";
 
   let { choice, identity, onanswer, oncancel, focusToken = 0 }: {
     choice: Choice;
@@ -17,12 +17,14 @@
   $effect(() => {
     if (focusToken && focusToken !== lastFocus) {
       lastFocus = focusToken;
-      card?.querySelector<HTMLButtonElement>("button.option")?.focus();
+      card?.querySelector<HTMLButtonElement>("button.option, button.advance")?.focus();
     }
   });
   let text = $state("");
   let picked = $state<number[]>([]);
   const freeIndex = $derived(choice.options.findIndex((option) => option.freeText));
+  // A harness's own Next row rides in the pinned footer, so a long list never scrolls it away.
+  const advance = $derived(advanceIndex(choice));
 
   function pick(index: number): void {
     if (choice.multi) {
@@ -49,7 +51,7 @@
 
   function keys(event: KeyboardEvent): void {
     const card = (event.currentTarget as HTMLElement).closest(".card");
-    const buttons = [...(card?.querySelectorAll<HTMLButtonElement>("button.option") ?? [])];
+    const buttons = [...(card?.querySelectorAll<HTMLButtonElement>("button.option, button.advance") ?? [])];
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
     const digit = Number(event.key);
     if (Number.isInteger(digit) && digit >= 1 && digit <= choice.options.length) {
@@ -71,11 +73,13 @@
 </script>
 
 <section class="card" aria-labelledby="choice-question" bind:this={card}>
+  <div class="body">
   <p class="asker">{identity} is asking{#if choice.header}<span class="chip">{choice.header}</span>{/if}</p>
   <h2 id="choice-question">{choice.question || "Pick one"}</h2>
   {#if choice.multi}<p class="hint">Pick any, then submit.</p>{/if}
   <ol>
     {#each choice.options as option, index (index)}
+      {#if index !== advance}
       <li>
         {#if writing === index && !choice.multi}
           <form class="write" onsubmit={submitText}>
@@ -99,12 +103,17 @@
           {/if}
         {/if}
       </li>
+      {/if}
     {/each}
   </ol>
   <p class="keys" aria-hidden="true">
     {choice.multi ? `1 to ${choice.options.length} to pick // Enter to submit` : `1 to ${choice.options.length} to answer`}{choice.cancellable ? " // Esc to cancel" : ""}
   </p>
+  </div>
   <div class="actions">
+    {#if advance !== -1}
+      <button class="button primary advance" onclick={() => pick(advance)} onkeydown={keys}>{choice.options[advance]?.label}</button>
+    {/if}
     {#if choice.multi}
       <button class="button primary" onclick={submitMulti} disabled={picked.length === 0}>Submit {picked.length || ""}</button>
     {/if}
@@ -115,7 +124,9 @@
 </section>
 
 <style>
-  .card { margin: 0 12px; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--brand); background: #17131f; display: flex; flex-direction: column; gap: 10px; max-height: 70vh; overflow-y: auto; }
+  /* The question and options scroll inside the card, the buttons never do: the overlay bounds the height. */
+  .card { margin: 0 12px; border-radius: 12px; border: 1px solid var(--brand); background: #17131f; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
   .asker { margin: 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand); }
   .chip { margin-left: 10px; padding: 2px 8px; border-radius: 999px; border: 1px solid #3a3350; color: var(--text-soft); text-transform: none; letter-spacing: 0; }
   h2 { margin: 0; font-size: 15px; font-weight: 500; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
@@ -133,7 +144,9 @@
   .write { display: flex; gap: 8px; }
   .write input, .multi-text { flex: 1; min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--brand); background: var(--terminal); color: var(--text); font: 15px var(--font-body); }
   .multi-text { margin-top: 6px; width: 100%; box-sizing: border-box; }
-  .actions { display: flex; gap: 8px; }
+  .actions { flex: none; display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 14px; }
+  .actions:empty { display: none; }
+  .body:has(+ .actions:not(:empty)) { padding-bottom: 10px; }
   .keys { margin: 0; font: 12px var(--font-mono); color: var(--muted); }
   button:disabled { opacity: 0.5; cursor: default; }
 </style>

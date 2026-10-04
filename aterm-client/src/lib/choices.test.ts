@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { askAnswer, choiceFromAsk, detectChoice, keysFor } from "./choices";
+import { advanceIndex, askAnswer, choiceFromAsk, detectChoice, keysFor } from "./choices";
 
 // Captured from Claude Code's workspace trust prompt in an aterm daemon session.
 const trust = [
@@ -156,5 +156,21 @@ describe("askAnswer", () => {
 
   it("drops text the ask did not allow", () => {
     expect(askAnswer({ ...ask, allowOther: false }, [1], "stray")).toEqual({ picks: [1] });
+  });
+});
+
+describe("advanceIndex", () => {
+  const option = (label: string, freeText = false) => ({ label, description: "", freeText });
+  const menu = (labels: string[], multi = false) => ({ header: "", question: "", options: labels.map((label) => option(label)), cursor: 0, cancellable: true, multi });
+
+  it("finds a harness's Next row wherever it sits", () => {
+    expect(advanceIndex(menu(["[ ] Purple", "[ ] Teal", "Next", "Chat about this"]))).toBe(2);
+    expect(advanceIndex(menu(["Submit answers", "Cancel"]))).toBe(0);
+  });
+
+  it("leaves ordinary options and multi cards alone", () => {
+    expect(advanceIndex(menu(["Purple", "Teal"]))).toBe(-1);
+    expect(advanceIndex(menu(["Next step", "Done later"]))).toBe(-1);
+    expect(advanceIndex(menu(["Teal", "Next"], true))).toBe(-1);
   });
 });
