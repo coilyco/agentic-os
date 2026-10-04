@@ -32,6 +32,13 @@ type launchdOptions struct {
 	Extra []string
 }
 
+const launchdSystemPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
+// daemonLoginPath puts the login shell's PATH in front, as a bundle launcher does, so the
+// daemon finds tools wherever the user keeps them. See bundleLauncher.
+const daemonLoginPath = `live=$(/bin/zsh -lc 'printf %s "$PATH"' 2>/dev/null) || live=''; ` +
+	`if [ -n "$live" ]; then PATH="$live:$PATH"; fi; export PATH`
+
 // daemonEnvLoader reads daemon.env as a launcher does: literal KEY=VALUE text,
 // ATERM_ keys only, never sourced. See docs/aterm-bundles.md.
 const daemonEnvLoader = `f="${XDG_CONFIG_HOME:-$HOME/.config}/aterm/daemon.env"; ` +
@@ -52,9 +59,13 @@ func renderLaunchdPlist(options launchdOptions) (string, error) {
 	for _, arg := range options.Extra {
 		command += " " + shellQuote(arg)
 	}
-	script := daemonEnvLoader + "; exec " + command
+	script := daemonEnvLoader + "; " + daemonLoginPath + "; exec " + command
+	// The static PATH is the fallback when the login shell prints none. A web launch runs on
+	// the daemon's PATH, and claude installs only under ~/.local/bin.
+	path := filepath.Join(options.Home, ".local", "bin") + ":" + launchdSystemPath
 	fields := map[string]string{
 		"Label":  xmlEscape(options.Label),
+		"Path":   xmlEscape(path),
 		"Script": xmlEscape(script),
 		"Log":    xmlEscape(filepath.Join(options.Home, "Library", "Logs", "aterm-daemon.log")),
 	}
