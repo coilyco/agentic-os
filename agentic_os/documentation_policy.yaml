@@ -76,6 +76,8 @@ repos:
     - eval/**
     size_excludes:
     - eval/**
+  ssm-app:
+    band: small # one small Swift app
   steam-ops:
     band: small
   tally:
