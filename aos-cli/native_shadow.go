@@ -282,6 +282,7 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 			fmt.Fprintf(runtime.Stderr, "aos: withheld %s from %s: an Anthropic API key is for operational checks only\n", key, harness)
 		}
 	}
+	applyNativeLinearEnvironment(ctx, runtime.Stderr)
 	runtime.Progress.Ready()
 	runtime.Progress.Exec(command)
 	return execNative(command)

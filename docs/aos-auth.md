@@ -110,3 +110,11 @@ that smoke proves composition and harness startup only.
 `just aos-role-question cloud design` uses the default authenticated
 path and asks Codex a public-safe question. A successful response proves the
 separate authenticated inference boundary.
+
+## Linear MCP key
+
+A native launch reads SSM `/coilysiren/linear/key` and exports `LINEAR_API_KEY`
+and `LINEAR_MCP_AUTHORIZATION` (`Bearer <key>`, since Codex sends an env header
+variable verbatim) for `public_coilyco_linear`. An ambient value skips the fetch.
+A failed read warns, never names a value, and lets the launch continue. Nothing
+touches disk. Source: `aos-cli/native_linear_credentials.go`.
