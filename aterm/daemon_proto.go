@@ -115,6 +115,9 @@ type sessionView struct {
 	QuietSeconds int    `json:"quiet_seconds"`
 	// Degraded names the startup steps agent-compose launched without.
 	Degraded []string `json:"degraded,omitempty"`
+	// Context is how full the seat's context is. Absent until a source has read
+	// one, and from a daemon that predates the field.
+	Context *contextView `json:"context,omitempty"`
 }
 
 // peerMessage is one send and where it stands: queued, held, launching,

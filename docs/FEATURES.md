@@ -10,7 +10,7 @@ Major shipped capabilities, not files.
   [role bundle](aterm-bundles.md). Its window opens on an identity card over the role's
   [creature](aterm-creature.md), and `aterm pane` [splits it](aterm-pane.md). A
   [host daemon](aterm-daemon.md) owns sessions across restarts, `aterm send`
-  messages between them, and a [web client](../aterm-client/README.md) attaches. Mac and Linux only.
+  messages between them, and a [web client](../aterm-client/README.md) attaches and shows each seat's context tokens. Mac and Linux only.
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.
 - [Agents and sessions](features-agents.md) - self-name, composition
   status, harness [and model](native-harness-config.md) policy, and

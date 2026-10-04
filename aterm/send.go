@@ -53,6 +53,11 @@ func newDaemonCommand() *cli.Command {
 			&cli.StringFlag{Name: "client-dir", Value: defaultClientDir(), Usage: "built aterm client served at /"},
 			&cli.DurationFlag{Name: "idle", Value: daemonIdle, Usage: "exit after this long with no session and no client, 0 for never"},
 			&cli.BoolFlag{Name: "end-sessions", Usage: "end every session when the daemon stops, instead of leaving them for the next daemon"},
+			&cli.StringFlag{
+				Name:    "agent-proxy",
+				Usage:   "Agent Proxy base URL, read for the context of seats that run through it, empty for none",
+				Sources: cli.EnvVars(agentProxyEnv),
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			return runDaemon(daemonOptions{
@@ -64,6 +69,7 @@ func newDaemonCommand() *cli.Command {
 				ClientDir:    cmd.String("client-dir"),
 				Idle:         cmd.Duration("idle"),
 				EndSessions:  cmd.Bool("end-sessions"),
+				AgentProxy:   cmd.String("agent-proxy"),
 			}, cmd.Root().ErrWriter)
 		},
 	}

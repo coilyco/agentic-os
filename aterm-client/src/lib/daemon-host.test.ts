@@ -12,6 +12,13 @@ describe("aterm.daemon.v1 mapping", () => {
     expect(toSession(view).degraded).toEqual(["card", "telemetry"]);
   });
 
+  it("carries a context reading, and drops an absent window instead of showing zero", () => {
+    const base = { name: "s", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 };
+    expect(toSession({ ...base, context: { tokens: 1050, source: "claude" } }).context).toEqual({ tokens: 1050, source: "claude" });
+    expect(toSession({ ...base, context: { tokens: 5000, window: 258400, source: "codex" } }).context).toEqual({ tokens: 5000, window: 258400, source: "codex" });
+    expect("context" in toSession(base)).toBe(false);
+  });
+
   it("reads a session not at its prompt as working", () => {
     expect(toSession({ name: "s", role: "r", identity: "i", seat: "codex", ready: false, bracketed_paste: false, kai_drafting: false, pending: 0 }).state).toBe("working");
   });

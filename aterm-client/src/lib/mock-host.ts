@@ -2,7 +2,7 @@
 // the surface with no daemon running. Nothing here reaches a real PTY.
 import rosterJson from "./fixtures/roster.json";
 import { envelope } from "./messages";
-import type { Ask, HostConnection, HostEvent, PeerMessage, Session } from "./protocol";
+import type { Ask, ContextReading, HostConnection, HostEvent, PeerMessage, Session } from "./protocol";
 import { parseRoster } from "./roster";
 
 const DIM = "\x1b[2m";
@@ -16,8 +16,11 @@ const scripts: Record<string, string[]> = {
   scientist: ["› run the latency sweep", `${DIM}● route 4 of 12, measuring${RESET}`],
 };
 
-function session(id: string, role: string, seat: string, identity: string, state: Session["state"], pending = 0): Session {
-  return { id, role, seat, identity, state, pending, drafting: false, paste: true, degraded: [] };
+/** What a turn adds to a demo seat's context, so the meter is seen to move. */
+const TURN_TOKENS = 3000;
+
+function session(id: string, role: string, seat: string, identity: string, state: Session["state"], pending = 0, context?: ContextReading): Session {
+  return { id, role, seat, identity, state, pending, drafting: false, paste: true, degraded: [], ...(context ? { context } : {}) };
 }
 
 export class MockHost implements HostConnection {
@@ -27,10 +30,10 @@ export class MockHost implements HostConnection {
   private roles = parseRoster(rosterJson);
   // Real-shaped names: one role on two harnesses, and a degraded start.
   private sessions: Session[] = [
-    session("frontend-eng-imp-dragonfly-dj99", "frontend-eng", "claude", "Imp-Dragonfly", "idle"),
-    session("eng-platform-beetle-ox-gd85", "eng-platform", "codex", "Beetle-Ox", "working"),
-    session("eng-platform-beetle-ox-eb64", "eng-platform", "claude", "Beetle-Ox", "idle"),
-    { ...session("sysadmin-senior-turtle-ox-gj84", "sysadmin-senior", "goose", "Turtle-Ox", "idle"), degraded: ["host-converge", "telemetry"] },
+    session("frontend-eng-imp-dragonfly-dj99", "frontend-eng", "claude", "Imp-Dragonfly", "idle", 0, { tokens: 84_200, source: "claude" }),
+    session("eng-platform-beetle-ox-gd85", "eng-platform", "codex", "Beetle-Ox", "working", 0, { tokens: 116_857, window: 258_400, source: "codex" }),
+    session("eng-platform-beetle-ox-eb64", "eng-platform", "claude", "Beetle-Ox", "idle", 0, { tokens: 535_004, source: "claude" }),
+    { ...session("sysadmin-senior-turtle-ox-gj84", "sysadmin-senior", "goose", "Turtle-Ox", "idle", 0, { tokens: 4_260, window: 1_000_000, source: "proxy" }), degraded: ["host-converge", "telemetry"] },
     session("scientist-frog-ox-va67", "scientist", "claude", "Frog-Ox", "working", 1),
     { ...session("sysadmin-access-turtle-ox-kt21", "sysadmin-access", "goose", "Turtle-Ox", "failed"), failure: "goose did not start. Exit 4, goose is not on this host's PATH." },
   ];
@@ -113,6 +116,16 @@ export class MockHost implements HostConnection {
 
   input(sessionId: string, data: string): void {
     this.write(sessionId, data === "\r" ? PROMPT : data);
+    if (data === "\r") this.addTurn(sessionId);
+  }
+
+  /** A submitted turn grows the seat's context, as the daemon would read it. */
+  private addTurn(sessionId: string): void {
+    const target = this.sessions.find((each) => each.id === sessionId);
+    if (!target?.context) return;
+    const context = { ...target.context, tokens: target.context.tokens + TURN_TOKENS };
+    this.sessions = this.sessions.map((each) => (each.id === sessionId ? { ...each, context } : each));
+    this.emit({ type: "sessions", sessions: this.sessions });
   }
 
   resize(): void {}

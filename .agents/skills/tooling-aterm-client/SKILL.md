@@ -47,6 +47,7 @@ than editing it by hand.
 ## References
 
 * [features.md](references/features.md) - what ships today.
+* [context-meter.md](references/context-meter.md) - the per-seat context-token count, where each harness's reading comes from, and Kai's freeze exception.
 * [architecture.md](references/architecture.md) - the host seam, envelopes, activity, the composer.
 * [choices.md](references/choices.md) - native choice cards and `ask_choice`.
 * [views-and-browser.md](references/views-and-browser.md) - MCP Apps views and the shared browser.

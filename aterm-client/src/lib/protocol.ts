@@ -21,6 +21,15 @@ export interface Host {
 
 export type SessionState = "idle" | "working" | "failed";
 
+/** How full a seat's context is, from whichever source its harness has. */
+export interface ContextReading {
+  tokens: number;
+  /** The model's window, only where the source knows it. A percent needs it. */
+  window?: number;
+  /** Where the daemon read it: `claude` or `codex` transcript, or `proxy`. */
+  source: string;
+}
+
 export interface Session {
   id: string;
   role: string;
@@ -33,6 +42,8 @@ export interface Session {
   paste: boolean;
   /** Startup steps agent-compose launched without, named as the daemon names them. */
   degraded: string[];
+  /** Absent until a source has read one, and from a daemon that predates it. */
+  context?: ContextReading;
   failure?: string;
 }
 

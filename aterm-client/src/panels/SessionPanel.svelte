@@ -6,6 +6,7 @@
   import Terminal from "../components/Terminal.svelte";
   import { app, asksFor, colorOf, jumpToWaiting, messagesFor } from "../lib/app.svelte";
   import { askAnswer, CANCEL, choiceFromAsk, detectChoice, keysFor, type Choice } from "../lib/choices";
+  import { contextPercent, contextText } from "../lib/context";
   import type { Session } from "../lib/protocol";
   import type { Role } from "../lib/roster";
   import { sessionCode } from "../lib/sessions";
@@ -75,6 +76,13 @@
     <Creature role={role.slug} color={role.color} size={40} />
     <h1>{session.identity}</h1>
     <span class="role">{role.displayName} // {session.seat}{sessionCode(session) ? ` // ${sessionCode(session)}` : ""}</span>
+    {#if session.context}
+      {@const percent = contextPercent(session.context)}
+      <span class="context mono" data-source={session.context.source} title={`context read from ${session.context.source}`}>
+        {contextText(session.context)}
+        {#if percent !== null}<span class="bar" aria-hidden="true" style:--fill={`${Math.min(percent, 100)}%`}></span>{/if}
+      </span>
+    {/if}
     <span class="state mono">{session.state}</span>
     {#if session.degraded.length}
       <p class="degraded">Started without {session.degraded.join(", ")}. agent-compose skipped these steps at launch, so this seat may be missing what they set up.</p>
@@ -130,6 +138,10 @@
   .role { font-size: 14px; color: color-mix(in srgb, var(--accent) 55%, white); }
   .degraded { flex-basis: 100%; margin: 0; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--warn); background: var(--warn-fill); color: var(--warn-text); font-size: 13px; }
   .state { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--accent); }
+  .context { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
+  .context + .state { margin-left: 0; }
+  .bar { display: inline-block; position: relative; width: 48px; height: 6px; margin-left: 8px; border-radius: 3px; overflow: hidden; vertical-align: middle; background: var(--line); }
+  .bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--fill); background: var(--accent); }
   .work { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .screen { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
   .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }

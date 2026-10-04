@@ -89,6 +89,10 @@ type ptySession struct {
 	exitCode int
 	// released is a daemon letting go of a session that keeps running.
 	released bool
+	// context is the last context reading, kept across rounds that read nothing.
+	context      *contextView
+	contextFile  contextSource
+	contextRetry time.Time
 }
 
 // keyState carries a partly read escape sequence across input chunks.
@@ -724,5 +728,6 @@ func (s *ptySession) view() sessionView {
 		Drafted:      s.draft > 0,
 		Pending:      len(s.pending),
 		Degraded:     append([]string(nil), s.degraded...),
+		Context:      s.context,
 	}
 }

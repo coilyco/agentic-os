@@ -1,7 +1,7 @@
 // aterm.daemon.v1 over the daemon's loopback websocket. The frame reference is
 // the Wire contract section of the aterm daemon page in coilyco/agentic-os.
 import { parseFrom } from "./messages";
-import type { Ask, AskOutcome, HostConnection, HostEvent, MessageState, PeerMessage, Session } from "./protocol";
+import type { Ask, AskOutcome, ContextReading, HostConnection, HostEvent, MessageState, PeerMessage, Session } from "./protocol";
 import { parseRoster } from "./roster";
 
 export const FORMAT = "aterm.daemon.v1";
@@ -35,6 +35,7 @@ interface SessionView {
   kai_drafting: boolean;
   pending: number;
   degraded?: string[];
+  context?: { tokens: number; window?: number; source: string };
 }
 
 interface MessageView {
@@ -104,7 +105,12 @@ export function toSession(view: SessionView, busy = false): Session {
     drafting: view.kai_drafting,
     paste: view.bracketed_paste,
     degraded: view.degraded ?? [],
+    ...(view.context ? { context: toContext(view.context) } : {}),
   };
+}
+
+function toContext(view: NonNullable<SessionView["context"]>): ContextReading {
+  return { tokens: view.tokens, source: view.source, ...(view.window ? { window: view.window } : {}) };
 }
 
 export function toMessage(view: MessageView): PeerMessage {

@@ -55,7 +55,9 @@ type daemon struct {
 	processes   func() ([]processEntry, error)
 	roster      func(context.Context) (listedRoster, error)
 	launch      func(role, seat string) error
-	logf        func(string, ...any)
+	// proxyFetch reads Agent Proxy's session usage. Nil when no proxy is configured.
+	proxyFetch proxyFetcher
+	logf       func(string, ...any)
 }
 
 func newDaemon(logf func(string, ...any)) *daemon {
@@ -111,6 +113,8 @@ type daemonOptions struct {
 	// EndSessions ends every session when the daemon stops. By default they
 	// keep running in their holders for the next daemon to adopt.
 	EndSessions bool
+	// AgentProxy is the proxy base URL for proxy-backed seats' context, empty for none.
+	AgentProxy string
 	// Stop ends the daemon when closed, as a signal does. A test's handle.
 	Stop <-chan struct{}
 }
@@ -159,6 +163,14 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		}
 		_ = listener.Close()
 	}()
+	if options.AgentProxy != "" {
+		if d.proxyFetch, err = newProxyFetcher(options.AgentProxy); err != nil {
+			logf("no context for proxy-backed seats: %v", err)
+		}
+	}
+	contextDone := make(chan struct{})
+	defer close(contextDone)
+	go d.watchContext(contextDone, contextEvery)
 	d.adoptHolders()
 	d.clientDir = options.ClientDir
 	if options.Websocket != "" {
@@ -294,7 +306,7 @@ func (d *daemon) serveConn(c *conn, pid int, browser bool) {
 		_ = c.write(frame{Type: "welcome", Format: daemonFormat, Error: "unsupported format " + hello.Format})
 		return
 	}
-	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature}}); err != nil {
+	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature}}); err != nil {
 		return
 	}
 	d.mu.Lock()
