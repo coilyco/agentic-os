@@ -32,6 +32,8 @@ type launchdOptions struct {
 	Extra []string
 }
 
+const launchdSystemPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
 // daemonEnvLoader reads daemon.env as a launcher does: literal KEY=VALUE text,
 // ATERM_ keys only, never sourced. See docs/aterm-bundles.md.
 const daemonEnvLoader = `f="${XDG_CONFIG_HOME:-$HOME/.config}/aterm/daemon.env"; ` +
@@ -53,8 +55,12 @@ func renderLaunchdPlist(options launchdOptions) (string, error) {
 		command += " " + shellQuote(arg)
 	}
 	script := daemonEnvLoader + "; exec " + command
+	// A web launch runs as the daemon's child on this PATH. The user's own bin comes first,
+	// as in their shell, since claude installs only there and a bare PATH kills its seats.
+	path := filepath.Join(options.Home, ".local", "bin") + ":" + launchdSystemPath
 	fields := map[string]string{
 		"Label":  xmlEscape(options.Label),
+		"Path":   xmlEscape(path),
 		"Script": xmlEscape(script),
 		"Log":    xmlEscape(filepath.Join(options.Home, "Library", "Logs", "aterm-daemon.log")),
 	}
