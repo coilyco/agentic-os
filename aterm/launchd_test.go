@@ -39,6 +39,7 @@ func TestLaunchdPlistIsWellFormedAndCarriesTheRestartPolicy(t *testing.T) {
 		"/Users/kai/Library/Logs/aterm-daemon.log",
 		`aterm/daemon.env`,
 		"<string>/Users/kai/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>",
+		"live=$(/bin/zsh -lc ",
 	} {
 		if !strings.Contains(plist, want) {
 			t.Fatalf("the plist should hold %q:\n%s", want, plist)
