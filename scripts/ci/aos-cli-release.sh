@@ -67,7 +67,7 @@ attach() {
 # The formula and manifest name GitHub URLs, and the ser8 mirror copies the assets
 # there after the release, so a bump that landed first would 404 every install.
 wait_github_assets() {
-  local urls url missing deadline
+  local urls url missing deadline err last_err=""
   urls=$(grep -ho "https\{0,1\}://[^\"' ]*/releases/download/[^\"' ]*" dist/aos.rb dist/aos.json | sort -u)
   if [ -z "$urls" ]; then
     echo "::error::no release URLs in dist/aos.rb or dist/aos.json" >&2
@@ -77,14 +77,17 @@ wait_github_assets() {
   while :; do
     missing=""
     for url in $urls; do
-      curl -fsSL --max-time 60 -r 0-0 -o /dev/null "$url" 2>/dev/null || missing="$missing $url"
+      if ! err=$(curl -fsSL --max-time 60 -r 0-0 -o /dev/null "$url" 2>&1); then
+        missing="$missing $url"
+        last_err=$err
+      fi
     done
     if [ -z "$missing" ]; then
       echo "every release asset answers"
       return 0
     fi
     if [ "$(date +%s)" -ge "$deadline" ]; then
-      echo "::error::the release assets are still missing, so the tap and bucket are not bumped:$missing" >&2
+      echo "::error::the release assets are still missing, so the tap and bucket are not bumped (last curl error: ${last_err//$'\n'/ }):$missing" >&2
       exit 1
     fi
     sleep "${AOS_ASSET_POLL:-30}"

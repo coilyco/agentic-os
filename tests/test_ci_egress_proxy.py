@@ -85,3 +85,18 @@ def test_every_gate_invocation_crosses_the_proxy_wrapper() -> None:
         for line in path.read_text(encoding="utf-8").splitlines():
             if GATE in line:
                 assert "ci-command.sh" in line, f"{path.name}: {line.strip()}"
+
+
+def test_the_release_asset_wait_crosses_the_proxy_wrapper() -> None:
+    # It is the release job's one call to github.com. Unwrapped, every asset read as
+    # missing for 38 minutes while GitHub already had them, and the tap never bumped.
+    workflow = ROOT / ".forgejo" / "workflows" / "aos-cli-release.yml"
+    lines = [
+        line
+        for line in workflow.read_text(encoding="utf-8").splitlines()
+        if "wait-github-assets" in line
+    ]
+
+    assert lines, "no wait step found, so this test proves nothing"
+    for line in lines:
+        assert "ci-command.sh" in line, line.strip()

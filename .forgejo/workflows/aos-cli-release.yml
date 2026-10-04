@@ -81,7 +81,7 @@ jobs:
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aos-cli-release.sh" attach
 
       - name: Wait for the GitHub copy of the release assets
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/aos-cli-release.sh" wait-github-assets
+        run: bash "$GITHUB_WORKSPACE/scripts/ci-command.sh" bash "$GITHUB_WORKSPACE/scripts/ci/aos-cli-release.sh" wait-github-assets
 
       - name: Update the Homebrew tap
         env:
