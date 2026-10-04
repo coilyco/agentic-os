@@ -17,6 +17,9 @@ const (
 	// A launched window is a session rather than a subagent of the one that
 	// opened it, and inheriting this marker turns its transcript off.
 	childSessionEnv = "CLAUDE_CODE_CHILD_SESSION"
+	// A window opened from a seat restarts agent-compose's one-hop bound. The launch marker
+	// stays, so the launch still skips host convergence. See docs/aterm.md.
+	agentComposeLaunchDepthEnv = "AGENT_COMPOSE_LAUNCH_DEPTH"
 )
 
 // canonicalLaunch is what a session inside a shadow needs in order to open one
@@ -72,7 +75,7 @@ func canonicalEnviron(environ []string, launch canonicalLaunch) []string {
 		}
 		switch name {
 		case nativeSessionEnv, nativeSessionRootEnv, nativeSessionProjectsEnv,
-			canonicalHomeEnv, canonicalProjectsEnv, childSessionEnv:
+			canonicalHomeEnv, canonicalProjectsEnv, childSessionEnv, agentComposeLaunchDepthEnv:
 			continue
 		case "PATH":
 			kept = append(kept, "PATH="+withoutShadowPath(value, launch.Root))

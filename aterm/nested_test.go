@@ -179,6 +179,8 @@ func TestCanonicalEnvironReplacesTheShadowWithWhatItReplaced(t *testing.T) {
 		"EDITOR=vim",
 		"NOTE=/tmp/aos/native/ds74 is where the shadow lives",
 		childSessionEnv + "=1",
+		agentComposeLaunchDepthEnv + "=1",
+		"AGENT_COMPOSE_LAUNCH=1",
 	}
 	got := map[string]string{}
 	for _, entry := range canonicalEnviron(environ, launch) {
@@ -194,7 +196,7 @@ func TestCanonicalEnvironReplacesTheShadowWithWhatItReplaced(t *testing.T) {
 	for _, gone := range []string{
 		"USERPROFILE", "XDG_CONFIG_HOME", "CLAUDE_CONFIG_DIR",
 		nativeSessionEnv, nativeSessionRootEnv, nativeSessionProjectsEnv,
-		canonicalHomeEnv, canonicalProjectsEnv, childSessionEnv,
+		canonicalHomeEnv, canonicalProjectsEnv, childSessionEnv, agentComposeLaunchDepthEnv,
 	} {
 		if _, still := got[gone]; still {
 			t.Fatalf("%s should not reach the new session, got %q", gone, got[gone])
@@ -205,6 +207,9 @@ func TestCanonicalEnvironReplacesTheShadowWithWhatItReplaced(t *testing.T) {
 	}
 	if got["EDITOR"] != "vim" {
 		t.Fatalf("an unrelated variable was dropped: %q", got["EDITOR"])
+	}
+	if got["AGENT_COMPOSE_LAUNCH"] != "1" {
+		t.Fatalf("the converge-skip marker was dropped: %q", got["AGENT_COMPOSE_LAUNCH"])
 	}
 	// A value that mentions the root without being a path under it is kept,
 	// because the rule is a path match rather than a substring match.
