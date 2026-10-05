@@ -51,6 +51,7 @@ roles {
     role game-dev {
         composed-skill design-system
         composed-skill tooling-discord-emoji-assets
+        composed-skill tooling-game-map-locations
         composed-skill coding-csharp
         composed-skill coding-rust
         composed-skill coding-python
