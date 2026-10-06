@@ -18,6 +18,10 @@ roles:
         effort: high
   sysadmin-junior:
     agent: claude
+    harnesses:
+      claude:
+        model: claude-sonnet-5-5
+        effort: high
   sysadmin-access:
     agent: codex
     harnesses:
