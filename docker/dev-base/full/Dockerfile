@@ -58,7 +58,7 @@ RUN set -eux; \
     rm -rf /tmp/aosguard-spec /tmp/aosguard-python; aosguard --version
 
 FROM ${BASE_IMAGE} AS dev-base-full
-ARG AGENT_COMPOSE_VERSION=2.173.0
+ARG AGENT_COMPOSE_VERSION=2.198.0
 ARG CLAUDE_VERSION=2.1.282
 ARG MCPORTER_VERSION=0.12.3
 ARG CODEX_VERSION=0.146.0
