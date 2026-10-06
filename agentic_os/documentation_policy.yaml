@@ -49,6 +49,8 @@ repos:
     - unity-embedded/
   eco-ops:
     band: small
+  enshrouded:
+    band: small # Enshrouded server inputs and runbooks
   factorio-mods:
     band: micro
   factory-game-v3:
