@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "audit-pre-commit-coverage.py"
@@ -13,6 +14,17 @@ def _load_script():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _checkout(path: Path, owner: str) -> Path:
+    path.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(path)], check=True)
+    subprocess.run(
+        ["git", "-C", str(path), "remote", "add", "origin",
+         f"https://forgejo.example/{owner}/{path.name}.git"],
+        check=True,
+    )
+    return path
 
 
 # agentic-os wires every validator it defines as `repo: local`, so the
@@ -60,7 +72,7 @@ def test_audit_honours_per_repo_skips() -> None:
     audit = _load_script()
     from agentic_os import hook_catalog
 
-    expected = hook_catalog.hook_ids_for("lore")
+    expected = hook_catalog.hook_ids_for("coilyco/lore")
     config = "repos:\n  - repo: local\n    hooks:\n" + "".join(
         f"      - id: {h}\n" for h in expected
     )
@@ -75,10 +87,10 @@ def test_the_audit_reports_a_hook_with_no_spec(tmp_path, monkeypatch, capsys) ->
     audit = _load_script()
     from agentic_os import hook_catalog
 
-    repo = tmp_path / "lore"
+    repo = _checkout(tmp_path / "lore", "coilyco")
     (repo / ".agents" / "skills" / "lore-x").mkdir(parents=True)
     (repo / ".agents" / "skills" / "lore-x" / "SKILL.md").write_text("x")
-    ids = hook_catalog.hook_ids_for("lore")
+    ids = hook_catalog.hook_ids_for("coilyco/lore")
     (repo / ".pre-commit-config.yaml").write_text(
         "repos:\n  - repo: local\n    hooks:\n"
         + "".join(f"      - id: {h}\n" for h in ids)
@@ -99,11 +111,11 @@ def test_the_audit_is_quiet_once_the_spec_lands(tmp_path, monkeypatch, capsys) -
     audit = _load_script()
     from agentic_os import hook_catalog
 
-    repo = tmp_path / "lore"
+    repo = _checkout(tmp_path / "lore", "coilyco")
     (repo / ".agents" / "skills" / "lore-x").mkdir(parents=True)
     (repo / ".agents" / "skills" / "lore-x" / "SKILL.md").write_text("x")
     (repo / ".agents" / "skills" / "categories.yaml").write_text("x")
-    ids = hook_catalog.hook_ids_for("lore")
+    ids = hook_catalog.hook_ids_for("coilyco/lore")
     (repo / ".pre-commit-config.yaml").write_text(
         "repos:\n  - repo: local\n    hooks:\n"
         + "".join(f"      - id: {h}\n" for h in ids)
@@ -115,3 +127,31 @@ def test_the_audit_is_quiet_once_the_spec_lands(tmp_path, monkeypatch, capsys) -
     audit.main([])
 
     assert "unarmed" not in capsys.readouterr().out
+
+
+# The audit read a basename, so one skip covered every checkout of that name.
+# Two `lore` checkouts under different owners must be expected to ship differently.
+def test_the_audit_expects_different_hooks_of_same_named_repos(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    audit = _load_script()
+    from agentic_os import hook_catalog
+
+    ours = _checkout(tmp_path / "a" / "lore", "coilyco")
+    theirs = _checkout(tmp_path / "b" / "lore", "someone-else")
+    skipped = hook_catalog.hook_ids_for("coilyco/lore")
+    for repo in (ours, theirs):
+        (repo / ".pre-commit-config.yaml").write_text(
+            "repos:\n  - repo: local\n    hooks:\n"
+            + "".join(f"      - id: {h}\n" for h in skipped)
+        )
+
+    monkeypatch.setattr(audit.cfg, "iter_workspace_repos", lambda: [ours, theirs])
+    monkeypatch.setattr(audit, "_print_freshness", lambda dirs: None)
+
+    audit.main([])
+    out = capsys.readouterr().out
+
+    assert "== ok (1) ==" in out
+    assert "== missing (1) ==" in out
+    assert "repo-pointer-skills" in out.split("== missing (1) ==")[1]

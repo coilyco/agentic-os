@@ -466,6 +466,31 @@ def test_the_source_repo_dry_run_says_hooks_only(tmp_path: Path) -> None:
     assert "install hooks only" in detail
 
 
+def _origin_repo(path: Path, owner: str) -> Path:
+    _make_repo(path)
+    subprocess.run(["git", "init", "-q", str(path)], check=True)
+    subprocess.run(
+        ["git", "-C", str(path), "remote", "add", "origin",
+         f"https://forgejo.example/{owner}/{path.name}.git"],
+        check=True,
+    )
+    return path
+
+
+# Skips key on the origin's <owner>/<repo>, so the dir a checkout sits in grants
+# none and a same-named repo under another owner keeps every hook (#7635).
+def test_the_block_a_repo_gets_follows_its_origin_owner(tmp_path: Path) -> None:
+    script = _load_script()
+    ours = _origin_repo(tmp_path / "coilyco-bridge" / "lore", "coilyco")
+    theirs = _origin_repo(tmp_path / "coilyco" / "lore", "someone-else")
+
+    assert script.apply_to_repo(ours, "v1.0.0", dry_run=False)[0] == "applied"
+    assert script.apply_to_repo(theirs, "v1.0.0", dry_run=False)[0] == "applied"
+
+    assert "repo-pointer-skills" not in (ours / ".pre-commit-config.yaml").read_text()
+    assert "repo-pointer-skills" in (theirs / ".pre-commit-config.yaml").read_text()
+
+
 def _own_config() -> dict:
     return yaml.safe_load((REPO_ROOT / ".pre-commit-config.yaml").read_text())
 

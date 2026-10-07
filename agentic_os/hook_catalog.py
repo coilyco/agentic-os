@@ -7,6 +7,8 @@ docs/pre-commit-hygiene.md.
 """
 from __future__ import annotations
 
+import re
+import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -54,15 +56,15 @@ DEFAULT_HOOK_IDS = [
     "git-workflow",
 ]
 
-# Per-repo hook opt-outs. eco-* repos vendor the Strange Loop Games Unity SDK,
-# whose comments are not ours to lint. lore is a docs-only slice.
+# Per-repo opt-outs, keyed `<owner>/<repo>` since a basename is not unique
+# (agentic-os#7635). eco-* vendors the Unity SDK. lore is a docs-only slice.
 PER_REPO_HOOK_SKIPS: dict[str, set[str]] = {
     # housecast grades and composes nothing, so it carries no AGENTS.COMPOSE.md for
     # these to check, and their ids named a consumer it no longer knows about.
-    "housecast": {"agent-compose-size", "agent-compose-dedup"},
+    "coilyco/housecast": {"agent-compose-size", "agent-compose-dedup"},
     # check-skills left this set once lore committed a categories.yaml carrying
     # its declared 4000-char cap (teable:coilyco-bridge/lore#7753).
-    "lore": {
+    "coilyco/lore": {
         "repo-pointer-skills",
         "misplaced-skills",
         "agent-compose-size",
@@ -72,13 +74,41 @@ PER_REPO_HOOK_SKIPS: dict[str, set[str]] = {
 # typos is absent by design: managed_block() emits it unconditionally, so an
 # entry here never fires (#1155). Vendored trees go in the repo's _typos.toml.
 ECO_HOOK_SKIPS = {"code-comments"}
+# Owner-qualified, and the hyphen matters: a bare "eco" prefix also matches
+# ecommerce-shaped names that have nothing to do with the Eco game (#7635).
+ECO_REPO_PREFIX = "coilyco/eco-"
+
+_REMOTE_OWNER_REPO = re.compile(r"[:/]([^/:\s]+)/([^/\s]+?)(?:\.git)?/?$")
 
 
-def hook_ids_for(repo: str) -> list[str]:
-    skips: set[str] = set(PER_REPO_HOOK_SKIPS.get(repo, set()))
-    # The hyphen matters: a bare "eco" prefix also matches ecommerce-shaped
-    # names that have nothing to do with the Eco game (agentic-os#7635).
-    if repo.startswith("eco-"):
+def repo_key(repo_dir: Path) -> str:
+    """The `<owner>/<repo>` address of a checkout, from its origin remote.
+
+    The on-disk org dir is not the owner: a checkout under a retired
+    `coilyco-bridge/` dir has a `coilyco` remote, so the parent name would key
+    the same repo differently per host. A checkout with no readable origin
+    falls back to its directory pair, which is only as unique as the layout.
+    """
+    result = subprocess.run(
+        ["git", "-C", str(repo_dir), "remote", "get-url", "origin"],
+        capture_output=True, text=True, check=False, timeout=10,
+    )
+    match = _REMOTE_OWNER_REPO.search(result.stdout.strip()) if result.returncode == 0 else None
+    if match:
+        return f"{match.group(1)}/{match.group(2)}"
+    return f"{repo_dir.parent.name}/{repo_dir.name}"
+
+
+def hook_ids_for(key: str) -> list[str]:
+    """Hook ids that ship to the repo at `key`, which is `<owner>/<repo>`.
+
+    A bare basename raises: it would match no skip and quietly ship every hook
+    to a repo that opted out of some.
+    """
+    if "/" not in key:
+        raise ValueError(f"hook_ids_for wants '<owner>/<repo>', got {key!r}")
+    skips: set[str] = set(PER_REPO_HOOK_SKIPS.get(key, set()))
+    if key.startswith(ECO_REPO_PREFIX):
         skips |= ECO_HOOK_SKIPS
     return [h for h in DEFAULT_HOOK_IDS if h not in skips]
 

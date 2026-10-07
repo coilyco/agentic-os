@@ -199,7 +199,11 @@ def main(argv=None) -> int:
                 continue
             config_text = read_local_config(d)
             results.append(
-                audit_config(d.name, config_text, hook_catalog.hook_ids_for(d.name))
+                audit_config(
+                    d.name,
+                    config_text,
+                    hook_catalog.hook_ids_for(hook_catalog.repo_key(d)),
+                )
             )
             # Needs the filesystem, so github mode cannot answer it.
             referenced = referenced_hook_ids(config_text or "")
@@ -222,7 +226,7 @@ def main(argv=None) -> int:
                     audit_config(
                         name,
                         read_remote_config(name),
-                        hook_catalog.hook_ids_for(name),
+                        hook_catalog.hook_ids_for(f"{OWNER}/{name}"),
                     )
                 )
             except RuntimeError as exc:

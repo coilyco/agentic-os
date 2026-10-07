@@ -524,7 +524,7 @@ def apply_to_repo(repo_dir: Path, rev: str, dry_run: bool) -> tuple[str, str]:
         return ("applied", f"config untouched (source repo), {status}")
 
     config_path = repo_dir / ".pre-commit-config.yaml"
-    hook_ids = hook_ids_for(repo)
+    hook_ids = hook_ids_for(hook_catalog.repo_key(repo_dir))
 
     if dry_run:
         if not config_path.exists():
