@@ -175,3 +175,44 @@ func TestLaunchPlanWithoutAMintingAOSStaysUnsuffixed(t *testing.T) {
 		t.Fatalf("the unsuffixed name should still reach claude: %v", plan.Child)
 	}
 }
+
+// COI-2433. The record names the slot the session last held, and the pool may grant
+// another now, so claude is named for the grant rather than the record.
+func TestResumeNamesClaudeForTheGrantedPoolNameNotTheRecordedOne(t *testing.T) {
+	id := newConversationID()
+	entry := ledgerEntry{Name: "eng-platform-angie-2", Role: "eng-platform", Seat: "claude", Cwd: "/gone", Conversation: id}
+	for _, granted := range []string{"eng-platform-angie", "eng-platform-angie-3"} {
+		t.Run(granted, func(t *testing.T) {
+			var spawns []recordedSpawn
+			deps := stubDeps(t, &spawns, true)
+			deps.claim = func(string, bool) string { return granted }
+			args, err := resumeArgs(entry, false, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			out, err := runAterm(t, deps, append([]string{"--dry-run", "--json"}, args...)...)
+			if err != nil {
+				t.Fatalf("dry run: %v", err)
+			}
+			var plan launchPlan
+			if err := json.Unmarshal([]byte(out), &plan); err != nil {
+				t.Fatalf("decode plan: %v", err)
+			}
+			var names []string
+			for at, argument := range plan.Child {
+				if argument == "--name" && at+1 < len(plan.Child) {
+					names = append(names, plan.Child[at+1])
+				}
+			}
+			if want := []string{granted}; !slices.Equal(names, want) {
+				t.Fatalf("claude should carry the one name the daemon granted: got %v, want %v in %v", names, want, plan.Child)
+			}
+			if at := slices.Index(plan.Child, "--resume"); at < 0 || plan.Child[at+1] != id {
+				t.Fatalf("the conversation must still be resumed by its id: %v", plan.Child)
+			}
+			if slices.Contains(plan.Child, "--session-id") && slices.Index(plan.Child, "--session-id") > slices.Index(plan.Child, "--") {
+				t.Fatalf("a resume must not mint a second conversation id: %v", plan.Child)
+			}
+		})
+	}
+}
