@@ -1,75 +1,72 @@
 # Claude credentials and settings
 
-A native session home is session-scoped, and Claude Code keys its macOS Keychain
-credential to that home. Without a bridge the harness starts logged out on every
-launch. This page records why, and what the launcher does about it.
+Claude Code keys its macOS Keychain login to `CLAUDE_CONFIG_DIR`, so every
+distinct config directory is a distinct login. This page records how native
+seats share one, and what the launcher still seeds for the host.
 
-## Why the Keychain cannot carry it
+## Why the Keychain cannot follow a session
 
 Claude Code namespaces the Keychain item by a digest of `CLAUDE_CONFIG_DIR`. The
-default config directory keeps the bare service name `Claude Code-credentials`,
-and any other directory takes a suffix of the first four bytes of the SHA-256 of
-the exact path string.
+default directory keeps the bare service name `Claude Code-credentials`, and any
+other takes a suffix of the first four bytes of the SHA-256 of the exact path.
 
-Every native session mints a fresh id, so `CLAUDE_CONFIG_DIR` differs on every
-launch, which yields a service name that has never been written. The harness
-reports no error. It simply asks the operator to log in.
+A session-scoped config directory is therefore a login nobody has done. Linking
+the host `.credentials.json` into it did not bridge that: every seat refreshed
+the same snapshot on its own, the first refresh consumed the single-use refresh
+token, and every other live seat, plus every later launch, failed to refresh and
+asked for a login. The harness deletes the link when the refresh fails, and a
+rotation reached the host only when a session was reaped (COI-1099).
 
-## What the launcher does
+## One shared seats directory
 
-It seeds one file and lets the symlink farm do the rest.
+Every native Claude seat launches with `CLAUDE_CONFIG_DIR=~/.claude-seats`, one
+path string on the host, so every seat reads and writes one Keychain item and
+Claude Code's own refresh handling coordinates them. The host's bare item,
+plain `claude`, stays separate: the seats pay one login per refresh lifetime
+between them, and plain `claude` pays its own.
 
-Claude Code reads `.credentials.json` from `CLAUDE_CONFIG_DIR` in preference to
-the Keychain, and falls back to the Keychain only when that file is absent. So
-at session creation, when the harness is Claude, the launcher writes the
-Keychain login to `~/.claude/.credentials.json` unless that file already works.
-[The configuration projection](native-harness-config.md) already links every
-entry of `~/.claude` into the session home, so the credential is carried by the
-same mechanism as everything else and needs no code of its own.
+The directory is a symlink farm over `~/.claude`, built on first use and topped
+up each launch with entries the host grew since. Three entries never link:
+`CLAUDE.md` and `skills`, which are per seat, and `.credentials.json`, which the
+shared Keychain item replaces. `skills` is a real, empty directory, so the role
+filter keeps binding. `.claude.json` links to the host config, where folder
+trust and the external-import approval are seeded per session path.
 
-Seeding never overwrites a **usable** file, since copying the stale Keychain item
-over a live one would retire the token every session is using, and replaces
-anything else (`teable:coilyco-flight-deck/agentic-os#7234`). Usable means a
-token to present, unlapsed or backed by a live refresh token. Gating on the
-**stamp** instead let a husk carrying a future `expiresAt` and neither token
-disarm the seed for good, seen twice on kais-macbook-pro and still unexplained
-(`#7258`). `aos doctor` calls that **hollow**: it needs replacing, not refreshing.
+The two per-seat load points agent-compose projects into the session home,
+`.claude/CLAUDE.md` and `.claude/skills`, are linked into `<session
+root>/seat/.claude/` and handed to the harness as `--add-dir=<session root>/seat` with `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD=1`, which is how
+Claude Code loads a `CLAUDE.md` from an additional directory. Nothing moves:
+the shadow home is staged exactly as before, and a standalone (sealed) home
+keeps its own config directory.
 
-## Write-back at cleanup
+agent-compose exports `CLAUDE_CONFIG_DIR` from the runtime home at exec, so aos
+hands it the shared path as `AGENT_COMPOSE_CLAUDE_CONFIG_DIR`, which the
+agent-compose exec and aos's own spec-mode exec both honor and then drop.
 
-A rotated token reaches the canonical file two ways, because it goes missing two
-ways. A session that **replaced** the link with a regular file has that file
-copied back. A session whose entry is **gone** has its Keychain item read
-instead, because the harness deletes `.credentials.json` once the token behind
-it expires and falls back to the item digested from `CLAUDE_CONFIG_DIR`
-(`teable:coilyco-flight-deck/agentic-os#7021`, reproduced under plain `claude`).
+## The host login
 
-Only a token **worth more** than canonical is written, ranked in three steps
-rather than off one timestamp: carrying a token beats carrying none, a live
-refresh token wins next, and `claudeAiOauth.expiresAt` only breaks the tie, never
-refusing a lapsed stamp on its own. That separates this from lend-and-return
-below. Failure warns, never blocks. Both are in `native_claude_keyring_darwin_test.go`.
+The seats directory is seeded once, when it is created, with the host
+`~/.claude/.credentials.json` if that file is usable, so the first seat refreshes
+the host login instead of prompting. After that the file is the harness's to
+migrate into the Keychain and delete, and no launch reseeds it.
 
-Reap then **removes** the item, after both reads and on both paths, since its
-service digests a home that will never exist again and nothing else would remove
-it. Never the bare `Claude Code-credentials` service, the shared host login.
+The host file itself is still seeded at launch from the bare Keychain item when
+it cannot carry a launch, never over a usable one (`#7234`, `#7258`): usable
+means a token to present, unlapsed or backed by a live refresh token, and `aos
+_native-shadow --credential` calls a stamped file with neither token **hollow**.
+Container launches under `--auth` read that file.
 
-## Boundaries and tradeoffs
+## Reaping older sessions
 
-The seed is macOS only, because only macOS keeps the credential outside the
-config directory. Linux already stores it in the file the projection carries,
-and Windows credential storage is not wired up here.
-
-Concurrent refreshes are the vendor's problem rather than this launcher's. Every
-session resolves the same path, so Claude Code's own handling coordinates them.
-Lend-and-return reimplemented that badly: one item per session, written back at
-reap, so the last harvest won and every earlier rotation was discarded.
+A session staged before the shared directory still holds its own Keychain item.
+Reap reads the per-session file or item, writes it to the host file only when it
+is worth more (a token beats none, a live refresh token next, `expiresAt` last),
+then removes the item, never the bare host service. A session on the shared
+directory has neither, so both reads are no-ops.
 
 No secret crosses argv: `find-generic-password` returns the payload on stdout,
-`delete-generic-password` carries none, and the file is written at `0600`.
-
-If the canonical file is ever deleted, the next launch reseeds from the Keychain.
-Only a husk there costs a login now, since a lapsed access token still refreshes.
+`delete-generic-password` carries none, and files are written at `0600`. The
+Keychain paths are macOS only; Linux keeps the login in the file.
 
 ## Settings guardrails
 

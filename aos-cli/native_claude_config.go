@@ -58,6 +58,15 @@ func nativeClaudeSessionConfigPath(sessionHome string) string {
 	return filepath.Join(sessionHome, ".claude", ".claude.json")
 }
 
+// nativeClaudeTrustKeys are the per-project dialogs a launch pre-accepts; the
+// composed CLAUDE.md imports host files outside every session path.
+var nativeClaudeTrustKeys = []string{
+	"hasTrustDialogAccepted",
+	"hasCompletedProjectOnboarding",
+	"hasClaudeMdExternalIncludesApproved",
+	"hasClaudeMdExternalIncludesWarningShown",
+}
+
 // Folder trust is keyed by absolute project path, and every native session
 // mints a fresh one, so the launcher pre-accepts the paths it just created.
 func seedNativeClaudeTrust(configPath string, projects []string) error {
@@ -85,7 +94,7 @@ func seedNativeClaudeTrust(configPath string, projects []string) error {
 		if entry == nil {
 			entry = map[string]json.RawMessage{}
 		}
-		for _, key := range []string{"hasTrustDialogAccepted", "hasCompletedProjectOnboarding"} {
+		for _, key := range nativeClaudeTrustKeys {
 			if string(entry[key]) == "true" {
 				continue
 			}

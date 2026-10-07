@@ -166,6 +166,14 @@ func applyNativeLaunchSpecEnvironment(spec nativeLaunchSpec) error {
 	}
 	if spec.Harness == "claude" {
 		environment["CLAUDE_CONFIG_DIR"] = filepath.Join(home, ".claude")
+		// The shared seats directory, when the workspace staged one. The
+		// handoff variable is agent-compose's and stops here, as it does there.
+		if shared := strings.TrimSpace(os.Getenv(agentComposeClaudeConfigDirEnv)); shared != "" {
+			environment["CLAUDE_CONFIG_DIR"] = shared
+		}
+		if err := os.Unsetenv(agentComposeClaudeConfigDirEnv); err != nil {
+			return err
+		}
 	}
 	for name, value := range environment {
 		if err := os.Setenv(name, value); err != nil {
@@ -240,6 +248,9 @@ func writeNativeClaudeSettings(ctx context.Context, spec nativeLaunchSpec, role 
 		root = spec.BundleDir
 	}
 	claudeDir := filepath.Join(root, ".claude")
+	if configured := strings.TrimSpace(os.Getenv("CLAUDE_CONFIG_DIR")); configured != "" {
+		claudeDir = configured
+	}
 	if err := writeClaudeUI(claudeDir, bundle); err != nil {
 		return "", err
 	}

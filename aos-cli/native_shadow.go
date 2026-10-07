@@ -229,6 +229,9 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 	if err := clearDeprecatedModelSelectors(); err != nil {
 		return err
 	}
+	if workspace.ClaudeSeat != "" {
+		command = insertNativeHarnessArgs(command, harness, []string{"--add-dir=" + workspace.ClaudeSeat})
+	}
 	if cmd.Bool("assigned-role") {
 		if harness == "codex" {
 			codexHome := filepath.Join(workspace.SessionHome, ".codex")
@@ -483,6 +486,9 @@ type nativeLaunchWorkspace struct {
 	CWD             string
 	SessionProjects string
 	SessionHome     string
+	// ClaudeSeat is the --add-dir carrying this seat's CLAUDE.md and skills,
+	// set only when the launch shares the seats config directory.
+	ClaudeSeat string
 }
 
 func prepareNativeLaunch(runtime nativeRuntime, harness string) (string, error) {
@@ -2004,12 +2010,25 @@ func createNativeSession(
 			}
 		}
 	}
+	seat := ""
 	if harness == "claude" {
 		config := nativeClaudeConfigPath(runtime.Home)
 		if sessionHome != "" {
 			config = nativeClaudeSessionConfigPath(sessionHome)
 		}
-		if err := seedNativeClaudeTrust(config, []string{launch, sessionProjects}); err != nil {
+		trusted := []string{launch, sessionProjects}
+		// A staged, unsealed home shares the seats directory. A standalone home
+		// keeps its own, sealed as before. docs/native-claude-credentials.md
+		if options.WorkspaceRoot && !options.StandaloneHome && sessionHome != "" {
+			shared, err := prepareNativeClaudeSeats(runtime, sessionRoot, sessionHome)
+			if err != nil {
+				return nativeLaunchWorkspace{}, err
+			}
+			seat = shared
+			config = filepath.Join(nativeClaudeSeatsDir(runtime.Home), ".claude.json")
+			trusted = append(trusted, seat)
+		}
+		if err := seedNativeClaudeTrust(config, trusted); err != nil {
 			fmt.Fprintf(runtime.Stderr, "aos: native session trust not seeded: %v\n", err)
 		}
 	}
@@ -2018,7 +2037,38 @@ func createNativeSession(
 		CWD:             launch,
 		SessionProjects: sessionProjects,
 		SessionHome:     sessionHome,
+		ClaudeSeat:      seat,
 	}, nil
+}
+
+// prepareNativeClaudeSeats stages the shared config directory, seeds its login
+// once, links this seat's load points, and exports what both launch paths read.
+func prepareNativeClaudeSeats(runtime nativeRuntime, sessionRoot, sessionHome string) (string, error) {
+	created, err := stageNativeClaudeSeatsDir(runtime.Home)
+	if err != nil {
+		return "", err
+	}
+	if created {
+		seeded, err := seedNativeClaudeSeatsCredential(runtime.Home, runtime.Now)
+		if err != nil {
+			fmt.Fprintf(runtime.Stderr, "aos: shared Claude login not seeded: %v\n", err)
+		} else if seeded {
+			runtime.Progress.Note("seeded %s with the host login", nativeClaudeSeatsDir(runtime.Home))
+		}
+	}
+	seat, err := stageNativeClaudeSeat(sessionRoot, sessionHome)
+	if err != nil {
+		return "", err
+	}
+	for variable, value := range map[string]string{
+		agentComposeClaudeConfigDirEnv:         nativeClaudeSeatsDir(runtime.Home),
+		claudeAdditionalDirectoriesClaudeMdEnv: "1",
+	} {
+		if err := os.Setenv(variable, value); err != nil {
+			return "", fmt.Errorf("set %s: %w", variable, err)
+		}
+	}
+	return seat, nil
 }
 
 // canonicalPnpmStoreDir mirrors pnpm's own per-platform default, resolved
