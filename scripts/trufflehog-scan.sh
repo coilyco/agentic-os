@@ -1,74 +1,83 @@
 #!/usr/bin/env bash
-# Offline secret scan for the catalog pre-commit suite. See agentic-os#288.
+# Offline secret scan of the staged index for the catalog pre-commit suite.
+# See agentic-os#288 and COI-2134.
 #
-# Wraps `trufflehog git file://.` with a path-exclude list so a trufflehog build
-# that walks untracked working-tree files (its git source reads gitignored dirs
-# like Rust `target/`, upstream trufflesecurity/trufflehog) cannot drown the
-# scan in build-artifact false positives and block every commit fleet-wide.
+# The index is written out with `git checkout-index` and that directory is scanned
+# with `trufflehog filesystem`. The earlier `trufflehog git file://. --since-commit
+# HEAD` scanned a temp clone, and a clone carries no staged changes, so a staged
+# credential reported `chunks: 0` and passed (COI-2134). Reading the index also
+# makes the scan independent of untracked and gitignored working-tree files, which
+# is what the old path-exclude list defended against (agentic-os#288).
 #
-# --exclude-paths (a regex file) is load-bearing over the inline --exclude-globs:
-# only exclude-paths filters the git source's synthetic working/staged diff by
-# path. --exclude-globs filters committed git-log objects alone, so it does NOT
-# suppress the untracked-file read that causes the block (verified empirically,
-# agentic-os#288). The regex set mirrors agentic-os-kai's CI trufflehog scan.
+# Conventionally-gitignored build/cache dirs are skipped here when force-added,
+# matched against repo-relative paths. Handing the regexes to trufflehog would match
+# them against the absolute temp path, so a temp dir named build/ would silently
+# exclude everything.
 #
-# Resolver lockfiles are scanned in two passes (agentic-os#8407). Their public
-# sdist content hashes trip the SentryToken detector, so the first pass excludes
-# them entirely; a second pass scans only the lockfiles with SentryToken off, so
-# every other detector still guards them and a real credential in a lockfile (a
-# registry token, a basic-auth URL) still fails. A secret anywhere else still
-# fails.
+# Resolver lockfiles are scanned in a separate pass (agentic-os#8407). Their public
+# sdist content hashes trip the SentryToken detector, so that pass runs with
+# SentryToken off and every other detector still guards them: a real credential in a
+# lockfile (a registry token, a basic-auth URL) still fails. A secret anywhere else
+# fails under every detector.
 
-exclude_paths_file="$(mktemp)"
-include_paths_file="$(mktemp)"
+# Any scan failure must fail the hook, so no `set -e`: both passes always run.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+build_cache_patterns=(
+  '(^|/)target/'
+  '(^|/)\.venv/'
+  '(^|/)venv/'
+  '(^|/)node_modules/'
+  '(^|/)__pycache__/'
+  '(^|/)\.mypy_cache/'
+  '(^|/)\.pytest_cache/'
+  '(^|/)\.ruff_cache/'
+  '(^|/)(dist|build)/'
+)
+lockfile_pattern='(^|/)(uv\.lock|poetry\.lock|Pipfile\.lock|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|Cargo\.lock)$'
+
+scan_root="$(mktemp -d)"
 cleanup() {
-  rm -f "$exclude_paths_file" "$include_paths_file"
+  rm -rf "$scan_root"
 }
 trap cleanup EXIT
 
-# Conventionally-gitignored build/cache dirs, excluded from the first pass.
-cat >"$exclude_paths_file" <<'EOF'
-(^|/)target/
-(^|/)\.venv/
-(^|/)venv/
-(^|/)node_modules/
-(^|/)__pycache__/
-(^|/)\.mypy_cache/
-(^|/)\.pytest_cache/
-(^|/)\.ruff_cache/
-(^|/)(dist|build)/
-EOF
+mkdir "$scan_root/files" "$scan_root/lockfiles"
+: >"$scan_root/files.list"
+: >"$scan_root/lockfiles.list"
 
-# Resolver lockfiles: the single source of their names, shared by both passes.
-cat >"$include_paths_file" <<'EOF'
-(^|/)(uv\.lock|poetry\.lock|Pipfile\.lock|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|Cargo\.lock)$
-EOF
+# Added, copied, modified, and renamed paths only: a deletion has no content to leak.
+while IFS= read -r -d '' path; do
+  if [[ "$path" =~ $lockfile_pattern ]]; then
+    printf '%s\0' "$path" >>"$scan_root/lockfiles.list"
+    continue
+  fi
+  skip=0
+  for pattern in "${build_cache_patterns[@]}"; do
+    if [[ "$path" =~ $pattern ]]; then
+      skip=1
+      break
+    fi
+  done
+  [[ "$skip" -eq 1 ]] || printf '%s\0' "$path" >>"$scan_root/files.list"
+done < <(git diff --cached --name-only -z --diff-filter=ACMR)
 
-# The first pass also skips the lockfiles, so append the lockfile regex to the
-# exclude set rather than repeat the list.
-cat "$include_paths_file" >>"$exclude_paths_file"
-
-# Git Bash creates a POSIX-style /tmp path, while the native Windows
-# trufflehog binary needs the equivalent Windows path.
-trufflehog_exclude_paths="$exclude_paths_file"
-trufflehog_include_paths="$include_paths_file"
-if command -v cygpath >/dev/null 2>&1; then
-  trufflehog_exclude_paths="$(cygpath -w "$exclude_paths_file")"
-  trufflehog_include_paths="$(cygpath -w "$include_paths_file")"
-fi
+# Scan from inside the directory so findings print repo-relative paths.
+scan_dir() {
+  local name="$1"
+  shift
+  [[ -s "$scan_root/$name.list" ]] || return 0
+  git checkout-index --prefix="$scan_root/$name/" -z --stdin <"$scan_root/$name.list" || return 1
+  (cd "$scan_root/$name" && trufflehog filesystem . "$@" --no-verification --no-update --fail)
+}
 
 # Pass 1: everything but build/cache dirs and lockfiles, every detector on.
-trufflehog git file://. --since-commit HEAD \
-  --exclude-paths "$trufflehog_exclude_paths" \
-  --no-verification --no-update --fail
+scan_dir files
 pass1=$?
 
-# Pass 2: lockfiles only, with SentryToken off so the sdist-hash false positive
-# is ignored while every other detector still guards the lockfiles.
-trufflehog git file://. --since-commit HEAD \
-  --include-paths "$trufflehog_include_paths" \
-  --exclude-detectors SentryToken \
-  --no-verification --no-update --fail
+# Pass 2: lockfiles only, with SentryToken off so the sdist-hash false positive is
+# ignored while every other detector still guards the lockfiles.
+scan_dir lockfiles --exclude-detectors SentryToken
 pass2=$?
 
 if [[ "$pass1" -ne 0 || "$pass2" -ne 0 ]]; then

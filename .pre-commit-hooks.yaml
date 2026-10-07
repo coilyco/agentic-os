@@ -261,7 +261,7 @@
 
 - id: trufflehog
   name: trufflehog (secret scan, offline)
-  description: Detect secrets in staged changes via local trufflehog binary (no API verification). Excludes gitignored build/cache dirs (target/, .venv/, node_modules/, ...) so a trufflehog build that walks untracked working-tree files does not block commits with artifact false positives. Resolver lockfiles (uv.lock, poetry.lock, Cargo.lock, ...) are scanned separately with the SentryToken detector disabled so their public sdist hashes do not trip, while every other detector still guards them. Requires the trufflehog binary on PATH (shipped in the agentic-os Brewfile).
+  description: Detect secrets in staged changes via local trufflehog binary (no API verification). Scans the staged index content, not a clone, so a credential staged for the commit is caught. Skips force-added build/cache dirs (target/, .venv/, node_modules/, ...). Resolver lockfiles (uv.lock, poetry.lock, Cargo.lock, ...) are scanned separately with the SentryToken detector disabled so their public sdist hashes do not trip, while every other detector still guards them. Requires the trufflehog binary on PATH (shipped in the agentic-os Brewfile).
   entry: scripts/trufflehog-scan.sh
   language: script
   pass_filenames: false
