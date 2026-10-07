@@ -323,24 +323,44 @@ func roleModelEnvironment(
 	return set
 }
 
-// applyRoleModelEnvironment exports a role's goose provider and model before the
-// native launch replaces this process, which is where the harness reads them.
-func applyRoleModelEnvironment(
+// applyRoleLaunchProfile is the one place a profile becomes launch input: argv
+// flags plus goose env. Native exports the env, a container plan renders it.
+func applyRoleLaunchProfile(
+	ctx context.Context,
+	command []string,
+	role, harness string,
+	stderr io.Writer,
+	list modelLister,
+) ([]string, map[string]string, error) {
+	command, err := applyRoleModelProfile(ctx, command, role, harness, stderr, list)
+	if err != nil {
+		return nil, nil, err
+	}
+	env, err := resolveRoleModelEnvironment(ctx, role, harness, stderr, list)
+	if err != nil {
+		return nil, nil, err
+	}
+	return command, env, nil
+}
+
+// resolveRoleModelEnvironment returns the env a role's goose profile pins,
+// after dropping a pin its model source does not list.
+func resolveRoleModelEnvironment(
 	ctx context.Context,
 	role, harness string,
 	stderr io.Writer,
 	list modelLister,
-) error {
+) (map[string]string, error) {
 	if role == "" || harness != "goose" {
-		return nil
+		return nil, nil
 	}
 	document, err := loadConfiguredHarnessLaunchProfiles()
 	// Release builds embed the profiles, so only a bare dev build finds none.
 	if errors.Is(err, errHarnessLaunchProfilesMissing) {
-		return nil
+		return nil, nil
 	}
 	if err != nil {
-		return fmt.Errorf("role %s launch refused: %w", role, err)
+		return nil, fmt.Errorf("role %s launch refused: %w", role, err)
 	}
 	set := roleModelEnvironment(document, role, harness, os.Getenv)
 	if _, pinned := set["GOOSE_MODEL"]; pinned {
@@ -348,7 +368,13 @@ func applyRoleModelEnvironment(
 		reportModelNotice(stderr, notice)
 		set = roleModelEnvironment(withRoleModelProfile(document, role, harness, profile), role, harness, os.Getenv)
 	}
-	for name, value := range set {
+	return set, nil
+}
+
+// exportRoleEnvironment sets a role's pinned env before the native launch
+// replaces this process, which is where the harness reads it.
+func exportRoleEnvironment(role string, env map[string]string) error {
+	for name, value := range env {
 		if err := os.Setenv(name, value); err != nil {
 			return fmt.Errorf("set %s for role %s: %w", name, role, err)
 		}

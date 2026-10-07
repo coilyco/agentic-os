@@ -1,9 +1,17 @@
-"""Tests for the staged text hygiene guards."""
+"""Tests for the staged text hygiene guards.
+
+The last section drives the real pre-commit binary, because which files a hook sees
+is decided by pre-commit and not by the hook (COI-2460, the same defect as COI-1743).
+"""
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 try:
@@ -165,3 +173,91 @@ def test_published_python_hook_entries_have_console_scripts() -> None:
         "published hook entries must be exported from [project.scripts]: "
         f"{missing}"
     )
+
+
+# --- which files each guard scans, through the real pre-commit (COI-2460) ----
+
+# hook id -> (entry module, a line it rejects, the rule id that rejects it)
+_GUARDS = {
+    "issue-reference-guard": (
+        "agentic_os.pre_commit.check_issue_references",
+        "See #337 for the draft\n",
+        "bare-issue-ref",
+    ),
+    "unresolved-placeholder-guard": (
+        "agentic_os.pre_commit.check_unresolved_placeholders",
+        "TODO implement the rest\n",
+        "todo-implement",
+    ),
+}
+
+
+def _wire(repo: Path, hook_id: str, module: str, monkeypatch) -> None:
+    """Point pre-commit in `repo` at the shipped definition of `hook_id`."""
+    hooks = yaml.safe_load((REPO_ROOT / ".pre-commit-hooks.yaml").read_text(encoding="utf-8"))
+    shipped = next(h for h in hooks if h["id"] == hook_id)
+    # Only the entry and language change. The file selection fields come from the
+    # shipped definition, which is the thing under test.
+    local = {k: shipped[k] for k in ("id", "name", "always_run", "pass_filenames", "stages")}
+    local |= {"language": "system", "entry": f'"{sys.executable}" -m {module}'}
+    config = {"repos": [{"repo": "local", "hooks": [local]}]}
+    (repo / ".pre-commit-config.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    # The config names the hook id, which the placeholder guard would itself flag.
+    _write(repo, "pyproject.toml", f"""
+[tool.agentic-os.{hook_id}]
+enabled = true
+excludes = [".pre-commit-config.yaml"]
+""")
+    for key in [k for k in os.environ if k.startswith("GIT_")]:
+        monkeypatch.delenv(key)  # pre-commit exports GIT_INDEX_FILE and friends
+    monkeypatch.setenv("PYTHONPATH", str(REPO_ROOT))
+    monkeypatch.setenv("PRE_COMMIT_HOME", str(repo.parent / "pc-home"))
+    monkeypatch.chdir(repo)
+
+
+def _pre_commit(hook_id: str, *args: str) -> subprocess.CompletedProcess[str]:
+    # Absent binary is an environment defect, not a reason to skip: CI runs it too.
+    binary = shutil.which("pre-commit")
+    assert binary, "pre-commit must be on PATH for the text guard file-selection tests"
+    cmd = [binary, "run", hook_id, "--hook-stage", "manual", *args]
+    return subprocess.run(cmd, text=True, capture_output=True, check=False)
+
+
+def _violations(result: subprocess.CompletedProcess[str]) -> list[str]:
+    return [ln for ln in result.stdout.splitlines() if ln.startswith("FAIL:")]
+
+
+def _dirty_repo(tmp_path: Path, hook_id: str, monkeypatch) -> Path:
+    """A repo whose committed tree violates, with an unrelated clean file ready to stage."""
+    module, bad, _rule = _GUARDS[hook_id]
+    (tmp_path / "repo").mkdir()
+    repo = _repo(tmp_path / "repo")
+    _wire(repo, hook_id, module, monkeypatch)
+    _write(repo, "dirty.md", bad)
+    _write(repo, "clean.txt", "fine\n")
+    _git(repo, "add", "-A")
+    _git(repo, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "base", "--no-verify")
+    return repo
+
+
+@pytest.mark.parametrize("hook_id", sorted(_GUARDS))
+def test_all_files_ignores_what_is_staged(hook_id, monkeypatch, tmp_path: Path) -> None:
+    repo = _dirty_repo(tmp_path, hook_id, monkeypatch)
+    rule = _GUARDS[hook_id][2]
+    empty_index = _pre_commit(hook_id, "--all-files")
+    _write(repo, "clean.txt", "fine, edited\n")
+    _git(repo, "add", "clean.txt")
+    one_staged = _pre_commit(hook_id, "--all-files")
+    assert empty_index.returncode == 1, empty_index.stdout
+    assert [v.split(" - ")[0] for v in _violations(empty_index)] == [f"FAIL: dirty.md:1: {rule}"]
+    assert one_staged.returncode == empty_index.returncode
+    assert _violations(one_staged) == _violations(empty_index)
+
+
+@pytest.mark.parametrize("hook_id", sorted(_GUARDS))
+def test_without_all_files_scans_only_the_staged_files(hook_id, monkeypatch, tmp_path: Path) -> None:
+    repo = _dirty_repo(tmp_path, hook_id, monkeypatch)
+    _write(repo, "clean.txt", "fine, edited\n")
+    _git(repo, "add", "clean.txt")
+    # dirty.md is tracked and violates but is not part of this run.
+    assert _pre_commit(hook_id).returncode == 0

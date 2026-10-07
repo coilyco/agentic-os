@@ -504,6 +504,12 @@ func runComposedLaunch(
 	command []string,
 	noSubstrate bool,
 ) (returnErr error) {
+	command, pinnedEnv, err := applyRoleLaunchProfile(
+		ctx, command, role, layout, cmd.Root().ErrWriter, listHarnessModels,
+	)
+	if err != nil {
+		return err
+	}
 	uid, gid := hostIdentity()
 	auth, err := authForLaunch(ctx, cmd.Bool("auth"), layout)
 	if err != nil {
@@ -546,6 +552,7 @@ func runComposedLaunch(
 		NoSubstrate:     noSubstrate,
 		AuthMounts:      auth.Mounts,
 		ForwardedEnvs:   forwardedEnvironment(cmd.Bool("auth")),
+		PinnedEnvs:      pinnedEnv,
 		Guarded:         true,
 		Kubeconfig:      cmd.String("kubeconfig"),
 		MCPInventory:    mcp.Inventory,

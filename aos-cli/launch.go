@@ -10,11 +10,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 
 	"golang.org/x/term"
@@ -84,6 +86,8 @@ type launchOptions struct {
 	NoSubstrate     bool
 	AuthMounts      []authMount
 	ForwardedEnvs   []string
+	// PinnedEnvs ride by value: the host never exported them.
+	PinnedEnvs      map[string]string
 	Kubeconfig      string
 	HostNetwork     bool
 	MCPInventory    string
@@ -247,7 +251,12 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 		"--env", "AOS_CONTAINER=1",
 	)
 	for _, key := range opts.ForwardedEnvs {
-		args = append(args, "--env", key)
+		if _, pinned := opts.PinnedEnvs[key]; !pinned {
+			args = append(args, "--env", key)
+		}
+	}
+	for _, key := range slices.Sorted(maps.Keys(opts.PinnedEnvs)) {
+		args = append(args, "--env", key+"="+opts.PinnedEnvs[key])
 	}
 	for _, mount := range opts.AuthMounts {
 		args = append(args, "--mount",

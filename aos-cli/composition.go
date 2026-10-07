@@ -247,7 +247,7 @@ func runStandaloneIntegratedLaunch(
 	cmd *cli.Command,
 	opts integratedLaunchOptions,
 ) (returnErr error) {
-	command, err := applyRoleModelProfile(
+	command, pinnedEnv, err := applyRoleLaunchProfile(
 		ctx,
 		append([]string{opts.Agent}, opts.Arguments...),
 		opts.Role,
@@ -310,6 +310,7 @@ func runStandaloneIntegratedLaunch(
 		NoSubstrate:     opts.NoSubstrate,
 		AuthMounts:      auth.Mounts,
 		ForwardedEnvs:   forwardedEnvironment(opts.Auth),
+		PinnedEnvs:      pinnedEnv,
 		Kubeconfig:      opts.Kubeconfig,
 		HostNetwork:     opts.HostNetwork,
 		MCPInventory:    mcp.Inventory,
