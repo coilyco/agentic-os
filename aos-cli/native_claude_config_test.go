@@ -105,7 +105,7 @@ func TestSeedNativeClaudeTrustAcceptsSessionPathsAndPreservesState(t *testing.T)
 	if !ok {
 		t.Fatalf("session project %s is missing from %+v", session, projects)
 	}
-	for _, key := range []string{"hasTrustDialogAccepted", "hasCompletedProjectOnboarding"} {
+	for _, key := range nativeClaudeTrustKeys {
 		if entry[key] != true {
 			t.Errorf("%s = %v, want true", key, entry[key])
 		}

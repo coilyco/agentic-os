@@ -51,8 +51,8 @@ and a session that prompts is still a working session.
 
 The config link carries onboarding and registry state, not the login itself. On
 macOS the OAuth token lives in the Keychain under a service name keyed to
-`CLAUDE_CONFIG_DIR`, so a session-scoped config directory never finds it. See
-[Claude credential bridging](native-claude-credentials.md).
+`CLAUDE_CONFIG_DIR`, so every seat shares `~/.claude-seats` and carries its
+own load points in as `--add-dir`: [credentials](native-claude-credentials.md).
 
 ## Native Codex hook trust
 

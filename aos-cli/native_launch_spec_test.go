@@ -232,3 +232,37 @@ func TestSpecLaunchLeavesACallerMCPConfigAlone(t *testing.T) {
 		t.Fatalf("a caller --mcp-config must suppress scoping, got %q", got)
 	}
 }
+
+func TestSpecLaunchUsesTheSharedSeatsConfigDir(t *testing.T) {
+	spec := specFixture(t, "claude")
+	fakeSpecComposer(t, spec)
+	shared := filepath.Join(t.TempDir(), ".claude-seats")
+	if err := os.MkdirAll(shared, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(agentComposeClaudeConfigDirEnv, shared)
+
+	got, err := resolveSpecLaunch(context.Background(),
+		[]string{"agent-compose", "launch", "platform", "claude", "--add-dir=/seat"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings := filepath.Join(shared, "settings.eng-platform.json")
+	got = append(got[:1], got[4:]...)
+	want := []string{"claude", "--name", "Beetle-Ox-ab12", "--settings", settings, "--add-dir=/seat"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("argv\n got %q\nwant %q", got, want)
+	}
+	if got := os.Getenv("CLAUDE_CONFIG_DIR"); got != shared {
+		t.Errorf("CLAUDE_CONFIG_DIR = %q, want the shared directory %q", got, shared)
+	}
+	if _, err := os.Stat(filepath.Join(shared, "themes", "aos-eng-platform.json")); err != nil {
+		t.Errorf("theme not installed where CLAUDE_CONFIG_DIR points: %v", err)
+	}
+	if _, set := os.LookupEnv(agentComposeClaudeConfigDirEnv); set {
+		t.Errorf("%s must not reach the harness", agentComposeClaudeConfigDirEnv)
+	}
+	if got := os.Getenv("HOME"); got != spec.RuntimeHome {
+		t.Errorf("HOME = %q, want the runtime home", got)
+	}
+}
