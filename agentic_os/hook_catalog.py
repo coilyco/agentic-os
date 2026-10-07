@@ -189,6 +189,35 @@ def hook_stages(hooks_file: Path | None = None) -> dict[str, list[str]]:
     return {h["id"]: list(h.get("stages") or []) for h in data if "id" in h}
 
 
+# Cheap whole-repo validators declared at pre-push too (COI-1052), so a rebase
+# cannot land red main. Heavy hooks stay off. docs/pre-commit-hygiene.md.
+PRE_PUSH_HOOK_IDS = [
+    "catalog-trifecta",
+    "code-review-contract",
+    "documentation-placement",
+    "documentation-size",
+    "context-load-points",
+    "code-comments",
+    "brand-case",
+    "actions-run-one-line",
+    "source-doc-refs",
+    "outbound-link-hygiene",
+    "repo-pointer-skills",
+    "agents-pointer",
+    "git-workflow",
+    "misplaced-skills",
+    "seed-skills",
+    "agent-compose-size",
+    "agent-compose-dedup",
+]
+
+
+def missing_pre_push_ids(hooks_file: Path | None = None) -> list[str]:
+    """Ids in PRE_PUSH_HOOK_IDS whose catalog entry omits the pre-push stage."""
+    stages = hook_stages(hooks_file)
+    return [h for h in PRE_PUSH_HOOK_IDS if "pre-push" not in stages.get(h, [])]
+
+
 def manual_only_ids(hooks_file: Path | None = None) -> set[str]:
     """Ids pre-commit runs only under `--hook-stage manual`."""
     return {

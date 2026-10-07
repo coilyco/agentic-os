@@ -5,10 +5,8 @@ text hygiene that are too disruptive to flip on everywhere at once.
 
 ## Active hooks
 
-- the upstream hygiene set: `trailing-whitespace`, `end-of-file-fixer`,
-  `check-added-large-files` (2048 KB), `check-merge-conflict`,
-  `check-case-conflict`, `check-illegal-windows-names`, `mixed-line-ending`,
-  `check-json`, `check-toml`
+- the upstream hygiene set: `trailing-whitespace`, `end-of-file-fixer`, `check-added-large-files` (2048 KB), `check-merge-conflict`, `check-case-conflict`, `check-illegal-windows-names`, `mixed-line-ending`, `check-json`, `check-toml`
+- the pre-push stage: a commit-only hook never runs on a rebase, so main can go red unseen (COI-1052). The cheap whole-repo validators, each about 2s or less (`documentation-size` near 2.5s), also declare `pre-push`, listed as `PRE_PUSH_HOOK_IDS` in [`hook_catalog.py`](../agentic_os/hook_catalog.py) and held by a test. Heavy hooks stay commit-only
 - `actionlint` on `.forgejo/workflows/*.yml` and `.yaml`. `.github/actionlint.yaml` teaches it the Forgejo runner label `docker`
 - `actions-run-one-line` rejects block, folded, escaped-newline, and physically split `run:` commands in GitHub and Forgejo workflows plus composite actions, and rejects a program body inlined into one line. A tracked script, composite action, or `just` verb owns the implementation while YAML invokes it from one line. See [one line, and no inlined body](#one-line-and-no-inlined-body)
 - `forgejo-runner-validate` for Forgejo-native workflow and local-action semantics

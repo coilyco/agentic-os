@@ -62,6 +62,26 @@ def test_undeclared_shipped_ids_flags_an_id_the_catalog_never_defines(
     assert hook_catalog.undeclared_shipped_ids(path) == ["ghost-hook"]
 
 
+def test_missing_pre_push_ids_flags_a_commit_only_hook(tmp_path, monkeypatch) -> None:
+    path = _hooks_file(tmp_path, CATALOG)
+    monkeypatch.setattr(
+        hook_catalog, "PRE_PUSH_HOOK_IDS", ["active-hook", "ghost-hook"], raising=True
+    )
+    assert hook_catalog.missing_pre_push_ids(path) == ["active-hook", "ghost-hook"]
+
+
+def test_missing_pre_push_ids_is_empty_once_declared(tmp_path, monkeypatch) -> None:
+    path = _hooks_file(tmp_path, CATALOG + "- id: both\n  stages: [pre-commit, pre-push]\n")
+    monkeypatch.setattr(hook_catalog, "PRE_PUSH_HOOK_IDS", ["both"], raising=True)
+    assert hook_catalog.missing_pre_push_ids(path) == []
+
+
+# A rebase can land a red main past a commit-only stage (COI-1052), so the
+# shipped catalog must declare pre-push on every cheap whole-repo validator.
+def test_shipped_catalog_declares_pre_push_for_the_cheap_validators() -> None:
+    assert hook_catalog.missing_pre_push_ids() == []
+
+
 def test_hook_ids_for_drops_the_repos_declared_skips() -> None:
     ids = hook_catalog.hook_ids_for("coilyco/lore")
     assert "repo-pointer-skills" not in ids

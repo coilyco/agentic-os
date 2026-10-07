@@ -8,7 +8,7 @@ repos:
         additional_dependencies: [pyyaml]
         pass_filenames: false
         files: '^\.agents/skills/'
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: check-composed-skills
         name: composed skill conventions
         entry: python -m agentic_os.pre_commit.check_composed_skills
@@ -16,7 +16,7 @@ repos:
         additional_dependencies: [pyyaml]
         pass_filenames: false
         always_run: true
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: documentation-placement
         name: documentation placement
         entry: python -c 'import sys; from agentic_os.pre_commit.check_documentation_layout import main_placement; sys.exit(main_placement())'
@@ -24,7 +24,7 @@ repos:
         additional_dependencies: [pyyaml]
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: documentation-size
         name: documentation size
         entry: python -c 'import sys; from agentic_os.pre_commit.check_documentation_layout import main_size; sys.exit(main_size())'
@@ -32,42 +32,42 @@ repos:
         additional_dependencies: [pyyaml]
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: catalog-trifecta
         name: catalog-trifecta cross-link convention
         entry: python -m agentic_os.pre_commit.check_catalog_trifecta
         language: python
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: code-review-contract
         name: code review contract
         entry: python -m agentic_os.pre_commit.check_code_review_contract
         language: python
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: context-load-points
         name: agent context load-points
         entry: python -m agentic_os.pre_commit.check_context_load_points
         language: python
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: brand-case
         name: brand name is lowercase
         entry: python -m agentic_os.pre_commit.check_brand_case
         language: python
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: code-comments
         name: code comment discipline
         entry: python -m agentic_os.pre_commit.check_code_comments
         language: python
         pass_filenames: false
         always_run: true
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: actions-run-one-line
         name: Actions run steps stay one line
         entry: python -m agentic_os.pre_commit.check_actions_run_one_line
@@ -76,14 +76,14 @@ repos:
         always_run: true
         pass_filenames: false
         files: '(^|/)(\.github/workflows/.*\.ya?ml|\.forgejo/workflows/.*\.ya?ml|action\.ya?ml)$'
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: source-doc-refs
         name: source doc references
         entry: python -m agentic_os.pre_commit.check_source_doc_refs
         language: python
         pass_filenames: false
         always_run: true
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: dead-cross-links
         name: dead cross-links
         entry: python -m agentic_os.pre_commit.check_dead_links
@@ -91,14 +91,14 @@ repos:
         additional_dependencies: [pyyaml]
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: outbound-link-hygiene
         name: outbound link hygiene (offline)
         entry: python -m agentic_os.pre_commit.check_outbound_links
         language: python
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: repo-pointer-skills
         name: repo-pointer skills auto-generated
         entry: python -m agentic_os.pre_commit.check_repo_pointer_skills
@@ -106,7 +106,7 @@ repos:
         additional_dependencies: [pyyaml]
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: git-workflow
         name: AGENTS.md git-workflow block auto-generated
         entry: python -m agentic_os.pre_commit.check_git_workflow
@@ -114,7 +114,7 @@ repos:
         additional_dependencies: [pyyaml]
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: misplaced-skills
         name: no foreign repo-specific skills
         entry: python -m agentic_os.pre_commit.check_misplaced_skills
@@ -122,7 +122,7 @@ repos:
         additional_dependencies: [pyyaml]
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: leak-guard
         name: encoded leak guard
         entry: python -m agentic_os.pre_commit.check_leak_guard
@@ -152,14 +152,14 @@ repos:
         additional_dependencies: [pyyaml]
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: caps-reference-drift
         name: catalog-caps-reference.md in sync with validator constants
         entry: python -m agentic_os.pre_commit.check_caps_reference_drift
         language: python
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: agent-compose-size
         name: agent-compose source size budget
         entry: python -m agentic_os.pre_commit.check_agent_compose_size
@@ -167,7 +167,7 @@ repos:
         additional_dependencies: [pyyaml]
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: agent-compose-dedup
         name: agent-compose dedup
         entry: python -m agentic_os.pre_commit.check_agent_compose_dedup
@@ -175,7 +175,7 @@ repos:
         additional_dependencies: [pyyaml]
         always_run: true
         pass_filenames: false
-        stages: [pre-commit]
+        stages: [pre-commit, pre-push]
       - id: unresolved-placeholder-guard
         name: unresolved placeholder guard
         entry: python -m agentic_os.pre_commit.check_unresolved_placeholders
