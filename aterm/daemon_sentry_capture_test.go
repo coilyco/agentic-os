@@ -154,7 +154,9 @@ func TestSentryCaptureErrorNeverQuotesTheKey(t *testing.T) {
 	}
 }
 
-func TestDaemonLogNeverQuotesTheDSN(t *testing.T) {
+// A DSN both parsers reject starts no check-in loop, whose pacing global the
+// check-in tests rewrite.
+func TestDaemonLogNeverQuotesARejectedDSN(t *testing.T) {
 	dir, err := os.MkdirTemp("/tmp", "aterm-test-")
 	if err != nil {
 		t.Fatal(err)
@@ -163,28 +165,25 @@ func TestDaemonLogNeverQuotesTheDSN(t *testing.T) {
 	if err := os.Chmod(dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	for name, dsn := range map[string]string{
-		"accepted": newFakeIngest(t).dsn(),
-		"rejected": "ftp://" + testDSNKey + "@o42.ingest.sentry.io/7",
-	} {
-		t.Run(name, func(t *testing.T) {
-			log := &syncBuffer{}
-			stop, stopped := make(chan struct{}), make(chan struct{})
-			go func() {
-				defer close(stopped)
-				_ = runDaemon(daemonOptions{Socket: filepath.Join(dir, name+".sock"), Idle: time.Hour, SentryDSN: dsn, Stop: stop}, log)
-			}()
-			time.Sleep(200 * time.Millisecond)
-			close(stop)
-			select {
-			case <-stopped:
-			case <-time.After(10 * time.Second):
-				t.Fatal("the daemon did not stop")
-			}
-			if strings.Contains(log.String(), testDSNKey) {
-				t.Fatalf("the daemon log quotes the DSN key:\n%s", log.String())
-			}
-		})
+	log := &syncBuffer{}
+	stop, stopped := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(stopped)
+		dsn := "https://" + testDSNKey + "@o42.ingest.sentry.io/"
+		_ = runDaemon(daemonOptions{Socket: filepath.Join(dir, "d.sock"), Idle: time.Hour, SentryDSN: dsn, Stop: stop}, log)
+	}()
+	time.Sleep(200 * time.Millisecond)
+	close(stop)
+	select {
+	case <-stopped:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the daemon did not stop")
+	}
+	if !strings.Contains(log.String(), "no Sentry error capture") {
+		t.Fatalf("the rejection was not logged:\n%s", log.String())
+	}
+	if strings.Contains(log.String(), testDSNKey) {
+		t.Fatalf("the daemon log quotes the DSN key:\n%s", log.String())
 	}
 }
 

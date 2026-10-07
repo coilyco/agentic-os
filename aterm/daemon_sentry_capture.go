@@ -19,7 +19,11 @@ type sentryCapture struct {
 // newSentryCapture reads the same DSN as the cron check-in. The SDK's own
 // parse error is dropped, since the DSN is a credential.
 func newSentryCapture(dsn, host, release string) (*sentryCapture, error) {
-	client, err := sentry.NewClient(sentry.ClientOptions{Dsn: dsn, ServerName: host, Release: release})
+	// Synchronous, so the event has left or timed out when record returns. The
+	// queued transport lost events to a flush that raced the queue.
+	transport := sentry.NewHTTPSyncTransport()
+	transport.Timeout = sentryFlushWait
+	client, err := sentry.NewClient(sentry.ClientOptions{Dsn: dsn, ServerName: host, Release: release, Transport: transport})
 	if err != nil {
 		return nil, errors.New("the Sentry DSN was rejected")
 	}
