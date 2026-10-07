@@ -14,7 +14,9 @@
 # exits 0 with `chunks: 0` when that fails. Under the agent commit-attribution shim it
 # does: trufflehog gives git no PATH and the shim needs one to find the real git. The
 # script drops that shim dir for the scan and fails any non-empty range that reads no
-# chunks, so another cause cannot pass silently.
+# chunks, so another cause cannot pass silently. The same silent pass hit the first real
+# push: pre-commit exports PRE_COMMIT=1, and trufflehog git then ignores its range flags
+# and scans only staged changes. The scan runs with PRE_COMMIT unset.
 #
 # The index is written out with `git checkout-index` and that directory is scanned
 # with `trufflehog filesystem`. The earlier `trufflehog git file://. --since-commit
@@ -80,14 +82,14 @@ scan_range() {
   path_clean="$(printf '%s' "$PATH" | tr ':' '\n' | grep -v '/agent-git-attribution$' | paste -sd: -)"
 
   local rc=0 chunks
-  PATH="$path_clean" trufflehog "${common[@]}" --exclude-paths "$scan_root/skip.paths" >"$scan_root/pass1.out" 2>&1
+  env -u PRE_COMMIT PATH="$path_clean" trufflehog "${common[@]}" --exclude-paths "$scan_root/skip.paths" >"$scan_root/pass1.out" 2>&1
   [[ $? -eq 0 ]] || rc=1
   chunks="$(grep -o '"chunks": [0-9]*' "$scan_root/pass1.out" | tail -1 | grep -o '[0-9]*$')"
   if [[ "${chunks:-0}" -eq 0 ]]; then
     echo "trufflehog read no chunks from $commits commit(s) in $range, so the push scan did not run" >&2
     rc=1
   fi
-  PATH="$path_clean" trufflehog "${common[@]}" --include-paths "$scan_root/lock.paths" \
+  env -u PRE_COMMIT PATH="$path_clean" trufflehog "${common[@]}" --include-paths "$scan_root/lock.paths" \
     --exclude-detectors SentryToken >"$scan_root/pass2.out" 2>&1 || rc=1
 
   [[ "$rc" -eq 0 ]] || cat "$scan_root/pass1.out" "$scan_root/pass2.out"

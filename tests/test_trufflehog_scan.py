@@ -2,9 +2,10 @@
 
 The hook scans staged content at pre-commit, so those cases stage a change in a
 throwaway git repo and run the script there (COI-2134: a clone-based scan passed staged
-secrets). At pre-push it scans the pushed commits, so those cases commit instead and set
-the PRE_COMMIT_* refs pre-commit exports (COI-2430). A mock binary cannot catch either
-class of bug, because the failure was in what trufflehog was pointed at.
+secrets). At pre-push it scans the pushed commits, so those cases commit instead and
+set the variables pre-commit exports, PRE_COMMIT=1 included (COI-2430). A mock binary
+cannot catch either class of bug, because the failure was in what trufflehog was
+pointed at.
 """
 from __future__ import annotations
 
@@ -180,7 +181,7 @@ def _rev(root: Path, ref: str) -> str:
 
 def _push_range(root: Path, from_ref: str) -> subprocess.CompletedProcess[str]:
     """Scan as pre-push does for a branch whose remote tip is from_ref."""
-    return _scan(root, {"PRE_COMMIT_FROM_REF": from_ref, "PRE_COMMIT_TO_REF": _rev(root, "HEAD")})
+    return _scan(root, {"PRE_COMMIT": "1", "PRE_COMMIT_FROM_REF": from_ref, "PRE_COMMIT_TO_REF": _rev(root, "HEAD")})
 
 
 def test_push_committed_credential_in_range_fails(tmp_path: Path) -> None:
@@ -223,7 +224,7 @@ def test_first_push_scans_the_whole_history_including_the_root_commit(tmp_path: 
     _git(root, "init", "-q", ".")
     _commit(root, "notes.txt", _CREDENTIAL_NOTE)
     _commit(root, "other.txt", "nothing to see\n")
-    result = _scan(root, {"PRE_COMMIT_REMOTE_NAME": "origin"})
+    result = _scan(root, {"PRE_COMMIT": "1", "PRE_COMMIT_REMOTE_NAME": "origin"})
     assert result.returncode != 0, result.stdout + result.stderr
 
 
