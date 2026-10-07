@@ -7,12 +7,11 @@ What a native session does on the way up, and which branch it lands on.
 Why the canonical checkout owns `main`, and the guards that keep it that way. Companion to [native agent
 workspaces](native-agent-workspaces.md). Git allows one checkout of a branch per repository, so a linked worktree holding `main`
 takes it from the canonical checkout, which then cannot switch back. The fleet pass that would have returned it fails the same way
-rather than repairing it, so the checkout stays parked on a stale branch indefinitely.
+rather than repairing it, leaving it parked on a stale branch.
 
 Squatting is worse than a lock, because branch configuration is repository-global. A worktree on `main` pushing with an
 upstream-setting push rewrites `branch.main.merge` for every worktree including the operator's, and with `pull.rebase` set their
-next `git pull` rebases `main` onto a session branch and reports divergence against a ref nobody chose, silently, reading like their
-own commits went wrong.
+next `git pull` rebases `main` onto a session branch and reports divergence against a ref nobody chose, silently.
 
 Startup therefore detaches any non-canonical worktree found on `main` at the same commit, leaving the working tree untouched, and
 resets `branch.main.merge` when it points elsewhere. Both are backstops: an agent stays on its session branch and detaches when it
@@ -22,7 +21,7 @@ needs main's content.
 
 The live-worktree set fails closed: when a path cannot be identified, every path reads as live and the pass does nothing. A purged
 temporary root used to trip that, because a lease naming a worktree that no longer exists made `EvalSymlinks` fail, so one purged
-session disabled the whole pass indefinitely. Absence now answers "not live", and only a path unreadable for another reason still
+session disabled the whole pass. Absence now answers "not live", and only a path unreadable for another reason still
 fails closed.
 
 The repository plan works the same way. An absent plan fell back to a seed expecting almost nothing, so every clean fleet checkout
@@ -111,7 +110,7 @@ level. The fleet pass, reclaim, and worktree creation run repositories on at mos
 Startup cleanup is serialized by a lock directory under the native state root, recording the PID and process-start identity of its
 holder, so a launch interrupted mid-cleanup is reclaimed at once rather than blocking the next one, printing `wait  reclaiming
 startup lock abandoned by pid N`. A live holder is never stolen from: the waiting launch reports its PID every five seconds and
-gives up after two minutes naming that PID and the lock path.
+gives up after two minutes naming that PID and the lock path. The update check takes its own `update-gate.lock`, so launches ask once.
 
 ## Terminal titles
 

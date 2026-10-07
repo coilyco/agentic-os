@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -208,6 +210,60 @@ func TestUpdateGateSkipsInsideTheCooldownAndNarratesTheAge(t *testing.T) {
 	}
 	if !strings.Contains(progress.String(), "last check 2.0h ago, interval 1.0d") {
 		t.Errorf("the skip must name the age and the interval:\n%s", progress.String())
+	}
+}
+
+// COI-2148: the gate ran before any lock, so two seats launched together each
+// saw the check as due and each asked the same question.
+func TestUpdateGateAsksOnceForTwoSimultaneousLaunches(t *testing.T) {
+	first, firstErr := updateTestRuntime(t)
+	second := first
+	secondErr := &bytes.Buffer{}
+	second.Stderr = secondErr
+
+	var checks atomic.Int32
+	entered := make(chan struct{})
+	newGate := func() nativeUpdateGate {
+		return nativeUpdateGate{
+			Check: func(context.Context) ([]nativeUpdate, error) {
+				if checks.Add(1) == 1 {
+					close(entered)
+				}
+				// Long enough for the other launch to reach its own check.
+				time.Sleep(5 * nativeLockPoll)
+				return []nativeUpdate{{Formula: "aos", Installed: "0.313.0", Available: "0.314.0"}}, nil
+			},
+			Apply: func(context.Context, []string) error { return nil },
+			Stdin: strings.NewReader("n\n"),
+			TTY:   true,
+		}
+	}
+
+	var launches sync.WaitGroup
+	errs := make([]error, 2)
+	launch := func(index int, runtime nativeRuntime) {
+		defer launches.Done()
+		errs[index] = gateNativeUpdateOnce(context.Background(), runtime, newGate())
+	}
+	launches.Add(2)
+	go launch(0, first)
+	<-entered
+	go launch(1, second)
+	launches.Wait()
+
+	for index, err := range errs {
+		if err != nil {
+			t.Fatalf("launch %d: a decline is not an error: %v", index, err)
+		}
+	}
+	if got := checks.Load(); got != 1 {
+		t.Errorf("want one update check across both launches, ran %d", got)
+	}
+	prompts := strings.Count(firstErr.String(), "apply the update") +
+		strings.Count(secondErr.String(), "apply the update")
+	if prompts != 1 {
+		t.Errorf("want exactly one update prompt, got %d:\nfirst:\n%s\nsecond:\n%s",
+			prompts, firstErr.String(), secondErr.String())
 	}
 }
 

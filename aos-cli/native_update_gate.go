@@ -21,6 +21,9 @@ const (
 	// waiting out the day, so a network blip costs minutes and not a release.
 	nativeUpdateRetryInterval = 15 * time.Minute
 	nativeUpdateCheckTimeout  = 60 * time.Second
+	// Outlasts a prompt plus a brew upgrade, which the two minute startup wait
+	// would not.
+	nativeUpdateLockWait = 10 * time.Minute
 	// The recovery path rather than a convenience: the gate ships inside the
 	// binary it gates. teable:coilyco-bridge/infrastructure#7054
 	nativeSkipUpdateGateEnv = "AOS_SKIP_UPDATE_GATE"
@@ -64,6 +67,17 @@ func defaultNativeUpdateGate() nativeUpdateGate {
 		Stdin: os.Stdin,
 		TTY:   isTerminal(os.Stdin),
 	}
+}
+
+// gateNativeUpdateOnce holds a lock across the due check and the prompt, so the
+// second of two simultaneous launches finds the first's marker. Not startup.lock.
+func gateNativeUpdateOnce(ctx context.Context, runtime nativeRuntime, gate nativeUpdateGate) error {
+	if err := os.MkdirAll(runtime.StateRoot, 0o700); err != nil {
+		return fmt.Errorf("create native state root: %w", err)
+	}
+	return withNativeLock(runtime, "update-gate", nativeUpdateLockWait, func() error {
+		return gateNativeUpdate(ctx, runtime, gate)
+	})
 }
 
 // A failed check means we do not know an update exists, and a refusal means we
