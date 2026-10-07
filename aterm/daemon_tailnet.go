@@ -272,6 +272,7 @@ func probeTailnetTLS(ctx context.Context, address string, config *tls.Config) er
 // serveTailnetWhenUp binds with backoff, holds the listener until done closes,
 // and binds a fresh one when it goes bad. It never changes Tailscale's state.
 func (d *daemon) serveTailnetWhenUp(done <-chan struct{}, listen func() (*tailnetServing, error)) {
+	defer d.guard("tailnet")
 	delay, last := tailnetBackoff.first, ""
 	for {
 		serving, err := listen()

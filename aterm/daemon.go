@@ -41,6 +41,8 @@ type daemon struct {
 	// daemon adopts what it finds there.
 	holdDir string
 	tailnet tailnetState
+	// capture sends panics to Sentry, nil without a DSN. Set before goroutines start.
+	capture *sentryCapture
 	// ledgerDir holds a record per session for `aterm resume`. Empty keeps none.
 	ledgerDir string
 	// ledgerMu keeps a record's write and its end stamp in one order, however
@@ -117,7 +119,7 @@ type daemonOptions struct {
 	// EndSessions ends every session when the daemon stops. By default they
 	// keep running in their holders for the next daemon to adopt.
 	EndSessions bool
-	// SentryDSN turns on the cron check-in, empty for none. A credential, so never logged.
+	// SentryDSN turns on check-ins and panic capture, empty for none. Never logged.
 	SentryDSN string
 	// AgentProxy is the proxy base URL for proxy-backed seats' context, empty for none.
 	AgentProxy string
@@ -155,6 +157,14 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		fmt.Fprintf(stderr, "%s aterm daemon: %s\n", time.Now().UTC().Format(time.RFC3339), fmt.Sprintf(format, args...))
 	}
 	d := newDaemon(logf)
+	if options.SentryDSN != "" {
+		if d.capture, err = newSentryCapture(options.SentryDSN, hostName(), version); err != nil {
+			logf("no Sentry error capture: %v", err)
+		} else {
+			defer d.capture.flush()
+			defer d.guard("daemon")
+		}
+	}
 	d.holdDir = filepath.Join(dir, "hold")
 	d.ledgerDir = ledgerDir()
 	pruneLedger(d.ledgerDir, time.Now())
@@ -223,6 +233,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 }
 
 func (d *daemon) watchIdle(listener net.Listener, idle time.Duration) {
+	defer d.guard("idle")
 	for range time.Tick(time.Second) {
 		d.expireOrphans(time.Now())
 		d.mu.Lock()
@@ -316,6 +327,7 @@ func (d *daemon) serve(raw net.Conn) {
 }
 
 func (d *daemon) serveConn(c *conn, pid int, browser bool) {
+	defer d.guard("connection")
 	defer c.Close()
 	hello, err := c.read()
 	if err != nil || hello.Type != "hello" {
@@ -734,6 +746,7 @@ func (d *daemon) send(c *conn, message frame) error {
 // reportSent waits 3s, or as long as the sender asked, for a final state. A launching
 // message answers at once. One not final by then owes its sender a receipt.
 func (d *daemon) reportSent(c *conn, id string, pending *pendingSend, wait int) {
+	defer d.guard("send report")
 	limit := 3 * time.Second
 	if wait > 0 {
 		limit = min(time.Duration(wait)*time.Second, maxSendWait)

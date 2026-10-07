@@ -204,6 +204,7 @@ func (d *daemon) connectHolder(socket string, adopted bool) (*ptySession, error)
 // readHold feeds the holder's output into the session until it exits. A
 // holder that goes without an exit frame took its child with it.
 func (s *ptySession) readHold() {
+	defer s.d.guard("holder reader")
 	for {
 		message, err := s.holder.read()
 		if err != nil {
@@ -581,6 +582,7 @@ func (s *ptySession) nudge() {
 }
 
 func (s *ptySession) deliverLoop() {
+	defer s.d.guard("delivery")
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
 	for {

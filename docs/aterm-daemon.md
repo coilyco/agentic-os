@@ -28,13 +28,13 @@ aterm mcp
 
 **`aterm clear` types the harness's clear command, unstamped.** Only Kai's client and the `prod-director` role may, never on the caller's own session, a prompt, or a seat with no known command (claude only). Without `--force` it also refuses a busy session, a draft, or queued messages.
 
-**A session outlives its window.** Closing it detaches that client, and the harness runs on until `aterm close` types the harness's exit (`/exit` for claude) at an idle prompt and waits 10 seconds, then sends SIGTERM, then SIGKILL after 3 seconds. Close refuses the caller's own session or one it runs inside, and without `--force` one holding Kai's draft or queued messages.
+**A session outlives its window.** Closing it detaches that client, and the harness runs on until `aterm close` types the harness's exit (`/exit` for claude) at an idle prompt and waits 10 seconds, then sends SIGTERM, then SIGKILL after 3 seconds.
 
 **A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn as one stdin line since the environment holds credentials. It listens in `hold/`, one socket per spawn, and speaks `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running. The next one adopts each, drops a socket nobody answers. An adopted session has a typing hold, and pending messages are lost.
 
-**`ATERM_SENTRY_DSN` (SSM `/coilysiren/sentry/dsn/aterm`, via `daemon.env`) turns on a Sentry cron check-in** every 5 minutes: `ok` if the tailnet listener completes a handshake, else `error`.
+**`ATERM_SENTRY_DSN` (SSM `/coilysiren/sentry/dsn/aterm`, via `daemon.env`) turns on two Sentry reports.** A cron check-in every 5 minutes says `ok` if the tailnet handshake completes, else `error`. A panic in a daemon goroutine goes out through sentry-go as a fatal event tagged `goroutine`, flushed within 2 seconds, then is raised again, so the crash is unchanged. No log quotes the DSN.
 
-**A missing daemon costs messaging, never the session.** `_session` starts one, else runs the harness directly, and [launchd](aterm-bundles.md) can run it. A window that loses the daemon redials and replays only what it had not drawn.
+**A missing daemon costs messaging, never the session.** `_session` starts one, else runs the harness directly, and [launchd](aterm-bundles.md) can run it.
 
 **The socket is `/tmp/aterm-<uid>/daemon.sock`, keyed by uid rather than `HOME`**, because a session shadow moves `HOME` and every seat must reach one daemon. `ATERM_DAEMON_SOCKET` overrides it. The directory must be the user's alone, which is all of local client auth. An idle daemon exits after five minutes.
 

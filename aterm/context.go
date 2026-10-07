@@ -390,6 +390,7 @@ func (d *daemon) refreshContexts() {
 
 // watchContext reads on a timer until done closes.
 func (d *daemon) watchContext(done <-chan struct{}, every time.Duration) {
+	defer d.guard("context")
 	ticker := time.NewTicker(every)
 	defer ticker.Stop()
 	for {

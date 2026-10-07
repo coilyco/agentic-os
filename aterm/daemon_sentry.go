@@ -103,6 +103,7 @@ func (c *sentryCron) checkIn(ctx context.Context, ok bool) error {
 // sentryCheckIns reports each interval whether the tailnet listener completes
 // a handshake now. A stopped daemon sends nothing, which Sentry reads as missed.
 func (d *daemon) sentryCheckIns(done <-chan struct{}, cron *sentryCron) {
+	defer d.guard("check-in")
 	wait, lastHealth, lastSend := sentryCheckIn.first, "", ""
 	for {
 		select {
