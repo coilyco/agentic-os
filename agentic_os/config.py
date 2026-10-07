@@ -264,8 +264,11 @@ def is_excluded(rel_path: Path | str, patterns: Iterable[str]) -> bool:
     for raw in patterns:
         pattern = raw.replace("\\", "/")
         if pattern.endswith("/**"):
-            prefix = pattern[:-3]
-            if s == prefix or s.startswith(prefix + "/"):
+            # The prefix goes through the glob grammar, so `foo*/**` matches.
+            # Read as literal text it matched nothing, silently (COI-1744).
+            prefix = _glob_to_regex(pattern[:-3])
+            parts = s.split("/")
+            if any(prefix.match("/".join(parts[:n])) for n in range(1, len(parts) + 1)):
                 return True
             continue
         if pattern.endswith("/"):

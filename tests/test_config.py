@@ -174,6 +174,17 @@ agents_md_max_chars = 12000
     ("src/pages/foo.md", ["src/pages/**"], True),
     ("src/pages", ["src/pages/**"], True),
     ("other.md", ["src/pages/**"], False),
+    # A wildcard before a trailing /** is globbed, not read as literal text.
+    ("a/x-pr-review/SKILL.md", ["a/*-pr-review/**"], True),
+    ("a/x-pr-review", ["a/*-pr-review/**"], True),
+    ("a/x-pr-review/b/c.md", ["a/*-pr-review/**"], True),
+    ("a/x-other/SKILL.md", ["a/*-pr-review/**"], False),
+    ("a/x/y-pr-review/SKILL.md", ["a/*-pr-review/**"], False),
+    ("foo1/bar.md", ["foo*/**"], True),
+    ("x/foo1/bar.md", ["foo*/**"], False),
+    ("bar/foo1.md", ["foo*/**"], False),
+    # A path equal to the prefix counts as the directory, as `src/pages` does.
+    ("foobar", ["foo*/**"], True),
     # A pattern with a slash is anchored to the repo root.
     ("docs/foo.md", ["docs/*.md"], True),
     ("docs/sub/foo.md", ["docs/*.md"], False),
