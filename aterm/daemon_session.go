@@ -691,13 +691,17 @@ func (s *ptySession) deliverNext(now time.Time) {
 		return
 	}
 	s.mu.Unlock()
-	err := s.inject(next.text, paste)
+	err := s.submit(next.text, paste)
 	s.mu.Lock()
 	if len(s.pending) > 0 && s.pending[0] == next {
 		s.pending = s.pending[1:]
 	}
 	s.mu.Unlock()
 	s.writeMu.Unlock()
+	if errors.Is(err, errNotSubmitted) {
+		next.setState("failed", s.name+": "+err.Error())
+		return
+	}
 	if err != nil {
 		next.setState("failed", "writing to "+s.name+": "+err.Error())
 		return

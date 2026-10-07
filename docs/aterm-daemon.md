@@ -36,7 +36,7 @@ aterm mcp
 
 **A missing daemon costs messaging, never the session.** `_session` starts one, else runs the harness directly, and [launchd](aterm-bundles.md) can run it.
 
-**The socket is `/tmp/aterm-<uid>/daemon.sock`, keyed by uid rather than `HOME`**, because a session shadow moves `HOME` and every seat must reach one daemon. `ATERM_DAEMON_SOCKET` overrides it. The directory must be the user's alone, which is all of local client auth. An idle daemon exits after five minutes.
+**The socket is `/tmp/aterm-<uid>/daemon.sock`, keyed by uid rather than `HOME`**, because a session shadow moves `HOME` and every seat must reach one daemon. `ATERM_DAEMON_SOCKET` overrides it. The directory must be the user's alone, which is all of local client auth.
 
 ## `aterm send`
 
@@ -46,9 +46,9 @@ aterm mcp
 
 **Targets resolve in tiers**: session name, role slug, identity, then harness. The first tier with a match wins, several matches in it refuse and name them, and none exits 3 with the live sessions listed. `--launch` on a role slug opens the role and holds the message up to three minutes. `--new` always opens another instance and names it.
 
-**Delivery serializes with the keyboard.** One lock covers every PTY write, so a message never interleaves with keystrokes. A message is `queued` until the target is ready, `held` while Kai typed in the last 1.5 seconds, has a draft touched in the last minute, or a permission or choice card is up, then `delivered` or `failed`. Enter, Ctrl-C or Ctrl-U clear the draft.
+**Delivery serializes with the keyboard.** One lock covers every PTY write, so nothing interleaves. A message is `queued` until the target is ready, `held` while Kai typed in the last 1.5 seconds, has a draft touched in the last minute, or a permission or choice card is up, then `delivered` or `failed`. Enter, Ctrl-C or Ctrl-U clear the draft.
 
-**A program that asked for bracketed paste gets the message as one paste, then Enter 300ms later**, since an Enter inside the paste reads as a newline. Without it, lines join with spaces. codex turns it on at its prompt, so **ready means paste is on, never a quiet screen**. claude and opencode drop a paste before the prompt mounts, so **ready means `Try "` or `Ask anything` showed**, or 20s passed.
+**A program that asked for bracketed paste gets the message as one paste, then Enter 300ms later**, since an Enter inside the paste reads as a newline. Without it, lines join with spaces. codex turns it on at its prompt, so **ready means paste is on, never a quiet screen**. claude and opencode drop a paste before the prompt mounts, so **ready means `Try "` or `Ask anything` showed**, or 20s passed. **`delivered` means claude took Enter**, re-pressed up to 3 times.
 
 **A process inside a session cannot type into one.** The daemon walks the connecting pid's parents. Such a process may send, stamped, but not type, unless it spawned that session. This guards mistakes, not a double-forking process.
 

@@ -16,6 +16,10 @@ func TestMain(m *testing.M) {
 		main()
 		os.Exit(0)
 	}
+	if len(os.Args) > 3 && os.Args[1] == fakeBoxCommand {
+		runFakeBox()
+		os.Exit(0)
+	}
 	os.Exit(runIsolated(m))
 }
 
