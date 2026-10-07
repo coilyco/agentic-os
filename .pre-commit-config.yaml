@@ -181,14 +181,14 @@ repos:
         entry: python -m agentic_os.pre_commit.check_unresolved_placeholders
         language: python
         always_run: true
-        pass_filenames: false
+        pass_filenames: true
         stages: [manual]
       - id: issue-reference-guard
         name: issue reference guard
         entry: python -m agentic_os.pre_commit.check_issue_references
         language: python
         always_run: true
-        pass_filenames: false
+        pass_filenames: true
         stages: [manual]
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

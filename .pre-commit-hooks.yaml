@@ -278,18 +278,18 @@
 
 - id: unresolved-placeholder-guard
   name: unresolved placeholder guard
-  description: "Reject unresolved placeholder prose like TODO implement, stub, placeholder, lorem, and generated apology/provenance phrases. Ships manual-only so repos can opt in once they have allowlists."
+  description: "Reject unresolved placeholder prose like TODO implement, stub, placeholder, lorem, and generated apology/provenance phrases. Scans the files pre-commit passes, so --all-files covers every tracked file whatever is staged. Ships manual-only so repos can opt in once they have allowlists."
   entry: check-unresolved-placeholders
   language: python
   always_run: true
-  pass_filenames: false
+  pass_filenames: true
   stages: [manual]
 
 - id: issue-reference-guard
   name: issue reference guard
-  description: "Reject direct issue references in tracked prose so durable docs, not issue-thread anchors, carry long-lived meaning. Skips fenced code, inline code, quoted examples, and test fixtures, and leaves external upstream issue links alone. Ships manual-only pending repo-specific rollout and allowlists."
+  description: "Reject direct issue references in tracked prose so durable docs, not issue-thread anchors, carry long-lived meaning. Skips fenced code, inline code, quoted examples, and test fixtures, and leaves external upstream issue links alone. Scans the files pre-commit passes, so --all-files covers every tracked file whatever is staged. Ships manual-only pending repo-specific rollout and allowlists."
   entry: check-issue-references
   language: python
   always_run: true
-  pass_filenames: false
+  pass_filenames: true
   stages: [manual]

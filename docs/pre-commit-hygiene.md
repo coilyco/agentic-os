@@ -68,10 +68,10 @@ coilysiren/inbox#417.
 
 Opting one in means adding it at `stages: [manual]` and supplying repo-local
 config under `[tool.agentic-os.<hook>]` in `pyproject.toml`: `enabled = true`
-plus optional `excludes` and `allow_globs` path lists. The issue guard is for
-durable prose breadcrumbs like `See #337 for the draft`, not literal syntax
-examples or upstream issue links. Manual-only hooks stay out of the fleet
-coverage audit until they roll out as active checks.
+plus optional `excludes` and `allow_globs` path lists. Both guards scan the files
+pre-commit passes, so `--all-files` covers every tracked path (COI-2460). The issue
+guard is for durable prose breadcrumbs like `See #337 for the draft`. Manual-only
+hooks stay out of the fleet coverage audit until they roll out as active checks.
 
 ## Encoded leak guard
 
