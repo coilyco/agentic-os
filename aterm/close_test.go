@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -118,5 +120,45 @@ func TestDaemonKeepsASessionHoldingKaisDraftUnlessForced(t *testing.T) {
 	reply, err = closeFrame(t, closer, frame{Target: "scientist-evie", Force: true})
 	if err != nil || reply.Session != "scientist-evie" {
 		t.Fatalf("force should close it, got %+v, %v", reply, err)
+	}
+}
+
+// A pool name recurs, so "closed" has to mean the name is free. The owner stops
+// reading, so its exit frame holds the session between process end and forget.
+func TestClosedReplyMeansTheNameIsFree(t *testing.T) {
+	d := newDaemon(func(string, ...any) {})
+	d.holdDir = testHoldDir(t)
+	t.Cleanup(d.endAll)
+	pipe := func(browser bool) *conn {
+		client, server := net.Pipe()
+		go d.serveConn(newConn(server), 0, browser)
+		c := newConn(client)
+		t.Cleanup(func() { _ = c.Close() })
+		if err := c.write(frame{Type: "hello", Format: daemonFormat}); err != nil {
+			t.Fatalf("hello: %v", err)
+		}
+		nextFrame(t, c, "welcome")
+		return c
+	}
+	owner := pipe(false)
+	if _, err := owner.request(frame{
+		Type: "spawn", Session: "close-pooled", Role: "frontend-eng", Identity: "Imp",
+		Argv: []string{"/bin/sh", "-c", "exec sleep 30"}, Env: os.Environ(), Cwd: "/",
+	}); err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	go func() {
+		time.Sleep(400 * time.Millisecond)
+		for {
+			if _, err := owner.read(); err != nil {
+				return
+			}
+		}
+	}()
+	if _, err := pipe(true).request(frame{Type: "close", Target: "close-pooled", Force: true}); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if d.session("close-pooled") != nil {
+		t.Fatal("close replied while the daemon still held the name, so a respawn of it is refused")
 	}
 }

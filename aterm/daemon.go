@@ -764,6 +764,9 @@ func (d *daemon) reportSent(c *conn, id string, pending *pendingSend, wait int) 
 	}
 }
 
+// forgetGrace is how long a close waits for the daemon to drop an ended session's name.
+const forgetGrace = 5 * time.Second
+
 // closeSession ends a live session and drops it, which closing its window does
 // not. It never ends the caller or a session the caller runs inside.
 func (d *daemon) closeSession(cl *client, message frame) error {
@@ -795,6 +798,11 @@ func (d *daemon) closeSession(cl *client, message frame) error {
 	case <-s.done:
 	default:
 		return fmt.Errorf("%s (pid %d) did not end after SIGKILL", s.name, s.pid)
+	}
+	select {
+	case <-s.forgotten:
+	case <-time.After(forgetGrace):
+		return fmt.Errorf("%s ended but the daemon still holds its name", s.name)
 	}
 	s.mu.Lock()
 	code := s.exitCode
