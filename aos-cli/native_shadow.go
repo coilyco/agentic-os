@@ -203,7 +203,7 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 	runtime.Progress.Begin(harness, command)
 	// Before any session state exists, and after `--probe` returned, so a
 	// metadata read never waits. teable:coilyco-bridge/infrastructure#7054
-	if err := gateNativeUpdate(ctx, runtime, defaultNativeUpdateGate()); err != nil {
+	if err := gateNativeUpdateOnce(ctx, runtime, defaultNativeUpdateGate()); err != nil {
 		return err
 	}
 	if err := convergeNativeEnvironment(ctx, runtime); err != nil {
@@ -568,7 +568,13 @@ func prepareNativeLaunchWorkspaceWithOptions(
 // withNativeStartupLock serializes startup cleanup. The lock names its owner,
 // so an interrupted launch is reclaimed at once. docs/native-session-start.md
 func withNativeStartupLock(runtime nativeRuntime, action func() error) error {
-	lock := filepath.Join(runtime.StateRoot, "startup.lock")
+	return withNativeLock(runtime, "startup", nativeLockWait, action)
+}
+
+// withNativeLock backs the startup lock and the update gate lock. A
+// person-paced action passes a longer wait.
+func withNativeLock(runtime nativeRuntime, name string, wait time.Duration, action func() error) error {
+	lock := filepath.Join(runtime.StateRoot, name+".lock")
 	began := time.Now()
 	announced := time.Time{}
 	for {
@@ -580,31 +586,31 @@ func withNativeStartupLock(runtime nativeRuntime, action func() error) error {
 				ProcessStart: runtime.ProcessStart,
 				Acquired:     time.Now().UTC(),
 			}); err != nil {
-				return fmt.Errorf("claim native startup lock: %w", err)
+				return fmt.Errorf("claim native %s lock: %w", name, err)
 			}
 			return action()
 		}
 		if !errors.Is(err, fs.ErrExist) {
-			return fmt.Errorf("acquire native startup lock: %w", err)
+			return fmt.Errorf("acquire native %s lock: %w", name, err)
 		}
 		holder, live := inspectNativeStartupLock(lock)
 		if !live {
-			runtime.Progress.Wait("reclaiming startup lock abandoned by pid %d", holder.PID)
+			runtime.Progress.Wait("reclaiming %s lock abandoned by pid %d", name, holder.PID)
 			if err := os.RemoveAll(lock); err != nil {
-				return fmt.Errorf("reclaim abandoned native startup lock %s: %w", lock, err)
+				return fmt.Errorf("reclaim abandoned native %s lock %s: %w", name, lock, err)
 			}
 			continue
 		}
 		waited := time.Since(began)
-		if waited >= nativeLockWait {
+		if waited >= wait {
 			return fmt.Errorf(
-				"native startup pid %d has held %s for %s; wait for that launch or remove the lock directory",
-				holder.PID, lock, formatNativeDuration(waited))
+				"native %s pid %d has held %s for %s; wait for that launch or remove the lock directory",
+				name, holder.PID, lock, formatNativeDuration(waited))
 		}
 		if time.Since(announced) >= nativeLockNotice {
 			announced = time.Now()
-			runtime.Progress.Wait("native startup pid %d holds the lock, waited %s",
-				holder.PID, formatNativeDuration(waited))
+			runtime.Progress.Wait("native %s pid %d holds the lock, waited %s",
+				name, holder.PID, formatNativeDuration(waited))
 		}
 		time.Sleep(nativeLockPoll)
 	}
