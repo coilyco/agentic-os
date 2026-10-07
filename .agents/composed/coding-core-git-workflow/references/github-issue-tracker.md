@@ -1,6 +1,6 @@
 # GitHub issues as work tracker
 
-Precedence: Kai's own work routes to the Teable tracker (see the default-todo reference). The rules here apply to repos with an active **GitHub** issue tracker, which are the external-facing repos where external contributors file. Forgejo issue trackers are off fleet-wide and are not a destination on either path.
+Precedence: Kai's own work routes to the Linear tracker (see the default-todo reference). The rules here apply to repos with an active **GitHub** issue tracker, which are the external-facing repos where external contributors file. Forgejo issue trackers are off fleet-wide and are not a destination on either path.
 
 When a coilysiren repo has an active issue tracker, issues are canonical - not scratch notes, TodoWrite, or harness memory.
 

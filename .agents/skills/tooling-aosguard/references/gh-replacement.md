@@ -17,7 +17,7 @@ The first version of this file enumerated 23 read grants to protect those 8 with
 
 `withhold` rather than `never run`, and the difference is the whole design. An exec-dialect `never run` mounts nothing at all, so the caller gets `unknown verb`, which reads as a wrapper missing a feature. Under default-allow it is worse than that: an unnamed verb forwards, so silence would hand the caller the very thing this refuses.
 
-`gh issue create` forwards. The GitHub issue queue is for external contributors and fleet work goes to Teable, but three sources disagree about whether an agent may ever file one, and that is open at `teable:coilyco-flight-deck/agentic-os#7380` rather than decided by this guardfile.
+`gh issue create` forwards. The GitHub issue queue is for external contributors and fleet work goes to Linear, but three sources disagree about whether an agent may ever file one, and that is open at `teable:coilyco-flight-deck/agentic-os#7380` rather than decided by this guardfile.
 
 ## Where it sits, and what that does not buy
 
