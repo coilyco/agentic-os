@@ -6,14 +6,17 @@ on:
   push:
     branches: [release]
     paths:
-      - ".umbra/guardfiles/**"
+      - ".agents/harness-launch-profiles.yaml"
+      - ".umbra/**"
       - "agentic_os/__init__.py"
       - "agentic_os/forgejo_actions_*.py"
+      - "agentic_os/teable_*.py"
       - "aos-cli/**"
       - "aosguard-release/**"
       - "aterm/**"
       - "scripts/aos-release-build.sh"
       - "scripts/check-aos-release.sh"
+      - "scripts/guardfile-python-modules.sh"
       - "scripts/render-aos-packaging.sh"
   workflow_dispatch:
     inputs:

@@ -9,6 +9,8 @@ from pathlib import Path
 import re
 import subprocess
 
+import yaml
+
 
 ROOT = Path(__file__).resolve().parent.parent
 TARGETS = ROOT / "aos-cli" / "release-targets.txt"
@@ -205,6 +207,81 @@ def test_release_workflow_derives_assets_from_dist() -> None:
     assert "an off-roster role should exit 3" in release_check
     assert "a missing dependency should exit 4" in release_check
     assert '"_session"' in release_check
+
+
+def _path_filter_regex(pattern: str) -> re.Pattern[str]:
+    """Translate a workflow `paths` glob: `**` crosses slashes, `*` does not."""
+    out = []
+    i = 0
+    while i < len(pattern):
+        if pattern.startswith("**", i):
+            out.append(".*")
+            i += 2
+        elif pattern[i] == "*":
+            out.append("[^/]*")
+            i += 1
+        else:
+            out.append(re.escape(pattern[i]))
+            i += 1
+    return re.compile("".join(out))
+
+
+def _tracked(path: str) -> list[str]:
+    done = subprocess.run(
+        ["git", "ls-files", "--", path],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return done.stdout.splitlines()
+
+
+def test_release_trigger_paths_cover_what_the_builder_embeds() -> None:
+    """A file the builder reads but the trigger omits ships on someone else's release.
+
+    The launch profiles are stamped into every aos binary, yet editing them
+    never started a release (COI-1810). The embedded set is derived from the
+    builder, so the next input it grows is caught here rather than by a silent
+    missing release. Untracked paths (the dist output) drop out via git.
+    """
+    builder = ROOT / "scripts" / "aos-release-build.sh"
+    # `cp -R .umbra` copies the whole directory, so the whole directory is an input.
+    inputs = set(
+        re.findall(
+            r"\$repo_root/([A-Za-z0-9_.][A-Za-z0-9_./-]*)",
+            builder.read_text(encoding="utf-8"),
+        )
+    )
+    inputs.add(builder.relative_to(ROOT).as_posix())
+    embedded = {file for path in inputs for file in _tracked(path)}
+    # The builder prints the agentic_os modules its guardfiles exec, and bundles those.
+    modules = subprocess.run(
+        ["sh", str(ROOT / "scripts" / "guardfile-python-modules.sh"), str(ROOT)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.split()
+    embedded |= {Path(module).relative_to(ROOT).as_posix() for module in modules}
+    assert embedded, "the builder embeds nothing, so the derivation is broken"
+
+    workflow = yaml.safe_load(
+        (ROOT / ".forgejo" / "workflows" / "aos-cli-release.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    # YAML 1.1 reads the bare key `on` as True.
+    filters = [
+        _path_filter_regex(pattern)
+        for pattern in (workflow.get("on") or workflow[True])["push"]["paths"]
+    ]
+    uncovered = sorted(
+        file for file in embedded if not any(f.fullmatch(file) for f in filters)
+    )
+    assert not uncovered, (
+        "aos-cli-release.yml paths omit files aos-release-build.sh embeds: "
+        f"{uncovered}"
+    )
 
 
 def test_umbra_pin_is_owned_by_the_dependency_lock() -> None:
