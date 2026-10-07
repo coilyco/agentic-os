@@ -32,7 +32,7 @@ session into the canonical checkout while still reporting itself isolated.
 A launch from `$PROJECTS_ROOT` enters:
 
 ```text
-$TMPDIR/aos/native/<id>/projects/<owner>/<repo>
+<session root>/<id>/projects/<owner>/<repo>
 ```
 
 with the owner/repository hierarchy reproduced below `projects`. A repository
@@ -114,7 +114,7 @@ rather than splitting a rule nobody can recall correctly under pressure.
 ## Local state
 
 Leases and the pass cache use the platform cache at `agentic-os/native-shadow`. AOS
-groups temporary state under platform `aos`: worktrees in `native`, requests in
+groups temporary state under platform `aos`: worktrees in `native` (the session root), requests in
 `compose`, bundles in `bundles`. `AOS_NATIVE_STATE_DIR` and `AOS_NATIVE_SESSIONS_DIR`
-override. See [session shadow](native-shadow.md), [shadow home](native-shadow.md),
+override. On macOS the session root is `/private/tmp/u<uid>/aos/native`, a real directory, because a Codex control socket under the per-user temp root overran `SUN_LEN` (COI-2128). Every harness uses it, other hosts keep `$TMPDIR/aos/native`, and `aos/native` stays as the tail because aterm, the shell startup hook, and `apply-shell-links` recognise a shadow by it. The launch creates and verifies each level, 0700 and owned by the user, and a symlink, a foreign owner, or a wider mode stops it with the path named. A Codex launch measures `<id>/home/.codex/app-server-control/app-server-control.sock` against the 103 byte darwin limit (107 elsewhere) before creating anything, and fails naming the byte count, an override included. A lease records its own `SessionRoot`, so list, release, and reap still address a session under the old root, and nothing moves a running one. See [session shadow](native-shadow.md), [shadow home](native-shadow.md),
 [narration](native-session-start.md), [shell owner](install.md), and [Claude config](native-harness-config.md).

@@ -17,6 +17,16 @@ func hostIdentity() (int, int) {
 	return os.Getuid(), os.Getgid()
 }
 
+// pathOwner reports the uid that owns a file, for callers that must refuse a
+// path another user could have planted.
+func pathOwner(info os.FileInfo) (int, bool) {
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, false
+	}
+	return int(stat.Uid), true
+}
+
 func chownPath(path string, symlink bool, uid, gid int) error {
 	if symlink {
 		return os.Lchown(path, uid, gid)
