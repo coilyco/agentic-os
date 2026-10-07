@@ -57,15 +57,20 @@ func defaultLedgerDir() string {
 	return filepath.Join(realHome(), ".local", "state", "aterm", "sessions")
 }
 
-// ledgerGuard is nil in the shipped binary. The tests set it to refuse the real dir.
+// ledgerGuard is nil in the shipped binary. TestMain sets it once, never a test, since
+// earlier tests' daemon goroutines read it. Tests pass their own to the *Guarded forms.
 var ledgerGuard func(dir string) error
 
 func (e ledgerEntry) file(dir string) string { return filepath.Join(dir, fileStem(e.Name)+".json") }
 
 // writeLedger replaces a record atomically, so a crash never leaves half of one.
 func writeLedger(dir string, entry ledgerEntry) error {
-	if ledgerGuard != nil {
-		if err := ledgerGuard(dir); err != nil {
+	return writeLedgerGuarded(ledgerGuard, dir, entry)
+}
+
+func writeLedgerGuarded(guard func(string) error, dir string, entry ledgerEntry) error {
+	if guard != nil {
+		if err := guard(dir); err != nil {
 			return err
 		}
 	}
@@ -126,7 +131,11 @@ func sortLedger(entries []ledgerEntry) {
 
 // pruneLedger removes records of sessions that ended past ledgerKeep ago.
 func pruneLedger(dir string, now time.Time) {
-	if ledgerGuard != nil && ledgerGuard(dir) != nil {
+	pruneLedgerGuarded(ledgerGuard, dir, now)
+}
+
+func pruneLedgerGuarded(guard func(string) error, dir string, now time.Time) {
+	if guard != nil && guard(dir) != nil {
 		return
 	}
 	for _, entry := range readLedger(dir) {

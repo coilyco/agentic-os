@@ -47,13 +47,11 @@ func TestGuardedWriteAndPruneLeaveAProtectedDirectoryAlone(t *testing.T) {
 		t.Fatal(err)
 	}
 	var seen []string
-	earlier := ledgerGuard
-	ledgerGuard = realLedgerGuard(protected, func(dir string) { seen = append(seen, dir) })
-	t.Cleanup(func() { ledgerGuard = earlier })
-	if err := writeLedger(protected, ledgerEntry{Name: "new", Started: time.Now().UTC()}); err == nil {
+	guard := realLedgerGuard(protected, func(dir string) { seen = append(seen, dir) })
+	if err := writeLedgerGuarded(guard, protected, ledgerEntry{Name: "new", Started: time.Now().UTC()}); err == nil {
 		t.Fatal("a write into the protected directory must be refused")
 	}
-	pruneLedger(protected, time.Now())
+	pruneLedgerGuarded(guard, protected, time.Now())
 	entries := readLedger(protected)
 	if len(entries) != 1 || entries[0].Name != "old-ended" {
 		t.Fatalf("the protected directory changed: %+v", entries)
