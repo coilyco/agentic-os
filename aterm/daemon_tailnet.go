@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"errors"
@@ -20,6 +21,7 @@ import (
 
 const (
 	daemonTailnetPortEnv = "ATERM_DAEMON_TAILNET_PORT"
+	defaultTailnetPort   = "7419"
 	daemonAllowTagsEnv   = "ATERM_DAEMON_ALLOW_TAGS"
 	daemonAllowOrigins   = "ATERM_DAEMON_ALLOW_ORIGINS"
 	clientDirEnv         = "ATERM_CLIENT_DIR"
@@ -44,6 +46,13 @@ var tailnetGate = platformTailnetGate
 // tailnetBackoff paces listenTailnet retries, capped well above a login's
 // settling time so a standing refusal costs one CLI call every few minutes.
 var tailnetBackoff = struct{ first, max time.Duration }{2 * time.Second, 5 * time.Minute}
+
+// tailnetProbe paces the self-probe, and `fails` in a row get the listener
+// bound again. Why: docs/aterm-daemon.md.
+var tailnetProbe = struct {
+	every, timeout time.Duration
+	fails          int
+}{30 * time.Second, 5 * time.Second, 2}
 
 // vpnGate reads the first line of `scutil --nc status <service>`. No service
 // means no macsys VPN, so the CLI cannot start one (docs/aterm-daemon.md).
@@ -199,16 +208,42 @@ func tailnetPolicy(node tailnetNode, allowTags, allowOrigins []string, whois fun
 	}
 }
 
-// serveTailnetWhenUp retries listen with backoff until it binds, then holds
-// the server until done closes. It never changes Tailscale's state.
-func (d *daemon) serveTailnetWhenUp(done <-chan struct{}, listen func() (*http.Server, error)) {
+// tailnetServing is one bound tailnet listener and the two ways to tell it has
+// gone bad: Serve returning, and a handshake against it failing.
+type tailnetServing struct {
+	server *http.Server
+	// ended receives what ServeTLS returned.
+	ended <-chan error
+	// probe completes one TLS handshake against the listener.
+	probe func(context.Context) error
+}
+
+// probeTailnetTLS dials address and completes a TLS handshake. Its errors name
+// the half that failed: no connection, or a connection that cannot be served.
+func probeTailnetTLS(ctx context.Context, address string, config *tls.Config) error {
+	raw, err := (&net.Dialer{}).DialContext(ctx, "tcp", address)
+	if err != nil {
+		return fmt.Errorf("no TCP connection to %s: %w", address, err)
+	}
+	defer raw.Close()
+	if err := tls.Client(raw, config).HandshakeContext(ctx); err != nil {
+		return fmt.Errorf("TCP connected to %s but the TLS handshake failed: %w", address, err)
+	}
+	return nil
+}
+
+// serveTailnetWhenUp binds with backoff, holds the listener until done closes,
+// and binds a fresh one when it goes bad. It never changes Tailscale's state.
+func (d *daemon) serveTailnetWhenUp(done <-chan struct{}, listen func() (*tailnetServing, error)) {
 	delay, last := tailnetBackoff.first, ""
 	for {
-		server, err := listen()
+		serving, err := listen()
 		if err == nil {
-			<-done
-			_ = server.Close()
-			return
+			if d.holdTailnet(done, serving) {
+				return
+			}
+			delay, last = tailnetBackoff.first, ""
+			continue
 		}
 		if reason := err.Error(); reason != last {
 			d.logf("no tailnet listener yet, so other devices cannot attach, retrying: %v", err)
@@ -223,9 +258,43 @@ func (d *daemon) serveTailnetWhenUp(done <-chan struct{}, listen func() (*http.S
 	}
 }
 
+// holdTailnet closes the listener when it returns. It reports true when done
+// closed, and false when the listener went bad and wants rebinding.
+func (d *daemon) holdTailnet(done <-chan struct{}, serving *tailnetServing) bool {
+	defer serving.server.Close()
+	var tick <-chan time.Time
+	if serving.probe != nil {
+		ticker := time.NewTicker(tailnetProbe.every)
+		defer ticker.Stop()
+		tick = ticker.C
+	}
+	failed := 0
+	for {
+		select {
+		case <-done:
+			return true
+		case err := <-serving.ended:
+			d.logf("the tailnet listener stopped serving, binding a new one: %v", err)
+			return false
+		case <-tick:
+			ctx, cancel := context.WithTimeout(context.Background(), tailnetProbe.timeout)
+			err := serving.probe(ctx)
+			cancel()
+			if err == nil {
+				failed = 0
+				continue
+			}
+			if failed++; failed >= tailnetProbe.fails {
+				d.logf("the tailnet listener failed %d handshakes in a row, binding a new one: %v", failed, err)
+				return false
+			}
+		}
+	}
+}
+
 // listenTailnet serves HTTPS on this node's tailnet address, certified by
 // tailscaled. A failure costs remote clients, never the daemon.
-func (d *daemon) listenTailnet(port string, allowTags, allowOrigins []string, certDir string) (*http.Server, error) {
+func (d *daemon) listenTailnet(port string, allowTags, allowOrigins []string, certDir string) (*tailnetServing, error) {
 	node, err := readTailnetNode()
 	if err != nil {
 		return nil, err
@@ -253,9 +322,15 @@ func (d *daemon) listenTailnet(port string, allowTags, allowOrigins []string, ce
 		Handler:   d.handler(tailnetPolicy(node, allowTags, allowOrigins, tailscaleWhois)),
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12},
 	}
-	go func() { _ = server.ServeTLS(listener, "", "") }()
+	ended := make(chan error, 1)
+	go func() { ended <- server.ServeTLS(listener, "", "") }()
 	d.logf("serving https on this node's tailnet name, port %s, for %s and its own owner", port, strings.Join(allowTags, ", "))
-	return server, nil
+	address, config := net.JoinHostPort(node.IPv4, port), &tls.Config{ServerName: node.FQDN, MinVersion: tls.VersionTLS12}
+	return &tailnetServing{
+		server: server,
+		ended:  ended,
+		probe:  func(ctx context.Context) error { return probeTailnetTLS(ctx, address, config) },
+	}, nil
 }
 
 // defaultClientDir is where the built aterm client is installed for the

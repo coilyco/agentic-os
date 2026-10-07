@@ -53,7 +53,7 @@ export async function checkHost(host: Host): Promise<void> {
   try {
     host.status = { kind: "online", sessionCount: await probe(host.address) };
   } catch {
-    host.status = { kind: "unreachable", reason: "No daemon answered." };
+    host.status = { kind: "unreachable", reason: "Nothing answered, so the daemon is stopped or its tailnet listener is failing TLS. A browser cannot tell which." };
     return;
   }
   // Picked while the probe was still out, so attach now that it answered.

@@ -22,7 +22,7 @@ aterm mcp
 
 **A session is named `<role>-<identity>-<code>`, and a spawn under a live session's name is refused.** The code comes from `aos _session-id`, passed to the shadow as `--session-id`, so it doubles as `AOS_NATIVE_SESSION` unless taken. The claude seat also gets the name as `--name`.
 
-**The harness starts without agent-compose's Enter gate**, since the window drew its own card (`AGENT_COMPOSE_NO_PAUSE=1`). `_session` flushes unread input before attaching, so the card's color-query reply is not read as Kai typing. agent-compose's `ESC ] 7750 ; agent-compose ; degraded=<steps> BEL` becomes the session's `degraded` field.
+**The harness starts without agent-compose's Enter gate**, since the window drew its own card (`AGENT_COMPOSE_NO_PAUSE=1`). agent-compose's `ESC ] 7750 ; agent-compose ; degraded=<steps> BEL` becomes the session's `degraded` field.
 
 **`list` reads each session's screen.** The daemon rebuilds what each terminal shows from its output and reports `state`: `starting`, `prompt` (a permission or choice card is up), `busy` (recent output or the interrupt hint), else `idle`. `aterm status` adds the prompt text, seconds since output and input, the draft, and the last rows, and never types.
 
@@ -34,7 +34,7 @@ aterm mcp
 
 **A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn as one stdin line since the environment holds credentials. It listens at `hold/<name>-<hash>.sock` and speaks `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running. The next one adopts each, drops a socket nobody answers. An adopted session has a typing hold, and pending messages are lost.
 
-**A missing daemon costs messaging, never the session.** `_session` starts one, else runs the harness directly, and [launchd](aterm-bundles.md) can run it. A window that loses the daemon redials and replays only what it had not drawn, and a session that ended meanwhile answers `exited` with its code.
+**A missing daemon costs messaging, never the session.** `_session` starts one, else runs the harness directly, and [launchd](aterm-bundles.md) can run it. A window that loses the daemon redials and replays only what it had not drawn.
 
 **The socket is `/tmp/aterm-<uid>/daemon.sock`, keyed by uid rather than `HOME`**, because a session shadow moves `HOME` and every seat must reach one daemon. `ATERM_DAEMON_SOCKET` overrides it. The directory must be the user's alone, which is all of local client auth. An idle daemon exits after five minutes.
 
@@ -63,4 +63,4 @@ aterm mcp
 * `whoami` resolves a token to its session. `roster` answers `aterm.roster.v1`, the launchable roles `aterm --list --json` prints. `launch` with a `role` and optional `seat` opens it headless, answering `launched`.
 * `ask` takes a `question`, `options` (`label`, `description`), `header`, `allow_other`, `multi`. MCP `ask_choice` takes up to four `questions`, one card each. The daemon stamps the asker and pushes `ask` to subscribers, replayed on subscribe. `answer` (`ask_id`, `picks`, `text`) or `cancel_ask` settles it, and `asked` tells every client to drop the card. An asker leaving cancels its asks, and an answer takes the typing guard as Kai's input.
 
-**Browsers get the client from `--client-dir` at `/`, and a websocket there.** Loopback is `127.0.0.1:7419`. The tailnet is HTTPS on this node's tailnet name, port 7419. `tailscale whois` admits a peer, never the request: this node owner's untagged device or one tagged `tag:physical`. A websocket opens only from the served page or `https://coilyco.dev`.
+**Browsers get the client from `--client-dir` at `/`, and a websocket there.** Loopback is `127.0.0.1:7419`. The tailnet is HTTPS on this node's tailnet name, port 7419, and the daemon handshakes against it every 30 seconds, binding a new listener after two failures or when Serve returns. `aterm doctor` runs the same handshake. `tailscale whois` admits a peer, never the request: this node owner's untagged device or one tagged `tag:physical`. A websocket opens only from the served page or `https://coilyco.dev`.

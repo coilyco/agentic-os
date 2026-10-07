@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -56,7 +59,9 @@ func runDoctor(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 	checkProjectsRoot(&report, cmd.String("working-directory"))
 	roster := checkAgentCompose(ctx, deps, cmd, &report)
 	checkTerminal(ctx, deps, cmd, &report)
-	checkDaemon(&report)
+	if checkDaemon(&report) {
+		checkTailnetListener(ctx, &report, nil)
+	}
 	checkAOS(ctx, deps, cmd, &report, roster)
 	report.Ready = true
 	for _, check := range report.Checks {
@@ -403,26 +408,54 @@ func writeDoctorReport(writer io.Writer, report doctorReport, asJSON bool) error
 	return err
 }
 
-// A daemon that is not running is ordinary, since the next session starts
-// it. Only a socket directory it would refuse is worth a warning.
-func checkDaemon(report *doctorReport) {
+// A daemon that is not running is ordinary, since the next session starts it,
+// so only a refused socket directory warns. It reports whether one answered.
+func checkDaemon(report *doctorReport) bool {
 	socket := daemonSocket()
 	if err := ensureSocketDir(filepath.Dir(socket)); err != nil {
 		report.add("daemon", doctorWarn, "%v, so sessions run outside the daemon and cannot take messages", err)
-		return
+		return false
 	}
 	c, err := dialDaemon(false)
 	if err != nil {
 		report.add("daemon", doctorOK, "not running, the next session starts it at %s", socket)
-		return
+		return false
 	}
 	defer c.Close()
 	reply, err := c.request(frame{Type: "list"})
 	if err != nil {
 		report.add("daemon", doctorWarn, "running at %s but did not list its sessions: %v", socket, err)
-		return
+		return true
 	}
 	report.add("daemon", daemonStatus(c, len(reply.Sessions)), "%s", daemonDetail(c, socket, len(reply.Sessions)))
+	return true
+}
+
+// checkTailnetListener completes a TLS handshake against the tailnet listener,
+// which the local socket answering says nothing about. roots is nil for the system's.
+func checkTailnetListener(ctx context.Context, report *doctorReport, roots *x509.CertPool) {
+	port, set := os.LookupEnv(daemonTailnetPortEnv)
+	if !set {
+		port = defaultTailnetPort
+	}
+	if port == "" {
+		report.add("tailnet", doctorOK, "listener off, %s is empty", daemonTailnetPortEnv)
+		return
+	}
+	node, err := readTailnetNode()
+	if err != nil {
+		report.add("tailnet", doctorOK, "not probed, no tailnet to reach: %v", err)
+		return
+	}
+	address := net.JoinHostPort(node.IPv4, port)
+	ctx, cancel := context.WithTimeout(ctx, tailnetProbe.timeout)
+	defer cancel()
+	config := &tls.Config{ServerName: node.FQDN, RootCAs: roots, MinVersion: tls.VersionTLS12}
+	if err := probeTailnetTLS(ctx, address, config); err != nil {
+		report.add("tailnet", doctorWarn, "%v. The daemon binds a new listener after %d failed probes %s apart, so this clears on its own unless Tailscale is down", err, tailnetProbe.fails, tailnetProbe.every)
+		return
+	}
+	report.add("tailnet", doctorOK, "a TLS handshake to %s as %s completed", address, node.FQDN)
 }
 
 // daemonStatus warns when stopping the running daemon would end its sessions.

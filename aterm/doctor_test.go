@@ -2,8 +2,13 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -207,5 +212,64 @@ func TestDoctorDoesNotShadowARolePositional(t *testing.T) {
 	}
 	if !strings.Contains(out, fmt.Sprintf("%q: %q", "role", "eng-platform")) {
 		t.Fatalf("the role positional was lost: %s", out)
+	}
+}
+
+func TestDoctorTailnetCheckCompletesARealHandshake(t *testing.T) {
+	server := httptest.NewUnstartedServer(http.NotFoundHandler())
+	server.TLS = &tls.Config{Certificates: []tls.Certificate{tailnetTestCert(t)}}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+	_, port, _ := net.SplitHostPort(server.Listener.Addr().String())
+	t.Setenv(daemonTailnetPortEnv, port)
+	fakeTailscaleAt(t, "Running", "127.0.0.1")
+	tailnetGate = func() error { return nil }
+	roots := x509.NewCertPool()
+	roots.AddCert(server.Certificate())
+
+	var report doctorReport
+	checkTailnetListener(context.Background(), &report, roots)
+	if got := report.Checks[0]; got.Status != doctorOK || !strings.Contains(got.Detail, "handshake") {
+		t.Fatalf("a serving listener read as %+v", got)
+	}
+
+	// The daemon's local socket would still answer here, which is the point.
+	wedged, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { wedged.Close() })
+	go func() {
+		for {
+			conn, err := wedged.Accept()
+			if err != nil {
+				return
+			}
+			conn.Close()
+		}
+	}()
+	_, wedgedPort, _ := net.SplitHostPort(wedged.Addr().String())
+	t.Setenv(daemonTailnetPortEnv, wedgedPort)
+	report = doctorReport{}
+	checkTailnetListener(context.Background(), &report, roots)
+	if got := report.Checks[0]; got.Status != doctorWarn || !strings.Contains(got.Detail, "TLS handshake failed") {
+		t.Fatalf("a listener dropping every handshake read as %+v", got)
+	}
+}
+
+func TestDoctorTailnetCheckSkipsWhatItCannotReach(t *testing.T) {
+	var report doctorReport
+	t.Setenv(daemonTailnetPortEnv, "")
+	checkTailnetListener(context.Background(), &report, nil)
+	if got := report.Checks[0]; got.Status != doctorOK || !strings.Contains(got.Detail, "off") {
+		t.Fatalf("a switched-off listener read as %+v", got)
+	}
+	t.Setenv(daemonTailnetPortEnv, "7419")
+	fakeTailscale(t, "Stopped")
+	tailnetGate = func() error { return nil }
+	report = doctorReport{}
+	checkTailnetListener(context.Background(), &report, nil)
+	if got := report.Checks[0]; got.Status != doctorOK || !strings.Contains(got.Detail, "not probed") {
+		t.Fatalf("a stopped tailnet read as %+v", got)
 	}
 }

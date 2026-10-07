@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -184,7 +183,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	if options.TailnetPort != "" {
 		done := make(chan struct{})
 		defer close(done)
-		go d.serveTailnetWhenUp(done, func() (*http.Server, error) {
+		go d.serveTailnetWhenUp(done, func() (*tailnetServing, error) {
 			return d.listenTailnet(options.TailnetPort, options.AllowTags, options.AllowOrigins, filepath.Join(dir, "tailnet"))
 		})
 	}

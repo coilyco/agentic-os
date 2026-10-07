@@ -34,7 +34,7 @@ func newDaemonCommand() *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:    "tailnet-port",
-				Value:   "7419",
+				Value:   defaultTailnetPort,
 				Usage:   "HTTPS port on this node's tailnet address, empty for none",
 				Sources: cli.EnvVars(daemonTailnetPortEnv),
 			},

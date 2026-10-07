@@ -35,7 +35,7 @@
     <p class="lede">Sessions run on the host. This window only attaches to them. Pick one from the sidebar.</p>
     {#each silent as quiet (quiet.id)}
       <div class="alert" role="alert">
-        <p><strong>{quiet.label} is not answering.</strong> Start its daemon with <code>aterm daemon</code>, then retry.</p>
+        <p><strong>{quiet.label} is not answering.</strong> Its daemon may be stopped, or running with a tailnet listener that fails TLS. On that machine, run <code>aterm doctor</code>, which says which, then retry.</p>
         <button class="button" onclick={() => retry(quiet)}>Retry {quiet.label}</button>
       </div>
     {/each}
@@ -58,7 +58,7 @@
   {:else if host.status.kind === "unreachable"}
     <h1>{host.label} is not answering</h1>
     <div class="alert" role="alert">
-      <p>{host.status.reason} Start it with <code>aterm daemon</code>, or launch any seat with <code>aterm</code>, then retry.</p>
+      <p>{host.status.reason} On that machine, <code>aterm doctor</code> says which. A stopped daemon starts with <code>aterm daemon</code>, or by launching any seat with <code>aterm</code>. Then retry.</p>
       <button class="button" onclick={() => retry(host)}>Retry</button>
     </div>
     {#if host.id.startsWith("saved:")}

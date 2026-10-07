@@ -2,8 +2,15 @@ package main
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
 	"io"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -180,10 +187,17 @@ func TestVPNGateOnlyOpensOnAConnectedTunnelOrNoMacVPN(t *testing.T) {
 // and answers `status --json` with the given backend state.
 func fakeTailscale(t *testing.T, backendState string) (calls string) {
 	t.Helper()
+	return fakeTailscaleAt(t, backendState, "100.64.0.1")
+}
+
+// fakeTailscaleAt reports this node at ip, so a test can aim the node at a
+// listener on loopback.
+func fakeTailscaleAt(t *testing.T, backendState, ip string) (calls string) {
+	t.Helper()
 	dir := t.TempDir()
 	calls = filepath.Join(dir, "calls")
 	script := "#!/bin/sh\necho \"$@\" >> '" + calls + "'\n" +
-		`echo '{"BackendState":"` + backendState + `","Self":{"DNSName":"mac.example.ts.net.","TailscaleIPs":["100.64.0.1","fd7a::1"],"UserID":7},"User":{"7":{"LoginName":"kai@example.com"}}}'` + "\n"
+		`echo '{"BackendState":"` + backendState + `","Self":{"DNSName":"mac.example.ts.net.","TailscaleIPs":["` + ip + `","fd7a::1"],"UserID":7},"User":{"7":{"LoginName":"kai@example.com"}}}'` + "\n"
 	bin := filepath.Join(dir, "tailscale")
 	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
@@ -234,11 +248,11 @@ func TestServeTailnetWhenUpRetriesUntilItBindsThenClosesOnDone(t *testing.T) {
 	d := newDaemon(func(string, ...any) { logged.Add(1) })
 	done, finished := make(chan struct{}), make(chan struct{})
 	go func() {
-		d.serveTailnetWhenUp(done, func() (*http.Server, error) {
+		d.serveTailnetWhenUp(done, func() (*tailnetServing, error) {
 			if attempts.Add(1) < 4 {
 				return nil, errors.New("the Tailscale VPN is \"Disconnected\"")
 			}
-			return server.Config, nil
+			return &tailnetServing{server: server.Config}, nil
 		})
 		close(finished)
 	}()
@@ -267,7 +281,7 @@ func TestServeTailnetWhenUpStopsRetryingOnDone(t *testing.T) {
 	d := newDaemon(func(string, ...any) {})
 	done, finished := make(chan struct{}), make(chan struct{})
 	go func() {
-		d.serveTailnetWhenUp(done, func() (*http.Server, error) { return nil, errors.New("down") })
+		d.serveTailnetWhenUp(done, func() (*tailnetServing, error) { return nil, errors.New("down") })
 		close(finished)
 	}()
 	close(done)
@@ -276,4 +290,139 @@ func TestServeTailnetWhenUpStopsRetryingOnDone(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("a pending retry held the daemon past done")
 	}
+}
+
+// fastProbe paces the self-probe in milliseconds for the test's length.
+func fastProbe(t *testing.T) {
+	t.Helper()
+	prevBackoff, prevProbe := tailnetBackoff, tailnetProbe
+	t.Cleanup(func() { tailnetBackoff, tailnetProbe = prevBackoff, prevProbe })
+	tailnetBackoff.first, tailnetBackoff.max = time.Millisecond, 4*time.Millisecond
+	tailnetProbe.every, tailnetProbe.timeout, tailnetProbe.fails = time.Millisecond, time.Second, 2
+}
+
+func TestProbeTailnetTLSNamesTheHalfThatFailed(t *testing.T) {
+	healthy := httptest.NewTLSServer(http.NotFoundHandler())
+	t.Cleanup(healthy.Close)
+	trusted := healthy.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
+	trusted.ServerName = "example.com"
+	ctx := context.Background()
+	if err := probeTailnetTLS(ctx, healthy.Listener.Addr().String(), trusted); err != nil {
+		t.Fatalf("a serving listener failed its probe: %v", err)
+	}
+
+	// The 2026-10 failure: the socket accepts and every handshake dies after it.
+	wedged, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { wedged.Close() })
+	go func() {
+		for {
+			conn, err := wedged.Accept()
+			if err != nil {
+				return
+			}
+			conn.Close()
+		}
+	}()
+	if err := probeTailnetTLS(ctx, wedged.Addr().String(), trusted); err == nil || !strings.Contains(err.Error(), "TLS handshake failed") {
+		t.Fatalf("a listener that drops every handshake read as %v", err)
+	}
+
+	gone := wedged.Addr().String()
+	wedged.Close()
+	if err := probeTailnetTLS(ctx, gone, trusted); err == nil || !strings.Contains(err.Error(), "no TCP connection") {
+		t.Fatalf("a closed port read as %v", err)
+	}
+}
+
+func TestServeTailnetWhenUpBindsAgainWhenHandshakesFail(t *testing.T) {
+	fastProbe(t)
+	var binds atomic.Int32
+	first := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(first.Close)
+	second := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(second.Close)
+	d := newDaemon(func(string, ...any) {})
+	done, finished := make(chan struct{}), make(chan struct{})
+	go func() {
+		d.serveTailnetWhenUp(done, func() (*tailnetServing, error) {
+			if binds.Add(1) == 1 {
+				return &tailnetServing{server: first.Config, probe: func(context.Context) error { return errors.New("handshake failed") }}, nil
+			}
+			return &tailnetServing{server: second.Config, probe: func(context.Context) error { return nil }}, nil
+		})
+		close(finished)
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for binds.Load() < 2 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if binds.Load() != 2 {
+		t.Fatalf("a listener failing every handshake was bound %d times, want a second", binds.Load())
+	}
+	if conn, err := net.Dial("tcp", first.Listener.Addr().String()); err == nil {
+		conn.Close()
+		t.Fatal("the stale listener kept its port after the rebind")
+	}
+	time.Sleep(20 * time.Millisecond)
+	if binds.Load() != 2 {
+		t.Fatalf("a healthy listener was rebound, %d binds", binds.Load())
+	}
+	close(done)
+	<-finished
+}
+
+func TestServeTailnetWhenUpBindsAgainWhenServeEnds(t *testing.T) {
+	fastProbe(t)
+	var binds atomic.Int32
+	d := newDaemon(func(string, ...any) {})
+	ended := make(chan error, 1)
+	ended <- errors.New("accept: socket is not connected")
+	done, finished := make(chan struct{}), make(chan struct{})
+	go func() {
+		d.serveTailnetWhenUp(done, func() (*tailnetServing, error) {
+			if binds.Add(1) == 1 {
+				return &tailnetServing{server: &http.Server{}, ended: ended}, nil
+			}
+			return &tailnetServing{server: &http.Server{}}, nil
+		})
+		close(finished)
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for binds.Load() < 2 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if binds.Load() != 2 {
+		t.Fatalf("a Serve that returned was not replaced, %d binds", binds.Load())
+	}
+	close(done)
+	<-finished
+}
+
+// tailnetTestCert is a self-signed certificate for the fake tailnet name, so a
+// handshake verifies the name the way one against tailscaled's certificate does.
+func tailnetTestCert(t *testing.T) tls.Certificate {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	template := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: testFQDN},
+		DNSNames:              []string{testFQDN},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}
 }
