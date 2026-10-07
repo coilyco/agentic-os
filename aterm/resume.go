@@ -57,8 +57,8 @@ func findResumable(entries []ledgerEntry, live map[string]bool, target string) (
 	return ledgerEntry{}, withExit(exitOffRoster, fmt.Errorf("no recorded session answers to %q. `aterm resume --list` shows them", target))
 }
 
-// resumeArgs is the launch that reopens an entry's conversation under its old
-// name, in its old directory when that still exists.
+// resumeArgs is the launch that reopens an entry's conversation, in its old directory
+// when that still exists. No --name, so the claim names claude. See docs/aterm.md.
 func resumeArgs(entry ledgerEntry, headless, dryRun bool) ([]string, error) {
 	if entry.Seat != "claude" || entry.Conversation == "" {
 		return nil, withExit(exitUsage, fmt.Errorf(
@@ -75,7 +75,7 @@ func resumeArgs(entry ledgerEntry, headless, dryRun bool) ([]string, error) {
 	if info, err := os.Stat(entry.Cwd); err == nil && info.IsDir() {
 		args = append(args, "--working-directory", entry.Cwd)
 	}
-	return append(args, entry.Role, entry.Seat, "--", "--resume", entry.Conversation, "--name", entry.Name), nil
+	return append(args, entry.Role, entry.Seat, "--", "--resume", entry.Conversation), nil
 }
 
 func newResumeCommand() *cli.Command {

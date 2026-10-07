@@ -214,7 +214,7 @@ func TestFindResumablePicksByNameThenByRoleAndRefusesALiveSession(t *testing.T) 
 	}
 }
 
-func TestResumeArgsReopenTheConversationUnderItsOldName(t *testing.T) {
+func TestResumeArgsReopenTheConversationAndLeaveTheNameToTheClaim(t *testing.T) {
 	id := newConversationID()
 	dir := t.TempDir()
 	entry := ledgerEntry{Name: "eng-platform-a-1111", Role: "eng-platform", Seat: "claude", Cwd: dir, Conversation: id}
@@ -222,7 +222,7 @@ func TestResumeArgsReopenTheConversationUnderItsOldName(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"--headless", "--dry-run", "--working-directory", dir, "eng-platform", "claude", "--", "--resume", id, "--name", "eng-platform-a-1111"}
+	want := []string{"--headless", "--dry-run", "--working-directory", dir, "eng-platform", "claude", "--", "--resume", id}
 	if !slices.Equal(got, want) {
 		t.Fatalf("args = %v, want %v", got, want)
 	}
@@ -277,7 +277,7 @@ func TestResumeVerbListsAndRelaunchesThroughTheNormalPath(t *testing.T) {
 	if _, err := run("eng-platform"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"--working-directory", "/", "eng-platform", "claude", "--", "--resume", id, "--name", "eng-platform-a-1111"}
+	want := []string{"--working-directory", "/", "eng-platform", "claude", "--", "--resume", id}
 	if !slices.Equal(captured, want) {
 		t.Fatalf("relaunch args = %v, want %v", captured, want)
 	}
