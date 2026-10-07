@@ -120,7 +120,7 @@
 
 - id: brand-case
   name: brand name is lowercase
-  description: "The brand name is set lowercase in prose, sentence-initial included, the way adidas and ebay are. Code spans, fenced blocks, URLs and link targets are exempt because a slug or hostname is not prose. A literal external identifier that genuinely carries a capital takes an entry under [tool.agentic-os.brand-case] allow."
+  description: "The brand name is set lowercase in prose, sentence-initial included, the way adidas and ebay are, or all caps where it stands alone as a title or account name. Title case and every other casing fail. Code spans, fenced blocks, URLs and link targets are exempt because a slug or hostname is not prose. A literal external identifier that genuinely carries a capital takes an entry under [tool.agentic-os.brand-case] allow."
   entry: check-brand-case
   language: python
   always_run: true

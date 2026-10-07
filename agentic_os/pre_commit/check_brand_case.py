@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Keep the brand name lowercase in prose.
+"""Keep the brand name to its two valid spellings.
 
 `coilyco` is lowercase everywhere it reads as a name, sentence-initial included,
-the way `adidas` is. Code spans, fenced blocks, URLs and paths are exempt, and a
-literal external identifier takes an allowlist entry rather than an edit.
-See docs/brand-case.md.
+the way `adidas` is. `COILYCO` is the other valid spelling, for where the name
+stands alone as a title or account name. Code spans, fenced blocks, URLs and
+paths are exempt, and a literal external identifier takes an allowlist entry
+rather than an edit. The rule is the voice rules in AGENTS.md.
 """
 
 from __future__ import annotations
@@ -22,9 +23,12 @@ REPO_ROOT = Path.cwd()
 PROSE_SUFFIXES = {".md", ".markdown", ".txt", ".njk", ".html"}
 
 CANON = "coilyco"
-# Any casing but the canonical one, and never as part of a longer word so that
-# slugs like coilyco-bridge and hostnames like coilyco.ai are untouched.
-WRONG_CASE = re.compile(r"(?<![A-Za-z0-9_-])(?!coilyco)([Cc][Oo][Ii][Ll][Yy][Cc][Oo])(?![A-Za-z0-9_-])")
+# The all-caps form is valid only in a standalone title slot, which a line
+# scanner cannot see, so it passes everywhere and the title-case forms still fail.
+VALID_SPELLINGS = frozenset({CANON, "COILYCO"})
+# Any casing, never as part of a longer word so that slugs like coilyco-bridge
+# and hostnames like coilyco.ai are untouched. Valid spellings filter in scan_text.
+BRAND = re.compile(r"(?<![A-Za-z0-9_-])([Cc][Oo][Ii][Ll][Yy][Cc][Oo])(?![A-Za-z0-9_-])")
 
 FENCE = re.compile(r"^\s*(```|~~~)")
 CODE_SPAN = re.compile(r"`[^`]*`")
@@ -42,7 +46,7 @@ class Violation:
         return (
             f"{self.path.as_posix()}:{self.line}:{self.column}: "
             f'"{self.found}" should be "{CANON}". The name is lowercase in prose, '
-            "sentence-initial included."
+            'sentence-initial included, or "COILYCO" where it stands alone as a title.'
         )
 
 
@@ -64,7 +68,9 @@ def scan_text(rel: Path, text: str, allow: frozenset[str] = frozenset()) -> list
             continue
         if in_fence:
             continue
-        for match in WRONG_CASE.finditer(mask(raw)):
+        for match in BRAND.finditer(mask(raw)):
+            if match.group(0) in VALID_SPELLINGS:
+                continue
             if any(phrase in raw for phrase in allow):
                 continue
             found.append(Violation(rel, number, match.start() + 1, match.group(0)))

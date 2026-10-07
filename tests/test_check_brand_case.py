@@ -1,6 +1,7 @@
 """Tests for agentic_os.pre_commit.check_brand_case.
 
-The brand name is lowercase in prose, sentence-initial included. Identifiers
+The brand name is lowercase in prose, sentence-initial included, and all caps
+where it stands alone as a title. Identifiers
 are not prose, so slugs, hostnames, code spans, fenced blocks and link targets
 carry no opinion and must not be flagged. Half of these are negative controls,
 because a case checker that matches nothing passes every file silently.
@@ -24,8 +25,18 @@ def test_flags_camel_case() -> None:
     assert len(scan_text(DOC, "the CoilyCo house style")) == 1
 
 
-def test_flags_upper_case() -> None:
-    assert len(scan_text(DOC, "COILYCO INTERNAL")) == 1
+def test_flags_mixed_case_near_the_caps_form() -> None:
+    assert len(scan_text(DOC, "COILYco and coilyCO")) == 2
+
+
+def test_accepts_the_all_caps_title() -> None:
+    assert scan_text(DOC, "# COILYCO") == []
+    assert scan_text(DOC, "COILYCO INTERNAL") == []
+
+
+def test_accepts_the_caps_form_beside_a_wrong_one() -> None:
+    found = scan_text(DOC, "# COILYCO\n\nCoilyco is not it")
+    assert [v.found for v in found] == ["Coilyco"]
 
 
 def test_flags_sentence_initial() -> None:
@@ -35,6 +46,10 @@ def test_flags_sentence_initial() -> None:
 
 def test_accepts_the_canonical_form() -> None:
     assert scan_text(DOC, "coilyco ships the thing. coilyco again.") == []
+
+
+def test_ignores_an_all_caps_slug_and_hostname() -> None:
+    assert scan_text(DOC, "COILYCO-bridge and COILYCO.ai") == []
 
 
 def test_ignores_a_slug() -> None:
