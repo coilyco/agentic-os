@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -624,13 +625,29 @@ func copyFile(source, target string, mode fs.FileMode) error {
 	return output.Close()
 }
 
+// chownEntry is a test seam: a non-root test cannot make chown EPERM on a
+// read-only file the way the Docker Desktop bind mount does.
+var chownEntry = chownPath
+
+// chownTree skips and counts a permission refusal (COI-1841: a 0444 file from
+// ~/.claude gets EPERM over the bind mount), and any other error still aborts.
 func chownTree(root string, uid, gid int) error {
-	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+	skipped := 0
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		return chownPath(path, entry.Type()&os.ModeSymlink != 0, uid, gid)
+		err := chownEntry(path, entry.Type()&os.ModeSymlink != 0, uid, gid)
+		if errors.Is(err, fs.ErrPermission) {
+			skipped++
+			return nil
+		}
+		return err
 	})
+	if err == nil && skipped > 0 {
+		fmt.Fprintf(os.Stderr, "aos: left %d entries under %s with their original owner (chown refused)\n", skipped, root)
+	}
+	return err
 }
 
 func makeTreeReadOnly(root string) error {
