@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSpawnWindowReportsATerminalThatDiesOnStartup(t *testing.T) {
@@ -17,7 +18,7 @@ func TestSpawnWindowReportsATerminalThatDiesOnStartup(t *testing.T) {
 	if err := os.WriteFile(script, []byte(body), 0o700); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	err := spawnWindow(script, []string{"--title", "x"})
+	err := spawnWindowWithin(time.Minute, script, []string{"--title", "x"})
 	if err == nil {
 		t.Fatal("a terminal that exits immediately should be reported")
 	}

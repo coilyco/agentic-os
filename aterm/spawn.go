@@ -16,6 +16,12 @@ const earlyExitWindow = 400 * time.Millisecond
 // spawnWindow starts the terminal detached without walking away blind, so a
 // terminal that refuses its own arguments reports why. See docs/aterm.md.
 func spawnWindow(name string, args []string) error {
+	return spawnWindowWithin(earlyExitWindow, name, args)
+}
+
+// spawnWindowWithin takes the window so a test of the failing path can allow a
+// loaded machine far longer than 400ms, since the wait ends when the terminal does.
+func spawnWindowWithin(window time.Duration, name string, args []string) error {
 	log, err := os.CreateTemp("", "aterm-window-*.log")
 	if err != nil {
 		return fmt.Errorf("stage the terminal log: %w", err)
@@ -47,7 +53,7 @@ func spawnWindow(name string, args []string) error {
 			return nil
 		}
 		return fmt.Errorf("%s exited immediately: %w%s", name, err, terminalDetail(log))
-	case <-time.After(earlyExitWindow):
+	case <-time.After(window):
 		return nil
 	}
 }
