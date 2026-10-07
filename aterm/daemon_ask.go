@@ -109,6 +109,7 @@ func (d *daemon) ask(cl *client, message frame) error {
 	cl.asks = append(cl.asks, ask.ID)
 	d.broadcast(frame{Type: "ask", Ask: &pending.ask})
 	go func() {
+		defer d.guard("ask")
 		var answer choiceAnswer
 		select {
 		case answer = <-pending.done:

@@ -55,7 +55,7 @@ func newDaemonCommand() *cli.Command {
 			&cli.BoolFlag{Name: "end-sessions", Usage: "end every session when the daemon stops, instead of leaving them for the next daemon"},
 			&cli.StringFlag{
 				Name:    "sentry-dsn",
-				Usage:   "Sentry DSN whose cron monitor takes a check-in each interval, empty for none",
+				Usage:   "Sentry DSN for the cron check-in each interval and for panic capture, empty for none",
 				Sources: cli.EnvVars(sentryDSNEnv),
 			},
 			&cli.StringFlag{
