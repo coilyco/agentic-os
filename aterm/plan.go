@@ -28,8 +28,12 @@ type launchRequest struct {
 	// Conversation is the claude conversation id minted for this launch, so a
 	// later `aterm resume` can name it. Empty leaves the harness to pick.
 	Conversation string
-	// Instance is the dictatable code that tells two sessions of one role apart.
+	// Instance is the pool slot the daemon granted, "" for the bare name and "2"
+	// or "3" for a concurrent instance. See docs/aterm-daemon.md.
 	Instance string
+	// ShadowID is the dictatable code the session shadow is named with, minted
+	// apart from the name since the name now recurs.
+	ShadowID string
 	Creature creaturePlate
 }
 
@@ -77,18 +81,16 @@ func composeChild(request launchRequest, agentCompose, aos string, shadowed bool
 		"--harness", request.Seat,
 		"--role", request.Role,
 	}
-	// The shadow takes the code the session is already named with, so the name
-	// and AOS_NATIVE_SESSION agree unless it was taken. See docs/aterm-daemon.md.
-	if request.Instance != "" {
-		child = append(child, "--session-id", request.Instance)
+	if request.ShadowID != "" {
+		child = append(child, "--session-id", request.ShadowID)
 	}
 	child = append(child, "--assigned-role", "--")
 	return append(child, launch...)
 }
 
-// mintInstance asks aos for the code, which keeps the contract to one Go
-// generator. An aos too old to mint leaves the session unsuffixed.
-func mintInstance(ctx context.Context, deps commandDeps, aos string) string {
+// mintShadowID asks aos for the code, which keeps the contract to one Go
+// generator. An aos too old to mint leaves the shadow to name itself.
+func mintShadowID(ctx context.Context, deps commandDeps, aos string) string {
 	raw, err := deps.output(ctx, aos, "_session-id")
 	if err != nil {
 		return ""

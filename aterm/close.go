@@ -17,8 +17,9 @@ func newCloseCommand() *cli.Command {
 		Usage:         "end a live session and drop it, which closing its window does not",
 		ArgsUsage:     "<role|identity|seat|session>",
 		Description: "Targets resolve as `aterm send`'s do, and one that matches several sessions\n" +
-			"refuses. The harness gets SIGTERM, then SIGKILL after a grace period. A session\n" +
-			"holding Kai's unsent draft or undelivered messages stays open unless --force.",
+			"refuses. An idle claude gets its own /exit first, then SIGTERM, then SIGKILL after\n" +
+			"a grace period. A session holding Kai's unsent draft or undelivered messages\n" +
+			"stays open unless --force.",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "force", Usage: "close even a session holding a draft or undelivered messages"},
 		},

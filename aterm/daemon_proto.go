@@ -69,6 +69,8 @@ type frame struct {
 	NotifyIdle bool `json:"notify_idle,omitempty"`
 	// Force closes a session even while it holds a draft or undelivered messages.
 	Force bool `json:"force,omitempty"`
+	// Peek asks a claim which name it would grant, without holding it.
+	Peek bool `json:"peek,omitempty"`
 
 	// replies and events
 	Message  *peerMessage  `json:"message,omitempty"`
@@ -163,6 +165,10 @@ const statusFeature = "status"
 
 // clearFeature is how a client knows the daemon answers a clear frame.
 const clearFeature = "clear"
+
+// claimFeature is how a client knows the daemon grants pool names atomically. A
+// client facing one without it picks from a list, which two launches at once can race.
+const claimFeature = "claim"
 
 // holdFeature is how a client knows sessions live in holders, so stopping the
 // daemon leaves them running. A daemon without it ends every session when it stops.

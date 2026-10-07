@@ -43,6 +43,9 @@ type commandDeps struct {
 	self     func() (string, error)
 	pick     func(rosterDocument) (string, string, error)
 	tty      func() bool
+	// claim settles a launch's pool name, peek without holding it. An unreachable
+	// daemon answers base, so the spawn's refusal of a live name is the backstop.
+	claim func(base string, peek bool) string
 	// notice carries the slow-call line. A nil writer stays silent, which is
 	// what a test wants unless it is asserting on the notice itself.
 	notice io.Writer
@@ -76,6 +79,7 @@ func systemDeps() commandDeps {
 		self:   os.Executable,
 		pick:   pickRoleAndSeat,
 		tty:    func() bool { return interactiveTTY(os.Stdin, os.Stdout) },
+		claim:  claimPoolName,
 		notice: os.Stderr,
 	}
 }
@@ -301,7 +305,7 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 	var shadowed bool
 	var group sync.WaitGroup
 	group.Go(func() { shadowed = nativeShadowAvailable(ctx, deps, aos) })
-	group.Go(func() { request.Instance = mintInstance(ctx, deps, aos) })
+	group.Go(func() { request.ShadowID = mintShadowID(ctx, deps, aos) })
 	group.Go(func() {
 		request.Workspace = workspaceLabel(ctx, deps, cwd, cmd.IsSet("working-directory"))
 	})
@@ -314,6 +318,11 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 	group.Wait()
 	if err != nil {
 		return err
+	}
+	// The identity's name is only known once the overlay is read, and the name
+	// has to be settled before it reaches the harness's argv.
+	if base := sessionName(document.Seat.Name, role, ""); base != "" && deps.claim != nil {
+		request.Instance = poolSlot(base, deps.claim(base, cmd.Bool("dry-run")))
 	}
 	plan, err := buildLaunchPlan(document, request, cwd, self, agentCompose, aos, shadowed)
 	if err != nil {

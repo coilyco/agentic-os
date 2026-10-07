@@ -1,9 +1,12 @@
 package main
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
-// sessionName names a session for who answers, not the harness: the role slug,
-// the identity's slugified name, then the instance code. See docs/aterm-daemon.md.
+// sessionName names a session for who answers, not the harness: role slug, identity
+// slug, then the pool slot of a concurrent instance. See docs/aterm-daemon.md.
 func sessionName(name, role, instance string) string {
 	if role == "" {
 		return ""
@@ -40,4 +43,22 @@ func hasNameFlag(arguments []string) bool {
 		}
 	}
 	return false
+}
+
+// poolName is the first of base, base-2, base-3 that taken does not refuse. The
+// daemon and a client facing an older daemon share it.
+func poolName(base string, taken func(string) bool) string {
+	if !taken(base) {
+		return base
+	}
+	for slot := 2; ; slot++ {
+		if name := base + "-" + strconv.Itoa(slot); !taken(name) {
+			return name
+		}
+	}
+}
+
+// poolSlot is the suffix a pool name carries past its base, "" for the base.
+func poolSlot(base, name string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(name, base), "-")
 }

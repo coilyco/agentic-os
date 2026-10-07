@@ -24,7 +24,7 @@ Committed work therefore survives a purged shadow and uncommitted work has no se
 
 * `--list [--json]` - every lease, whether its process is live, whether the worktree is still on disk, how many commits sit on no remote, and one line saying what holds a session that cannot be released. `aterm.roster.v1`'s sibling contract is `agentic-os.native-shadows.v1`.
 * `--release [<id>]` - a session declaring itself finished. It marks the lease and never tears down a process that may still be running, so the worktree goes on the next sweep. Defaults to `$AOS_NATIVE_SESSION`.
-* `--session-id <code>` - the code a launcher named the session with, from `aos _session-id`, used unless taken. That verb stands apart because the host wrapper converges on `_native-shadow`.
+* `--session-id <code>` - the code a launcher named the shadow with, from `aos _session-id`, used unless taken. The aterm session name no longer carries it.
 * `--reap [--dry-run]` - runs the sweep an operator would otherwise have to trigger by launching another session. The dry run reports the same verdict the sweep enforces, the grace included, rather than a larger optimistic one.
 
 A dead lease waits out a 24-hour grace, because a crash and a clean exit look identical from outside. `--release` is the session saying which it was, and a released lease skips the grace once its process is gone.
