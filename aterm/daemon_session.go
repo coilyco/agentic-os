@@ -80,13 +80,16 @@ type ptySession struct {
 	promptSeen time.Time
 	promptTail []byte
 	// scr is the screen the output so far draws, read for the session's state.
-	scr      *screen
-	draft    int
-	keys     keyState
-	pending  []*pendingSend
-	wake     chan struct{}
-	done     chan struct{}
-	exitCode int
+	scr     *screen
+	draft   int
+	keys    keyState
+	pending []*pendingSend
+	wake    chan struct{}
+	done    chan struct{}
+	// forgotten closes once the daemon has dropped the session's name, which is
+	// after done: a reply that the name is free waits on this one.
+	forgotten chan struct{}
+	exitCode  int
 	// released is a daemon letting go of a session that keeps running.
 	released bool
 	// context is the last context reading, kept across rounds that read nothing.
@@ -191,6 +194,7 @@ func (d *daemon) connectHolder(socket string, adopted bool) (*ptySession, error)
 		lastOutput:   now,
 		wake:         make(chan struct{}, 1),
 		done:         make(chan struct{}),
+		forgotten:    make(chan struct{}),
 	}
 	s.paste, s.pasteSeen, s.degraded = info.Paste, info.PasteSeen, append([]string(nil), info.Degraded...)
 	if adopted {
@@ -357,6 +361,7 @@ func (s *ptySession) finish(code int) {
 		}
 		s.d.logf("session %s (pid %d) exited %d", s.name, s.pid, code)
 		s.d.forget(s)
+		close(s.forgotten)
 	})
 }
 
