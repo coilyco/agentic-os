@@ -208,6 +208,43 @@ func tailnetPolicy(node tailnetNode, allowTags, allowOrigins []string, whois fun
 	}
 }
 
+// tailnetState is what the Sentry check-in reads: whether a tailnet listener is
+// wanted, the one now bound, or why there is none.
+type tailnetState struct {
+	mu      sync.Mutex
+	wanted  bool
+	serving *tailnetServing
+	reason  string
+}
+
+func (s *tailnetState) want() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.wanted = true
+}
+
+func (s *tailnetState) set(serving *tailnetServing, reason string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.serving, s.reason = serving, reason
+}
+
+// tailnetHealth is nil when the listener completes a handshake, or none is wanted.
+func (d *daemon) tailnetHealth(ctx context.Context) error {
+	d.tailnet.mu.Lock()
+	wanted, serving, reason := d.tailnet.wanted, d.tailnet.serving, d.tailnet.reason
+	d.tailnet.mu.Unlock()
+	switch {
+	case !wanted:
+		return nil
+	case serving == nil:
+		return fmt.Errorf("no tailnet listener: %s", reason)
+	case serving.probe == nil:
+		return nil
+	}
+	return serving.probe(ctx)
+}
+
 // tailnetServing is one bound tailnet listener and the two ways to tell it has
 // gone bad: Serve returning, and a handshake against it failing.
 type tailnetServing struct {
@@ -239,12 +276,16 @@ func (d *daemon) serveTailnetWhenUp(done <-chan struct{}, listen func() (*tailne
 	for {
 		serving, err := listen()
 		if err == nil {
-			if d.holdTailnet(done, serving) {
+			d.tailnet.set(serving, "")
+			finished := d.holdTailnet(done, serving)
+			d.tailnet.set(nil, "rebinding")
+			if finished {
 				return
 			}
 			delay, last = tailnetBackoff.first, ""
 			continue
 		}
+		d.tailnet.set(nil, err.Error())
 		if reason := err.Error(); reason != last {
 			d.logf("no tailnet listener yet, so other devices cannot attach, retrying: %v", err)
 			last = reason

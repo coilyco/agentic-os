@@ -54,6 +54,11 @@ func newDaemonCommand() *cli.Command {
 			&cli.DurationFlag{Name: "idle", Value: daemonIdle, Usage: "exit after this long with no session and no client, 0 for never"},
 			&cli.BoolFlag{Name: "end-sessions", Usage: "end every session when the daemon stops, instead of leaving them for the next daemon"},
 			&cli.StringFlag{
+				Name:    "sentry-dsn",
+				Usage:   "Sentry DSN whose cron monitor takes a check-in each interval, empty for none",
+				Sources: cli.EnvVars(sentryDSNEnv),
+			},
+			&cli.StringFlag{
 				Name:    "agent-proxy",
 				Usage:   "Agent Proxy base URL, read for the context of seats that run through it, empty for none",
 				Sources: cli.EnvVars(agentProxyEnv),
@@ -70,6 +75,7 @@ func newDaemonCommand() *cli.Command {
 				Idle:         cmd.Duration("idle"),
 				EndSessions:  cmd.Bool("end-sessions"),
 				AgentProxy:   cmd.String("agent-proxy"),
+				SentryDSN:    cmd.String("sentry-dsn"),
 			}, cmd.Root().ErrWriter)
 		},
 	}

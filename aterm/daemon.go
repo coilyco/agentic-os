@@ -40,6 +40,7 @@ type daemon struct {
 	// holdDir is where each session's holder keeps its socket. A restarted
 	// daemon adopts what it finds there.
 	holdDir string
+	tailnet tailnetState
 	// ledgerDir holds a record per session for `aterm resume`. Empty keeps none.
 	ledgerDir string
 	// ledgerMu keeps a record's write and its end stamp in one order, however
@@ -116,6 +117,8 @@ type daemonOptions struct {
 	// EndSessions ends every session when the daemon stops. By default they
 	// keep running in their holders for the next daemon to adopt.
 	EndSessions bool
+	// SentryDSN turns on the cron check-in, empty for none. A credential, so never logged.
+	SentryDSN string
 	// AgentProxy is the proxy base URL for proxy-backed seats' context, empty for none.
 	AgentProxy string
 	// Stop ends the daemon when closed, as a signal does. A test's handle.
@@ -184,7 +187,17 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 			defer server.Close()
 		}
 	}
+	checkInDone := make(chan struct{})
+	defer close(checkInDone)
+	if options.SentryDSN != "" {
+		if cron, err := newSentryCron(options.SentryDSN, sentryMonitorSlug(hostName())); err != nil {
+			logf("no Sentry check-ins: %v", err)
+		} else {
+			go d.sentryCheckIns(checkInDone, cron)
+		}
+	}
 	if options.TailnetPort != "" {
+		d.tailnet.want()
 		done := make(chan struct{})
 		defer close(done)
 		go d.serveTailnetWhenUp(done, func() (*tailnetServing, error) {

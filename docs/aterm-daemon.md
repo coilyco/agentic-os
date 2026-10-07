@@ -24,15 +24,15 @@ aterm mcp
 
 **The harness starts without agent-compose's Enter gate**, since the window drew its own card (`AGENT_COMPOSE_NO_PAUSE=1`). agent-compose's `ESC ] 7750 ; agent-compose ; degraded=<steps> BEL` becomes the session's `degraded` field.
 
-**`list` reads each session's screen.** The daemon rebuilds what each terminal shows from its output and reports `state`: `starting`, `prompt` (a permission or choice card is up), `busy` (recent output or the interrupt hint), else `idle`. `aterm status` adds the prompt text, quiet seconds, the draft, and the last rows, and never types.
+**`list` reads each session's screen.** The daemon rebuilds each terminal's screen from its output and reports `state`: `starting`, `prompt` (a permission or choice card is up), `busy` (recent output or the interrupt hint), else `idle`. `aterm status` adds the prompt text, quiet seconds, the draft, and the last rows, and never types.
 
 **`aterm clear` types the harness's clear command, unstamped.** Only Kai's client and the `prod-director` role may, never on the caller's own session, a prompt, or a seat with no known command (claude only). Without `--force` it also refuses a busy session, a draft, or queued messages.
 
 **A session outlives its window.** Closing it detaches that client, and the harness runs on until `aterm close` types the harness's exit (`/exit` for claude) at an idle prompt and waits 10 seconds, then sends SIGTERM, then SIGKILL after 3 seconds. Close refuses the caller's own session or one it runs inside, and without `--force` one holding Kai's draft or queued messages.
 
-**A daemon launch has no window.** `launch` and `send --launch`/`--new` run `aterm --headless <role>`, where `_session` spawns and exits.
-
 **A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn as one stdin line since the environment holds credentials. It listens in `hold/`, one socket per spawn, and speaks `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running. The next one adopts each, drops a socket nobody answers. An adopted session has a typing hold, and pending messages are lost.
+
+**`ATERM_SENTRY_DSN` (SSM `/coilysiren/sentry/dsn/aterm`, via `daemon.env`) turns on a Sentry cron check-in** every 5 minutes: `ok` if the tailnet listener completes a handshake, else `error`.
 
 **A missing daemon costs messaging, never the session.** `_session` starts one, else runs the harness directly, and [launchd](aterm-bundles.md) can run it. A window that loses the daemon redials and replays only what it had not drawn.
 
@@ -63,4 +63,4 @@ aterm mcp
 * `whoami` resolves a token to its session. `roster` answers `aterm.roster.v1`, the launchable roles `aterm --list --json` prints. `launch` with a `role` and optional `seat` opens it headless, answering `launched`.
 * `ask` takes a `question`, `options` (`label`, `description`), `header`, `allow_other`, `multi`. MCP `ask_choice` takes up to four `questions`, one card each. The daemon stamps the asker and pushes `ask` to subscribers, replayed on subscribe. `answer` (`ask_id`, `picks`, `text`) or `cancel_ask` settles it, and `asked` tells every client to drop the card. An asker leaving cancels its asks, and an answer takes the typing guard as Kai's input.
 
-**Browsers get the client from `--client-dir` at `/`, and a websocket there.** Loopback is `127.0.0.1:7419`. The tailnet is HTTPS on this node's tailnet name, port 7419, and the daemon handshakes against it every 30 seconds, binding a new listener after two failures or when Serve returns. `aterm doctor` runs the same handshake. `tailscale whois` admits a peer, never the request: this node owner's untagged device or one tagged `tag:physical`. A websocket opens only from the served page or `https://coilyco.dev`.
+**Browsers get the client from `--client-dir` at `/`, and a websocket there.** Loopback is `127.0.0.1:7419`. The tailnet is HTTPS on this node's tailnet name, port 7419, and the daemon handshakes against it every 30 seconds, rebinding after two failures. `aterm doctor` runs the same handshake. `tailscale whois` admits a peer, never the request: this node owner's untagged device or one tagged `tag:physical`. A websocket opens only from the served page or `https://coilyco.dev`.
