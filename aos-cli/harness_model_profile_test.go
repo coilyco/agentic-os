@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -161,17 +162,65 @@ func TestApplyRoleModelEnvironmentExportsBeforeLaunch(t *testing.T) {
 	t.Setenv("GOOSE_PROVIDER", "")
 	t.Setenv("GOOSE_MODEL", "")
 
-	if err := applyRoleModelEnvironment(context.Background(), "assistant", "claude", io.Discard, listedModels("evaluation/deepseek-v4-pro")); err != nil {
+	if err := resolveAndExportRoleEnvironment(context.Background(), "assistant", "claude", io.Discard, listedModels("evaluation/deepseek-v4-pro")); err != nil {
 		t.Fatal(err)
 	}
 	if os.Getenv("GOOSE_PROVIDER") != "" {
 		t.Fatal("a claude launch exported goose environment")
 	}
-	if err := applyRoleModelEnvironment(context.Background(), "assistant", "goose", io.Discard, listedModels("evaluation/deepseek-v4-pro")); err != nil {
+	if err := resolveAndExportRoleEnvironment(context.Background(), "assistant", "goose", io.Discard, listedModels("evaluation/deepseek-v4-pro")); err != nil {
 		t.Fatal(err)
 	}
 	if os.Getenv("GOOSE_PROVIDER") != "openai" || os.Getenv("GOOSE_MODEL") != "evaluation/deepseek-v4-pro" {
 		t.Errorf("exported %q and %q", os.Getenv("GOOSE_PROVIDER"), os.Getenv("GOOSE_MODEL"))
+	}
+}
+
+// resolveAndExportRoleEnvironment is the native half of applyRoleLaunchProfile
+// without the argv: resolve the pinned env, then export it.
+func resolveAndExportRoleEnvironment(
+	ctx context.Context,
+	role, harness string,
+	stderr io.Writer,
+	list modelLister,
+) error {
+	env, err := resolveRoleModelEnvironment(ctx, role, harness, stderr, list)
+	if err != nil {
+		return err
+	}
+	return exportRoleEnvironment(role, env)
+}
+
+func TestApplyRoleLaunchProfileReturnsArgvAndPinnedEnvironment(t *testing.T) {
+	writeProfilesFixture(t, gooseProfileFixture)
+	t.Setenv("GOOSE_PROVIDER", "")
+	t.Setenv("GOOSE_MODEL", "")
+	list := listedModels("evaluation/deepseek-v4-pro", "claude-sonnet-5")
+
+	command, env, err := applyRoleLaunchProfile(
+		context.Background(), []string{"goose", "session"}, "assistant", "goose", io.Discard, list)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(command, []string{"goose", "session"}) {
+		t.Errorf("goose argv = %v, want it untouched", command)
+	}
+	want := map[string]string{"GOOSE_PROVIDER": "openai", "GOOSE_MODEL": "evaluation/deepseek-v4-pro"}
+	if !maps.Equal(env, want) {
+		t.Errorf("env = %v, want %v", env, want)
+	}
+	// Returning the pair must not export it: the container path never execs here.
+	if os.Getenv("GOOSE_PROVIDER") != "" || os.Getenv("GOOSE_MODEL") != "" {
+		t.Error("applyRoleLaunchProfile exported env into the launching process")
+	}
+
+	command, env, err = applyRoleLaunchProfile(
+		context.Background(), []string{"claude"}, "builder", "claude", io.Discard, list)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(env) != 0 || !slices.Equal(command, []string{"claude", "--model", "sonnet"}) {
+		t.Errorf("claude launch gave argv %v env %v", command, env)
 	}
 }
 
@@ -375,7 +424,7 @@ func TestPinnedGooseModelFallsBackAsAPair(t *testing.T) {
 	t.Setenv("GOOSE_PROVIDER", "")
 	t.Setenv("GOOSE_MODEL", "")
 	var stderr strings.Builder
-	if err := applyRoleModelEnvironment(context.Background(), "assistant", "goose", &stderr,
+	if err := resolveAndExportRoleEnvironment(context.Background(), "assistant", "goose", &stderr,
 		listedModels("chat/default")); err != nil {
 		t.Fatal(err)
 	}
@@ -389,7 +438,7 @@ func TestPinnedGooseModelFallsBackAsAPair(t *testing.T) {
 	}
 
 	stderr.Reset()
-	if err := applyRoleModelEnvironment(context.Background(), "assistant", "goose", &stderr,
+	if err := resolveAndExportRoleEnvironment(context.Background(), "assistant", "goose", &stderr,
 		unreachableModels); err != nil {
 		t.Fatal(err)
 	}

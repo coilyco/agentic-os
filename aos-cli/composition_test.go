@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -860,5 +861,77 @@ func TestIntegratedStandaloneKubeconfigDryRun(t *testing.T) {
 		if !strings.Contains(rendered, want) {
 			t.Errorf("standalone dry run missing %q:\n%s", want, rendered)
 		}
+	}
+}
+
+func writeGooseProfile(t *testing.T) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "profiles.yaml")
+	body := "roles:\n  assistant:\n    agent: goose\n    harnesses:\n      goose:\n" +
+		"        provider: openai\n        model: chat/default\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AOS_HARNESS_LAUNCH_PROFILES", path)
+	// Registered empty so a value the host exported cannot satisfy the test.
+	t.Setenv("GOOSE_PROVIDER", "")
+	t.Setenv("GOOSE_MODEL", "")
+}
+
+func TestContainerLaunchesCarryTheGooseLaunchProfile(t *testing.T) {
+	for name, argv := range map[string][]string{
+		"integrated": {"aos", "--agent", "goose", "--role", "assistant", "--image", "aos:test", "--auth=false", "--dry-run", "--", "session"},
+		"acompose":   {"aos", "--role", "assistant", "--image", "aos:test", "--auth=false", "--dry-run", "acompose", "--", "goose", "session"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			useStandaloneWorkspaceFixture(t)
+			writeGooseProfile(t)
+			command := newCommand()
+			var output bytes.Buffer
+			command.Writer = &output
+			command.ErrWriter = io.Discard
+			// The legacy acompose subcommand reads its harness argv from the process.
+			previous := os.Args
+			os.Args = argv
+			t.Cleanup(func() { os.Args = previous })
+			if err := command.Run(context.Background(), argv); err != nil {
+				t.Fatal(err)
+			}
+			rendered := output.String()
+			for _, want := range []string{"--env GOOSE_PROVIDER=openai", "--env GOOSE_MODEL=chat/default"} {
+				if strings.Count(rendered, want) != 1 {
+					t.Errorf("dry run wants %q exactly once:\n%s", want, rendered)
+				}
+			}
+			// A bare name beside the pinned value would forward the host's value.
+			for _, bare := range []string{"--env GOOSE_PROVIDER ", "--env GOOSE_MODEL "} {
+				if strings.Contains(rendered, bare) {
+					t.Errorf("dry run also forwards %q by name:\n%s", bare, rendered)
+				}
+			}
+		})
+	}
+}
+
+func TestContainerLaunchKeepsGooseEnvironmentTheHumanExported(t *testing.T) {
+	useStandaloneWorkspaceFixture(t)
+	writeGooseProfile(t)
+	t.Setenv("GOOSE_MODEL", "qwen3-coder:30b")
+	command := newCommand()
+	var output bytes.Buffer
+	command.Writer = &output
+	command.ErrWriter = io.Discard
+	err := command.Run(context.Background(), []string{
+		"aos", "--agent", "goose", "--role", "assistant", "--image", "aos:test", "--auth=false", "--dry-run", "--", "session",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rendered := output.String()
+	if strings.Contains(rendered, "GOOSE_MODEL=") || !strings.Contains(rendered, "--env GOOSE_MODEL ") {
+		t.Errorf("a human-exported model was overridden or not forwarded:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "--env GOOSE_PROVIDER=openai") {
+		t.Errorf("the provider pin was dropped with the human's model:\n%s", rendered)
 	}
 }
