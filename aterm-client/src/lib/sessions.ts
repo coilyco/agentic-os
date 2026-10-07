@@ -3,7 +3,7 @@
 import type { Session } from "./protocol";
 import type { Role } from "./roster";
 
-/** The code the daemon appends to `<role>-<identity>`, or "" when unsuffixed. */
+/** The pool slot after `<role>-<identity>` ("2", "3"), or "" for the bare name. */
 export function sessionCode(session: Pick<Session, "id" | "role" | "identity">): string {
   const prefix = `${session.role}-${session.identity.toLowerCase()}-`;
   return session.id.startsWith(prefix) ? session.id.slice(prefix.length) : "";

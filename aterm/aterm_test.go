@@ -37,7 +37,8 @@ type recordedSpawn struct {
 	headless bool
 }
 
-// stubInstance is the code the stub aos mints, drawn from the dictatable alphabet.
+// stubInstance is the shadow code the stub aos mints, drawn from the dictatable
+// alphabet. It names the shadow, never the session.
 const stubInstance = "ab84"
 
 // stubDeps answers the two Agent Compose reads from fixtures and records the
@@ -172,7 +173,7 @@ func TestLaunchPlanRunsTheNativeSessionInsideTheWindow(t *testing.T) {
 	want := []string{
 		"/stub/aos", "_native-shadow", "--harness", "claude",
 		"--role", "eng-platform", "--session-id", stubInstance, "--assigned-role", "--",
-		"/stub/agent-compose", "launch", "eng-platform", "claude", "--name", sessionName("Angie", "eng-platform", stubInstance),
+		"/stub/agent-compose", "launch", "eng-platform", "claude", "--name", sessionName("Angie", "eng-platform", ""),
 	}
 	if conversationOf(plan.Child) == "" {
 		t.Fatalf("a claude launch should carry a minted conversation id: %v", plan.Child)

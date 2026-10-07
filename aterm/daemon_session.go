@@ -127,7 +127,8 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 		Argv: message.Argv, Env: sessionEnv(message.Env, name, token), Cwd: message.Cwd,
 		Rows: message.Rows, Cols: message.Cols, Token: token,
 	}
-	socket := holdSocketPath(d.holdDir, name)
+	// A pool name recurs, and a lingering holder removes its socket as it goes.
+	socket := holdSocketPath(d.holdDir, name+"~"+token[:6])
 	if _, err := startHolder(socket, spec); err != nil {
 		return nil, err
 	}
@@ -366,8 +367,41 @@ func (s *ptySession) letGo() {
 	_ = s.holder.Close()
 }
 
-// end stops the session the way closing its terminal would, then harder.
+// exitCommands is the line each harness reads as "quit cleanly", typed like a clear.
+// A seat not listed gets the signal alone. See docs/aterm-daemon.md.
+var exitCommands = map[string]string{"claude": "/exit"}
+
+// cleanExitGrace is how long a typed exit gets before the signal.
+var cleanExitGrace = 10 * time.Second
+
+// askToExit types the harness's own exit and waits, only at an idle prompt with no
+// draft, since elsewhere the line would answer a card or join the draft.
+func (s *ptySession) askToExit() bool {
+	command, known := exitCommands[s.seat]
+	if !known {
+		return false
+	}
+	if view := s.view(); view.State != stateIdle || view.Drafted {
+		return false
+	}
+	if err := s.typeCommand(command); err != nil {
+		return false
+	}
+	select {
+	case <-s.done:
+		return true
+	case <-time.After(cleanExitGrace):
+		s.d.logf("session %s (pid %d) ignored %s for %s", s.name, s.pid, command, cleanExitGrace)
+		return false
+	}
+}
+
+// end asks the harness to quit, then stops it the way closing its terminal
+// would, then harder.
 func (s *ptySession) end() {
+	if s.askToExit() {
+		return
+	}
 	_ = syscall.Kill(-s.pid, syscall.SIGTERM)
 	select {
 	case <-s.done:

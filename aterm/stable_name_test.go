@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -43,7 +44,7 @@ func TestLaunchPlanNamesOnlyClaudeSessionsTheCallerLeftUnnamed(t *testing.T) {
 			}
 			// agent-compose drops its own name when it is handed one, so the flag
 			// has to reach it ahead of the caller's own arguments.
-			carriesName := slices.Contains(plan.Child, sessionName("Angie", "eng-platform", stubInstance))
+			carriesName := slices.Contains(plan.Child, sessionName("Angie", "eng-platform", ""))
 			if carriesName != testCase.named {
 				t.Fatalf("the child should carry the name only when named: %v", plan.Child)
 			}
@@ -59,9 +60,9 @@ func TestSessionNameIsForWhoAnswersAndWhichInstance(t *testing.T) {
 		want     string
 	}{
 		{"Vera", "sysadmin-senior", "", "sysadmin-senior-vera"},
-		{"Beetle-Ox", "eng-platform", "ab84", "eng-platform-beetle-ox-ab84"},
-		{"Valerie", "sysadmin-junior", "zv88", "sysadmin-junior-valerie-zv88"},
-		{"Vera", "", "ab84", ""},
+		{"Beetle-Ox", "eng-platform", "2", "eng-platform-beetle-ox-2"},
+		{"Valerie", "sysadmin-junior", "3", "sysadmin-junior-valerie-3"},
+		{"Vera", "", "2", ""},
 	} {
 		if got := sessionName(testCase.name, testCase.role, testCase.instance); got != testCase.want {
 			t.Fatalf("sessionName(%q, %q, %q) = %q, want %q",
@@ -70,13 +71,43 @@ func TestSessionNameIsForWhoAnswersAndWhichInstance(t *testing.T) {
 	}
 }
 
-func TestTwoLaunchesOfOneRoleGetTwoNames(t *testing.T) {
-	if sessionName("Angie", "eng-platform", "ab84") == sessionName("Angie", "eng-platform", "tu78") {
-		t.Fatal("two instances of one role must not share a name, or neither is addressable")
+func TestPoolNameTakesTheFirstFreeSlotAndFreedNamesReturn(t *testing.T) {
+	base := "eng-platform-beetle-ox"
+	live := map[string]bool{}
+	taken := func(name string) bool { return live[name] }
+	for _, step := range []struct {
+		release string
+		want    string
+	}{
+		{"", base},
+		{"", base + "-2"},
+		{"", base + "-3"},
+		// The bare name freeing up is the first a relaunch gets back, ahead of -4.
+		{base, base},
+		{base + "-2", base + "-2"},
+	} {
+		delete(live, step.release)
+		got := poolName(base, taken)
+		if got != step.want {
+			t.Fatalf("after releasing %q the pool granted %q, want %q", step.release, got, step.want)
+		}
+		live[got] = true
 	}
 }
 
-func TestLaunchPlanCarriesTheMintedInstanceToTheShadowAndTheCard(t *testing.T) {
+func TestPoolSlotIsWhatPastTheBase(t *testing.T) {
+	for name, want := range map[string]string{
+		"eng-platform-beetle-ox":   "",
+		"eng-platform-beetle-ox-2": "2",
+		"eng-platform-beetle-ox-9": "9",
+	} {
+		if got := poolSlot("eng-platform-beetle-ox", name); got != want {
+			t.Fatalf("poolSlot(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
+func TestLaunchPlanCarriesTheShadowIDToTheShadowAndNotTheName(t *testing.T) {
 	var spawns []recordedSpawn
 	out, err := runAterm(t, stubDeps(t, &spawns, true), "--dry-run", "--json", "prod-director", "codex")
 	if err != nil {
@@ -90,9 +121,40 @@ func TestLaunchPlanCarriesTheMintedInstanceToTheShadowAndTheCard(t *testing.T) {
 	if at < 0 || plan.Child[at+1] != stubInstance || slices.Index(plan.Child, "--") < at {
 		t.Fatalf("the shadow should be asked for %s ahead of its `--`: %v", stubInstance, plan.Child)
 	}
-	if plan.Card.Instance != stubInstance || plan.Identity.Instance != stubInstance {
-		t.Fatalf("card instance = %q, identity instance = %q, want %s",
-			plan.Card.Instance, plan.Identity.Instance, stubInstance)
+	if plan.Card.Instance != "" || plan.Identity.Instance != "" {
+		t.Fatalf("the shadow code must not reach the name: card %q, identity %q",
+			plan.Card.Instance, plan.Identity.Instance)
+	}
+}
+
+func TestLaunchPlanTakesTheNameTheDaemonGrants(t *testing.T) {
+	var spawns []recordedSpawn
+	deps := stubDeps(t, &spawns, true)
+	var asked []string
+	deps.claim = func(base string, peek bool) string {
+		asked = append(asked, fmt.Sprintf("%s peek=%v", base, peek))
+		return base + "-2"
+	}
+	out, err := runAterm(t, deps, "--dry-run", "--json", "eng-platform", "claude")
+	if err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	var plan launchPlan
+	if err := json.Unmarshal([]byte(out), &plan); err != nil {
+		t.Fatalf("decode plan: %v", err)
+	}
+	if want := []string{"eng-platform-angie peek=true"}; !slices.Equal(asked, want) {
+		t.Fatalf("a dry run should peek without holding the name: asked %v, want %v", asked, want)
+	}
+	if plan.Card.Instance != "2" || plan.Identity.Instance != "2" {
+		t.Fatalf("the granted slot should ride the card: card %q, identity %q",
+			plan.Card.Instance, plan.Identity.Instance)
+	}
+	if !slices.Contains(plan.Child, "eng-platform-angie-2") {
+		t.Fatalf("the harness should be named for the granted slot: %v", plan.Child)
+	}
+	if at := slices.Index(plan.Child, "--session-id"); at < 0 || plan.Child[at+1] != stubInstance {
+		t.Fatalf("the shadow keeps its own code beside a pooled name: %v", plan.Child)
 	}
 }
 

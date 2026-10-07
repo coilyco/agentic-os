@@ -47,7 +47,10 @@ type daemon struct {
 	ledgerMu sync.Mutex
 	// ended remembers how recent sessions exited, so a window that was
 	// disconnected when its session ended still learns the code.
-	ended       map[string]endedSession
+	ended map[string]endedSession
+	// claims holds a granted pool name until its spawn arrives or the hold lapses,
+	// so two launches at once never settle on one name.
+	claims      map[string]time.Time
 	subscribers map[*conn]bool
 	conns       int
 	lastActive  time.Time
@@ -65,6 +68,7 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		tokens:      map[string]*ptySession{},
 		asks:        map[string]*pendingAsk{},
 		ended:       map[string]endedSession{},
+		claims:      map[string]time.Time{},
 		askTimeout:  defaultAskTimeout,
 		subscribers: map[*conn]bool{},
 		lastActive:  time.Now(),
@@ -274,9 +278,12 @@ func (d *daemon) endAll() {
 		sessions = append(sessions, s)
 	}
 	d.mu.Unlock()
+	// Together, since each may spend its typed-exit grace before the signal.
+	var group sync.WaitGroup
 	for _, s := range sessions {
-		s.end()
+		group.Go(s.end)
 	}
+	group.Wait()
 }
 
 // client is one connection's standing: which sessions it spawned, which it is
@@ -305,7 +312,7 @@ func (d *daemon) serveConn(c *conn, pid int, browser bool) {
 		_ = c.write(frame{Type: "welcome", Format: daemonFormat, Error: "unsupported format " + hello.Format})
 		return
 	}
-	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature}}); err != nil {
+	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature}}); err != nil {
 		return
 	}
 	d.mu.Lock()
@@ -404,6 +411,12 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return cl.c.write(frame{Type: "status", ID: message.ID, Session: s.name, Status: &status})
 	case "clear":
 		return d.clearSession(cl, message)
+	case "claim":
+		name, err := d.claimName(message.Session, message.Peek)
+		if err != nil {
+			return err
+		}
+		return cl.c.write(frame{Type: "claimed", ID: message.ID, Session: name})
 	case "list":
 		return cl.c.write(frame{Type: "sessions", ID: message.ID, Sessions: d.views()})
 	case "launch":
@@ -506,6 +519,7 @@ func (d *daemon) spawn(message frame) (*ptySession, error) {
 	d.mu.Lock()
 	d.sessions[name] = s
 	d.tokens[s.token] = s
+	delete(d.claims, name)
 	// A fresh instance answers one new-instance send, so two asked for at once
 	// open two sessions rather than both landing in the first.
 	var adopted []*pendingSend
@@ -528,6 +542,35 @@ func (d *daemon) spawn(message frame) (*ptySession, error) {
 	d.logf("spawned %s as pid %d: %s", name, s.pid, strings.Join(message.Argv, " "))
 	d.recordSession(s, message)
 	return s, nil
+}
+
+// claimHold is how long a granted pool name waits for its spawn. A launch that
+// dies first frees the name when this lapses.
+const claimHold = 2 * time.Minute
+
+// claimName grants the first free name of base, base-2, base-3, free meaning no live
+// session and no unexpired grant. See docs/aterm-daemon.md.
+func (d *daemon) claimName(base string, peek bool) (string, error) {
+	if base == "" || slugify(base) != base {
+		return "", withExit(exitUsage, errors.New("claim needs a slugged session name"))
+	}
+	now := time.Now()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for name, until := range d.claims {
+		if !now.Before(until) {
+			delete(d.claims, name)
+		}
+	}
+	name := poolName(base, func(candidate string) bool {
+		_, live := d.sessions[candidate]
+		_, held := d.claims[candidate]
+		return live || held
+	})
+	if !peek {
+		d.claims[name] = now.Add(claimHold)
+	}
+	return name, nil
 }
 
 // endedMemory is how long a finished session's exit code stays answerable.
@@ -578,7 +621,8 @@ func (d *daemon) markEnded(s *ptySession) {
 	d.ledgerMu.Lock()
 	defer d.ledgerMu.Unlock()
 	for _, entry := range readLedger(d.ledgerDir) {
-		if entry.Name != s.name {
+		// A pool name recurs, so the record under it may already be a newer session's.
+		if entry.Name != s.name || !entry.Started.Equal(s.started) {
 			continue
 		}
 		s.mu.Lock()

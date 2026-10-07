@@ -1,16 +1,16 @@
 # The aterm host daemon
 
-`aterm daemon` routes every session `aterm` opens. The kitty window is one client
-attached to it, and `aterm send` types a stamped message from one session into another. Its window is [the native agent terminal](aterm.md).
+`aterm daemon` routes every session [`aterm`](aterm.md) opens. The kitty window is one client
+attached to it, and `aterm send` types a stamped message from one session into another.
 
 ```text
 aterm agents
 aterm send frontend-eng "ready for review"
 aterm send --launch scientist -       # open the role if none answers
 aterm attach eng-platform-beetle-ox   # Ctrl-] detaches
-aterm status scientist-frog-ox-ya97   # state and screen
-aterm clear scientist-frog-ox-ya97
-aterm close scientist-frog-ox-ya97
+aterm status scientist-frog-ox        # state and screen
+aterm clear scientist-frog-ox
+aterm close scientist-frog-ox
 aterm daemon                          # foreground, websocket on 127.0.0.1:7419
 aterm ask "Ship it?" yes no           # a choice card
 aterm mcp
@@ -20,19 +20,19 @@ aterm mcp
 
 **`_session` hands the harness to the daemon instead of running it.** After the card it sends a `spawn` with the argv, environment, directory and window size, then attaches as one client. The argv reaches the harness untouched, and the window holds on a non-zero exit.
 
-**A session is named `<role>-<identity>-<code>`, and a spawn under a live session's name is refused.** The code comes from `aos _session-id`, passed to the shadow as `--session-id`, so it doubles as `AOS_NATIVE_SESSION` unless taken. The claude seat also gets the name as `--name`.
+**A session is named `<role>-<identity>`, with `-2`, `-3` only for concurrent instances, and a spawn under a live session's name is refused.** A `claim` frame grants each launch the first free pool name for two minutes, so a relaunch takes the bare one back. Claude also gets it as `--name`.
 
 **The harness starts without agent-compose's Enter gate**, since the window drew its own card (`AGENT_COMPOSE_NO_PAUSE=1`). agent-compose's `ESC ] 7750 ; agent-compose ; degraded=<steps> BEL` becomes the session's `degraded` field.
 
-**`list` reads each session's screen.** The daemon rebuilds what each terminal shows from its output and reports `state`: `starting`, `prompt` (a permission or choice card is up), `busy` (recent output or the interrupt hint), else `idle`. `aterm status` adds the prompt text, seconds since output and input, the draft, and the last rows, and never types.
+**`list` reads each session's screen.** The daemon rebuilds what each terminal shows from its output and reports `state`: `starting`, `prompt` (a permission or choice card is up), `busy` (recent output or the interrupt hint), else `idle`. `aterm status` adds the prompt text, quiet seconds, the draft, and the last rows, and never types.
 
-**`aterm clear` types the harness's clear command, unstamped.** Only Kai's client and the `prod-director` role may, never on the caller's own session, a prompt, or a seat with no known command (claude only). Without `--force` it also refuses a busy session, a draft, or queued messages. The daemon logs who cleared what.
+**`aterm clear` types the harness's clear command, unstamped.** Only Kai's client and the `prod-director` role may, never on the caller's own session, a prompt, or a seat with no known command (claude only). Without `--force` it also refuses a busy session, a draft, or queued messages.
 
-**A session outlives its window.** Closing it detaches that client, and the harness runs on until `aterm close` sends SIGTERM, then SIGKILL after 3 seconds. Close refuses the caller's own session or one it runs inside, and without `--force` one holding Kai's draft or queued messages. `aterm attach` reattaches from any terminal and replays the last megabyte.
+**A session outlives its window.** Closing it detaches that client, and the harness runs on until `aterm close` types the harness's exit (`/exit` for claude) at an idle prompt and waits 10 seconds, then sends SIGTERM, then SIGKILL after 3 seconds. Close refuses the caller's own session or one it runs inside, and without `--force` one holding Kai's draft or queued messages.
 
-**A launch the daemon starts has no window.** The web client's `launch` frame and `send --launch`/`--new` run `aterm --headless <role>`, where `_session` spawns and exits.
+**A daemon launch has no window.** `launch` and `send --launch`/`--new` run `aterm --headless <role>`, where `_session` spawns and exits.
 
-**A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn as one stdin line since the environment holds credentials. It listens at `hold/<name>-<hash>.sock` and speaks `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running. The next one adopts each, drops a socket nobody answers. An adopted session has a typing hold, and pending messages are lost.
+**A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn as one stdin line since the environment holds credentials. It listens in `hold/`, one socket per spawn, and speaks `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running. The next one adopts each, drops a socket nobody answers. An adopted session has a typing hold, and pending messages are lost.
 
 **A missing daemon costs messaging, never the session.** `_session` starts one, else runs the harness directly, and [launchd](aterm-bundles.md) can run it. A window that loses the daemon redials and replays only what it had not drawn.
 
@@ -58,7 +58,7 @@ aterm mcp
 
 * `spawn`, `attach`, `detach`, `input` and `output` (base64 `data`), `resize`, `exit` with `code`.
 * `send` answers `sent` with the message state, waiting 3 seconds, or `wait` up to 120, for delivery unless `launching`. One not yet final earns the sender `[from aterm daemon] message <id> to <session>: <state>`, never the body. `notify_idle` adds `<session> is idle`, `is held at a prompt` or `ended`.
-* `status` (with `lines`), `clear` and `close` (with optional `force`), each with a `target`, answer `status`, `cleared` and `closed` with the exit `code`.
+* `status` (with `lines`), `clear` and `close` (with optional `force`), each with a `target`, answer `status`, `cleared` and `closed` with the exit `code`. `claim` with a `session` base answers `claimed` with a free pool name, and `peek` holds none.
 * `list` answers `sessions`, each with `state`, `quiet_seconds` and `context` ([the meter](../.agents/skills/tooling-aterm-client/references/context-meter.md)). `subscribe` to channel `sessions` pushes the roster on every change, and `message` events carry each state change, never the body.
 * `whoami` resolves a token to its session. `roster` answers `aterm.roster.v1`, the launchable roles `aterm --list --json` prints. `launch` with a `role` and optional `seat` opens it headless, answering `launched`.
 * `ask` takes a `question`, `options` (`label`, `description`), `header`, `allow_other`, `multi`. MCP `ask_choice` takes up to four `questions`, one card each. The daemon stamps the asker and pushes `ask` to subscribers, replayed on subscribe. `answer` (`ask_id`, `picks`, `text`) or `cancel_ask` settles it, and `asked` tells every client to drop the card. An asker leaving cancels its asks, and an answer takes the typing guard as Kai's input.

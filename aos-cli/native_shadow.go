@@ -2388,7 +2388,7 @@ func nativeSessionID(runtime nativeRuntime) (string, error) {
 	return string(id), nil
 }
 
-// runSessionID mints aterm's session code. Its own verb, because the host wrapper
+// runSessionID mints a session shadow's code, its own verb since the host wrapper
 // converges on _native-shadow. docs/native-shadow.md
 func runSessionID(context.Context, *cli.Command) error {
 	id, err := nativeSessionID(nativeRuntime{})
