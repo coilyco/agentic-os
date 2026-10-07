@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 )
 
@@ -385,4 +386,77 @@ func environmentContains(environment []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// refuseChownOnReadOnly mimics the Docker Desktop bind mount (COI-1841). Its
+// users stay serial because they swap a package variable.
+func refuseChownOnReadOnly(t *testing.T) {
+	t.Helper()
+	original := chownEntry
+	t.Cleanup(func() { chownEntry = original })
+	chownEntry = func(path string, symlink bool, uid, gid int) error {
+		if info, err := os.Lstat(path); err == nil && !symlink && info.Mode().Perm()&0o222 == 0 {
+			return &os.PathError{Op: "chown", Path: path, Err: syscall.EPERM}
+		}
+		return original(path, symlink, uid, gid)
+	}
+}
+
+func TestPrepareContainerLaunchesWithReadOnlyFileInStagedHome(t *testing.T) {
+	refuseChownOnReadOnly(t)
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	jobs := filepath.Join(home, ".claude", "jobs")
+	if err := os.MkdirAll(jobs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	readOnly := filepath.Join(jobs, "state.json")
+	if err := os.WriteFile(readOnly, []byte("{}"), 0o444); err != nil {
+		t.Fatal(err)
+	}
+	manifest := filepath.Join(root, "repos.txt")
+	seed := filepath.Join(root, "seed")
+	if err := os.MkdirAll(filepath.Join(seed, "coilyco__agentic-os.git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(manifest, []byte("coilyco/agentic-os\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	uid, gid := hostIdentity()
+	spec, err := prepareContainer(context.Background(), bootstrapOptions{
+		Role:              "director",
+		Layout:            "codex",
+		Delivery:          "compiled",
+		Composed:          true,
+		Workspace:         filepath.Join(root, "workspace"),
+		UID:               uid,
+		GID:               gid,
+		Command:           []string{"codex"},
+		NoSubstrate:       true,
+		SubstrateManifest: manifest,
+		SubstrateSeed:     seed,
+		SubstrateCache:    filepath.Join(root, "cache"),
+		SubstrateRoot:     filepath.Join(root, "substrate"),
+		AgentHome:         home,
+	}, &fakeCommandRunner{})
+	if err != nil {
+		t.Fatalf("a read-only file in the staged home aborted the launch: %v", err)
+	}
+	if strings.Join(spec.Command, " ") != "codex" {
+		t.Fatalf("exec command = %q", spec.Command)
+	}
+}
+
+func TestChownTreeStillFailsOnNonPermissionErrors(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "file"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	original := chownEntry
+	t.Cleanup(func() { chownEntry = original })
+	boom := errors.New("input/output error")
+	chownEntry = func(string, bool, int, int) error { return boom }
+	if err := chownTree(root, 0, 0); !errors.Is(err, boom) {
+		t.Fatalf("chownTree swallowed a non-permission error: %v", err)
+	}
 }
