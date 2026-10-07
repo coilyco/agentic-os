@@ -60,6 +60,22 @@ func createNativeTestRepository(
 	return repository, remote
 }
 
+// shortNativeSessionsRoot keeps a Codex launch under the socket budget, which
+// t.TempDir on macOS exceeds by design.
+func shortNativeSessionsRoot(t *testing.T) string {
+	t.Helper()
+	base := os.TempDir()
+	if info, err := os.Stat(nativeSharedTempRoot); err == nil && info.IsDir() {
+		base = nativeSharedTempRoot
+	}
+	dir, err := os.MkdirTemp(base, "aost")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir
+}
+
 func nativeTestRuntime(t *testing.T, root string) nativeRuntime {
 	t.Helper()
 	start, err := processStartIdentity(os.Getpid())
@@ -80,7 +96,7 @@ func nativeTestRuntime(t *testing.T, root string) nativeRuntime {
 		Home:         home,
 		ProjectsRoot: filepath.Join(root, "projects"),
 		StateRoot:    filepath.Join(root, "state"),
-		SessionsRoot: filepath.Join(root, "sessions"),
+		SessionsRoot: shortNativeSessionsRoot(t),
 		PlanFile:     expected,
 		FleetFile:    fleet,
 		Stderr:       os.Stderr,

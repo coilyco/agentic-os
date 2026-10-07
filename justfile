@@ -215,6 +215,10 @@ apply-agentic-os-hooks *ARGS:
 apply-agents-pointer *ARGS:
     @uv run python scripts/apply-agents-pointer.py "$@"
 
+# Inject or refresh the managed git-workflow block in each repo's AGENTS.md from its declared lane and `[tool.agentic-os.git-workflow] body`. Idempotent. --repo <name> for one, --dry-run to preview.
+apply-git-workflow *ARGS:
+    @uv run python scripts/apply-git-workflow.py "$@"
+
 # Converge public-safe Claude Code preferences without clobbering local settings.
 apply-base-claude-settings *ARGS:
     @python3 scripts/apply-base-claude-settings.py "$@"

@@ -216,6 +216,24 @@ def test_fresh_shell_leaves_native_session_root(tmp_path: Path) -> None:
     ) == _bash_path(projects)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="the temp-root default is a POSIX path")
+def test_fresh_shell_leaves_session_under_the_old_temp_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A session started before the move to /private/tmp stays under $TMPDIR
+    # until its lease is reaped, and its shell still has to leave it.
+    home = tmp_path / "home"
+    projects = home / "projects"
+    old_projects = tmp_path / "aos" / "native" / "session" / "projects"
+    projects.mkdir(parents=True)
+    old_projects.mkdir(parents=True)
+    monkeypatch.setenv("TMPDIR", str(tmp_path))
+
+    assert _interactive_shell_pwd(home, projects_root=projects, cwd=old_projects) == str(
+        projects
+    )
+
+
 def test_nested_shell_preserves_native_session_root(tmp_path: Path) -> None:
     home = tmp_path / "home"
     projects = home / "projects"
