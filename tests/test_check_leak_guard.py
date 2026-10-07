@@ -3,11 +3,18 @@
 Covers the three rule shapes (scope-all, repo-scoped, cycle-break) plus the
 mechanics that make them safe: hex terms decoded only in memory, word-boundary
 matching, only_globs / allow_globs, and that a violation never echoes the term.
+The last section drives the real pre-commit binary, because which files the hook
+sees is decided by pre-commit and not by the hook (COI-1743).
 """
 from __future__ import annotations
 
+import os
+import shutil
 import subprocess
+import sys
 from pathlib import Path
+
+import yaml
 
 from agentic_os.pre_commit import check_leak_guard as lg
 
@@ -76,7 +83,7 @@ def _run(monkeypatch, tmp_path: Path, rules: list[dict]) -> int:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(lg, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(lg, "RULES", rules)
-    return lg.main()
+    return lg.main([])
 
 
 def test_only_globs_enforces_front_page_alone(monkeypatch, tmp_path, capsys) -> None:
@@ -162,3 +169,106 @@ def test_umbra_ward_cycle_ignores_prose_naming_the_consumer(monkeypatch, tmp_pat
     (repo / "appdir.go").write_text(f'// The consumer dir, e.g. ".{term}".\npackage config\n')
     _git(repo, "add", "-A")
     assert _run(monkeypatch, repo, [rule]) == 0
+
+
+# --- which files the hook scans, through the real pre-commit (COI-1743) ------
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Stands in for the hook entry so the run uses a fake rule and never a shipped term.
+_SHIM = """\
+import sys
+from agentic_os.pre_commit import check_leak_guard as lg
+
+lg.RULES = [{{"id": "fake", "term_hex": "{term}", "message": "fix it"}}]
+sys.exit(lg.main())
+"""
+
+
+def _wire(repo: Path, monkeypatch) -> None:
+    """Point pre-commit in `repo` at the shipped leak-guard definition, fake rule."""
+    hooks = yaml.safe_load((REPO_ROOT / ".pre-commit-hooks.yaml").read_text(encoding="utf-8"))
+    shipped = next(h for h in hooks if h["id"] == "leak-guard")
+    shim = repo.parent / "shim.py"
+    shim.write_text(_SHIM.format(term=_hex("needle")), encoding="utf-8")
+    # Only the entry and language change. The file selection fields come from the
+    # shipped definition, which is the thing under test.
+    local = {k: shipped[k] for k in ("id", "name", "always_run", "pass_filenames", "stages")}
+    local |= {"language": "system", "entry": f'"{sys.executable}" "{shim}"'}
+    config = {"repos": [{"repo": "local", "hooks": [local]}]}
+    (repo / ".pre-commit-config.yaml").write_text(yaml.safe_dump(config), encoding="utf-8")
+    for key in [k for k in os.environ if k.startswith("GIT_")]:
+        monkeypatch.delenv(key)  # pre-commit exports GIT_INDEX_FILE and friends
+    monkeypatch.setenv("PYTHONPATH", str(REPO_ROOT))
+    monkeypatch.setenv("PRE_COMMIT_HOME", str(repo.parent / "pc-home"))
+    monkeypatch.chdir(repo)
+
+
+def _sh(*cmd: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(cmd, text=True, capture_output=True, check=False)
+
+
+def _pre_commit(*args: str) -> subprocess.CompletedProcess[str]:
+    # Absent binary is an environment defect, not a reason to skip: CI runs it too.
+    binary = shutil.which("pre-commit")
+    assert binary, "pre-commit must be on PATH for the leak-guard file-selection tests"
+    return _sh(binary, *args)
+
+
+def _leaky_repo(tmp_path: Path, monkeypatch) -> Path:
+    """A repo whose committed tree leaks, with an unrelated clean file ready to stage."""
+    (tmp_path / "repo").mkdir()
+    repo = _repo(tmp_path / "repo")
+    _wire(repo, monkeypatch)
+    (repo / "leaky.md").write_text("names the needle\n")
+    (repo / "clean.txt").write_text("fine\n")
+    _git(repo, "add", "-A")
+    _git(repo, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "base", "--no-verify")
+    return repo
+
+
+def _violations(result: subprocess.CompletedProcess[str]) -> list[str]:
+    return [ln for ln in result.stdout.splitlines() if ln.startswith("FAIL:")]
+
+
+def test_all_files_ignores_what_is_staged(monkeypatch, tmp_path) -> None:
+    repo = _leaky_repo(tmp_path, monkeypatch)
+    empty_index = _pre_commit("run", "leak-guard", "--all-files")
+    (repo / "clean.txt").write_text("fine, edited\n")
+    _git(repo, "add", "clean.txt")
+    one_staged = _pre_commit("run", "leak-guard", "--all-files")
+    assert empty_index.returncode == 1, empty_index.stdout
+    assert _violations(empty_index) == ["FAIL: leaky.md:1: leak-guard[fake] - fix it"]
+    assert one_staged.returncode == empty_index.returncode
+    assert _violations(one_staged) == _violations(empty_index)
+
+
+def test_commit_stage_scans_only_the_staged_files(monkeypatch, tmp_path) -> None:
+    repo = _leaky_repo(tmp_path, monkeypatch)
+    (repo / "clean.txt").write_text("fine, edited\n")
+    _git(repo, "add", "clean.txt")
+    # leaky.md is tracked and leaks but is not part of this commit.
+    assert _pre_commit("run", "leak-guard").returncode == 0
+
+
+def test_commit_stage_scans_staged_content_not_the_working_tree(monkeypatch, tmp_path) -> None:
+    repo = _leaky_repo(tmp_path, monkeypatch)
+    _pre_commit("install")
+    (repo / "clean.txt").write_text("needle, staged\n")
+    _git(repo, "add", "clean.txt")
+    (repo / "clean.txt").write_text("fixed after staging\n")  # unstaged, so not committed
+    result = _sh("git", "-c", "commit.gpgsign=false", "commit", "-q", "-m", "x")
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "FAIL: clean.txt:1: leak-guard[fake]" in result.stdout + result.stderr
+
+
+def test_explicit_paths_are_read_from_the_working_tree(monkeypatch, tmp_path) -> None:
+    repo = _repo(tmp_path)
+    (repo / "clean.txt").write_text("fine\n")
+    (repo / "leaky.md").write_text("names the needle\n")
+    _git(repo, "add", "clean.txt")  # staged and unrelated, as in COI-1743
+    monkeypatch.chdir(repo)
+    monkeypatch.setattr(lg, "REPO_ROOT", repo)
+    monkeypatch.setattr(lg, "RULES", [_rule()])
+    assert lg.main(["leaky.md"]) == 1
+    assert lg.main(["clean.txt"]) == 0

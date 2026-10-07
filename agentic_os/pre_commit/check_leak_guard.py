@@ -13,10 +13,12 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from agentic_os.config import is_enabled, is_excluded, load_excludes
 from agentic_os.pre_commit.leak_guard_rules import RULES
+from agentic_os.pre_commit.text_scan import normalize_rel
 
 HOOK_ID = "leak-guard"
 REPO_ROOT = Path.cwd()
@@ -112,7 +114,23 @@ def scan(rel: str, text: str, rule: dict, matcher: re.Pattern) -> list[str]:
     return hits
 
 
-def main() -> int:
+def target_files(args: list[str]) -> tuple[list[str], Callable[[str], str | None]]:
+    """The paths to scan and the reader for them.
+
+    pre-commit hands the hook its own file list (`pass_filenames`): the staged paths
+    at commit, every tracked path under `--all-files`. The hook cannot tell those
+    runs apart itself, since pre-commit exports no all-files marker, so it takes the
+    list as given and reads the working tree. At commit pre-commit stashes unstaged
+    edits first, which makes the working tree the staged content. With no list (a
+    hand run) it falls back to staged blobs, else every tracked path.
+    """
+    if args:
+        return [normalize_rel(arg) for arg in args], _working_text
+    staged = staged_files()
+    return (staged, _staged_blob) if staged else (tracked_files(), _working_text)
+
+
+def main(argv: list[str] | None = None) -> int:
     if not is_enabled(HOOK_ID):
         print(f"{HOOK_ID}: disabled by repo config")
         return 0
@@ -124,8 +142,7 @@ def main() -> int:
         print(f"{HOOK_ID} check: OK (no rules in scope for {repo or 'this repo'})")
         return 0
 
-    staged = staged_files()
-    files, reader = (staged, _staged_blob) if staged else (tracked_files(), _working_text)
+    files, reader = target_files(sys.argv[1:] if argv is None else argv)
 
     violations: list[str] = []
     for rel in files:

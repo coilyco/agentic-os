@@ -269,11 +269,11 @@
 
 - id: leak-guard
   name: encoded leak guard
-  description: "Reject plaintext occurrences of awkward-leak terms (employer/partner names, private->public references, dependency-cycle back-references) held as hex in agentic_os/pre_commit/leak_guard_rules.py and decoded only in memory. Rule scope matches the current repo, so a rule fires only where it should. See docs/pre-commit-hygiene.md."
+  description: "Reject plaintext occurrences of awkward-leak terms (employer/partner names, private->public references, dependency-cycle back-references) held as hex in agentic_os/pre_commit/leak_guard_rules.py and decoded only in memory. Rule scope matches the current repo, so a rule fires only where it should. Scans the files pre-commit passes, so --all-files covers every tracked file whatever is staged. See docs/pre-commit-hygiene.md."
   entry: check-leak-guard
   language: python
   always_run: true
-  pass_filenames: false
+  pass_filenames: true
   stages: [pre-commit]
 
 - id: unresolved-placeholder-guard

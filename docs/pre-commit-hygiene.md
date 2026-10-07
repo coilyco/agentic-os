@@ -79,7 +79,7 @@ coverage audit until they roll out as active checks.
 grep-bait. Most leaks are not secrets, they are **awkward**: an employer name in a
 config path, a partner's name in a comment, a private repo named in a public
 README. None trip a secret scanner, but any turns `rg <term>` into a harvesting
-tool. See the recovered inbox corpus.
+tool.
 
 Three leak and coupling classes reduce to one rule shape - *a string S must not
 appear in scope T, and the rule is stored encoded so grepping the rule reveals
@@ -91,12 +91,11 @@ direction for data lockdown. **Dependency cycle** bans one direction of a
 repo-to-repo reference so the edge stays one-way.
 
 The ruleset (`agentic_os/pre_commit/leak_guard_rules.py`) stores every term as
-lowercase **hex**, never plaintext. Hex beats base64 because it is exclusively
-`[0-9a-f]` with no padding, copy-pastes cleanly, and decodes in one line in every
-language. The hook decodes each term **only in memory** to build its matcher, and
-a violation prints the rule id, path, line, and remediation - **never the term**,
-so neither the ruleset nor the hook output is itself a leak. Terms match on word
-boundaries, so a rule for `ward` does not fire on `forward` or `awkward`.
+lowercase **hex**, never plaintext. The hook decodes each term **only in memory**
+to build its matcher, and a violation prints the rule id, path, line, and
+remediation - **never the term**, so neither the ruleset nor the hook output is
+itself a leak. Terms match on word boundaries, so a rule for `ward` does not fire
+on `forward` or `awkward`.
 
 `leak-guard-encode` reads stdin and returns hex, so the plaintext never lands in
 shell history, and `--decode <hex>` round-trips. Add the result to
@@ -109,10 +108,11 @@ Both follow the catalog glob semantics against repo-relative POSIX paths, where
 `[tool.agentic-os.leak-guard] excludes`.
 
 Rule scope matches the current repo, resolved from `origin` so it is
-worktree-safe. A rule with `repos` fires only there, and one without fires
-everywhere it is installed. The hook is authored and dogfooded here, and fleet
-rollout is a deliberate ansible step run after each target repo's occurrences are
-cleaned or allowlisted. The guard is staged, never flipped on fleet-wide.
+worktree-safe: a rule with `repos` fires only there. Fleet rollout is a
+deliberate ansible step run after each target repo's occurrences are cleaned or
+allowlisted, never flipped on fleet-wide. The hook scans the files pre-commit
+passes it, staged paths at commit and every tracked path under `--all-files`
+whatever is staged (COI-1743).
 
 ## Managed line endings
 
