@@ -65,3 +65,9 @@ func startSOCKSForwarders(_, _ int, spec execSpec) error {
 	}
 	return fmt.Errorf("tailnet MCP forwarding is supported only by the Linux image")
 }
+
+// pathOwner has no uid to report on Windows, where the shared temp parent that
+// needs it is never used.
+func pathOwner(os.FileInfo) (int, bool) {
+	return 0, false
+}

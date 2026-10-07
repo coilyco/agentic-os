@@ -441,7 +441,9 @@ func resolveNativeRuntime() (nativeRuntime, error) {
 	}
 	sessionsRoot := strings.TrimSpace(os.Getenv("AOS_NATIVE_SESSIONS_DIR"))
 	if sessionsRoot == "" {
-		sessionsRoot = filepath.Join(ensureAOSTempAlias(), "native")
+		if sessionsRoot, err = defaultNativeSessionsRoot(); err != nil {
+			return nativeRuntime{}, err
+		}
 	}
 	config := strings.TrimSpace(os.Getenv("XDG_CONFIG_HOME"))
 	if config == "" {
@@ -2330,6 +2332,11 @@ func reserveNativeSession(
 			return "", "", fmt.Errorf("inspect native lease candidate: %w", err)
 		}
 		sessionRoot := filepath.Join(runtime.SessionsRoot, id)
+		if harness == "codex" {
+			if err := checkNativeCodexSocketBudget(sessionRoot); err != nil {
+				return "", "", err
+			}
+		}
 		if err := os.Mkdir(sessionRoot, 0o700); err == nil {
 			return id, sessionRoot, nil
 		} else if !errors.Is(err, fs.ErrExist) {

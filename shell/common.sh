@@ -549,16 +549,19 @@ case $- in
     _siren_startup_dir="${AOS_STARTUP_DIR:-$PROJECTS_ROOT}"
     _siren_startup_from_native=0
     if [ "$_siren_fresh_terminal_tree" = 1 ]; then
-      _siren_native_sessions_dir="${AOS_NATIVE_SESSIONS_DIR:-${TMPDIR:-/tmp}/aos/native}"
-      if [ -d "$_siren_native_sessions_dir" ]; then
-        _siren_native_sessions_dir="$(cd "$_siren_native_sessions_dir" && pwd -P)"
-        _siren_current_dir="$(pwd -P)"
-        if [ "${_siren_current_dir##*/}" = projects ]; then
-          _siren_native_parent="$(cd "$_siren_current_dir/../.." && pwd -P)"
-          if [ "$_siren_native_parent" = "$_siren_native_sessions_dir" ]; then
+      # A session started before the move to /private/tmp lives under the old
+      # root until its lease is reaped, so both roots count. docs/native-shadow.md
+      _siren_current_dir="$(pwd -P)"
+      if [ "${_siren_current_dir##*/}" = projects ]; then
+        _siren_native_parent="$(cd "$_siren_current_dir/../.." && pwd -P)"
+        for _siren_native_sessions_dir in \
+          "${AOS_NATIVE_SESSIONS_DIR:-${TMPDIR:-/tmp}/aos/native}" \
+          "${AOS_NATIVE_SESSIONS_DIR:-/private/tmp/u$(id -u)/aos/native}"; do
+          if [ -d "$_siren_native_sessions_dir" ] &&
+            [ "$(cd "$_siren_native_sessions_dir" && pwd -P)" = "$_siren_native_parent" ]; then
             _siren_startup_from_native=1
           fi
-        fi
+        done
       fi
     fi
     if [ "$PWD" = "$HOME" ] || [ "$_siren_startup_from_native" = 1 ]; then
