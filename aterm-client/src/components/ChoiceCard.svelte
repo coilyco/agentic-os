@@ -1,7 +1,7 @@
 <script lang="ts">
   import { advanceIndex, type Choice } from "../lib/choices";
 
-  let { choice, identity, onanswer, oncancel, focusToken = 0 }: {
+  let { choice, identity, onanswer, oncancel, focusToken = 0, locked = false }: {
     choice: Choice;
     identity: string;
     /** Each change asks the card to take the keyboard, as when you alt-tab in. */
@@ -9,6 +9,8 @@
     /** Indexes of the picked options, and the typed text when "Type something." was one. */
     onanswer: (picks: number[], text?: string) => void;
     oncancel: () => void;
+    /** The daemon refuses this connection's answers. The composer below says why. */
+    locked?: boolean;
   } = $props();
 
   let card: HTMLElement;
@@ -50,6 +52,7 @@
   }
 
   function keys(event: KeyboardEvent): void {
+    if (locked) return;
     const card = (event.currentTarget as HTMLElement).closest(".card");
     const buttons = [...(card?.querySelectorAll<HTMLButtonElement>("button.option, button.advance") ?? [])];
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
@@ -74,7 +77,7 @@
 
 <section class="card" aria-labelledby="choice-question" bind:this={card}>
   <div class="body">
-  <p class="asker">{identity} is asking{#if choice.header}<span class="chip">{choice.header}</span>{/if}</p>
+    <p class="asker">{identity} is asking{#if choice.header}<span class="chip">{choice.header}</span>{/if}{#if locked}<span class="chip">Read only</span>{/if}</p>
   <h2 id="choice-question">{choice.question || "Pick one"}</h2>
   {#if choice.multi}<p class="hint">Pick any, then submit.</p>{/if}
   <ol>
@@ -89,7 +92,7 @@
             <button class="button primary" type="submit" disabled={!text.trim()}>Answer</button>
           </form>
         {:else}
-          <button class="option" aria-pressed={choice.multi ? picked.includes(index) : undefined} onclick={() => pick(index)} onkeydown={keys}>
+          <button class="option" disabled={locked} aria-pressed={choice.multi ? picked.includes(index) : undefined} onclick={() => pick(index)} onkeydown={keys}>
             <span class="number" aria-hidden="true">{choice.multi && picked.includes(index) ? "✓" : index + 1}</span>
             <span class="text">
               <span class="label">{option.freeText ? "Something else…" : option.label}</span>
@@ -112,13 +115,13 @@
   </div>
   <div class="actions">
     {#if advance !== -1}
-      <button class="button primary advance" onclick={() => pick(advance)} onkeydown={keys}>{choice.options[advance]?.label}</button>
+      <button class="button primary advance" disabled={locked} onclick={() => pick(advance)} onkeydown={keys}>{choice.options[advance]?.label}</button>
     {/if}
     {#if choice.multi}
-      <button class="button primary" onclick={submitMulti} disabled={picked.length === 0}>Submit {picked.length || ""}</button>
+      <button class="button primary" onclick={submitMulti} disabled={locked || picked.length === 0}>Submit {picked.length || ""}</button>
     {/if}
     {#if choice.cancellable}
-      <button class="button" onclick={oncancel} onkeydown={keys}>Cancel</button>
+      <button class="button" disabled={locked} onclick={oncancel} onkeydown={keys}>Cancel</button>
     {/if}
   </div>
 </section>

@@ -94,7 +94,7 @@
         {#key session.id}
           <!-- The card overlays the terminal so it never resizes it, which would make the harness redraw its menu. -->
           <div class="screen">
-            <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} />
+            <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} locked={!app.typing.allowed} />
             {#if ask}
               {#key ask.id}
                 <div class="overlay">
@@ -102,6 +102,7 @@
                     choice={choiceFromAsk(ask)}
                     identity={session.identity}
                     focusToken={app.focusCard}
+                    locked={!app.typing.allowed}
                     onanswer={(picks, text) => {
                       const reply = askAnswer(ask, picks, text);
                       app.connection?.answer(ask.id, reply.picks, reply.text);
@@ -118,12 +119,12 @@
               {@const current = choice}
               {#key shownKey}
                 <div class="overlay">
-                  <ChoiceCard choice={current} identity={session.identity} onanswer={(picks, text) => answer(keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
+                  <ChoiceCard choice={current} identity={session.identity} locked={!app.typing.allowed} onanswer={(picks, text) => answer(keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
                 </div>
               {/key}
             {/if}
           </div>
-          <Composer connection={app.connection} {session} sessions={app.sessions} />
+          <Composer connection={app.connection} {session} sessions={app.sessions} typing={app.typing} />
         {/key}
       {/if}
     </div>

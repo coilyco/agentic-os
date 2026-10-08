@@ -3,6 +3,7 @@
   import { app, failedLaunchOf, selectSession } from "../lib/app.svelte";
   import type { Role } from "../lib/roster";
   import { sessionCode } from "../lib/sessions";
+  import { typingNotice } from "../lib/typing";
 
   let { role }: { role: Role } = $props();
   const session = $derived(failedLaunchOf(role.slug));
@@ -37,12 +38,12 @@
   {#if app.connection?.canLaunch}
     <div class="seats" role="group" aria-label="Launch on a harness">
       {#each role.seats as seat, index (seat.key)}
-        <button class="button" class:primary={index === 0 && session?.state !== "failed"} disabled={starting} onclick={() => app.connection?.launch(role.slug, seat.key)}>
+        <button class="button" class:primary={index === 0 && session?.state !== "failed"} disabled={starting || !app.typing.allowed} onclick={() => app.connection?.launch(role.slug, seat.key)}>
           Launch on {seat.key}
         </button>
       {/each}
     </div>
-    <p class="launch-state" data-state={launch?.state ?? "idle"} role="status">{launch?.text ?? ""}</p>
+    <p class="launch-state" data-state={launch?.state ?? "idle"} role="status">{app.typing.allowed ? (launch?.text ?? "") : `Read only. ${typingNotice(app.typing)}`}</p>
   {:else}
     <p class="howto">Not running. Launching from this window is not wired to the daemon yet, so start it on the host:</p>
     <pre class="mono">aterm {role.slug}</pre>

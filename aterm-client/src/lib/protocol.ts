@@ -3,6 +3,7 @@
 import type { ToolResult, View } from "./mcp-apps";
 import type { Role } from "./roster";
 import type { InputKind, SharedBrowser } from "./screencast";
+import type { Typing } from "./typing";
 
 export type HostKind = "daemon" | "demo";
 
@@ -82,6 +83,7 @@ export type HostEvent =
   | { type: "ask"; ask: Ask }
   | { type: "asked"; id: string; outcome: AskOutcome }
   | { type: "launch"; role: string; state: LaunchState; text: string }
+  | { type: "typing"; typing: Typing }
   | { type: "closed"; reason: string }
   | { type: "view"; view: View }
   | { type: "view_update"; id: string; toolResult?: ToolResult; cancelled?: string }

@@ -15,6 +15,7 @@
     messages,
     colorOf,
     onscreen,
+    locked = false,
   }: {
     connection: HostConnection;
     sessionId: string;
@@ -24,6 +25,8 @@
     colorOf: (role: string) => string;
     /** The visible rows after each write, for readers such as the choice detector. */
     onscreen?: (rows: string[]) => void;
+    /** The daemon refuses this connection's typing, so keys go nowhere. */
+    locked?: boolean;
   } = $props();
 
   let host: HTMLDivElement;
@@ -119,7 +122,9 @@
       remark();
     });
     observer.observe(host);
-    const input = terminal.onData((data) => connection.input(sessionId, data));
+    const input = terminal.onData((data) => {
+      if (!locked) connection.input(sessionId, data);
+    });
     const unsubscribe = connection.subscribe((event) => {
       if (event.type === "output" && event.sessionId === sessionId) terminal.write(event.data, afterWrite);
     });
@@ -132,6 +137,14 @@
       observer.disconnect();
       terminal.dispose();
     };
+  });
+
+  $effect(() => {
+    const off = locked;
+    if (!term?.textarea) return;
+    term.options.disableStdin = off;
+    term.textarea.readOnly = off;
+    term.textarea.setAttribute("aria-label", off ? "Terminal input, read only" : "Terminal input");
   });
 
   $effect(() => {

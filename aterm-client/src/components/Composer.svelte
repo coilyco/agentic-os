@@ -2,9 +2,10 @@
   import { tick } from "svelte";
   import { findMention, insertMention, mentionMatches } from "../lib/mentions";
   import type { HostConnection, Session } from "../lib/protocol";
+  import { typingNotice, type Typing } from "../lib/typing";
 
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
-  let { connection, session, sessions = [] }: { connection: HostConnection; session: Session; sessions?: readonly Session[] } = $props();
+  let { connection, session, sessions = [], typing = { allowed: true } }: { connection: HostConnection; session: Session; sessions?: readonly Session[]; typing?: Typing } = $props();
 
   let text = $state("");
   let status = $state("");
@@ -89,6 +90,11 @@
   }
 </script>
 
+{#if !typing.allowed}
+  <div class="composer locked" role="status">
+    <p><strong>Read only.</strong> {typingNotice(typing)}</p>
+  </div>
+{:else}
 <form class="composer" onsubmit={(event) => { event.preventDefault(); send(); }}>
   <div class="field">
     {#if open}
@@ -135,9 +141,12 @@
   <button class="button primary" type="submit" disabled={!text.trim()}>Send</button>
   <p class="visually-hidden" role="status">{note}</p>
 </form>
+{/if}
 
 <style>
   .composer { display: flex; gap: 10px; align-items: flex-end; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--ground); }
+  .composer.locked { display: block; }
+  .locked p { margin: 0; color: var(--text-soft); }
   .field { position: relative; flex: 1; min-width: 0; display: flex; }
   textarea {
     flex: 1; min-width: 0; min-height: 44px; max-height: 40vh; field-sizing: content; resize: none;

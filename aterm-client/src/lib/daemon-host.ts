@@ -3,6 +3,7 @@
 import { parseFrom } from "./messages";
 import type { Ask, AskOutcome, ContextReading, HostConnection, HostEvent, MessageState, PeerMessage, Session } from "./protocol";
 import { parseRoster } from "./roster";
+import { parseTyping, refusalOf, typingNotice, type Typing } from "./typing";
 
 export const FORMAT = "aterm.daemon.v1";
 const LOOPBACK_DAEMON = "ws://127.0.0.1:7419";
@@ -87,6 +88,8 @@ interface Frame {
   ask?: AskView;
   ask_id?: string;
   state?: string;
+  typing?: unknown;
+  reason?: unknown;
 }
 
 /** Output this recent means the seat is busy. A working agent redraws constantly. */
@@ -153,7 +156,7 @@ export class DaemonHost implements HostConnection {
   private outbox: string[] = [];
   private open = false;
   private nextId = 0;
-  private last: { sessions?: Session[]; roles?: HostEvent } = {};
+  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing } = {};
   private sessionViews: SessionView[] = [];
   private refs = new Map<string, number>();
   private lastOutput = new Map<string, number>();
@@ -173,6 +176,7 @@ export class DaemonHost implements HostConnection {
     this.listeners.add(listener);
     if (this.last.roles) listener(this.last.roles);
     if (this.last.sessions) listener({ type: "sessions", sessions: this.last.sessions });
+    if (this.last.typing) listener({ type: "typing", typing: this.last.typing });
     return () => this.listeners.delete(listener);
   }
 
@@ -284,6 +288,7 @@ export class DaemonHost implements HostConnection {
           return;
         }
         this.open = true;
+        this.setTyping(parseTyping(frame.typing));
         this.request({ type: "subscribe", channel: "sessions" });
         this.request({ type: "roster" });
         for (const line of this.outbox.splice(0)) this.socket.send(line);
@@ -318,15 +323,23 @@ export class DaemonHost implements HostConnection {
       case "error": {
         // Code 2: the answer does not fit the ask. Code 3: the ask is gone or settled.
         const role = frame.id ? this.launches.get(frame.id) : undefined;
+        const refused = refusalOf(frame);
+        this.setTyping(refused);
         if (role !== undefined && frame.id) {
           this.launches.delete(frame.id);
-          this.emit({ type: "launch", role, state: "failed", text: launchRefusal(frame.code, frame.error) });
-        } else {
+          this.emit({ type: "launch", role, state: "failed", text: refused ? typingNotice(refused) : launchRefusal(frame.code, frame.error) });
+        } else if (!refused) {
           this.emit({ type: "notice", text: frame.error ?? "The daemon refused a request." });
         }
         return;
       }
     }
+  }
+
+  private setTyping(typing: Typing | null): void {
+    if (!typing) return;
+    this.last.typing = typing;
+    this.emit({ type: "typing", typing });
   }
 
   private emit(event: HostEvent): void {

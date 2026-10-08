@@ -7,6 +7,7 @@ import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
 import type { Ask, Host, HostConnection, LaunchState, PeerMessage, Session } from "./protocol";
 import type { Role } from "./roster";
+import { TYPING_OPEN, type Typing } from "./typing";
 
 /** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
 export const HOSTED = import.meta.env.VITE_ATERM_HOSTED === "1";
@@ -24,6 +25,8 @@ export const app = $state({
   selectedHostId: null as string | null,
   attachedHostId: null as string | null,
   connection: null as HostConnection | null,
+  /** Whether the daemon's guard lets this connection type. A mock host never refuses. */
+  typing: TYPING_OPEN as Typing,
   roles: [] as Role[],
   sessions: [] as Session[],
   messages: [] as PeerMessage[],
@@ -99,6 +102,7 @@ export function selectHost(host: Host): void {
   app.notice = "";
   if (host.status.kind !== "online" || app.attachedHostId === host.id) return;
   app.connection?.close();
+  app.typing = TYPING_OPEN;
   app.roles = [];
   app.sessions = [];
   app.messages = [];
@@ -115,6 +119,7 @@ export function selectHost(host: Host): void {
       app.sessions = event.sessions;
     }
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
+    else if (event.type === "typing") app.typing = event.typing;
     else if (event.type === "notice") app.notice = event.text;
     else if (event.type === "ask") app.asks[event.ask.id] = event.ask;
     else if (event.type === "asked") delete app.asks[event.id];
