@@ -705,7 +705,7 @@ func (s *ptySession) deliverLoop() {
 
 // pasteSeats were watched turning bracketed paste on at a live prompt, so for
 // them a quiet screen is not ready. See docs/aterm-daemon.md.
-var pasteSeats = map[string]bool{"codex": true}
+var pasteSeats = map[string]bool{"codex": true, "goose": true}
 
 // promptMarks is text a harness paints once its prompt takes input. opencode and
 // claude drop a paste until then, though paste is on. See docs/aterm-daemon.md.
