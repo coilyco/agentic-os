@@ -84,6 +84,9 @@ type ptySession struct {
 	draft   int
 	keys    keyState
 	pending []*pendingSend
+	// sending is the message submit is writing. finish leaves it to submit,
+	// since a session that exited mid-write has already taken the bytes.
+	sending *pendingSend
 	wake    chan struct{}
 	done    chan struct{}
 	// forgotten closes once the daemon has dropped the session's name, which is
@@ -349,7 +352,12 @@ func (s *ptySession) finish(code int) {
 		s.mu.Lock()
 		s.exitCode = code
 		clients := s.clientList()
-		pending := s.pending
+		var pending []*pendingSend
+		for _, p := range s.pending {
+			if p != s.sending {
+				pending = append(pending, p)
+			}
+		}
 		s.pending = nil
 		s.mu.Unlock()
 		close(s.done)
@@ -690,9 +698,11 @@ func (s *ptySession) deliverNext(now time.Time) {
 		next.setState("held", hold)
 		return
 	}
+	s.sending = next
 	s.mu.Unlock()
 	err := s.submit(next.text, paste)
 	s.mu.Lock()
+	s.sending = nil
 	if len(s.pending) > 0 && s.pending[0] == next {
 		s.pending = s.pending[1:]
 	}
