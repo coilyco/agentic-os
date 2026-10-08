@@ -24,7 +24,7 @@ var sentryCheckIn = struct {
 	margin, failures      int
 }{30 * time.Second, 5 * time.Minute, 20 * time.Second, 5, 2}
 
-// sentryCron posts check-ins to one Sentry cron monitor. See docs/aterm-daemon.md.
+// sentryCron posts check-ins to one Sentry cron monitor. See docs/aterm-bundles.md.
 type sentryCron struct {
 	endpoint string
 	client   *http.Client

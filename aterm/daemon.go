@@ -61,6 +61,7 @@ type daemon struct {
 	conns       int
 	lastActive  time.Time
 	processes   func() ([]processEntry, error)
+	passkeys    *passkeyStore
 	// peerLookup names the processes holding a local TCP peer's end.
 	peerLookup func(remote, local net.Addr) ([]int, error)
 	roster     func(context.Context) (listedRoster, error)
@@ -86,6 +87,7 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		lastActive:  time.Now(),
 		processes:   listProcesses,
 		peerLookup:  tcpPeerPIDs,
+		passkeys:    defaultPasskeys(),
 		roster:      launchableRoster,
 		launch:      launchRole,
 		logf:        logf,
@@ -174,6 +176,10 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 			defer d.capture.flush()
 			defer d.guard("daemon")
 		}
+	}
+	if d.passkeys, err = newPasskeyStore(passkeyStatePath(), passkeyRPID, []string{passkeyOrigin}); err != nil {
+		logf("no stored passkeys, so no remote device can type: %v", err)
+		d.passkeys = defaultPasskeys()
 	}
 	d.holdDir = filepath.Join(dir, "hold")
 	d.ledgerDir = ledgerDir()
@@ -328,6 +334,9 @@ type client struct {
 	owned    map[string]bool
 	attached map[string]*ptySession
 	asks     []string
+	// asserted is a passkey assertion on this connection, which a remote device needs.
+	asserted bool
+	ceremony *passkeyCeremony
 }
 
 func (d *daemon) serve(raw net.Conn) {
@@ -347,7 +356,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, terminalsFeature, mcpAppsFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, mcpAppsFeature}}
 	if peer.web {
 		welcome.Typing = d.typingStanding(cl)
 	}
@@ -442,7 +451,7 @@ func (d *daemon) handle(cl *client, message frame) error {
 			return fmt.Errorf("not attached to %q", message.Session)
 		}
 		if !cl.owned[s.name] {
-			if err := d.insideRefusal(cl, "a process inside an aterm session cannot type into one, use `aterm send`"); err != nil {
+			if err := d.typingRefusal(cl, "a process inside an aterm session cannot type into one, use `aterm send`"); err != nil {
 				return err
 			}
 		}
@@ -475,7 +484,7 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return cl.c.write(frame{Type: "sessions", ID: message.ID, Sessions: d.views(), Terminals: d.terminalViews()})
 	case "launch":
 		if cl.web {
-			if err := d.insideRefusal(cl, "a process inside an aterm session cannot launch a seat as Kai, use `aterm send --launch`"); err != nil {
+			if err := d.typingRefusal(cl, "a process inside an aterm session cannot launch a seat as Kai, use `aterm send --launch`"); err != nil {
 				return err
 			}
 		}
@@ -486,6 +495,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 			return withExit(exitSpawn, err)
 		}
 		return cl.c.write(frame{Type: "launched", ID: message.ID, Role: message.Role, Seat: message.Seat})
+	case "passkey_mint", "passkey_revoke", "passkey_enroll_begin", "passkey_enroll_finish", "passkey_assert_begin", "passkey_assert_finish":
+		return d.passkey(cl, message)
 	case "roster":
 		roster, err := d.roster(context.Background())
 		if err != nil {
@@ -873,6 +884,11 @@ var clearRoles = map[string]bool{"prod-director": true}
 // clearSession types a harness's clear command into an idle session, for Kai or
 // the director. See docs/aterm-daemon.md.
 func (d *daemon) clearSession(cl *client, message frame) error {
+	if cl.remote {
+		if err := d.typingRefusal(cl, ""); err != nil {
+			return err
+		}
+	}
 	s, err := d.oneTarget(message.Target)
 	if err != nil {
 		return err
@@ -1036,9 +1052,15 @@ func (d *daemon) clientDescendsFrom(cl *client, roots map[int]bool) bool {
 	return false
 }
 
-// insideRefusal is the typing guard for what is Kai's to do, as a refusal a
+// typingRefusal is the typing guard for what is Kai's to do, as a refusal a
 // client can show: nil when the peer may, otherwise message with a reason.
-func (d *daemon) insideRefusal(cl *client, message string) error {
+func (d *daemon) typingRefusal(cl *client, message string) error {
+	if cl.remote {
+		if cl.asserted {
+			return nil
+		}
+		return withReason(reasonPasskeyRequired, errors.New("assert this device's passkey before it types"))
+	}
 	if !d.clientDescendsFrom(cl, d.sessionRoots()) {
 		return nil
 	}
@@ -1051,10 +1073,17 @@ func (d *daemon) insideRefusal(cl *client, message string) error {
 // typingStanding is the answer a welcome carries, so a client can show its
 // read-only state before a keystroke is refused. Each frame is still judged.
 func (d *daemon) typingStanding(cl *client) *typingStanding {
-	if err := d.insideRefusal(cl, ""); err != nil {
-		return &typingStanding{Reason: reasonFor(err)}
+	standing := &typingStanding{Allowed: true}
+	if err := d.typingRefusal(cl, ""); err != nil {
+		standing = &typingStanding{Reason: reasonFor(err)}
 	}
-	return &typingStanding{Allowed: true}
+	if cl.remote {
+		standing.Passkey = "unenrolled"
+		if d.passkeys.enrolled() {
+			standing.Passkey = "enrolled"
+		}
+	}
+	return standing
 }
 
 // descendsFrom reports whether pid is one of roots or runs under one. An

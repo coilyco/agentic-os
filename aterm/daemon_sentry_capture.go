@@ -11,7 +11,7 @@ import (
 var sentryFlushWait = 2 * time.Second
 
 // sentryCapture sends the daemon's panics to Sentry through its own hub, so
-// nothing else in the process reports. See docs/aterm-daemon.md.
+// nothing else in the process reports. See docs/aterm-bundles.md.
 type sentryCapture struct {
 	hub *sentry.Hub
 }

@@ -124,7 +124,7 @@ func (d *daemon) ask(cl *client, message frame) error {
 
 // answer is a person's pick, so it takes the same guard as typing.
 func (d *daemon) answer(cl *client, message frame) error {
-	if err := d.insideRefusal(cl, "a process inside an aterm session cannot answer an ask"); err != nil {
+	if err := d.typingRefusal(cl, "a process inside an aterm session cannot answer an ask"); err != nil {
 		return err
 	}
 	d.mu.Lock()
