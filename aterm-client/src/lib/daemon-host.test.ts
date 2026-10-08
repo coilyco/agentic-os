@@ -196,6 +196,17 @@ describe("the shared browser", () => {
     host.close();
   });
 
+  it("carries the followed tab and the open count, and drops them when the daemon sends none", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["browser"] });
+    socket.receive({ type: "browser_state", session: "s", state: "live", driver: "agent", client: "c", tab: 2, tabs: 3, url: "https://b.example/", title: "B" });
+    socket.receive({ type: "browser_state", session: "s", state: "live", driver: "agent", client: "c", url: "https://a.example/", title: "A" });
+    const [many, bare] = browsers(events);
+    expect(many).toMatchObject({ tab: 2, tabs: 3, title: "B" });
+    expect(bare).not.toHaveProperty("tab");
+    host.close();
+  });
+
   it("draws a frame onto its browser and keeps it through the next state", () => {
     const { host, events, socket } = connect();
     socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["browser"] });

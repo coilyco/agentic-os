@@ -27,6 +27,7 @@ type fakeBrowser struct {
 	calls     []cdpMessage
 	exited    chan struct{}
 	once      sync.Once
+	queue     chan []byte
 	pageTitle string // what Target.getTargetInfo reports, guarded by mu
 	// silent leaves a started screencast without frames, as a page that never repaints does.
 	silent bool
@@ -36,7 +37,21 @@ func newFakeBrowser(t *testing.T) (*browserLink, *fakeBrowser) {
 	t.Helper()
 	toBrowserR, toBrowserW := io.Pipe()
 	fromBrowserR, fromBrowserW := io.Pipe()
-	fake := &fakeBrowser{t: t, out: fromBrowserW, exited: make(chan struct{})}
+	fake := &fakeBrowser{t: t, out: fromBrowserW, exited: make(chan struct{}), queue: make(chan []byte, 4096)}
+	// An OS pipe buffers, and an io.Pipe does not, so replies queue here or the fake
+	// and the daemon's read loop can each wait on the other's write.
+	go func() {
+		for {
+			select {
+			case message := <-fake.queue:
+				if _, err := fromBrowserW.Write(message); err != nil {
+					return
+				}
+			case <-fake.exited:
+				return
+			}
+		}
+	}()
 	go func() {
 		reader := bufio.NewReader(toBrowserR)
 		for {
@@ -67,7 +82,10 @@ func (f *fakeBrowser) send(message any) {
 	encoded, _ := json.Marshal(message)
 	f.outMu.Lock()
 	defer f.outMu.Unlock()
-	_, _ = f.out.Write(append(encoded, 0))
+	select {
+	case f.queue <- append(encoded, 0):
+	case <-f.exited:
+	}
 }
 
 func (f *fakeBrowser) event(sessionID, method string, params any) {
@@ -80,7 +98,12 @@ func (f *fakeBrowser) answer(request cdpMessage) {
 	case "Target.getTargets":
 		result = map[string]any{"targetInfos": []targetInfo{{TargetID: "T1", Type: "page", URL: "about:blank", Title: "blank"}}}
 	case "Target.attachToTarget":
+		var params struct{ TargetID string }
+		_ = json.Unmarshal(request.Params, &params)
 		result = map[string]any{"sessionId": "PAGE"}
+		if params.TargetID != "T1" {
+			result = map[string]any{"sessionId": "PAGE-" + params.TargetID}
+		}
 	case "Target.getTargetInfo":
 		f.mu.Lock()
 		title := f.pageTitle
@@ -103,8 +126,10 @@ func (f *fakeBrowser) answer(request cdpMessage) {
 	}
 }
 
-func (f *fakeBrowser) frame(ack int64) {
-	f.event("PAGE", "Page.screencastFrame", map[string]any{
+func (f *fakeBrowser) frame(ack int64) { f.frameOn("PAGE", ack) }
+
+func (f *fakeBrowser) frameOn(session string, ack int64) {
+	f.event(session, "Page.screencastFrame", map[string]any{
 		"data":      fakeJPEG,
 		"metadata":  map[string]any{"offsetTop": 0, "pageScaleFactor": 1, "deviceWidth": 1280, "deviceHeight": 800, "scrollOffsetX": 0, "scrollOffsetY": 0, "timestamp": 1.5},
 		"sessionId": ack,
@@ -523,6 +548,114 @@ func TestBrowserControlFromATailnetDeviceNeedsItsPasskey(t *testing.T) {
 	cl.asserted = true
 	if err := d.browserControl(cl, frame{Type: "browser_control", Session: "scientist-evie", Take: true}); err != nil || sb.driver != "person" {
 		t.Fatalf("an asserted device may take it: %v, driver %s", err, sb.driver)
+	}
+}
+
+func (f *fakeBrowser) openPage(id, address, title string) {
+	f.event("", "Target.targetCreated", map[string]any{"targetInfo": targetInfo{TargetID: id, Type: "page", URL: address, Title: title}})
+}
+
+func (f *fakeBrowser) closePage(id string) {
+	f.event("", "Target.targetDestroyed", map[string]any{"targetId": id})
+}
+
+func TestBrowserFollowsAPageOpenedInANewTabAndBackWhenItCloses(t *testing.T) {
+	d, address, fake := browserDaemon(t)
+	client, _ := dialLoopbackClient(t, address)
+	client.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	first := client.untilState("live", nil)
+	if first.Tab != 1 || first.Tabs != 1 {
+		t.Fatalf("one page open is tab 1 of 1: %+v", first)
+	}
+	fake.waitFor("Page.startScreencast", 1)
+
+	fake.openPage("T2", "https://popup.example/", "Popup")
+	moved := client.untilState("live", func(m frame) bool { return m.Tab == 2 })
+	if moved.Tabs != 2 || moved.URL != "https://popup.example/" || moved.Title != "Popup" {
+		t.Fatalf("the pane should show the page window.open made: %+v", moved)
+	}
+	casts := fake.waitFor("Page.startScreencast", 2)
+	if casts[1].SessionID != "PAGE-T2" {
+		t.Fatalf("the screencast should move to the new page, got session %q", casts[1].SessionID)
+	}
+	// startScreencast stops before it starts, so the old page's second stop is the hand-off.
+	stops := 0
+	for _, call := range fake.waitFor("Page.stopScreencast", 3) {
+		if call.SessionID == "PAGE" {
+			stops++
+		}
+	}
+	if stops != 2 {
+		t.Fatalf("the old page's screencast should be stopped once more, got %d stops on it", stops)
+	}
+	sb := d.browsers.existing("scientist-evie")
+	if !sb.daemonSession("PAGE") || !sb.daemonSession("PAGE-T2") || sb.daemonSession("agent-made") || sb.daemonSession("") {
+		t.Fatal("every session the daemon attached to a page is the daemon's, and no other is")
+	}
+	fake.frameOn("PAGE", 7)
+	fake.frameOn("PAGE-T2", 8)
+	shot := client.untilFrame("a frame from the new page", func(m frame) bool { return m.Type == "browser_frame" })
+	if shot.Seq == 0 {
+		t.Fatalf("frame = %+v", shot)
+	}
+
+	fake.closePage("T2")
+	back := client.untilState("live", func(m frame) bool { return m.Tab == 1 })
+	if back.Tabs != 1 || back.URL != "about:blank" {
+		t.Fatalf("closing the followed page should return to the one left, not close the browser: %+v", back)
+	}
+	fake.closePage("T1")
+	closed := client.untilState("closed", nil)
+	if !strings.Contains(closed.Reason, "page closed") {
+		t.Fatalf("closing the last page closes the browser: %+v", closed)
+	}
+}
+
+func TestBrowserCountsAPageClosedInTheBackground(t *testing.T) {
+	_, address, fake := browserDaemon(t)
+	client, _ := dialLoopbackClient(t, address)
+	client.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	client.untilState("live", nil)
+	fake.openPage("T2", "https://two.example/", "Two")
+	client.untilState("live", func(m frame) bool { return m.Tab == 2 })
+	fake.openPage("T3", "https://three.example/", "Three")
+	client.untilState("live", func(m frame) bool { return m.Tab == 3 })
+	fake.closePage("T2")
+	left := client.untilState("live", func(m frame) bool { return m.Tabs == 2 })
+	if left.Tab != 2 || left.URL != "https://three.example/" {
+		t.Fatalf("a background page closing leaves the followed page and renumbers it: %+v", left)
+	}
+}
+
+// A real Chromium: a page window.open makes is the one the pane shows.
+func TestRealChromiumWindowOpenIsWhatThePaneShows(t *testing.T) {
+	if chromiumPath() == "" {
+		t.Skip("no Chromium or Chrome on this host")
+	}
+	d, address := wsDaemon(t)
+	wsSession(t, d, false)
+	hold := testHoldDir(t)
+	d.browserLaunch = func(session string) (*browserLink, error) {
+		return launchChromium(hold, session, browserProfile{})
+	}
+	client, _ := dialLoopbackClient(t, address)
+	client.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	client.untilState("live", nil)
+	sb := d.browsers.existing("scientist-evie")
+	sb.mu.Lock()
+	cdp, page := sb.cdp, sb.page
+	sb.mu.Unlock()
+	t.Cleanup(func() { d.browsers.end("scientist-evie") })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	open := map[string]any{"expression": `window.open("about:blank#popup")`, "userGesture": true}
+	if _, err := cdp.call(ctx, page, "Runtime.evaluate", open); err != nil {
+		t.Fatalf("window.open: %v", err)
+	}
+	moved := client.untilState("live", func(m frame) bool { return m.Tab == 2 && strings.HasSuffix(m.URL, "#popup") })
+	if moved.Tabs != 2 {
+		t.Fatalf("two pages are open: %+v", moved)
 	}
 }
 

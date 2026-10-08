@@ -176,6 +176,10 @@ func testDaemonWith(t *testing.T, options daemonOptions) string {
 	}
 	socket := filepath.Join(dir, "d.sock")
 	t.Setenv(daemonSocketEnv, socket)
+	// The fakes draw no box to read, so their sends skip the real grace.
+	grace := boxGrace
+	t.Cleanup(func() { boxGrace = grace })
+	boxGrace = 300 * time.Millisecond
 	stopped := make(chan struct{})
 	stop := make(chan struct{})
 	go func() {
@@ -522,7 +526,11 @@ func TestReadyWaitsForBracketedPasteOnAWatchedSeat(t *testing.T) {
 	if !gate.ready(now) {
 		t.Fatal("a codex seat that turned paste on is ready")
 	}
-	other := &ptySession{seat: "goose", started: now.Add(-time.Minute), lastOutput: now.Add(-time.Minute)}
+	quiet := &ptySession{seat: "goose", started: now.Add(-time.Hour), lastOutput: now.Add(-time.Hour)}
+	if quiet.ready(now) {
+		t.Fatal("a goose seat sitting quiet at a gate is not ready")
+	}
+	other := &ptySession{seat: "unlisted", started: now.Add(-time.Minute), lastOutput: now.Add(-time.Minute)}
 	if !other.ready(now) {
 		t.Fatal("an unwatched seat falls back to a long quiet start")
 	}

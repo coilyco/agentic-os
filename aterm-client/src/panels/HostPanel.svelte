@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { addHost, app, checkHost, HOSTED, reconnecting, removeHost, selectHost, selectedHost } from "../lib/app.svelte";
+  import { addHost, app, checkHost, HOSTED, reconnecting, removeHost, saveFoundHost, selectHost, selectedHost } from "../lib/app.svelte";
   import PasskeyUnlock from "../components/PasskeyUnlock.svelte";
   import type { Host } from "../lib/protocol";
   import { typingNotice } from "../lib/typing";
@@ -25,6 +25,11 @@
     } catch (error) {
       draftError = error instanceof Error ? error.message : String(error);
     }
+  }
+
+  function keep(target: Host): void {
+    saveFoundHost(target);
+    app.notice = `${target.label} is saved to this device.`;
   }
 
   async function retry(target: Host): Promise<void> {
@@ -75,6 +80,8 @@
     </div>
     {#if host.id.startsWith("saved:")}
       <button class="button remove" onclick={() => removeHost(host.id)}>Remove {host.label} from this device</button>
+    {:else if host.found}
+      <button class="button remove" onclick={() => keep(host)}>Save {host.label} to this device</button>
     {/if}
   {:else}
     <h1>{host.label}</h1>
@@ -86,6 +93,10 @@
       {/if}
     {:else}
       <p class="lede">{running} {running === 1 ? "seat" : "seats"} running. Pick a seat from the list to open its terminal.</p>
+    {/if}
+    {#if host.found}
+      <p class="lede">A daemon on your tailnet listed this host. It stays only while a daemon lists it, unless you save it.</p>
+      <button class="button remove" onclick={() => keep(host)}>Save {host.label} to this device</button>
     {/if}
   {/if}
   {#if !app.typing.allowed && host?.id === app.attachedHostId}

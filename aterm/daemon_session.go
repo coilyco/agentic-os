@@ -69,6 +69,9 @@ type ptySession struct {
 	started time.Time
 	// mcpApps is whether the launch opted in to the MCP Apps gateway.
 	mcpApps bool
+	// heldGateways are the servers the holder kept from the daemon before this
+	// one, restored once by adoptHolders.
+	heldGateways map[string]gatewaySpec
 	// holder is the connection to the aterm hold process that owns the PTY
 	// and the child. It outlives this daemon, which adopts it again.
 	holder     *conn
@@ -94,11 +97,16 @@ type ptySession struct {
 	draft   int
 	keys    keyState
 	pending []*pendingSend
+	// inbox keeps what enqueue accepted, for a seat that reads over MCP.
+	inbox inbox
 	// sending is the message submit is writing. finish leaves it to submit,
 	// since a session that exited mid-write has already taken the bytes.
 	sending *pendingSend
-	wake    chan struct{}
-	done    chan struct{}
+	// submitHeld, when set, runs after a message is typed and before submit reads
+	// the box. Only a test sets it, to end the session mid-write (COI-2526).
+	submitHeld func()
+	wake       chan struct{}
+	done       chan struct{}
 	// forgotten closes once the daemon has dropped the session's name, which is
 	// after done: a reply that the name is free waits on this one.
 	forgotten chan struct{}
@@ -150,6 +158,7 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 		Type: "spawn", Session: name, Role: message.Role, Identity: message.Identity, Seat: message.Seat,
 		Kind: message.Kind, Argv: message.Argv, Env: env, Cwd: message.Cwd,
 		Rows: message.Rows, Cols: message.Cols, Token: token, Label: message.Label,
+		MCPApps: token != "" && slices.Contains(message.Env, mcpAppsEnv+"=1"),
 	}
 	// A pool name recurs, and a lingering holder removes its socket as it goes.
 	socket := holdSocketPath(d.holdDir, name+"~"+suffix)
@@ -160,7 +169,6 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 	if err != nil {
 		return nil, fmt.Errorf("attach to the holder of %s: %w", name, err)
 	}
-	s.mcpApps = slices.Contains(message.Env, mcpAppsEnv+"=1")
 	return s, nil
 }
 
@@ -210,6 +218,8 @@ func (d *daemon) connectHolder(socket string, adopted bool) (*ptySession, error)
 		kind:         info.Kind,
 		cwd:          info.Cwd,
 		label:        info.Label,
+		mcpApps:      info.MCPApps,
+		heldGateways: info.Gateways,
 		pid:          info.PID,
 		started:      info.Started,
 		holder:       c,
@@ -667,6 +677,8 @@ func (s *ptySession) enqueue(p *pendingSend) {
 	s.mu.Lock()
 	s.pending = append(s.pending, p)
 	s.mu.Unlock()
+	queued := p.snapshot()
+	s.inbox.add(inboxMessage{ID: queued.ID, From: queued.From, Text: p.text, Received: time.Now().UTC()})
 	p.setState("queued", "")
 	s.nudge()
 	s.d.pushSessions()
@@ -696,7 +708,7 @@ func (s *ptySession) deliverLoop() {
 
 // pasteSeats were watched turning bracketed paste on at a live prompt, so for
 // them a quiet screen is not ready. See docs/aterm-daemon.md.
-var pasteSeats = map[string]bool{"codex": true}
+var pasteSeats = map[string]bool{"codex": true, "goose": true}
 
 // promptMarks is text a harness paints once its prompt takes input. opencode and
 // claude drop a paste until then, though paste is on. See docs/aterm-daemon.md.
@@ -793,7 +805,7 @@ func (s *ptySession) deliverNext(now time.Time) {
 	}
 	s.mu.Unlock()
 	s.writeMu.Unlock()
-	if errors.Is(err, errNotSubmitted) {
+	if errors.Is(err, errNotSubmitted) || errors.Is(err, errNotSeen) {
 		next.setState("failed", s.name+": "+err.Error())
 		return
 	}

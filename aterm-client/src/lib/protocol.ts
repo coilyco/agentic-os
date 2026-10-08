@@ -19,9 +19,9 @@ export interface Host {
   address: string;
   kind: HostKind;
   status: HostStatus;
-  /** Found by a daemon on the tailnet, not typed here. Never stored on this device. */
+  /** Found by a tailnet daemon, not typed here. Not stored until saved. */
   found?: boolean;
-  /** It answered this page load, so silence is a restart, not a host never started. */
+  /** It answered this page load: silence is a restart, and no listing change drops it. */
   answered?: boolean;
 }
 

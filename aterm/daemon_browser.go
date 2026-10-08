@@ -134,8 +134,12 @@ type sharedBrowser struct {
 	link     *browserLink
 	targetID string
 	// page is the CDP session id of the page, the one screencast and input go to.
-	page     string
-	watchers map[*conn]*watcher
+	page string
+	// pages are the open page targets, oldest first, and following serializes
+	// moving the stream between them.
+	pages     []pageTab
+	following sync.Mutex
+	watchers  map[*conn]*watcher
 }
 
 // watcher is one client's view of a browser. It keeps the newest state and frame only,
@@ -204,9 +208,11 @@ func (w *watcher) run(onFail func()) {
 
 // stateFrame is the snapshot a watcher gets. client is its own name.
 func (sb *sharedBrowser) stateFrame(client, id string) *frame {
+	tab, tabs := sb.tabNumbers()
 	return &frame{
 		Type: "browser_state", ID: id, Session: sb.session, State: sb.state, Driver: sb.driver,
 		Holder: sb.holder, URL: sb.url, Title: sb.title, Reason: sb.reason, Client: client,
+		Tab: tab, Tabs: tabs,
 	}
 }
 
@@ -383,6 +389,7 @@ func (sb *sharedBrowser) start() {
 	sb.cdp, sb.link = cdp, link
 	sb.targetID, sb.page = target.TargetID, page
 	sb.url, sb.title = target.URL, target.Title
+	sb.pages = []pageTab{{targetID: target.TargetID, session: page, url: target.URL, title: target.Title}}
 	sb.starting = false
 	sb.state, sb.reason = "live", link.note
 	if sb.reason == "" {
@@ -429,20 +436,11 @@ func attachPage(ctx context.Context, cdp *cdpClient) (targetInfo, string, error)
 		if target.Type != "page" {
 			continue
 		}
-		raw, err := cdp.call(ctx, "", "Target.attachToTarget", map[string]any{"targetId": target.TargetID, "flatten": true})
+		session, err := attachTarget(ctx, cdp, target.TargetID)
 		if err != nil {
 			return targetInfo{}, "", err
 		}
-		var attached struct {
-			SessionID string `json:"sessionId"`
-		}
-		if err := json.Unmarshal(raw, &attached); err != nil || attached.SessionID == "" {
-			return targetInfo{}, "", errors.New("the page gave no session")
-		}
-		if _, err := cdp.call(ctx, attached.SessionID, "Page.enable", nil); err != nil {
-			return targetInfo{}, "", err
-		}
-		return target, attached.SessionID, nil
+		return target, session, nil
 	}
 	return targetInfo{}, "", errors.New("the browser has no page")
 }
@@ -519,6 +517,19 @@ func (sb *sharedBrowser) onEvent(sessionID, method string, params json.RawMessag
 		sb.mu.Lock()
 		sb.publish(shot.Data, meta)
 		sb.mu.Unlock()
+	case "Target.targetCreated":
+		var created struct {
+			TargetInfo targetInfo `json:"targetInfo"`
+		}
+		if err := json.Unmarshal(params, &created); err != nil {
+			return
+		}
+		sb.mu.Lock()
+		isNew := sb.tabCreated(created.TargetInfo)
+		sb.mu.Unlock()
+		if isNew {
+			go sb.followNewest()
+		}
 	case "Target.targetInfoChanged":
 		var changed struct {
 			TargetInfo targetInfo `json:"targetInfo"`
@@ -528,13 +539,7 @@ func (sb *sharedBrowser) onEvent(sessionID, method string, params json.RawMessag
 		}
 		sb.mu.Lock()
 		defer sb.mu.Unlock()
-		if changed.TargetInfo.TargetID != sb.targetID {
-			return
-		}
-		if sb.url != changed.TargetInfo.URL || sb.title != changed.TargetInfo.Title {
-			sb.url, sb.title = changed.TargetInfo.URL, changed.TargetInfo.Title
-			sb.broadcast()
-		}
+		sb.tabChanged(changed.TargetInfo)
 	case "Target.targetDestroyed":
 		var gone struct {
 			TargetID string `json:"targetId"`
@@ -543,9 +548,14 @@ func (sb *sharedBrowser) onEvent(sessionID, method string, params json.RawMessag
 			return
 		}
 		sb.mu.Lock()
-		link, cdp, mine := sb.link, sb.cdp, gone.TargetID == sb.targetID
+		link, cdp := sb.link, sb.cdp
+		followed, remaining := sb.tabGone(gone.TargetID)
 		sb.mu.Unlock()
-		if mine && link != nil {
+		switch {
+		case !followed || link == nil:
+		case remaining > 0:
+			go sb.followNewest()
+		default:
 			// A browser with no page is of no use, so end it and let a watch start a new one.
 			go func() {
 				sb.closed(cdp, "The page closed.")

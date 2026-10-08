@@ -22,6 +22,7 @@ import (
 const (
 	daemonTailnetPortEnv = "ATERM_DAEMON_TAILNET_PORT"
 	defaultTailnetPort   = "7419"
+	daemonPeerPortsEnv   = "ATERM_DAEMON_PEER_PORTS"
 	daemonAllowTagsEnv   = "ATERM_DAEMON_ALLOW_TAGS"
 	daemonAllowOrigins   = "ATERM_DAEMON_ALLOW_ORIGINS"
 	clientDirEnv         = "ATERM_CLIENT_DIR"

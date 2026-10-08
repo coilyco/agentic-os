@@ -81,6 +81,15 @@ func (f *scriptedBrowser) answer(request cdpMessage) {
 		result = map[string]any{"targetInfos": []targetInfo{{TargetID: "T1", Type: "page", URL: "about:blank", Title: "blank"}}}
 	case "Target.attachToTarget":
 		result = map[string]any{"sessionId": "PAGE"}
+		var asked struct{ TargetID string }
+		_ = json.Unmarshal(request.Params, &asked)
+		if asked.TargetID != "T1" {
+			// Chromium reports an attach on the connection before it answers the call.
+			result = map[string]any{"sessionId": "PAGE-" + asked.TargetID}
+			f.event("", "Target.attachedToTarget", map[string]any{
+				"sessionId": "PAGE-" + asked.TargetID, "targetInfo": targetInfo{TargetID: asked.TargetID, Type: "page"},
+			})
+		}
 	case "Target.setAutoAttach":
 		// Chromium attaches the open page to the connection that asked, as a
 		// session of its own beside the one the daemon holds.
@@ -304,6 +313,25 @@ func TestCDPProxyNeverLetsTheAgentAddressTheDaemonsPageSession(t *testing.T) {
 	}
 	if after := len(h.fake.called("Page.navigate")); after != before {
 		t.Fatalf("a refused command must not reach the browser, it saw %d more Page.navigate", after-before)
+	}
+}
+
+func TestCDPProxyRefusesCommandsOnASessionTheDaemonAttachedToANewTab(t *testing.T) {
+	h := newProxyHarness(t)
+	agent := h.connect()
+	agent.attached()
+	h.fake.event("", "Target.targetCreated", map[string]any{"targetInfo": targetInfo{TargetID: "T2", Type: "page", URL: "https://popup.example/"}})
+	sb := h.d.browsers.existing("scientist-evie")
+	waitFor(t, "the daemon to follow the new tab", 5*time.Second, func() bool { return sb.daemonSession("PAGE-T2") })
+	before := len(h.fake.called("Page.stopScreencast"))
+
+	agent.send(2, "PAGE-T2", "Page.stopScreencast", map[string]any{})
+	refused := agent.answer(2)
+	if refused.Error == nil || !strings.Contains(refused.Error.Message, "Session with given id not found") {
+		t.Fatalf("a session the daemon attached is not the agent's, however its attach event arrived: %+v", refused)
+	}
+	if after := len(h.fake.called("Page.stopScreencast")); after != before {
+		t.Fatalf("the refused command must not reach the browser, it saw %d more", after-before)
 	}
 }
 
