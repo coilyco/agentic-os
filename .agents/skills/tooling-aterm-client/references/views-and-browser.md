@@ -10,6 +10,10 @@ The side panel's Views and Browser tabs render from optional `views` and `browse
 
 The MCP Apps spec asks a web host for a sandbox proxy on a second origin. This client is served by the daemon on one origin, so each view gets one iframe with `sandbox="allow-scripts"` and no `allow-same-origin`. That gives it an opaque origin, with no reach into this page, its storage, or the daemon socket. The view's `_meta.ui.csp` becomes a policy tag pinned first in its `<head>`, so it has no network unless it declared the domain. Messages are matched by the iframe's window, because an opaque origin has no name to check. The host side of the protocol is ext-apps' `AppBridge` with no MCP client, so every view call goes to the daemon gateway through `ViewBridge`'s handlers, and the sandbox-proxy hooks it also offers stay unused.
 
+## A view loads on demand
+
+`ViewsPanel` imports `AppView` with a dynamic `import()` once a session has a view, so AppBridge and its peers (ext-apps, the MCP SDK, zod) sit in their own chunk, and the two empty states never fetch it. A failed chunk fetch is cached by the browser for the life of the page, so the panel's error offers a reload, not a retry. The app-shell worker precaches the chunk with every other built file.
+
 ## The browser is a picture
 
 The shared browser is the host's own Chromium, shown by CDP screencast. The pane draws each frame contained in its box and maps pointer and keys back to page pixels as CDP `Input` events. It sends them only from the screen holding control, and taking over from another screen is a forced take. Escape leaves the page, so the keyboard is never trapped in it.
