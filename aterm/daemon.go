@@ -58,8 +58,10 @@ type daemon struct {
 	conns       int
 	lastActive  time.Time
 	processes   func() ([]processEntry, error)
-	roster      func(context.Context) (listedRoster, error)
-	launch      func(role, seat string) error
+	// peerLookup names the processes holding a local TCP peer's end.
+	peerLookup func(remote, local net.Addr) ([]int, error)
+	roster     func(context.Context) (listedRoster, error)
+	launch     func(role, seat string) error
 	// proxyFetch reads Agent Proxy's session usage. Nil when no proxy is configured.
 	proxyFetch proxyFetcher
 	logf       func(string, ...any)
@@ -76,6 +78,7 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		subscribers: map[*conn]bool{},
 		lastActive:  time.Now(),
 		processes:   listProcesses,
+		peerLookup:  tcpPeerPIDs,
 		roster:      launchableRoster,
 		launch:      launchRole,
 		logf:        logf,
@@ -310,12 +313,18 @@ func (d *daemon) endAll() {
 	group.Wait()
 }
 
+// peerStanding is the other end before any frame: web or unix, another device
+// or this host, and the pids holding it. A remote device has none to walk.
+type peerStanding struct {
+	web, remote bool
+	pids        []int
+}
+
 // client is one connection's standing: which sessions it spawned, which it is
-// attached to, and whether it may type. A browser has no pid to walk.
+// attached to, and whether it may type.
 type client struct {
-	c        *conn
-	peerPID  int
-	browser  bool
+	c *conn
+	peerStanding
 	owned    map[string]bool
 	attached map[string]*ptySession
 	asks     []string
@@ -323,10 +332,10 @@ type client struct {
 
 func (d *daemon) serve(raw net.Conn) {
 	pid, _ := peerPID(raw)
-	d.serveConn(newConn(raw), pid, false)
+	d.serveConn(newConn(raw), peerStanding{pids: []int{pid}})
 }
 
-func (d *daemon) serveConn(c *conn, pid int, browser bool) {
+func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	defer d.guard("connection")
 	defer c.Close()
 	hello, err := c.read()
@@ -337,14 +346,18 @@ func (d *daemon) serveConn(c *conn, pid int, browser bool) {
 		_ = c.write(frame{Type: "welcome", Format: daemonFormat, Error: "unsupported format " + hello.Format})
 		return
 	}
-	if err := c.write(frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature}}); err != nil {
+	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature}}
+	if peer.web {
+		welcome.Typing = d.typingStanding(cl)
+	}
+	if err := c.write(welcome); err != nil {
 		return
 	}
 	d.mu.Lock()
 	d.conns++
 	d.lastActive = time.Now()
 	d.mu.Unlock()
-	cl := &client{c: c, peerPID: pid, browser: browser, owned: map[string]bool{}, attached: map[string]*ptySession{}}
 	defer func() {
 		for _, s := range cl.attached {
 			s.detach(c)
@@ -364,7 +377,7 @@ func (d *daemon) serveConn(c *conn, pid int, browser bool) {
 			return
 		}
 		if err := d.handle(cl, message); err != nil {
-			_ = c.write(frame{Type: "error", ID: message.ID, Error: err.Error(), Code: exitCodeFor(err)})
+			_ = c.write(frame{Type: "error", ID: message.ID, Error: err.Error(), Code: exitCodeFor(err), Reason: reasonFor(err)})
 		}
 	}
 }
@@ -414,8 +427,10 @@ func (d *daemon) handle(cl *client, message frame) error {
 		if s == nil {
 			return fmt.Errorf("not attached to %q", message.Session)
 		}
-		if !cl.owned[s.name] && !cl.browser && d.insideSession(cl.peerPID) {
-			return errors.New("a process inside an aterm session cannot type into one, use `aterm send`")
+		if !cl.owned[s.name] {
+			if err := d.insideRefusal(cl, "a process inside an aterm session cannot type into one, use `aterm send`"); err != nil {
+				return err
+			}
 		}
 		return s.typeInput(message.Data)
 	case "resize":
@@ -445,6 +460,11 @@ func (d *daemon) handle(cl *client, message frame) error {
 	case "list":
 		return cl.c.write(frame{Type: "sessions", ID: message.ID, Sessions: d.views()})
 	case "launch":
+		if cl.web {
+			if err := d.insideRefusal(cl, "a process inside an aterm session cannot launch a seat as Kai, use `aterm send --launch`"); err != nil {
+				return err
+			}
+		}
 		if !safeRoleSlug(message.Role) || (message.Seat != "" && !isNativeHarness(message.Seat)) {
 			return withExit(exitUsage, fmt.Errorf("launch needs a role slug and, optionally, a native seat"))
 		}
@@ -778,7 +798,7 @@ func (d *daemon) closeSession(cl *client, message frame) error {
 	if caller == s {
 		return withExit(exitUsage, fmt.Errorf("%s is this session", s.name))
 	}
-	if !cl.browser && d.descendsFrom(cl.peerPID, map[int]bool{s.pid: true}) {
+	if d.clientDescendsFrom(cl, map[int]bool{s.pid: true}) {
 		return withExit(exitUsage, fmt.Errorf("this caller runs inside %s, so closing it would end the caller too", s.name))
 	}
 	if view := s.view(); !message.Force && (view.Drafted || view.Pending > 0) {
@@ -829,7 +849,7 @@ func (d *daemon) clearSession(cl *client, message frame) error {
 	switch {
 	case caller != nil && !clearRoles[caller.role]:
 		return withExit(exitUsage, fmt.Errorf("the %s role may not clear a session, only Kai and the director do", caller.role))
-	case caller == nil && !cl.browser && d.insideSession(cl.peerPID):
+	case caller == nil && d.clientDescendsFrom(cl, d.sessionRoots()):
 		return withExit(exitUsage, errors.New("a process inside a session must present its session token to clear another"))
 	case caller == s:
 		return withExit(exitUsage, fmt.Errorf("%s is this session, and clearing it would discard the context doing the clearing", s.name))
@@ -954,13 +974,55 @@ func (d *daemon) broadcast(message frame) {
 // insideSession reports whether pid runs under a session this daemon started,
 // an unreadable pid counting as inside. See docs/aterm-daemon.md.
 func (d *daemon) insideSession(pid int) bool {
+	return d.descendsFrom(pid, d.sessionRoots())
+}
+
+func (d *daemon) sessionRoots() map[int]bool {
 	d.mu.Lock()
+	defer d.mu.Unlock()
 	roots := map[int]bool{}
 	for _, s := range d.sessions {
 		roots[s.pid] = true
 	}
-	d.mu.Unlock()
-	return d.descendsFrom(pid, roots)
+	return roots
+}
+
+// clientDescendsFrom is descendsFrom for a connection held by several pids.
+// A remote device never descends, and a local peer left unnamed counts as under.
+func (d *daemon) clientDescendsFrom(cl *client, roots map[int]bool) bool {
+	if cl.remote {
+		return false
+	}
+	if len(cl.pids) == 0 {
+		return true
+	}
+	for _, pid := range cl.pids {
+		if d.descendsFrom(pid, roots) {
+			return true
+		}
+	}
+	return false
+}
+
+// insideRefusal is the typing guard for what is Kai's to do, as a refusal a
+// client can show: nil when the peer may, otherwise message with a reason.
+func (d *daemon) insideRefusal(cl *client, message string) error {
+	if !d.clientDescendsFrom(cl, d.sessionRoots()) {
+		return nil
+	}
+	if len(cl.pids) == 0 {
+		return withReason(reasonPeerUnread, errors.New("the daemon could not tell which process this connection is, so it cannot type"))
+	}
+	return withReason(reasonSessionDescendant, errors.New(message))
+}
+
+// typingStanding is the answer a welcome carries, so a client can show its
+// read-only state before a keystroke is refused. Each frame is still judged.
+func (d *daemon) typingStanding(cl *client) *typingStanding {
+	if err := d.insideRefusal(cl, ""); err != nil {
+		return &typingStanding{Reason: reasonFor(err)}
+	}
+	return &typingStanding{Allowed: true}
 }
 
 // descendsFrom reports whether pid is one of roots or runs under one. An

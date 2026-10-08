@@ -79,17 +79,22 @@ type frame struct {
 	Lines  int            `json:"lines,omitempty"`
 	Status *sessionStatus `json:"status,omitempty"`
 	// ask_choice
-	Ask     *choiceAsk    `json:"ask,omitempty"`
-	AskID   string        `json:"ask_id,omitempty"`
-	Picks   []int         `json:"picks,omitempty"`
-	Text    string        `json:"text,omitempty"`
-	State   string        `json:"state,omitempty"`
-	Answer  *choiceAnswer `json:"answer,omitempty"`
-	Roster  *listedRoster `json:"roster,omitempty"`
-	Code    int           `json:"code,omitempty"`
-	Error   string        `json:"error,omitempty"`
-	Channel string        `json:"channel,omitempty"`
-	PID     int           `json:"pid,omitempty"`
+	Ask    *choiceAsk    `json:"ask,omitempty"`
+	AskID  string        `json:"ask_id,omitempty"`
+	Picks  []int         `json:"picks,omitempty"`
+	Text   string        `json:"text,omitempty"`
+	State  string        `json:"state,omitempty"`
+	Answer *choiceAnswer `json:"answer,omitempty"`
+	Roster *listedRoster `json:"roster,omitempty"`
+	Code   int           `json:"code,omitempty"`
+	Error  string        `json:"error,omitempty"`
+	// Reason is the stable name of a typing refusal on an error, and of a
+	// refusal standing on a welcome. See docs/aterm-daemon.md.
+	Reason string `json:"reason,omitempty"`
+	// Typing is on a welcome to a websocket: whether the peer may type.
+	Typing  *typingStanding `json:"typing,omitempty"`
+	Channel string          `json:"channel,omitempty"`
+	PID     int             `json:"pid,omitempty"`
 	// Hold is what a session holder reports on attach, and is not part of the
 	// client wire.
 	Hold *holdInfo `json:"hold,omitempty"`
@@ -169,6 +174,10 @@ const clearFeature = "clear"
 // claimFeature is how a client knows the daemon grants pool names atomically. A
 // client facing one without it picks from a list, which two launches at once can race.
 const claimFeature = "claim"
+
+// typingGuardFeature is how a client knows a refusal carries a `reason` and a
+// welcome to a websocket carries `typing`. A daemon without it let any browser type.
+const typingGuardFeature = "typing-guard"
 
 // holdFeature is how a client knows sessions live in holders, so stopping the
 // daemon leaves them running. A daemon without it ends every session when it stops.

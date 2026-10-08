@@ -39,3 +39,37 @@ func exitCodeFor(err error) int {
 	}
 	return exitFailure
 }
+
+// Reasons a typing refusal names, which a client branches on to show a
+// read-only state. The words around them are for people.
+const (
+	reasonSessionDescendant = "session_descendant"
+	reasonPeerUnread        = "peer_unread"
+)
+
+// typingStanding says whether a peer may type, and if not why.
+type typingStanding struct {
+	Allowed bool   `json:"allowed"`
+	Reason  string `json:"reason,omitempty"`
+}
+
+type reasonError struct {
+	reason string
+	err    error
+}
+
+func (e reasonError) Error() string { return e.err.Error() }
+
+func (e reasonError) Unwrap() error { return e.err }
+
+func withReason(reason string, err error) error {
+	return reasonError{reason: reason, err: err}
+}
+
+func reasonFor(err error) string {
+	var typed reasonError
+	if errors.As(err, &typed) {
+		return typed.reason
+	}
+	return ""
+}

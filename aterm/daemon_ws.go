@@ -69,7 +69,7 @@ func loopbackPolicy() accessPolicy {
 func (d *daemon) websocketHandler() http.Handler { return d.handler(loopbackPolicy()) }
 
 // handler serves the client's files, and upgrades a websocket to the same
-// frames as the unix socket. A browser has no pid to walk, so it types as a person.
+// frames as the unix socket. A browser on this host is judged by its socket's owner.
 func (d *daemon) handler(policy accessPolicy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := policy.admit(r); err != nil {
@@ -93,8 +93,26 @@ func (d *daemon) handler(policy accessPolicy) http.Handler {
 			return
 		}
 		ws.SetReadLimit(maxFrame)
-		d.serveConn(newWebsocketConn(r.Context(), ws), 0, true)
+		d.serveConn(newWebsocketConn(r.Context(), ws), d.webPeer(r))
 	})
+}
+
+// webPeer stands for an upgraded request's other end. A browser on this host is
+// named by the socket table and walked like a unix peer. An unnamed one counts as under.
+func (d *daemon) webPeer(r *http.Request) peerStanding {
+	remote, err := net.ResolveTCPAddr("tcp", r.RemoteAddr)
+	if err != nil {
+		return peerStanding{web: true}
+	}
+	if !onThisHost(remote) {
+		return peerStanding{web: true, remote: true}
+	}
+	local, _ := r.Context().Value(http.LocalAddrContextKey).(net.Addr)
+	pids, err := d.peerLookup(remote, local)
+	if err != nil {
+		d.logf("could not name the process behind %s, so it cannot type: %v", r.RemoteAddr, err)
+	}
+	return peerStanding{web: true, pids: pids}
 }
 
 // serveClient is the built aterm client, so a browser opens the daemon's own

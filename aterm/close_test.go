@@ -129,9 +129,9 @@ func TestClosedReplyMeansTheNameIsFree(t *testing.T) {
 	d := newDaemon(func(string, ...any) {})
 	d.holdDir = testHoldDir(t)
 	t.Cleanup(d.endAll)
-	pipe := func(browser bool) *conn {
+	pipe := func(pid int) *conn {
 		client, server := net.Pipe()
-		go d.serveConn(newConn(server), 0, browser)
+		go d.serveConn(newConn(server), peerStanding{pids: []int{pid}})
 		c := newConn(client)
 		t.Cleanup(func() { _ = c.Close() })
 		if err := c.write(frame{Type: "hello", Format: daemonFormat}); err != nil {
@@ -140,7 +140,7 @@ func TestClosedReplyMeansTheNameIsFree(t *testing.T) {
 		nextFrame(t, c, "welcome")
 		return c
 	}
-	owner := pipe(false)
+	owner := pipe(0)
 	if _, err := owner.request(frame{
 		Type: "spawn", Session: "close-pooled", Role: "frontend-eng", Identity: "Imp",
 		Argv: []string{"/bin/sh", "-c", "exec sleep 30"}, Env: os.Environ(), Cwd: "/",
@@ -155,7 +155,7 @@ func TestClosedReplyMeansTheNameIsFree(t *testing.T) {
 			}
 		}
 	}()
-	if _, err := pipe(true).request(frame{Type: "close", Target: "close-pooled", Force: true}); err != nil {
+	if _, err := pipe(os.Getpid()).request(frame{Type: "close", Target: "close-pooled", Force: true}); err != nil {
 		t.Fatalf("close: %v", err)
 	}
 	if d.session("close-pooled") != nil {

@@ -140,7 +140,7 @@ func TestAskTimesOut(t *testing.T) {
 	t.Cleanup(d.endAll)
 	pipe := func() *conn {
 		client, server := net.Pipe()
-		go d.serveConn(newConn(server), 0, false)
+		go d.serveConn(newConn(server), peerStanding{pids: []int{0}})
 		c := newConn(client)
 		t.Cleanup(func() { _ = c.Close() })
 		if err := c.write(frame{Type: "hello", Format: daemonFormat}); err != nil {
