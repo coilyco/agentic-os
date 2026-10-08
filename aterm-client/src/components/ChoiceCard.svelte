@@ -1,7 +1,7 @@
 <script lang="ts">
   import { advanceIndex, type Choice } from "../lib/choices";
 
-  let { choice, identity, onanswer, oncancel, focusToken = 0, locked = false }: {
+  let { choice, identity, onanswer, oncancel, focusToken = 0, locked = false, cancelLocked = locked }: {
     choice: Choice;
     identity: string;
     /** Each change asks the card to take the keyboard, as when you alt-tab in. */
@@ -11,6 +11,8 @@
     oncancel: () => void;
     /** The daemon refuses this connection's answers. The composer below says why. */
     locked?: boolean;
+    /** An ask is cancelled by `cancel_ask`, which the guard leaves open. A menu's Esc is typed. */
+    cancelLocked?: boolean;
   } = $props();
 
   let card: HTMLElement;
@@ -52,7 +54,7 @@
   }
 
   function keys(event: KeyboardEvent): void {
-    if (locked) return;
+    if (locked && !(event.key === "Escape" && !cancelLocked)) return;
     const card = (event.currentTarget as HTMLElement).closest(".card");
     const buttons = [...(card?.querySelectorAll<HTMLButtonElement>("button.option, button.advance") ?? [])];
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
@@ -121,7 +123,7 @@
       <button class="button primary" onclick={submitMulti} disabled={locked || picked.length === 0}>Submit {picked.length || ""}</button>
     {/if}
     {#if choice.cancellable}
-      <button class="button" disabled={locked} onclick={oncancel} onkeydown={keys}>Cancel</button>
+      <button class="button" disabled={cancelLocked} onclick={oncancel} onkeydown={keys}>Cancel</button>
     {/if}
   </div>
 </section>

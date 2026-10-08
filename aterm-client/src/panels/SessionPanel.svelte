@@ -103,6 +103,7 @@
                     identity={session.identity}
                     focusToken={app.focusCard}
                     locked={!app.typing.allowed}
+                    cancelLocked={false}
                     onanswer={(picks, text) => {
                       const reply = askAnswer(ask, picks, text);
                       app.connection?.answer(ask.id, reply.picks, reply.text);
