@@ -7,6 +7,7 @@
   import { app, asksFor, colorOf, jumpToWaiting, messagesFor } from "../lib/app.svelte";
   import { askAnswer, CANCEL, choiceFromAsk, detectChoice, keysFor, type Choice } from "../lib/choices";
   import { contextPercent, contextText } from "../lib/context";
+  import { isBlank } from "../lib/screen";
   import type { Session } from "../lib/protocol";
   import type { Role } from "../lib/roster";
   import { sessionCode } from "../lib/sessions";
@@ -21,6 +22,8 @@
   const wide = $derived(side === "browser" && page !== undefined && page.state !== "none");
   let choice = $state<Choice | null>(null);
   let shownKey = $state("");
+  // A seat that is still starting has printed nothing, so the pane says so instead of sitting empty.
+  let blank = $state(true);
   // Hidden once answered, until the screen shows a different menu.
   let answered = "";
   // A redraw arrives in pieces, so one frame without the menu is not it closing.
@@ -32,6 +35,7 @@
   }
 
   function readScreen(rows: string[]): void {
+    blank = isBlank(rows);
     const found = detectChoice(rows);
     if (!found) {
       hideTimer ??= setTimeout(() => {
@@ -95,6 +99,9 @@
           <!-- The card overlays the terminal so it never resizes it, which would make the harness redraw its menu. -->
           <div class="screen">
             <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} locked={!app.typing.allowed} />
+            {#if session.starting && blank}
+              <p class="starting" role="status">Starting {session.identity} on {session.seat}. Its first screen shows here as soon as {session.seat} has opened.</p>
+            {/if}
             {#if ask}
               {#key ask.id}
                 <div class="overlay">
@@ -146,6 +153,7 @@
   .bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--fill); background: var(--accent); }
   .work { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .screen { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+  .starting { position: absolute; inset: 0; margin: 0; padding: 24px; display: grid; place-content: center; text-align: center; color: var(--muted); pointer-events: none; }
   .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
   .body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 0; }
   .body.wide { grid-template-columns: minmax(0, 1fr) minmax(360px, 50%); }

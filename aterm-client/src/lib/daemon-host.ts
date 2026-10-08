@@ -146,6 +146,7 @@ export function toSession(view: SessionView, busy = false): Session {
     drafting: view.kai_drafting,
     paste: view.bracketed_paste,
     degraded: view.degraded ?? [],
+    ...(view.ready ? {} : { starting: true }),
     ...(view.context ? { context: toContext(view.context) } : {}),
   };
 }

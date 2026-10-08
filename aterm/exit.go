@@ -45,6 +45,7 @@ func exitCodeFor(err error) int {
 const (
 	reasonSessionDescendant = "session_descendant"
 	reasonPeerUnread        = "peer_unread"
+	reasonPasskeyRequired   = "passkey_required"
 	// A remote device cannot open a shell until COI-2488's gating exists.
 	reasonRemoteTerminal = "remote_terminal"
 )
@@ -53,6 +54,8 @@ const (
 type typingStanding struct {
 	Allowed bool   `json:"allowed"`
 	Reason  string `json:"reason,omitempty"`
+	// Passkey is "enrolled" or "unenrolled", for a remote device only.
+	Passkey string `json:"passkey,omitempty"`
 }
 
 type reasonError struct {

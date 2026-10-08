@@ -274,7 +274,7 @@ func (d *daemon) addGateway(cl *client, message frame) error {
 // viewCall proxies a view's call to its server with no consent step (Kai). It
 // takes the typing guard, and runs off the read loop since a tool takes minutes.
 func (d *daemon) viewCall(cl *client, message frame) error {
-	if err := d.insideRefusal(cl, "a process inside an aterm session cannot use a view as Kai"); err != nil {
+	if err := d.typingRefusal(cl, "a process inside an aterm session cannot use a view as Kai"); err != nil {
 		return err
 	}
 	view := d.viewByID(message.ViewID)

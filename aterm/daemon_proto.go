@@ -97,6 +97,12 @@ type frame struct {
 	Roster *listedRoster `json:"roster,omitempty"`
 	Code   int           `json:"code,omitempty"`
 	Error  string        `json:"error,omitempty"`
+	// Passkey ceremonies: EnrollCode is the one-time code, Options and Credential
+	// are WebAuthn JSON. See docs/aterm-daemon.md.
+	EnrollCode string          `json:"enroll_code,omitempty"`
+	ExpiresIn  int             `json:"expires_in,omitempty"`
+	Options    json.RawMessage `json:"options,omitempty"`
+	Credential json.RawMessage `json:"credential,omitempty"`
 	// Reason is the stable name of a typing refusal on an error, and of a
 	// refusal standing on a welcome. See docs/aterm-daemon.md.
 	Reason string `json:"reason,omitempty"`
