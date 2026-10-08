@@ -7,11 +7,7 @@ attached to it, and `aterm send` types a stamped message from one session into a
 aterm send frontend-eng "ready for review"
 aterm send --launch scientist -       # open the role if none answers
 aterm attach eng-platform-beetle-ox   # Ctrl-] detaches
-aterm status scientist-frog-ox        # state and screen
-aterm clear scientist-frog-ox
-aterm close scientist-frog-ox
 aterm daemon                          # foreground, websocket on 127.0.0.1:7419
-aterm ask "Ship it?" yes no           # a choice card
 ```
 
 ## What the daemon owns
@@ -22,7 +18,7 @@ aterm ask "Ship it?" yes no           # a choice card
 
 **The harness starts without agent-compose's Enter gate**, as the window drew its own card (`AGENT_COMPOSE_NO_PAUSE=1`). agent-compose's `ESC ] 7750 ; agent-compose ; degraded=<steps> BEL` becomes the session's `degraded` field.
 
-**`list` reads each session's screen.** The daemon rebuilds each terminal's screen from its output and reports `state`: `starting`, `prompt` (a permission or choice card is up), `busy` (recent output or the interrupt hint), else `idle`. `aterm status` adds the prompt text, quiet seconds, the draft, and the last rows,, never typing.
+**`list` reads each session's screen.** The daemon rebuilds each terminal's screen from its output and reports `state`: `starting`, `prompt` (a permission or choice card is up), `busy` (recent output or the interrupt hint), else `idle`. `aterm status` adds the prompt text, quiet seconds, the draft, and the last rows, never typing.
 
 **`aterm clear` types the harness's clear command, unstamped.** Only Kai's client and the `prod-director` role may, never on the caller's own session, a prompt, or a seat with no known command (claude only). Without `--force` it also refuses a busy session, a draft, or queued messages.
 
@@ -61,6 +57,7 @@ aterm ask "Ship it?" yes no           # a choice card
 * `status` (with `lines`), `clear` and `close` (with optional `force`), each with a `target`, answer `status`, `cleared` and `closed` with the exit `code`. `claim` with a `session` base answers `claimed` with a free pool name, and `peek` holds none.
 * `list` answers `sessions`, each with `state`, `quiet_seconds` and `context` ([the meter](../.agents/skills/tooling-aterm-client/references/context-meter.md)). `subscribe` to channel `sessions` pushes the roster on every change, and `message` events carry each state change, never the body.
 * `welcome` to a websocket adds `typing-guard` and `typing` `{allowed, reason}`, the answer at connect. A refused `input`, `answer`, `launch` or `clear` answers `error` with `id`, `code` and `reason`, `session_descendant` or `peer_unread`.
+* `hosts` answers `hosts`, the tailnet daemons that answered this one ([discovery](../.agents/skills/tooling-aterm-client/references/discovery.md)).
 * `whoami` resolves a token to its session. `roster` answers `aterm.roster.v1`, the launchable roles `aterm --list --json` prints. `launch` with a `role` and optional `seat` opens it headless, answering `launched`.
 * `ask` takes a `question`, `options` (`label`, `description`), `header`, `allow_other`, `multi`. MCP `ask_choice` takes up to four `questions`, one card each. The daemon stamps the asker and pushes `ask` to subscribers, replayed on subscribe. `answer` (`ask_id`, `picks`, `text`) or `cancel_ask` settles it, and `asked` tells every client to drop the card. An asker leaving cancels its asks, and an answer takes the typing guard as Kai's input.
 

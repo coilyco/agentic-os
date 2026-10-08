@@ -18,6 +18,8 @@ export interface Host {
   address: string;
   kind: HostKind;
   status: HostStatus;
+  /** Found by a daemon on the tailnet, not typed here. Never stored on this device. */
+  found?: boolean;
 }
 
 export type SessionState = "idle" | "working" | "failed";

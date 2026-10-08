@@ -98,6 +98,9 @@ type frame struct {
 	// Hold is what a session holder reports on attach, and is not part of the
 	// client wire.
 	Hold *holdInfo `json:"hold,omitempty"`
+
+	// Hosts answers a hosts request: the tailnet daemons that answered this one.
+	Hosts []hostView `json:"hosts,omitempty"`
 }
 
 // sessionView is one live session as a client sees it. It is the roster the
