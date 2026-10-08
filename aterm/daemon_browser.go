@@ -27,14 +27,14 @@ const (
 	seedQuiet = 600 * time.Millisecond
 )
 
-const profileNote = "A temporary profile on the host. Logins from the role's Playwright profile are not here yet."
-
 // browserHub keeps one sharedBrowser per session, started when the first
 // client watches it. The zero value is ready.
 type browserHub struct {
 	mu     sync.Mutex
 	byName map[string]*sharedBrowser
 	names  map[*conn]string
+	// claims says which session holds each role's Playwright profile.
+	claims profileClaims
 }
 
 // clientName is what the daemon calls a connection in browser frames, so a
@@ -384,7 +384,10 @@ func (sb *sharedBrowser) start() {
 	sb.targetID, sb.page = target.TargetID, page
 	sb.url, sb.title = target.URL, target.Title
 	sb.starting = false
-	sb.state, sb.reason = "live", profileNote
+	sb.state, sb.reason = "live", link.note
+	if sb.reason == "" {
+		sb.reason = tempProfileNote
+	}
 	sb.driver, sb.holder = "agent", ""
 	sb.broadcast()
 	sb.mu.Unlock()
