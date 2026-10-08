@@ -70,20 +70,23 @@
   {#if view.kind === "live" || view.kind === "exited"}
     <div class="bar">
       <span class="name">Shell beside {session.identity}</span>
-      <span class="hint mono">Ctrl+Alt+Left returns to {session.identity}</span>
       <button type="button" class="quiet" onclick={dismiss}>Close</button>
     </div>
     {#key view.entry.id}
       <Terminal connection={app.connection!} sessionId={view.entry.id} label={`shell beside ${session.identity}`} {accent} messages={[]} {colorOf} locked={!app.typing.allowed || view.kind === "exited"} />
     {/key}
-    {#if watchOnly && view.kind === "live"}
-      <p class="note" role="status">This browser can watch the shell but not type into it ({watchOnly}).</p>
-    {:else if view.kind === "exited"}
-      <div class="note" role="status">
-        <span>The shell exited with code {view.code}.</span>
-        <button type="button" bind:this={primary} onclick={reopen}>Open a new terminal</button>
-      </div>
-    {/if}
+    <p class="hint mono">Ctrl+Alt+Left returns to {session.identity}</p>
+    <!-- Present from the first frame, since a status inserted at exit is not announced. -->
+    <div role="status">
+      {#if watchOnly && view.kind === "live"}
+        <p class="note">This browser can watch the shell but not type into it ({watchOnly}).</p>
+      {:else if view.kind === "exited"}
+        <div class="note">
+          <span>The shell exited with code {view.code}.</span>
+          <button type="button" bind:this={primary} onclick={reopen}>Open a new terminal</button>
+        </div>
+      {/if}
+    </div>
   {:else if text}
     <div class="empty" role={view.kind === "refused" ? "alert" : "status"} aria-busy={view.kind === "opening" || view.kind === "waiting"}>
       <h2>{text.title}</h2>
@@ -99,9 +102,9 @@
 
 <style>
   .pane { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-  .bar { display: flex; align-items: center; gap: 8px 12px; padding: 4px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 0 12px; border-bottom: 1px solid var(--line); }
   .name { font-family: var(--font-display); font-weight: 600; font-size: 14px; }
-  .hint { color: var(--muted); font-size: 11px; margin-left: auto; }
+  .hint { margin: 0; padding: 4px 12px; color: var(--muted); font-size: 11px; border-top: 1px solid var(--line); }
   button { min-height: 44px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--accent, var(--brand)); background: transparent; color: var(--text); font-family: var(--font-display); font-weight: 600; font-size: 14px; }
   button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .quiet { border-color: var(--line); color: var(--text-soft); }

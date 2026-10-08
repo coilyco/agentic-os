@@ -184,7 +184,7 @@ export class MockHost implements HostConnection {
         }
         const id = `terminal-${++this.nextShell}`;
         this.shells.set(id, { label, line: "" });
-        this.buffers.set(id, `${DIM}demo shell, nothing here reaches a real machine${RESET}\r\n${SHELL_PROMPT}`);
+        this.buffers.set(id, `${DIM}demo shell, nothing real runs here${RESET}\r\n${SHELL_PROMPT}`);
         this.emit({ type: "terminals", terminals: this.listShells() });
       }, 250),
     );

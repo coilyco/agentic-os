@@ -68,6 +68,12 @@ function settleOpen(label: string): void {
   delete app.terminalOpening[label];
 }
 
+/** A shell that arrived after a timed-out spawn makes that refusal wrong. */
+function shellArrived(label: string): void {
+  settleOpen(label);
+  delete app.terminalRefusals[label];
+}
+
 /** Opens a shell beside a seat. Asking again is what clears a refusal or an exit. */
 export function openTerminal(sessionId: string): void {
   const channel = app.connection?.terminals;
@@ -184,7 +190,7 @@ export function selectHost(host: Host): void {
     else if (event.type === "terminals") {
       app.terminals = applyList(app.terminals, event.terminals);
       app.terminalsLoaded = true;
-      for (const each of event.terminals) if (each.label) settleOpen(each.label);
+      for (const each of event.terminals) if (each.label) shellArrived(each.label);
     }
     else if (event.type === "terminal_exit") app.terminals = recordExit(app.terminals, event.id, event.code);
     else if (event.type === "terminal_refused") {

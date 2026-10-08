@@ -1,6 +1,6 @@
 // Plain terminals beside a seat, and what the pane shows in each state. The frame is
 // COI-2498's, so MockHost scripts the shape proposed there until it is accepted.
-import type { Typing } from "./typing";
+import { typingNotice, type Typing } from "./typing";
 
 export interface TerminalEntry {
   id: string;
@@ -119,7 +119,7 @@ export function paneText(state: PaneState, seat: string): { title: string; body:
     case "refused":
       return { title: "The host would not open a terminal", body: state.text };
     case "locked":
-      return { title: "This browser can watch but not open a terminal", body: "The host blocks typing from here (" + state.reason + "), and a shell is typing. Open this page in a browser you started yourself." };
+      return { title: "This browser can watch but not open a terminal", body: typingNotice({ allowed: false, reason: state.reason }) };
     case "closed":
       return { title: "No terminal beside " + seat, body: "You closed it. Open a new one when you want a shell here." };
     case "ready":

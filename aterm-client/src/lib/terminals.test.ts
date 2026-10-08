@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TYPING_OPEN } from "./typing";
+import { TYPING_OPEN, typingNotice } from "./typing";
 import { applyList, loadClosed, paneState, paneText, recordExit, shouldOpen, storeClosed, terminalFor, type PaneInput, type TerminalEntry } from "./terminals";
 
 const live = (id: string, label: string | null = "sysadmin-senior-turtle-ox"): TerminalEntry => ({ id, label, exit: null });
@@ -117,7 +117,7 @@ describe("paneText", () => {
 
   it("names the seat and the reason, so the empty state says whose shell and why not", () => {
     expect(paneText({ kind: "ready" }, "Turtle-Ox")?.title).toContain("Turtle-Ox");
-    expect(paneText({ kind: "locked", reason: "peer_unread" }, "x")?.body).toContain("peer_unread");
+    expect(paneText({ kind: "locked", reason: "peer_unread" }, "x")?.body).toBe(typingNotice({ allowed: false, reason: "peer_unread" }));
     expect(paneText({ kind: "refused", text: "no shell here" }, "x")?.body).toBe("no shell here");
   });
 });

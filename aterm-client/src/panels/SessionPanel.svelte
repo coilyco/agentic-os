@@ -166,8 +166,8 @@
     .body, .body.wide { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr) auto; }
     .body :global(.panel) { border-top: 1px solid var(--line); max-height: 40vh; }
     .body.wide :global(.panel) { max-height: none; }
-    /* A shell needs rows to be a shell, so its sheet rises higher than the others. */
-    .body.sheet { grid-template-rows: minmax(240px, 1fr) auto; }
-    .body.sheet :global(.panel) { max-height: none; height: 60vh; }
+    /* A shell needs rows, so its panel pins to the bottom of the scroll as a sheet. */
+    .body.sheet { flex: none; grid-template-rows: minmax(240px, auto) auto; }
+    .body.sheet :global(.panel) { position: sticky; bottom: 0; z-index: 1; max-height: none; height: max(45vh, 280px); background: var(--ground); box-shadow: 0 -8px 16px rgb(0 0 0 / 0.35); }
   }
 </style>

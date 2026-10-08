@@ -21,6 +21,8 @@
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(handle.parentElement!);
+    const side = panel();
+    if (side) observer.observe(side);
     return () => observer.disconnect();
   });
 
