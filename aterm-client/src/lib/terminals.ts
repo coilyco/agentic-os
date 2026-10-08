@@ -13,6 +13,8 @@ export interface TerminalEntry {
 /** A terminal as the daemon lists it. */
 export interface ListedTerminal {
   id: string;
+  /** The opener's seat name, from a daemon with `terminal-label`. Outranks our map. */
+  label?: string;
 }
 
 /** Terminal id to the seat it was opened beside, remembered on this device. */
@@ -21,7 +23,7 @@ export type Seats = Record<string, string>;
 // The daemon's list replaces ours. A shell that drops out ended, unless it is in
 // `dismissed`, and stays ended until reopened, whether the exit or the list came first.
 export function applyList(prev: readonly TerminalEntry[], listed: readonly ListedTerminal[], seats: Seats, dismissed: ReadonlySet<string> = new Set()): TerminalEntry[] {
-  const live = listed.map(({ id }): TerminalEntry => ({ id, label: seats[id] ?? null, exit: prev.find((entry) => entry.id === id)?.exit ?? null }));
+  const live = listed.map(({ id, label }): TerminalEntry => ({ id, label: label ?? seats[id] ?? null, exit: prev.find((entry) => entry.id === id)?.exit ?? null }));
   const ended = prev
     .filter((entry) => !live.some((each) => each.id === entry.id) && !dismissed.has(entry.id))
     .map((entry): TerminalEntry => ({ ...entry, exit: entry.exit ?? { code: null } }))

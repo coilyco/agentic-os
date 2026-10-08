@@ -42,9 +42,11 @@ interface SessionView {
   context?: { tokens: number; window?: number; source: string };
 }
 
-// A plain shell as the daemon lists it (COI-2498). It never names the seat beside it.
+// A plain shell as the daemon lists it (COI-2498). `label` is whatever the opener sent
+// on the spawn (COI-2535), absent from a daemon without the `terminal-label` feature.
 interface TerminalView {
   name: string;
+  label?: string;
 }
 
 interface MessageView {
@@ -100,6 +102,7 @@ interface Frame {
   typing?: unknown;
   reason?: unknown;
   features?: string[];
+  label?: string;
   driver?: string;
   url?: string;
   title?: string;
@@ -128,6 +131,9 @@ interface ViewFrame {
 
 /** `welcome.features` names this when the daemon streams a session's browser. */
 export const BROWSER_FEATURE = "browser";
+
+/** The daemon keeps a `label` on a terminal spawn and lists it back. */
+const TERMINAL_LABEL_FEATURE = "terminal-label";
 
 /** CDP's ScreencastFrameMetadata as the daemon sends it, in snake_case. */
 export function toFrameMetadata(raw: Record<string, number> | undefined): FrameMetadata {
@@ -251,7 +257,8 @@ export function terminalRefusal(reason: unknown, error: string | undefined): str
 export class DaemonHost implements HostConnection {
   readonly canLaunch = true;
   readonly terminals: TerminalChannel = {
-    open: (label) => void this.pendingOpens.set(this.request({ type: "spawn", kind: "terminal" }), label),
+    open: (label) =>
+      void this.pendingOpens.set(this.request({ type: "spawn", kind: "terminal", ...(this.features.has(TERMINAL_LABEL_FEATURE) ? { label } : {}) }), label),
     close: (id) => void this.request({ type: "close", target: id }),
   };
   // Spawn request ids to the seat they were asked for, until the daemon answers.
@@ -487,7 +494,7 @@ export class DaemonHost implements HostConnection {
         this.monitor();
         this.publishSessions();
         // Absent means none, so a daemon with no shells still reports a list.
-        this.last.terminals = { type: "terminals", terminals: (frame.terminals ?? []).map(({ name }) => ({ id: name })) };
+        this.last.terminals = { type: "terminals", terminals: (frame.terminals ?? []).map(({ name, label }) => (label ? { id: name, label } : { id: name })) };
         this.emit(this.last.terminals);
         return;
       case "spawned": {

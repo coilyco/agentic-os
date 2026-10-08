@@ -103,6 +103,22 @@ describe("applyList", () => {
   });
 });
 
+describe("applyList with a daemon that lists labels", () => {
+  const listed = [{ id: "t1", label: "a" }, { id: "t2", label: "b" }, { id: "t3" }];
+
+  it("resolves a seat to the same shell on a browser that never opened it", () => {
+    const opener = applyList([], listed, { t1: "a", t2: "b" });
+    const second = applyList([], listed, {});
+    for (const seat of ["a", "b"]) expect(terminalFor(second, seat)?.id).toBe(terminalFor(opener, seat)?.id);
+    expect(terminalFor(second, "a")?.id).toBe("t1");
+  });
+
+  it("trusts the daemon's label over this browser's own map, and falls back to the map without one", () => {
+    const entries = applyList([], listed, { t1: "stale", t3: "c" });
+    expect(entries.map((entry) => entry.label)).toEqual(["a", "b", "c"]);
+  });
+});
+
 describe("terminalFor", () => {
   it("finds the terminal beside a seat, preferring a live one over an exited one", () => {
     const exited: TerminalEntry = { id: "t1", label: "a", exit: { code: 0 } };

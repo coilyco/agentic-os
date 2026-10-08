@@ -78,6 +78,17 @@ describe("opening and closing a terminal", () => {
     host.close();
   });
 
+  it("sends the seat as the spawn's label only to a daemon that keeps one", () => {
+    const labelled = connect(["terminals", "terminal-label"]);
+    labelled.host.terminals.open("sysadmin-senior-turtle-ox");
+    expect(labelled.socket.lastSent()).toMatchObject({ type: "spawn", kind: "terminal", label: "sysadmin-senior-turtle-ox" });
+    labelled.host.close();
+    const plain = connect(["terminals"]);
+    plain.host.terminals.open("sysadmin-senior-turtle-ox");
+    expect(plain.socket.lastSent()).not.toHaveProperty("label");
+    plain.host.close();
+  });
+
   it("closes by name with the close frame's target", () => {
     const { host, socket } = connect(["terminals"]);
     host.terminals.close("terminal-3f9a1c");
@@ -101,6 +112,15 @@ describe("the terminal list", () => {
     expect(ofType(events, "terminals")).toEqual([
       { type: "terminals", terminals: [{ id: "terminal-3f9a1c" }] },
       { type: "terminals", terminals: [] },
+    ]);
+    host.close();
+  });
+
+  it("carries the label the daemon lists, and none for a shell without one", () => {
+    const { host, events, socket } = connect(["terminals", "terminal-label"]);
+    socket.receive({ type: "sessions", sessions: [], terminals: [{ name: "terminal-3f9a1c", label: "sysadmin-senior-turtle-ox" }, { name: "terminal-b2" }] });
+    expect(ofType(events, "terminals")).toEqual([
+      { type: "terminals", terminals: [{ id: "terminal-3f9a1c", label: "sysadmin-senior-turtle-ox" }, { id: "terminal-b2" }] },
     ]);
     host.close();
   });

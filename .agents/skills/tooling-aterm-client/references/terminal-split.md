@@ -20,7 +20,7 @@ The worst state is checked first (`paneState`). Each has words in `paneText`.
 
 ## The frame
 
-Terminals arrive in the `sessions` frame's own `terminals` list, never in `sessions`. The daemon never says which seat a shell sits beside, so the client keeps terminal id to seat in `aterm.terminal-seats.v1` from the `spawned` reply. A second device sees the shells and none of that association. A remote device is refused with `remote_terminal` until COI-2488.
+Terminals arrive in the `sessions` frame's own `terminals` list, never in `sessions`. With `terminal-label` in the welcome, spawn sends the seat as `label` and `applyList` reads it back, so any device finds the shell. Without it the client keeps terminal id to seat in `aterm.terminal-seats.v1` from the `spawned` reply, and a second device sees the shells without that association. A remote device is refused with `remote_terminal` until COI-2488.
 
 ## Split and keyboard
 
