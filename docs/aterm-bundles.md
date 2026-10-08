@@ -22,7 +22,7 @@ just aterm-bundles --dry-run         # what would land, rendered
 
 **The harness starts without agent-compose's Enter gate**, as the window drew its own card (`AGENT_COMPOSE_NO_PAUSE=1`). agent-compose's `ESC ] 7750 ; agent-compose ; degraded=<steps> BEL` becomes the session's `degraded` field.
 
-**A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn on stdin, since the environment holds credentials. It listens in `hold/` on `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running. The next one adopts each, drops a socket nobody answers. An adopted session has a typing hold, and pending messages are lost.
+**A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn on stdin, since the environment holds credentials. It listens in `hold/` on `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running. The next one adopts each, drops a socket nobody answers. An adopted session has a typing hold, and pending messages are lost. The holder also keeps the MCP Apps opt-in and the `gateway_add` specs (in memory only), so the next daemon restores the gateway servers of an adopted seat.
 
 **`ATERM_SENTRY_DSN` (SSM `/coilysiren/sentry/dsn/aterm`) turns on a 5-minute check-in and panic capture.** No log quotes the DSN.
 

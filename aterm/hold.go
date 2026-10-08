@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"os"
 	"os/exec"
@@ -61,6 +62,11 @@ type holdInfo struct {
 	Kind  string `json:"kind,omitempty"`
 	Cwd   string `json:"cwd,omitempty"`
 	Label string `json:"label,omitempty"`
+
+	// MCPApps and Gateways let an adopting daemon rebuild the gateway. Memory
+	// only, since a stdio spec's env can carry credentials.
+	MCPApps  bool                   `json:"mcp_apps,omitempty"`
+	Gateways map[string]gatewaySpec `json:"gateways,omitempty"`
 }
 
 // modeTracker follows what a session's output asked of the terminal. The
@@ -123,6 +129,8 @@ type holder struct {
 	modes   modeTracker
 	exited  bool
 	code    int
+	// gateways are the servers the daemon registered, by name.
+	gateways map[string]gatewaySpec
 
 	released    chan struct{}
 	releaseOnce sync.Once
@@ -350,6 +358,15 @@ func (h *holder) serve(c *conn) {
 			if message.Rows > 0 && message.Cols > 0 {
 				_ = pty.Setsize(h.ptmx, &pty.Winsize{Rows: uint16(clampSize(message.Rows, 24)), Cols: uint16(clampSize(message.Cols, 80))})
 			}
+		case "gateway_set":
+			if message.Gateway != nil && message.Server != "" {
+				h.mu.Lock()
+				if h.gateways == nil {
+					h.gateways = map[string]gatewaySpec{}
+				}
+				h.gateways[message.Server] = *message.Gateway
+				h.mu.Unlock()
+			}
 		case "release":
 			h.release()
 		}
@@ -386,6 +403,8 @@ func (h *holder) attach(c *conn, message frame) error {
 		Kind:        h.spec.Kind,
 		Cwd:         h.spec.Cwd,
 		Label:       h.spec.Label,
+		MCPApps:     h.spec.MCPApps,
+		Gateways:    maps.Clone(h.gateways),
 	}
 	if err := c.write(frame{Type: "attached", ID: message.ID, Session: info.Name, PID: info.PID, Hold: &info}); err != nil {
 		return err

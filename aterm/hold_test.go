@@ -21,6 +21,8 @@ type holdRig struct {
 	socket string
 	daemon *exec.Cmd
 	log    *lockedBuffer
+	// websocket is the address the daemon serves its HTTP surface on, none when empty.
+	websocket string
 }
 
 // lockedBuffer is the daemon's log, written by exec's copier while the test reads it.
@@ -103,7 +105,7 @@ func (r *holdRig) killServing() {
 func (r *holdRig) startDaemon() {
 	r.t.Helper()
 	r.log = &lockedBuffer{}
-	command := exec.Command(os.Args[0], "daemon", "--socket", r.socket, "--websocket", "", "--tailnet-port", "", "--idle", "1h")
+	command := exec.Command(os.Args[0], "daemon", "--socket", r.socket, "--websocket", r.websocket, "--tailnet-port", "", "--idle", "1h")
 	command.Stderr = r.log
 	command.Stdout = r.log
 	if err := command.Start(); err != nil {

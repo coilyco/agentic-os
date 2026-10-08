@@ -69,6 +69,9 @@ type ptySession struct {
 	started time.Time
 	// mcpApps is whether the launch opted in to the MCP Apps gateway.
 	mcpApps bool
+	// heldGateways are the servers the holder kept from the daemon before this
+	// one, restored once by adoptHolders.
+	heldGateways map[string]gatewaySpec
 	// holder is the connection to the aterm hold process that owns the PTY
 	// and the child. It outlives this daemon, which adopts it again.
 	holder     *conn
@@ -152,6 +155,7 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 		Type: "spawn", Session: name, Role: message.Role, Identity: message.Identity, Seat: message.Seat,
 		Kind: message.Kind, Argv: message.Argv, Env: env, Cwd: message.Cwd,
 		Rows: message.Rows, Cols: message.Cols, Token: token, Label: message.Label,
+		MCPApps: token != "" && slices.Contains(message.Env, mcpAppsEnv+"=1"),
 	}
 	// A pool name recurs, and a lingering holder removes its socket as it goes.
 	socket := holdSocketPath(d.holdDir, name+"~"+suffix)
@@ -162,7 +166,6 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 	if err != nil {
 		return nil, fmt.Errorf("attach to the holder of %s: %w", name, err)
 	}
-	s.mcpApps = slices.Contains(message.Env, mcpAppsEnv+"=1")
 	return s, nil
 }
 
@@ -212,6 +215,8 @@ func (d *daemon) connectHolder(socket string, adopted bool) (*ptySession, error)
 		kind:         info.Kind,
 		cwd:          info.Cwd,
 		label:        info.Label,
+		mcpApps:      info.MCPApps,
+		heldGateways: info.Gateways,
 		pid:          info.PID,
 		started:      info.Started,
 		holder:       c,

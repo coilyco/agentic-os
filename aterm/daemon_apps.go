@@ -183,6 +183,17 @@ func (d *daemon) viewByID(id string) *liveView {
 	return nil
 }
 
+// restoreGateways re-registers the servers an adopted session's holder kept.
+// A spec that no longer validates is logged and left out, not fatal.
+func (d *daemon) restoreGateways(s *ptySession) {
+	for name, spec := range s.heldGateways {
+		if _, err := d.registerGateway(s.name, name, spec); err != nil {
+			d.logf("could not restore gateway server %s/%s: %v", s.name, name, err)
+		}
+	}
+	s.heldGateways = nil
+}
+
 // dropApps ends a session's gateway servers and closes its views, once the
 // session has ended and its token with it.
 func (d *daemon) dropApps(session string) {
@@ -267,6 +278,10 @@ func (d *daemon) addGateway(cl *client, message frame) error {
 	spec, err := d.registerGateway(s.name, message.Server, *message.Gateway)
 	if err != nil {
 		return err
+	}
+	// The holder outlives this daemon, so the next one rebuilds the server from it.
+	if err := s.holder.write(frame{Type: "gateway_set", Server: message.Server, Gateway: &spec}); err != nil {
+		return fmt.Errorf("the gateway server %s is registered but the holder could not keep it, so a daemon restart would drop it: %w", message.Server, err)
 	}
 	return cl.c.write(frame{Type: "gateway_added", ID: message.ID, Session: s.name, Server: message.Server, Gateway: &spec})
 }
