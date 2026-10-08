@@ -77,10 +77,12 @@ func logLines(label string, stderr io.Reader, logf func(string, ...any)) {
 	}
 }
 
-func openUpstream(spec gatewaySpec, logf func(string, ...any)) (*upstream, error) {
+func openUpstream(spec gatewaySpec, logf func(string, ...any), r *relay) (*upstream, error) {
 	capabilities := &mcp.ClientCapabilities{}
 	capabilities.AddExtension(uiExtension, map[string]any{"mimeTypes": []string{uiMime}})
-	client := mcp.NewClient(&mcp.Implementation{Name: "aterm", Version: version}, &mcp.ClientOptions{Capabilities: capabilities})
+	options := &mcp.ClientOptions{Capabilities: capabilities}
+	r.attach(options)
+	client := mcp.NewClient(&mcp.Implementation{Name: "aterm", Version: version}, options)
 	up := &upstream{done: make(chan struct{})}
 	var transport mcp.Transport
 	if spec.URL != "" {
@@ -110,6 +112,13 @@ func openUpstream(spec gatewaySpec, logf func(string, ...any)) (*upstream, error
 		return nil, err
 	}
 	up.session = session
+	// A server logs nothing until a level is set. The gateway asks for all of it
+	// and each harness session filters by the level it set itself.
+	if caps := session.InitializeResult().Capabilities; caps != nil && caps.Logging != nil {
+		levelCtx, levelCancel := context.WithTimeout(ctx, 5*time.Second)
+		_ = session.SetLoggingLevel(levelCtx, &mcp.SetLoggingLevelParams{Level: "debug"})
+		levelCancel()
+	}
 	go func() {
 		_ = session.Wait()
 		cancel()
