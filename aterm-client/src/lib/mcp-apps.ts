@@ -1,8 +1,8 @@
-// The host side of an MCP Apps view: the JSON-RPC a view speaks over
-// postMessage. Spec: modelcontextprotocol/ext-apps, specification/2026-01-26.
+// The host side of an MCP Apps view, spoken by ext-apps' AppBridge over postMessage.
+// Spec: modelcontextprotocol/ext-apps, specification/2026-01-26.
 // Why one sandboxed iframe, not the spec's double iframe: see the architecture notes.
-
-export const PROTOCOL_VERSION = "2026-01-26";
+import { ProtocolError, ProtocolErrorCode, type CallToolResult, type ReadResourceResult, type Transport } from "@modelcontextprotocol/client";
+import { AppBridge, type McpUiHostContext } from "@modelcontextprotocol/ext-apps/app-bridge";
 
 export interface ViewCsp {
   connectDomains?: string[];
@@ -52,6 +52,8 @@ export interface ViewHandlers {
   openLink(url: string): void;
   resize(height: number): void;
   displayMode(mode: DisplayMode): DisplayMode;
+  /** The view finished its handshake. */
+  started(): void;
 }
 
 const sources = (domains: string[] | undefined): string => (domains?.length ? ` ${domains.join(" ")}` : "");
@@ -91,37 +93,62 @@ export function resultText(result: ToolResult | undefined): string {
   return text.length ? text.join("\n\n") : "The tool returned no text.";
 }
 
-interface Rpc {
-  jsonrpc?: string;
-  id?: string | number;
-  method?: string;
-  params?: Record<string, unknown>;
-  result?: unknown;
-  error?: unknown;
-}
-
-const METHOD_NOT_FOUND = -32601;
-const INVALID_PARAMS = -32602;
-const SERVER_ERROR = -32000;
-
 // Speaks for the host to one view. Input and result wait for `initialized`,
 // and input always goes first, as the spec orders them.
 export class ViewBridge {
+  private readonly bridge: AppBridge;
   private initialized = false;
   private input: Record<string, unknown> | null = null;
   private result: ToolResult | null = null;
   private cancelledReason: string | null = null;
   private sent = { input: false, result: false };
-  private nextId = 0;
-  private pending = new Map<string | number, (value: unknown) => void>();
-  /** Set once the view asks to start, telling a live view from a stuck one. */
+  /** Set once the view completes its handshake, telling a live view from a stuck one. */
   started = false;
 
   constructor(
-    private readonly post: (message: Rpc) => void,
     private readonly handlers: ViewHandlers,
     private context: HostContext,
-  ) {}
+  ) {
+    // No MCP client: the daemon gateway is the server, so calls go through the handlers.
+    this.bridge = new AppBridge(
+      null,
+      { name: "aterm", version: "0" },
+      { openLinks: {}, serverTools: {}, serverResources: {} },
+      { hostContext: this.context as McpUiHostContext },
+    );
+    this.bridge.oninitialized = () => {
+      this.initialized = true;
+      this.started = true;
+      this.handlers.started();
+      // The handshake carried the context as of then. Later changes go out now.
+      this.bridge.setHostContext(this.context as McpUiHostContext);
+      this.flush();
+    };
+    this.bridge.onsizechange = ({ height }) => {
+      if (typeof height === "number") this.handlers.resize(height);
+    };
+    this.bridge.oncalltool = async ({ name, arguments: args }) => (await this.handlers.callTool(name, args ?? {})) as CallToolResult;
+    this.bridge.onreadresource = async ({ uri }) => (await this.handlers.readResource(uri)) as ReadResourceResult;
+    this.bridge.onopenlink = async ({ url }) => {
+      if (!/^https?:\/\//i.test(url)) throw new ProtocolError(ProtocolErrorCode.InvalidParams, "Only http and https links open.");
+      this.handlers.openLink(url);
+      return {};
+    };
+    this.bridge.onrequestdisplaymode = async ({ mode }) => {
+      const shown = this.handlers.displayMode(mode === "fullscreen" ? "fullscreen" : "inline");
+      this.updateContext({ displayMode: shown });
+      return { mode: shown };
+    };
+  }
+
+  connect(transport: Transport): Promise<void> {
+    return this.bridge.connect(transport);
+  }
+
+  /** Lets go of the transport's listener. Teardown first to give the view a say. */
+  close(): Promise<void> {
+    return this.bridge.close();
+  }
 
   setInput(args: Record<string, unknown>): void {
     this.input = args;
@@ -140,113 +167,28 @@ export class ViewBridge {
 
   updateContext(patch: Partial<HostContext>): void {
     this.context = { ...this.context, ...patch };
-    if (this.initialized) this.notify("ui/notifications/host-context-changed", patch);
+    if (this.initialized) this.bridge.setHostContext(this.context as McpUiHostContext);
   }
 
   /** Asks the view to let go first. Resolves on its reply or after a beat. */
-  teardown(reason: string, waitMs = 500): Promise<void> {
-    if (!this.started) return Promise.resolve();
-    const id = `host-${++this.nextId}`;
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        this.pending.delete(id);
-        resolve();
-      }, waitMs);
-      this.pending.set(id, () => {
-        clearTimeout(timer);
-        resolve();
-      });
-      this.post({ jsonrpc: "2.0", id, method: "ui/resource-teardown", params: { reason } });
-    });
-  }
-
-  receive(data: unknown): void {
-    if (!data || typeof data !== "object") return;
-    const message = data as Rpc;
-    if (message.jsonrpc !== "2.0") return;
-    if (message.method === undefined) {
-      if (message.id !== undefined) this.pending.get(message.id)?.(message.result);
-      if (message.id !== undefined) this.pending.delete(message.id);
-      return;
-    }
-    if (message.id === undefined) this.onNotification(message.method, message.params ?? {});
-    else void this.onRequest(message.id, message.method, message.params ?? {});
-  }
-
-  private onNotification(method: string, params: Record<string, unknown>): void {
-    if (method === "ui/notifications/initialized") {
-      this.initialized = true;
-      this.flush();
-    } else if (method === "ui/notifications/size-changed" && typeof params.height === "number") {
-      this.handlers.resize(params.height);
-    }
-  }
-
-  private async onRequest(id: string | number, method: string, params: Record<string, unknown>): Promise<void> {
-    try {
-      this.reply(id, await this.answer(method, params));
-    } catch (failure) {
-      const error = failure as { code?: number; message?: string };
-      this.post({ jsonrpc: "2.0", id, error: { code: error.code ?? SERVER_ERROR, message: error.message ?? String(failure) } });
-    }
-  }
-
-  private async answer(method: string, params: Record<string, unknown>): Promise<unknown> {
-    switch (method) {
-      case "ui/initialize":
-        this.started = true;
-        return {
-          protocolVersion: PROTOCOL_VERSION,
-          hostInfo: { name: "aterm", version: "0" },
-          hostCapabilities: { openLinks: {}, serverTools: {}, serverResources: {} },
-          hostContext: this.context,
-        };
-      case "tools/call":
-        if (typeof params.name !== "string") throw { code: INVALID_PARAMS, message: "tools/call needs a tool name." };
-        return this.handlers.callTool(params.name, (params.arguments as Record<string, unknown>) ?? {});
-      case "resources/read":
-        if (typeof params.uri !== "string") throw { code: INVALID_PARAMS, message: "resources/read needs a uri." };
-        return this.handlers.readResource(params.uri);
-      case "ui/open-link": {
-        const url = typeof params.url === "string" ? params.url : "";
-        if (!/^https?:\/\//i.test(url)) throw { code: INVALID_PARAMS, message: "Only http and https links open." };
-        this.handlers.openLink(url);
-        return {};
-      }
-      case "ui/request-display-mode": {
-        const asked = params.mode === "fullscreen" ? "fullscreen" : "inline";
-        const mode = this.handlers.displayMode(asked);
-        this.context = { ...this.context, displayMode: mode };
-        return { mode };
-      }
-      case "ping":
-        return {};
-      default:
-        throw { code: METHOD_NOT_FOUND, message: `This host does not answer ${method}.` };
-    }
+  async teardown(waitMs = 500): Promise<void> {
+    if (!this.started) return;
+    await this.bridge.teardownResource({}, { timeout: waitMs }).catch(() => undefined);
   }
 
   private flush(): void {
     if (!this.initialized) return;
     if (this.input && !this.sent.input) {
       this.sent.input = true;
-      this.notify("ui/notifications/tool-input", { arguments: this.input });
+      void this.bridge.sendToolInput({ arguments: this.input });
     }
     if (!this.sent.input || this.sent.result) return;
     if (this.result) {
       this.sent.result = true;
-      this.notify("ui/notifications/tool-result", this.result as Record<string, unknown>);
+      void this.bridge.sendToolResult(this.result as CallToolResult);
     } else if (this.cancelledReason !== null) {
       this.sent.result = true;
-      this.notify("ui/notifications/tool-cancelled", { reason: this.cancelledReason });
+      void this.bridge.sendToolCancelled({ reason: this.cancelledReason });
     }
-  }
-
-  private reply(id: string | number, result: unknown): void {
-    this.post({ jsonrpc: "2.0", id, result });
-  }
-
-  private notify(method: string, params: Record<string, unknown> | Partial<HostContext>): void {
-    this.post({ jsonrpc: "2.0", method, params: params as Record<string, unknown> });
   }
 }
