@@ -79,10 +79,13 @@ type frame struct {
 	Force bool `json:"force,omitempty"`
 	// Peek asks a claim which name it would grant, without holding it.
 	Peek bool `json:"peek,omitempty"`
+	// All asks an inbox for the messages already read as well as the unread.
+	All bool `json:"all,omitempty"`
 
 	// replies and events
-	Message  *peerMessage  `json:"message,omitempty"`
-	Sessions []sessionView `json:"sessions,omitempty"`
+	Message  *peerMessage   `json:"message,omitempty"`
+	Inbox    []inboxMessage `json:"inbox,omitempty"`
+	Sessions []sessionView  `json:"sessions,omitempty"`
 
 	// Terminals rides beside Sessions and never inside it, so a consumer that
 	// counts or targets seats cannot meet a shell.

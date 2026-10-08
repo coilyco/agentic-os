@@ -15,7 +15,7 @@ import (
 func newMCPCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "mcp",
-		Usage: "serve list_agents, send_message, session_status, clear_session, close_session and ask_choice over MCP stdio",
+		Usage: "serve list_agents, send_message, read_messages, session_status, clear_session, close_session and ask_choice over MCP stdio",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return serveMCP(ctx, os.Stdin, cmd.Root().Writer)
 		},
@@ -31,6 +31,7 @@ type mcpBackend struct {
 	clear      func(target string, force bool) (string, string, error)
 	close      func(target string, force bool) (string, int, error)
 	ask        func(choiceAsk) (choiceAnswer, error)
+	inbox      func(all bool) ([]inboxMessage, error)
 }
 
 var liveBackend = mcpBackend{
@@ -40,6 +41,7 @@ var liveBackend = mcpBackend{
 	clear:      clearTarget,
 	close:      closeSession,
 	ask:        askChoice,
+	inbox:      readInbox,
 }
 
 type askOptionInput struct {
@@ -69,6 +71,10 @@ type sendMessageInput struct {
 	Wait    int    `json:"wait_seconds,omitempty" jsonschema:"hold the answer up to this long, at most 120, for delivered or failed, instead of 3 seconds"`
 	Idle    bool   `json:"notify_when_idle,omitempty" jsonschema:"type one line into your session when the recipient next goes idle after the message lands"`
 	New     bool   `json:"new,omitempty" jsonschema:"open a new instance of the role even when one is live, deliver into it, and return its session name. to must be a role slug"`
+}
+
+type readMessagesInput struct {
+	All bool `json:"all,omitempty" jsonschema:"also return messages you already read, not only the unread"`
 }
 
 type sessionStatusInput struct {
@@ -149,6 +155,21 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 			return nil, nil, err
 		}
 		return textResult(describeMessage(state), state.State == "failed")
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "read_messages",
+		Description: "Read the messages other sessions sent you with send_message or `aterm send`. Each carries " +
+			"its id, `from` (`<role> <identity>`, stamped by aterm), `text` (the stamped line, which is also " +
+			"typed into your session), and when it was received. Returns the unread ones, oldest first, and " +
+			"marks them read, so a second call returns only what arrived since. `all` also returns the ones " +
+			"already read. It holds the last 200 and empties when the aterm daemon restarts.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, input readMessagesInput) (*mcp.CallToolResult, any, error) {
+		messages, err := backend.inbox(input.All)
+		if err != nil {
+			return nil, nil, err
+		}
+		return jsonResult(map[string]any{"messages": messages})
 	})
 
 	mcp.AddTool(server, &mcp.Tool{
