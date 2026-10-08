@@ -81,11 +81,11 @@ func launchChromium(dir, session string, role browserProfile) (link *browserLink
 	if binary == "" {
 		return nil, fmt.Errorf("no Chromium or Chrome on this host, set %s to one", browserEnv)
 	}
+	if err := ensureSocketDir(dir); err != nil {
+		return nil, err
+	}
 	profile, throwaway := role.dir, role.dir == ""
 	if throwaway {
-		if err := ensureSocketDir(dir); err != nil {
-			return nil, err
-		}
 		if profile, err = os.MkdirTemp(dir, slugify(session)+"-"); err != nil {
 			return nil, err
 		}
@@ -131,9 +131,20 @@ func launchChromium(dir, session string, role browserProfile) (link *browserLink
 	}
 	_ = toBrowserR.Close()
 	_ = fromBrowserW.Close()
+	pid := command.Process.Pid
+	// Written before anything else can fail, so a daemon killed outright leaves a trail.
+	if err := writeBrowserRecord(dir, browserRecord{PID: pid, Session: session, Profile: profile}); err != nil {
+		_ = syscall.Kill(-pid, syscall.SIGKILL)
+		_ = command.Wait()
+		_ = toBrowserW.Close()
+		_ = fromBrowserR.Close()
+		dropProfile()
+		return nil, fmt.Errorf("record the browser for cleanup: %w", err)
+	}
 	exited := make(chan struct{})
 	go func() {
 		_ = command.Wait()
+		_ = os.Remove(browserRecordPath(dir, pid))
 		_ = toBrowserW.Close()
 		dropProfile()
 		release()
