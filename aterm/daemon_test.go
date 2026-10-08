@@ -176,6 +176,10 @@ func testDaemonWith(t *testing.T, options daemonOptions) string {
 	}
 	socket := filepath.Join(dir, "d.sock")
 	t.Setenv(daemonSocketEnv, socket)
+	// The fakes draw no box to read, so their sends skip the real grace.
+	grace := boxGrace
+	t.Cleanup(func() { boxGrace = grace })
+	boxGrace = 300 * time.Millisecond
 	stopped := make(chan struct{})
 	stop := make(chan struct{})
 	go func() {

@@ -805,7 +805,7 @@ func (s *ptySession) deliverNext(now time.Time) {
 	}
 	s.mu.Unlock()
 	s.writeMu.Unlock()
-	if errors.Is(err, errNotSubmitted) {
+	if errors.Is(err, errNotSubmitted) || errors.Is(err, errNotSeen) {
 		next.setState("failed", s.name+": "+err.Error())
 		return
 	}

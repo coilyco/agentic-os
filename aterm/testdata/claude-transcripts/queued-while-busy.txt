@@ -1,0 +1,16 @@
+ Claude Code v2.1.293
+▝▜██████▀  Fable 5.1 with xhigh effort · Claude Max
+ ▝▝   ▝▝   /work
+
+❯ [from eng-platform Beetle-Ox] Write the numbers 1 to 400, one per line, with a short word after each. No tools.
+
+❯ [from eng-platform Beetle-Ox] Second message while busy: say only SECOND.
+  ctrl+enter to send now
+
+· Perusing… (8s · thinking with xhigh effort)
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Press up to edit queued messages
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 1 agent                                                            0 tokens
+                                                                                                                   /rc

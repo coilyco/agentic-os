@@ -29,9 +29,9 @@ attached to it.
 
 **Targets resolve in tiers**: session name, role slug, identity, then harness. The first tier with a match wins, several in it refuse and name them, and none exits 3. `--launch` on a role slug opens the role and holds the message up to three minutes. `--new` opens another instance.
 
-**Delivery serializes with the keyboard.** One lock covers every PTY write, so nothing interleaves. A message is `queued` until the target is ready, `held` while Kai typed in the last 1.5 seconds, has a draft touched in the last minute, or a card is up, then `delivered` or `failed`.
+**Delivery serializes with the keyboard.** One lock covers every PTY write. A message is `queued` until the target is ready, `held` behind Kai's typing, an unsent draft or a card, then `delivered` or `failed`.
 
-**A program that asked for bracketed paste gets the message as one paste, then Enter 300ms later**, since an Enter inside it reads as a newline. codex and goose turn it on at their prompt, so **ready means paste is on, never a quiet screen**. claude and opencode drop a paste before the prompt, so **ready means `Try "` or `Ask anything` showed**, or 20s passed. **`delivered` means claude or opencode took Enter**, re-pressed up to 3 times.
+**A program that asked for bracketed paste gets one paste, then Enter 300ms later**, since an Enter inside it reads as a newline. codex and goose turn it on at their prompt, so **ready means paste is on**. claude and opencode drop a paste before the prompt, so **ready means `Try "` or `Ask anything` showed**, or 20s passed. **`delivered` means opencode took Enter** (3 retries) **and claude's transcript shows the message** (COI-2300). Enter backs off while it sits in the box, and a message unseen for 90s is `failed`.
 
 **A process inside a session cannot type into one.** The daemon walks the connecting pid's parents. Such a process may send, stamped, but not type, unless it spawned that session.
 

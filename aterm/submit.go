@@ -34,11 +34,18 @@ var (
 // submit types a message, then presses Enter again for as long as the text is
 // still in the seat's prompt box. Caller holds writeMu.
 func (s *ptySession) submit(text string, paste bool) error {
+	before := 0
+	if s.seat == "claude" {
+		_, _, before = s.readClaude(text)
+	}
 	if err := s.inject(text, paste); err != nil {
 		return err
 	}
 	if s.submitHeld != nil {
 		s.submitHeld()
+	}
+	if s.seat == "claude" {
+		return s.confirmClaude(text, before)
 	}
 	for retry := 0; ; retry++ {
 		if s.boxCleared(text) {
