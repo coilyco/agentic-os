@@ -2,16 +2,19 @@ package main
 
 import (
 	"bufio"
-	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // fakeMCPCommand is the test binary run as a stdio MCP server with one chart
@@ -21,26 +24,42 @@ const fakeMCPCommand = "fake-mcp-server"
 const fakeViewHTML = "<html><body>chart</body></html>"
 
 // fakeMCPReply is the fake server's whole behavior, shared by both transports.
+var object = map[string]any{"type": "object"}
+
+// fakeRPC is the one request shape the fake servers read.
+type fakeRPC struct {
+	ID     json.RawMessage `json:"id,omitempty"`
+	Method string          `json:"method"`
+	Params json.RawMessage `json:"params,omitempty"`
+}
+
+type upstreamError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
 func fakeMCPReply(method string, params json.RawMessage) (any, *upstreamError) {
 	switch method {
 	case "initialize":
 		var init struct {
-			Capabilities struct {
+			ProtocolVersion string `json:"protocolVersion"`
+			Capabilities    struct {
 				Extensions map[string]json.RawMessage `json:"extensions"`
 			} `json:"capabilities"`
 		}
 		_ = json.Unmarshal(params, &init)
 		_, ui := init.Capabilities.Extensions[uiExtension]
 		return map[string]any{
-			"protocolVersion": gatewayProtocol, "capabilities": map[string]any{"tools": map[string]any{}},
+			"protocolVersion": init.ProtocolVersion, "capabilities": map[string]any{"tools": map[string]any{}},
 			"serverInfo": map[string]any{"name": "fake", "version": "1"}, "instructions": fmt.Sprintf("ui=%v", ui),
 		}, nil
 	case "tools/list":
 		return map[string]any{"tools": []map[string]any{
-			{"name": "chart", "_meta": map[string]any{"ui": map[string]any{"resourceUri": "ui://fake/chart"}}},
-			{"name": "refresh", "_meta": map[string]any{"ui": map[string]any{"visibility": []string{"app"}}}},
-			{"name": "plain"},
-			{"name": "agent-only", "_meta": map[string]any{"ui": map[string]any{"visibility": []string{"model"}}}},
+			{"name": "chart", "inputSchema": object, "_meta": map[string]any{"ui": map[string]any{"resourceUri": "ui://fake/chart"}}},
+			{"name": "refresh", "inputSchema": object, "_meta": map[string]any{"ui": map[string]any{"visibility": []string{"app"}}}},
+			{"name": "plain", "inputSchema": object},
+			{"name": "carried", "inputSchema": object},
+			{"name": "agent-only", "inputSchema": object, "_meta": map[string]any{"ui": map[string]any{"visibility": []string{"model"}}}},
 		}}, nil
 	case "tools/call":
 		var call struct {
@@ -48,10 +67,15 @@ func fakeMCPReply(method string, params json.RawMessage) (any, *upstreamError) {
 			Arguments json.RawMessage `json:"arguments"`
 		}
 		_ = json.Unmarshal(params, &call)
-		return map[string]any{
+		result := map[string]any{
 			"content":           []map[string]any{{"type": "text", "text": "ran " + call.Name}},
 			"structuredContent": map[string]any{"tool": call.Name, "arguments": call.Arguments},
-		}, nil
+		}
+		if call.Name == "carried" {
+			// The view is named on the result, by the spec's deprecated flat key.
+			result["_meta"] = map[string]any{"ui/resourceUri": "ui://fake/chart"}
+		}
+		return result, nil
 	case "resources/read":
 		return map[string]any{"contents": []map[string]any{{
 			"uri": "ui://fake/chart", "mimeType": uiMime, "text": fakeViewHTML,
@@ -65,7 +89,7 @@ func fakeMCPReply(method string, params json.RawMessage) (any, *upstreamError) {
 func runFakeMCP() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
-		var request rpcRequest
+		var request fakeRPC
 		if json.Unmarshal(scanner.Bytes(), &request) != nil || len(request.ID) == 0 {
 			continue
 		}
@@ -86,7 +110,11 @@ func runFakeMCP() {
 func fakeHTTPMCP(t *testing.T) *httptest.Server {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var request rpcRequest
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		var request fakeRPC
 		_ = json.NewDecoder(r.Body).Decode(&request)
 		if len(request.ID) == 0 {
 			w.WriteHeader(http.StatusAccepted)
@@ -209,6 +237,8 @@ type appsHarness struct {
 	token  string
 	seat   string
 	client *wire
+	// sessions are the harness connections by gateway path.
+	sessions map[string]*mcp.ClientSession
 }
 
 func newAppsHarness(t *testing.T) *appsHarness {
@@ -221,7 +251,7 @@ func newAppsHarness(t *testing.T) *appsHarness {
 	d.processes = func() ([]processEntry, error) { return nil, nil }
 	server := httptest.NewServer(d.websocketHandler())
 	t.Cleanup(server.Close)
-	h := &appsHarness{t: t, d: d, http: server, seat: "eng-platform-beetle-ox"}
+	h := &appsHarness{t: t, d: d, http: server, seat: "eng-platform-beetle-ox", sessions: map[string]*mcp.ClientSession{}}
 	h.client = d.dial(t, peerStanding{pids: []int{os.Getpid()}})
 	h.client.send(frame{
 		Type: "spawn", ID: "spawn", Session: h.seat, Role: "eng-platform", Identity: "Beetle-Ox",
@@ -250,27 +280,45 @@ func (h *appsHarness) watcher() *wire {
 	return w
 }
 
-// rpc posts one JSON-RPC request to the harness-facing gateway path.
-func (h *appsHarness) rpc(path, method string, params any) (int, map[string]json.RawMessage) {
+// connect is a harness: an SDK MCP client on the session's gateway path.
+func (h *appsHarness) connect(path string) *mcp.ClientSession {
 	h.t.Helper()
-	body, _ := json.Marshal(map[string]any{"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
-	response, err := http.Post(h.http.URL+path, "application/json", bytes.NewReader(body))
-	if err != nil {
-		h.t.Fatalf("post %s: %v", method, err)
+	if cs := h.sessions[path]; cs != nil {
+		return cs
 	}
-	defer response.Body.Close()
-	var decoded map[string]json.RawMessage
-	_ = json.NewDecoder(response.Body).Decode(&decoded)
-	return response.StatusCode, decoded
+	client := mcp.NewClient(&mcp.Implementation{Name: "test-harness", Version: "1"}, nil)
+	cs, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{Endpoint: h.http.URL + path}, nil)
+	if err != nil {
+		h.t.Fatalf("connect %s: %v", path, err)
+	}
+	h.t.Cleanup(func() { _ = cs.Close() })
+	h.sessions[path] = cs
+	return cs
 }
 
-func (h *appsHarness) rpcOK(path, method string, params any) map[string]json.RawMessage {
+// call calls a tool the way a harness does, through the gateway.
+func (h *appsHarness) call(path, name string, arguments map[string]any) (*mcp.CallToolResult, error) {
 	h.t.Helper()
-	status, decoded := h.rpc(path, method, params)
-	if status != http.StatusOK || decoded["error"] != nil {
-		h.t.Fatalf("%s answered %d %s", method, status, decoded["error"])
+	return h.connect(path).CallTool(context.Background(), &mcp.CallToolParams{Name: name, Arguments: arguments})
+}
+
+func (h *appsHarness) callOK(path, name string, arguments map[string]any) *mcp.CallToolResult {
+	h.t.Helper()
+	result, err := h.call(path, name, arguments)
+	if err != nil {
+		h.t.Fatalf("call %s: %v", name, err)
 	}
-	return decoded
+	return result
+}
+
+func resultText(result *mcp.CallToolResult) string {
+	var text strings.Builder
+	for _, content := range result.Content {
+		if block, ok := content.(*mcp.TextContent); ok {
+			text.WriteString(block.Text)
+		}
+	}
+	return text.String()
 }
 
 func stdioSpec() gatewaySpec {
@@ -293,18 +341,25 @@ func TestGatewayForwardsACallAndPushesTheViewThenItsResult(t *testing.T) {
 		}
 		watcher := h.watcher()
 
-		init := h.rpcOK(path, "initialize", map[string]any{"protocolVersion": "2025-06-18"})
-		if !strings.Contains(string(init["result"]), `"ui=true"`) {
-			t.Fatalf("the gateway should advertise the ui extension to the server: %s", init["result"])
+		harness := h.connect(path)
+		if got := harness.InitializeResult().Instructions; got != "ui=true" {
+			t.Fatalf("the gateway should advertise the ui extension to the server, and answer with its instructions: %q", got)
 		}
-		listed := h.rpcOK(path, "tools/list", nil)
-		if got := string(listed["result"]); !strings.Contains(got, `"chart"`) || !strings.Contains(got, `"plain"`) || strings.Contains(got, `"refresh"`) {
-			t.Fatalf("the agent's list should drop the app-only tool: %s", got)
+		listed, err := harness.ListTools(context.Background(), nil)
+		if err != nil {
+			t.Fatalf("list: %v", err)
+		}
+		var names []string
+		for _, tool := range listed.Tools {
+			names = append(names, tool.Name)
+		}
+		if !slices.Equal(names, []string{"chart", "plain", "carried", "agent-only"}) {
+			t.Fatalf("the agent's list should drop the app-only tool: %v", names)
 		}
 
-		called := h.rpcOK(path, "tools/call", map[string]any{"name": "chart", "arguments": map[string]any{"n": 3}})
-		if !strings.Contains(string(called["result"]), "ran chart") {
-			t.Fatalf("the harness should get the server's own result: %s", called["result"])
+		called := h.callOK(path, "chart", map[string]any{"n": 3})
+		if got := resultText(called); got != "ran chart" {
+			t.Fatalf("the harness should get the server's own result: %q", got)
 		}
 
 		view := watcher.next("view")
@@ -335,11 +390,25 @@ func TestGatewayForwardsACallAndPushesTheViewThenItsResult(t *testing.T) {
 	})
 }
 
+func TestAViewNamedOnTheResultOpensToo(t *testing.T) {
+	h := newAppsHarness(t)
+	path := h.register("fake", stdioSpec()).Path
+	watcher := h.watcher()
+	h.callOK(path, "carried", nil)
+	view := watcher.next("view").View
+	if view.Tool != "carried" || view.ResourceURI != "ui://fake/chart" || view.HTML != fakeViewHTML {
+		t.Fatalf("view = %+v", view)
+	}
+	if update := watcher.following(); update.Type != "view_update" || update.ViewID != view.ID {
+		t.Fatalf("update = %+v", update)
+	}
+}
+
 func TestAViewCannotCallWhatItShouldNot(t *testing.T) {
 	h := newAppsHarness(t)
 	path := h.register("fake", stdioSpec()).Path
 	watcher := h.watcher()
-	h.rpcOK(path, "tools/call", map[string]any{"name": "chart"})
+	h.callOK(path, "chart", nil)
 	view := watcher.next("view").View
 	for name, call := range map[string]frame{
 		"a tool the server lacks":  {Method: "tools/call", Params: json.RawMessage(`{"name":"nope"}`)},
@@ -360,7 +429,7 @@ func TestAViewCallRefusesAToolThatLeavesOutApp(t *testing.T) {
 	h := newAppsHarness(t)
 	path := h.register("fake", stdioSpec()).Path
 	watcher := h.watcher()
-	h.rpcOK(path, "tools/call", map[string]any{"name": "chart"})
+	h.callOK(path, "chart", nil)
 	view := watcher.next("view").View
 	reply := h.client.reply(frame{Type: "view_call", ViewID: view.ID, Method: "tools/call", Params: json.RawMessage(`{"name":"agent-only"}`)})
 	if reply.Type != "error" || reply.Code != exitUsage || !strings.Contains(reply.Error, "visibility") {
@@ -372,7 +441,7 @@ func TestATextOnlyResultMakesNoView(t *testing.T) {
 	h := newAppsHarness(t)
 	path := h.register("fake", stdioSpec()).Path
 	watcher := h.watcher()
-	h.rpcOK(path, "tools/call", map[string]any{"name": "plain"})
+	h.callOK(path, "plain", nil)
 	watcher.silent()
 }
 
@@ -380,7 +449,7 @@ func TestAViewReplaysToALateWatcherAndClosesEverywhere(t *testing.T) {
 	h := newAppsHarness(t)
 	path := h.register("fake", stdioSpec()).Path
 	early := h.watcher()
-	h.rpcOK(path, "tools/call", map[string]any{"name": "chart"})
+	h.callOK(path, "chart", nil)
 	view := early.next("view").View
 	early.next("view_update")
 
@@ -410,7 +479,7 @@ func TestAnEndedSessionTakesItsViewsAndServersWithIt(t *testing.T) {
 	h := newAppsHarness(t)
 	path := h.register("fake", stdioSpec()).Path
 	watcher := h.watcher()
-	h.rpcOK(path, "tools/call", map[string]any{"name": "chart"})
+	h.callOK(path, "chart", nil)
 	view := watcher.next("view").View
 	g := h.d.gatewayServer(h.seat, "fake")
 	h.d.forget(h.d.session(h.seat))
@@ -430,25 +499,26 @@ func TestAnEndedSessionTakesItsViewsAndServersWithIt(t *testing.T) {
 func TestGatewayAnswersOnlyALocalHarnessWithAKnownPath(t *testing.T) {
 	h := newAppsHarness(t)
 	path := h.register("fake", gatewaySpec{URL: fakeHTTPMCP(t).URL}).Path
-	body := bytes.NewReader([]byte(`{"jsonrpc":"2.0","id":1,"method":"ping"}`))
-	do := func(method, target string, header map[string]string) int {
-		request, _ := http.NewRequest(method, h.http.URL+target, body)
+	initialize := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"t","version":"1"}}}`
+	do := func(target string, header map[string]string) int {
+		request, _ := http.NewRequest(http.MethodPost, h.http.URL+target, strings.NewReader(initialize))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Accept", "application/json, text/event-stream")
 		for name, value := range header {
 			request.Header.Set(name, value)
 		}
 		response, err := http.DefaultClient.Do(request)
 		if err != nil {
-			t.Fatalf("%s %s: %v", method, target, err)
+			t.Fatalf("POST %s: %v", target, err)
 		}
 		_ = response.Body.Close()
 		return response.StatusCode
 	}
 	for name, check := range map[string]struct{ got, want int }{
-		"known path":     {do(http.MethodPost, path, nil), 200},
-		"another token":  {do(http.MethodPost, gatewayPrefix+"nope/fake", nil), 404},
-		"another server": {do(http.MethodPost, gatewayPrefix+h.token+"/other", nil), 404},
-		"a GET stream":   {do(http.MethodGet, path, nil), 405},
-		"a browser page": {do(http.MethodPost, path, map[string]string{"Origin": "http://localhost:5173"}), 403},
+		"known path":     {do(path, nil), 200},
+		"another token":  {do(gatewayPrefix+"nope/fake", nil), 404},
+		"another server": {do(gatewayPrefix+h.token+"/other", nil), 404},
+		"a browser page": {do(path, map[string]string{"Origin": "http://localhost:5173"}), 403},
 	} {
 		if check.got != check.want {
 			t.Errorf("%s answered %d, want %d", name, check.got, check.want)
@@ -459,9 +529,8 @@ func TestGatewayAnswersOnlyALocalHarnessWithAKnownPath(t *testing.T) {
 func TestAModelCannotCallAToolOnlyAViewMay(t *testing.T) {
 	h := newAppsHarness(t)
 	path := h.register("fake", stdioSpec()).Path
-	status, decoded := h.rpc(path, "tools/call", map[string]any{"name": "refresh"})
-	if status != http.StatusOK || !strings.Contains(string(decoded["error"]), "only callable by a view") {
-		t.Fatalf("direct call to an app-only tool = %d %s", status, decoded["error"])
+	if _, err := h.call(path, "refresh", nil); err == nil || !strings.Contains(err.Error(), "only callable by a view") {
+		t.Fatalf("direct call to an app-only tool = %v", err)
 	}
 }
 
@@ -510,7 +579,7 @@ func TestAViewCallFromInsideASessionTakesTheTypingGuard(t *testing.T) {
 	h := newAppsHarness(t)
 	path := h.register("fake", stdioSpec()).Path
 	watcher := h.watcher()
-	h.rpcOK(path, "tools/call", map[string]any{"name": "chart"})
+	h.callOK(path, "chart", nil)
 	view := watcher.next("view").View
 	session := h.d.session(h.seat)
 	h.d.processes = func() ([]processEntry, error) {

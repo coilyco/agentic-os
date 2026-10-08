@@ -51,9 +51,9 @@ def reading(count):
     ]}
 
 
-def reply(method, state):
+def reply(method, params, state):
     if method == "initialize":
-        return {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}},
+        return {"protocolVersion": params.get("protocolVersion", "2025-11-25"), "capabilities": {"tools": {}, "resources": {}},
                 "serverInfo": {"name": "demo", "version": "1"}}
     if method == "tools/list":
         return {"tools": [
@@ -78,7 +78,7 @@ def serve():
         request = json.loads(line)
         if "id" not in request:
             continue
-        result = reply(request["method"], state)
+        result = reply(request["method"], request.get("params") or {}, state)
         body = ({"result": result} if result is not None
                 else {"error": {"code": -32601, "message": "no method " + request["method"]}})
         print(json.dumps({"jsonrpc": "2.0", "id": request["id"], **body}), flush=True)
@@ -117,13 +117,29 @@ def drive(socket_path, port):
     print(json.dumps(added))
     path = added["gateway"]["path"]
 
-    def post(method, params=None):
-        conn = http.client.HTTPConnection("127.0.0.1", int(port))
-        conn.request("POST", path, json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params or {}}),
-                     {"Content-Type": "application/json"})
-        return json.loads(conn.getresponse().read())
+    session = {}
 
-    post("initialize", {"protocolVersion": "2025-06-18"})
+    def post(method, params=None, notify=False):
+        headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream", **session}
+        message = {"jsonrpc": "2.0", "method": method, "params": params or {}}
+        if not notify:
+            message["id"] = 1
+        conn = http.client.HTTPConnection("127.0.0.1", int(port))
+        conn.request("POST", path, json.dumps(message), headers)
+        response = conn.getresponse()
+        body = response.read().decode()
+        if response.getheader("Mcp-Session-Id"):
+            session["Mcp-Session-Id"] = response.getheader("Mcp-Session-Id")
+        if notify:
+            return None
+        if "text/event-stream" in (response.getheader("Content-Type") or ""):
+            body = next(line[5:] for line in body.splitlines() if line.startswith("data:"))
+        return json.loads(body)
+
+    post("initialize", {"protocolVersion": "2025-11-25", "capabilities": {},
+                        "clientInfo": {"name": "demo-harness", "version": "1"}})
+    session["MCP-Protocol-Version"] = "2025-11-25"
+    post("notifications/initialized", notify=True)
     print("tools the agent sees:", [t["name"] for t in post("tools/list")["result"]["tools"]])
     print("tools/call disk_usage:", json.dumps(post("tools/call", {"name": "disk_usage", "arguments": {}})["result"]["content"]))
 

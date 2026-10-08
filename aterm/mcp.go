@@ -22,27 +22,6 @@ func newMCPCommand() *cli.Command {
 	}
 }
 
-// rpcRequest, rpcResponse and rpcError are the hand-written frames only the gateway
-// (daemon_gateway.go) still speaks. COI-2534 retires them.
-type rpcRequest struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id,omitempty"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params,omitempty"`
-}
-
-type rpcResponse struct {
-	JSONRPC string    `json:"jsonrpc"`
-	ID      any       `json:"id"`
-	Result  any       `json:"result,omitempty"`
-	Error   *rpcError `json:"error,omitempty"`
-}
-
-type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
 // mcpBackend is what each tool calls, so a test can stand in for the daemon.
 // liveBackend is the real one.
 type mcpBackend struct {

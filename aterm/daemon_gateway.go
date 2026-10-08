@@ -2,16 +2,17 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"io"
 	"net"
 	"net/http"
 	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // mcpAppsFeature is how a client knows the daemon runs a gateway and serves the
@@ -29,7 +30,6 @@ const (
 	uiMime      = "text/html;profile=mcp-app"
 	// gatewayPrefix is where a harness reaches a session's server.
 	gatewayPrefix = "/mcp/"
-	maxGatewayRPC = 16 << 20
 	callTimeout   = 10 * time.Minute
 )
 
@@ -45,16 +45,18 @@ func (t toolUI) has(audience string) bool {
 	return len(t.Visibility) == 0 || slices.Contains(t.Visibility, audience)
 }
 
-func parseToolUI(meta json.RawMessage) toolUI {
+// metaUI reads a result's or tool's `_meta`, including the spec's deprecated
+// flat `ui/resourceUri` key that older servers still send.
+func metaUI(meta mcp.Meta) toolUI {
 	var parsed struct {
 		UI struct {
 			ResourceURI string   `json:"resourceUri"`
 			Visibility  []string `json:"visibility"`
 		} `json:"ui"`
-		// The spec's deprecated flat key, still what older servers send.
 		Flat string `json:"ui/resourceUri"`
 	}
-	_ = json.Unmarshal(meta, &parsed)
+	raw, _ := json.Marshal(meta)
+	_ = json.Unmarshal(raw, &parsed)
 	if parsed.UI.ResourceURI == "" {
 		parsed.UI.ResourceURI = parsed.Flat
 	}
@@ -62,7 +64,7 @@ func parseToolUI(meta json.RawMessage) toolUI {
 }
 
 // gatewayServer is one server a session's gateway fronts. The upstream starts
-// on first use and is replaced if it dies.
+// on first use and is replaced, with a fresh harness-facing server, if it dies.
 type gatewayServer struct {
 	d       *daemon
 	session string
@@ -70,17 +72,17 @@ type gatewayServer struct {
 	spec    gatewaySpec
 
 	mu          sync.Mutex
-	up          mcpUpstream
-	initResult  json.RawMessage
+	up          *upstream
+	handler     http.Handler
 	tools       map[string]toolUI
 	toolsLoaded bool
 }
 
-func (g *gatewayServer) ensure(ctx context.Context) (mcpUpstream, json.RawMessage, error) {
+func (g *gatewayServer) ensure(_ context.Context) (*upstream, http.Handler, error) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	if g.up != nil && g.up.alive() {
-		return g.up, g.initResult, nil
+		return g.up, g.handler, nil
 	}
 	if g.up != nil {
 		g.up.close()
@@ -90,27 +92,9 @@ func (g *gatewayServer) ensure(ctx context.Context) (mcpUpstream, json.RawMessag
 	if err != nil {
 		return nil, nil, err
 	}
-	params, _ := json.Marshal(map[string]any{
-		"protocolVersion": gatewayProtocol,
-		"capabilities": map[string]any{
-			"extensions": map[string]any{uiExtension: map[string]any{"mimeTypes": []string{uiMime}}},
-		},
-		"clientInfo": map[string]any{"name": "aterm", "version": version},
-	})
-	initCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-	result, err := up.request(initCtx, "initialize", params)
-	if err != nil {
-		up.close()
-		return nil, nil, err
-	}
-	if err := up.notify("notifications/initialized", nil); err != nil {
-		up.close()
-		return nil, nil, err
-	}
-	g.up, g.initResult = up, result
+	g.up, g.handler = up, g.proxyHandler(up)
 	g.tools, g.toolsLoaded = map[string]toolUI{}, false
-	return up, result, nil
+	return g.up, g.handler, nil
 }
 
 func (g *gatewayServer) close() {
@@ -122,6 +106,61 @@ func (g *gatewayServer) close() {
 	}
 }
 
+// proxyHandler is the harness-facing side: an SDK server that advertises the
+// upstream's own capabilities and answers its methods from the upstream.
+func (g *gatewayServer) proxyHandler(up *upstream) http.Handler {
+	init := up.session.InitializeResult()
+	info := &mcp.Implementation{Name: "aterm-gateway", Version: version}
+	options := &mcp.ServerOptions{Capabilities: &mcp.ServerCapabilities{}}
+	if init != nil {
+		if init.ServerInfo != nil {
+			info = init.ServerInfo
+		}
+		options.Instructions = init.Instructions
+		if init.Capabilities != nil {
+			options.Capabilities = init.Capabilities
+		}
+	}
+	server := mcp.NewServer(info, options)
+	server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			return g.forward(ctx, up.session, next, method, req)
+		}
+	})
+	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
+}
+
+// forward answers a harness request from the upstream. The server registers no
+// features, so initialize, ping and notifications are all that fall through.
+func (g *gatewayServer) forward(ctx context.Context, cs *mcp.ClientSession, next mcp.MethodHandler, method string, req mcp.Request) (mcp.Result, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	switch params := req.GetParams().(type) {
+	case *mcp.ListToolsParams:
+		result, err := cs.ListTools(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		g.observeTools(result)
+		return result, nil
+	case *mcp.CallToolParamsRaw:
+		return g.callTool(ctx, cs, params)
+	case *mcp.ListResourcesParams:
+		return cs.ListResources(ctx, params)
+	case *mcp.ListResourceTemplatesParams:
+		return cs.ListResourceTemplates(ctx, params)
+	case *mcp.ReadResourceParams:
+		return cs.ReadResource(ctx, params)
+	case *mcp.ListPromptsParams:
+		return cs.ListPrompts(ctx, params)
+	case *mcp.GetPromptParams:
+		return cs.GetPrompt(ctx, params)
+	case *mcp.CompleteParams:
+		return cs.Complete(ctx, params)
+	}
+	return next(ctx, method, req)
+}
+
 func (g *gatewayServer) toolMeta(name string) (toolUI, bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -129,247 +168,177 @@ func (g *gatewayServer) toolMeta(name string) (toolUI, bool) {
 	return meta, ok
 }
 
-// observeTools records each tool's `_meta.ui` and returns the list without the
+// observeTools records each tool's `_meta.ui` and drops from the list the
 // tools only a view may call, which the spec keeps from the agent.
-func (g *gatewayServer) observeTools(result json.RawMessage) json.RawMessage {
-	var document map[string]json.RawMessage
-	if json.Unmarshal(result, &document) != nil {
-		return result
-	}
-	var listed []json.RawMessage
-	if json.Unmarshal(document["tools"], &listed) != nil {
-		return result
-	}
-	kept := make([]json.RawMessage, 0, len(listed))
+func (g *gatewayServer) observeTools(result *mcp.ListToolsResult) {
+	kept := result.Tools[:0]
 	g.mu.Lock()
+	defer g.mu.Unlock()
 	if g.tools == nil {
 		g.tools = map[string]toolUI{}
 	}
-	for _, raw := range listed {
-		var tool struct {
-			Name string          `json:"name"`
-			Meta json.RawMessage `json:"_meta"`
-		}
-		if json.Unmarshal(raw, &tool) != nil || tool.Name == "" {
-			kept = append(kept, raw)
-			continue
-		}
-		meta := parseToolUI(tool.Meta)
+	for _, tool := range result.Tools {
+		meta := metaUI(tool.Meta)
 		g.tools[tool.Name] = meta
 		if meta.has("model") {
-			kept = append(kept, raw)
+			kept = append(kept, tool)
 		}
 	}
-	g.mu.Unlock()
-	document["tools"], _ = json.Marshal(kept)
-	filtered, err := json.Marshal(document)
-	if err != nil {
-		return result
-	}
-	return filtered
+	result.Tools = kept
 }
 
 // loadTools reads the server's whole tool list once, for a call that arrives
 // before the harness listed.
-func (g *gatewayServer) loadTools(ctx context.Context, up mcpUpstream) {
+func (g *gatewayServer) loadTools(ctx context.Context, cs *mcp.ClientSession) {
 	g.mu.Lock()
 	loaded := g.toolsLoaded
 	g.mu.Unlock()
 	if loaded {
 		return
 	}
-	cursor := ""
+	params := &mcp.ListToolsParams{}
 	for page := 0; page < 50; page++ {
-		params := json.RawMessage(`{}`)
-		if cursor != "" {
-			params, _ = json.Marshal(map[string]string{"cursor": cursor})
-		}
-		result, err := up.request(ctx, "tools/list", params)
+		result, err := cs.ListTools(ctx, params)
 		if err != nil {
 			g.d.logf("gateway %s/%s could not list tools: %v", g.session, g.name, err)
 			return
 		}
 		g.observeTools(result)
-		var next struct {
-			NextCursor string `json:"nextCursor"`
-		}
-		_ = json.Unmarshal(result, &next)
-		if cursor = next.NextCursor; cursor == "" {
+		if result.NextCursor == "" {
 			break
 		}
+		params = &mcp.ListToolsParams{Cursor: result.NextCursor}
 	}
 	g.mu.Lock()
 	g.toolsLoaded = true
 	g.mu.Unlock()
 }
 
-// handle forwards a harness request unchanged, except initialize (done at
-// start), the tools/list filter, and tools/call, where a view is captured.
-func (g *gatewayServer) handle(ctx context.Context, request rpcRequest) (json.RawMessage, *rpcError) {
-	switch request.Method {
-	case "ping":
-		return json.RawMessage(`{}`), nil
-	case "initialize":
-		_, result, err := g.ensure(ctx)
-		return result, upstreamToRPC(err)
-	case "tools/call":
-		return g.callTool(ctx, request.Params)
-	}
-	up, _, err := g.ensure(ctx)
-	if err != nil {
-		return nil, upstreamToRPC(err)
-	}
-	result, err := up.request(ctx, request.Method, request.Params)
-	if err != nil {
-		return nil, upstreamToRPC(err)
-	}
-	if request.Method == "tools/list" {
-		result = g.observeTools(result)
-	}
-	return result, nil
-}
-
-func upstreamToRPC(err error) *rpcError {
-	if err == nil {
-		return nil
-	}
-	var refused *upstreamError
-	if errors.As(err, &refused) {
-		return &rpcError{Code: refused.Code, Message: refused.Message}
-	}
-	return &rpcError{Code: -32603, Message: "the aterm gateway could not reach the server: " + err.Error()}
-}
-
-func (g *gatewayServer) callTool(ctx context.Context, params json.RawMessage) (json.RawMessage, *rpcError) {
-	var call struct {
-		Name      string          `json:"name"`
-		Arguments json.RawMessage `json:"arguments"`
-	}
-	if err := json.Unmarshal(params, &call); err != nil || call.Name == "" {
-		return nil, &rpcError{Code: -32602, Message: "tools/call needs a tool name"}
-	}
-	up, _, err := g.ensure(ctx)
-	if err != nil {
-		return nil, upstreamToRPC(err)
-	}
-	g.loadTools(ctx, up)
+func (g *gatewayServer) callTool(ctx context.Context, cs *mcp.ClientSession, call *mcp.CallToolParamsRaw) (*mcp.CallToolResult, error) {
+	g.loadTools(ctx, cs)
 	meta, _ := g.toolMeta(call.Name)
 	if !meta.has("model") {
-		return nil, &rpcError{Code: -32602, Message: "tool " + call.Name + " is only callable by a view"}
+		return nil, &jsonrpc.Error{Code: jsonrpc.CodeInvalidParams, Message: "tool " + call.Name + " is only callable by a view"}
 	}
 	var view *liveView
 	if meta.ResourceURI != "" {
-		view = g.openView(ctx, up, call.Name, meta.ResourceURI, call.Arguments)
+		view = g.openView(ctx, cs, call.Name, meta.ResourceURI, call.Arguments)
 	}
-	result, err := up.request(ctx, "tools/call", params)
+	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Meta: call.Meta, Name: call.Name, Arguments: rawArguments(call.Arguments),
+		InputResponses: call.InputResponses, RequestState: call.RequestState,
+	})
 	if err != nil {
 		if view != nil {
 			g.d.cancelView(view, err.Error())
 		}
-		return nil, upstreamToRPC(err)
+		return nil, err
 	}
 	if view == nil {
 		// A server may name the view on the result instead of on the tool.
-		var carried struct {
-			Meta json.RawMessage `json:"_meta"`
-		}
-		_ = json.Unmarshal(result, &carried)
-		if uri := parseToolUI(carried.Meta).ResourceURI; uri != "" {
-			view = g.openView(ctx, up, call.Name, uri, call.Arguments)
+		if uri := metaUI(result.Meta).ResourceURI; uri != "" {
+			view = g.openView(ctx, cs, call.Name, uri, call.Arguments)
 		}
 	}
 	if view != nil {
-		g.d.updateView(view, result)
+		raw, _ := json.Marshal(result)
+		g.d.updateView(view, raw)
 	}
 	return result, nil
 }
 
+// rawArguments passes a call's arguments on exactly as the harness sent them.
+func rawArguments(arguments json.RawMessage) any {
+	if len(arguments) == 0 {
+		return nil
+	}
+	return arguments
+}
+
 // openView fetches the ui:// resource and pushes the view. A resource that
 // cannot be read costs the view, never the tool call.
-func (g *gatewayServer) openView(ctx context.Context, up mcpUpstream, tool, uri string, args json.RawMessage) *liveView {
+func (g *gatewayServer) openView(ctx context.Context, cs *mcp.ClientSession, tool, uri string, args json.RawMessage) *liveView {
 	if !strings.HasPrefix(uri, "ui://") {
 		g.d.logf("gateway %s/%s: %s names %q, which is not a ui:// resource", g.session, g.name, tool, uri)
 		return nil
 	}
 	readCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	params, _ := json.Marshal(map[string]string{"uri": uri})
-	result, err := up.request(readCtx, "resources/read", params)
+	read, err := cs.ReadResource(readCtx, &mcp.ReadResourceParams{URI: uri})
 	if err != nil {
 		g.d.logf("gateway %s/%s could not read %s: %v", g.session, g.name, uri, err)
 		return nil
 	}
-	var read struct {
-		Contents []struct {
-			MimeType string `json:"mimeType"`
-			Text     string `json:"text"`
-			Blob     string `json:"blob"`
-			Meta     struct {
-				UI struct {
-					CSP struct {
-						ConnectDomains  []string `json:"connectDomains"`
-						ResourceDomains []string `json:"resourceDomains"`
-						FrameDomains    []string `json:"frameDomains"`
-						BaseURIDomains  []string `json:"baseUriDomains"`
-					} `json:"csp"`
-					PrefersBorder bool `json:"prefersBorder"`
-				} `json:"ui"`
-			} `json:"_meta"`
-		} `json:"contents"`
-	}
-	if json.Unmarshal(result, &read) != nil {
-		return nil
-	}
 	for _, content := range read.Contents {
-		if strings.ReplaceAll(strings.ToLower(content.MimeType), " ", "") != uiMime {
+		if strings.ReplaceAll(strings.ToLower(content.MIMEType), " ", "") != uiMime {
 			continue
 		}
 		html := content.Text
-		if html == "" && content.Blob != "" {
-			decoded, err := base64.StdEncoding.DecodeString(content.Blob)
-			if err != nil {
-				return nil
-			}
-			html = string(decoded)
+		if html == "" {
+			html = string(content.Blob)
 		}
 		if html == "" || len(html) > maxViewBytes {
 			g.d.logf("gateway %s/%s: %s is empty or over %d bytes", g.session, g.name, uri, maxViewBytes)
 			return nil
 		}
-		csp := content.Meta.UI.CSP
-		frame := viewFrame{
-			Server: g.name, Tool: tool, ResourceURI: uri, HTML: html, PrefersBorder: content.Meta.UI.PrefersBorder,
-			CSP: &viewCSP{ConnectDomains: csp.ConnectDomains, ResourceDomains: csp.ResourceDomains,
-				FrameDomains: csp.FrameDomains, BaseURIDomains: csp.BaseURIDomains},
-			ToolInput: args,
+		view := viewFrame{Server: g.name, Tool: tool, ResourceURI: uri, HTML: html, ToolInput: args}
+		view.CSP, view.PrefersBorder = resourceUI(content.Meta)
+		if len(view.ToolInput) == 0 {
+			view.ToolInput = json.RawMessage(`{}`)
 		}
-		if frame.CSP.empty() {
-			frame.CSP = nil
-		}
-		if len(frame.ToolInput) == 0 {
-			frame.ToolInput = json.RawMessage(`{}`)
-		}
-		return g.d.addView(g, frame)
+		return g.d.addView(g, view)
 	}
 	g.d.logf("gateway %s/%s: %s is not %s", g.session, g.name, uri, uiMime)
 	return nil
 }
 
-// fromView is a view's own call back to its server: tools/call for a tool that
-// lists "app" in its visibility, or resources/read.
+// resourceUI reads a view resource's `_meta.ui`, in the camelCase the spec uses.
+func resourceUI(meta mcp.Meta) (*viewCSP, bool) {
+	var parsed struct {
+		UI struct {
+			CSP struct {
+				ConnectDomains  []string `json:"connectDomains"`
+				ResourceDomains []string `json:"resourceDomains"`
+				FrameDomains    []string `json:"frameDomains"`
+				BaseURIDomains  []string `json:"baseUriDomains"`
+			} `json:"csp"`
+			PrefersBorder bool `json:"prefersBorder"`
+		} `json:"ui"`
+	}
+	raw, _ := json.Marshal(meta)
+	_ = json.Unmarshal(raw, &parsed)
+	csp := &viewCSP{
+		ConnectDomains: parsed.UI.CSP.ConnectDomains, ResourceDomains: parsed.UI.CSP.ResourceDomains,
+		FrameDomains: parsed.UI.CSP.FrameDomains, BaseURIDomains: parsed.UI.CSP.BaseURIDomains,
+	}
+	if csp.empty() {
+		csp = nil
+	}
+	return csp, parsed.UI.PrefersBorder
+}
+
+// fromView is a view's call back to its server: tools/call for a tool whose
+// visibility lists "app", or resources/read. It returns a view_result's JSON.
 func (g *gatewayServer) fromView(ctx context.Context, method string, params json.RawMessage) (json.RawMessage, error) {
 	up, _, err := g.ensure(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if method == "tools/call" {
-		var call struct {
-			Name string `json:"name"`
-		}
-		if err := json.Unmarshal(params, &call); err != nil || call.Name == "" {
+	var call struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+		URI       string          `json:"uri"`
+	}
+	if err := json.Unmarshal(params, &call); err != nil {
+		return nil, withExit(exitUsage, err)
+	}
+	var result any
+	switch method {
+	case "tools/call":
+		if call.Name == "" {
 			return nil, withExit(exitUsage, errors.New("tools/call needs a tool name"))
 		}
-		g.loadTools(ctx, up)
+		g.loadTools(ctx, up.session)
 		meta, known := g.toolMeta(call.Name)
 		switch {
 		case !known:
@@ -377,12 +346,18 @@ func (g *gatewayServer) fromView(ctx context.Context, method string, params json
 		case !meta.has("app"):
 			return nil, withExit(exitUsage, errors.New("tool "+call.Name+" is not callable by a view (its _meta.ui.visibility leaves out app)"))
 		}
+		result, err = up.session.CallTool(ctx, &mcp.CallToolParams{Name: call.Name, Arguments: rawArguments(call.Arguments)})
+	default:
+		result, err = up.session.ReadResource(ctx, &mcp.ReadResourceParams{URI: call.URI})
 	}
-	return up.request(ctx, method, params)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(result)
 }
 
-// serveGateway is the harness side: Streamable HTTP, one JSON answer per POST.
-// The token in the path is the auth, so only a local non-browser peer is answered.
+// serveGateway is the harness side. The token in the path is the auth, so only
+// a local non-browser peer is answered, by the SDK's Streamable HTTP handler.
 func (d *daemon) serveGateway(w http.ResponseWriter, r *http.Request) {
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
 	if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() || r.Header.Get("Origin") != "" {
@@ -399,38 +374,10 @@ func (d *daemon) serveGateway(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "aterm gateway: no such server for this session", http.StatusNotFound)
 		return
 	}
-	switch r.Method {
-	case http.MethodDelete:
-		w.WriteHeader(http.StatusOK)
-		return
-	case http.MethodPost:
-	default:
-		w.Header().Set("Allow", "POST, DELETE")
-		http.Error(w, "aterm gateway: this server streams nothing to a GET", http.StatusMethodNotAllowed)
-		return
-	}
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxGatewayRPC))
+	_, handler, err := g.ensure(r.Context())
 	if err != nil {
-		http.Error(w, "aterm gateway: "+err.Error(), http.StatusRequestEntityTooLarge)
+		http.Error(w, "aterm gateway: could not reach the server: "+err.Error(), http.StatusBadGateway)
 		return
 	}
-	var request rpcRequest
-	if json.Unmarshal(body, &request) != nil || request.Method == "" && len(request.ID) == 0 {
-		http.Error(w, "aterm gateway: one JSON-RPC message per POST", http.StatusBadRequest)
-		return
-	}
-	if len(request.ID) == 0 {
-		// A notification wants no answer. The gateway keeps its own session with the server.
-		w.WriteHeader(http.StatusAccepted)
-		return
-	}
-	ctx, cancel := context.WithTimeout(r.Context(), callTimeout)
-	defer cancel()
-	result, failure := g.handle(ctx, request)
-	response := rpcResponse{JSONRPC: "2.0", ID: request.ID, Error: failure}
-	if failure == nil {
-		response.Result = result
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(response)
+	handler.ServeHTTP(w, r)
 }
