@@ -2,6 +2,7 @@
   import { tick } from "svelte";
   import { findMention, insertMention, mentionMatches } from "../lib/mentions";
   import type { HostConnection, Session } from "../lib/protocol";
+  import PasskeyUnlock from "./PasskeyUnlock.svelte";
   import { typingNotice, type Typing } from "../lib/typing";
 
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
@@ -14,6 +15,19 @@
   // The `@` whose menu Escape closed. Typing again opens it, so a dismissal is never a lockout.
   let dismissedAt = $state<number | null>(null);
   let field = $state<HTMLTextAreaElement>();
+  // The lock lifting is news to say aloud, and the unlock button that held focus is gone.
+  let unlocked = $state("");
+  let wasLocked = false;
+  $effect(() => {
+    if (!typing.allowed) {
+      wasLocked = true;
+      unlocked = "";
+    } else if (wasLocked) {
+      wasLocked = false;
+      unlocked = "Unlocked. You can type again.";
+      void tick().then(() => field?.focus());
+    }
+  });
   const PASTE_OPEN = "\x1b[200~";
   const PASTE_CLOSE = "\x1b[201~";
 
@@ -90,9 +104,11 @@
   }
 </script>
 
+<p class="visually-hidden" role="status">{unlocked}</p>
 {#if !typing.allowed}
-  <div class="composer locked" role="status">
-    <p><strong>Read only.</strong> {typingNotice(typing)}</p>
+  <div class="composer locked">
+    <p role="status"><strong>Read only.</strong> {typingNotice(typing)}</p>
+    <PasskeyUnlock />
   </div>
 {:else}
 <form class="composer" onsubmit={(event) => { event.preventDefault(); send(); }}>
@@ -145,7 +161,8 @@
 
 <style>
   .composer { display: flex; gap: 10px; align-items: flex-end; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--ground); }
-  .composer.locked { display: block; }
+  /* Above the terminal, which overflows its row when the layout is squeezed. */
+  .composer.locked { display: block; position: relative; z-index: 1; }
   .locked p { margin: 0; color: var(--text-soft); }
   .field { position: relative; flex: 1; min-width: 0; display: flex; }
   textarea {

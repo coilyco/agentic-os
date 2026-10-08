@@ -1,6 +1,8 @@
 <script lang="ts">
   import { addHost, app, checkHost, HOSTED, removeHost, selectHost, selectedHost } from "../lib/app.svelte";
+  import PasskeyUnlock from "../components/PasskeyUnlock.svelte";
   import type { Host } from "../lib/protocol";
+  import { typingNotice } from "../lib/typing";
   import { splitSessions } from "../lib/sessions";
   import InstallCard from "../components/InstallCard.svelte";
 
@@ -69,6 +71,10 @@
   {:else}
     <h1>{host.label}</h1>
     <p class="lede">{running} {running === 1 ? "seat" : "seats"} running. Pick a seat from the sidebar to open its terminal.</p>
+  {/if}
+  {#if !app.typing.allowed && host?.id === app.attachedHostId}
+    <p class="lede" role="status"><strong>Read only.</strong> {typingNotice(app.typing)}</p>
+    <PasskeyUnlock />
   {/if}
   <p class="note" role="status">{app.notice}</p>
   <InstallCard />

@@ -358,3 +358,120 @@ describe("MCP Apps views", () => {
     host.close();
   });
 });
+
+describe("the passkey ceremony", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const LOCKED = { allowed: false, reason: "passkey_required" };
+  const FEATURES = { ...WELCOME, features: ["typing-guard", "passkey"] };
+  const OPTIONS = { publicKey: { rp: { id: "coilyco.dev", name: "aterm" }, user: { id: "AQID", name: "kai", displayName: "Kai" }, challenge: "AQ", rpId: "coilyco.dev" } };
+  const credential = { id: "c", rawId: new Uint8Array([1]).buffer, type: "public-key", toJSON: () => ({ id: "made-by-browser" }) };
+
+  function browser(create = vi.fn().mockResolvedValue(credential), get = vi.fn().mockResolvedValue(credential)) {
+    vi.stubGlobal("navigator", { credentials: { create, get } });
+    vi.stubGlobal("isSecureContext", true);
+    vi.stubGlobal("location", { hostname: "coilyco.dev" });
+    return { create, get };
+  }
+  const lastSent = (socket: StubSocket) => sentFrames(socket).at(-1)!;
+  const typings = (events: HostEvent[]) => events.filter((event) => event.type === "typing");
+
+  it("offers the channel only when the welcome lists passkey, and reads the standing off a locked welcome", () => {
+    const none = connect();
+    none.socket.receive(WELCOME);
+    expect(none.host.passkey).toBeUndefined();
+    none.host.close();
+
+    const { host, events, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, passkey: "unenrolled" } });
+    expect(host.passkey).toBeDefined();
+    expect(typings(events)).toEqual([{ type: "typing", typing: { ...LOCKED, passkey: "unenrolled" } }]);
+    host.close();
+  });
+
+  it("keeps the standing when a refusal frame arrives without it, and takes a typing push as the new state", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, passkey: "enrolled" } });
+    socket.receive({ type: "error", id: "c9", code: 6, error: "input refused", reason: "passkey_required" });
+    expect(typings(events).at(-1)).toEqual({ type: "typing", typing: { ...LOCKED, passkey: "enrolled" } });
+    socket.receive({ type: "typing", typing: { allowed: true } });
+    expect(typings(events).at(-1)).toEqual({ type: "typing", typing: { allowed: true } });
+    host.close();
+  });
+
+  it("enrolls: begin with the code, create in the browser, finish with the credential, resolve on passkey_enrolled", async () => {
+    const { create } = browser();
+    const { host, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, passkey: "unenrolled" } });
+    const done = host.passkey!.enroll("ABCD-1234");
+    const begin = lastSent(socket);
+    expect(begin).toMatchObject({ type: "passkey_enroll_begin", enroll_code: "ABCD-1234" });
+    socket.receive({ type: "passkey_enroll_options", id: begin.id, options: OPTIONS });
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("passkey_enroll_finish"));
+    const finish = lastSent(socket);
+    expect(finish.credential).toEqual({ id: "made-by-browser" });
+    expect(create).toHaveBeenCalledOnce();
+    socket.receive({ type: "passkey_enrolled", id: finish.id });
+    await expect(done).resolves.toBeUndefined();
+    host.close();
+  });
+
+  it("shows the daemon's own words for a wrong code, and does not claim the code is spent", async () => {
+    browser();
+    const { host, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, passkey: "unenrolled" } });
+    const done = host.passkey!.enroll("WRONG");
+    socket.receive({ type: "error", id: lastSent(socket).id, code: 2, error: "that is not the enrollment code" });
+    await expect(done).rejects.toThrow(/^that is not the enrollment code$/);
+    host.close();
+  });
+
+  it("says the code is used up when the browser ends the ceremony after the daemon took it", async () => {
+    browser(vi.fn().mockRejectedValue(Object.assign(new Error("x"), { name: "NotAllowedError" })));
+    const { host, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, passkey: "unenrolled" } });
+    const done = host.passkey!.enroll("ABCD-1234");
+    socket.receive({ type: "passkey_enroll_options", id: lastSent(socket).id, options: OPTIONS });
+    await expect(done).rejects.toThrow(/closed or timed out.*That code is used up/);
+    host.close();
+  });
+
+  it("sends no code at all when this browser cannot run a ceremony", async () => {
+    vi.stubGlobal("navigator", {});
+    const { host, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, passkey: "unenrolled" } });
+    const before = socket.sent.length;
+    await expect(host.passkey!.enroll("ABCD-1234")).rejects.toThrow(/cannot make or use passkeys/);
+    expect(socket.sent.length).toBe(before);
+    host.close();
+  });
+
+  it("asserts: begin, get in the browser, finish, resolve on passkey_asserted", async () => {
+    const { get } = browser();
+    const { host, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, passkey: "enrolled" } });
+    const done = host.passkey!.assert();
+    const begin = lastSent(socket);
+    expect(begin.type).toBe("passkey_assert_begin");
+    socket.receive({ type: "passkey_assert_options", id: begin.id, options: OPTIONS });
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("passkey_assert_finish"));
+    const finish = lastSent(socket);
+    expect(finish.credential).toEqual({ id: "made-by-browser" });
+    expect(get).toHaveBeenCalledOnce();
+    socket.receive({ type: "passkey_asserted", id: finish.id });
+    await expect(done).resolves.toBeUndefined();
+    host.close();
+  });
+
+  it("rejects a failed assertion in the daemon's words, so the person can begin again", async () => {
+    browser();
+    const { host, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, passkey: "enrolled" } });
+    const done = host.passkey!.assert();
+    socket.receive({ type: "passkey_assert_options", id: lastSent(socket).id, options: OPTIONS });
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("passkey_assert_finish"));
+    socket.receive({ type: "error", id: lastSent(socket).id, code: 2, error: "the assertion did not verify" });
+    await expect(done).rejects.toThrow("the assertion did not verify");
+    host.close();
+  });
+});

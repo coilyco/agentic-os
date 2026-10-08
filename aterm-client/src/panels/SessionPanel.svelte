@@ -12,6 +12,7 @@
   import type { Session } from "../lib/protocol";
   import type { Role } from "../lib/roster";
   import { sessionCode } from "../lib/sessions";
+  import { needsPasskey } from "../lib/typing";
   import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
   import { loadSide, storeSide } from "../lib/split";
 
@@ -122,7 +123,7 @@
                     identity={session.identity}
                     focusToken={app.focusCard}
                     locked={!app.typing.allowed}
-                    cancelLocked={false}
+                    cancelLocked={needsPasskey(app.typing)}
                     onanswer={(picks, text) => {
                       const reply = askAnswer(ask, picks, text);
                       app.connection?.answer(ask.id, reply.picks, reply.text);

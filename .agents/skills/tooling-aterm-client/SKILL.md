@@ -51,6 +51,7 @@ than editing it by hand.
 * [architecture.md](references/architecture.md) - the host seam, envelopes, activity, the composer.
 * [discovery.md](references/discovery.md) - the `hosts` frame and how the host list merges the daemons it finds.
 * [choices.md](references/choices.md) - native choice cards and `ask_choice`.
+* [passkey.md](references/passkey.md) - the passkey unlock a remote device needs before it types.
 * [views-and-browser.md](references/views-and-browser.md) - MCP Apps views and the shared browser.
 * [browser.md](references/browser.md) - the daemon's streamed Chromium and its `browser_*` frames.
 * [terminal-split.md](references/terminal-split.md) - the Terminal tab, the split, and the side panel's default tab by role.

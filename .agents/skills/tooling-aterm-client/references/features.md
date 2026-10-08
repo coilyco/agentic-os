@@ -17,7 +17,8 @@ A coarse inventory of what ships. Architecture: [architecture.md](architecture.m
 * **Peer message marking** - envelope lines are matched in the terminal buffer and striped in the sender's colour, across wrapped rows.
 * **Messages** - each seat's sent and received messages with queued, held, launching, typed in, and failed states, and the daemon's reason.
 * **Views and Browser tabs** - MCP Apps views from a daemon that lists `mcp-apps`, and the seat's streamed browser, awaiting its frames. [views-and-browser.md](views-and-browser.md).
-* **Read-only state** - when the daemon's typing guard refuses this browser (`welcome.typing`, or an `error` with `session_descendant` or `peer_unread`), the terminal, composer, choice cards, and launch buttons say read only and send nothing. The passkey locked state waits on accepted frames (COI-2484).
+* **Read-only state** - when the daemon's typing guard refuses this browser (`welcome.typing`, or an `error` with `session_descendant` or `peer_unread`), the terminal, composer, choice cards, and launch buttons say read only and send nothing.
+* **Passkey unlock** - a locked remote device enrolls and asserts a passkey from the hosted build, then types. [passkey.md](passkey.md).
 * **Terminal tab and split** - a plain shell beside a seat, a resizable split, and the side panel opening on a tab by role (sysadmin Terminal, frontend Browser). [terminal-split.md](terminal-split.md).
 * **Hosted build** - the client under a path prefix behind a deployment's own sign-in, hosts added per device. [deploy.md](deploy.md).
 * **Installable** - a manifest, icons, and an app-shell service worker, so Chrome installs it from the daemon's address or the hosted build into its own window. With no daemon answering, a launch opens to the "not answering" panel instead of a browser error. An install card on the host panel says what installing does and hides once installed. [deploy.md](deploy.md).

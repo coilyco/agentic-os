@@ -122,6 +122,8 @@
       remark();
     });
     observer.observe(host);
+    // A terminal that types nothing has no use for Tab, so it leaves instead of trapping focus.
+    terminal.attachCustomKeyEventHandler((event) => !(locked && event.key === "Tab"));
     const input = terminal.onData((data) => {
       if (!locked) connection.input(sessionId, data);
     });

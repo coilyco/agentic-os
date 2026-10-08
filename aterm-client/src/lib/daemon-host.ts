@@ -2,10 +2,11 @@
 // the Wire contract section of the aterm daemon page in coilyco/agentic-os.
 import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, HostConnection, HostEvent, MessageState, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, HostConnection, HostEvent, MessageState, PasskeyChannel, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
-import { parseTyping, refusalOf, typingNotice, type Typing } from "./typing";
+import { CODE_SPENT, createCredential, getCredential, passkeySupport, PasskeyError } from "./passkey";
+import { keepStanding, parseTyping, refusalOf, typingNotice, type Typing } from "./typing";
 
 export const FORMAT = "aterm.daemon.v1";
 const LOOPBACK_DAEMON = "ws://127.0.0.1:7419";
@@ -111,6 +112,7 @@ interface Frame {
   tool_result?: ToolResult;
   cancelled?: string;
   result?: unknown;
+  options?: unknown;
 }
 
 interface ViewFrame {
@@ -258,7 +260,7 @@ export class DaemonHost implements HostConnection {
   private terminalNames = new Set<string>();
   private launches = new Map<string, string>();
   private features = new Set<string>();
-  private calls = new Map<string, { resolve: (result: unknown) => void; reject: (error: Error) => void }>();
+  private calls = new Map<string, { resolve: (reply: Frame) => void; reject: (error: Error) => void }>();
   private socket: WebSocket;
   private listeners = new Set<(event: HostEvent) => void>();
   private outbox: string[] = [];
@@ -303,14 +305,44 @@ export class DaemonHost implements HostConnection {
   }
 
   private viewChannel: ViewChannel = {
-    call: (viewId, method, params) =>
-      new Promise((resolve, reject) => {
-        this.calls.set(this.request({ type: "view_call", view_id: viewId, method, params }), { resolve, reject });
-      }),
+    call: async (viewId, method, params) => (await this.exchange({ type: "view_call", view_id: viewId, method, params })).result,
     close: (viewId) => {
       this.request({ type: "view_close", view_id: viewId });
     },
   };
+
+  /** Only a welcome listing `passkey` has a ceremony. The page decides if it can run. */
+  get passkey(): PasskeyChannel | undefined {
+    return this.features.has("passkey") ? this.passkeyChannel : undefined;
+  }
+
+  private passkeyChannel: PasskeyChannel = {
+    enroll: async (code) => {
+      const unsupported = passkeySupport();
+      if (unsupported) throw new PasskeyError(unsupported);
+      const begun = await this.exchange({ type: "passkey_enroll_begin", enroll_code: code });
+      try {
+        const credential = await createCredential(begun.options);
+        await this.exchange({ type: "passkey_enroll_finish", credential });
+      } catch (error) {
+        throw new PasskeyError(`${error instanceof Error ? error.message : String(error)} ${CODE_SPENT}`);
+      }
+    },
+    assert: async () => {
+      const unsupported = passkeySupport();
+      if (unsupported) throw new PasskeyError(unsupported);
+      const begun = await this.exchange({ type: "passkey_assert_begin" });
+      const credential = await getCredential(begun.options);
+      await this.exchange({ type: "passkey_assert_finish", credential });
+    },
+  };
+
+  /** One request, settled by the reply or the `error` that echoes its id. */
+  private exchange(frame: Record<string, unknown>): Promise<Frame> {
+    return new Promise((resolve, reject) => {
+      this.calls.set(this.request(frame), { resolve, reject });
+    });
+  }
 
   attach(sessionId: string, rows: number, cols: number): void {
     this.refs.set(sessionId, (this.refs.get(sessionId) ?? 0) + 1);
@@ -479,14 +511,21 @@ export class DaemonHost implements HostConnection {
       case "view_closed":
         if (frame.view_id) this.emit({ type: "view_closed", id: frame.view_id });
         return;
-      case "view_result": {
+      case "view_result":
+      case "passkey_enroll_options":
+      case "passkey_enrolled":
+      case "passkey_assert_options":
+      case "passkey_asserted": {
         const call = frame.id ? this.calls.get(frame.id) : undefined;
         if (call && frame.id) {
           this.calls.delete(frame.id);
-          call.resolve(frame.result);
+          call.resolve(frame);
         }
         return;
       }
+      case "typing":
+        this.setTyping(parseTyping(frame.typing));
+        return;
       case "roster":
         this.last.roles = { type: "roster", roles: parseRoster(frame.roster) };
         this.emit(this.last.roles);
@@ -547,8 +586,8 @@ export class DaemonHost implements HostConnection {
 
   private setTyping(typing: Typing | null): void {
     if (!typing) return;
-    this.last.typing = typing;
-    this.emit({ type: "typing", typing });
+    this.last.typing = keepStanding(typing, this.last.typing);
+    this.emit({ type: "typing", typing: this.last.typing });
   }
 
   private emit(event: HostEvent): void {

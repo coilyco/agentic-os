@@ -124,8 +124,17 @@ export interface TerminalChannel {
   close(id: string): void;
 }
 
+/** A remote device's passkey. Only a daemon that lists `passkey` has one. */
+export interface PasskeyChannel {
+  /** Spends the one-time code, makes a passkey, and unlocks. Rejects in words. */
+  enroll(code: string): Promise<void>;
+  /** Asserts the enrolled passkey and unlocks the connection. Rejects in words. */
+  assert(): Promise<void>;
+}
+
 export interface HostConnection {
   readonly canLaunch: boolean;
+  readonly passkey?: PasskeyChannel;
   readonly views?: ViewChannel;
   readonly browser?: BrowserChannel;
   readonly terminals?: TerminalChannel;
