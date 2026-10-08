@@ -23,9 +23,11 @@ type browserLink struct {
 	// exited closes when the browser process is gone.
 	exited <-chan struct{}
 	stop   func()
+	// note is the reason a live browser_state carries, empty for the default.
+	note string
 }
 
-// browserLauncher starts a browser on a fresh profile for one session.
+// browserLauncher starts a browser for one session.
 type browserLauncher func(session string) (*browserLink, error)
 
 var chromiumCandidates = []string{
@@ -63,30 +65,48 @@ func browserEnviron() []string {
 	return kept
 }
 
-// launchChromium starts headless Chromium on a throwaway profile under dir,
-// speaking CDP on a pipe pair (fds 3 and 4 in the child) rather than a port.
-func launchChromium(dir, session string) (*browserLink, error) {
+// launchChromium starts headless Chromium with CDP on a pipe pair, not a port.
+// A role profile is released on exit or failure and never deleted.
+func launchChromium(dir, session string, role browserProfile) (link *browserLink, err error) {
+	release := role.release
+	if release == nil {
+		release = func() {}
+	}
+	defer func() {
+		if err != nil {
+			release()
+		}
+	}()
 	binary := chromiumPath()
 	if binary == "" {
 		return nil, fmt.Errorf("no Chromium or Chrome on this host, set %s to one", browserEnv)
 	}
-	if err := ensureSocketDir(dir); err != nil {
+	profile, throwaway := role.dir, role.dir == ""
+	if throwaway {
+		if err := ensureSocketDir(dir); err != nil {
+			return nil, err
+		}
+		if profile, err = os.MkdirTemp(dir, slugify(session)+"-"); err != nil {
+			return nil, err
+		}
+	} else if err := os.MkdirAll(profile, 0o700); err != nil {
 		return nil, err
 	}
-	profile, err := os.MkdirTemp(dir, slugify(session)+"-")
-	if err != nil {
-		return nil, err
+	dropProfile := func() {
+		if throwaway {
+			_ = os.RemoveAll(profile)
+		}
 	}
 	toBrowserR, toBrowserW, err := os.Pipe()
 	if err != nil {
-		_ = os.RemoveAll(profile)
+		dropProfile()
 		return nil, err
 	}
 	fromBrowserR, fromBrowserW, err := os.Pipe()
 	if err != nil {
 		_ = toBrowserR.Close()
 		_ = toBrowserW.Close()
-		_ = os.RemoveAll(profile)
+		dropProfile()
 		return nil, err
 	}
 	args := []string{
@@ -106,7 +126,7 @@ func launchChromium(dir, session string) (*browserLink, error) {
 		_ = toBrowserW.Close()
 		_ = fromBrowserR.Close()
 		_ = fromBrowserW.Close()
-		_ = os.RemoveAll(profile)
+		dropProfile()
 		return nil, fmt.Errorf("start %s: %w", binary, err)
 	}
 	_ = toBrowserR.Close()
@@ -115,7 +135,8 @@ func launchChromium(dir, session string) (*browserLink, error) {
 	go func() {
 		_ = command.Wait()
 		_ = toBrowserW.Close()
-		_ = os.RemoveAll(profile)
+		dropProfile()
+		release()
 		close(exited)
 	}()
 	stop := func() {
@@ -123,6 +144,14 @@ func launchChromium(dir, session string) (*browserLink, error) {
 		case <-exited:
 			return
 		default:
+		}
+		// Browser.close lets Chromium write its cookies and storage out, which
+		// SIGTERM skips and which a role profile's logins depend on.
+		_, _ = toBrowserW.Write([]byte(`{"id":2147483647,"method":"Browser.close"}` + "\x00"))
+		select {
+		case <-exited:
+			return
+		case <-time.After(2 * time.Second):
 		}
 		// The process group, since Chromium's renderers and helpers are children.
 		_ = syscall.Kill(-command.Process.Pid, syscall.SIGTERM)
@@ -133,7 +162,7 @@ func launchChromium(dir, session string) (*browserLink, error) {
 			<-exited
 		}
 	}
-	return &browserLink{r: fromBrowserR, w: toBrowserW, exited: exited, stop: stop}, nil
+	return &browserLink{r: fromBrowserR, w: toBrowserW, exited: exited, stop: stop, note: role.note}, nil
 }
 
 // browserProfileDir is where a session's throwaway profile lives, beside the
@@ -154,7 +183,7 @@ func (d *daemon) startBrowser(session string) (*browserLink, error) {
 	if dir == "" {
 		return nil, errors.New("this daemon has no directory for browser profiles")
 	}
-	return launchChromium(dir, session)
+	return launchChromium(dir, session, d.chooseProfile(session))
 }
 
 // browserServed is whether welcome offers `browser`: a launcher is set or a

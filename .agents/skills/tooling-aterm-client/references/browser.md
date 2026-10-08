@@ -4,11 +4,15 @@ The [aterm host daemon](../../../../docs/aterm-daemon.md) can run one headless C
 
 ## What the daemon does
 
-**The first `browser_watch` on a session starts that session's Chromium.** The daemon runs `--headless=new` with `--remote-debugging-pipe`, so CDP rides a pipe pair and no debugging port exists for another local user to reach. The profile is a throwaway directory under `<socket dir>/browser/`, and the browser sees only `HOME`, `PATH`, `TMPDIR`, locale and display variables, never the daemon's credentials. As root it adds `--no-sandbox`.
+**The first `browser_watch` on a session starts that session's Chromium.** The daemon runs `--headless=new` with `--remote-debugging-pipe`, so CDP rides a pipe pair and no debugging port exists for another local user to reach. The profile is the role's Playwright profile when free, else a throwaway directory under `<socket dir>/browser/` (see below), and the browser sees only `HOME`, `PATH`, `TMPDIR`, locale and display variables, never the daemon's credentials. As root it adds `--no-sandbox`.
 
 **`welcome.features` lists `browser` only when a browser binary exists.** `ATERM_BROWSER` names one, else the daemon looks for Google Chrome or Chromium at the macOS paths and on `PATH`. A host with none leaves the client's pane on its empty state.
 
-**It ends with its session, its process, or the daemon.** The session's process group gets SIGTERM, then SIGKILL after 3 seconds. A browser that exits, or whose page closes, becomes `closed` with a reason, and the next `browser_watch` starts a new one. A daemon killed outright leaves its Chromium running (COI-2519).
+**The browser starts on its role's Playwright profile, so logins made there are in the stream.** The daemon reads `browser.userDataDir` from `local_coilyco_playwright_<role>.json` in `<projects root>/coilyco/agentic-os-kai/config/`, or from the directory `ATERM_PLAYWRIGHT_CONFIG_DIR` names. The files are Kai's per-host input, read at each start and never embedded. The profile is never deleted. A role with no file, an `isolated` config, or a relative `userDataDir` gets a throwaway profile, and `browser_state.reason` says which.
+
+**One process at a time may use a profile, so a second session of the role gets a throwaway one.** The daemon tracks which session holds each role profile, and the reason on the second names the first. It also reads Chromium's `SingletonLock` in the profile, so a live process outside aterm, the role's own Playwright MCP included, sends the session to a throwaway profile and the reason names its pid. While a streamed browser holds the profile, that role's Playwright MCP is expected to answer "browser is already in use" until the streamed browser ends (not yet observed against this daemon).
+
+**It ends with its session, its process, or the daemon.** The daemon asks Chromium to close over CDP, which writes cookies out (SIGTERM skips that, and Chromium otherwise flushes about 30 seconds after a login). The session's process group gets SIGTERM after 2 seconds, then SIGKILL after 3 more. A browser that exits, or whose page closes, becomes `closed` with a reason, and the next `browser_watch` starts a new one. A daemon killed outright leaves its Chromium running (COI-2519).
 
 **The daemon follows the first page target and nothing else.** `browser_state` carries that page's url and title, kept current from `Target.targetInfoChanged`.
 
@@ -38,5 +42,4 @@ Request frames carry an `id`, and a refusal comes back as `error` with that `id`
 
 * Pointing the session's Playwright MCP at this Chromium, so the agent drives the browser a person watches (COI-2516).
 * Refusing the agent's commands while a person holds control (COI-2520).
-* The role's Playwright `userDataDir` and the same-role profile-lock fallback. Every browser runs on a temporary profile today (COI-2517).
 * Cleanup after a killed daemon, and tabs beyond the first page (COI-2519).

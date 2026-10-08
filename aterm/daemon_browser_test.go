@@ -199,6 +199,18 @@ func TestBrowserWatchStartsTheBrowserAndStreamsFrames(t *testing.T) {
 	}
 }
 
+func TestBrowserStateCarriesTheProfileNoteOfTheLaunch(t *testing.T) {
+	d, address, _ := browserDaemon(t)
+	link, _ := newFakeBrowser(t)
+	link.note = "The eng-platform role's Playwright profile, so its logins are here."
+	d.browserLaunch = func(string) (*browserLink, error) { return link, nil }
+	client, _ := dialLoopbackClient(t, address)
+	client.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	if live := client.untilState("live", nil); live.Reason != link.note {
+		t.Fatalf("reason = %q, want the launch's note", live.Reason)
+	}
+}
+
 func TestBrowserTakeThenNavigateChangesThePageAndWatchersSeeIt(t *testing.T) {
 	_, address, fake := browserDaemon(t)
 	person, _ := dialLoopbackClient(t, address)
@@ -409,7 +421,7 @@ func TestRealChromiumStreamsAScreencastFrame(t *testing.T) {
 		t.Skip("no Chromium or Chrome on this host")
 	}
 	dir := testHoldDir(t)
-	link, err := launchChromium(dir, "probe")
+	link, err := launchChromium(dir, "probe", browserProfile{})
 	if err != nil {
 		t.Fatalf("launch: %v", err)
 	}
