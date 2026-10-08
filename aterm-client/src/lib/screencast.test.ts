@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { driverLabel, isDriving, isStalled, keyParams, modifiersOf, mouseParams, paneSize, toPagePoint, type SharedBrowser } from "./screencast";
+import { driverLabel, isDriving, isStalled, keyParams, modifiersOf, mouseParams, paneSize, tabLabel, toPagePoint, type SharedBrowser } from "./screencast";
 
 const metadata = { deviceWidth: 1280, deviceHeight: 800, offsetTop: 0, pageScaleFactor: 1 };
 const none = { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
@@ -83,5 +83,19 @@ describe("browser state", () => {
     expect(driverLabel({ ...live, driver: "person", heldHere: true }, "Frog-Ox")).toMatch(/^You have control/);
     expect(driverLabel({ ...live, driver: "person", holder: "phone" }, "Frog-Ox")).toMatch(/^Another screen has control/);
     expect(driverLabel({ ...live, state: "closed", reason: "the seat exited" }, "Frog-Ox")).toBe("The browser closed: the seat exited");
+  });
+});
+
+describe("tabLabel", () => {
+  const live = { session: "s", state: "live", driver: "agent", url: "", title: "", heldHere: false } as const;
+
+  it("names the followed tab among the open ones", () => {
+    expect(tabLabel({ ...live, tab: 2, tabs: 3 })).toBe("Tab 2 of 3");
+  });
+
+  it("says nothing for a single page, a daemon that sends no numbers, or a browser that is not live", () => {
+    expect(tabLabel({ ...live, tab: 1, tabs: 1 })).toBeUndefined();
+    expect(tabLabel(live)).toBeUndefined();
+    expect(tabLabel({ ...live, state: "closed", tab: 2, tabs: 3 })).toBeUndefined();
   });
 });

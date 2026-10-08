@@ -112,6 +112,8 @@ interface Frame {
   url?: string;
   title?: string;
   holder?: string;
+  tab?: number;
+  tabs?: number;
   client?: string;
   seq?: number;
   metadata?: Record<string, number>;
@@ -166,6 +168,7 @@ export function toBrowserState(frame: Frame, previous: SharedBrowser | undefined
     heldHere: driver === "person" && !!frame.holder && frame.holder === frame.client,
     ...(frame.holder ? { holder: frame.holder } : {}),
     ...(typeof frame.reason === "string" && frame.reason ? { reason: frame.reason } : {}),
+    ...(frame.tab && frame.tabs ? { tab: frame.tab, tabs: frame.tabs } : {}),
     ...(previous?.frame ? { frame: previous.frame } : {}),
   };
 }

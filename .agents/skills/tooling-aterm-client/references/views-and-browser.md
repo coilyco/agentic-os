@@ -21,3 +21,5 @@ The shared browser is the host's own Chromium, shown by CDP screencast. The pane
 ## Narrow screens
 
 Below 1000px the side panel is a bottom sheet over the terminal (COI-2506). It starts put away, as its tab strip pinned to the foot of the window, and the page keeps that strip's height clear of the composer. Picking a tab raises the sheet to 80% of the window height, and picking the tab already showing, the chevron beside the tabs, or Escape (from the strip or the Messages and Views tabs, never from a shell or the remote page) puts it away. A question waiting on the seat puts it away too, since it sits at the foot of the terminal. At 360px and below the tab labels shrink, and a badge sits on its tab's corner with "live" as a dot, so four tabs and the chevron fit 320px. Rules: `src/lib/sheet.ts`.
+
+The pane shows the followed tab's title and its place among the open pages, and announces a change. [browser.md](browser.md#what-the-client-shows) has the rest.

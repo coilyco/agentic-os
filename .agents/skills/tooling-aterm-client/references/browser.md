@@ -45,6 +45,11 @@ Request frames carry an `id`, and a refusal comes back as `error` with that `id`
 
 **A screen that starts watching gets the last frame at once.** Chromium casts only what repaints, so a still page would otherwise show a late screen nothing. If a started screencast sends nothing for 600 milliseconds, the daemon sends one screenshot as frame `seq` 1 in its place.
 
+## What the client shows
+
+The Browser pane names the followed page above the address: its title, and `Tab 2 of 3` beside it while more than one page is open. A daemon that sends no `tab` and `tabs` shows the title alone. When the numbers change, the pane says `Now showing tab 3 of 3` to a screen reader, since the daemon moves the stream without a click. The pane draws only what `browser_state` carries.
+
 ## What is not built
 
-* Showing `tab` and `tabs` in the client's Browser pane, and following a tab the agent selects without opening one (COI-2558).
+* A list of the open tabs with their titles and urls. `browser_state` carries a place and a count, so a list needs a daemon frame for it (COI-2558 files the request).
+* Following a tab the agent brings to the front without opening one. No CDP event announces it that the daemon listens for.

@@ -23,6 +23,9 @@ export interface SharedBrowser {
   /** This client is the holder. The host decides, since only it knows its own name. */
   heldHere: boolean;
   reason?: string;
+  /** The followed page's place among the open ones (from 1), and how many are open. */
+  tab?: number;
+  tabs?: number;
   /** `seq` counts frames, so a gap is frames the daemon dropped for a slow client. */
   frame?: { src: string; metadata: FrameMetadata; at: number; seq: number };
 }
@@ -125,4 +128,10 @@ export function driverLabel(browser: SharedBrowser, identity: string): string {
   if (browser.driver === "person" && browser.heldHere) return `You have control. ${identity} waits until you hand it back.`;
   if (browser.driver === "person") return `Another screen has control. ${identity} waits until it's handed back.`;
   return `${identity} is driving.`;
+}
+
+/** "Tab 2 of 3", or nothing while one page is open or the daemon does not say. */
+export function tabLabel(browser: SharedBrowser): string | undefined {
+  if (browser.state !== "live" || !browser.tab || !browser.tabs || browser.tabs < 2) return undefined;
+  return `Tab ${browser.tab} of ${browser.tabs}`;
 }

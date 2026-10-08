@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { tick, untrack } from "svelte";
   import { app } from "../lib/app.svelte";
   import type { Session } from "../lib/protocol";
   import type { SharedBrowser } from "../lib/screencast";
-  import { driverLabel, isDriving, isStalled, keyParams, mouseParams, paneSize, toPagePoint, wheelParams } from "../lib/screencast";
+  import { driverLabel, isDriving, isStalled, keyParams, mouseParams, paneSize, tabLabel, toPagePoint, wheelParams } from "../lib/screencast";
 
   let { session }: { session: Session } = $props();
 
@@ -31,6 +31,10 @@
   let refocus = false;
   /** The closed browser a restart began from, so its echo is not taken for an answer. */
   let closedAtRestart: SharedBrowser | undefined;
+  const tab = $derived(browser ? tabLabel(browser) : undefined);
+  /** Spoken when the followed page changes. A title alone changes on every load, so it stays out of it. */
+  let followed = $state("");
+  let lastTab: string | undefined;
   const restartBar = $derived(browser?.state === "closed" || (restarting && browser?.state !== "live"));
 
   const sizeNow = () => paneSize(root?.getBoundingClientRect(), STAGE_MIN_HEIGHT);
@@ -111,6 +115,19 @@
     address = browser?.url ?? "";
   });
 
+  // The daemon follows the newest page, so the pane moves tab on its own. Say so,
+  // since a screen reader would otherwise hear nothing while the page changes.
+  $effect(() => {
+    const now = browser?.state === "live" ? `${browser.tab ?? 0}/${browser.tabs ?? 0}` : undefined;
+    const label = untrack(() => tab);
+    const title = untrack(() => browser?.title);
+    if (lastTab !== undefined && now !== undefined && now !== lastTab) {
+      const place = label ? `Now showing ${label.toLowerCase()}` : "Back to one tab";
+      followed = title ? `${place}, ${title}.` : `${place}.`;
+    }
+    lastTab = now;
+  });
+
   // A wheel listener has to be active to stop the pane itself scrolling.
   $effect(() => {
     const box = stage;
@@ -184,6 +201,11 @@
     {#if browser.state === "live" && browser.reason}
       <p class="note">{browser.reason}</p>
     {/if}
+    <p class="tab">
+      {#if tab}<span class="badge">{tab}</span>{/if}
+      <span class="title">{browser.title || (browser.state === "live" ? "Untitled page" : "")}</span>
+    </p>
+    <p class="visually-hidden" role="status">{followed}</p>
     <form class="address" onsubmit={go}>
       <label class="visually-hidden" for={`address-${session.id}`}>Page address</label>
       <input id={`address-${session.id}`} class="mono" bind:value={address} readonly={!driving} spellcheck="false" autocomplete="off" />
@@ -229,6 +251,9 @@
   .who { margin: 0; flex: 1 1 160px; font-size: 14px; }
   .bar .button[aria-disabled="true"] { opacity: 0.6; cursor: progress; }
   .bar[data-driver="closed"] .who { color: var(--danger-text); }
+  .tab { display: flex; align-items: center; gap: 8px; margin: 0; min-width: 0; font-size: 13px; }
+  .tab .badge { flex: none; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--control-line); color: var(--text-soft); font-size: 12px; white-space: nowrap; }
+  .tab .title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-soft); }
   .address { display: flex; gap: 8px; }
   .address input { flex: 1; min-width: 0; min-height: 40px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--control-line); background: var(--terminal); color: var(--text-soft); font-size: 13px; }
   .address input[readonly] { color: var(--muted); }
