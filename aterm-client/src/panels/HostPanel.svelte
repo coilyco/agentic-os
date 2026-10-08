@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { addHost, app, checkHost, HOSTED, removeHost, selectHost, selectedHost } from "../lib/app.svelte";
+  import { addHost, app, checkHost, HOSTED, reconnecting, removeHost, selectHost, selectedHost } from "../lib/app.svelte";
   import PasskeyUnlock from "../components/PasskeyUnlock.svelte";
   import type { Host } from "../lib/protocol";
   import { typingNotice } from "../lib/typing";
@@ -39,7 +39,11 @@
     <p class="lede">Sessions run on the host. This window only attaches to them. Pick one from the host list.</p>
     {#each silent as quiet (quiet.id)}
       <div class="alert" role="alert">
-        <p><strong>{quiet.label} is not answering.</strong> Its daemon may be stopped, or running with a tailnet listener that fails TLS. On that machine, run <code>aterm doctor</code>, which says which, then retry.</p>
+        {#if quiet.answered}
+          <p><strong>{quiet.label} stopped answering.</strong> It answered earlier on this page, so it is probably restarting. Retry asks it again.</p>
+        {:else}
+          <p><strong>{quiet.label} is not answering.</strong> Its daemon may be stopped, or running with a tailnet listener that fails TLS. On that machine, run <code>aterm doctor</code>, which says which, then retry.</p>
+        {/if}
         <button class="button" onclick={() => retry(quiet)}>Retry {quiet.label}</button>
       </div>
     {/each}
@@ -60,9 +64,13 @@
     <h1>Checking {host.label}</h1>
     <p class="lede" role="status">Asking the daemon at <code>{host.address}</code> whether it is up.</p>
   {:else if host.status.kind === "unreachable"}
-    <h1>{host.label} is not answering</h1>
+    <h1>{host.label} {host.answered ? "stopped answering" : "is not answering"}</h1>
     <div class="alert" role="alert">
-      <p>{host.status.reason} On that machine, <code>aterm doctor</code> says which. A stopped daemon starts with <code>aterm daemon</code>, or by launching any seat with <code>aterm</code>. Then retry.</p>
+      {#if host.answered}
+        <p>{host.status.reason} It answered earlier on this page, so it is probably restarting. Retry asks it again.</p>
+      {:else}
+        <p>{host.status.reason} On that machine, <code>aterm doctor</code> says which. A stopped daemon starts with <code>aterm daemon</code>, or by launching any seat with <code>aterm</code>. Then retry.</p>
+      {/if}
       <button class="button" onclick={() => retry(host)}>Retry</button>
     </div>
     {#if host.id.startsWith("saved:")}
@@ -70,7 +78,15 @@
     {/if}
   {:else}
     <h1>{host.label}</h1>
-    <p class="lede">{running} {running === 1 ? "seat" : "seats"} running. Pick a seat from the list to open its terminal.</p>
+    {#if reconnecting() && host.id === app.attachedHostId}
+      {#if running === 0}
+        <p class="lede">Reconnecting. Nothing was running when it stopped answering.</p>
+      {:else}
+        <p class="lede">Reconnecting. {running} {running === 1 ? "seat was" : "seats were"} running when it stopped answering, and they show as they were.</p>
+      {/if}
+    {:else}
+      <p class="lede">{running} {running === 1 ? "seat" : "seats"} running. Pick a seat from the list to open its terminal.</p>
+    {/if}
   {/if}
   {#if !app.typing.allowed && host?.id === app.attachedHostId}
     <p class="lede" role="status"><strong>Read only.</strong> {typingNotice(app.typing)}</p>

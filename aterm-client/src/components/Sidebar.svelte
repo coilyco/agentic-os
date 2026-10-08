@@ -2,7 +2,7 @@
   import { onMount, tick } from "svelte";
   import AttentionSwitches from "./AttentionSwitches.svelte";
   import Creature from "./Creature.svelte";
-  import { app, asksFor, glowSeats, selectHost, selectRole, selectSession } from "../lib/app.svelte";
+  import { app, asksFor, glowSeats, reconnecting, selectHost, selectRole, selectSession } from "../lib/app.svelte";
   import type { Host, Session } from "../lib/protocol";
   import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel, splitSessions } from "../lib/sessions";
   import { tablistKeys } from "../lib/tabs";
@@ -71,7 +71,11 @@
     closeMenu();
   }
 
+  // The attached host's state is its link, not the probe that found it.
+  const kindOf = (host: Host): string => (reconnecting() && host.id === app.attachedHostId ? "reconnecting" : host.status.kind);
+
   function hostDetail(host: Host): string {
+    if (kindOf(host) === "reconnecting") return "reconnecting";
     const running = hostRunning(host, app.attachedHostId, app.sessions);
     if (running !== null) return host.found ? `${running} running, found on tailnet` : `${running} running`;
     if (host.status.kind === "unreachable") return "no answer";
@@ -79,6 +83,7 @@
   }
 
   function stateText(session: Session): string {
+    if (reconnecting()) return `${session.state}, last known`;
     if (session.state === "failed") return "launch failed";
     if (asksFor(session.id).length) return "asking you";
     if (app.unseen[session.id]) return "done, your turn";
@@ -151,7 +156,7 @@
         aria-controls="main-panel"
         tabindex={host.id === hereHost ? 0 : -1}
         class="tab"
-        data-kind={host.status.kind}
+        data-kind={kindOf(host)}
         onclick={() => selectHost(host)}
       >
         <span class="dot" aria-hidden="true"></span>
@@ -209,7 +214,7 @@
 
 <!-- Escape is heard here only because the keys it answers come from controls inside the menu. -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<nav class="sidebar" aria-label="Hosts and sessions" onkeydown={escape}>
+<nav class="sidebar" aria-label="Hosts and sessions" data-link={app.link.state} onkeydown={escape}>
   {#if narrow}
     {#if onScreen || app.attachedHostId}
       <div class="bar">
@@ -269,6 +274,11 @@
   .dot { width: 10px; height: 10px; border-radius: 5px; background: var(--ok); flex: none; }
   [data-kind="unreachable"] .dot { background: none; border: 2px solid var(--danger); }
   [data-kind="checking"] .dot { background: none; border: 2px solid var(--muted); }
+  [data-kind="reconnecting"] .dot { background: none; border: 2px solid var(--warn); }
+  [data-kind="reconnecting"] .detail { color: var(--warn-text); }
+  /* Colour and the glow drain, the words stay at full contrast. The seats are the last known, not live. */
+  [data-link="reconnecting"] .seat .avatar { filter: grayscale(1); opacity: 0.6; }
+  [data-link="reconnecting"] .seat[data-glow="true"] { background: transparent; box-shadow: none; }
   .avatar { position: relative; display: inline-flex; flex: none; border-radius: 26%; }
   [data-activity="working"] .avatar::before {
     content: ""; position: absolute; inset: -3px; border-radius: 30%;

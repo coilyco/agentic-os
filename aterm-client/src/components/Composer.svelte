@@ -6,7 +6,8 @@
   import { typingNotice, type Typing } from "../lib/typing";
 
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
-  let { connection, session, sessions = [], typing = { allowed: true } }: { connection: HostConnection; session: Session; sessions?: readonly Session[]; typing?: Typing } = $props();
+  // `offline` is the host not answering: the draft stays editable and Send waits, since a frame typed into a dead link is lost.
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false }: { connection: HostConnection; session: Session; sessions?: readonly Session[]; typing?: Typing; offline?: boolean } = $props();
 
   let text = $state("");
   let status = $state("");
@@ -53,6 +54,10 @@
   function send(): void {
     const body = text.trim();
     if (!body) return;
+    if (offline) {
+      status = "Not sent. The host is reconnecting, and your message stays here.";
+      return;
+    }
     if (session.paste) {
       connection.input(session.id, `${PASTE_OPEN}${body}${PASTE_CLOSE}`);
       setTimeout(() => connection.input(session.id, "\r"), 300);
@@ -163,7 +168,7 @@
       spellcheck="true"
     ></textarea>
   </div>
-  <button class="button primary" type="submit" disabled={!text.trim()}>Send</button>
+  <button class="button primary" type="submit" disabled={!text.trim() || offline}>{offline ? "Waits for host" : "Send"}</button>
   <p class="visually-hidden" role="status">{note}</p>
 </form>
 {/if}
