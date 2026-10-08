@@ -17,6 +17,7 @@ A coarse inventory of what ships. Architecture: [architecture.md](architecture.m
 * **Messages** - each seat's sent and received messages with queued, held, launching, typed in, and failed states, and the daemon's reason.
 * **Views and Browser tabs** - MCP Apps views and the seat's streamed browser, awaiting daemon frames. [views-and-browser.md](views-and-browser.md).
 * **Read-only state** - when the daemon's typing guard refuses this browser (`welcome.typing`, or an `error` with `session_descendant` or `peer_unread`), the terminal, composer, choice cards, and launch buttons say read only and send nothing. The passkey locked state waits on accepted frames (COI-2484).
+* **Terminal tab and split** - a plain shell beside a seat, a resizable split, and the side panel opening on a tab by role (sysadmin Terminal, frontend Browser). [terminal-split.md](terminal-split.md).
 * **Hosted build** - the client under a path prefix behind a deployment's own sign-in, hosts added per device. [deploy.md](deploy.md).
 * **Installable** - a web manifest and icons so Android and the Mac can install it as an app.
 

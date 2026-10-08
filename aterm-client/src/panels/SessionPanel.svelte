@@ -2,7 +2,8 @@
   import Creature from "../components/Creature.svelte";
   import ChoiceCard from "../components/ChoiceCard.svelte";
   import Composer from "../components/Composer.svelte";
-  import SidePanel, { type SideTab } from "../components/SidePanel.svelte";
+  import SidePanel from "../components/SidePanel.svelte";
+  import SplitHandle from "../components/SplitHandle.svelte";
   import Terminal from "../components/Terminal.svelte";
   import { app, asksFor, colorOf, jumpToWaiting, messagesFor } from "../lib/app.svelte";
   import { askAnswer, CANCEL, choiceFromAsk, detectChoice, keysFor, type Choice } from "../lib/choices";
@@ -10,12 +11,23 @@
   import type { Session } from "../lib/protocol";
   import type { Role } from "../lib/roster";
   import { sessionCode } from "../lib/sessions";
+  import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
+  import { loadSide, storeSide } from "../lib/split";
 
   let { role, session }: { role: Role; session: Session } = $props();
   const messages = $derived(messagesFor(session));
   // A structured ask beats a menu read off the screen: it is the seat's own words.
   const ask = $derived(asksFor(session.id)[0]);
-  let side = $state<SideTab>("messages");
+  // Opens on what the role looks at beside its seat, unless Kai picked another tab for it before.
+  // The panel is keyed by session, so the role it starts with is the role it keeps.
+  // svelte-ignore state_referenced_locally
+  let side = $state<SideTab>(sideTabFor(role.slug, loadOverrides()));
+  // Null is the panel's own width, which the browser widens to half.
+  let sideWidth = $state<number | null>(loadSide());
+  function resize(width: number | null): void {
+    sideWidth = width;
+    storeSide(width);
+  }
   const page = $derived(app.browsers[session.id]);
   // The browser needs room to be read, so a page takes half the width. Its empty states do not.
   const wide = $derived(side === "browser" && page !== undefined && page.state !== "none");
@@ -88,7 +100,7 @@
       <p class="degraded">Started without {session.degraded.join(", ")}. agent-compose skipped these steps at launch, so this seat may be missing what they set up.</p>
     {/if}
   </header>
-  <div class="body" class:wide>
+  <div class="body" class:wide class:sheet={side === "terminal"} style:--side={sideWidth ? `${sideWidth}px` : undefined}>
     <div class="work">
       {#if app.connection}
         {#key session.id}
@@ -128,7 +140,8 @@
         {/key}
       {/if}
     </div>
-    <SidePanel {session} {messages} selfRole={role.slug} {colorOf} bind:tab={side} />
+    <SplitHandle onchange={resize} onreset={() => resize(null)} />
+    <SidePanel {session} {messages} selfRole={role.slug} {colorOf} accent={role.color} bind:tab={side} onpick={(tab) => storeOverride(role.slug, tab)} />
   </div>
 </section>
 
@@ -146,11 +159,15 @@
   .work { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .screen { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
   .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
-  .body { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 0; }
-  .body.wide { grid-template-columns: minmax(0, 1fr) minmax(360px, 50%); }
+  .body { --side: 360px; flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--side); min-height: 0; }
+  .body.wide { --side: minmax(360px, 50%); }
+  .body :global(.panel) { border-left: none; }
   @media (max-width: 1000px) {
     .body, .body.wide { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr) auto; }
-    .body :global(.panel) { border-left: none; border-top: 1px solid var(--line); max-height: 40vh; }
+    .body :global(.panel) { border-top: 1px solid var(--line); max-height: 40vh; }
     .body.wide :global(.panel) { max-height: none; }
+    /* A shell needs rows to be a shell, so its sheet rises higher than the others. */
+    .body.sheet { grid-template-rows: minmax(240px, 1fr) auto; }
+    .body.sheet :global(.panel) { max-height: none; height: 60vh; }
   }
 </style>

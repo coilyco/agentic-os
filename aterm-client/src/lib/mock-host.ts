@@ -2,8 +2,10 @@
 // the surface with no daemon running. Nothing here reaches a real PTY.
 import rosterJson from "./fixtures/roster.json";
 import { envelope } from "./messages";
-import type { Ask, ContextReading, HostConnection, HostEvent, PeerMessage, Session } from "./protocol";
+import type { Ask, ContextReading, HostConnection, HostEvent, PeerMessage, Session, TerminalChannel } from "./protocol";
 import { parseRoster } from "./roster";
+import { runShellLine, SHELL_PROMPT, type ShellStep } from "./demo-shell";
+import type { ListedTerminal } from "./terminals";
 
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
@@ -23,8 +25,23 @@ function session(id: string, role: string, seat: string, identity: string, state
   return { id, role, seat, identity, state, pending, drafting: false, paste: true, degraded: [], ...(context ? { context } : {}) };
 }
 
+// Each mode reaches one pane state without a daemon. They script the frame proposed
+// on COI-2498, which the real daemon lacks. See the terminal-split reference.
+export type TerminalMode = "ok" | "off" | "refuse" | "silent" | "mute" | "locked";
+
+const TERMINAL_MODES: readonly TerminalMode[] = ["ok", "off", "refuse", "silent", "mute", "locked"];
+
+/** `?terminals=refuse` on the page picks a mode. Anything else is the working one. */
+export function terminalModeFrom(search: string): TerminalMode {
+  const asked = new URLSearchParams(search).get("terminals");
+  return TERMINAL_MODES.find((mode) => mode === asked) ?? "ok";
+}
+
 export class MockHost implements HostConnection {
   readonly canLaunch = true;
+  readonly terminals?: TerminalChannel;
+  private shells = new Map<string, { label: string; line: string }>();
+  private nextShell = 0;
   private listeners = new Set<(event: HostEvent) => void>();
   private timers: ReturnType<typeof setTimeout>[] = [];
   private roles = parseRoster(rosterJson);
@@ -42,7 +59,11 @@ export class MockHost implements HostConnection {
   private messages: PeerMessage[] = [];
   private asks: Ask[] = [];
 
-  constructor(private readonly delayMs = 1200) {
+  constructor(
+    private readonly delayMs = 1200,
+    private readonly terminalMode: TerminalMode = "ok",
+  ) {
+    if (terminalMode !== "off") this.terminals = { open: (label) => this.openShell(label), close: (id) => this.endShell(id, null) };
     for (const each of this.sessions) this.buffers.set(each.id, (scripts[each.role] ?? []).join("\r\n") + PROMPT);
     this.timers.push(setTimeout(() => this.deliverScriptedMessage(), delayMs));
     this.timers.push(setTimeout(() => this.scriptedAsks(), delayMs * 2));
@@ -102,6 +123,8 @@ export class MockHost implements HostConnection {
     listener({ type: "sessions", sessions: this.sessions });
     for (const message of this.messages) listener({ type: "message", message });
     for (const ask of this.asks) listener({ type: "ask", ask });
+    if (this.terminalMode === "locked") listener({ type: "typing", typing: { allowed: false, reason: "peer_unread" } });
+    if (this.terminals && this.terminalMode !== "mute") listener({ type: "terminals", terminals: this.listShells() });
     return () => this.listeners.delete(listener);
   }
 
@@ -115,6 +138,7 @@ export class MockHost implements HostConnection {
   }
 
   input(sessionId: string, data: string): void {
+    if (this.shells.has(sessionId)) return this.typeIntoShell(sessionId, data);
     this.write(sessionId, data === "\r" ? PROMPT : data);
     if (data === "\r") this.addTurn(sessionId);
   }
@@ -144,6 +168,57 @@ export class MockHost implements HostConnection {
   close(): void {
     this.timers.forEach(clearTimeout);
     this.listeners.clear();
+  }
+
+  private listShells(): ListedTerminal[] {
+    return [...this.shells].map(([id, shell]) => ({ id, label: shell.label }));
+  }
+
+  private openShell(label: string): void {
+    if (this.terminalMode === "silent") return;
+    this.timers.push(
+      setTimeout(() => {
+        if (this.terminalMode === "refuse") {
+          this.emit({ type: "terminal_refused", label, text: "The demo host has no login shell to start." });
+          return;
+        }
+        const id = `terminal-${++this.nextShell}`;
+        this.shells.set(id, { label, line: "" });
+        this.buffers.set(id, `${DIM}demo shell, nothing here reaches a real machine${RESET}\r\n${SHELL_PROMPT}`);
+        this.emit({ type: "terminals", terminals: this.listShells() });
+      }, 250),
+    );
+  }
+
+  /** A null `code` is a close from a screen: the terminal vanishes with no exit. */
+  private endShell(id: string, code: number | null): void {
+    if (!this.shells.delete(id)) return;
+    this.buffers.delete(id);
+    this.attached.delete(id);
+    if (code !== null) this.emit({ type: "terminal_exit", id, code });
+    this.emit({ type: "terminals", terminals: this.listShells() });
+  }
+
+  private typeIntoShell(id: string, data: string): void {
+    const shell = this.shells.get(id);
+    if (!shell) return;
+    for (const char of data) {
+      if (char === "\r") {
+        const step: ShellStep = runShellLine(shell.line);
+        shell.line = "";
+        this.write(id, `\r\n${step.output}${step.exit === undefined ? SHELL_PROMPT : ""}`);
+        if (step.exit !== undefined) this.endShell(id, step.exit);
+        if (!this.shells.has(id)) return;
+      } else if (char === "\x7f") {
+        if (shell.line) {
+          shell.line = shell.line.slice(0, -1);
+          this.write(id, "\b \b");
+        }
+      } else if (char >= " " && char !== "\x1b") {
+        shell.line += char;
+        this.write(id, char);
+      }
+    }
   }
 
   private deliverScriptedMessage(): void {

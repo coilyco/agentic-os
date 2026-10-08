@@ -1,13 +1,16 @@
 <script lang="ts" module>
-  export type SideTab = "messages" | "views" | "browser";
+  export type { SideTab } from "../lib/side-tab";
 </script>
 
 <script lang="ts">
   import BrowserPane from "./BrowserPane.svelte";
   import MessagesPanel from "./MessagesPanel.svelte";
+  import TerminalPane from "./TerminalPane.svelte";
   import ViewsPanel from "./ViewsPanel.svelte";
   import { app, viewsFor } from "../lib/app.svelte";
   import type { PeerMessage, Session } from "../lib/protocol";
+  import type { SideTab } from "../lib/side-tab";
+  import { terminalFor } from "../lib/terminals";
   import { tablistKeys } from "../lib/tabs";
 
   let {
@@ -15,19 +18,32 @@
     messages,
     selfRole,
     colorOf,
+    accent,
     tab = $bindable("messages"),
-  }: { session: Session; messages: PeerMessage[]; selfRole: string; colorOf: (role: string) => string; tab?: SideTab } = $props();
+    onpick,
+  }: {
+    session: Session;
+    messages: PeerMessage[];
+    selfRole: string;
+    colorOf: (role: string) => string;
+    accent: string;
+    tab?: SideTab;
+    /** Fires for a tab a person picked, never for the one the role opened on. */
+    onpick?: (tab: SideTab) => void;
+  } = $props();
 
   const viewCount = $derived(viewsFor(session.id).length);
   const browserLive = $derived(app.browsers[session.id]?.state === "live");
+  const shellLive = $derived(terminalFor(app.terminals, session.id)?.exit === null);
   const tabs = $derived([
     { id: "messages" as const, label: "Messages", badge: messages.length ? String(messages.length) : "" },
     { id: "views" as const, label: "Views", badge: viewCount ? String(viewCount) : "" },
     { id: "browser" as const, label: "Browser", badge: browserLive ? "live" : "" },
+    { id: "terminal" as const, label: "Terminal", badge: shellLive ? "live" : "" },
   ]);
 </script>
 
-<aside class="panel" aria-label={`${session.identity}'s messages, views, and browser`}>
+<aside class="panel" aria-label={`${session.identity}'s messages, views, browser, and terminal`}>
   <div class="tabs" role="tablist" aria-orientation="horizontal" tabindex="-1" onkeydown={tablistKeys}>
     {#each tabs as each (each.id)}
       <button
@@ -37,20 +53,25 @@
         aria-selected={tab === each.id}
         aria-controls="side-panel"
         tabindex={tab === each.id ? 0 : -1}
-        onclick={() => (tab = each.id)}
+        onclick={() => {
+          tab = each.id;
+          onpick?.(each.id);
+        }}
       >
         {each.label}
         {#if each.badge}<span class="badge" data-live={each.badge === "live"}>{each.badge}</span>{/if}
       </button>
     {/each}
   </div>
-  <div id="side-panel" class="content" role="tabpanel" aria-labelledby={`side-tab-${tab}`} tabindex="-1">
+  <div id="side-panel" class="content" data-tab={tab} role="tabpanel" aria-labelledby={`side-tab-${tab}`} tabindex="-1">
     {#if tab === "messages"}
       <MessagesPanel {messages} {selfRole} {colorOf} />
     {:else if tab === "views"}
       <ViewsPanel {session} />
-    {:else}
+    {:else if tab === "browser"}
       <BrowserPane {session} />
+    {:else}
+      <TerminalPane {session} {accent} />
     {/if}
   </div>
 </aside>
@@ -67,4 +88,5 @@
     [role="tab"] { padding: 0 8px; font-size: 14px; }
   }
   .content { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; }
+  .content[data-tab="terminal"] { padding: 0; overflow: hidden; }
 </style>
