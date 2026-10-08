@@ -1,5 +1,6 @@
 // aterm.daemon.v1 over the daemon's loopback websocket. The frame reference is
 // the Wire contract section of the aterm daemon page in coilyco/agentic-os.
+import { backoffDelay, differentBuild } from "./backoff";
 import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
 import type { Ask, AskOutcome, BrowserChannel, ContextReading, HostConnection, HostEvent, MessageState, PasskeyChannel, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
@@ -10,6 +11,8 @@ import { keepStanding, parseTyping, refusalOf, typingNotice, type Typing } from 
 
 export const FORMAT = "aterm.daemon.v1";
 const LOOPBACK_DAEMON = "ws://127.0.0.1:7419";
+// A sleeping tailnet path can hold a dial open for minutes. Give up on it sooner.
+const DIAL_TIMEOUT_MS = 10000;
 
 // The dev server reaches the local daemon. A build is served by the daemon
 // itself, so it dials the origin it came from.
@@ -86,6 +89,8 @@ interface Frame {
   type: string;
   id?: string;
   format?: string;
+  /** The daemon's build, on its welcome. */
+  version?: string;
   session?: string;
   data?: string;
   sessions?: SessionView[];
@@ -268,10 +273,25 @@ export class DaemonHost implements HostConnection {
   private launches = new Map<string, string>();
   private features = new Set<string>();
   private calls = new Map<string, { resolve: (reply: Frame) => void; reject: (error: Error) => void }>();
-  private socket: WebSocket;
+  private socket!: WebSocket;
   private listeners = new Set<(event: HostEvent) => void>();
   private outbox: string[] = [];
   private open = false;
+  // A welcome has come at least once, so a lost socket is a restart to ride out. Before
+  // that the host never answered, and the person is told to start it.
+  private answered = false;
+  // Set by close() and by a refused welcome: no more dials.
+  private halted = false;
+  private attempt = 0;
+  private redial?: ReturnType<typeof setTimeout>;
+  private dialTimer?: ReturnType<typeof setTimeout>;
+  // The build that answered first, which is the one that served this page.
+  private servedBy?: string;
+  // Set on a welcome after a loss, until the sessions list says what to attach.
+  private resync = false;
+  // Terminal attaches by seat, so a new connection can attach them again with replay.
+  private attached = new Map<string, { rows: number; cols: number; count: number }>();
+  private watching = new Map<string, { width: number; height: number } | undefined>();
   private nextId = 0;
   private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; terminals?: HostEvent } = {};
   private sessionViews: SessionView[] = [];
@@ -284,17 +304,68 @@ export class DaemonHost implements HostConnection {
   /** Set once the welcome lists `browser`, so an older daemon keeps the empty state. */
   browser?: BrowserChannel;
 
-  constructor(url = DEFAULT_DAEMON_URL) {
-    this.socket = new WebSocket(url);
-    this.socket.addEventListener("open", () => this.socket.send(JSON.stringify({ type: "hello", format: FORMAT })));
-    this.socket.addEventListener("message", (event) => this.receive(JSON.parse(String(event.data)) as Frame));
-    this.socket.addEventListener("close", () => {
-      for (const call of this.calls.values()) call.reject(new Error("The daemon closed the connection."));
-      this.calls.clear();
-      this.emit({ type: "closed", reason: "The daemon closed the connection." });
-    });
+  constructor(private url = DEFAULT_DAEMON_URL) {
+    this.connect();
     this.ticker = setInterval(() => this.settle(), 500);
+    // A backgrounded tab throttles its timers, so a phone left open would redial late.
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", this.nudge);
+      document.addEventListener("visibilitychange", this.nudge);
+    }
   }
+
+  private connect(): void {
+    const socket = new WebSocket(this.url);
+    this.socket = socket;
+    // A socket this host has moved past must not speak for it.
+    socket.addEventListener("open", () => socket.send(JSON.stringify({ type: "hello", format: FORMAT })));
+    socket.addEventListener("message", (event) => {
+      if (socket === this.socket) this.receive(JSON.parse(String(event.data)) as Frame);
+    });
+    socket.addEventListener("close", () => {
+      if (socket === this.socket) this.lost();
+    });
+    this.dialTimer = setTimeout(() => socket.close(), DIAL_TIMEOUT_MS);
+  }
+
+  // The socket ended. A host that answered is redialed and the page keeps its state.
+  // One that never answered is reported closed.
+  private lost(): void {
+    clearTimeout(this.dialTimer);
+    this.open = false;
+    for (const call of this.calls.values()) call.reject(new Error("The daemon closed the connection."));
+    this.calls.clear();
+    if (this.halted) return;
+    if (!this.answered) {
+      this.emit({ type: "closed", reason: "The daemon closed the connection." });
+      return;
+    }
+    // Replies will not come, and keystrokes sent into a dead link must not land later.
+    this.pendingOpens.clear();
+    this.launches.clear();
+    this.outbox = [];
+    const delay = backoffDelay(this.attempt);
+    this.attempt += 1;
+    this.emit({ type: "reconnecting", attempt: this.attempt, retryAt: Date.now() + delay });
+    this.redial = setTimeout(() => this.dialAgain(), delay);
+  }
+
+  private dialAgain(): void {
+    this.redial = undefined;
+    this.emit({ type: "reconnecting", attempt: this.attempt, retryAt: null });
+    this.connect();
+  }
+
+  /** Dials now, from the Retry button. A dial already out is left to finish. */
+  retry(): void {
+    if (this.redial === undefined) return;
+    clearTimeout(this.redial);
+    this.dialAgain();
+  }
+
+  private nudge = (): void => {
+    if (typeof document === "undefined" || document.visibilityState === "visible") this.retry();
+  };
 
   subscribe(listener: (event: HostEvent) => void): () => void {
     this.listeners.add(listener);
@@ -353,6 +424,7 @@ export class DaemonHost implements HostConnection {
 
   attach(sessionId: string, rows: number, cols: number): void {
     this.refs.set(sessionId, (this.refs.get(sessionId) ?? 0) + 1);
+    this.attached.set(sessionId, { rows, cols, count: (this.attached.get(sessionId)?.count ?? 0) + 1 });
     this.lastPoke.set(sessionId, Date.now());
     this.request({ type: "attach", session: sessionId, replay: true, rows, cols });
   }
@@ -360,6 +432,9 @@ export class DaemonHost implements HostConnection {
   // The activity monitor holds its own reference, so closing a terminal tab
   // leaves the seat watched and the daemon never sees a detach for it.
   detach(sessionId: string): void {
+    const shown = this.attached.get(sessionId);
+    if (shown && shown.count > 1) shown.count -= 1;
+    else this.attached.delete(sessionId);
     const left = (this.refs.get(sessionId) ?? 1) - 1;
     if (left > 0) {
       this.refs.set(sessionId, left);
@@ -375,6 +450,8 @@ export class DaemonHost implements HostConnection {
   }
 
   resize(sessionId: string, rows: number, cols: number): void {
+    const shown = this.attached.get(sessionId);
+    if (shown) Object.assign(shown, { rows, cols });
     this.lastPoke.set(sessionId, Date.now());
     this.request({ type: "resize", session: sessionId, rows, cols });
   }
@@ -394,16 +471,27 @@ export class DaemonHost implements HostConnection {
   }
 
   close(): void {
+    this.halted = true;
     clearInterval(this.ticker);
+    clearTimeout(this.redial);
+    clearTimeout(this.dialTimer);
+    if (typeof window !== "undefined") {
+      window.removeEventListener("online", this.nudge);
+      document.removeEventListener("visibilitychange", this.nudge);
+    }
     this.listeners.clear();
     this.socket.close();
   }
 
   private browserChannel(): BrowserChannel {
     return {
-      watch: (session, size) => void this.request({ type: "browser_watch", session, ...(size ?? {}) }),
+      watch: (session, size) => {
+        this.watching.set(session, size);
+        this.request({ type: "browser_watch", session, ...(size ?? {}) });
+      },
       unwatch: (session) => {
         this.browsers.delete(session);
+        this.watching.delete(session);
         this.request({ type: "browser_unwatch", session });
       },
       control: (session, take, force) => void this.request({ type: "browser_control", session, take, ...(force ? { force } : {}) }),
@@ -459,20 +547,44 @@ export class DaemonHost implements HostConnection {
     const id = `c${++this.nextId}`;
     const line = JSON.stringify({ id, ...frame });
     if (this.open) this.socket.send(line);
-    else this.outbox.push(line);
+    // After a loss the screen is locked and state is re-attached from what is held.
+    else if (!this.answered) this.outbox.push(line);
     return id;
+  }
+
+  // Seats and browsers come back on the new connection. A seat with a terminal replays
+  // into a cleared screen, and one only watched for activity does not.
+  private reattach(): void {
+    this.resync = false;
+    const live = new Set([...this.sessionViews.map((view) => view.name), ...this.terminalNames]);
+    for (const name of this.refs.keys()) {
+      if (!live.has(name)) continue;
+      const shown = this.attached.get(name);
+      if (shown) this.lastPoke.set(name, Date.now());
+      this.request({ type: "attach", session: name, replay: shown !== undefined, ...(shown ? { rows: shown.rows, cols: shown.cols } : {}) });
+    }
+    for (const [session, size] of this.watching) this.request({ type: "browser_watch", session, ...(size ?? {}) });
   }
 
   private receive(frame: Frame): void {
     switch (frame.type) {
-      case "welcome":
+      case "welcome": {
+        clearTimeout(this.dialTimer);
         if (frame.error || frame.format !== FORMAT) {
+          // A daemon that refuses or speaks another format will not change by waiting.
+          this.halted = true;
           this.emit({ type: "closed", reason: frame.error ?? `The daemon speaks ${frame.format}.` });
           this.socket.close();
           return;
         }
         this.open = true;
-        if (frame.features?.includes(BROWSER_FEATURE)) this.browser = this.browserChannel();
+        this.attempt = 0;
+        const redialed = this.answered;
+        this.answered = true;
+        this.servedBy ??= frame.version;
+        this.resync = redialed;
+        if (redialed) this.emit({ type: "reconnected", newerBuild: differentBuild(this.servedBy, frame.version) });
+        this.browser = frame.features?.includes(BROWSER_FEATURE) ? this.browserChannel() : undefined;
         this.setTyping(parseTyping(frame.typing));
         this.features = new Set(frame.features ?? []);
         this.last.features = { type: "features", terminals: this.features.has("terminals") };
@@ -482,6 +594,7 @@ export class DaemonHost implements HostConnection {
         if (this.features.has("mcp-apps")) this.request({ type: "subscribe", channel: "views" });
         for (const line of this.outbox.splice(0)) this.socket.send(line);
         return;
+      }
       case "ask":
         if (frame.ask) this.emit({ type: "ask", ask: toAsk(frame.ask) });
         return;
@@ -491,6 +604,7 @@ export class DaemonHost implements HostConnection {
       case "sessions":
         this.sessionViews = frame.sessions ?? [];
         for (const { name } of frame.terminals ?? []) this.terminalNames.add(name);
+        if (this.resync) this.reattach();
         this.monitor();
         this.publishSessions();
         // Absent means none, so a daemon with no shells still reports a list.

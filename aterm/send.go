@@ -39,6 +39,11 @@ func newDaemonCommand() *cli.Command {
 				Sources: cli.EnvVars(daemonTailnetPortEnv),
 			},
 			&cli.StringSliceFlag{
+				Name:    "peer-port",
+				Usage:   "name=port of a peer whose daemon is not on --tailnet-port, so host discovery dials it there",
+				Sources: cli.EnvVars(daemonPeerPortsEnv),
+			},
+			&cli.StringSliceFlag{
 				Name:    "allow-tags",
 				Value:   defaultAllowTags,
 				Usage:   "tailnet tags whose devices may attach, besides this node owner's own",
@@ -70,7 +75,12 @@ func newDaemonCommand() *cli.Command {
 			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
+			peerPorts, err := parsePeerPorts(cmd.StringSlice("peer-port"))
+			if err != nil {
+				return withExit(exitUsage, err)
+			}
 			return runDaemon(daemonOptions{
+				PeerPorts:    peerPorts,
 				Socket:       cmd.String("socket"),
 				Websocket:    cmd.String("websocket"),
 				TailnetPort:  cmd.String("tailnet-port"),

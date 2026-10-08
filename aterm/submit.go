@@ -37,6 +37,9 @@ func (s *ptySession) submit(text string, paste bool) error {
 	if err := s.inject(text, paste); err != nil {
 		return err
 	}
+	if s.submitHeld != nil {
+		s.submitHeld()
+	}
 	for retry := 0; ; retry++ {
 		if s.boxCleared(text) {
 			return nil

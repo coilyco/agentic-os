@@ -1,12 +1,13 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { onMount, tick } from "svelte";
   import { findMention, insertMention, mentionMatches } from "../lib/mentions";
   import type { HostConnection, Session } from "../lib/protocol";
   import PasskeyUnlock from "./PasskeyUnlock.svelte";
   import { typingNotice, type Typing } from "../lib/typing";
 
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
-  let { connection, session, sessions = [], typing = { allowed: true } }: { connection: HostConnection; session: Session; sessions?: readonly Session[]; typing?: Typing } = $props();
+  // `offline` is the host not answering: the draft stays editable and Send waits, since a frame typed into a dead link is lost.
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false }: { connection: HostConnection; session: Session; sessions?: readonly Session[]; typing?: Typing; offline?: boolean } = $props();
 
   let text = $state("");
   let status = $state("");
@@ -28,6 +29,15 @@
       void tick().then(() => field?.focus());
     }
   });
+  // The long hint wraps to four lines at 320px and, since the field sizes to its placeholder, takes the terminal's room. Its keys are no use on a touch screen.
+  let narrow = $state(typeof matchMedia === "function" && matchMedia("(max-width: 720px)").matches);
+  onMount(() => {
+    const query = matchMedia("(max-width: 720px)");
+    const read = () => (narrow = query.matches);
+    read();
+    query.addEventListener("change", read);
+    return () => query.removeEventListener("change", read);
+  });
   const PASTE_OPEN = "\x1b[200~";
   const PASTE_CLOSE = "\x1b[201~";
 
@@ -44,6 +54,10 @@
   function send(): void {
     const body = text.trim();
     if (!body) return;
+    if (offline) {
+      status = "Not sent. The host is reconnecting, and your message stays here.";
+      return;
+    }
     if (session.paste) {
       connection.input(session.id, `${PASTE_OPEN}${body}${PASTE_CLOSE}`);
       setTimeout(() => connection.input(session.id, "\r"), 300);
@@ -149,12 +163,12 @@
       aria-controls="composer-mentions"
       aria-activedescendant={open ? `mention-${current}` : undefined}
       rows="1"
-      placeholder={`Type or dictate to ${session.identity}. Enter sends, Shift+Enter for a new line, @ names a session.`}
+      placeholder={narrow ? `Message ${session.identity}` : `Type or dictate to ${session.identity}. Enter sends, Shift+Enter for a new line, @ names a session.`}
       autocomplete="off"
       spellcheck="true"
     ></textarea>
   </div>
-  <button class="button primary" type="submit" disabled={!text.trim()}>Send</button>
+  <button class="button primary" type="submit" disabled={!text.trim() || offline}>{offline ? "Waits for host" : "Send"}</button>
   <p class="visually-hidden" role="status">{note}</p>
 </form>
 {/if}

@@ -2,13 +2,13 @@ import { nextUnseen } from "./activity";
 import { type AttentionSettings, loadAttention, storeAttention } from "./attention";
 import { chime, isBlocked, unlock, watchBlocked } from "./chime";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
-import { discover, newFoundHosts } from "./discovery";
+import { discover, listedAddresses, newFoundHosts, staleFoundHosts } from "./discovery";
 import { upsertMessage } from "./messages";
 import { MockHost, terminalModeFrom } from "./mock-host";
 import type { View } from "./mcp-apps";
 import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
-import type { Ask, Host, HostConnection, LaunchState, PeerMessage, Session } from "./protocol";
+import type { Ask, Host, HostConnection, LaunchState, Link, PeerMessage, Session } from "./protocol";
 import type { Role } from "./roster";
 import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
 import { TYPING_OPEN, type Typing } from "./typing";
@@ -29,6 +29,10 @@ export const app = $state({
   selectedHostId: null as string | null,
   attachedHostId: null as string | null,
   connection: null as HostConnection | null,
+  /** Whether the attached host answers. If not, the screen is its last known state. */
+  link: { state: "live" } as Link,
+  /** A returning daemon is a newer build than this page, so a reload brings it. */
+  newerBuild: false,
   /** Whether the daemon's guard lets this connection type. A mock host never refuses. */
   typing: TYPING_OPEN as Typing,
   roles: [] as Role[],
@@ -75,6 +79,19 @@ export const app = $state({
 
 // Ids Kai closed: they leave the list on purpose, so they are not an ended shell.
 const dismissed = new Set<string>();
+// "Back" is said once and then leaves, so the line does not outlive the news.
+const RESTORED_MS = 5000;
+let restoredTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** True while the attached host is silent and the screen is its last known state. */
+export function reconnecting(): boolean {
+  return app.link.state === "reconnecting";
+}
+
+/** Asks the connection to dial now. A host that does not redial has nothing to hurry. */
+export function retryNow(): void {
+  app.connection?.retry?.();
+}
 const openTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function settleOpen(label: string): void {
@@ -124,34 +141,69 @@ export async function checkHost(host: Host): Promise<void> {
   host.status = { kind: "checking" };
   try {
     host.status = { kind: "online", sessionCount: await probe(host.address) };
+    host.answered = true;
   } catch {
     host.status = { kind: "unreachable", reason: "Nothing answered, so the daemon is stopped or its tailnet listener is failing TLS. A browser cannot tell which." };
     return;
   }
   // Picked while the probe was still out, so attach now that it answered.
   if (app.selectedHostId === host.id && app.attachedHostId !== host.id) selectHost(host);
-  if (!host.found) void addFoundHosts(host);
+  if (!host.found) void refreshFound();
 }
 
-/** Lists the daemons this host sees. One that predates the frame adds none. */
-async function addFoundHosts(source: Host): Promise<void> {
-  let found;
-  try {
-    found = await discover(source.address);
-  } catch {
+const FOUND_REFRESH_MS = 60_000;
+let refreshingFound = false;
+let refreshFoundAgain = false;
+
+/** Re-asks each online daemon host, lists new ones, prunes. Why: discovery.md. */
+async function refreshFound(): Promise<void> {
+  if (refreshingFound) {
+    refreshFoundAgain = true;
     return;
   }
-  const added = newFoundHosts(app.hosts, found);
-  // Before the demo host, which stays last.
-  app.hosts.splice(app.hosts.length - 1, 0, ...added);
-  for (const host of added) void checkHost(app.hosts.find((candidate) => candidate.id === host.id)!);
+  refreshingFound = true;
+  try {
+    do {
+      refreshFoundAgain = false;
+      const asked = app.hosts.filter((host) => host.kind === "daemon" && !host.found && host.status.kind === "online");
+      const replies = await Promise.allSettled(asked.map((host) => discover(host.address)));
+      const found = replies.flatMap((reply) => (reply.status === "fulfilled" ? reply.value : []));
+      if (replies.some((reply) => reply.status === "fulfilled")) {
+        for (const id of staleFoundHosts(app.hosts, listedAddresses(found))) removeHost(id);
+      }
+      const added = newFoundHosts(app.hosts, found);
+      // Before the demo host, which stays last.
+      app.hosts.splice(app.hosts.length - 1, 0, ...added);
+      for (const host of added) void checkHost(app.hosts.find((candidate) => candidate.id === host.id)!);
+    } while (refreshFoundAgain);
+  } finally {
+    refreshingFound = false;
+  }
+}
+
+setInterval(() => {
+  if (document.visibilityState === "visible") void refreshFound();
+}, FOUND_REFRESH_MS);
+
+/** Keeps a found host on this device, as if it had been typed. */
+export function saveFoundHost(host: Host): void {
+  if (!host.found) return;
+  const id = `saved:${host.address}`;
+  if (app.selectedHostId === host.id) app.selectedHostId = id;
+  if (app.attachedHostId === host.id) app.attachedHostId = id;
+  host.id = id;
+  host.found = false;
+  persist();
 }
 
 /** Adds a host by tailnet name, remembered on this device. Throws a readable message. */
 export function addHost(input: string): Host {
   const saved = parseHostInput(input);
   const existing = app.hosts.find((host) => host.address === saved.address);
-  if (existing) return existing;
+  if (existing) {
+    saveFoundHost(existing);
+    return existing;
+  }
   const host = savedHost(saved);
   app.hosts.splice(app.hosts.length - 1, 0, host);
   persist();
@@ -186,6 +238,9 @@ export function selectHost(host: Host): void {
   app.notice = "";
   if (host.status.kind !== "online" || app.attachedHostId === host.id) return;
   app.connection?.close();
+  clearTimeout(restoredTimer);
+  app.link = { state: "live" };
+  app.newerBuild = false;
   app.typing = TYPING_OPEN;
   app.roles = [];
   app.sessions = [];
@@ -240,7 +295,21 @@ export function selectHost(host: Host): void {
       app.terminalRefusals[event.label] = event.text;
     }
     else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
+    else if (event.type === "reconnecting") app.link = { state: "reconnecting", attempt: event.attempt, retryAt: event.retryAt };
+    else if (event.type === "reconnected") {
+      // The new connection re-sends pending asks. The old ones belong to a dead daemon.
+      app.asks = {};
+      app.link = { state: "restored" };
+      clearTimeout(restoredTimer);
+      restoredTimer = setTimeout(() => {
+        if (app.link.state === "restored") app.link = { state: "live" };
+      }, RESTORED_MS);
+      // A hosted page is not served by the daemon, so a reload brings no new build.
+      if (event.newerBuild && !HOSTED) app.newerBuild = true;
+    }
     else if (event.type === "closed") {
+      clearTimeout(restoredTimer);
+      app.link = { state: "live" };
       host.status = { kind: "unreachable", reason: event.reason };
       app.attachedHostId = null;
       app.connection = null;

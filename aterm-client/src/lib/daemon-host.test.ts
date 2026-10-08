@@ -70,10 +70,13 @@ describe("hostLabel", () => {
 // Only what DaemonHost touches: a frame in becomes `message`, a frame out is recorded.
 class StubSocket {
   static last: StubSocket;
+  /** Every socket dialed, oldest first, to tell a redial from what it replaces. */
+  static all: StubSocket[] = [];
   sent: string[] = [];
   private handlers = new Map<string, ((event: unknown) => void)[]>();
   constructor() {
     StubSocket.last = this;
+    StubSocket.all.push(this);
   }
   addEventListener(type: string, handler: (event: unknown) => void): void {
     this.handlers.set(type, [...(this.handlers.get(type) ?? []), handler]);
@@ -472,6 +475,202 @@ describe("the passkey ceremony", () => {
     await vi.waitFor(() => expect(lastSent(socket).type).toBe("passkey_assert_finish"));
     socket.receive({ type: "error", id: lastSent(socket).id, code: 2, error: "the assertion did not verify" });
     await expect(done).rejects.toThrow("the assertion did not verify");
+    host.close();
+  });
+});
+
+// A daemon restart: holders keep every seat alive and the daemon is back in seconds.
+describe("riding out a daemon restart", () => {
+  const SEATS = {
+    type: "sessions",
+    sessions: [
+      { name: "s1", role: "frontend-eng", identity: "Imp-Dragonfly", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 },
+      { name: "s2", role: "scientist", identity: "Frog-Ox", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 },
+    ],
+    terminals: [{ name: "t1" }],
+  };
+  const reconnecting = (events: HostEvent[]) => events.filter((event) => event.type === "reconnecting");
+  const kinds = (socket: StubSocket) => sentFrames(socket).map((frame) => frame.type);
+
+  function answering(version = "0.443.0") {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    StubSocket.all = [];
+    const dialed = connect();
+    dialed.socket.receive({ ...WELCOME, version, features: ["terminals"] });
+    dialed.socket.receive(SEATS);
+    return dialed;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("redials with no click, says so, and never reports the host closed", () => {
+    const { host, events, socket } = answering();
+    socket.drop();
+    expect(reconnecting(events)).toEqual([{ type: "reconnecting", attempt: 1, retryAt: Date.now() + 1000 }]);
+    expect(StubSocket.all).toHaveLength(1);
+    vi.advanceTimersByTime(1000);
+    expect(StubSocket.all).toHaveLength(2);
+    expect(reconnecting(events).at(-1)).toEqual({ type: "reconnecting", attempt: 1, retryAt: null });
+    expect(events.some((event) => event.type === "closed")).toBe(false);
+    host.close();
+  });
+
+  it("waits 1, 2, 4 seconds while the daemon stays down, then starts over once it answers", () => {
+    const { host, events, socket } = answering();
+    const start = Date.now();
+    socket.drop();
+    vi.advanceTimersByTime(1000);
+    StubSocket.last.drop();
+    vi.advanceTimersByTime(2000);
+    StubSocket.last.drop();
+    // Dials start at 1 s and 3 s, so the three waits end at 1 s, 3 s and 7 s.
+    const due = reconnecting(events).flatMap((event) => (event.type === "reconnecting" && event.retryAt !== null ? [event.retryAt - start] : []));
+    expect(due).toEqual([1000, 3000, 7000]);
+    vi.advanceTimersByTime(4000);
+    StubSocket.last.receive({ ...WELCOME, version: "0.443.0" });
+    StubSocket.last.drop();
+    expect(reconnecting(events).at(-1)).toMatchObject({ attempt: 1, retryAt: Date.now() + 1000 });
+    host.close();
+  });
+
+  it("attaches the open seat again with replay at its last size, and only watches the rest", () => {
+    const { host, events, socket } = answering();
+    host.attach("s1", 30, 100);
+    host.resize("s1", 40, 120);
+    host.attach("t1", 20, 80);
+    socket.drop();
+    vi.advanceTimersByTime(1000);
+    const again = StubSocket.last;
+    again.receive({ ...WELCOME, version: "0.443.0" });
+    expect(events.at(-1)).toEqual({ type: "features", terminals: false });
+    expect(events.filter((event) => event.type === "reconnected")).toEqual([{ type: "reconnected", newerBuild: false }]);
+    expect(kinds(again)).toEqual(["subscribe", "roster"]);
+    again.receive(SEATS);
+    const attaches = sentFrames(again).filter((frame) => frame.type === "attach");
+    expect(attaches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ session: "s1", replay: true, rows: 40, cols: 120 }),
+        expect.objectContaining({ session: "t1", replay: true, rows: 20, cols: 80 }),
+        expect.objectContaining({ session: "s2", replay: false }),
+      ]),
+    );
+    expect(attaches).toHaveLength(3);
+    host.close();
+  });
+
+  it("does not attach a seat the restarted daemon no longer lists", () => {
+    const { host, socket } = answering();
+    host.attach("s1", 30, 100);
+    socket.drop();
+    vi.advanceTimersByTime(1000);
+    StubSocket.last.receive({ ...WELCOME, version: "0.443.0" });
+    StubSocket.last.receive({ ...SEATS, sessions: [SEATS.sessions[1]], terminals: [] });
+    const asked = sentFrames(StubSocket.last).filter((frame) => frame.type === "attach");
+    expect(asked.map((frame) => frame.session)).toEqual(["s2"]);
+    host.close();
+  });
+
+  it("drops what was typed into the dead link instead of landing it after the redial", () => {
+    const { host, socket } = answering();
+    socket.drop();
+    host.input("s1", "rm -rf build\r");
+    host.launch("frontend-eng", "claude");
+    vi.advanceTimersByTime(1000);
+    StubSocket.last.receive({ ...WELCOME, version: "0.443.0" });
+    StubSocket.last.receive(SEATS);
+    expect(kinds(StubSocket.last)).not.toContain("input");
+    expect(kinds(StubSocket.last)).not.toContain("launch");
+    expect(StubSocket.all[0]!.sent.some((line) => line.includes("rm -rf"))).toBe(false);
+    host.close();
+  });
+
+  it("offers a reload only when the daemon that came back is a newer build", () => {
+    const same = answering("0.443.0");
+    same.socket.drop();
+    vi.advanceTimersByTime(1000);
+    StubSocket.last.receive({ ...WELCOME, version: "0.443.0" });
+    expect(same.events.filter((event) => event.type === "reconnected")).toEqual([{ type: "reconnected", newerBuild: false }]);
+    same.host.close();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+
+    const upgraded = answering("0.443.0");
+    upgraded.socket.drop();
+    vi.advanceTimersByTime(1000);
+    StubSocket.last.receive({ ...WELCOME, version: "0.444.0" });
+    expect(upgraded.events.filter((event) => event.type === "reconnected")).toEqual([{ type: "reconnected", newerBuild: true }]);
+    upgraded.host.close();
+  });
+
+  it("dials now on retry, and ignores a retry while a dial is already out", () => {
+    const { host, events, socket } = answering();
+    socket.drop();
+    host.retry();
+    expect(StubSocket.all).toHaveLength(2);
+    expect(reconnecting(events).at(-1)).toMatchObject({ retryAt: null });
+    host.retry();
+    expect(StubSocket.all).toHaveLength(2);
+    host.close();
+  });
+
+  it("gives up on a dial that never answers instead of waiting on it", () => {
+    const { host, socket } = answering();
+    socket.drop();
+    vi.advanceTimersByTime(1000);
+    const hung = StubSocket.last;
+    const closed = vi.spyOn(hung, "close");
+    vi.advanceTimersByTime(9999);
+    expect(closed).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(closed).toHaveBeenCalledTimes(1);
+    host.close();
+  });
+
+  it("stops for good when the daemon comes back speaking something else", () => {
+    const { host, events, socket } = answering();
+    socket.drop();
+    vi.advanceTimersByTime(1000);
+    StubSocket.last.receive({ type: "welcome", format: "aterm.daemon.v9" });
+    expect(events.at(-1)).toEqual({ type: "closed", reason: "The daemon speaks aterm.daemon.v9." });
+    StubSocket.last.drop();
+    vi.advanceTimersByTime(120_000);
+    expect(StubSocket.all).toHaveLength(2);
+    host.close();
+  });
+
+  it("reports a host that never answered as closed, and does not redial it", () => {
+    vi.useFakeTimers();
+    StubSocket.all = [];
+    const { host, events, socket } = connect();
+    socket.drop();
+    expect(events.at(-1)).toEqual({ type: "closed", reason: "The daemon closed the connection." });
+    vi.advanceTimersByTime(120_000);
+    expect(StubSocket.all).toHaveLength(1);
+    host.close();
+  });
+
+  it("stops redialing when the page closes the connection", () => {
+    const { host, socket } = answering();
+    socket.drop();
+    host.close();
+    vi.advanceTimersByTime(120_000);
+    expect(StubSocket.all).toHaveLength(1);
+  });
+
+  it("ignores a late frame from the socket it already replaced", () => {
+    const { host, events, socket } = answering();
+    socket.drop();
+    vi.advanceTimersByTime(1000);
+    const before = events.length;
+    socket.receive({ type: "message", message: { id: "a", from: "x y", target: "z", state: "queued" } });
+    socket.drop();
+    expect(events.length).toBe(before);
+    expect(reconnecting(events).filter((event) => event.type === "reconnecting" && event.retryAt !== null)).toHaveLength(1);
     host.close();
   });
 });

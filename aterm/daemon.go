@@ -138,7 +138,9 @@ type daemonOptions struct {
 	Socket      string
 	Websocket   string
 	TailnetPort string
-	AllowTags   []string
+	// PeerPorts maps a peer name to the port its daemon listens on, for host discovery.
+	PeerPorts map[string]string
+	AllowTags []string
 	// AllowOrigins are hosted client pages, like https://coilyco.dev.
 	AllowOrigins []string
 	ClientDir    string
@@ -230,6 +232,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	d.adoptHolders()
 	d.clientDir = options.ClientDir
 	d.discovery.port = func() string { return options.TailnetPort }
+	d.discovery.peerPorts = options.PeerPorts
 	if options.Websocket != "" {
 		server, err := d.listenWebsocket(options.Websocket)
 		if err != nil {
@@ -325,6 +328,7 @@ func (d *daemon) adoptHolders() {
 			d.tokens[s.token] = s
 		}
 		d.mu.Unlock()
+		d.restoreGateways(s)
 		d.logf("adopted %s as pid %d", s.name, s.pid)
 	}
 	d.pushSessions()
@@ -383,7 +387,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, mcpAppsFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, mcpAppsFeature, inboxFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -514,6 +518,13 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return cl.c.write(frame{Type: "status", ID: message.ID, Session: s.name, Status: &status})
 	case "clear":
 		return d.clearSession(cl, message)
+	case "inbox":
+		// Only the token names whose inbox it is, never a target.
+		s := d.byToken(message.Token)
+		if s == nil {
+			return withExit(exitUsage, errors.New("the token names no live session, and an inbox belongs to one"))
+		}
+		return cl.c.write(frame{Type: "inbox", ID: message.ID, Session: s.name, Inbox: s.inbox.take(message.All)})
 	case "claim":
 		name, err := d.claimName(message.Session, message.Peek)
 		if err != nil {

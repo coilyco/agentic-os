@@ -1,7 +1,7 @@
 <script lang="ts">
   import { advanceIndex, type Choice } from "../lib/choices";
 
-  let { choice, identity, onanswer, oncancel, focusToken = 0, locked = false, cancelLocked = locked }: {
+  let { choice, identity, onanswer, oncancel, focusToken = 0, locked = false, cancelLocked = locked, lockedLabel = "Read only" }: {
     choice: Choice;
     identity: string;
     /** Each change asks the card to take the keyboard, as when you alt-tab in. */
@@ -13,6 +13,8 @@
     locked?: boolean;
     /** An ask is cancelled by `cancel_ask`, which the guard leaves open. A menu's Esc is typed. */
     cancelLocked?: boolean;
+    /** What the chip says while locked. A link that is down is not a read-only connection. */
+    lockedLabel?: string;
   } = $props();
 
   let card: HTMLElement;
@@ -79,7 +81,7 @@
 
 <section class="card" aria-labelledby="choice-question" bind:this={card}>
   <div class="body">
-    <p class="asker">{identity} is asking{#if choice.header}<span class="chip">{choice.header}</span>{/if}{#if locked}<span class="chip">Read only</span>{/if}</p>
+    <p class="asker">{identity} is asking{#if choice.header}<span class="chip">{choice.header}</span>{/if}{#if locked}<span class="chip">{lockedLabel}</span>{/if}</p>
   <h2 id="choice-question">{choice.question || "Pick one"}</h2>
   {#if choice.multi}<p class="hint">Pick any, then submit.</p>{/if}
   <ol>
@@ -131,7 +133,15 @@
 <style>
   /* The question and options scroll inside the card, the buttons never do: the overlay bounds the height. */
   .card { margin: 0 12px; border-radius: 12px; border: 1px solid var(--brand); background: #17131f; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
-  .body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .body {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+    /* Shadows that show only on the side with more to scroll to. */
+    background:
+      linear-gradient(#17131f 30%, transparent) top / 100% 24px local no-repeat,
+      linear-gradient(transparent, #17131f 70%) bottom / 100% 24px local no-repeat,
+      radial-gradient(farthest-side at 50% 0, rgb(0 0 0 / 0.55), transparent) top / 100% 10px scroll no-repeat,
+      radial-gradient(farthest-side at 50% 100%, rgb(0 0 0 / 0.55), transparent) bottom / 100% 10px scroll no-repeat;
+  }
   .asker { margin: 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand); }
   .chip { margin-left: 10px; padding: 2px 8px; border-radius: 999px; border: 1px solid #3a3350; color: var(--text-soft); text-transform: none; letter-spacing: 0; }
   h2 { margin: 0; font-size: 15px; font-weight: 500; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
@@ -154,4 +164,14 @@
   .body:has(+ .actions:not(:empty)) { padding-bottom: 10px; }
   .keys { margin: 0; font: 12px var(--font-mono); color: var(--muted); }
   button:disabled { opacity: 0.5; cursor: default; }
+  /* A phone's terminal is a few hundred pixels, so every row gives back what it can and stays a 44px target. */
+  @media (max-width: 480px) {
+    .card { margin: 0 8px; }
+    .body { padding: 10px 12px; gap: 8px; }
+    .keys { display: none; }
+    ol { gap: 4px; }
+    .option { padding: 6px 10px; gap: 10px; }
+    .actions { padding: 0 12px 10px; }
+    .body:has(+ .actions:not(:empty)) { padding-bottom: 8px; }
+  }
 </style>

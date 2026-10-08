@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -90,13 +91,15 @@ func readTailnetPeers() (self string, peers []tailnetPeerNode, err error) {
 
 // daemonProber dials the websocket this node's served page would open and reads
 // the welcome. A nil client verifies the peer's tailscale certificate.
-func daemonProber(client *http.Client) func(ctx context.Context, self, host, port string) (string, error) {
-	return func(ctx context.Context, self, host, port string) (string, error) {
-		return probeDaemonPeer(ctx, client, self, host, port)
+func daemonProber(client *http.Client) func(ctx context.Context, self, pagePort, host, port string) (string, error) {
+	return func(ctx context.Context, self, pagePort, host, port string) (string, error) {
+		return probeDaemonPeer(ctx, client, self, pagePort, host, port)
 	}
 }
 
-func probeDaemonPeer(ctx context.Context, client *http.Client, self, host, port string) (string, error) {
+// probeDaemonPeer dials host on port. The Origin names this node's page on
+// pagePort, its own tailnet port, which a peer on another port still allows.
+func probeDaemonPeer(ctx context.Context, client *http.Client, self, pagePort, host, port string) (string, error) {
 	authority := net.JoinHostPort(host, port)
 	ctx, cancel := context.WithTimeout(ctx, hostProbe.timeout)
 	defer cancel()
@@ -104,7 +107,7 @@ func probeDaemonPeer(ctx context.Context, client *http.Client, self, host, port 
 		HTTPClient: client,
 		// This node's page, not the peer's own, so a peer a browser here could not
 		// attach to stays absent.
-		HTTPHeader: http.Header{"Origin": []string{"https://" + net.JoinHostPort(self, port)}},
+		HTTPHeader: http.Header{"Origin": []string{"https://" + net.JoinHostPort(self, pagePort)}},
 	})
 	if err != nil {
 		if response != nil {
@@ -137,11 +140,15 @@ func probeDaemonPeer(ctx context.Context, client *http.Client, self, host, port 
 type hostDiscovery struct {
 	mu    sync.Mutex
 	peers func() (self string, peers []tailnetPeerNode, err error)
-	probe func(ctx context.Context, self, host, port string) (version string, err error)
-	// port is this daemon's tailnet port, assumed shared by peers. Empty is off.
-	port    func() string
-	cached  []hostView
-	expires time.Time
+	probe func(ctx context.Context, self, pagePort, host, port string) (version string, err error)
+	// port is this daemon's tailnet port, which a peer uses unless peerPorts names it.
+	// Empty is off.
+	port func() string
+	// peerPorts maps a lowercase peer name, short or full, to the port its daemon
+	// listens on. A peer absent from it is dialed on port.
+	peerPorts map[string]string
+	cached    []hostView
+	expires   time.Time
 }
 
 func newHostDiscovery() *hostDiscovery {
@@ -177,13 +184,14 @@ func (h *hostDiscovery) find(ctx context.Context) ([]hostView, error) {
 		go func() {
 			defer group.Done()
 			defer func() { <-slots }()
-			version, err := h.probe(ctx, self, peer.FQDN, port)
+			peerPort := h.portFor(peer.FQDN, port)
+			version, err := h.probe(ctx, self, port, peer.FQDN, peerPort)
 			if err != nil {
 				return
 			}
 			foundMu.Lock()
 			defer foundMu.Unlock()
-			found = append(found, hostView{Name: shortName(peer.FQDN), Host: peer.FQDN, Port: port, Version: version})
+			found = append(found, hostView{Name: shortName(peer.FQDN), Host: peer.FQDN, Port: peerPort, Version: version})
 		}()
 	}
 	group.Wait()
@@ -193,6 +201,30 @@ func (h *hostDiscovery) find(ctx context.Context) ([]hostView, error) {
 	slices.SortFunc(found, func(a, b hostView) int { return strings.Compare(a.Host, b.Host) })
 	h.cached, h.expires = found, time.Now().Add(hostProbe.ttl)
 	return found, nil
+}
+
+func (h *hostDiscovery) portFor(fqdn, fallback string) string {
+	for _, key := range []string{strings.ToLower(fqdn), strings.ToLower(shortName(fqdn))} {
+		if port, ok := h.peerPorts[key]; ok {
+			return port
+		}
+	}
+	return fallback
+}
+
+// parsePeerPorts reads `name=port` entries, the name short or full.
+func parsePeerPorts(entries []string) (map[string]string, error) {
+	ports := map[string]string{}
+	for _, entry := range entries {
+		name, port, ok := strings.Cut(entry, "=")
+		name, port = strings.TrimSpace(name), strings.TrimSpace(port)
+		number, err := strconv.Atoi(port)
+		if !ok || name == "" || err != nil || number < 1 || number > 65535 {
+			return nil, fmt.Errorf("peer port %q should read name=port, with a port from 1 to 65535", entry)
+		}
+		ports[strings.ToLower(name)] = port
+	}
+	return ports, nil
 }
 
 func shortName(fqdn string) string {

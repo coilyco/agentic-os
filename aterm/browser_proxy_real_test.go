@@ -73,6 +73,10 @@ type realProxy struct {
 func startRealProxy(t *testing.T) *realProxy {
 	t.Helper()
 	pages := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/titled" {
+			_, _ = fmt.Fprint(w, `<!doctype html><title>before</title><button onclick="document.title='clicked'">go</button>`)
+			return
+		}
 		_, _ = fmt.Fprintf(w, `<!doctype html><title>page %s</title><h1 id=h>hello from %s</h1><button onclick="location.href='/clicked'">go</button>`, r.URL.Path, r.URL.Path)
 	}))
 	t.Cleanup(pages.Close)
@@ -120,8 +124,13 @@ func TestCDPProxyWithTheRealPlaywrightMCPAndARealChromium(t *testing.T) {
 
 	// The client's Browser pane watches the same browser the agent just drove.
 	person := r.screen(t)
-	person.untilState("live", func(m frame) bool { return strings.HasSuffix(m.URL, "/first") })
-	person.untilFrame("a frame of the agent's page", func(m frame) bool { return m.Type == "browser_frame" })
+	// The title is the page's own, not the provisional one Chromium holds until it loads.
+	var framed, titled bool
+	person.untilFrame("a frame and the loaded title of the agent's page", func(m frame) bool {
+		framed = framed || m.Type == "browser_frame"
+		titled = titled || (m.Type == "browser_state" && strings.HasSuffix(m.URL, "/first") && m.Title == "page /first")
+		return framed && titled
+	})
 
 	// And what the person does is what the agent's next snapshot reads, once handed back.
 	person.send(frame{Type: "browser_control", Session: "scientist-evie", Take: true})
@@ -195,4 +204,20 @@ func TestCDPProxyLetsARealPlaywrightConnectWhileAPersonHoldsControl(t *testing.T
 	if got := r.tool(t, "browser_navigate", map[string]any{"url": r.pages.URL + "/first"}); strings.HasPrefix(got, "ERROR") {
 		t.Fatalf("browser_navigate after the hand back: %s", got)
 	}
+}
+
+// Chromium sends no targetInfoChanged for a title-only change, so a script that sets
+// document.title after load reaches the pane only if the daemon asks (COI-2556).
+func TestBrowserTitleFollowsAScriptThatSetsItAfterLoad(t *testing.T) {
+	r := startRealProxy(t)
+	if got := r.tool(t, "browser_navigate", map[string]any{"url": r.pages.URL + "/titled"}); strings.HasPrefix(got, "ERROR") {
+		t.Fatalf("browser_navigate: %s", got)
+	}
+	ref := buttonRef(t, r.tool(t, "browser_snapshot", map[string]any{}))
+	person := r.screen(t)
+	person.untilState("live", func(m frame) bool { return m.Title == "before" })
+	if got := r.tool(t, "browser_click", map[string]any{"element": "go", "target": ref}); strings.HasPrefix(got, "ERROR") {
+		t.Fatalf("browser_click: %s", got)
+	}
+	person.untilState("live", func(m frame) bool { return m.Title == "clicked" && strings.HasSuffix(m.URL, "/titled") })
 }

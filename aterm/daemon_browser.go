@@ -399,6 +399,7 @@ func (sb *sharedBrowser) start() {
 	sb.broadcast()
 	sb.mu.Unlock()
 	sb.startScreencast(cdp, page)
+	go sb.followTitle(cdp)
 	go func() {
 		select {
 		case <-link.exited:

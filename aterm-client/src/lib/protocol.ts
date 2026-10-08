@@ -19,9 +19,17 @@ export interface Host {
   address: string;
   kind: HostKind;
   status: HostStatus;
-  /** Found by a daemon on the tailnet, not typed here. Never stored on this device. */
+  /** Found by a tailnet daemon, not typed here. Not stored until saved. */
   found?: boolean;
+  /** It answered this page load: silence is a restart, and no listing change drops it. */
+  answered?: boolean;
 }
+
+/** The attached host's link: live, lost and being redialed, or just back. */
+export type Link =
+  | { state: "live" }
+  | { state: "reconnecting"; attempt: number; retryAt: number | null }
+  | { state: "restored" };
 
 export type SessionState = "idle" | "working" | "failed";
 
@@ -90,6 +98,10 @@ export type HostEvent =
   | { type: "launch"; role: string; state: LaunchState; text: string }
   | { type: "typing"; typing: Typing }
   | { type: "closed"; reason: string }
+  // The daemon stopped. `retryAt` is the next dial's time, null while one is out.
+  | { type: "reconnecting"; attempt: number; retryAt: number | null }
+  // It answered again. `newerBuild` means it is not the build that served this page.
+  | { type: "reconnected"; newerBuild: boolean }
   | { type: "view"; view: View }
   | { type: "view_update"; id: string; toolResult?: ToolResult; cancelled?: string }
   | { type: "view_closed"; id: string }
@@ -139,6 +151,8 @@ export interface HostConnection {
   readonly browser?: BrowserChannel;
   readonly terminals?: TerminalChannel;
   subscribe(listener: (event: HostEvent) => void): () => void;
+  /** Dial now, skipping the backoff. Only a connection that redials has it. */
+  retry?(): void;
   attach(sessionId: string, rows: number, cols: number): void;
   detach(sessionId: string): void;
   input(sessionId: string, data: string): void;
