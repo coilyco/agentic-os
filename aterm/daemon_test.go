@@ -522,7 +522,11 @@ func TestReadyWaitsForBracketedPasteOnAWatchedSeat(t *testing.T) {
 	if !gate.ready(now) {
 		t.Fatal("a codex seat that turned paste on is ready")
 	}
-	other := &ptySession{seat: "goose", started: now.Add(-time.Minute), lastOutput: now.Add(-time.Minute)}
+	quiet := &ptySession{seat: "goose", started: now.Add(-time.Hour), lastOutput: now.Add(-time.Hour)}
+	if quiet.ready(now) {
+		t.Fatal("a goose seat sitting quiet at a gate is not ready")
+	}
+	other := &ptySession{seat: "unlisted", started: now.Add(-time.Minute), lastOutput: now.Add(-time.Minute)}
 	if !other.ready(now) {
 		t.Fatal("an unwatched seat falls back to a long quiet start")
 	}
