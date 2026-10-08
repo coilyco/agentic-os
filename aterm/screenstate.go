@@ -27,6 +27,9 @@ var promptScreens = map[string][]*regexp.Regexp{
 		regexp.MustCompile(`(?i)do you want to (proceed|make this edit|create|allow|run)`),
 		regexp.MustCompile(`(?i)esc to cancel`),
 		regexp.MustCompile(`(?i)enter to select`),
+		// The review page that ends a multi-question AskUserQuestion draws no footer,
+		// and Enter on it submits the answers. testdata/claude-screens/review.txt
+		regexp.MustCompile(`(?i)ready to submit your answers`),
 	},
 	"codex": {
 		regexp.MustCompile(`(?i)would you like to (run|make|allow)`),

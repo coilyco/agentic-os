@@ -1,0 +1,23 @@
+
+ ▐▛███▛█   Claude Code v2.1.293
+▝▜██████▀  Haiku 5.5 · Claude Max
+ ▝▝   ▝▝   /path/to/project · /rc
+
+
+❯ Use the AskUserQuestion tool exactly once, with three questions. Q1 header Color: which color, options Red and Blue
+  (single select). Q2 header Pets: which pets, options Cat and Dog, multiSelect true. Q3 header Size: which size,
+  options Small and Large (single select). Then stop.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+←  ☒ Color  ☒ Pets  ☐ Size  ✔ Submit  →
+
+Which size?
+
+❯ 1. Small
+     A small size
+  2. Large
+     A large size
+  3. Type something.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  4. Chat about this
+
+Enter to select · Tab/Arrow keys to navigate · Esc to cancel
