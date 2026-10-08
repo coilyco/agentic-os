@@ -20,6 +20,10 @@ func TestMain(m *testing.M) {
 		runFakeBox()
 		os.Exit(0)
 	}
+	if len(os.Args) > 3 && os.Args[1] == fakeOpencodeCommand {
+		runFakeOpencode()
+		os.Exit(0)
+	}
 	if len(os.Args) > 1 && os.Args[1] == fakeMCPCommand {
 		runFakeMCP()
 		os.Exit(0)
