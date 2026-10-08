@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, resolve } from "node:path";
 import type { Plugin } from "vite";
 
 const WORKER_SOURCE = "pwa/sw.js";
@@ -24,7 +24,8 @@ export function appShell(): Plugin {
     name: "aterm-app-shell",
     apply: "build",
     configResolved(config) {
-      outDir = join(config.root, config.build.outDir);
+      // resolve, not join: an absolute --outDir must stay as it is.
+      outDir = resolve(config.root, config.build.outDir);
     },
     closeBundle() {
       const built = walk(outDir)
