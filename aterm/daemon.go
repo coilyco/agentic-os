@@ -83,6 +83,9 @@ type daemon struct {
 
 	// apps is the per-session MCP Apps gateway and the views it captured.
 	apps appsState
+
+	// push sends Web Push to a browser that is not connected. See daemon_push.go.
+	push pushState
 }
 
 func newDaemon(logf func(string, ...any)) *daemon {
@@ -147,6 +150,8 @@ type daemonOptions struct {
 	SentryDSN string
 	// AgentProxy is the proxy base URL for proxy-backed seats' context, empty for none.
 	AgentProxy string
+	// VAPIDKey turns on Web Push, empty for none. Never logged.
+	VAPIDKey string
 	// Stop ends the daemon when closed, as a signal does. A test's handle.
 	Stop <-chan struct{}
 }
@@ -215,6 +220,13 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	contextDone := make(chan struct{})
 	defer close(contextDone)
 	go d.watchContext(contextDone, contextEvery)
+	if store, err := loadPushStore(pushStatePath()); err != nil {
+		logf("no stored push subscriptions, so no browser is notified while closed: %v", err)
+	} else if err := d.setupPush(options.VAPIDKey, store); err != nil {
+		logf("no Web Push: %v", err)
+	} else if d.push.enabled() {
+		go d.watchWaiting(contextDone, pushWatchEvery)
+	}
 	d.adoptHolders()
 	d.clientDir = options.ClientDir
 	d.discovery.port = func() string { return options.TailnetPort }
@@ -374,6 +386,9 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
+	if d.push.enabled() {
+		welcome.Features = append(welcome.Features, pushFeature)
+	}
 	if peer.web {
 		welcome.Typing = d.typingStanding(cl)
 	}
@@ -529,6 +544,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return cl.c.write(frame{Type: "roster", ID: message.ID, Roster: &roster})
 	case "hosts":
 		return d.hosts(cl.c, message)
+	case "push_key", "push_subscribe", "push_unsubscribe":
+		return d.pushFrame(cl, message)
 	case "whoami":
 		s := d.byToken(message.Token)
 		if s == nil {

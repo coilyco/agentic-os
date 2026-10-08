@@ -216,6 +216,7 @@ func newCommand(deps commandDeps) *cli.Command {
 			newBundlesCommand(deps),
 			newPaneCommand(deps),
 			newDaemonCommand(),
+			newVAPIDCommand(),
 			newAttachCommand(),
 			newResumeCommand(),
 			newSendCommand(),

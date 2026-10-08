@@ -63,6 +63,11 @@ func newDaemonCommand() *cli.Command {
 				Usage:   "Agent Proxy base URL, read for the context of seats that run through it, empty for none",
 				Sources: cli.EnvVars(agentProxyEnv),
 			},
+			&cli.StringFlag{
+				Name:    "vapid-key",
+				Usage:   "VAPID private key that turns on Web Push to a closed browser, empty for none",
+				Sources: cli.EnvVars(vapidKeyEnv),
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			return runDaemon(daemonOptions{
@@ -76,6 +81,7 @@ func newDaemonCommand() *cli.Command {
 				EndSessions:  cmd.Bool("end-sessions"),
 				AgentProxy:   cmd.String("agent-proxy"),
 				SentryDSN:    cmd.String("sentry-dsn"),
+				VAPIDKey:     cmd.String("vapid-key"),
 			}, cmd.Root().ErrWriter)
 		},
 	}

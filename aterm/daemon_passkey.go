@@ -11,7 +11,7 @@ import (
 // that type (see typingRefusal). The rest only read, or resize a view.
 var remoteLocked = map[string]bool{
 	"spawn": true, "close": true, "send": true, "claim": true, "ask": true, "cancel_ask": true,
-	"gateway_add": true, "view_call": true, "view_close": true,
+	"gateway_add": true, "view_call": true, "view_close": true, "push_subscribe": true, "push_unsubscribe": true,
 }
 
 // passkeyCeremony is the one challenge a connection has open, spent by the

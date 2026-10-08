@@ -144,6 +144,11 @@ type frame struct {
 
 	// Hosts answers a hosts request: the tailnet daemons that answered this one.
 	Hosts []hostView `json:"hosts,omitempty"`
+
+	// Web Push: Key is the VAPID public key on a push_key reply, and Push is a
+	// browser's PushSubscription.toJSON(). See docs/aterm-daemon.md.
+	Key  string            `json:"key,omitempty"`
+	Push *pushSubscription `json:"push,omitempty"`
 }
 
 // sessionView is one live session as a client sees it. It is the roster the

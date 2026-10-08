@@ -15,7 +15,7 @@ attached to it.
 
 **A terminal is a login shell, not a seat.** `spawn` with `kind: "terminal"` and optional `cwd` runs `$SHELL -l` under a holder, named `terminal-<hex>`, with no token, and refuses every seat field, `argv` and `env`. It is absent from `sessions`, `aterm agents`, seat counts and every `send`, `status` and `clear` target. `list` and the `sessions` push carry `terminals` (`name`, `pid`, `started`, `clients`, `cwd`, `label`), feature `terminals`. A spawn `label` (feature `terminal-label`, text up to 256 bytes) is opaque, echoed unchanged in `spawned` and on the entry, kept by a restart. A seat spawn refuses it. `attach`, `input`, `resize` and `close` take its name, an exiting shell ends it, a restart adopts it. A remote device gets `remote_terminal`, passkey or not.
 
-**A session outlives its window.** `aterm close` types the harness's exit at an idle prompt, waits 10 seconds, then SIGTERM, then SIGKILL after 3.
+**A session outlives its window.** `aterm close` types the harness's exit at an idle prompt, then SIGTERM after 10 seconds and SIGKILL after 3 more.
 
 **A holder owns each session's terminal, so a daemon crash leaves sessions running.** See [holders, launch, Sentry](aterm-bundles.md#daemon-internals-launch-holders-and-sentry).
 
@@ -25,7 +25,7 @@ attached to it.
 
 **The sender is stamped by the daemon, never declared.** Each spawn gets a fresh `ATERM_SESSION_TOKEN`. `send` presents it, and the daemon resolves the seat and types `[from <role> <identity>] <body>`.
 
-**A body cannot forge a second envelope.** A body line opening with `[from ` gets a leading `\`. Control bytes but tab show as caret or `<U+XXXX>`, since an escape would end a paste.
+**A body cannot forge a second envelope.** A body line opening with `[from ` gets a leading `\`.
 
 **Targets resolve in tiers**: session name, role slug, identity, then harness. The first tier with a match wins, several in it refuse and name them, and none exits 3 listing the live sessions. `--launch` on a role slug opens the role and holds the message up to three minutes. `--new` opens another instance.
 
@@ -49,9 +49,10 @@ attached to it.
 * `list` answers `sessions`, each with `state`, `quiet_seconds` and `context` ([the meter](../.agents/skills/tooling-aterm-client/references/context-meter.md)). `subscribe` to channel `sessions` pushes the roster on every change, and `message` events carry each state change, never the body. A stalled subscriber is dropped after 5 seconds.
 * `welcome` to a websocket adds `typing-guard`, `passkey` and `typing` `{allowed, reason, passkey}`, `passkey` being `enrolled` or `unenrolled`. A refusal's `error` carries `reason`: `session_descendant`, `peer_unread` or `passkey_required`.
 * Passkey: `passkey_enroll_begin` (`enroll_code`) answers `passkey_enroll_options`, and `passkey_enroll_finish` (`credential`) answers `passkey_enrolled`. `passkey_assert_begin` answers `passkey_assert_options`, and `passkey_assert_finish` answers `passkey_asserted`. `options` and `credential` are WebAuthn JSON.
+* `push_*` serves [Web Push](../.agents/skills/tooling-aterm-client/references/web-push.md).
 * `hosts` lists tailnet daemons that answered ([discovery](../.agents/skills/tooling-aterm-client/references/discovery.md)).
 * `whoami` resolves a token to its session. `roster` answers `aterm.roster.v1`, the launchable roles `aterm --list --json` prints. `launch` with a `role` and optional `seat` opens it headless, answering `launched`.
-* `ask` takes a `question`, `options` (`label`, `description`), `header`, `allow_other`, `multi`. MCP `ask_choice` takes up to four `questions`, one card each. The daemon stamps the asker and pushes `ask` to subscribers, replayed on subscribe. `answer` (`ask_id`, `picks`, `text`) or `cancel_ask` settles it, and `asked` tells every client to drop the card. An asker leaving cancels its asks, and an answer takes the typing guard as Kai's input.
+* `ask` takes a `question`, `options`, `header`, `allow_other`, `multi`. MCP `ask_choice` takes up to four `questions`, one card each. The daemon stamps the asker and pushes `ask` to subscribers, replayed on subscribe. `answer` (`ask_id`, `picks`, `text`) or `cancel_ask` settles it, and `asked` tells every client to drop the card. An asker leaving cancels its asks, and an answer takes the typing guard as Kai's input.
 
 **Browsers get the client from `--client-dir` at `/`, and a websocket there.** Loopback is `127.0.0.1:7419`. The tailnet is HTTPS on this node's tailnet name, port 7419, probed every 30 seconds and rebound after two failures. `tailscale whois` admits a peer, never the request: this node owner's untagged device or one tagged `tag:physical`. A websocket opens only from the served page or `https://coilyco.dev`.
 

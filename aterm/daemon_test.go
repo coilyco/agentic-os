@@ -160,6 +160,13 @@ func testHoldDir(t *testing.T) string {
 // bytes and a test temp directory there is most of that.
 func testDaemon(t *testing.T) string {
 	t.Helper()
+	return testDaemonWith(t, daemonOptions{})
+}
+
+// testDaemonWith is testDaemon with options the test needs set. Socket, Idle,
+// EndSessions and Stop stay the harness's.
+func testDaemonWith(t *testing.T, options daemonOptions) string {
+	t.Helper()
 	dir, err := os.MkdirTemp("/tmp", "aterm-test-")
 	if err != nil {
 		t.Fatalf("temp dir: %v", err)
@@ -173,7 +180,8 @@ func testDaemon(t *testing.T) string {
 	stop := make(chan struct{})
 	go func() {
 		defer close(stopped)
-		_ = runDaemon(daemonOptions{Socket: socket, Idle: time.Hour, EndSessions: true, Stop: stop}, io.Discard)
+		options.Socket, options.Idle, options.EndSessions, options.Stop = socket, time.Hour, true, stop
+		_ = runDaemon(options, io.Discard)
 	}()
 	for waited := 0; waited < 100; waited++ {
 		if _, err := os.Stat(socket); err == nil {
