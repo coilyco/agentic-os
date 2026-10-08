@@ -1,12 +1,14 @@
 <script lang="ts">
+  import AttentionSwitches from "./AttentionSwitches.svelte";
   import Creature from "./Creature.svelte";
-  import { app, asksFor, selectHost, selectRole, selectSession } from "../lib/app.svelte";
+  import { app, asksFor, glowSeats, selectHost, selectRole, selectSession } from "../lib/app.svelte";
   import type { Host, Session } from "../lib/protocol";
   import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel } from "../lib/sessions";
   import { tablistKeys } from "../lib/tabs";
 
   const live = $derived(orderSessions(app.sessions, app.roles));
   const onScreen = $derived(Boolean(app.selectedSession || app.selectedRole));
+  const glowing = $derived(new Set(app.alerts.visual ? glowSeats().map((seat) => seat.sessionId) : []));
 
   function hostDetail(host: Host): string {
     const running = hostRunning(host, app.attachedHostId, app.sessions);
@@ -80,6 +82,7 @@
             data-state={session.state}
             data-activity={activity(session)}
             data-degraded={session.degraded.length > 0}
+            data-glow={glowing.has(session.id)}
             style:--accent={role.color}
             onclick={() => selectSession(session.id)}
           >
@@ -128,6 +131,8 @@
       </div>
     {/if}
   {/if}
+
+  <AttentionSwitches />
 </nav>
 
 <style>
@@ -139,6 +144,7 @@
   .tab:hover { background: #171a21; }
   .tab[aria-selected="true"] { background: #1d1729; box-shadow: inset 0 0 0 1px #3a3350; }
   .seat[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--ground)); box-shadow: inset 0 0 0 1px var(--accent); }
+  .seat[data-glow="true"] { background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 45%, var(--ground)), color-mix(in srgb, var(--accent) 8%, var(--ground)) 85%); box-shadow: inset 4px 0 0 var(--accent); }
   .dot { width: 10px; height: 10px; border-radius: 5px; background: var(--ok); flex: none; }
   [data-kind="unreachable"] .dot { background: none; border: 2px solid var(--danger); }
   [data-kind="checking"] .dot { background: none; border: 2px solid var(--muted); }
