@@ -30,6 +30,12 @@
     sideWidth = width;
     storeSide(width);
   }
+  // Below 1000px the side panel is a bottom sheet over the seat's terminal, and starts put away.
+  let raised = $state(false);
+  // A question waiting sits at the foot of the terminal, which a raised sheet would cover.
+  $effect(() => {
+    if (ask || choice) raised = false;
+  });
   const page = $derived(app.browsers[session.id]);
   // The browser needs room to be read, so a page takes half the width. Its empty states do not.
   const wide = $derived(side === "browser" && page !== undefined && page.state !== "none");
@@ -105,7 +111,7 @@
       <p class="degraded">Started without {session.degraded.join(", ")}. agent-compose skipped these steps at launch, so this seat may be missing what they set up.</p>
     {/if}
   </header>
-  <div class="body" class:wide class:sheet={side === "terminal"} style:--side={sideWidth ? `${sideWidth}px` : undefined}>
+  <div class="body" class:wide style:--side={sideWidth ? `${sideWidth}px` : undefined}>
     <div class="work">
       {#if app.connection}
         {#key session.id}
@@ -150,13 +156,13 @@
       {/if}
     </div>
     <SplitHandle onchange={resize} onreset={() => resize(null)} />
-    <SidePanel {session} {messages} selfRole={role.slug} {colorOf} accent={role.color} bind:tab={side} onpick={(tab) => storeOverride(role.slug, tab)} />
+    <SidePanel {session} {messages} selfRole={role.slug} {colorOf} accent={role.color} bind:tab={side} bind:open={raised} onpick={(tab) => storeOverride(role.slug, tab)} />
   </div>
 </section>
 
 <style>
   .session { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-  header { min-height: 64px; padding: 8px 24px; display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; border-bottom: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--ground)); }
+  header { flex: none; min-height: 64px; padding: 8px 24px; display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; border-bottom: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--ground)); }
   h1 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 22px; }
   .role { font-size: 14px; color: color-mix(in srgb, var(--accent) 55%, white); }
   .degraded { flex-basis: 100%; margin: 0; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--warn); background: var(--warn-fill); color: var(--warn-text); font-size: 13px; }
@@ -169,15 +175,11 @@
   .screen { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
   .starting { position: absolute; inset: 0; margin: 0; padding: 24px; display: grid; place-content: center; text-align: center; color: var(--muted); pointer-events: none; }
   .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
-  .body { --side: 360px; flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--side); min-height: 0; }
+  .body { --side: 360px; --strip: calc(56px + env(safe-area-inset-bottom)); flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--side); min-height: 0; }
   .body.wide { --side: minmax(360px, 50%); }
   .body :global(.panel) { border-left: none; }
   @media (max-width: 1000px) {
-    .body, .body.wide { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr) auto; }
-    .body :global(.panel) { border-top: 1px solid var(--line); max-height: 40vh; }
-    .body.wide :global(.panel) { max-height: none; }
-    /* A shell needs rows, so its panel pins to the bottom of the scroll as a sheet. */
-    .body.sheet { flex: none; grid-template-rows: minmax(240px, auto) auto; }
-    .body.sheet :global(.panel) { position: sticky; bottom: 0; z-index: 1; max-height: none; height: max(45vh, 280px); background: var(--ground); box-shadow: 0 -8px 16px rgb(0 0 0 / 0.35); }
+    /* The sheet floats over this row, so the strip's height stays clear of the composer and the terminal never resizes as it rises. */
+    .body, .body.wide { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr); padding-bottom: var(--strip); min-height: calc(320px + var(--strip)); }
   }
 </style>

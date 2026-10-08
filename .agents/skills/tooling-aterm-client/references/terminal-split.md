@@ -24,7 +24,7 @@ Terminals arrive in the `sessions` frame's own `terminals` list, never in `sessi
 
 ## Split and keyboard
 
-The split handle is a window splitter. Drag, Left and Right (Shift for larger steps), Home, End, or double-click to reset. The width is remembered in `aterm.side-width.v1`. Below 1000px the panel stacks and the terminal takes a taller sheet. The shell takes Tab, so Ctrl+Alt+Left returns focus to the composer and Ctrl+Alt+Right enters the shell.
+The split handle is a window splitter. Drag, Left and Right (Shift for larger steps), Home, End, or double-click to reset. The width is remembered in `aterm.side-width.v1`. Below 1000px the handle goes and the panel is a bottom sheet instead. The shell takes Tab, so Ctrl+Alt+Left returns focus to the composer and Ctrl+Alt+Right enters the shell.
 
 ## Demo host modes
 

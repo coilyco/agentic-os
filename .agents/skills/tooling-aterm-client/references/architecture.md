@@ -32,4 +32,4 @@ See [views-and-browser.md](views-and-browser.md).
 
 ## Narrow screens
 
-Below 720px the sidebar becomes two horizontal tab strips, and below 1000px the side panel moves under the terminal.
+Below 720px the sidebar becomes two horizontal tab strips, and below 1000px the side panel becomes a bottom sheet over the terminal (COI-2506, [views-and-browser.md](views-and-browser.md)).
