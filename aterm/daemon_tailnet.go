@@ -376,15 +376,8 @@ func (d *daemon) listenTailnet(port string, allowTags, allowOrigins []string, ce
 	}, nil
 }
 
-// defaultClientDir is where the built aterm client is installed for the
-// daemon to serve at `/`.
+// defaultClientDir is ATERM_CLIENT_DIR, empty for the embedded client. No
+// installed default: one outlived its binary and served a stale page.
 func defaultClientDir() string {
-	if dir := strings.TrimSpace(os.Getenv(clientDirEnv)); dir != "" {
-		return dir
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".local", "share", "aterm", "client")
+	return strings.TrimSpace(os.Getenv(clientDirEnv))
 }

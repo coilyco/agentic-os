@@ -14,7 +14,7 @@ It talks `aterm.daemon.v1` to the aterm daemon's loopback websocket, so "this Ma
 
 Made for tabbing out of a game to answer seats. The window title says who is waiting, tabbing in lands on the seat that needs you with its answer focused, and a number key answers and moves on.
 
-From another machine on the tailnet, such as a gaming PC: run `just aterm-client-install-dir` on the Mac once, then open `https://<mac tailnet name>:7419/` and install it as an app for its own alt-tab entry and taskbar badge. The daemon serves it over HTTPS and admits only your own devices, by `tailscale whois`.
+From another machine on the tailnet, such as a gaming PC: open `https://<mac tailnet name>:7419/` and install it as an app for its own alt-tab entry and taskbar badge. The daemon serves it over HTTPS and admits only your own devices, by `tailscale whois`.
 
 ## Running it
 

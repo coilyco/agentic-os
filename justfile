@@ -198,10 +198,16 @@ aterm-client-gate:
     @just aterm-client-test
     @just aterm-client-build
 
-# Build the aterm web client and install it where the daemon serves it: ATERM_CLIENT_DIR, else ~/.local/share/aterm/client.
+# Build the aterm web client and copy it into aterm/clientdist/, where the next `go build` of aterm embeds it. A release does this before the Go build. See docs/aterm-daemon.md.
+aterm-client-embed:
+    @just aterm-client-install
+    @just aterm-client-build
+    @mkdir -p aterm/clientdist && find aterm/clientdist -mindepth 1 ! -name .gitkeep -delete && cp -R aterm-client/dist/. aterm/clientdist/ && echo "staged aterm-client/dist in aterm/clientdist"
+
+# Build the aterm web client and sync it into ATERM_CLIENT_DIR, which a daemon serves instead of its embedded client (dev override, nothing reads it by default).
 aterm-client-install-dir:
     @just aterm-client-build
-    @dir="${ATERM_CLIENT_DIR:-$HOME/.local/share/aterm/client}"; mkdir -p "$dir" && rsync -a --delete aterm-client/dist/ "$dir/" && echo "installed to $dir"
+    @dir="${ATERM_CLIENT_DIR:?set ATERM_CLIENT_DIR, the daemon serves its embedded client unless it is set}"; mkdir -p "$dir" && rsync -a --delete aterm-client/dist/ "$dir/" && echo "installed to $dir"
 
 # Build the aterm web client for a hosted deployment: ATERM_CLIENT_BASE sets the base path, hosts are added per device and none are baked in.
 aterm-client-build-hosted:

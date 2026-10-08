@@ -152,6 +152,7 @@ func TestTailnetWebsocketTakesOnlyThePageItServed(t *testing.T) {
 
 func TestLoopbackServesTheClientWhenOneIsInstalled(t *testing.T) {
 	d := newDaemon(func(string, ...any) {})
+	d.clientFS = nil
 	server := httptest.NewServer(d.handler(loopbackPolicy()))
 	t.Cleanup(server.Close)
 	if response, err := http.Get(server.URL + "/"); err != nil || response.StatusCode != http.StatusNotFound {

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"os"
 	"os/signal"
@@ -40,6 +41,7 @@ type daemon struct {
 	asks       map[string]*pendingAsk
 	askTimeout time.Duration
 	clientDir  string
+	clientFS   fs.FS
 	// holdDir is where each session's holder keeps its socket. A restarted
 	// daemon adopts what it finds there.
 	holdDir string
@@ -99,6 +101,7 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		askTimeout:  defaultAskTimeout,
 		subscribers: map[*conn]bool{},
 		lastActive:  time.Now(),
+		clientFS:    embeddedClient(),
 		processes:   listProcesses,
 		peerLookup:  tcpPeerPIDs,
 		passkeys:    defaultPasskeys(),

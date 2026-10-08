@@ -284,6 +284,28 @@ def test_release_trigger_paths_cover_what_the_builder_embeds() -> None:
     )
 
 
+def test_release_builds_the_client_before_the_go_binary() -> None:
+    """aterm embeds its web client, so a release stages it first and re-releases on a client change (COI-2582)."""
+    builder = (ROOT / "scripts" / "aos-release-build.sh").read_text(encoding="utf-8")
+    # The go builds sit in functions, so the first call site is the target loop.
+    assert builder.index("just aterm-client-embed") < builder.index("while IFS= read -r target")
+
+    gate = (ROOT / "scripts" / "ci" / "aos-cli-release.sh").read_text(encoding="utf-8")
+    assert gate.index("just aterm-client-embed") < gate.index("ATERM_REQUIRE_EMBEDDED_CLIENT=1 just aterm-test")
+
+    workflow = yaml.safe_load(
+        (ROOT / ".forgejo" / "workflows" / "aos-cli-release.yml").read_text(encoding="utf-8")
+    )
+    filters = [
+        _path_filter_regex(pattern)
+        for pattern in (workflow.get("on") or workflow[True])["push"]["paths"]
+    ]
+    client_files = _tracked("aterm-client/package.json")
+    assert client_files and all(any(f.fullmatch(file) for f in filters) for file in client_files), (
+        "a client-only change must start a release, or it never reaches the binary"
+    )
+
+
 def test_umbra_pin_is_owned_by_the_dependency_lock() -> None:
     lock = json.loads(
         (ROOT / ".umbra" / "guardfiles" / "specverb.lock").read_text(

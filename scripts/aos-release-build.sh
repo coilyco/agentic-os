@@ -207,6 +207,9 @@ build_aterm() {
 }
 
 mkdir -p "$dist"
+# aterm embeds its web client (aterm/client_embed.go), so the client is built
+# and staged before the first Go build, or the daemon serves nothing at `/`.
+(cd "$repo_root" && just aterm-client-embed)
 release_build=$(mktemp -d)
 trap 'rm -rf "$release_build"' EXIT HUP INT TERM
 download_umbra

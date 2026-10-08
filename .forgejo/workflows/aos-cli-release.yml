@@ -14,6 +14,7 @@ on:
       - "aos-cli/**"
       - "aosguard-release/**"
       - "aterm/**"
+      - "aterm-client/**"
       - "scripts/aos-release-build.sh"
       - "scripts/check-aos-release.sh"
       - "scripts/guardfile-python-modules.sh"

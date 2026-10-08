@@ -123,14 +123,22 @@ func (d *daemon) webPeer(r *http.Request) peerStanding {
 	return peerStanding{web: true, pids: pids}
 }
 
-// serveClient is the built aterm client, so a browser opens the daemon's own
-// address and gets a page whose websocket is same-origin.
+// serveClient gives a browser a page whose websocket is same-origin: the
+// --client-dir build when set, else the client embedded in this binary.
 func (d *daemon) serveClient(w http.ResponseWriter, r *http.Request) {
-	if info, err := os.Stat(d.clientDir); d.clientDir == "" || err != nil || !info.IsDir() {
-		http.Error(w, "aterm daemon: no client is installed at "+d.clientDir, http.StatusNotFound)
+	if d.clientDir != "" {
+		if info, err := os.Stat(d.clientDir); err != nil || !info.IsDir() {
+			http.Error(w, "aterm daemon: no client is installed at "+d.clientDir, http.StatusNotFound)
+			return
+		}
+		http.FileServer(http.Dir(d.clientDir)).ServeHTTP(w, r)
 		return
 	}
-	http.FileServer(http.Dir(d.clientDir)).ServeHTTP(w, r)
+	if d.clientFS == nil {
+		http.Error(w, "aterm daemon: this build embeds no client, run just aterm-client-embed or set "+clientDirEnv, http.StatusNotFound)
+		return
+	}
+	http.FileServerFS(d.clientFS).ServeHTTP(w, r)
 }
 
 func newWebsocketConn(ctx context.Context, ws *websocket.Conn) *conn {

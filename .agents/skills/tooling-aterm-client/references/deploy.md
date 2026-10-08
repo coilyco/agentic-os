@@ -4,7 +4,7 @@ The client ships two ways, from the same source. The deployment, not this direct
 
 ## Served by a daemon
 
-`just aterm-client-install-dir` builds with base `/` and syncs `dist/` into the directory the aterm daemon serves, over loopback and over tailnet HTTPS. The page dials the daemon that served it.
+The aterm binary embeds the client it was released with (`just aterm-client-embed` stages `dist/` into `aterm/clientdist/` before the Go build, and the release build runs it first), so `brew upgrade aos` plus a daemon restart serves that release's page, over loopback and over tailnet HTTPS. The page dials the daemon that served it. A client-only change re-releases, since `aterm-client/**` is a trigger path of `aos-cli-release`. `just aterm-client-install-dir` syncs a build into `ATERM_CLIENT_DIR` instead, which wins over the embedded client for a dev loop and is read by nothing otherwise.
 
 ## Hosted
 
@@ -20,6 +20,6 @@ Both builds are installable. The manifest uses relative paths, so it works at `/
 
 `sw.js` is written by the build ([`pwa-plugin.ts`](../../../../aterm-client/pwa-plugin.ts)) with every built file listed and a version taken from their bytes, so a new build is a new cache and the old one is dropped when it takes over. It caches the shell only. A launch asks the network first and falls back to the cached shell after 3 seconds or on failure, so a stopped daemon shows the client's "not answering" panel. Nothing else is cached, and a websocket never passes through it.
 
-It refuses to install when a shell file comes back through a redirect, because a hosted build behind a sign-in would otherwise cache the sign-in page as the client. `just aterm-client-install-dir` replaces the directory a daemon serves, and the next launch picks up the new worker.
+It refuses to install when a shell file comes back through a redirect, because a hosted build behind a sign-in would otherwise cache the sign-in page as the client. A new release replaces the embedded client, and the next launch picks up the new worker.
 
 A page served over plain http from any other address than localhost cannot be installed, and the install card says so. Android installs only from the hosted or tailnet https address. No device has verified that yet.

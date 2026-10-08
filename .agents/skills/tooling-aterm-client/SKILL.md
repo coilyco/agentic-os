@@ -29,7 +29,7 @@ time. Nothing here fetches it at runtime.
 ## Commands
 
 Every command is a root `just` verb: `aterm-client-install`, `-dev`, `-check`,
-`-test`, `-build`, `-gate` (the CI gate), `-install-dir`, `-build-hosted`, and
+`-test`, `-build`, `-gate` (the CI gate), `-embed` (stage the build for the aterm binary), `-install-dir`, `-build-hosted`, and
 `-sync-creatures`. [running.md](references/running.md) says what each does.
 
 ## Validation

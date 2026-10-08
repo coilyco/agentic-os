@@ -7,7 +7,10 @@ repo_root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 validate() {
   bash "$repo_root/scripts/ci-command.sh" bash "$repo_root/scripts/ci/repo-test-gate.sh"
   just aos-test
-  just aterm-test
+  # The embedded client is what a release serves, so the gate tests against a
+  # staged build and fails if the binary would embed nothing.
+  just aterm-client-embed
+  ATERM_REQUIRE_EMBEDDED_CLIENT=1 just aterm-test
 }
 
 build() {

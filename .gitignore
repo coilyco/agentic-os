@@ -106,3 +106,6 @@ test-images/
 /aos-cli/aos.exe
 /aterm/aterm
 /aterm/aterm.exe
+# The client embedded into aterm, staged by `just aterm-client-embed`.
+/aterm/clientdist/*
+!/aterm/clientdist/.gitkeep

@@ -53,6 +53,19 @@ if [ -e "$dist/aterm-windows-amd64.exe" ]; then
     echo "aterm is unix-only (agentic-os#1264) but a Windows binary was built" >&2
     exit 1
 fi
+# Every aterm binary must carry the client the release built, found by the
+# bundle name the staged index.html points at.
+client_script=$(grep -o 'index-[A-Za-z0-9_-]*\.js' "$repo_root/aterm-client/dist/index.html" | head -1)
+if [ -z "$client_script" ]; then
+    echo "no built client at aterm-client/dist/index.html to check the aterm binaries against" >&2
+    exit 1
+fi
+for aterm_binary in "$dist"/aterm-*; do
+    if ! grep -aqF "$client_script" "$aterm_binary"; then
+        echo "$aterm_binary does not embed the client ($client_script)" >&2
+        exit 1
+    fi
+done
 if grep -F 'aterm-windows-amd64.exe' "$dist/aos.json" >/dev/null 2>&1; then
     echo "the Scoop manifest still installs aterm" >&2
     exit 1
