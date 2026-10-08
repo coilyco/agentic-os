@@ -18,6 +18,7 @@ The [aterm host daemon](../../../../docs/aterm-daemon.md) can run one headless C
 * **The peer is vouched for twice.** The token names the session, and the socket's owning pid must run under that session's own process. A pid or process table the daemon cannot read refuses, the opposite default of the typing guard, since this admits a peer instead of limiting one. A request with an `Origin` or from off loopback is refused.
 * **The agent gets its own CDP sessions and nothing else.** The daemon relays the agent's commands under ids of its own and passes back only events from sessions the agent created or auto-attached. The session the daemon streams and types into answers `Session with given id not found.` so the agent cannot address it.
 * **The browser belongs to the person watching it.** `Browser.close` is acknowledged and dropped, and so is the agent's `Target.setDiscoverTargets`, which would switch off the daemon's own tracking. When the agent disconnects, the daemon closes the tabs and contexts it opened, detaches its sessions and turns auto-attach off. A newer connection replaces an older one for the same session.
+* **While a person holds control the agent's commands are refused, and its events keep coming.** The proxy answers a command with `a person has control of this browser (aterm); wait for it to be handed back`, so the agent's page model follows the person and handing back needs no replay. What still passes is the bookkeeping a Playwright connection needs to attach and initialise a page (`browser_proxy_gate.go`, fixed by running `@playwright/mcp` 0.0.78 against a real Chromium), so an agent that connects mid-control is ready the moment control returns. An evaluation is refused as a thrown exception, because Playwright rewrites a protocol error from one into "Execution context was destroyed". A click by snapshot ref still reads "Ref eN not found" in Playwright's own words, so the agent should take a new snapshot, which carries the message.
 * **One run against the real thing:** `ATERM_REAL_PLAYWRIGHT_MCP=<path to @playwright/mcp cli.js> go test -run RealPlaywright` in `aterm/`, with Chrome or Chromium installed. It skips without both.
 
 **The daemon follows the first page target and nothing else.** `browser_state` carries that page's url and title, kept current from `Target.targetInfoChanged`.
@@ -46,5 +47,4 @@ Request frames carry an `id`, and a refusal comes back as `error` with that `id`
 
 ## What is not built
 
-* Refusing the agent's commands while a person holds control (COI-2520).
 * Cleanup after a killed daemon, and tabs beyond the first page (COI-2519).

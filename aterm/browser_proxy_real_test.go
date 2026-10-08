@@ -61,11 +61,21 @@ func playwrightTool(t *testing.T, session *mcp.ClientSession, name string, argum
 	return text.String()
 }
 
-func TestCDPProxyWithTheRealPlaywrightMCPAndARealChromium(t *testing.T) {
+// realProxy is a daemon with a real Chromium behind it and a real Playwright MCP
+// pointed at it through the proxy.
+type realProxy struct {
+	h       *proxyHarness
+	pages   *httptest.Server
+	session *mcp.ClientSession
+	address string
+}
+
+func startRealProxy(t *testing.T) *realProxy {
+	t.Helper()
 	pages := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = fmt.Fprintf(w, `<!doctype html><title>page %s</title><h1 id=h>hello from %s</h1><button onclick="document.title='clicked'">go</button>`, r.URL.Path, r.URL.Path)
+		_, _ = fmt.Fprintf(w, `<!doctype html><title>page %s</title><h1 id=h>hello from %s</h1><button onclick="location.href='/clicked'">go</button>`, r.URL.Path, r.URL.Path)
 	}))
-	defer pages.Close()
+	t.Cleanup(pages.Close)
 
 	h := newProxyHarness(t)
 	h.d.browserLaunch = nil
@@ -84,32 +94,105 @@ func TestCDPProxyWithTheRealPlaywrightMCPAndARealChromium(t *testing.T) {
 		return entries, err
 	}
 	h.d.peerLookup = tcpPeerPIDs
-	h.d.loopbackAddr = strings.TrimPrefix(h.url[:strings.Index(h.url, cdpPrefix)], "ws://")
+	address := h.url[:strings.Index(h.url, cdpPrefix)]
+	h.d.loopbackAddr = strings.TrimPrefix(address, "ws://")
+	return &realProxy{h: h, pages: pages, session: realPlaywright(t, h, &mcpPID), address: address}
+}
 
-	session := realPlaywright(t, h, &mcpPID)
-	if got := playwrightTool(t, session, "browser_navigate", map[string]any{"url": pages.URL + "/first"}); strings.HasPrefix(got, "ERROR") {
+// screen is a person's client watching the session's browser.
+func (r *realProxy) screen(t *testing.T) wsClient {
+	t.Helper()
+	person, _ := dialLoopbackClient(t, r.address)
+	person.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	return person
+}
+
+func (r *realProxy) tool(t *testing.T, name string, arguments map[string]any) string {
+	t.Helper()
+	return playwrightTool(t, r.session, name, arguments)
+}
+
+func TestCDPProxyWithTheRealPlaywrightMCPAndARealChromium(t *testing.T) {
+	r := startRealProxy(t)
+	if got := r.tool(t, "browser_navigate", map[string]any{"url": r.pages.URL + "/first"}); strings.HasPrefix(got, "ERROR") {
 		t.Fatalf("browser_navigate through the proxy: %s", got)
 	}
 
 	// The client's Browser pane watches the same browser the agent just drove.
-	person, _ := dialLoopbackClient(t, h.url[:strings.Index(h.url, cdpPrefix)])
-	person.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	person := r.screen(t)
 	person.untilState("live", func(m frame) bool { return strings.HasSuffix(m.URL, "/first") })
 	person.untilFrame("a frame of the agent's page", func(m frame) bool { return m.Type == "browser_frame" })
 
-	// And what the person does is what the agent's next snapshot reads.
+	// And what the person does is what the agent's next snapshot reads, once handed back.
 	person.send(frame{Type: "browser_control", Session: "scientist-evie", Take: true})
 	person.untilState("live", func(m frame) bool { return m.Driver == "person" })
-	person.send(frame{Type: "browser_navigate", Session: "scientist-evie", URL: pages.URL + "/second"})
+	person.send(frame{Type: "browser_navigate", Session: "scientist-evie", URL: r.pages.URL + "/second"})
 	person.untilState("live", func(m frame) bool { return strings.HasSuffix(m.URL, "/second") })
-	deadline := time.Now().Add(10 * time.Second)
-	var snapshot string
-	for time.Now().Before(deadline) {
-		snapshot = playwrightTool(t, session, "browser_snapshot", map[string]any{})
-		if strings.Contains(snapshot, "hello from /second") {
-			return
-		}
-		time.Sleep(200 * time.Millisecond)
+	person.send(frame{Type: "browser_control", Session: "scientist-evie", Take: false})
+	person.untilState("live", func(m frame) bool { return m.Driver == "agent" })
+	if snapshot := r.tool(t, "browser_snapshot", map[string]any{}); !strings.Contains(snapshot, "hello from /second") {
+		t.Fatalf("the agent's snapshot should show the person's page:\n%s", snapshot)
 	}
-	t.Fatalf("the agent's snapshot never showed the person's page:\n%s", snapshot)
+}
+
+// buttonRef is the snapshot's reference for the page's one button.
+func buttonRef(t *testing.T, snapshot string) string {
+	t.Helper()
+	for _, line := range strings.Split(snapshot, "\n") {
+		if _, after, found := strings.Cut(line, "[ref="); found && strings.Contains(line, "button") {
+			ref, _, _ := strings.Cut(after, "]")
+			return ref
+		}
+	}
+	t.Fatalf("no button in the snapshot:\n%s", snapshot)
+	return ""
+}
+
+func TestCDPProxyRefusesTheRealPlaywrightWhileAPersonHoldsControl(t *testing.T) {
+	r := startRealProxy(t)
+	if got := r.tool(t, "browser_navigate", map[string]any{"url": r.pages.URL + "/first"}); strings.HasPrefix(got, "ERROR") {
+		t.Fatalf("browser_navigate: %s", got)
+	}
+	ref := buttonRef(t, r.tool(t, "browser_snapshot", map[string]any{}))
+	person := r.screen(t)
+	person.untilState("live", nil)
+	person.send(frame{Type: "browser_control", Session: "scientist-evie", Take: true})
+	person.untilState("live", func(m frame) bool { return m.Driver == "person" })
+
+	// A ref target is rewritten by Playwright's own "ref not found", so the click
+	// names the button by selector. The others reach the tool's error as sent.
+	refused := map[string]map[string]any{
+		"browser_click":    {"element": "go", "target": "button"},
+		"browser_navigate": {"url": r.pages.URL + "/agent"},
+		"browser_snapshot": {},
+	}
+	for name, arguments := range refused {
+		if got := r.tool(t, name, arguments); !strings.Contains(got, personHasControl) {
+			t.Fatalf("%s while a person holds control should fail with the handback message, got:\n%s", name, got)
+		}
+	}
+	person.send(frame{Type: "browser_control", Session: "scientist-evie", Take: false})
+	person.untilState("live", func(m frame) bool { return m.Driver == "agent" })
+	if got := r.tool(t, "browser_click", map[string]any{"element": "go", "target": ref}); strings.HasPrefix(got, "ERROR") {
+		t.Fatalf("browser_click after the hand back: %s", got)
+	}
+	person.untilState("live", func(m frame) bool { return strings.HasSuffix(m.URL, "/clicked") })
+}
+
+func TestCDPProxyLetsARealPlaywrightConnectWhileAPersonHoldsControl(t *testing.T) {
+	r := startRealProxy(t)
+	person := r.screen(t)
+	person.untilState("live", nil)
+	person.send(frame{Type: "browser_control", Session: "scientist-evie", Take: true})
+	person.untilState("live", func(m frame) bool { return m.Driver == "person" })
+
+	got := r.tool(t, "browser_navigate", map[string]any{"url": r.pages.URL + "/first"})
+	if !strings.Contains(got, personHasControl) {
+		t.Fatalf("a first tool call during person control should reach the handback message, got:\n%s", got)
+	}
+	person.send(frame{Type: "browser_control", Session: "scientist-evie", Take: false})
+	person.untilState("live", func(m frame) bool { return m.Driver == "agent" })
+	if got := r.tool(t, "browser_navigate", map[string]any{"url": r.pages.URL + "/first"}); strings.HasPrefix(got, "ERROR") {
+		t.Fatalf("browser_navigate after the hand back: %s", got)
+	}
 }

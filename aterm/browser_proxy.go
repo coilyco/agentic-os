@@ -364,6 +364,10 @@ func (a *agentConn) handle(data []byte) {
 	} else if a.answeredHere(request) {
 		return
 	}
+	if refusal := a.gate(request); refusal != nil {
+		a.refuse(request, refusal)
+		return
+	}
 	a.cdp.relay(request.SessionID, request.Method, request.Params, func(answer cdpMessage) {
 		if answer.Error == nil {
 			a.learn(request, answer.Result)

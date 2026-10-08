@@ -508,3 +508,84 @@ func TestWithCDPEndpointNeedsTheOptInAndAListener(t *testing.T) {
 		t.Fatalf("a launch that did not opt in is left alone: %v", got)
 	}
 }
+
+// personTakes has a screen outside the session watch the browser and take control.
+func (h *proxyHarness) personTakes() wsClient {
+	h.t.Helper()
+	h.peer.Store(1 << 30)
+	person, _ := dialLoopbackClient(h.t, strings.Replace(h.url, cdpPrefix+h.token, "", 1))
+	person.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	person.untilState("live", nil)
+	person.send(frame{Type: "browser_control", Session: "scientist-evie", Take: true})
+	person.untilState("live", func(m frame) bool { return m.Driver == "person" })
+	return person
+}
+
+func TestCDPProxyRefusesTheAgentsCommandsWhileAPersonHoldsControl(t *testing.T) {
+	h := newProxyHarness(t)
+	agent := h.connect()
+	agent.attached()
+	person := h.personTakes()
+
+	for id, method := range map[int]string{10: "Page.navigate", 11: "Input.dispatchMouseEvent", 12: "DOM.getDocument", 13: "Emulation.setUserAgentOverride", 14: "Page.captureScreenshot"} {
+		agent.send(id, "AGENT1", method, map[string]any{})
+		if refused := agent.answer(id); refused.Error == nil || refused.Error.Message != personHasControl || refused.SessionID != "AGENT1" {
+			t.Fatalf("%s must be refused with the handback message: %+v", method, refused)
+		}
+	}
+	agent.send(15, "", "Target.createTarget", map[string]any{"url": "about:blank"})
+	if refused := agent.answer(15); refused.Error == nil || refused.Error.Message != personHasControl {
+		t.Fatalf("opening a tab is a command too: %+v", refused)
+	}
+	// An evaluation is refused as a thrown exception, which Playwright reports as sent.
+	for id, method := range map[int]string{16: "Runtime.evaluate", 17: "Runtime.callFunctionOn"} {
+		agent.send(id, "AGENT1", method, map[string]any{"expression": "document.title"})
+		thrown := agent.answer(id)
+		if thrown.Error != nil || !strings.Contains(string(thrown.Result), personHasControl) || !strings.Contains(string(thrown.Result), "exceptionDetails") {
+			t.Fatalf("%s should be refused as a thrown error: %+v", method, thrown)
+		}
+	}
+	for _, method := range []string{"Page.navigate", "Input.dispatchMouseEvent", "DOM.getDocument", "Emulation.setUserAgentOverride", "Page.captureScreenshot", "Target.createTarget", "Runtime.callFunctionOn"} {
+		if len(h.fake.called(method)) != 0 {
+			t.Fatalf("the browser must never see a refused %s", method)
+		}
+	}
+
+	// Events keep flowing, so the agent's page model follows the person.
+	h.fake.event("AGENT1", "Page.frameNavigated", map[string]any{"frame": map[string]any{"url": "https://person.example/"}})
+	if nav := agent.until("the person's navigation", func(in cdpIn) bool { return in.Method == "Page.frameNavigated" }); nav.SessionID != "AGENT1" {
+		t.Fatalf("events must reach the agent during person control: %+v", nav)
+	}
+
+	person.send(frame{Type: "browser_control", Session: "scientist-evie", Take: false})
+	person.untilState("live", func(m frame) bool { return m.Driver == "agent" })
+	agent.send(20, "AGENT1", "Page.navigate", map[string]any{"url": "https://agent.example/"})
+	if reply := agent.answer(20); reply.Error != nil {
+		t.Fatalf("handing back restores the agent's commands: %+v", reply)
+	}
+	if len(h.fake.called("Page.navigate")) != 1 {
+		t.Fatalf("only the command sent after the hand back reaches the browser, with no replay: %d", len(h.fake.called("Page.navigate")))
+	}
+}
+
+func TestCDPProxyKeepsPlaywrightsBookkeepingWhileAPersonHoldsControl(t *testing.T) {
+	h := newProxyHarness(t)
+	agent := h.connect()
+	agent.attached()
+	h.personTakes()
+	allowed := []string{
+		"Page.enable", "Runtime.enable", "Network.enable", "Log.enable", "Target.setAutoAttach", "Target.getTargetInfo",
+		"Target.detachFromTarget", "Runtime.runIfWaitingForDebugger", "Page.getFrameTree", "Page.setLifecycleEventsEnabled",
+		"Page.addScriptToEvaluateOnNewDocument", "Page.createIsolatedWorld", "Page.setFontFamilies", "Page.setInterceptFileChooserDialog",
+	}
+	for i, method := range allowed {
+		agent.send(100+i, "AGENT1", method, map[string]any{})
+		if reply := agent.answer(100 + i); reply.Error != nil {
+			t.Fatalf("%s is bookkeeping and must pass during person control: %+v", method, reply.Error)
+		}
+	}
+	agent.send(200, "", "Browser.getVersion", map[string]any{})
+	if reply := agent.answer(200); reply.Error != nil {
+		t.Fatalf("Browser.getVersion must pass: %+v", reply.Error)
+	}
+}
