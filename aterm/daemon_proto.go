@@ -49,6 +49,10 @@ type frame struct {
 	Rows     int      `json:"rows,omitempty"`
 	Cols     int      `json:"cols,omitempty"`
 
+	// Kind is "terminal" on a spawn for a plain login shell and on its spawned
+	// reply, absent for a seat. See docs/aterm-daemon.md.
+	Kind string `json:"kind,omitempty"`
+
 	// attach
 	Replay bool `json:"replay,omitempty"`
 
@@ -75,6 +79,11 @@ type frame struct {
 	// replies and events
 	Message  *peerMessage  `json:"message,omitempty"`
 	Sessions []sessionView `json:"sessions,omitempty"`
+
+	// Terminals rides beside Sessions and never inside it, so a consumer that
+	// counts or targets seats cannot meet a shell.
+	Terminals []terminalView `json:"terminals,omitempty"`
+
 	// Lines is how many screen rows a status asks for, and Status is its answer.
 	Lines  int            `json:"lines,omitempty"`
 	Status *sessionStatus `json:"status,omitempty"`
@@ -125,6 +134,16 @@ type sessionView struct {
 	// Context is how full the seat's context is. Absent until a source has read
 	// one, and from a daemon that predates the field.
 	Context *contextView `json:"context,omitempty"`
+}
+
+// terminalView is one plain terminal as a client sees it. Cwd is where the shell
+// started, not where it is now.
+type terminalView struct {
+	Name    string    `json:"name"`
+	PID     int       `json:"pid"`
+	Started time.Time `json:"started"`
+	Clients int       `json:"clients"`
+	Cwd     string    `json:"cwd,omitempty"`
 }
 
 // peerMessage is one send and where it stands: queued, held, launching,
@@ -182,6 +201,13 @@ const typingGuardFeature = "typing-guard"
 // holdFeature is how a client knows sessions live in holders, so stopping the
 // daemon leaves them running. A daemon without it ends every session when it stops.
 const holdFeature = "holders"
+
+// terminalsFeature is how a client knows the daemon spawns a `kind: "terminal"`
+// and lists it under `terminals`. A daemon without it would start the spawn as a seat.
+const terminalsFeature = "terminals"
+
+// kindTerminal is the one spawn kind besides a seat.
+const kindTerminal = "terminal"
 
 // newConn frames a stream as one JSON object per line.
 func newConn(raw net.Conn) *conn {

@@ -57,8 +57,12 @@ type ptySession struct {
 	identity string
 	seat     string
 	token    string
-	pid      int
-	started  time.Time
+	// kind is kindTerminal for a plain shell, empty for a seat. A terminal has no
+	// token, delivery loop or screen, and lives in daemon.terminals.
+	kind    string
+	cwd     string
+	pid     int
+	started time.Time
 	// holder is the connection to the aterm hold process that owns the PTY
 	// and the child. It outlives this daemon, which adopts it again.
 	holder     *conn
@@ -127,14 +131,22 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 	if err := ensureSocketDir(d.holdDir); err != nil {
 		return nil, err
 	}
-	token := randomID(24)
+	var token, suffix string
+	env := message.Env
+	if message.Kind == kindTerminal {
+		// No token: nothing inside a shell may speak as a seat.
+		suffix = randomID(3)
+	} else {
+		token = randomID(24)
+		env, suffix = sessionEnv(message.Env, name, token), token[:6]
+	}
 	spec := frame{
 		Type: "spawn", Session: name, Role: message.Role, Identity: message.Identity, Seat: message.Seat,
-		Argv: message.Argv, Env: sessionEnv(message.Env, name, token), Cwd: message.Cwd,
+		Kind: message.Kind, Argv: message.Argv, Env: env, Cwd: message.Cwd,
 		Rows: message.Rows, Cols: message.Cols, Token: token,
 	}
 	// A pool name recurs, and a lingering holder removes its socket as it goes.
-	socket := holdSocketPath(d.holdDir, name+"~"+token[:6])
+	socket := holdSocketPath(d.holdDir, name+"~"+suffix)
 	if _, err := startHolder(socket, spec); err != nil {
 		return nil, err
 	}
@@ -188,12 +200,13 @@ func (d *daemon) connectHolder(socket string, adopted bool) (*ptySession, error)
 		identity:     info.Identity,
 		seat:         info.Seat,
 		token:        info.Token,
+		kind:         info.Kind,
+		cwd:          info.Cwd,
 		pid:          info.PID,
 		started:      info.Started,
 		holder:       c,
 		clients:      map[*conn]bool{},
 		outputOffset: info.ReplayStart,
-		scr:          newScreen(clampSize(info.Rows, 24), clampSize(info.Cols, 80)),
 		lastOutput:   now,
 		wake:         make(chan struct{}, 1),
 		done:         make(chan struct{}),
@@ -203,8 +216,14 @@ func (d *daemon) connectHolder(socket string, adopted bool) (*ptySession, error)
 	if adopted {
 		s.lastInput = now
 	}
+	// A shell has no state to classify and nothing queued to deliver.
+	if s.kind != kindTerminal {
+		s.scr = newScreen(clampSize(info.Rows, 24), clampSize(info.Cols, 80))
+	}
 	go s.readHold()
-	go s.deliverLoop()
+	if s.kind != kindTerminal {
+		go s.deliverLoop()
+	}
 	return s, nil
 }
 
@@ -309,6 +328,9 @@ func (s *ptySession) output(chunk []byte) {
 	degradedChanged := degradedBefore != len(s.degraded)
 	s.mu.Unlock()
 	s.sendTo(clients, frame{Type: "output", Session: s.name, Data: chunk, Offset: offset})
+	if s.kind == kindTerminal {
+		return
+	}
 	if pasteChanged || promptShown {
 		s.nudge()
 	}
@@ -416,7 +438,13 @@ func (s *ptySession) end() {
 	if s.askToExit() {
 		return
 	}
-	_ = syscall.Kill(-s.pid, syscall.SIGTERM)
+	// A shell ignores SIGTERM when interactive, and exits on the hangup closing
+	// its window would send.
+	stop := syscall.SIGTERM
+	if s.kind == kindTerminal {
+		stop = syscall.SIGHUP
+	}
+	_ = syscall.Kill(-s.pid, stop)
 	select {
 	case <-s.done:
 		return
@@ -503,6 +531,9 @@ func (s *ptySession) typeInput(data []byte) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 	err := s.writePTY(data)
+	if s.kind == kindTerminal {
+		return err
+	}
 	s.mu.Lock()
 	s.lastInput = time.Now()
 	drafting := s.draft > 0
@@ -785,4 +816,11 @@ func (s *ptySession) view() sessionView {
 		Degraded:     append([]string(nil), s.degraded...),
 		Context:      s.context,
 	}
+}
+
+// terminalView is the session as a terminal listing shows it.
+func (s *ptySession) terminalView() terminalView {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return terminalView{Name: s.name, PID: s.pid, Started: s.started.UTC(), Clients: len(s.clients), Cwd: s.cwd}
 }
