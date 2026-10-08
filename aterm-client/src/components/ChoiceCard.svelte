@@ -1,7 +1,7 @@
 <script lang="ts">
   import { advanceIndex, type Choice } from "../lib/choices";
 
-  let { choice, identity, onanswer, oncancel, focusToken = 0, locked = false, cancelLocked = locked }: {
+  let { choice, identity, onanswer, oncancel, focusToken = 0, locked = false, cancelLocked = locked, lockedLabel = "Read only" }: {
     choice: Choice;
     identity: string;
     /** Each change asks the card to take the keyboard, as when you alt-tab in. */
@@ -13,6 +13,8 @@
     locked?: boolean;
     /** An ask is cancelled by `cancel_ask`, which the guard leaves open. A menu's Esc is typed. */
     cancelLocked?: boolean;
+    /** What the chip says while locked. A link that is down is not a read-only connection. */
+    lockedLabel?: string;
   } = $props();
 
   let card: HTMLElement;
@@ -79,7 +81,7 @@
 
 <section class="card" aria-labelledby="choice-question" bind:this={card}>
   <div class="body">
-    <p class="asker">{identity} is asking{#if choice.header}<span class="chip">{choice.header}</span>{/if}{#if locked}<span class="chip">Read only</span>{/if}</p>
+    <p class="asker">{identity} is asking{#if choice.header}<span class="chip">{choice.header}</span>{/if}{#if locked}<span class="chip">{lockedLabel}</span>{/if}</p>
   <h2 id="choice-question">{choice.question || "Pick one"}</h2>
   {#if choice.multi}<p class="hint">Pick any, then submit.</p>{/if}
   <ol>

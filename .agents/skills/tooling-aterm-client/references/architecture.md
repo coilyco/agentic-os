@@ -33,3 +33,12 @@ See [views-and-browser.md](views-and-browser.md).
 ## Narrow screens
 
 Below 720px the sidebar becomes one row of seat tabs and a Menu button, and the menu (hosts, alert switches, roles to start) opens over the seat. With no seat on screen those lists stay in the page, because the host's own panel sits below them. The session header folds to two rows, the composer's hint shortens, and a waiting card may use the whole terminal area (COI-2550). Below 1000px the side panel becomes a bottom sheet over the terminal (COI-2506, [views-and-browser.md](views-and-browser.md)).
+
+## A restart is not a loss
+
+A daemon restart is routine: launchd revives a crash, an upgrade kickstarts it, and the holders keep every seat alive. So `DaemonHost` redials itself once a welcome has come, and the window keeps the open seat, the roster, and the connection object. Only a host that never answered reports `closed`.
+
+* **Backoff** - 1, 2, 4, 8, 16, then 30 seconds, spread 20% either way (`src/lib/backoff.ts`). A dial that has not welcomed in 10 seconds is dropped. Retry, the browser coming back online, and the tab becoming visible dial at once.
+* **What comes back** - after the welcome the host subscribes again, and the next sessions list triggers one `attach` per seat it held. A seat with a terminal replays at its last size into a cleared screen. The rest are watched without replay, and a seat the daemon no longer lists is dropped. Browser watches are sent again.
+* **What is not sent** - frames typed or clicked into the dead link are dropped, never queued, so a keystroke cannot land after the redial. The terminal, composer, choice cards, and launch buttons say reconnecting meanwhile, and a draft stays in the composer.
+* **Newer build** - the first welcome's `version` is the build that served the page. A later welcome with a higher one sets `app.newerBuild`, and the banner offers Reload. A reload reaches the new build because the worker asks the network first for a navigation. A hosted page is not served by the daemon, so it never shows the cue.

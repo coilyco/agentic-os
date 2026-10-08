@@ -5,7 +5,8 @@ A coarse inventory of what ships. Architecture: [architecture.md](architecture.m
 * **Sidebar tabs** - hosts, running sessions, and roles to start as tab lists with arrow keys. Below 720px a seat row and a Menu button hold the seat first and put hosts, alerts, and roles one tap away.
 * **Sessions as peers** - one tab per live session with its harness and code, so instances of a role on claude and codex sit side by side. A degraded startup names its skipped steps in the tab and header.
 * **Live daemon** - "this Mac" speaks `aterm.daemon.v1` over the daemon's loopback websocket: roster, live sessions, attach with replay, typing, resize, and message states. A Demo host keeps a scripted copy for working with no daemon.
-* **Host states** - checking, online, and not answering, each with its own panel and a retry.
+* **Host states** - checking, online, and not answering, each with its own panel and a retry. A host that answered before and goes quiet reads as stopped answering, not as never started.
+* **Reconnect** - a daemon restart under an open window redials with backoff, keeps the open seat and roster greyed as last known, attaches seats again with replay, and offers a reload when the daemon came back as a newer build. [architecture.md](architecture.md).
 * **Seat launch** - any role launches on any of its harnesses through the daemon's `launch` frame, beside running instances. A refused or failed launch says which, with the daemon's reason.
 * **Session terminal** - xterm.js, fit to its pane.
 * **Activity** - a seat's creature spins a ring in its colour while output flows, and a seat that finishes off screen shows "done, your turn" with a dot, counted in the page title.

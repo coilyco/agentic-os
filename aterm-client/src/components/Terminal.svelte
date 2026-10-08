@@ -129,6 +129,11 @@
     });
     const unsubscribe = connection.subscribe((event) => {
       if (event.type === "output" && event.sessionId === sessionId) terminal.write(event.data, afterWrite);
+      // The host attaches this seat again with replay right after, so the old screen would print twice.
+      else if (event.type === "reconnected") {
+        terminal.reset();
+        remark();
+      }
     });
     // Subscribed first, so the replay the attach triggers is not missed.
     connection.attach(sessionId, terminal.rows, terminal.cols);

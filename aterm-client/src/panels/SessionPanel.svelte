@@ -5,7 +5,7 @@
   import SidePanel from "../components/SidePanel.svelte";
   import SplitHandle from "../components/SplitHandle.svelte";
   import Terminal from "../components/Terminal.svelte";
-  import { app, asksFor, colorOf, jumpToWaiting, messagesFor } from "../lib/app.svelte";
+  import { app, asksFor, colorOf, jumpToWaiting, messagesFor, reconnecting } from "../lib/app.svelte";
   import { askAnswer, CANCEL, choiceFromAsk, detectChoice, keysFor, type Choice } from "../lib/choices";
   import { contextPercent, contextText } from "../lib/context";
   import { isBlank } from "../lib/screen";
@@ -116,8 +116,8 @@
       {#if app.connection}
         {#key session.id}
           <!-- The card overlays the terminal so it never resizes it, which would make the harness redraw its menu. -->
-          <div class="screen">
-            <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} locked={!app.typing.allowed} />
+          <div class="screen" data-link={app.link.state}>
+            <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} locked={!app.typing.allowed || reconnecting()} />
             {#if session.starting && blank}
               <p class="starting" role="status">Starting {session.identity} on {session.seat}. Its first screen shows here as soon as {session.seat} has opened.</p>
             {/if}
@@ -128,8 +128,9 @@
                     choice={choiceFromAsk(ask)}
                     identity={session.identity}
                     focusToken={app.focusCard}
-                    locked={!app.typing.allowed}
-                    cancelLocked={needsPasskey(app.typing)}
+                    locked={!app.typing.allowed || reconnecting()}
+                    lockedLabel={reconnecting() ? "Reconnecting" : "Read only"}
+                    cancelLocked={needsPasskey(app.typing) || reconnecting()}
                     onanswer={(picks, text) => {
                       const reply = askAnswer(ask, picks, text);
                       app.connection?.answer(ask.id, reply.picks, reply.text);
@@ -146,12 +147,12 @@
               {@const current = choice}
               {#key shownKey}
                 <div class="overlay">
-                  <ChoiceCard choice={current} identity={session.identity} locked={!app.typing.allowed} onanswer={(picks, text) => answer(keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
+                  <ChoiceCard choice={current} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
                 </div>
               {/key}
             {/if}
           </div>
-          <Composer connection={app.connection} {session} sessions={app.sessions} typing={app.typing} />
+          <Composer connection={app.connection} {session} sessions={app.sessions} typing={app.typing} offline={reconnecting()} />
         {/key}
       {/if}
     </div>
@@ -173,6 +174,7 @@
   .bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--fill); background: var(--accent); }
   .work { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .screen { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+  .screen[data-link="reconnecting"] :global(.xterm) { filter: grayscale(1); opacity: 0.7; }
   .starting { position: absolute; inset: 0; margin: 0; padding: 24px; display: grid; place-content: center; text-align: center; color: var(--muted); pointer-events: none; }
   .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
   .body { --side: 360px; --strip: calc(56px + env(safe-area-inset-bottom)); flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--side); min-height: 0; }

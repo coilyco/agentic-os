@@ -1,5 +1,6 @@
 <script lang="ts">
   import Attention from "./components/Attention.svelte";
+  import LinkBanner from "./components/LinkBanner.svelte";
   import Sidebar from "./components/Sidebar.svelte";
   import { onMount } from "svelte";
   import { app, jumpToWaiting, sessionById, waitingSeats } from "./lib/app.svelte";
@@ -48,6 +49,7 @@
 <div class="shell">
   <Sidebar />
   <main>
+    <LinkBanner />
     <div id="main-panel" class="panel-root" role="tabpanel" aria-labelledby={labelledBy}>
     {#if role && session && session.state !== "failed"}
       {#key session.id}

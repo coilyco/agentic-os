@@ -1,6 +1,6 @@
 <script lang="ts">
   import Creature from "../components/Creature.svelte";
-  import { app, failedLaunchOf, selectSession } from "../lib/app.svelte";
+  import { app, failedLaunchOf, reconnecting, selectSession } from "../lib/app.svelte";
   import type { Role } from "../lib/roster";
   import { sessionCode } from "../lib/sessions";
   import PasskeyUnlock from "../components/PasskeyUnlock.svelte";
@@ -39,7 +39,7 @@
   {#if app.connection?.canLaunch}
     <div class="seats" role="group" aria-label="Launch on a harness">
       {#each role.seats as seat, index (seat.key)}
-        <button class="button" class:primary={index === 0 && session?.state !== "failed"} disabled={starting || !app.typing.allowed} onclick={() => app.connection?.launch(role.slug, seat.key)}>
+        <button class="button" class:primary={index === 0 && session?.state !== "failed"} disabled={starting || !app.typing.allowed || reconnecting()} onclick={() => app.connection?.launch(role.slug, seat.key)}>
           Launch on {seat.key}
         </button>
       {/each}
