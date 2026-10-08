@@ -23,18 +23,31 @@ export function parseFound(raw: unknown): FoundHost[] {
   });
 }
 
+function addressOf(daemon: FoundHost): string | null {
+  try {
+    return parseHostInput(`${daemon.host}:${daemon.port}`).address;
+  } catch {
+    return null;
+  }
+}
+
+/** The addresses a set of replies names, as host addresses. */
+export function listedAddresses(found: readonly FoundHost[]): Set<string> {
+  return new Set(found.flatMap((daemon) => addressOf(daemon) ?? []));
+}
+
+/** Ids of found hosts no reply lists now and whose daemon never answered. */
+export function staleFoundHosts(hosts: readonly Host[], listed: ReadonlySet<string>): string[] {
+  return hosts.filter((host) => host.found && !host.answered && !listed.has(host.address)).map((host) => host.id);
+}
+
 /** Hosts for found daemons this device does not list yet, by address. */
 export function newFoundHosts(existing: readonly Host[], found: readonly FoundHost[]): Host[] {
   const known = new Set(existing.map((host) => host.address));
   const added: Host[] = [];
   for (const daemon of found) {
-    let address: string;
-    try {
-      address = parseHostInput(`${daemon.host}:${daemon.port}`).address;
-    } catch {
-      continue;
-    }
-    if (known.has(address)) continue;
+    const address = addressOf(daemon);
+    if (address === null || known.has(address)) continue;
     known.add(address);
     added.push({ id: `${FOUND_PREFIX}${address}`, label: daemon.name, address, kind: "daemon", found: true, status: { kind: "checking" } });
   }

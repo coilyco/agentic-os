@@ -2,7 +2,7 @@ import { nextUnseen } from "./activity";
 import { type AttentionSettings, loadAttention, storeAttention } from "./attention";
 import { chime, isBlocked, unlock, watchBlocked } from "./chime";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
-import { discover, newFoundHosts } from "./discovery";
+import { discover, listedAddresses, newFoundHosts, staleFoundHosts } from "./discovery";
 import { upsertMessage } from "./messages";
 import { MockHost, terminalModeFrom } from "./mock-host";
 import type { View } from "./mcp-apps";
@@ -148,28 +148,62 @@ export async function checkHost(host: Host): Promise<void> {
   }
   // Picked while the probe was still out, so attach now that it answered.
   if (app.selectedHostId === host.id && app.attachedHostId !== host.id) selectHost(host);
-  if (!host.found) void addFoundHosts(host);
+  if (!host.found) void refreshFound();
 }
 
-/** Lists the daemons this host sees. One that predates the frame adds none. */
-async function addFoundHosts(source: Host): Promise<void> {
-  let found;
-  try {
-    found = await discover(source.address);
-  } catch {
+const FOUND_REFRESH_MS = 60_000;
+let refreshingFound = false;
+let refreshFoundAgain = false;
+
+/** Re-asks each online daemon host, lists new ones, prunes. Why: discovery.md. */
+async function refreshFound(): Promise<void> {
+  if (refreshingFound) {
+    refreshFoundAgain = true;
     return;
   }
-  const added = newFoundHosts(app.hosts, found);
-  // Before the demo host, which stays last.
-  app.hosts.splice(app.hosts.length - 1, 0, ...added);
-  for (const host of added) void checkHost(app.hosts.find((candidate) => candidate.id === host.id)!);
+  refreshingFound = true;
+  try {
+    do {
+      refreshFoundAgain = false;
+      const asked = app.hosts.filter((host) => host.kind === "daemon" && !host.found && host.status.kind === "online");
+      const replies = await Promise.allSettled(asked.map((host) => discover(host.address)));
+      const found = replies.flatMap((reply) => (reply.status === "fulfilled" ? reply.value : []));
+      if (replies.some((reply) => reply.status === "fulfilled")) {
+        for (const id of staleFoundHosts(app.hosts, listedAddresses(found))) removeHost(id);
+      }
+      const added = newFoundHosts(app.hosts, found);
+      // Before the demo host, which stays last.
+      app.hosts.splice(app.hosts.length - 1, 0, ...added);
+      for (const host of added) void checkHost(app.hosts.find((candidate) => candidate.id === host.id)!);
+    } while (refreshFoundAgain);
+  } finally {
+    refreshingFound = false;
+  }
+}
+
+setInterval(() => {
+  if (document.visibilityState === "visible") void refreshFound();
+}, FOUND_REFRESH_MS);
+
+/** Keeps a found host on this device, as if it had been typed. */
+export function saveFoundHost(host: Host): void {
+  if (!host.found) return;
+  const id = `saved:${host.address}`;
+  if (app.selectedHostId === host.id) app.selectedHostId = id;
+  if (app.attachedHostId === host.id) app.attachedHostId = id;
+  host.id = id;
+  host.found = false;
+  persist();
 }
 
 /** Adds a host by tailnet name, remembered on this device. Throws a readable message. */
 export function addHost(input: string): Host {
   const saved = parseHostInput(input);
   const existing = app.hosts.find((host) => host.address === saved.address);
-  if (existing) return existing;
+  if (existing) {
+    saveFoundHost(existing);
+    return existing;
+  }
   const host = savedHost(saved);
   app.hosts.splice(app.hosts.length - 1, 0, host);
   persist();

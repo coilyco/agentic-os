@@ -138,7 +138,9 @@ type daemonOptions struct {
 	Socket      string
 	Websocket   string
 	TailnetPort string
-	AllowTags   []string
+	// PeerPorts maps a peer name to the port its daemon listens on, for host discovery.
+	PeerPorts map[string]string
+	AllowTags []string
 	// AllowOrigins are hosted client pages, like https://coilyco.dev.
 	AllowOrigins []string
 	ClientDir    string
@@ -230,6 +232,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	d.adoptHolders()
 	d.clientDir = options.ClientDir
 	d.discovery.port = func() string { return options.TailnetPort }
+	d.discovery.peerPorts = options.PeerPorts
 	if options.Websocket != "" {
 		server, err := d.listenWebsocket(options.Websocket)
 		if err != nil {

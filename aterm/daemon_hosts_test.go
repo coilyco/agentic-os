@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -51,7 +52,7 @@ func fakeDiscovery(dialed *atomic.Int32, answers map[string]error) *hostDiscover
 				{FQDN: "kube.example.ts.net"},
 			}, nil
 		},
-		probe: func(_ context.Context, _, host, _ string) (string, error) {
+		probe: func(_ context.Context, _, _, host, _ string) (string, error) {
 			dialed.Add(1)
 			if err, ok := answers[host]; !ok || err != nil {
 				return "", errors.Join(errors.New("no daemon"), err)
@@ -118,14 +119,14 @@ func TestFindOffWithoutAPortAndReportsAnUnreadableTailnet(t *testing.T) {
 func TestProbeSeesADaemonOnlyWhenItAdmitsThisNode(t *testing.T) {
 	admitting, admittingClient, _ := tailnetServer(t, func(string) (tailnetPeer, error) { return peerWith("kai@example.com"), nil })
 	admittingURL, _ := url.Parse(admitting)
-	got, err := daemonProber(admittingClient)(context.Background(), testFQDN, testFQDN, admittingURL.Port())
+	got, err := daemonProber(admittingClient)(context.Background(), testFQDN, admittingURL.Port(), testFQDN, admittingURL.Port())
 	if err != nil || got != version {
 		t.Fatalf("an admitting daemon should answer with its version %q: %q, %v", version, got, err)
 	}
 
 	refusing, refusingClient, _ := tailnetServer(t, func(string) (tailnetPeer, error) { return peerWith("guest@example.com"), nil })
 	refusingURL, _ := url.Parse(refusing)
-	if _, err := daemonProber(refusingClient)(context.Background(), testFQDN, testFQDN, refusingURL.Port()); err == nil || !strings.Contains(err.Error(), "403") {
+	if _, err := daemonProber(refusingClient)(context.Background(), testFQDN, refusingURL.Port(), testFQDN, refusingURL.Port()); err == nil || !strings.Contains(err.Error(), "403") {
 		t.Fatalf("a daemon that refuses this node should read as 403: %v", err)
 	}
 }
@@ -134,7 +135,7 @@ func TestProbeSendsThisNodesPageAsTheOriginAndAPeerThatRefusesItIsAbsent(t *test
 	base, client, _ := tailnetServer(t, func(string) (tailnetPeer, error) { return peerWith("kai@example.com"), nil })
 	parsed, _ := url.Parse(base)
 	// The peer admits this device, but this node's page is not one it serves or allows.
-	_, err := daemonProber(client)(context.Background(), "other.example.ts.net", testFQDN, parsed.Port())
+	_, err := daemonProber(client)(context.Background(), "other.example.ts.net", parsed.Port(), testFQDN, parsed.Port())
 	if err == nil || !strings.Contains(err.Error(), "403") {
 		t.Fatalf("a peer that does not allow this node's page should read as 403: %v", err)
 	}
@@ -149,7 +150,7 @@ func TestProbeIgnoresAServiceThatIsNotADaemonAndAPortNobodyHolds(t *testing.T) {
 		return (&net.Dialer{}).DialContext(ctx, network, plain.Listener.Addr().String())
 	}
 	trusted.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify = true
-	if _, err := daemonProber(trusted)(context.Background(), testFQDN, testFQDN, port); err == nil {
+	if _, err := daemonProber(trusted)(context.Background(), testFQDN, port, testFQDN, port); err == nil {
 		t.Fatal("a web server that is not a daemon read as one")
 	}
 
@@ -159,7 +160,7 @@ func TestProbeIgnoresAServiceThatIsNotADaemonAndAPortNobodyHolds(t *testing.T) {
 	closedClient := &http.Client{Transport: &http.Transport{DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, network, "127.0.0.1:"+idlePort)
 	}}}
-	if _, err := daemonProber(closedClient)(context.Background(), testFQDN, testFQDN, idlePort); err == nil {
+	if _, err := daemonProber(closedClient)(context.Background(), testFQDN, idlePort, testFQDN, idlePort); err == nil {
 		t.Fatal("a closed port read as a daemon")
 	}
 }
@@ -193,5 +194,48 @@ func TestHostsFrameAnswersOverTheWebsocketAndAnUnreadableTailnetIsNotFatal(t *te
 	client.send(frame{Type: "list", ID: "after"})
 	if after := client.next("sessions", nil); after.ID != "after" {
 		t.Fatalf("the connection should survive a failed discovery: %+v", after)
+	}
+}
+
+func TestFindDialsAPeerOnItsOwnPortAndListsThatPort(t *testing.T) {
+	var dialed atomic.Int32
+	discovery := fakeDiscovery(&dialed, map[string]error{"tower.example.ts.net": nil, "laptop.example.ts.net": nil})
+	dialedPorts := map[string]string{}
+	var mu sync.Mutex
+	inner := discovery.probe
+	discovery.probe = func(ctx context.Context, self, pagePort, host, port string) (string, error) {
+		mu.Lock()
+		dialedPorts[host] = port + " from page " + pagePort
+		mu.Unlock()
+		return inner(ctx, self, pagePort, host, port)
+	}
+	// The short name and the full name both select a peer, in any case.
+	discovery.peerPorts = map[string]string{"tower": "7500", "laptop.example.ts.net": "7600"}
+	found, err := discovery.find(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []hostView{
+		{Name: "laptop", Host: "laptop.example.ts.net", Port: "7600", Version: "1.2.3"},
+		{Name: "tower", Host: "tower.example.ts.net", Port: "7500", Version: "1.2.3"},
+	}
+	if !slices.Equal(found, want) {
+		t.Fatalf("found = %+v, want %+v", found, want)
+	}
+	// The Origin stays this node's own page, whatever port the peer listens on.
+	if dialedPorts["tower.example.ts.net"] != "7500 from page 7419" || dialedPorts["kube.example.ts.net"] != "7419 from page 7419" {
+		t.Fatalf("dials = %v", dialedPorts)
+	}
+}
+
+func TestParsePeerPortsTakesNameEqualsPortAndRejectsTheRest(t *testing.T) {
+	got, err := parsePeerPorts([]string{"Tower=7500", " laptop.example.ts.net = 7600"})
+	if err != nil || got["tower"] != "7500" || got["laptop.example.ts.net"] != "7600" {
+		t.Fatalf("parsed %v, %v", got, err)
+	}
+	for _, bad := range []string{"tower", "tower=", "=7500", "tower=0", "tower=70000", "tower=http"} {
+		if _, err := parsePeerPorts([]string{bad}); err == nil {
+			t.Fatalf("%q was accepted", bad)
+		}
 	}
 }
