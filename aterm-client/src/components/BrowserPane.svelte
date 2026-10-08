@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { app } from "../lib/app.svelte";
   import type { Session } from "../lib/protocol";
-  import { driverLabel, isDriving, isStalled, keyParams, mouseParams, toPagePoint, wheelParams } from "../lib/screencast";
+  import type { SharedBrowser } from "../lib/screencast";
+  import { driverLabel, isDriving, isStalled, keyParams, mouseParams, paneSize, toPagePoint, wheelParams } from "../lib/screencast";
 
   let { session }: { session: Session } = $props();
 
@@ -11,20 +13,94 @@
   const heldElsewhere = $derived(browser?.state === "live" && browser.driver === "person" && !browser.heldHere);
   /** Mouse moves with no button held are sent at most this often. */
   const MOVE_EVERY_MS = 40;
+  /** The stage's `min-height` below, so a pane squeezed to nothing still asks for a frame. */
+  const STAGE_MIN_HEIGHT = 240;
+  /** A pane that settles within this many pixels of the size last sent keeps its stream. */
+  const RESIZE_STEP_PX = 8;
+  /** A restart the host never answers hands the button back after this long. */
+  const RESTART_WAIT_MS = 8000;
 
+  let root: HTMLDivElement | undefined = $state();
+  let bar: HTMLDivElement | undefined = $state();
   let stage: HTMLDivElement | undefined = $state();
   let handBack: HTMLButtonElement | undefined = $state();
   let now = $state(Date.now());
   let address = $state("");
   let lastMove = 0;
+  let restarting = $state(false);
+  let refocus = false;
+  /** The closed browser a restart began from, so its echo is not taken for an answer. */
+  let closedAtRestart: SharedBrowser | undefined;
+  const restartBar = $derived(browser?.state === "closed" || (restarting && browser?.state !== "live"));
 
+  const sizeNow = () => paneSize(root?.getBoundingClientRect(), STAGE_MIN_HEIGHT);
+  let sentSize: { width: number; height: number } | undefined;
+
+  function watchNow(): void {
+    sentSize = sizeNow();
+    channel?.watch(session.id, sentSize);
+  }
+
+  // Waits for `root`, which binds after the first run, so the watch carries a size.
   $effect(() => {
     const live = channel;
     const id = session.id;
-    if (!live) return;
-    live.watch(id);
+    if (!live || !root) return;
+    watchNow();
     return () => live.unwatch(id);
   });
+
+  // The pane settles after the first measure, and a window or phone can resize
+  // it. A repeat watch changes the stream's size without leaving it. It waits
+  // for a live browser, because watching a closed one starts it again.
+  $effect(() => {
+    const box = root;
+    if (!box || !channel) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const observer = new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const size = sizeNow();
+        const moved = size && (!sentSize || Math.abs(size.width - sentSize.width) >= RESIZE_STEP_PX || Math.abs(size.height - sentSize.height) >= RESIZE_STEP_PX);
+        if (moved && browser?.state === "live") watchNow();
+      }, 300);
+    });
+    observer.observe(box);
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  });
+
+  // The host echoes the closed state and pushes `none` while it restarts, which
+  // is not an answer. A live browser, or a closed one with a new reason, is.
+  $effect(() => {
+    if (!restarting || !browser) return;
+    if (browser.state === "live" || (browser.state === "closed" && browser.reason !== closedAtRestart?.reason)) restarting = false;
+  });
+
+  $effect(() => {
+    if (!restarting) return;
+    const timer = setTimeout(() => ((restarting = false), (refocus = false)), RESTART_WAIT_MS);
+    return () => clearTimeout(timer);
+  });
+
+  // The Restart button leaves with the closed state, so focus moves to the
+  // bar's next control instead of dropping to the page.
+  $effect(() => {
+    if (browser?.state !== "live" || !refocus) return;
+    refocus = false;
+    void tick().then(() => bar?.querySelector("button")?.focus());
+  });
+
+  function restart(): void {
+    if (restarting || !channel) return;
+    restarting = true;
+    refocus = true;
+    closedAtRestart = browser;
+    // Watching again starts a closed browser, so this stays a watcher throughout.
+    watchNow();
+  }
 
   $effect(() => {
     const timer = setInterval(() => (now = Date.now()), 1000);
@@ -83,23 +159,26 @@
   }
 </script>
 
-<div class="browser">
+<div class="browser" bind:this={root}>
   {#if !channel}
     <p class="empty">This host doesn't stream a browser yet. Once its daemon does, you'll see the page {session.identity} is working in here, and you can take control of it.</p>
+  {:else if restartBar}
+    <div class="bar" bind:this={bar} data-driver="closed">
+      <p class="who" role="status">{restarting ? `Starting a new browser for ${session.identity}.` : browser ? driverLabel(browser, session.identity) : ""}</p>
+      <button type="button" class="button primary" aria-disabled={restarting} onclick={restart}>{restarting ? "Restarting" : "Restart browser"}</button>
+    </div>
   {:else if !browser || browser.state === "none"}
     <p class="empty">{session.identity} hasn't opened a browser yet. The page shows up here as soon as it loads one.</p>
     {#if browser?.reason}<p class="empty">{browser.reason}</p>{/if}
   {:else}
-    <div class="bar" data-driver={browser.state === "closed" ? "closed" : heldElsewhere ? "elsewhere" : browser.driver}>
+    <div class="bar" bind:this={bar} data-driver={heldElsewhere ? "elsewhere" : browser.driver}>
       <p class="who" role="status">{driverLabel(browser, session.identity)}</p>
-      {#if browser.state !== "closed"}
-        {#if driving}
-          <button bind:this={handBack} type="button" class="button" onclick={() => channel?.control(session.id, false)}>Hand back to {session.identity}</button>
-        {:else if heldElsewhere}
-          <button type="button" class="button" onclick={() => channel?.control(session.id, true, true)}>Take over on this screen</button>
-        {:else}
-          <button type="button" class="button primary" onclick={() => channel?.control(session.id, true)}>Take control</button>
-        {/if}
+      {#if driving}
+        <button bind:this={handBack} type="button" class="button" onclick={() => channel?.control(session.id, false)}>Hand back to {session.identity}</button>
+      {:else if heldElsewhere}
+        <button type="button" class="button" onclick={() => channel?.control(session.id, true, true)}>Take over on this screen</button>
+      {:else}
+        <button type="button" class="button primary" onclick={() => channel?.control(session.id, true)}>Take control</button>
       {/if}
     </div>
     {#if browser.state === "live" && browser.reason}
@@ -148,6 +227,7 @@
   .note { margin: 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
   .bar[data-driver="closed"] { border-color: #5a3a41; background: var(--danger-fill); }
   .who { margin: 0; flex: 1 1 160px; font-size: 14px; }
+  .bar .button[aria-disabled="true"] { opacity: 0.6; cursor: progress; }
   .bar[data-driver="closed"] .who { color: var(--danger-text); }
   .address { display: flex; gap: 8px; }
   .address input { flex: 1; min-width: 0; min-height: 40px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--control-line); background: var(--terminal); color: var(--text-soft); font-size: 13px; }

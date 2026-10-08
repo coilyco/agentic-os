@@ -108,7 +108,8 @@ export interface ViewChannel {
 
 /** The seat's shared browser. Only a daemon that streams one has this. */
 export interface BrowserChannel {
-  watch(sessionId: string): void;
+  /** `size` is the pane in CSS pixels, which bounds the screencast the host sends. */
+  watch(sessionId: string, size?: { width: number; height: number }): void;
   unwatch(sessionId: string): void;
   /** `force` takes control from another screen that holds it. */
   control(sessionId: string, take: boolean, force?: boolean): void;

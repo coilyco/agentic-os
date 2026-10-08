@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { driverLabel, isDriving, isStalled, keyParams, modifiersOf, mouseParams, toPagePoint, type SharedBrowser } from "./screencast";
+import { driverLabel, isDriving, isStalled, keyParams, modifiersOf, mouseParams, paneSize, toPagePoint, type SharedBrowser } from "./screencast";
 
 const metadata = { deviceWidth: 1280, deviceHeight: 800, offsetTop: 0, pageScaleFactor: 1 };
 const none = { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
@@ -18,6 +18,23 @@ describe("toPagePoint", () => {
 
   it("maps nothing before the first frame has a size", () => {
     expect(toPagePoint(1, 1, { left: 0, top: 0, width: 10, height: 10 }, { ...metadata, deviceWidth: 0 })).toBeNull();
+  });
+});
+
+describe("paneSize", () => {
+  it("rounds the pane to whole CSS pixels", () => {
+    expect(paneSize({ width: 319.6, height: 640.2 })).toEqual({ width: 320, height: 640 });
+  });
+
+  it("gives no size for a pane that has no width, such as a hidden tab", () => {
+    expect(paneSize(undefined)).toBeUndefined();
+    expect(paneSize({ width: 0, height: 600 })).toBeUndefined();
+    expect(paneSize({ width: 320, height: 0.4 })).toBeUndefined();
+  });
+
+  it("holds a squeezed pane to the height the stage never goes below", () => {
+    expect(paneSize({ width: 288, height: 0 }, 240)).toEqual({ width: 288, height: 240 });
+    expect(paneSize({ width: 288, height: 500 }, 240)).toEqual({ width: 288, height: 500 });
   });
 });
 
