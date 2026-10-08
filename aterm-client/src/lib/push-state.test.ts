@@ -91,6 +91,45 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+describe("a tapped notification", () => {
+  const LOCAL = "ws://127.0.0.1:7419";
+  const stored = (hosts: string[]) => vi.stubGlobal("localStorage", { getItem: () => JSON.stringify(hosts), setItem() {} });
+
+  it("attaches the host this browser subscribed through, then opens the seat once it lists it", async () => {
+    browser();
+    stored([LOCAL]);
+    vi.stubGlobal("WebSocket", FakeDaemon);
+    vi.stubGlobal("location", { search: "", hostname: "localhost", protocol: "http:", host: "localhost" });
+    vi.stubGlobal("document", { visibilityState: "visible", title: "", addEventListener() {}, removeEventListener() {} });
+    const { app } = await import("./app.svelte");
+    const { openSeatFromNotification, settleSeat } = await import("./push.svelte");
+    const host = app.hosts.find((each) => each.address === LOCAL)!;
+    host.status = { kind: "checking" };
+    openSeatFromNotification("s1");
+    // Still probing: it is picked, and attaches when the probe answers.
+    expect(app.selectedHostId).toBe(host.id);
+    expect(app.selectedSession).toBeNull();
+    host.status = { kind: "online", sessionCount: 1 };
+    const { selectHost } = await import("./app.svelte");
+    selectHost(host);
+    FakeDaemon.all.at(-1)!.receive({ ...WELCOME });
+    FakeDaemon.all.at(-1)!.receive({ type: "sessions", sessions: [{ name: "s1", role: "frontend-eng", identity: "Imp-Dragonfly", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 }] });
+    settleSeat();
+    expect(app.selectedSession).toBe("s1");
+  });
+
+  it("leaves a host alone that this browser never subscribed through", async () => {
+    browser();
+    stored([]);
+    vi.stubGlobal("location", { search: "", hostname: "localhost", protocol: "http:", host: "localhost" });
+    vi.stubGlobal("document", { visibilityState: "visible", title: "", addEventListener() {}, removeEventListener() {} });
+    const { app } = await import("./app.svelte");
+    const { openSeatFromNotification } = await import("./push.svelte");
+    openSeatFromNotification("s1");
+    expect(app.selectedHostId).toBeNull();
+  });
+});
+
 describe("the Web Push switch", () => {
   it("is absent from a daemon whose welcome does not list web-push, and from a host that replaces it", async () => {
     browser();

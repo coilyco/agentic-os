@@ -1,4 +1,4 @@
-import { app, HOSTED, selectSession } from "./app.svelte";
+import { app, HOSTED, selectHost, selectSession } from "./app.svelte";
 import { disablePush, enablePush, liveBrowser, loadPushHosts, lockedMessage, PushError, pushIsOn, pushUnavailable, resolveSeat, seatFromLocation, storePushHosts, type PendingSeat } from "./push";
 import { needsPasskey } from "./typing";
 
@@ -53,9 +53,21 @@ export async function setPush(want: boolean): Promise<void> {
   }
 }
 
+/** The seat is on a host this browser subscribed through, so reach it. */
+function reachPushHost(): void {
+  const current = attachedAddress();
+  if (current !== undefined && hosts.includes(current)) return;
+  const host = app.hosts.find((each) => hosts.includes(each.address));
+  if (!host) return;
+  // A host still being probed attaches itself when it answers.
+  if (host.status.kind === "online") selectHost(host);
+  else app.selectedHostId = host.id;
+}
+
 /** A tapped notification names a seat, which opens once the host lists it. */
 export function openSeatFromNotification(session: string): void {
   pending = { session, until: null };
+  reachPushHost();
   settleSeat();
 }
 
