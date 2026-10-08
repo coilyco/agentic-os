@@ -1,18 +1,7 @@
 # The aterm host daemon
 
 `aterm daemon` routes every session [`aterm`](aterm.md) opens. The kitty window is one client
-attached to it, and `aterm send` types a stamped message from one session into another.
-
-```text
-aterm send frontend-eng "ready for review"
-aterm send --launch scientist -       # open the role if none answers
-aterm attach eng-platform-beetle-ox   # Ctrl-] detaches
-aterm status scientist-frog-ox        # state and screen
-aterm clear scientist-frog-ox
-aterm close scientist-frog-ox
-aterm daemon                          # foreground, websocket on 127.0.0.1:7419
-aterm ask "Ship it?" yes no           # a choice card
-```
+attached to it.
 
 ## What the daemon owns
 
@@ -22,15 +11,17 @@ aterm ask "Ship it?" yes no           # a choice card
 
 **The harness starts without agent-compose's Enter gate**, as the window drew its own card (`AGENT_COMPOSE_NO_PAUSE=1`). agent-compose's `ESC ] 7750 ; agent-compose ; degraded=<steps> BEL` becomes the session's `degraded` field.
 
-**`list` reads each session's screen.** The daemon rebuilds each terminal's screen from its output and reports `state`: `starting`, `prompt` (a permission or choice card is up), `busy` (recent output or the interrupt hint), else `idle`. `aterm status` adds the prompt text, quiet seconds, the draft, and the last rows,, never typing.
+**`list` reads each session's screen.** The daemon rebuilds each terminal's screen from its output and reports `state`: `starting`, `prompt` (a permission or choice card is up), `busy` (recent output or the interrupt hint), else `idle`. `aterm status` adds the prompt text, quiet seconds, the draft, and the last rows, never typing.
 
 **`aterm clear` types the harness's clear command, unstamped.** Only Kai's client and the `prod-director` role may, never on the caller's own session, a prompt, or a seat with no known command (claude only). Without `--force` it also refuses a busy session, a draft, or queued messages.
 
-**A session outlives its window.** `aterm close` types the harness's exit (`/exit` for claude) at an idle prompt, waits 10 seconds, then sends SIGTERM, then SIGKILL after 3.
+**A terminal is a login shell, not a seat.** `spawn` with `kind: "terminal"` and optional `cwd` runs `$SHELL -l` under a holder, named `terminal-<hex>`, with no token, and refuses `session`, `role`, `identity`, `seat`, `argv` and `env`. It is absent from `sessions`, `aterm agents`, seat counts and every `send`, `status` and `clear` target. `list` and the `sessions` push carry `terminals` (`name`, `pid`, `started`, `clients`, `cwd`), feature `terminals`. `attach`, `input`, `resize` and `close` take its name, an exiting shell ends it, a restart adopts it. A remote device gets `remote_terminal` until COI-2488.
 
-**A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn as one stdin line since the environment holds credentials. It listens in `hold/` on `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running. The next one adopts each, drops a socket nobody answers. An adopted session has a typing hold, and pending messages are lost.
+**A session outlives its window.** `aterm close` types the harness's exit (`/exit` for claude) at an idle prompt, waits 10 seconds, then SIGTERM, then SIGKILL after 3.
 
-**`ATERM_SENTRY_DSN` (SSM `/coilysiren/sentry/dsn/aterm`) turns on a 5-minute cron check-in, `ok` while the tailnet handshake completes, and a fatal event for a goroutine panic, raised again after.**
+**A holder owns each session's terminal, so the daemon is replaceable.** `aterm hold`, this binary once per session, detached, owns the PTY, the child and a 1 MB scrollback ring, and takes its spawn on stdin, since the environment holds credentials. It listens in `hold/` on `aterm.hold.v1`. A daemon exiting by signal or crash leaves every session running. The next one adopts each, drops a socket nobody answers. An adopted session has a typing hold, and pending messages are lost.
+
+**`ATERM_SENTRY_DSN` (SSM `/coilysiren/sentry/dsn/aterm`) turns on a 5-minute check-in and panic capture.**
 
 **A missing daemon costs messaging, never the session.** `_session` starts one, else runs the harness directly, and [launchd](aterm-bundles.md) can run it.
 
@@ -40,7 +31,7 @@ aterm ask "Ship it?" yes no           # a choice card
 
 **The sender is stamped by the daemon, never declared.** Each spawn gets a fresh `ATERM_SESSION_TOKEN`. `send` presents it, and the daemon resolves the seat and types `[from <role> <identity>] <body>`.
 
-**A body cannot forge a second envelope.** A body line opening with `[from ` gets a `\` in front. Control bytes but tab show in caret or `<U+XXXX>` notation, since an escape byte would end a bracketed paste.
+**A body cannot forge a second envelope.** A body line opening with `[from ` gets a `\` in front. Control bytes but tab show as caret or `<U+XXXX>`, since an escape would end a paste.
 
 **Targets resolve in tiers**: session name, role slug, identity, then harness. The first tier with a match wins, several in it refuse and name them, and none exits 3 listing the live sessions. `--launch` on a role slug opens the role and holds the message up to three minutes. `--new` always opens another instance and names it.
 

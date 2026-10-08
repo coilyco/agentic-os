@@ -45,6 +45,8 @@ func exitCodeFor(err error) int {
 const (
 	reasonSessionDescendant = "session_descendant"
 	reasonPeerUnread        = "peer_unread"
+	// A remote device cannot open a shell until COI-2488's gating exists.
+	reasonRemoteTerminal = "remote_terminal"
 )
 
 // typingStanding says whether a peer may type, and if not why.
