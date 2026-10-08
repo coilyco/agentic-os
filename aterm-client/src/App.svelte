@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Attention from "./components/Attention.svelte";
   import Sidebar from "./components/Sidebar.svelte";
   import { onMount } from "svelte";
   import { app, jumpToWaiting, sessionById, waitingSeats } from "./lib/app.svelte";
@@ -43,6 +44,7 @@
   );
 </script>
 
+<Attention />
 <div class="shell">
   <Sidebar />
   <main>

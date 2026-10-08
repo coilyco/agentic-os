@@ -1,4 +1,6 @@
 import { nextUnseen } from "./activity";
+import { type AttentionSettings, loadAttention, storeAttention } from "./attention";
+import { chime, isBlocked, unlock, watchBlocked } from "./chime";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
 import { upsertMessage } from "./messages";
 import { MockHost } from "./mock-host";
@@ -38,6 +40,12 @@ export const app = $state({
   launches: {} as Record<string, { state: LaunchState; text: string }>,
   /** Sessions that finished a turn while you were looking at another one. */
   unseen: {} as Record<string, boolean>,
+  /** Seats waiting on you, for cues. Unlike `unseen`, counts the open seat if hidden. */
+  attention: {} as Record<string, boolean>,
+  /** Whether the tab is on screen. The open seat is only "seen" while it is. */
+  pageVisible: document.visibilityState === "visible",
+  /** The opt-in cues, per browser. `soundBlocked` is the browser refusing audio. */
+  alerts: { ...loadAttention(), soundBlocked: false } as AttentionSettings & { soundBlocked: boolean },
   /** ask_choice calls waiting on a person, by ask id. */
   asks: {} as Record<string, Ask>,
   /** True from alt-tabbing in until you leave, while answers walk the waiting seats. */
@@ -107,6 +115,7 @@ export function selectHost(host: Host): void {
   app.sessions = [];
   app.messages = [];
   app.asks = {};
+  app.attention = {};
   app.views = {};
   app.browsers = {};
   const connection = host.kind === "daemon" ? new DaemonHost(host.address) : new MockHost();
@@ -116,6 +125,7 @@ export function selectHost(host: Host): void {
     if (event.type === "roster") app.roles = event.roles;
     else if (event.type === "sessions") {
       app.unseen = nextUnseen(app.sessions, event.sessions, viewingSession(), app.unseen);
+      app.attention = nextUnseen(app.sessions, event.sessions, openSeat(), app.attention);
       app.sessions = event.sessions;
     }
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
@@ -145,6 +155,7 @@ export function selectSession(id: string): void {
   app.selectedSession = id;
   app.selectedRole = null;
   delete app.unseen[id];
+  delete app.attention[id];
 }
 
 /** Opens a role's start panel. */
@@ -221,4 +232,42 @@ export function jumpToWaiting(): boolean {
   selectSession(next.sessionId);
   if (next.kind === "asking") app.focusCard++;
   return true;
+}
+
+/** The seat on screen, while the tab is: the one seat the cues leave alone. */
+export function openSeat(): string | null {
+  return app.pageVisible ? app.selectedSession : null;
+}
+
+/** Who is waiting, for cues. A read-only browser cannot answer, so its asks sit out. */
+export function cueSeats(): string[] {
+  const live = new Set(app.sessions.map((session) => session.id));
+  const asking = app.typing.allowed ? Object.values(app.asks).map((ask) => ask.session) : [];
+  return [...new Set([...Object.keys(app.attention), ...asking])].filter((id) => live.has(id));
+}
+
+/** Waiting seats the strong visual draws, with their role colour. */
+export function glowSeats(): { sessionId: string; color: string }[] {
+  const open = openSeat();
+  return cueSeats()
+    .filter((id) => id !== open)
+    .map((sessionId) => ({ sessionId, color: colorOf(app.sessions.find((session) => session.id === sessionId)?.role ?? "") }));
+}
+
+watchBlocked((blocked) => (app.alerts.soundBlocked = app.alerts.sound && blocked));
+// A reload with Sound on starts with audio shut until the first touch of the page.
+if (app.alerts.sound) app.alerts.soundBlocked = isBlocked();
+
+/** Flips a cue. Turning Sound on wakes audio and plays the cue once to prove it. */
+export async function setAlert(key: keyof AttentionSettings, on: boolean): Promise<void> {
+  app.alerts[key] = on;
+  storeAttention({ sound: app.alerts.sound, visual: app.alerts.visual });
+  if (key !== "sound") return;
+  if (!on) return void (app.alerts.soundBlocked = false);
+  if (await unlock()) chime();
+}
+
+/** Plays the cue if Sound is on. */
+export function playCue(): void {
+  if (app.alerts.sound) chime();
 }
