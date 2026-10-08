@@ -176,20 +176,33 @@ func sendMessage(target, body string, opts sendOptions) (peerMessage, error) {
 	if state.State != "launching" {
 		return state, nil
 	}
-	// Subscribe before launching, so the adoption cannot land unseen.
+	// Subscribe before launching, and read the watch during it: an unread watch
+	// fills with sessions frames and the daemon drops it (COI-2300).
 	watch, err := dialDaemon(false)
 	if err == nil {
 		defer watch.Close()
 		err = watch.write(frame{Type: "subscribe", ID: randomID(6), Channel: "sessions"})
 	}
-	if launchErr := launchRole(target, ""); launchErr != nil {
+	var adopted chan peerMessage
+	if err == nil {
+		adopted = make(chan peerMessage, 1)
+		go func() { adopted <- awaitSession(watch, state, launchWait) }()
+	}
+	if launchErr := openRole(target, ""); launchErr != nil {
 		return state, fmt.Errorf("the message waits for %s, but opening it failed: %w", target, launchErr)
 	}
-	if err != nil {
+	if adopted == nil {
 		return state, nil
 	}
-	return awaitSession(watch, state, adoptWait), nil
+	select {
+	case state = <-adopted:
+	case <-time.After(adoptWait):
+	}
+	return state, nil
 }
+
+// openRole is launchRole, replaceable so a test can open the role itself.
+var openRole = launchRole
 
 // adoptWait bounds how long a launching send waits to learn which session
 // took it. The daemon keeps holding the message for launchWait after this.
