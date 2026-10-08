@@ -20,13 +20,14 @@ var fakeJPEG = []byte{0xff, 0xd8, 0xff, 0xe0, 'f', 'a', 'k', 'e'}
 // fakeBrowser answers the CDP commands a page session needs and records what
 // reached it, so the daemon's frames are judged without a real Chromium.
 type fakeBrowser struct {
-	t      *testing.T
-	out    io.Writer
-	outMu  sync.Mutex
-	mu     sync.Mutex
-	calls  []cdpMessage
-	exited chan struct{}
-	once   sync.Once
+	t         *testing.T
+	out       io.Writer
+	outMu     sync.Mutex
+	mu        sync.Mutex
+	calls     []cdpMessage
+	exited    chan struct{}
+	once      sync.Once
+	pageTitle string // what Target.getTargetInfo reports, guarded by mu
 	// silent leaves a started screencast without frames, as a page that never repaints does.
 	silent bool
 }
@@ -80,6 +81,13 @@ func (f *fakeBrowser) answer(request cdpMessage) {
 		result = map[string]any{"targetInfos": []targetInfo{{TargetID: "T1", Type: "page", URL: "about:blank", Title: "blank"}}}
 	case "Target.attachToTarget":
 		result = map[string]any{"sessionId": "PAGE"}
+	case "Target.getTargetInfo":
+		f.mu.Lock()
+		title := f.pageTitle
+		f.mu.Unlock()
+		if title != "" {
+			result = map[string]any{"targetInfo": targetInfo{TargetID: "T1", Type: "page", URL: "about:blank", Title: title}}
+		}
 	case "Page.captureScreenshot":
 		result = map[string]any{"data": fakeJPEG}
 	case "Page.getLayoutMetrics":
@@ -516,4 +524,15 @@ func TestBrowserControlFromATailnetDeviceNeedsItsPasskey(t *testing.T) {
 	if err := d.browserControl(cl, frame{Type: "browser_control", Session: "scientist-evie", Take: true}); err != nil || sb.driver != "person" {
 		t.Fatalf("an asserted device may take it: %v, driver %s", err, sb.driver)
 	}
+}
+
+func TestBrowserTitleOnlyChangeReachesWatchersWithoutATargetInfoEvent(t *testing.T) {
+	_, address, fake := browserDaemon(t)
+	client, _ := dialLoopbackClient(t, address)
+	client.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	client.untilState("live", func(m frame) bool { return m.Title == "blank" })
+	fake.mu.Lock()
+	fake.pageTitle = "clicked"
+	fake.mu.Unlock()
+	client.untilState("live", func(m frame) bool { return m.Title == "clicked" && m.URL == "about:blank" })
 }
