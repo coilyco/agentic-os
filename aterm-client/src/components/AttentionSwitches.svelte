@@ -1,8 +1,19 @@
 <script lang="ts">
   import { app, setAlert } from "../lib/app.svelte";
+  import { push, pushBlocked, setPush } from "../lib/push.svelte";
 
   /** One tight row with no hints, for a page that is already full of lists. */
   let { compact = false }: { compact?: boolean } = $props();
+
+  // The browser, not the daemon, decides this: no worker, no push manager, an insecure page.
+  const blocked = pushBlocked();
+
+  async function flip(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
+    const box = event.currentTarget;
+    await setPush(box.checked);
+    // A refusal leaves the switch where it was, and the box has already moved.
+    box.checked = push.on;
+  }
 </script>
 
 <section class="alerts" class:compact aria-labelledby="alerts-label">
@@ -18,9 +29,22 @@
       <span class="track" aria-hidden="true"></span>
       <span class="name">Strong visual</span>
     </label>
+    {#if app.webPush}
+      <label class="switch">
+        <input type="checkbox" role="switch" checked={push.on} disabled={blocked !== null} aria-busy={push.busy} aria-describedby="alerts-push-hint alerts-push-note" onchange={flip} />
+        <span class="track" aria-hidden="true"></span>
+        <span class="name">Notify when closed</span>
+      </label>
+    {/if}
   </div>
   <p id="alerts-sound-hint" class="hint">One short tone when a seat starts waiting on you.</p>
   <p id="alerts-visual-hint" class="hint">A glow at the page edge and on the seat's tab, until you open it.</p>
+  {#if app.webPush}
+    <p id="alerts-push-hint" class="hint">A notification on this device when a seat starts waiting on you, even with the app closed.</p>
+    <p id="alerts-push-note" class={push.failed || blocked ? "blocked" : "hint"} role={push.failed ? "alert" : "status"}>
+      {#if push.busy}{push.on ? "Turning off" : "Turning on"}...{:else if push.message}{push.message}{:else if blocked}{blocked}{/if}
+    </p>
+  {/if}
   {#if app.alerts.soundBlocked}
     <p class="blocked" role="status">Sound is on, but the browser is holding audio back. Click anywhere on the page, or switch Sound off and on again.</p>
   {/if}
@@ -42,9 +66,13 @@
   .hint, .blocked { margin: 0 10px 4px; font-size: 12px; color: var(--muted); }
   .blocked { color: var(--warn-text); }
   .blocked::before { content: "! "; font-weight: 700; color: var(--warn); }
+  /* A live region is kept in the page so a message is announced when it arrives, and takes no room while empty. */
+  #alerts-push-note:empty { margin: 0; }
+  #alerts-push-note:empty::before { content: none; }
 
   .compact { margin-top: 0; padding: 0 16px; border-top: none; display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
   .compact h2, .compact .hint { display: none; }
+  .compact #alerts-push-note { display: block; flex-basis: 100%; margin: 0 0 4px; }
   .compact .switches { flex-direction: row; flex-wrap: wrap; }
   .compact .blocked { flex-basis: 100%; margin: 0 0 4px; }
 </style>

@@ -106,7 +106,8 @@ export type HostEvent =
   | { type: "view_update"; id: string; toolResult?: ToolResult; cancelled?: string }
   | { type: "view_closed"; id: string }
   | { type: "browser"; browser: SharedBrowser }
-  | { type: "features"; terminals: boolean }
+  // `webPush` is only ever true: a daemon without it sends the event as it always did.
+  | { type: "features"; terminals: boolean; webPush?: true }
   | { type: "terminals"; terminals: ListedTerminal[] }
   | { type: "terminal_opened"; label: string; id: string }
   | { type: "terminal_exit"; id: string; code: number }
@@ -144,9 +145,19 @@ export interface PasskeyChannel {
   assert(): Promise<void>;
 }
 
+/** Web Push. Only a daemon that lists `web-push` has one. */
+export interface PushChannel {
+  /** The daemon's VAPID public key, base64url, to pass as `applicationServerKey`. */
+  key(): Promise<string>;
+  /** `PushSubscription.toJSON()` as it is. A remote device needs its passkey first. */
+  subscribe(subscription: unknown): Promise<void>;
+  unsubscribe(endpoint: string): Promise<void>;
+}
+
 export interface HostConnection {
   readonly canLaunch: boolean;
   readonly passkey?: PasskeyChannel;
+  readonly push?: PushChannel;
   readonly views?: ViewChannel;
   readonly browser?: BrowserChannel;
   readonly terminals?: TerminalChannel;

@@ -3,11 +3,11 @@
 import { backoffDelay, differentBuild } from "./backoff";
 import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, HostConnection, HostEvent, MessageState, PasskeyChannel, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, HostConnection, HostEvent, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, ViewChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
 import { CODE_SPENT, createCredential, getCredential, passkeySupport, PasskeyError } from "./passkey";
-import { keepStanding, parseTyping, refusalOf, typingNotice, type Typing } from "./typing";
+import { keepStanding, parseTyping, Refusal, refusalOf, typingNotice, type Typing } from "./typing";
 
 export const FORMAT = "aterm.daemon.v1";
 const LOOPBACK_DAEMON = "ws://127.0.0.1:7419";
@@ -121,6 +121,8 @@ interface Frame {
   cancelled?: string;
   result?: unknown;
   options?: unknown;
+  /** The VAPID public key on a `push_key` reply. */
+  key?: string;
 }
 
 interface ViewFrame {
@@ -136,6 +138,9 @@ interface ViewFrame {
 
 /** `welcome.features` names this when the daemon streams a session's browser. */
 export const BROWSER_FEATURE = "browser";
+
+/** `welcome.features` names this when the daemon has a VAPID key and answers `push_*`. */
+export const PUSH_FEATURE = "web-push";
 
 /** The daemon keeps a `label` on a terminal spawn and lists it back. */
 const TERMINAL_LABEL_FEATURE = "terminal-label";
@@ -415,6 +420,21 @@ export class DaemonHost implements HostConnection {
     },
   };
 
+  /** Only a welcome listing `web-push` answers `push_*`. */
+  get push(): PushChannel | undefined {
+    return this.features.has(PUSH_FEATURE) ? this.pushChannel : undefined;
+  }
+
+  private pushChannel: PushChannel = {
+    key: async () => {
+      const { key } = await this.exchange({ type: "push_key" });
+      if (!key) throw new Error("The daemon sent no push key.");
+      return key;
+    },
+    subscribe: async (push) => void (await this.exchange({ type: "push_subscribe", push })),
+    unsubscribe: async (endpoint) => void (await this.exchange({ type: "push_unsubscribe", push: { endpoint } })),
+  };
+
   /** One request, settled by the reply or the `error` that echoes its id. */
   private exchange(frame: Record<string, unknown>): Promise<Frame> {
     return new Promise((resolve, reject) => {
@@ -587,7 +607,7 @@ export class DaemonHost implements HostConnection {
         this.browser = frame.features?.includes(BROWSER_FEATURE) ? this.browserChannel() : undefined;
         this.setTyping(parseTyping(frame.typing));
         this.features = new Set(frame.features ?? []);
-        this.last.features = { type: "features", terminals: this.features.has("terminals") };
+        this.last.features = { type: "features", terminals: this.features.has("terminals"), ...(this.features.has(PUSH_FEATURE) ? { webPush: true as const } : {}) };
         this.emit(this.last.features);
         this.request({ type: "subscribe", channel: "sessions" });
         this.request({ type: "roster" });
@@ -636,7 +656,10 @@ export class DaemonHost implements HostConnection {
       case "passkey_enroll_options":
       case "passkey_enrolled":
       case "passkey_assert_options":
-      case "passkey_asserted": {
+      case "passkey_asserted":
+      case "push_key":
+      case "push_subscribed":
+      case "push_unsubscribed": {
         const call = frame.id ? this.calls.get(frame.id) : undefined;
         if (call && frame.id) {
           this.calls.delete(frame.id);
@@ -685,7 +708,7 @@ export class DaemonHost implements HostConnection {
         const call = frame.id ? this.calls.get(frame.id) : undefined;
         if (call && frame.id) {
           this.calls.delete(frame.id);
-          call.reject(new Error(refused ? typingNotice(refused) : (frame.error ?? "The daemon refused the view call.")));
+          call.reject(new Refusal(refused ? typingNotice(refused) : (frame.error ?? "The daemon refused the request."), refused?.allowed === false ? refused.reason : undefined));
           return;
         }
         const seat = frame.id ? this.pendingOpens.get(frame.id) : undefined;
