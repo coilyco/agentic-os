@@ -49,6 +49,10 @@ type frame struct {
 	Rows     int      `json:"rows,omitempty"`
 	Cols     int      `json:"cols,omitempty"`
 
+	// MCPApps is on a spawn the launch opted in to the MCP Apps gateway with, which
+	// the holder keeps since it drops the environment that said so.
+	MCPApps bool `json:"mcp_apps,omitempty"`
+
 	// Kind is "terminal" on a spawn for a login shell, absent for a seat, and the
 	// input type (mouse, wheel, key, text) on a browser_input. See docs/aterm-daemon.md.
 	Kind string `json:"kind,omitempty"`

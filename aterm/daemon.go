@@ -324,6 +324,7 @@ func (d *daemon) adoptHolders() {
 			d.tokens[s.token] = s
 		}
 		d.mu.Unlock()
+		d.restoreGateways(s)
 		d.logf("adopted %s as pid %d", s.name, s.pid)
 	}
 	d.pushSessions()
