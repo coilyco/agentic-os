@@ -392,6 +392,9 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 }
 
 func (d *daemon) handle(cl *client, message frame) error {
+	if cl.remote && !cl.asserted && remoteLocked[message.Type] {
+		return d.typingRefusal(cl, "")
+	}
 	switch message.Type {
 	case "spawn":
 		s, err := d.spawn(message)
