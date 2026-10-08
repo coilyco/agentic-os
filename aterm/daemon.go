@@ -1038,10 +1038,11 @@ func (d *daemon) broadcast(message frame) {
 	}
 	d.mu.Unlock()
 	for _, c := range subscribers {
-		if err := c.write(message); err != nil {
+		if !c.offer(message) {
 			d.mu.Lock()
 			delete(d.subscribers, c)
 			d.mu.Unlock()
+			_ = c.Close()
 		}
 	}
 }

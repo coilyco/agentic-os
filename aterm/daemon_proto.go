@@ -202,6 +202,10 @@ type conn struct {
 	features  []string
 	// peerVersion is the build the daemon reported in its welcome.
 	peerVersion string
+	// outbox, gone and outMu serve the daemon's broadcasts. See daemon_outbox.go.
+	outMu  sync.Mutex
+	outbox chan frame
+	gone   chan struct{}
 }
 
 // sendNewFeature is how a client knows the daemon reads `new` on a send. A
@@ -288,7 +292,18 @@ func (c *conn) read() (frame, error) {
 	return message, nil
 }
 
-func (c *conn) Close() error { return c.closer() }
+func (c *conn) Close() error {
+	c.outMu.Lock()
+	if c.gone != nil {
+		select {
+		case <-c.gone:
+		default:
+			close(c.gone)
+		}
+	}
+	c.outMu.Unlock()
+	return c.closer()
+}
 
 // daemonSocket is keyed by uid rather than HOME, because a session shadow
 // moves HOME and every seat on the host must reach the same daemon.

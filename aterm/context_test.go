@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -311,17 +312,22 @@ func TestRefreshFollowsATurnAndIgnoresAnUnchangedFile(t *testing.T) {
 
 func TestRefreshPushesTheRosterOnlyWhenAReadingMoved(t *testing.T) {
 	c := newContextDaemon(t)
-	watcher := &conn{writeLine: func([]byte) error { return nil }}
-	var pushed int
-	watcher.writeLine = func([]byte) error { pushed++; return nil }
+	var pushed atomic.Int32
+	watcher := &conn{writeLine: func([]byte) error { pushed.Add(1); return nil }, closer: func() error { return nil }}
 	c.d.subscribers[watcher] = true
-	c.d.refreshContexts()
-	if pushed != 1 {
-		t.Fatalf("first reading pushes once, got %d", pushed)
+	// A broadcast is written from the subscriber's own goroutine, so a count is
+	// read after it has had time to land.
+	landed := func() int32 {
+		time.Sleep(200 * time.Millisecond)
+		return pushed.Load()
 	}
 	c.d.refreshContexts()
-	if pushed != 1 {
-		t.Fatalf("nothing moved, yet pushed %d", pushed)
+	if got := landed(); got != 1 {
+		t.Fatalf("first reading pushes once, got %d", got)
+	}
+	c.d.refreshContexts()
+	if got := landed(); got != 1 {
+		t.Fatalf("nothing moved, yet pushed %d", got)
 	}
 }
 
