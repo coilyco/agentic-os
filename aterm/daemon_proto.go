@@ -107,6 +107,17 @@ type frame struct {
 	// Hold is what a session holder reports on attach, and is not part of the
 	// client wire.
 	Hold *holdInfo `json:"hold,omitempty"`
+
+	// MCP Apps: the gateway and the views channel. See docs/aterm-daemon.md.
+	View       *viewFrame      `json:"view,omitempty"`
+	ViewID     string          `json:"view_id,omitempty"`
+	Server     string          `json:"server,omitempty"`
+	Gateway    *gatewaySpec    `json:"gateway,omitempty"`
+	Method     string          `json:"method,omitempty"`
+	Params     json.RawMessage `json:"params,omitempty"`
+	Result     json.RawMessage `json:"result,omitempty"`
+	ToolResult json.RawMessage `json:"tool_result,omitempty"`
+	Cancelled  string          `json:"cancelled,omitempty"`
 }
 
 // sessionView is one live session as a client sees it. It is the roster the
