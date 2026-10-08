@@ -172,6 +172,10 @@ aterm-tidy *ARGS:
 aterm-client-install *ARGS:
     @cd aterm-client && {{pnpm}} install --frozen-lockfile "$@"
 
+# Add a dependency to the aterm web client, updating its pnpm-lock.yaml. Pass -D for a dev dependency.
+aterm-client-add *ARGS:
+    @cd aterm-client && {{pnpm}} add "$@"
+
 # Serve the aterm web client with hot reload on port 5173, against the mock host.
 aterm-client-dev *ARGS:
     @cd aterm-client && {{pnpm}} run dev "$@"

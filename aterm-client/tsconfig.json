@@ -8,9 +8,11 @@
     "noUncheckedIndexedAccess": true,
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "types": ["vite/client"]
+    "types": ["vite/client", "node"]
   },
-  "include": ["src/**/*.ts", "src/**/*.svelte", "vite.config.ts"]
+  "include": ["src/**/*.ts", "src/**/*.svelte", "vite.config.ts", "pwa-plugin.ts"]
 }

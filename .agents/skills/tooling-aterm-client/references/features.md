@@ -19,7 +19,7 @@ A coarse inventory of what ships. Architecture: [architecture.md](architecture.m
 * **Views and Browser tabs** - MCP Apps views from a daemon that lists `mcp-apps`, and the seat's streamed browser, awaiting its frames. [views-and-browser.md](views-and-browser.md).
 * **Read-only state** - when the daemon's typing guard refuses this browser (`welcome.typing`, or an `error` with `session_descendant` or `peer_unread`), the terminal, composer, choice cards, and launch buttons say read only and send nothing. The passkey locked state waits on accepted frames (COI-2484).
 * **Hosted build** - the client under a path prefix behind a deployment's own sign-in, hosts added per device. [deploy.md](deploy.md).
-* **Installable** - a web manifest and icons so Android and the Mac can install it as an app.
+* **Installable** - a manifest, icons, and an app-shell service worker, so Chrome installs it from the daemon's address or the hosted build into its own window. With no daemon answering, a launch opens to the "not answering" panel instead of a browser error. An install card on the host panel says what installing does and hides once installed. [deploy.md](deploy.md).
 
 Designed, not built: the switchboard.
 
