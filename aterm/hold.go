@@ -58,8 +58,9 @@ type holdInfo struct {
 	Code   int  `json:"code,omitempty"`
 
 	// Kind and Cwd let a daemon adopting this holder tell a terminal from a seat.
-	Kind string `json:"kind,omitempty"`
-	Cwd  string `json:"cwd,omitempty"`
+	Kind  string `json:"kind,omitempty"`
+	Cwd   string `json:"cwd,omitempty"`
+	Label string `json:"label,omitempty"`
 }
 
 // modeTracker follows what a session's output asked of the terminal. The
@@ -384,6 +385,7 @@ func (h *holder) attach(c *conn, message frame) error {
 		Code:        h.code,
 		Kind:        h.spec.Kind,
 		Cwd:         h.spec.Cwd,
+		Label:       h.spec.Label,
 	}
 	if err := c.write(frame{Type: "attached", ID: message.ID, Session: info.Name, PID: info.PID, Hold: &info}); err != nil {
 		return err

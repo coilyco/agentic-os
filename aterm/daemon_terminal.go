@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // terminalName names a plain terminal. A seat is <role>-<identity>, so the
@@ -62,6 +64,18 @@ func loginShell(environ []string) string {
 	return "/bin/sh"
 }
 
+// checkTerminalLabel refuses a label it could not echo back unchanged: not text,
+// too long, or carrying control characters a client would have to guard against.
+func checkTerminalLabel(label string) error {
+	if len(label) > maxTerminalLabel {
+		return fmt.Errorf("a terminal label is at most %d bytes, and this one is %d", maxTerminalLabel, len(label))
+	}
+	if !utf8.ValidString(label) || strings.IndexFunc(label, unicode.IsControl) >= 0 {
+		return errors.New("a terminal label is text without control characters")
+	}
+	return nil
+}
+
 // spawnTerminal starts the user's login shell under a holder, named by the
 // daemon. A terminal has no role, so none of a seat's fields may ride along.
 func (d *daemon) spawnTerminal(message frame) (*ptySession, error) {
@@ -69,6 +83,9 @@ func (d *daemon) spawnTerminal(message frame) (*ptySession, error) {
 		len(message.Argv) > 0 || len(message.Env) > 0 {
 		return nil, withExit(exitUsage, errors.New(
 			"a terminal takes no session, role, identity, seat, argv, or env: the daemon names it and runs the login shell"))
+	}
+	if err := checkTerminalLabel(message.Label); err != nil {
+		return nil, withExit(exitUsage, err)
 	}
 	environ := terminalEnviron(os.Environ())
 	cwd := message.Cwd

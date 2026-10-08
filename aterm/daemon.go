@@ -370,7 +370,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, mcpAppsFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, mcpAppsFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -420,6 +420,9 @@ func (d *daemon) handle(cl *client, message frame) error {
 		var err error
 		switch message.Kind {
 		case "":
+			if message.Label != "" {
+				return withExit(exitUsage, errors.New("a label belongs to a terminal spawn, and a seat is named by its role and identity"))
+			}
 			s, err = d.spawn(message)
 		case kindTerminal:
 			// A shell on this host is what COI-2488 gates for a remote device.
@@ -437,7 +440,7 @@ func (d *daemon) handle(cl *client, message frame) error {
 		cl.attached[s.name] = s
 		// The reply goes first, since a client reads up to it and no further.
 		// The replay then carries whatever the child printed in between.
-		if err := cl.c.write(frame{Type: "spawned", ID: message.ID, Session: s.name, PID: s.pid, Kind: s.kind}); err != nil {
+		if err := cl.c.write(frame{Type: "spawned", ID: message.ID, Session: s.name, PID: s.pid, Kind: s.kind, Label: s.label}); err != nil {
 			return err
 		}
 		s.attach(cl.c, true, 0)

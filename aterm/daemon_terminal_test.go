@@ -255,3 +255,87 @@ func TestTerminalOverAWebsocketEchoesWhatIsTyped(t *testing.T) {
 		t.Fatalf("listing = %+v", listing)
 	}
 }
+
+func TestTerminalLabelIsEchoedUnchangedAndAdoptedAfterARestart(t *testing.T) {
+	tc := shellDaemon(t)
+	if !slices.Contains(tc.c.features, terminalLabelFeature) {
+		t.Fatalf("welcome should offer %q: %v", terminalLabelFeature, tc.c.features)
+	}
+	// Padding and mixed case are kept: the daemon reads the label as data.
+	const label = "  Sysadmin-Evie é "
+	reply, err := tc.c.request(frame{Type: "spawn", Kind: kindTerminal, Label: label})
+	if err != nil || reply.Label != label {
+		t.Fatalf("spawned should echo the label: %+v, %v", reply, err)
+	}
+	bare := tc.spawnTerminal("")
+	if bare.Label != "" {
+		t.Fatalf("an unlabelled terminal stays unlabelled: %+v", bare)
+	}
+	labels := map[string]string{}
+	for _, view := range tc.list().Terminals {
+		labels[view.Name] = view.Label
+	}
+	if len(labels) != 2 || labels[reply.Session] != label || labels[bare.Session] != "" {
+		t.Fatalf("list should carry each label: %+v", labels)
+	}
+	// A second client resolves the same shell from the list alone.
+	other := dialTest(t)
+	for _, view := range other.list().Terminals {
+		if view.Label == label && view.Name != reply.Session {
+			t.Fatalf("the label points at %s, not the shell opened with it", view.Name)
+		}
+	}
+}
+
+func TestTerminalLabelSurvivesADaemonRestart(t *testing.T) {
+	t.Setenv("SHELL", "/bin/sh")
+	first := newDaemon(func(string, ...any) {})
+	first.holdDir = testHoldDir(t)
+	s, err := first.spawnTerminal(frame{Type: "spawn", Kind: kindTerminal, Label: "frontend-ada"})
+	if err != nil {
+		t.Fatalf("spawn: %v", err)
+	}
+	t.Cleanup(s.end)
+	first.letGoAll()
+
+	second := newDaemon(func(string, ...any) {})
+	second.holdDir = first.holdDir
+	second.adoptHolders()
+	t.Cleanup(func() {
+		for _, adopted := range second.everySession() {
+			adopted.end()
+		}
+	})
+	views := second.terminalViews()
+	if len(views) != 1 || views[0].Name != s.name || views[0].Label != "frontend-ada" {
+		t.Fatalf("the adopted shell should keep its label: %+v", views)
+	}
+}
+
+func TestTerminalLabelRefusesWhatItCouldNotEchoBack(t *testing.T) {
+	tc := shellDaemon(t)
+	for name, spawn := range map[string]frame{
+		"too long": {Kind: kindTerminal, Label: strings.Repeat("a", maxTerminalLabel+1)},
+		"control":  {Kind: kindTerminal, Label: "a\x1b[31mb"},
+		"newline":  {Kind: kindTerminal, Label: "a\nb"},
+		"a seat":   {Role: "scientist", Identity: "Evie", Argv: []string{"/bin/sh"}, Label: "x"},
+	} {
+		spawn.Type = "spawn"
+		if _, err := tc.c.request(spawn); err == nil {
+			t.Fatalf("%s should be refused", name)
+		}
+	}
+	if reply, err := tc.c.request(frame{Type: "spawn", Kind: kindTerminal, Label: strings.Repeat("a", maxTerminalLabel)}); err != nil {
+		t.Fatalf("a label at the bound is allowed: %+v, %v", reply, err)
+	}
+	if listing := tc.list(); len(listing.Terminals) != 1 || len(listing.Sessions) != 0 {
+		t.Fatalf("a refused spawn leaves nothing behind: %+v", listing)
+	}
+}
+
+// JSON rewrites invalid UTF-8 on the way out, so only a direct call reaches it.
+func TestCheckTerminalLabelRefusesInvalidUTF8(t *testing.T) {
+	if checkTerminalLabel("a\xffb") == nil {
+		t.Fatal("invalid UTF-8 should be refused")
+	}
+}

@@ -60,8 +60,11 @@ type ptySession struct {
 	token    string
 	// kind is kindTerminal for a plain shell, empty for a seat. A terminal has no
 	// token, delivery loop or screen, and lives in daemon.terminals.
-	kind    string
-	cwd     string
+	kind string
+	cwd  string
+	// label is what the client that opened a terminal called it. Opaque, kept
+	// in the holder so a restart adopts it.
+	label   string
 	pid     int
 	started time.Time
 	// mcpApps is whether the launch opted in to the MCP Apps gateway.
@@ -146,7 +149,7 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 	spec := frame{
 		Type: "spawn", Session: name, Role: message.Role, Identity: message.Identity, Seat: message.Seat,
 		Kind: message.Kind, Argv: message.Argv, Env: env, Cwd: message.Cwd,
-		Rows: message.Rows, Cols: message.Cols, Token: token,
+		Rows: message.Rows, Cols: message.Cols, Token: token, Label: message.Label,
 	}
 	// A pool name recurs, and a lingering holder removes its socket as it goes.
 	socket := holdSocketPath(d.holdDir, name+"~"+suffix)
@@ -206,6 +209,7 @@ func (d *daemon) connectHolder(socket string, adopted bool) (*ptySession, error)
 		token:        info.Token,
 		kind:         info.Kind,
 		cwd:          info.Cwd,
+		label:        info.Label,
 		pid:          info.PID,
 		started:      info.Started,
 		holder:       c,
@@ -872,5 +876,5 @@ func (s *ptySession) view() sessionView {
 func (s *ptySession) terminalView() terminalView {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return terminalView{Name: s.name, PID: s.pid, Started: s.started.UTC(), Clients: len(s.clients), Cwd: s.cwd}
+	return terminalView{Name: s.name, PID: s.pid, Started: s.started.UTC(), Clients: len(s.clients), Cwd: s.cwd, Label: s.label}
 }

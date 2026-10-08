@@ -9,11 +9,11 @@ attached to it.
 
 **A session is named `<role>-<identity>`, with `-2`, `-3` only for concurrent instances, and a live name refuses a spawn.** A `claim` frame grants each launch the first free pool name for two minutes.
 
-**`list` reads each session's screen.** The daemon rebuilds each terminal's screen from its output and reports `state`: `starting`, `prompt` (a permission or choice card is up), `busy` (recent output or the interrupt hint), else `idle`. `aterm status` adds prompt text, quiet seconds, draft and last rows, never typing.
+**`list` reads each session's screen.** The daemon rebuilds each screen from its output and reports `state`: `starting`, `prompt` (a card is up), `busy` (recent output or the interrupt hint), else `idle`.
 
 **`aterm clear` types the harness's clear command, unstamped.** Only Kai's client and the `prod-director` role may, never on the caller's own session, a prompt, or a seat with no known command (claude only). Without `--force` it also refuses a busy session, a draft, or queued messages.
 
-**A terminal is a login shell, not a seat.** `spawn` with `kind: "terminal"` and optional `cwd` runs `$SHELL -l` under a holder, named `terminal-<hex>`, with no token, and refuses `session`, `role`, `identity`, `seat`, `argv` and `env`. It is absent from `sessions`, `aterm agents`, seat counts and every `send`, `status` and `clear` target. `list` and the `sessions` push carry `terminals` (`name`, `pid`, `started`, `clients`, `cwd`), feature `terminals`. `attach`, `input`, `resize` and `close` take its name, an exiting shell ends it, a restart adopts it. A remote device gets `remote_terminal`, passkey or not.
+**A terminal is a login shell, not a seat.** `spawn` with `kind: "terminal"` and optional `cwd` runs `$SHELL -l` under a holder, named `terminal-<hex>`, with no token, and refuses every seat field, `argv` and `env`. It is absent from `sessions`, `aterm agents`, seat counts and every `send`, `status` and `clear` target. `list` and the `sessions` push carry `terminals` (`name`, `pid`, `started`, `clients`, `cwd`, `label`), feature `terminals`. A spawn `label` (feature `terminal-label`, text up to 256 bytes) is opaque, echoed unchanged in `spawned` and on the entry, kept by a restart. A seat spawn refuses it. `attach`, `input`, `resize` and `close` take its name, an exiting shell ends it, a restart adopts it. A remote device gets `remote_terminal`, passkey or not.
 
 **A session outlives its window.** `aterm close` types the harness's exit at an idle prompt, waits 10 seconds, then SIGTERM, then SIGKILL after 3.
 
@@ -33,7 +33,7 @@ attached to it.
 
 **A program that asked for bracketed paste gets the message as one paste, then Enter 300ms later**, since an Enter inside the paste reads as a newline. codex turns it on at its prompt, so **ready means paste is on, never a quiet screen**. claude and opencode drop a paste before the prompt mounts, so **ready means `Try "` or `Ask anything` showed**, or 20s passed. **`delivered` means claude took Enter**, re-pressed up to 3 times.
 
-**A process inside a session cannot type into one.** The daemon walks the connecting pid's parents. Such a process may send, stamped, but not type, unless it spawned that session. It guards mistakes, not a double fork.
+**A process inside a session cannot type into one.** The daemon walks the connecting pid's parents. Such a process may send, stamped, but not type, unless it spawned that session.
 
 **A websocket on this host gets the same walk**, its source port mapped to the pids holding it, so a browser a session started, or one the daemon cannot name, cannot type, answer, launch or clear. A browser outside every session types, an agent driving Kai's own Chrome included.
 

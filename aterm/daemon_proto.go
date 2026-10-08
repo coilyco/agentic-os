@@ -53,6 +53,10 @@ type frame struct {
 	// input type (mouse, wheel, key, text) on a browser_input. See docs/aterm-daemon.md.
 	Kind string `json:"kind,omitempty"`
 
+	// Label is opaque client data on a terminal spawn, echoed unchanged in spawned
+	// and on each terminals entry. The daemon attaches no meaning to it.
+	Label string `json:"label,omitempty"`
+
 	// attach
 	Replay bool `json:"replay,omitempty"`
 
@@ -177,6 +181,7 @@ type terminalView struct {
 	Started time.Time `json:"started"`
 	Clients int       `json:"clients"`
 	Cwd     string    `json:"cwd,omitempty"`
+	Label   string    `json:"label,omitempty"`
 }
 
 // peerMessage is one send and where it stands: queued, held, launching,
@@ -242,6 +247,13 @@ const holdFeature = "holders"
 // terminalsFeature is how a client knows the daemon spawns a `kind: "terminal"`
 // and lists it under `terminals`. A daemon without it would start the spawn as a seat.
 const terminalsFeature = "terminals"
+
+// terminalLabelFeature is how a client knows the daemon keeps a `label` on a
+// terminal spawn. A daemon without it drops the field, so the entry comes back bare.
+const terminalLabelFeature = "terminal-label"
+
+// maxTerminalLabel bounds a label in bytes. It is a name a client chose, not a payload.
+const maxTerminalLabel = 256
 
 // kindTerminal is the one spawn kind besides a seat.
 const kindTerminal = "terminal"
