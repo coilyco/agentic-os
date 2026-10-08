@@ -1,7 +1,7 @@
 // aterm.daemon.v1 over the daemon's loopback websocket. The frame reference is
 // the Wire contract section of the aterm daemon page in coilyco/agentic-os.
 import { parseFrom } from "./messages";
-import type { Ask, AskOutcome, ContextReading, HostConnection, HostEvent, MessageState, PeerMessage, Session } from "./protocol";
+import type { Ask, AskOutcome, ContextReading, HostConnection, HostEvent, MessageState, PeerMessage, Session, TerminalChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import { parseTyping, refusalOf, typingNotice, type Typing } from "./typing";
 
@@ -37,6 +37,11 @@ interface SessionView {
   pending: number;
   degraded?: string[];
   context?: { tokens: number; window?: number; source: string };
+}
+
+// A plain shell as the daemon lists it (COI-2498). It never names the seat beside it.
+interface TerminalView {
+  name: string;
 }
 
 interface MessageView {
@@ -86,6 +91,8 @@ interface Frame {
   code?: number;
   error?: string;
   ask?: AskView;
+  features?: string[];
+  terminals?: TerminalView[];
   ask_id?: string;
   state?: string;
   typing?: unknown;
@@ -148,15 +155,29 @@ export function launchRefusal(code: number | undefined, error: string | undefine
   return error ?? "The daemon refused a request.";
 }
 
+/** What a person reads when the daemon refuses to open a terminal. */
+export function terminalRefusal(reason: unknown, error: string | undefined): string {
+  if (reason === "remote_terminal") return "This device cannot open a terminal on the host yet. Open one from the host's own browser.";
+  return error ?? "The host would not open a terminal.";
+}
+
 export class DaemonHost implements HostConnection {
   readonly canLaunch = true;
+  readonly terminals: TerminalChannel = {
+    open: (label) => void this.pendingOpens.set(this.request({ type: "spawn", kind: "terminal" }), label),
+    close: (id) => void this.request({ type: "close", target: id }),
+  };
+  // Spawn request ids to the seat they were asked for, until the daemon answers.
+  private pendingOpens = new Map<string, string>();
+  // Every terminal name seen. Not a seat: never watched for busy, its exit is its own.
+  private terminalNames = new Set<string>();
   private launches = new Map<string, string>();
   private socket: WebSocket;
   private listeners = new Set<(event: HostEvent) => void>();
   private outbox: string[] = [];
   private open = false;
   private nextId = 0;
-  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing } = {};
+  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; terminals?: HostEvent } = {};
   private sessionViews: SessionView[] = [];
   private refs = new Map<string, number>();
   private lastOutput = new Map<string, number>();
@@ -177,6 +198,8 @@ export class DaemonHost implements HostConnection {
     if (this.last.roles) listener(this.last.roles);
     if (this.last.sessions) listener({ type: "sessions", sessions: this.last.sessions });
     if (this.last.typing) listener({ type: "typing", typing: this.last.typing });
+    if (this.last.features) listener(this.last.features);
+    if (this.last.terminals) listener(this.last.terminals);
     return () => this.listeners.delete(listener);
   }
 
@@ -237,7 +260,7 @@ export class DaemonHost implements HostConnection {
       this.request({ type: "attach", session: name, replay: false });
     }
     for (const name of [...this.refs.keys()]) {
-      if (!live.has(name)) {
+      if (!live.has(name) && !this.terminalNames.has(name)) {
         this.refs.delete(name);
         this.busy.delete(name);
       }
@@ -258,7 +281,7 @@ export class DaemonHost implements HostConnection {
 
   private noteOutput(name: string): void {
     const now = Date.now();
-    if (now - (this.lastPoke.get(name) ?? 0) < SELF_WINDOW_MS) return;
+    if (this.terminalNames.has(name) || now - (this.lastPoke.get(name) ?? 0) < SELF_WINDOW_MS) return;
     this.lastOutput.set(name, now);
     if (!this.busy.has(name)) {
       this.busy.add(name);
@@ -289,6 +312,8 @@ export class DaemonHost implements HostConnection {
         }
         this.open = true;
         this.setTyping(parseTyping(frame.typing));
+        this.last.features = { type: "features", terminals: frame.features?.includes("terminals") ?? false };
+        this.emit(this.last.features);
         this.request({ type: "subscribe", channel: "sessions" });
         this.request({ type: "roster" });
         for (const line of this.outbox.splice(0)) this.socket.send(line);
@@ -301,8 +326,24 @@ export class DaemonHost implements HostConnection {
         return;
       case "sessions":
         this.sessionViews = frame.sessions ?? [];
+        for (const { name } of frame.terminals ?? []) this.terminalNames.add(name);
         this.monitor();
         this.publishSessions();
+        // Absent means none, so a daemon with no shells still reports a list.
+        this.last.terminals = { type: "terminals", terminals: (frame.terminals ?? []).map(({ name }) => ({ id: name })) };
+        this.emit(this.last.terminals);
+        return;
+      case "spawned": {
+        const label = frame.id ? this.pendingOpens.get(frame.id) : undefined;
+        if (label === undefined || !frame.session) return;
+        this.pendingOpens.delete(frame.id!);
+        this.terminalNames.add(frame.session);
+        this.emit({ type: "terminal_opened", label, id: frame.session });
+        return;
+      }
+      case "exit":
+      case "exited":
+        if (frame.session && this.terminalNames.has(frame.session)) this.emit({ type: "terminal_exit", id: frame.session, code: frame.code ?? 0 });
         return;
       case "roster":
         this.last.roles = { type: "roster", roles: parseRoster(frame.roster) };
@@ -325,6 +366,12 @@ export class DaemonHost implements HostConnection {
         const role = frame.id ? this.launches.get(frame.id) : undefined;
         const refused = refusalOf(frame);
         this.setTyping(refused);
+        const seat = frame.id ? this.pendingOpens.get(frame.id) : undefined;
+        if (seat !== undefined && frame.id) {
+          this.pendingOpens.delete(frame.id);
+          this.emit({ type: "terminal_refused", label: seat, text: refused ? typingNotice(refused) : terminalRefusal(frame.reason, frame.error) });
+          return;
+        }
         if (role !== undefined && frame.id) {
           this.launches.delete(frame.id);
           this.emit({ type: "launch", role, state: "failed", text: refused ? typingNotice(refused) : launchRefusal(frame.code, frame.error) });

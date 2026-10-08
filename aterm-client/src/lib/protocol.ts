@@ -90,7 +90,9 @@ export type HostEvent =
   | { type: "view_update"; id: string; toolResult?: ToolResult; cancelled?: string }
   | { type: "view_closed"; id: string }
   | { type: "browser"; browser: SharedBrowser }
+  | { type: "features"; terminals: boolean }
   | { type: "terminals"; terminals: ListedTerminal[] }
+  | { type: "terminal_opened"; label: string; id: string }
   | { type: "terminal_exit"; id: string; code: number }
   | { type: "terminal_refused"; label: string; text: string };
 

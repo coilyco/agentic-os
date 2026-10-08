@@ -1,17 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { TYPING_OPEN, typingNotice } from "./typing";
-import { applyList, loadClosed, paneState, paneText, recordExit, shouldOpen, storeClosed, terminalFor, type PaneInput, type TerminalEntry } from "./terminals";
+import { applyList, claim, exitText, loadClosed, loadSeats, paneState, paneText, recordExit, shouldOpen, storeClosed, storeSeats, terminalFor, type PaneInput, type TerminalEntry } from "./terminals";
 
 const live = (id: string, label: string | null = "sysadmin-senior-turtle-ox"): TerminalEntry => ({ id, label, exit: null });
 
 function input(over: Partial<PaneInput> = {}): PaneInput {
-  return { supported: true, loaded: true, typing: TYPING_OPEN, entry: undefined, opening: false, refusal: undefined, closed: false, ...over };
+  return { support: "yes", loaded: true, typing: TYPING_OPEN, entry: undefined, opening: false, refusal: undefined, closed: false, ...over };
 }
 
 describe("paneState, worst first", () => {
   it("says the host does not carry terminals before anything else", () => {
-    const state = paneState(input({ supported: false, entry: live("t1"), opening: true, refusal: "no" }));
+    const state = paneState(input({ support: "no", entry: live("t1"), opening: true, refusal: "no" }));
     expect(state.kind).toBe("unsupported");
+  });
+
+  it("does not claim a host lacks terminals before its welcome has said", () => {
+    const state = paneState(input({ support: "unknown" }));
+    expect(state.kind).toBe("waiting");
+    expect(shouldOpen(state)).toBe(false);
   });
 
   it("waits for the first list rather than opening a second shell on a reload", () => {
@@ -62,26 +68,38 @@ describe("paneState, worst first", () => {
 });
 
 describe("applyList", () => {
-  it("takes the daemon's list as the truth for live shells", () => {
-    expect(applyList([live("t1")], [{ id: "t2", label: "b" }])).toEqual([live("t2", "b")]);
+  const seats = { t1: "a", t2: "b" };
+
+  it("labels each shell with the seat this browser opened it beside", () => {
+    expect(applyList([], [{ id: "t1" }, { id: "t9" }], seats)).toEqual([live("t1", "a"), live("t9", null)]);
   });
 
-  it("keeps a shell that exited after the daemon drops it, so the pane can say so", () => {
-    const exited = recordExit([live("t1")], "t1", 130);
-    expect(applyList(exited, [])).toEqual([{ ...live("t1"), exit: { code: 130 } }]);
+  it("keeps a shell that exited before the list dropped it, with its code", () => {
+    const exited = recordExit([live("t1", "a")], "t1", 130);
+    expect(applyList(exited, [], seats)).toEqual([{ ...live("t1", "a"), exit: { code: 130 } }]);
   });
 
-  it("drops the exited shell once a new one opens for the same seat", () => {
-    const exited = recordExit([live("t1")], "t1", 0);
-    expect(applyList(exited, [{ id: "t2", label: "sysadmin-senior-turtle-ox" }])).toEqual([live("t2")]);
+  it("keeps a shell the list dropped before its exit came, as ended and not as gone", () => {
+    const dropped = applyList([live("t1", "a")], [], seats);
+    expect(dropped).toEqual([{ ...live("t1", "a"), exit: { code: null } }]);
+    expect(recordExit(dropped, "t1", 2)).toEqual([{ ...live("t1", "a"), exit: { code: 2 } }]);
   });
 
-  it("drops a shell that vanished without an exit, as when it was closed from another screen", () => {
-    expect(applyList([live("t1")], [])).toEqual([]);
+  it("drops the ended shell once a new one is live for the same seat", () => {
+    const ended = recordExit([live("t1", "a")], "t1", 0);
+    expect(applyList(ended, [{ id: "t5" }], { ...seats, t5: "a" })).toEqual([live("t5", "a")]);
+  });
+
+  it("lets a shell Kai closed leave without trace", () => {
+    expect(applyList([live("t1", "a")], [], seats, new Set(["t1"]))).toEqual([]);
   });
 
   it("ignores an exit for a terminal it never heard of", () => {
-    expect(recordExit([live("t1")], "ghost", 1)).toEqual([live("t1")]);
+    expect(recordExit([live("t1", "a")], "ghost", 1)).toEqual([live("t1", "a")]);
+  });
+
+  it("labels a shell once the daemon says which one it opened, even after the list showed it", () => {
+    expect(claim(applyList([], [{ id: "t7" }], {}), "t7", "a")).toEqual([live("t7", "a")]);
   });
 });
 
@@ -119,6 +137,24 @@ describe("paneText", () => {
     expect(paneText({ kind: "ready" }, "Turtle-Ox")?.title).toContain("Turtle-Ox");
     expect(paneText({ kind: "locked", reason: "peer_unread" }, "x")?.body).toBe(typingNotice({ allowed: false, reason: "peer_unread" }));
     expect(paneText({ kind: "refused", text: "no shell here" }, "x")?.body).toBe("no shell here");
+  });
+});
+
+describe("exitText", () => {
+  it("names the code when it is known, and says only that it ended when it is not", () => {
+    expect(exitText(2)).toBe("The shell exited with code 2.");
+    expect(exitText(0)).toBe("The shell exited with code 0.");
+    expect(exitText(null)).toBe("The shell ended.");
+  });
+});
+
+describe("seats beside terminals", () => {
+  it("survive a reload, and a broken store reads as none", () => {
+    let held = "";
+    storeSeats({ "terminal-1": "seat-a" }, { setItem: (_key, value) => void (held = value) });
+    expect(loadSeats({ getItem: () => held })).toEqual({ "terminal-1": "seat-a" });
+    for (const raw of ["{oops", "[]", "7", '{"a":3}']) expect(loadSeats({ getItem: () => raw })).toEqual({});
+    expect(() => storeSeats({}, { setItem: () => { throw new Error("full"); } })).not.toThrow();
   });
 });
 

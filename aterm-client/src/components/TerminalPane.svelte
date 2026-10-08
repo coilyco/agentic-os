@@ -3,13 +3,13 @@
   import Terminal from "./Terminal.svelte";
   import { app, closeTerminal, colorOf, openTerminal } from "../lib/app.svelte";
   import type { Session } from "../lib/protocol";
-  import { paneState, paneText, shouldOpen, terminalFor } from "../lib/terminals";
+  import { exitText, paneState, paneText, shouldOpen, terminalFor } from "../lib/terminals";
 
   let { session, accent }: { session: Session; accent: string } = $props();
 
   const view = $derived(
     paneState({
-      supported: app.connection?.terminals !== undefined,
+      support: app.terminalSupport,
       loaded: app.terminalsLoaded,
       typing: app.typing,
       entry: terminalFor(app.terminals, session.id),
@@ -82,7 +82,7 @@
         <p class="note">This browser can watch the shell but not type into it ({watchOnly}).</p>
       {:else if view.kind === "exited"}
         <div class="note">
-          <span>The shell exited with code {view.code}.</span>
+          <span>{exitText(view.code)}</span>
           <button type="button" bind:this={primary} onclick={reopen}>Open a new terminal</button>
         </div>
       {/if}

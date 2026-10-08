@@ -9,7 +9,7 @@ import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
 import type { Ask, Host, HostConnection, LaunchState, PeerMessage, Session } from "./protocol";
 import type { Role } from "./roster";
-import { applyList, loadClosed, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, terminalFor, type TerminalEntry } from "./terminals";
+import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
 import { TYPING_OPEN, type Typing } from "./typing";
 
 /** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
@@ -59,6 +59,10 @@ export const app = $state({
   browsers: {} as Record<string, SharedBrowser>,
   /** Plain shells the host holds, tagged with the seat each sits beside. */
   terminals: [] as TerminalEntry[],
+  /** Whether the host's welcome lists the terminal feature. Unknown until it arrives. */
+  terminalSupport: "unknown" as Support,
+  /** Terminal id to the seat it was opened beside. The host does not say. */
+  terminalSeats: loadSeats(),
   /** The host's first terminal list has arrived, so an empty one means none. */
   terminalsLoaded: false,
   /** Seats whose terminal is being opened, and the host's reason when it would not. */
@@ -68,6 +72,8 @@ export const app = $state({
   terminalClosed: loadClosed(),
 });
 
+// Ids Kai closed: they leave the list on purpose, so they are not an ended shell.
+const dismissed = new Set<string>();
 const openTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function settleOpen(label: string): void {
@@ -85,7 +91,7 @@ function shellArrived(label: string): void {
 /** Opens a shell beside a seat. Asking again is what clears a refusal or an exit. */
 export function openTerminal(sessionId: string): void {
   const channel = app.connection?.terminals;
-  if (!channel || app.terminalOpening[sessionId]) return;
+  if (!channel || app.terminalSupport !== "yes" || app.terminalOpening[sessionId]) return;
   delete app.terminalRefusals[sessionId];
   app.terminalClosed = app.terminalClosed.filter((each) => each !== sessionId);
   storeClosed(app.terminalClosed);
@@ -105,6 +111,7 @@ export function openTerminal(sessionId: string): void {
 export function closeTerminal(sessionId: string): void {
   const entry = terminalFor(app.terminals, sessionId);
   if (!entry) return;
+  dismissed.add(entry.id);
   if (entry.exit) app.terminals = app.terminals.filter((each) => each.id !== entry.id);
   else app.connection?.terminals?.close(entry.id);
   app.terminalClosed = [...app.terminalClosed.filter((each) => each !== sessionId), sessionId];
@@ -172,6 +179,7 @@ export function selectHost(host: Host): void {
   app.views = {};
   app.browsers = {};
   app.terminals = [];
+  app.terminalSupport = "unknown";
   app.terminalsLoaded = false;
   for (const label of Object.keys(app.terminalOpening)) settleOpen(label);
   app.terminalRefusals = {};
@@ -197,10 +205,17 @@ export function selectHost(host: Host): void {
     }
     else if (event.type === "view_closed") delete app.views[event.id];
     else if (event.type === "browser") app.browsers[event.browser.session] = event.browser;
+    else if (event.type === "features") app.terminalSupport = event.terminals ? "yes" : "no";
     else if (event.type === "terminals") {
-      app.terminals = applyList(app.terminals, event.terminals);
+      app.terminals = applyList(app.terminals, event.terminals, app.terminalSeats, dismissed);
       app.terminalsLoaded = true;
-      for (const each of event.terminals) if (each.label) shellArrived(each.label);
+      for (const each of app.terminals) if (each.label && !each.exit) shellArrived(each.label);
+    }
+    else if (event.type === "terminal_opened") {
+      app.terminalSeats[event.id] = event.label;
+      storeSeats(app.terminalSeats);
+      app.terminals = claim(app.terminals, event.id, event.label);
+      shellArrived(event.label);
     }
     else if (event.type === "terminal_exit") app.terminals = recordExit(app.terminals, event.id, event.code);
     else if (event.type === "terminal_refused") {

@@ -25,8 +25,8 @@ function session(id: string, role: string, seat: string, identity: string, state
   return { id, role, seat, identity, state, pending, drafting: false, paste: true, degraded: [], ...(context ? { context } : {}) };
 }
 
-// Each mode reaches one pane state without a daemon. They script the frame proposed
-// on COI-2498, which the real daemon lacks. See the terminal-split reference.
+// Each mode reaches one pane state without a daemon. They script COI-2498's frame, with
+// the list ahead of the `spawned` reply and the exit, the order hardest on the pane.
 export type TerminalMode = "ok" | "off" | "refuse" | "silent" | "mute" | "locked";
 
 const TERMINAL_MODES: readonly TerminalMode[] = ["ok", "off", "refuse", "silent", "mute", "locked"];
@@ -124,6 +124,7 @@ export class MockHost implements HostConnection {
     for (const message of this.messages) listener({ type: "message", message });
     for (const ask of this.asks) listener({ type: "ask", ask });
     if (this.terminalMode === "locked") listener({ type: "typing", typing: { allowed: false, reason: "peer_unread" } });
+    listener({ type: "features", terminals: this.terminals !== undefined });
     if (this.terminals && this.terminalMode !== "mute") listener({ type: "terminals", terminals: this.listShells() });
     return () => this.listeners.delete(listener);
   }
@@ -171,7 +172,7 @@ export class MockHost implements HostConnection {
   }
 
   private listShells(): ListedTerminal[] {
-    return [...this.shells].map(([id, shell]) => ({ id, label: shell.label }));
+    return [...this.shells.keys()].map((id) => ({ id }));
   }
 
   private openShell(label: string): void {
@@ -186,6 +187,7 @@ export class MockHost implements HostConnection {
         this.shells.set(id, { label, line: "" });
         this.buffers.set(id, `${DIM}demo shell, nothing real runs here${RESET}\r\n${SHELL_PROMPT}`);
         this.emit({ type: "terminals", terminals: this.listShells() });
+        this.emit({ type: "terminal_opened", label, id });
       }, 250),
     );
   }
@@ -195,8 +197,8 @@ export class MockHost implements HostConnection {
     if (!this.shells.delete(id)) return;
     this.buffers.delete(id);
     this.attached.delete(id);
-    if (code !== null) this.emit({ type: "terminal_exit", id, code });
     this.emit({ type: "terminals", terminals: this.listShells() });
+    if (code !== null) this.emit({ type: "terminal_exit", id, code });
   }
 
   private typeIntoShell(id: string, data: string): void {

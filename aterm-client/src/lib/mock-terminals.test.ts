@@ -18,9 +18,14 @@ describe("the demo host's terminals", () => {
     expect(events.find((event) => event.type === "terminals")).toEqual({ type: "terminals", terminals: [] });
   });
 
-  it("carries no channel at all when it plays a host without the kind", () => {
-    const { host, kinds } = open("off");
+  it("says it has the feature, so the pane can tell a quiet host from one without it", () => {
+    expect(open("ok").events).toContainEqual({ type: "features", terminals: true });
+  });
+
+  it("carries no channel and says so when it plays a host without the kind", () => {
+    const { host, events, kinds } = open("off");
     expect(host.terminals).toBeUndefined();
+    expect(events).toContainEqual({ type: "features", terminals: false });
     expect(kinds()).not.toContain("terminals");
   });
 
@@ -32,8 +37,8 @@ describe("the demo host's terminals", () => {
     const { host, events } = open("ok");
     host.terminals!.open("sysadmin-senior-turtle-ox-gj84");
     vi.advanceTimersByTime(300);
-    const listed = events.filter((event) => event.type === "terminals").at(-1);
-    expect(listed).toEqual({ type: "terminals", terminals: [{ id: "terminal-1", label: "sysadmin-senior-turtle-ox-gj84" }] });
+    expect(events.filter((event) => event.type === "terminals").at(-1)).toEqual({ type: "terminals", terminals: [{ id: "terminal-1" }] });
+    expect(events.at(-1)).toEqual({ type: "terminal_opened", label: "sysadmin-senior-turtle-ox-gj84", id: "terminal-1" });
     host.attach("terminal-1");
     host.input("terminal-1", "echo ok\r");
     const out = events.filter((event) => event.type === "output").map((event) => (event.type === "output" ? String(event.data) : "")).join("");
@@ -41,7 +46,7 @@ describe("the demo host's terminals", () => {
     expect(out).toContain("\r\nok\r\n");
   });
 
-  it("reports the exit before the list drops the shell, with the code it was given", () => {
+  it("drops the shell from the list and then reports its exit, the order hardest on the pane", () => {
     const { host, events } = open("ok");
     host.terminals!.open("seat");
     vi.advanceTimersByTime(300);
@@ -50,10 +55,9 @@ describe("the demo host's terminals", () => {
     host.input("terminal-1", "exit 3\r");
     const frames = events.filter((event) => event.type !== "output");
     expect(frames).toEqual([
-      { type: "terminal_exit", id: "terminal-1", code: 3 },
       { type: "terminals", terminals: [] },
+      { type: "terminal_exit", id: "terminal-1", code: 3 },
     ]);
-    expect(events.at(-3)?.type).toBe("output");
   });
 
   it("drops a closed shell from the list with no exit, the way another screen's close looks", () => {
