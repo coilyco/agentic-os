@@ -191,14 +191,6 @@ func (sb *sharedBrowser) awaitLive(ctx context.Context, wait time.Duration) (*cd
 	}
 }
 
-// pageSession is the CDP session the daemon's own screencast and input use. An
-// agent is never given it.
-func (sb *sharedBrowser) pageSession() string {
-	sb.mu.Lock()
-	defer sb.mu.Unlock()
-	return sb.page
-}
-
 // agentConn is one Playwright connection to a session's browser. The daemon holds the
 // only pipe, so commands go out under its ids and only the agent's own sessions answer.
 type agentConn struct {
@@ -472,12 +464,11 @@ func (a *agentConn) admits(event cdpMessage) bool {
 	if event.Method == "Target.attachedToTarget" || event.Method == "Target.detachedFromTarget" {
 		_ = json.Unmarshal(event.Params, &target)
 	}
-	own := a.sb.pageSession()
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	switch event.Method {
 	case "Target.attachedToTarget":
-		if target.SessionID == "" || target.SessionID == own || (event.SessionID != "" && !a.owned[event.SessionID]) {
+		if target.SessionID == "" || a.sb.daemonSession(target.SessionID) || (event.SessionID != "" && !a.owned[event.SessionID]) {
 			return false
 		}
 		a.owned[target.SessionID] = true

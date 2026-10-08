@@ -132,7 +132,7 @@ func TestLaunchChromiumKeepsARoleProfileAndReleasesItWhenTheBrowserExits(t *test
 	if _, ok := claims.claim(profile, "eng-platform-a"); !ok {
 		t.Fatal("claim")
 	}
-	link, err := launchChromium(t.TempDir(), "eng-platform-a", browserProfile{
+	link, err := launchChromium(testHoldDir(t), "eng-platform-a", browserProfile{
 		dir: profile, note: "kept", release: func() { claims.release(profile, "eng-platform-a") },
 	})
 	if err != nil {
@@ -162,7 +162,11 @@ func TestLaunchChromiumRemovesAThrowawayProfileAndReleasesAClaimWhenItFailsToSta
 		t.Fatal(err)
 	}
 	<-link.exited
-	if left, _ := filepath.Glob(filepath.Join(dir, "*")); len(left) != 0 {
+	waitFor(t, "the browser record to go", 5*time.Second, func() bool {
+		records, _ := filepath.Glob(filepath.Join(dir, pidsDirName, "*"))
+		return len(records) == 0
+	})
+	if left, _ := filepath.Glob(filepath.Join(dir, "*")); len(left) != 1 || filepath.Base(left[0]) != pidsDirName {
 		t.Fatalf("a throwaway profile should go with its browser: %v", left)
 	}
 
