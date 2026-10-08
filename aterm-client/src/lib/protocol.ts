@@ -3,6 +3,7 @@
 import type { ToolResult, View } from "./mcp-apps";
 import type { Role } from "./roster";
 import type { InputKind, SharedBrowser } from "./screencast";
+import type { ListedTerminal } from "./terminals";
 import type { Typing } from "./typing";
 
 export type HostKind = "daemon" | "demo";
@@ -90,7 +91,12 @@ export type HostEvent =
   | { type: "view"; view: View }
   | { type: "view_update"; id: string; toolResult?: ToolResult; cancelled?: string }
   | { type: "view_closed"; id: string }
-  | { type: "browser"; browser: SharedBrowser };
+  | { type: "browser"; browser: SharedBrowser }
+  | { type: "features"; terminals: boolean }
+  | { type: "terminals"; terminals: ListedTerminal[] }
+  | { type: "terminal_opened"; label: string; id: string }
+  | { type: "terminal_exit"; id: string; code: number }
+  | { type: "terminal_refused"; label: string; text: string };
 
 /** MCP Apps views. Only a daemon that forwards them has this. */
 export interface ViewChannel {
@@ -108,10 +114,18 @@ export interface BrowserChannel {
   navigate(sessionId: string, url: string): void;
 }
 
+/** Plain shells beside a seat (COI-2498). Only a daemon with that kind has this. */
+export interface TerminalChannel {
+  /** `label` is the seat's session name, which the host echoes back in its list. */
+  open(label: string): void;
+  close(id: string): void;
+}
+
 export interface HostConnection {
   readonly canLaunch: boolean;
   readonly views?: ViewChannel;
   readonly browser?: BrowserChannel;
+  readonly terminals?: TerminalChannel;
   subscribe(listener: (event: HostEvent) => void): () => void;
   attach(sessionId: string, rows: number, cols: number): void;
   detach(sessionId: string): void;
