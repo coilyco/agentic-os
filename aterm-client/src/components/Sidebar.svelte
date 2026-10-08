@@ -12,7 +12,7 @@
 
   function hostDetail(host: Host): string {
     const running = hostRunning(host, app.attachedHostId, app.sessions);
-    if (running !== null) return `${running} running`;
+    if (running !== null) return host.found ? `${running} running, found on tailnet` : `${running} running`;
     if (host.status.kind === "unreachable") return "no answer";
     return "checking";
   }

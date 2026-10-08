@@ -44,6 +44,8 @@ type daemon struct {
 	// daemon adopts what it finds there.
 	holdDir string
 	tailnet tailnetState
+	// discovery answers the hosts frame.
+	discovery *hostDiscovery
 	// capture sends panics to Sentry, nil without a DSN. Set before goroutines start.
 	capture *sentryCapture
 	// ledgerDir holds a record per session for `aterm resume`. Empty keeps none.
@@ -90,6 +92,7 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		passkeys:    defaultPasskeys(),
 		roster:      launchableRoster,
 		launch:      launchRole,
+		discovery:   newHostDiscovery(),
 		logf:        logf,
 	}
 }
@@ -205,6 +208,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	go d.watchContext(contextDone, contextEvery)
 	d.adoptHolders()
 	d.clientDir = options.ClientDir
+	d.discovery.port = func() string { return options.TailnetPort }
 	if options.Websocket != "" {
 		server, err := d.listenWebsocket(options.Websocket)
 		if err != nil {
@@ -506,6 +510,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 			return err
 		}
 		return cl.c.write(frame{Type: "roster", ID: message.ID, Roster: &roster})
+	case "hosts":
+		return d.hosts(cl.c, message)
 	case "whoami":
 		s := d.byToken(message.Token)
 		if s == nil {

@@ -124,6 +124,9 @@ type frame struct {
 	Result     json.RawMessage `json:"result,omitempty"`
 	ToolResult json.RawMessage `json:"tool_result,omitempty"`
 	Cancelled  string          `json:"cancelled,omitempty"`
+
+	// Hosts answers a hosts request: the tailnet daemons that answered this one.
+	Hosts []hostView `json:"hosts,omitempty"`
 }
 
 // sessionView is one live session as a client sees it. It is the roster the
