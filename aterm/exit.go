@@ -45,12 +45,15 @@ func exitCodeFor(err error) int {
 const (
 	reasonSessionDescendant = "session_descendant"
 	reasonPeerUnread        = "peer_unread"
+	reasonPasskeyRequired   = "passkey_required"
 )
 
 // typingStanding says whether a peer may type, and if not why.
 type typingStanding struct {
 	Allowed bool   `json:"allowed"`
 	Reason  string `json:"reason,omitempty"`
+	// Passkey is "enrolled" or "unenrolled", for a remote device only.
+	Passkey string `json:"passkey,omitempty"`
 }
 
 type reasonError struct {
