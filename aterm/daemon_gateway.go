@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net"
 	"net/http"
 	"slices"
@@ -71,9 +72,13 @@ type gatewayServer struct {
 	name    string
 	spec    gatewaySpec
 
-	mu          sync.Mutex
-	up          *upstream
-	handler     http.Handler
+	mu      sync.Mutex
+	up      *upstream
+	handler http.Handler
+
+	// toolMu guards the tool cache alone, apart from mu, which is held across an
+	// upstream close that waits for the handlers that drop this cache.
+	toolMu      sync.Mutex
 	tools       map[string]toolUI
 	toolsLoaded bool
 }
@@ -88,12 +93,13 @@ func (g *gatewayServer) ensure(_ context.Context) (*upstream, http.Handler, erro
 		g.up.close()
 		g.up = nil
 	}
-	up, err := openUpstream(g.spec, g.d.logf)
+	r := &relay{logf: g.d.logf, toolsChanged: g.dropTools}
+	up, err := openUpstream(g.spec, g.d.logf, r)
 	if err != nil {
 		return nil, nil, err
 	}
-	g.up, g.handler = up, g.proxyHandler(up)
-	g.tools, g.toolsLoaded = map[string]toolUI{}, false
+	g.up, g.handler = up, g.proxyHandler(up, r)
+	g.dropTools()
 	return g.up, g.handler, nil
 }
 
@@ -108,7 +114,7 @@ func (g *gatewayServer) close() {
 
 // proxyHandler is the harness-facing side: an SDK server that advertises the
 // upstream's own capabilities and answers its methods from the upstream.
-func (g *gatewayServer) proxyHandler(up *upstream) http.Handler {
+func (g *gatewayServer) proxyHandler(up *upstream, r *relay) http.Handler {
 	init := up.session.InitializeResult()
 	info := &mcp.Implementation{Name: "aterm-gateway", Version: version}
 	options := &mcp.ServerOptions{Capabilities: &mcp.ServerCapabilities{}}
@@ -119,20 +125,25 @@ func (g *gatewayServer) proxyHandler(up *upstream) http.Handler {
 		options.Instructions = init.Instructions
 		if init.Capabilities != nil {
 			options.Capabilities = init.Capabilities
+			if init.Capabilities.Resources != nil && init.Capabilities.Resources.Subscribe {
+				options.SubscribeHandler = r.subscribe
+				options.UnsubscribeHandler = func(context.Context, *mcp.UnsubscribeRequest) error { return nil }
+			}
 		}
 	}
 	server := mcp.NewServer(info, options)
 	server.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
-			return g.forward(ctx, up.session, next, method, req)
+			return g.forward(ctx, up.session, r, next, method, req)
 		}
 	})
+	r.bind(server, up.session)
 	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
 }
 
 // forward answers a harness request from the upstream. The server registers no
 // features, so initialize, ping and notifications are all that fall through.
-func (g *gatewayServer) forward(ctx context.Context, cs *mcp.ClientSession, next mcp.MethodHandler, method string, req mcp.Request) (mcp.Result, error) {
+func (g *gatewayServer) forward(ctx context.Context, cs *mcp.ClientSession, r *relay, next mcp.MethodHandler, method string, req mcp.Request) (mcp.Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, callTimeout)
 	defer cancel()
 	switch params := req.GetParams().(type) {
@@ -144,7 +155,8 @@ func (g *gatewayServer) forward(ctx context.Context, cs *mcp.ClientSession, next
 		g.observeTools(result)
 		return result, nil
 	case *mcp.CallToolParamsRaw:
-		return g.callTool(ctx, cs, params)
+		session, _ := req.GetSession().(*mcp.ServerSession)
+		return g.callTool(ctx, cs, r, session, params)
 	case *mcp.ListResourcesParams:
 		return cs.ListResources(ctx, params)
 	case *mcp.ListResourceTemplatesParams:
@@ -161,9 +173,17 @@ func (g *gatewayServer) forward(ctx context.Context, cs *mcp.ClientSession, next
 	return next(ctx, method, req)
 }
 
+// dropTools forgets the cached tool visibility, which the upstream's tool list
+// changed under. The next call or view call reads the list again.
+func (g *gatewayServer) dropTools() {
+	g.toolMu.Lock()
+	defer g.toolMu.Unlock()
+	g.tools, g.toolsLoaded = map[string]toolUI{}, false
+}
+
 func (g *gatewayServer) toolMeta(name string) (toolUI, bool) {
-	g.mu.Lock()
-	defer g.mu.Unlock()
+	g.toolMu.Lock()
+	defer g.toolMu.Unlock()
 	meta, ok := g.tools[name]
 	return meta, ok
 }
@@ -172,8 +192,8 @@ func (g *gatewayServer) toolMeta(name string) (toolUI, bool) {
 // tools only a view may call, which the spec keeps from the agent.
 func (g *gatewayServer) observeTools(result *mcp.ListToolsResult) {
 	kept := result.Tools[:0]
-	g.mu.Lock()
-	defer g.mu.Unlock()
+	g.toolMu.Lock()
+	defer g.toolMu.Unlock()
 	if g.tools == nil {
 		g.tools = map[string]toolUI{}
 	}
@@ -190,9 +210,9 @@ func (g *gatewayServer) observeTools(result *mcp.ListToolsResult) {
 // loadTools reads the server's whole tool list once, for a call that arrives
 // before the harness listed.
 func (g *gatewayServer) loadTools(ctx context.Context, cs *mcp.ClientSession) {
-	g.mu.Lock()
+	g.toolMu.Lock()
 	loaded := g.toolsLoaded
-	g.mu.Unlock()
+	g.toolMu.Unlock()
 	if loaded {
 		return
 	}
@@ -209,12 +229,12 @@ func (g *gatewayServer) loadTools(ctx context.Context, cs *mcp.ClientSession) {
 		}
 		params = &mcp.ListToolsParams{Cursor: result.NextCursor}
 	}
-	g.mu.Lock()
+	g.toolMu.Lock()
 	g.toolsLoaded = true
-	g.mu.Unlock()
+	g.toolMu.Unlock()
 }
 
-func (g *gatewayServer) callTool(ctx context.Context, cs *mcp.ClientSession, call *mcp.CallToolParamsRaw) (*mcp.CallToolResult, error) {
+func (g *gatewayServer) callTool(ctx context.Context, cs *mcp.ClientSession, r *relay, session *mcp.ServerSession, call *mcp.CallToolParamsRaw) (*mcp.CallToolResult, error) {
 	g.loadTools(ctx, cs)
 	meta, _ := g.toolMeta(call.Name)
 	if !meta.has("model") {
@@ -224,8 +244,15 @@ func (g *gatewayServer) callTool(ctx context.Context, cs *mcp.ClientSession, cal
 	if meta.ResourceURI != "" {
 		view = g.openView(ctx, cs, call.Name, meta.ResourceURI, call.Arguments)
 	}
+	callMeta := call.Meta
+	if token := call.GetProgressToken(); token != nil && session != nil {
+		upstreamToken, release := r.routeProgress(ctx, session, token)
+		defer release()
+		callMeta = maps.Clone(callMeta)
+		callMeta["progressToken"] = upstreamToken
+	}
 	result, err := cs.CallTool(ctx, &mcp.CallToolParams{
-		Meta: call.Meta, Name: call.Name, Arguments: rawArguments(call.Arguments),
+		Meta: callMeta, Name: call.Name, Arguments: rawArguments(call.Arguments),
 		InputResponses: call.InputResponses, RequestState: call.RequestState,
 	})
 	if err != nil {
