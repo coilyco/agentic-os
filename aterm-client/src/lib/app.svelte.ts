@@ -215,7 +215,8 @@ export function selectHost(host: Host): void {
       app.terminalSeats[event.id] = event.label;
       storeSeats(app.terminalSeats);
       app.terminals = claim(app.terminals, event.id, event.label);
-      shellArrived(event.label);
+      // The reply can beat the list, so opening ends when the list shows the shell.
+      if (app.terminals.some((entry) => entry.id === event.id)) shellArrived(event.label);
     }
     else if (event.type === "terminal_exit") app.terminals = recordExit(app.terminals, event.id, event.code);
     else if (event.type === "terminal_refused") {

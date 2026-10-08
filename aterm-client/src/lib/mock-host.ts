@@ -27,9 +27,9 @@ function session(id: string, role: string, seat: string, identity: string, state
 
 // Each mode reaches one pane state without a daemon. They script COI-2498's frame, with
 // the list ahead of the `spawned` reply and the exit, the order hardest on the pane.
-export type TerminalMode = "ok" | "off" | "refuse" | "silent" | "mute" | "locked";
+export type TerminalMode = "ok" | "early" | "off" | "refuse" | "silent" | "mute" | "locked";
 
-const TERMINAL_MODES: readonly TerminalMode[] = ["ok", "off", "refuse", "silent", "mute", "locked"];
+const TERMINAL_MODES: readonly TerminalMode[] = ["ok", "early", "off", "refuse", "silent", "mute", "locked"];
 
 /** `?terminals=refuse` on the page picks a mode. Anything else is the working one. */
 export function terminalModeFrom(search: string): TerminalMode {
@@ -186,6 +186,11 @@ export class MockHost implements HostConnection {
         const id = `terminal-${++this.nextShell}`;
         this.shells.set(id, { label, line: "" });
         this.buffers.set(id, `${DIM}demo shell, nothing real runs here${RESET}\r\n${SHELL_PROMPT}`);
+        if (this.terminalMode === "early") {
+          this.emit({ type: "terminal_opened", label, id });
+          this.timers.push(setTimeout(() => this.emit({ type: "terminals", terminals: this.listShells() }), 100));
+          return;
+        }
         this.emit({ type: "terminals", terminals: this.listShells() });
         this.emit({ type: "terminal_opened", label, id });
       }, 250),

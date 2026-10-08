@@ -28,7 +28,7 @@ The split handle is a window splitter. Drag, Left and Right (Shift for larger st
 
 ## Demo host modes
 
-`?terminals=` picks one: `ok`, `off` (no channel), `refuse`, `silent` (never answers), `mute` (no first list), `locked` (typing refused). They script COI-2498's frame, with the list ahead of the `spawned` reply and the exit.
+`?terminals=` picks one: `ok`, `early` (reply before the list), `off` (no channel), `refuse`, `silent` (never answers), `mute` (no first list), `locked` (typing refused). They script COI-2498's frame, with the list ahead of the `spawned` reply and the exit.
 
 ## Left-sidebar terminal
 
