@@ -76,6 +76,10 @@ func (d *daemon) handler(policy accessPolicy) http.Handler {
 			http.Error(w, "aterm daemon: "+err.Error(), http.StatusForbidden)
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, gatewayPrefix) {
+			d.serveGateway(w, r)
+			return
+		}
 		if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 			d.serveClient(w, r)
 			return

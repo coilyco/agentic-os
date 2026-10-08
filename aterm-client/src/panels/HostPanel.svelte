@@ -1,6 +1,7 @@
 <script lang="ts">
   import { addHost, app, checkHost, HOSTED, removeHost, selectHost, selectedHost } from "../lib/app.svelte";
   import type { Host } from "../lib/protocol";
+  import InstallCard from "../components/InstallCard.svelte";
 
   const host = $derived(selectedHost());
   const silent = $derived(app.hosts.filter((candidate) => candidate.status.kind === "unreachable"));
@@ -69,6 +70,7 @@
     <p class="lede">{running} {running === 1 ? "seat" : "seats"} running. Pick a seat from the sidebar to open its terminal.</p>
   {/if}
   <p class="note" role="status">{app.notice}</p>
+  <InstallCard />
 </section>
 
 <style>
