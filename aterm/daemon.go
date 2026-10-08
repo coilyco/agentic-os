@@ -296,6 +296,7 @@ func (d *daemon) watchIdle(listener net.Listener, idle time.Duration) {
 // adoptHolders takes over the sessions a earlier daemon left running. A socket
 // nobody answers is a holder that ended, so it is removed.
 func (d *daemon) adoptHolders() {
+	d.reapBrowsers()
 	if err := ensureSocketDir(d.holdDir); err != nil {
 		d.logf("no holder directory, so earlier sessions are not adopted: %v", err)
 		return

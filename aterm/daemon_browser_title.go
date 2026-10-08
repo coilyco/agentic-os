@@ -38,9 +38,8 @@ func (sb *sharedBrowser) followTitle(cdp *cdpClient) {
 			continue
 		}
 		sb.mu.Lock()
-		if sb.cdp == cdp && sb.targetID == target && got.TargetInfo.TargetID == target && (sb.url != got.TargetInfo.URL || sb.title != got.TargetInfo.Title) {
-			sb.url, sb.title = got.TargetInfo.URL, got.TargetInfo.Title
-			sb.broadcast()
+		if sb.cdp == cdp && sb.targetID == target && got.TargetInfo.TargetID == target {
+			sb.tabChanged(got.TargetInfo)
 		}
 		sb.mu.Unlock()
 	}

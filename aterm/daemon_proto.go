@@ -131,6 +131,8 @@ type frame struct {
 	URL      string          `json:"url,omitempty"`
 	Title    string          `json:"title,omitempty"`
 	Holder   string          `json:"holder,omitempty"`
+	Tab      int             `json:"tab,omitempty"`
+	Tabs     int             `json:"tabs,omitempty"`
 	Client   string          `json:"client,omitempty"`
 	Width    int             `json:"width,omitempty"`
 	Height   int             `json:"height,omitempty"`

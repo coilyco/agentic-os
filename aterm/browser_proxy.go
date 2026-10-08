@@ -191,14 +191,6 @@ func (sb *sharedBrowser) awaitLive(ctx context.Context, wait time.Duration) (*cd
 	}
 }
 
-// pageSession is the CDP session the daemon's own screencast and input use. An
-// agent is never given it.
-func (sb *sharedBrowser) pageSession() string {
-	sb.mu.Lock()
-	defer sb.mu.Unlock()
-	return sb.page
-}
-
 // agentConn is one Playwright connection to a session's browser. The daemon holds the
 // only pipe, so commands go out under its ids and only the agent's own sessions answer.
 type agentConn struct {
@@ -354,8 +346,10 @@ func (a *agentConn) handle(data []byte) {
 		return
 	}
 	if request.SessionID != "" {
+		// An adopted daemon session is refused here, whatever the event race let into owned.
+		ours := a.sb.daemonSession(request.SessionID)
 		a.mu.Lock()
-		known := a.owned[request.SessionID]
+		known := a.owned[request.SessionID] && !ours
 		a.mu.Unlock()
 		if !known {
 			a.reply(request, nil, &cdpErrorBody{Code: -32001, Message: "Session with given id not found."})
@@ -476,12 +470,12 @@ func (a *agentConn) admits(event cdpMessage) bool {
 	if event.Method == "Target.attachedToTarget" || event.Method == "Target.detachedFromTarget" {
 		_ = json.Unmarshal(event.Params, &target)
 	}
-	own := a.sb.pageSession()
+	ours := a.sb.daemonSession(target.SessionID) || a.sb.daemonSession(event.SessionID)
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	switch event.Method {
 	case "Target.attachedToTarget":
-		if target.SessionID == "" || target.SessionID == own || (event.SessionID != "" && !a.owned[event.SessionID]) {
+		if target.SessionID == "" || ours || (event.SessionID != "" && !a.owned[event.SessionID]) {
 			return false
 		}
 		a.owned[target.SessionID] = true
@@ -494,7 +488,7 @@ func (a *agentConn) admits(event cdpMessage) bool {
 		return true
 	}
 	if event.SessionID != "" {
-		return a.owned[event.SessionID]
+		return a.owned[event.SessionID] && !ours
 	}
 	switch event.Method {
 	case "Target.targetCreated", "Target.targetInfoChanged", "Target.targetDestroyed", "Target.targetCrashed":
