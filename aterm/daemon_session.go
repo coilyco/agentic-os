@@ -102,8 +102,11 @@ type ptySession struct {
 	// sending is the message submit is writing. finish leaves it to submit,
 	// since a session that exited mid-write has already taken the bytes.
 	sending *pendingSend
-	wake    chan struct{}
-	done    chan struct{}
+	// submitHeld, when set, runs after a message is typed and before submit reads
+	// the box. Only a test sets it, to end the session mid-write (COI-2526).
+	submitHeld func()
+	wake       chan struct{}
+	done       chan struct{}
 	// forgotten closes once the daemon has dropped the session's name, which is
 	// after done: a reply that the name is free waits on this one.
 	forgotten chan struct{}
