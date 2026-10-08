@@ -147,6 +147,45 @@ describe("the typing guard", () => {
   });
 });
 
+const view = (name: string, ready: boolean) => ({ name, role: "eng-platform", identity: "Beetle-Ox", seat: "claude", ready, bracketed_paste: true, kai_drafting: false, pending: 0 });
+const framesOf = (socket: StubSocket) => socket.sent.map((line) => JSON.parse(line) as { type: string; session?: string; replay?: boolean });
+
+describe("another seat launching beside an open terminal", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("leaves the open seat's attachment alone and flags the new one as starting", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1" });
+    socket.receive({ type: "sessions", sessions: [view("eng-platform-beetle-ox", true)] });
+    host.attach("eng-platform-beetle-ox", 30, 100);
+    const before = framesOf(socket).length;
+
+    // The daemon pushes the roster again for each seat the launch path opens.
+    for (const count of [2, 3, 4]) {
+      const launching = Array.from({ length: count - 1 }, (_, at) => view(`eng-platform-beetle-ox-${at + 2}`, false));
+      socket.receive({ type: "sessions", sessions: [view("eng-platform-beetle-ox", true), ...launching] });
+    }
+
+    const after = framesOf(socket).slice(before);
+    expect(after.filter((frame) => frame.session === "eng-platform-beetle-ox")).toEqual([]);
+    // The monitor watches each new seat without replay, so nothing on screen resets.
+    expect(after.every((frame) => frame.type === "attach" && frame.replay === false)).toBe(true);
+    const last = events.filter((event) => event.type === "sessions").at(-1);
+    expect(last?.type === "sessions" && last.sessions.map((session) => [session.id, session.starting ?? false])).toEqual([
+      ["eng-platform-beetle-ox", false],
+      ["eng-platform-beetle-ox-2", true],
+      ["eng-platform-beetle-ox-3", true],
+      ["eng-platform-beetle-ox-4", true],
+    ]);
+    host.close();
+  });
+
+  it("reads a seat that is ready as no longer starting", () => {
+    expect(toSession(view("s", true)).starting).toBeUndefined();
+    expect(toSession(view("s", false)).starting).toBe(true);
+  });
+});
+
 const WELCOME = { type: "welcome", format: "aterm.daemon.v1" };
 const sentFrames = (socket: StubSocket) => socket.sent.map((line) => JSON.parse(line) as Record<string, unknown>);
 const VIEW = {
