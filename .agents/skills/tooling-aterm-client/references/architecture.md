@@ -32,4 +32,4 @@ See [views-and-browser.md](views-and-browser.md).
 
 ## Narrow screens
 
-Below 720px the sidebar becomes two horizontal tab strips, and below 1000px the side panel becomes a bottom sheet over the terminal (COI-2506, [views-and-browser.md](views-and-browser.md)).
+Below 720px the sidebar becomes one row of seat tabs and a Menu button, and the menu (hosts, alert switches, roles to start) opens over the seat. With no seat on screen those lists stay in the page, because the host's own panel sits below them. The session header folds to two rows, the composer's hint shortens, and a waiting card may use the whole terminal area (COI-2550). Below 1000px the side panel becomes a bottom sheet over the terminal (COI-2506, [views-and-browser.md](views-and-browser.md)).

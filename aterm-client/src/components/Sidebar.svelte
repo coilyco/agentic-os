@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, tick } from "svelte";
   import AttentionSwitches from "./AttentionSwitches.svelte";
   import Creature from "./Creature.svelte";
   import { app, asksFor, glowSeats, selectHost, selectRole, selectSession } from "../lib/app.svelte";
@@ -9,6 +10,66 @@
   const live = $derived(splitSessions(orderSessions(app.sessions, app.roles)));
   const onScreen = $derived(Boolean(app.selectedSession || app.selectedRole));
   const glowing = $derived(new Set(app.alerts.visual ? glowSeats().map((seat) => seat.sessionId) : []));
+  // The host tab that holds the tab stop, even while a seat is on screen.
+  const hereHost = $derived(app.selectedHostId ?? app.hosts[0]?.id);
+
+  // Tracks the stylesheet's own breakpoint, so the bar and menu exist exactly when the stylesheet draws them.
+  let narrow = $state(typeof matchMedia === "function" && matchMedia("(max-width: 720px)").matches);
+  onMount(() => {
+    const query = matchMedia("(max-width: 720px)");
+    const read = () => (narrow = query.matches);
+    read();
+    query.addEventListener("change", read);
+    return () => query.removeEventListener("change", read);
+  });
+
+  // On a phone the seat gets the screen, and hosts, roles and alerts sit behind this button.
+  // With no seat on screen those lists are the page, so there is nothing to open.
+  let menuOpen = $state(false);
+  let menuButton = $state<HTMLButtonElement>();
+  $effect(() => {
+    if (!onScreen) menuOpen = false;
+  });
+
+  async function toggleMenu(): Promise<void> {
+    menuOpen = !menuOpen;
+    if (!menuOpen) return;
+    await tick();
+    document.querySelector<HTMLElement>('#sidebar-menu [role="tab"][tabindex="0"]')?.focus();
+  }
+
+  // Focus that sat on a menu row would fall to the page when the row goes, so it returns to the button.
+  function closeMenu(): void {
+    if (!menuOpen) return;
+    const inside = document.getElementById("sidebar-menu")?.contains(document.activeElement);
+    menuOpen = false;
+    if (inside) void tick().then(() => menuButton?.focus());
+  }
+
+  function escape(event: KeyboardEvent): void {
+    if (event.key !== "Escape" || !menuOpen || event.defaultPrevented) return;
+    event.preventDefault();
+    const inside = document.getElementById("sidebar-menu")?.contains(document.activeElement);
+    menuOpen = false;
+    if (inside || document.activeElement === menuButton) void tick().then(() => menuButton?.focus());
+  }
+
+  // A seat that opens from off the row, as when a triage jump lands on it, scrolls into the row.
+  $effect(() => {
+    const id = app.selectedSession;
+    if (!narrow || !id) return;
+    void tick().then(() => document.getElementById(`tab-session-${id}`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
+  });
+
+  function openSession(id: string): void {
+    selectSession(id);
+    closeMenu();
+  }
+
+  function openRole(slug: string): void {
+    selectRole(slug);
+    closeMenu();
+  }
 
   function hostDetail(host: Host): string {
     const running = hostRunning(host, app.attachedHostId, app.sessions);
@@ -57,7 +118,7 @@
     data-degraded={session.degraded.length > 0}
     data-glow={glowing.has(session.id)}
     style:--accent={role.color}
-    onclick={() => selectSession(session.id)}
+    onclick={() => openSession(session.id)}
   >
     <span class="avatar">
       <Creature role={role.slug} color={role.color} size={36} />
@@ -78,9 +139,7 @@
   </button>
 {/snippet}
 
-<nav class="sidebar" aria-label="Hosts and sessions">
-  <div class="mark">ATERM</div>
-
+{#snippet hostsGroup()}
   <h2 id="hosts-label">Hosts</h2>
   <div role="tablist" aria-labelledby="hosts-label" aria-orientation="vertical" tabindex="-1" onkeydown={tablistKeys}>
     {#each app.hosts as host (host.id)}
@@ -90,7 +149,7 @@
         id={`tab-host-${host.id}`}
         aria-selected={selected}
         aria-controls="main-panel"
-        tabindex={selected || (!app.selectedHostId && host === app.hosts[0]) ? 0 : -1}
+        tabindex={host.id === hereHost ? 0 : -1}
         class="tab"
         data-kind={host.status.kind}
         onclick={() => selectHost(host)}
@@ -100,51 +159,102 @@
       </button>
     {/each}
   </div>
+{/snippet}
 
-  {#if app.attachedHostId}
-    <h2 id="sessions-label">Running <span class="count">{live.running.length}</span></h2>
-    {#if live.running.length === 0}
-      <p class="waiting">Nothing running on this host. Start a seat below.</p>
-    {:else}
-      <div role="tablist" aria-labelledby="sessions-label" aria-orientation="vertical" tabindex="-1" onkeydown={tablistKeys}>
-        {#each live.running as session (session.id)}{@render seatTab(session, live.running)}{/each}
-      </div>
-    {/if}
-
-    {#if live.failed.length}
-      <h2 id="failed-label">Launch failed <span class="count">{live.failed.length}</span></h2>
-      <div role="tablist" aria-labelledby="failed-label" aria-orientation="vertical" tabindex="-1" onkeydown={tablistKeys}>
-        {#each live.failed as session (session.id)}{@render seatTab(session, live.failed)}{/each}
-      </div>
-    {/if}
-
-    <h2 id="start-label">Start a seat</h2>
-    {#if app.roles.length === 0}
-      <p class="waiting">Waiting for the roster.</p>
-    {:else}
-      <div role="tablist" aria-labelledby="start-label" aria-orientation="vertical" tabindex="-1" onkeydown={tablistKeys}>
-        {#each app.roles as role (role.slug)}
-          {@const selected = app.selectedRole === role.slug}
-          <button
-            role="tab"
-            id={`tab-role-${role.slug}`}
-            aria-selected={selected}
-            aria-controls="main-panel"
-            tabindex={selected || (!app.selectedRole && role === app.roles[0]) ? 0 : -1}
-            class="tab start"
-            style:--accent={role.color}
-            onclick={() => selectRole(role.slug)}
-          >
-            <span class="avatar"><Creature role={role.slug} color={role.color} size={24} /></span>
-            <span class="text"><span class="name">{role.displayName}</span><span class="detail">{harnesses(role.seats)}</span></span>
-          </button>
-        {/each}
-      </div>
-    {/if}
+{#snippet runningGroup()}
+  <h2 id="sessions-label">Running <span class="count">{live.running.length}</span></h2>
+  {#if live.running.length === 0}
+    <p class="waiting">{narrow ? "Nothing running yet." : "Nothing running on this host. Start a seat below."}</p>
+  {:else}
+    <div role="tablist" aria-labelledby="sessions-label" aria-orientation="vertical" tabindex="-1" onkeydown={tablistKeys}>
+      {#each live.running as session (session.id)}{@render seatTab(session, live.running)}{/each}
+    </div>
   {/if}
+{/snippet}
 
-  <AttentionSwitches />
+{#snippet failedGroup()}
+  {#if live.failed.length}
+    <h2 id="failed-label">Launch failed <span class="count">{live.failed.length}</span></h2>
+    <div role="tablist" aria-labelledby="failed-label" aria-orientation="vertical" tabindex="-1" onkeydown={tablistKeys}>
+      {#each live.failed as session (session.id)}{@render seatTab(session, live.failed)}{/each}
+    </div>
+  {/if}
+{/snippet}
+
+{#snippet startGroup()}
+  <h2 id="start-label">Start a seat</h2>
+  {#if app.roles.length === 0}
+    <p class="waiting">Waiting for the roster.</p>
+  {:else}
+    <div role="tablist" aria-labelledby="start-label" aria-orientation="vertical" tabindex="-1" onkeydown={tablistKeys}>
+      {#each app.roles as role (role.slug)}
+        {@const selected = app.selectedRole === role.slug}
+        <button
+          role="tab"
+          id={`tab-role-${role.slug}`}
+          aria-selected={selected}
+          aria-controls="main-panel"
+          tabindex={selected || (!app.selectedRole && role === app.roles[0]) ? 0 : -1}
+          class="tab start"
+          style:--accent={role.color}
+          onclick={() => openRole(role.slug)}
+        >
+          <span class="avatar"><Creature role={role.slug} color={role.color} size={24} /></span>
+          <span class="text"><span class="name">{role.displayName}</span><span class="detail">{harnesses(role.seats)}</span></span>
+        </button>
+      {/each}
+    </div>
+  {/if}
+{/snippet}
+
+<!-- Escape is heard here only because the keys it answers come from controls inside the menu. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<nav class="sidebar" aria-label="Hosts and sessions" onkeydown={escape}>
+  {#if narrow}
+    {#if onScreen || app.attachedHostId}
+      <div class="bar">
+        {#if onScreen}
+          <button
+            type="button"
+            class="menu-button"
+            bind:this={menuButton}
+            aria-expanded={menuOpen}
+            aria-controls="sidebar-menu"
+            onclick={toggleMenu}
+          >
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+            Menu
+          </button>
+        {/if}
+        {#if app.attachedHostId}<div class="seats">{@render runningGroup()}{@render failedGroup()}</div>{/if}
+      </div>
+    {/if}
+    {#if onScreen && menuOpen}
+      <!-- A click on the dimmed page puts the menu away. Escape does the same from the keyboard. -->
+      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+      <div class="scrim" onclick={closeMenu}></div>
+    {/if}
+    {#if !onScreen || menuOpen}
+      <div id="sidebar-menu" class="menu" data-flow={onScreen ? "sheet" : "page"}>
+        {@render hostsGroup()}
+        <!-- Over a seat the roles are the long list, so the switches sit ahead of it, in reach without a scroll. -->
+        {#if onScreen}<AttentionSwitches />{/if}
+        {#if app.attachedHostId}{@render startGroup()}{/if}
+        {#if !onScreen}<AttentionSwitches compact />{/if}
+      </div>
+    {/if}
+  {:else}
+    <div class="mark">ATERM</div>
+    {@render hostsGroup()}
+    {#if app.attachedHostId}
+      {@render runningGroup()}
+      {@render failedGroup()}
+      {@render startGroup()}
+    {/if}
+    <AttentionSwitches />
+  {/if}
 </nav>
+
 
 <style>
   .sidebar { width: 280px; flex: none; border-right: 1px solid var(--line); padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
@@ -206,12 +316,30 @@
   .detail, .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .waiting { margin: 0 10px; color: var(--muted); font-size: 14px; }
 
+  /* A phone: one row of seats and a Menu button, so the terminal gets the screen. Hosts, roles and alerts open over it. */
   @media (max-width: 720px) {
-    .sidebar { width: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 8px 0; gap: 4px; overflow: visible; }
-    .mark, h2, .waiting { display: none; }
-    [role="tablist"] { flex-direction: row; overflow-x: auto; padding: 0 16px; scrollbar-width: none; }
-    .tab { width: auto; flex: none; }
-    .detail, .degraded { display: none; }
-    .code-inline { display: inline; }
+    .sidebar { width: auto; flex: none; position: relative; z-index: 7; padding: 0; gap: 0; overflow: visible; border-right: none; border-bottom: 1px solid var(--line); }
+    .bar { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 4px 8px 4px 12px; background: var(--ground); }
+    .menu-button { flex: none; min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text-soft); font-weight: 600; }
+    .menu-button[aria-expanded="true"] { border-color: var(--brand); color: var(--text); background: #1d1729; }
+    .seats { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+    .seats h2 { display: none; }
+    .seats [role="tablist"] { flex-direction: row; gap: 8px; }
+    .seats .tab { width: auto; flex: none; }
+    .seats .waiting { margin: 0 4px; }
+    .seats .detail, .seats .degraded { display: none; }
+    /* Name over harness and code, so a chip is narrow enough to leave the next one showing at its edge. */
+    .seats .name-row { display: grid; grid-template-columns: auto auto 1fr; column-gap: 6px; align-items: baseline; }
+    .seats .name { grid-column: 1 / -1; font-size: 14px; line-height: 1.2; }
+    .seats .harness { padding: 0; border: none; font-size: 11px; color: var(--muted); }
+    .seats .code-inline { display: inline; }
+    .scrim { position: fixed; inset: 0; z-index: -1; background: rgb(0 0 0 / 0.55); }
+    .menu[data-flow="sheet"] { position: absolute; top: 100%; left: 0; right: 0; max-height: calc(100dvh - 72px); overflow-y: auto; padding: 0 8px 12px; background: var(--ground); border-bottom: 1px solid var(--line); box-shadow: 0 12px 16px rgb(0 0 0 / 0.4); }
+    /* With no seat on screen the lists are the page: today's rows, tight, above the host's own panel. */
+    .menu[data-flow="page"] { padding: 4px 0; display: flex; flex-direction: column; gap: 4px; }
+    .menu[data-flow="page"] h2, .menu[data-flow="page"] .detail { display: none; }
+    .menu[data-flow="page"] [role="tablist"] { flex-direction: row; overflow-x: auto; padding: 0 16px; scrollbar-width: none; }
+    .menu[data-flow="page"] .tab { width: auto; flex: none; }
+    .menu[data-flow="page"] .waiting { display: none; }
   }
 </style>

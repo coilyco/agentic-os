@@ -178,6 +178,17 @@
   .body { --side: 360px; --strip: calc(56px + env(safe-area-inset-bottom)); flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--side); min-height: 0; }
   .body.wide { --side: minmax(360px, 50%); }
   .body :global(.panel) { border-left: none; }
+  /* A phone: the seat's name and state on one row, its role and context on the next, so the header does not cost the terminal a third of the screen. */
+  @media (max-width: 720px) {
+    header { min-height: 0; padding: 6px 12px; gap: 2px 10px; }
+    header :global(.creature), header :global(.swatch) { width: 28px !important; height: 28px !important; }
+    h1 { font-size: 18px; }
+    .state, .context + .state { order: 1; margin-left: auto; padding: 2px 8px; }
+    .role { order: 2; font-size: 12px; }
+    .context { order: 3; padding: 2px 8px; }
+    .degraded { order: 4; font-size: 12px; }
+    .overlay { max-height: 100%; padding-bottom: 6px; }
+  }
   @media (max-width: 1000px) {
     /* The sheet floats over this row, so the strip's height stays clear of the composer and the terminal never resizes as it rises. */
     .body, .body.wide { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr); padding-bottom: var(--strip); min-height: calc(320px + var(--strip)); }

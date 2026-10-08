@@ -36,7 +36,7 @@
 <section class="panel">
   {#if !host}
     <h1>Pick a host</h1>
-    <p class="lede">Sessions run on the host. This window only attaches to them. Pick one from the sidebar.</p>
+    <p class="lede">Sessions run on the host. This window only attaches to them. Pick one from the host list.</p>
     {#each silent as quiet (quiet.id)}
       <div class="alert" role="alert">
         <p><strong>{quiet.label} is not answering.</strong> Its daemon may be stopped, or running with a tailnet listener that fails TLS. On that machine, run <code>aterm doctor</code>, which says which, then retry.</p>
@@ -70,7 +70,7 @@
     {/if}
   {:else}
     <h1>{host.label}</h1>
-    <p class="lede">{running} {running === 1 ? "seat" : "seats"} running. Pick a seat from the sidebar to open its terminal.</p>
+    <p class="lede">{running} {running === 1 ? "seat" : "seats"} running. Pick a seat from the list to open its terminal.</p>
   {/if}
   {#if !app.typing.allowed && host?.id === app.attachedHostId}
     <p class="lede" role="status"><strong>Read only.</strong> {typingNotice(app.typing)}</p>

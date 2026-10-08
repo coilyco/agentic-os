@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { onMount, tick } from "svelte";
   import { findMention, insertMention, mentionMatches } from "../lib/mentions";
   import type { HostConnection, Session } from "../lib/protocol";
   import PasskeyUnlock from "./PasskeyUnlock.svelte";
@@ -27,6 +27,15 @@
       unlocked = "Unlocked. You can type again.";
       void tick().then(() => field?.focus());
     }
+  });
+  // The long hint wraps to four lines at 320px and, since the field sizes to its placeholder, takes the terminal's room. Its keys are no use on a touch screen.
+  let narrow = $state(typeof matchMedia === "function" && matchMedia("(max-width: 720px)").matches);
+  onMount(() => {
+    const query = matchMedia("(max-width: 720px)");
+    const read = () => (narrow = query.matches);
+    read();
+    query.addEventListener("change", read);
+    return () => query.removeEventListener("change", read);
   });
   const PASTE_OPEN = "\x1b[200~";
   const PASTE_CLOSE = "\x1b[201~";
@@ -149,7 +158,7 @@
       aria-controls="composer-mentions"
       aria-activedescendant={open ? `mention-${current}` : undefined}
       rows="1"
-      placeholder={`Type or dictate to ${session.identity}. Enter sends, Shift+Enter for a new line, @ names a session.`}
+      placeholder={narrow ? `Message ${session.identity}` : `Type or dictate to ${session.identity}. Enter sends, Shift+Enter for a new line, @ names a session.`}
       autocomplete="off"
       spellcheck="true"
     ></textarea>

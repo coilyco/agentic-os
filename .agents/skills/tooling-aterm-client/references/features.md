@@ -2,7 +2,7 @@
 
 A coarse inventory of what ships. Architecture: [architecture.md](architecture.md).
 
-* **Sidebar tabs** - hosts, running sessions, and roles to start as tab lists with arrow keys, scrolling strips below 720px.
+* **Sidebar tabs** - hosts, running sessions, and roles to start as tab lists with arrow keys. Below 720px a seat row and a Menu button hold the seat first and put hosts, alerts, and roles one tap away.
 * **Sessions as peers** - one tab per live session with its harness and code, so instances of a role on claude and codex sit side by side. A degraded startup names its skipped steps in the tab and header.
 * **Live daemon** - "this Mac" speaks `aterm.daemon.v1` over the daemon's loopback websocket: roster, live sessions, attach with replay, typing, resize, and message states. A Demo host keeps a scripted copy for working with no daemon.
 * **Host states** - checking, online, and not answering, each with its own panel and a retry.

@@ -1,8 +1,11 @@
 <script lang="ts">
   import { app, setAlert } from "../lib/app.svelte";
+
+  /** One tight row with no hints, for a page that is already full of lists. */
+  let { compact = false }: { compact?: boolean } = $props();
 </script>
 
-<section class="alerts" aria-labelledby="alerts-label">
+<section class="alerts" class:compact aria-labelledby="alerts-label">
   <h2 id="alerts-label">Alerts</h2>
   <div class="switches">
     <label class="switch">
@@ -40,10 +43,8 @@
   .blocked { color: var(--warn-text); }
   .blocked::before { content: "! "; font-weight: 700; color: var(--warn); }
 
-  @media (max-width: 720px) {
-    .alerts { margin-top: 0; padding: 0 16px; border-top: none; display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
-    h2, .hint { display: none; }
-    .switches { flex-direction: row; flex-wrap: wrap; }
-    .blocked { flex-basis: 100%; margin: 0 0 4px; }
-  }
+  .compact { margin-top: 0; padding: 0 16px; border-top: none; display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
+  .compact h2, .compact .hint { display: none; }
+  .compact .switches { flex-direction: row; flex-wrap: wrap; }
+  .compact .blocked { flex-basis: 100%; margin: 0 0 4px; }
 </style>
