@@ -25,9 +25,9 @@ attached to it.
 
 **The sender is stamped by the daemon, never declared.** Each spawn gets a fresh `ATERM_SESSION_TOKEN`. `send` presents it, and the daemon resolves the seat and types `[from <role> <identity>] <body>`.
 
-**A body cannot forge a second envelope.** A body line opening with `[from ` gets a `\` in front. Control bytes but tab show as caret or `<U+XXXX>`, since an escape would end a paste.
+**A body cannot forge a second envelope.** A body line opening with `[from ` gets a leading `\`. Control bytes but tab show as caret or `<U+XXXX>`, since an escape would end a paste.
 
-**Targets resolve in tiers**: session name, role slug, identity, then harness. The first tier with a match wins, several in it refuse and name them, and none exits 3 listing the live sessions. `--launch` on a role slug opens the role and holds the message up to three minutes. `--new` always opens another instance and names it.
+**Targets resolve in tiers**: session name, role slug, identity, then harness. The first tier with a match wins, several in it refuse and name them, and none exits 3 listing the live sessions. `--launch` on a role slug opens the role and holds the message up to three minutes. `--new` opens another instance.
 
 **Delivery serializes with the keyboard.** One lock covers every PTY write, so nothing interleaves. A message is `queued` until the target is ready, `held` while Kai typed in the last 1.5 seconds, has a draft touched in the last minute, or a card is up, then `delivered` or `failed`.
 
@@ -41,7 +41,7 @@ attached to it.
 
 ## Wire contract
 
-`aterm.daemon.v1` is one JSON object per line over the socket, and one per text message over the websocket. Both sides open with `hello` and `welcome` naming the format, and a mismatch refuses. A request's `id` is echoed on the reply or on an `error` with `code`.
+`aterm.daemon.v1` is one JSON object per line over the socket, and one per text message over the websocket. Both sides open with `hello` and `welcome`, and a mismatched format refuses. A request's `id` is echoed on its reply or `error`.
 
 * `spawn`, `attach`, `detach`, `input` and `output` (base64 `data`), `resize`, `exit` with `code`.
 * `send` answers `sent` with the message state, waiting 3 seconds, or `wait` up to 120, for delivery unless `launching`. One not yet final earns the sender `[from aterm daemon] message <id> to <session>: <state>`, never the body. `notify_idle` adds `<session> is idle`, `is held at a prompt` or `ended`.

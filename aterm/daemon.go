@@ -70,7 +70,11 @@ type daemon struct {
 	launch     func(role, seat string) error
 	// proxyFetch reads Agent Proxy's session usage. Nil when no proxy is configured.
 	proxyFetch proxyFetcher
-	logf       func(string, ...any)
+	// browsers holds a session's streamed Chromium. browserLaunch replaces the
+	// real one in tests.
+	browsers      browserHub
+	browserLaunch browserLauncher
+	logf          func(string, ...any)
 
 	// apps is the per-session MCP Apps gateway and the views it captured.
 	apps appsState
@@ -243,6 +247,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		go d.serve(raw)
 	}
 	_ = os.Remove(socket)
+	d.browsers.closeAll()
 	d.closeApps()
 	if options.EndSessions {
 		d.endAll()
@@ -361,6 +366,9 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
 	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, mcpAppsFeature}}
+	if d.browserServed() {
+		welcome.Features = append(welcome.Features, browserFeature)
+	}
 	if peer.web {
 		welcome.Typing = d.typingStanding(cl)
 	}
@@ -377,6 +385,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		}
 		asked := cl.asks
 		d.settleWhere(func(ask choiceAsk) bool { return slices.Contains(asked, ask.ID) }, "the asking call ended")
+		d.browsers.leave(c)
 		d.mu.Lock()
 		d.conns--
 		d.lastActive = time.Now()
@@ -537,6 +546,14 @@ func (d *daemon) handle(cl *client, message frame) error {
 			}
 		}
 		return nil
+	case "browser_watch":
+		return d.browserWatch(cl, message)
+	case "browser_unwatch":
+		return d.browserUnwatch(cl, message)
+	case "browser_control":
+		return d.browserControl(cl, message)
+	case "browser_input", "browser_navigate":
+		return d.browserDrive(cl, message)
 	case "gateway_add":
 		return d.addGateway(cl, message)
 	case "view_call":
@@ -745,6 +762,7 @@ func (d *daemon) forget(s *ptySession) {
 	}
 	d.mu.Unlock()
 	d.settleWhere(func(ask choiceAsk) bool { return ask.Session == s.name }, s.name+" ended")
+	d.browsers.end(s.name)
 	d.dropApps(s.name)
 	d.pushSessions()
 }

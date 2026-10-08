@@ -49,8 +49,8 @@ type frame struct {
 	Rows     int      `json:"rows,omitempty"`
 	Cols     int      `json:"cols,omitempty"`
 
-	// Kind is "terminal" on a spawn for a plain login shell and on its spawned
-	// reply, absent for a seat. See docs/aterm-daemon.md.
+	// Kind is "terminal" on a spawn for a login shell, absent for a seat, and the
+	// input type (mouse, wheel, key, text) on a browser_input. See docs/aterm-daemon.md.
 	Kind string `json:"kind,omitempty"`
 
 	// attach
@@ -113,6 +113,19 @@ type frame struct {
 	// Hold is what a session holder reports on attach, and is not part of the
 	// client wire.
 	Hold *holdInfo `json:"hold,omitempty"`
+
+	// browser_*. State, Reason, Force and Data carry the shared fields above.
+	// Params, shared with the MCP Apps frames, is declared below.
+	Driver   string          `json:"driver,omitempty"`
+	URL      string          `json:"url,omitempty"`
+	Title    string          `json:"title,omitempty"`
+	Holder   string          `json:"holder,omitempty"`
+	Client   string          `json:"client,omitempty"`
+	Width    int             `json:"width,omitempty"`
+	Height   int             `json:"height,omitempty"`
+	Seq      int64           `json:"seq,omitempty"`
+	Take     bool            `json:"take,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 
 	// MCP Apps: the gateway and the views channel. See docs/aterm-daemon.md.
 	View       *viewFrame      `json:"view,omitempty"`

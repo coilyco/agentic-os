@@ -52,6 +52,7 @@ than editing it by hand.
 * [discovery.md](references/discovery.md) - the `hosts` frame and how the host list merges the daemons it finds.
 * [choices.md](references/choices.md) - native choice cards and `ask_choice`.
 * [views-and-browser.md](references/views-and-browser.md) - MCP Apps views and the shared browser.
+* [browser.md](references/browser.md) - the daemon's streamed Chromium and its `browser_*` frames.
 * [terminal-split.md](references/terminal-split.md) - the Terminal tab, the split, and the side panel's default tab by role.
 * [mcp-apps-gateway.md](references/mcp-apps-gateway.md) - the daemon gateway and the `views` frames a client receives.
 * [deploy.md](references/deploy.md) - served by a daemon, or hosted.

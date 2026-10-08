@@ -147,6 +147,77 @@ describe("the typing guard", () => {
   });
 });
 
+const browsers = (events: HostEvent[]) => events.flatMap((event) => (event.type === "browser" ? [event.browser] : []));
+
+describe("the shared browser", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("offers no browser channel until the welcome lists the feature", () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["send-new"] });
+    expect(host.browser).toBeUndefined();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["browser"] });
+    expect(host.browser).toBeDefined();
+    host.close();
+  });
+
+  it("sends the frames the daemon reads, with the pane size when it is given", () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["browser"] });
+    const sent = () => JSON.parse(socket.sent.at(-1) ?? "{}");
+    host.browser?.watch("s", { width: 390, height: 600 });
+    expect(sent()).toMatchObject({ type: "browser_watch", session: "s", width: 390, height: 600 });
+    host.browser?.control("s", true, true);
+    expect(sent()).toMatchObject({ type: "browser_control", session: "s", take: true, force: true });
+    host.browser?.input("s", "mouse", { type: "mousePressed", x: 1, y: 2 });
+    expect(sent()).toMatchObject({ type: "browser_input", session: "s", kind: "mouse", params: { type: "mousePressed", x: 1, y: 2 } });
+    host.browser?.navigate("s", "https://example.com/");
+    expect(sent()).toMatchObject({ type: "browser_navigate", session: "s", url: "https://example.com/" });
+    host.browser?.unwatch("s");
+    expect(sent()).toMatchObject({ type: "browser_unwatch", session: "s" });
+    host.close();
+  });
+
+  it("reads who holds the browser against the name the daemon gave this connection", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["browser"] });
+    socket.receive({ type: "browser_state", session: "s", state: "live", driver: "person", holder: "screen-a", client: "screen-a", url: "https://example.com/", title: "Example" });
+    socket.receive({ type: "browser_state", session: "s", state: "live", driver: "person", holder: "screen-b", client: "screen-a" });
+    socket.receive({ type: "browser_state", session: "s", state: "closed", driver: "agent", client: "screen-a", reason: "The browser process exited." });
+    const [mine, theirs, closed] = browsers(events);
+    expect(mine).toMatchObject({ state: "live", driver: "person", heldHere: true, url: "https://example.com/", title: "Example" });
+    expect(theirs).toMatchObject({ heldHere: false, holder: "screen-b" });
+    expect(closed).toMatchObject({ state: "closed", driver: "agent", heldHere: false, reason: "The browser process exited." });
+    host.close();
+  });
+
+  it("draws a frame onto its browser and keeps it through the next state", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["browser"] });
+    socket.receive({ type: "browser_frame", session: "s", data: "AAAA", seq: 1, metadata: { device_width: 1280, device_height: 800, offset_top: 0, page_scale_factor: 1 } });
+    expect(browsers(events)).toEqual([]);
+    socket.receive({ type: "browser_state", session: "s", state: "live", driver: "agent", client: "c" });
+    socket.receive({ type: "browser_frame", session: "s", data: "AAAA", seq: 7, metadata: { device_width: 1280, device_height: 800, offset_top: 4, page_scale_factor: 2 } });
+    socket.receive({ type: "browser_state", session: "s", state: "live", driver: "person", holder: "c", client: "c" });
+    const [, framed, later] = browsers(events);
+    expect(framed?.frame).toMatchObject({ src: "data:image/jpeg;base64,AAAA", seq: 7, metadata: { deviceWidth: 1280, deviceHeight: 800, offsetTop: 4, pageScaleFactor: 2 } });
+    expect(later?.frame?.seq).toBe(7);
+    expect(later?.heldHere).toBe(true);
+    host.close();
+  });
+
+  it("shows a browser refusal as a notice, not as read-only typing", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["browser"], typing: { allowed: true } });
+    socket.receive({ type: "error", id: "c3", code: 1, error: "another screen has control, take it over with force", reason: "browser_held" });
+    expect(events.filter((event) => event.type === "notice")).toEqual([{ type: "notice", text: "another screen has control, take it over with force" }]);
+    expect(typings(events).at(-1)).toEqual({ type: "typing", typing: { allowed: true } });
+    host.close();
+  });
+});
+
 const view = (name: string, ready: boolean) => ({ name, role: "eng-platform", identity: "Beetle-Ox", seat: "claude", ready, bracketed_paste: true, kai_drafting: false, pending: 0 });
 const framesOf = (socket: StubSocket) => socket.sent.map((line) => JSON.parse(line) as { type: string; session?: string; replay?: boolean });
 
