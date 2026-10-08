@@ -172,7 +172,7 @@ export class MockHost implements HostConnection {
   }
 
   private listShells(): ListedTerminal[] {
-    return [...this.shells.keys()].map((id) => ({ id }));
+    return [...this.shells].map(([id, { label }]) => ({ id, label }));
   }
 
   private openShell(label: string): void {

@@ -37,13 +37,27 @@ describe("the demo host's terminals", () => {
     const { host, events } = open("ok");
     host.terminals!.open("sysadmin-senior-turtle-ox-gj84");
     vi.advanceTimersByTime(300);
-    expect(events.filter((event) => event.type === "terminals").at(-1)).toEqual({ type: "terminals", terminals: [{ id: "terminal-1" }] });
+    expect(events.filter((event) => event.type === "terminals").at(-1)).toEqual({ type: "terminals", terminals: [{ id: "terminal-1", label: "sysadmin-senior-turtle-ox-gj84" }] });
     expect(events.at(-1)).toEqual({ type: "terminal_opened", label: "sysadmin-senior-turtle-ox-gj84", id: "terminal-1" });
     host.attach("terminal-1");
     host.input("terminal-1", "echo ok\r");
     const out = events.filter((event) => event.type === "output").map((event) => (event.type === "output" ? String(event.data) : "")).join("");
     expect(out).toContain("echo ok");
     expect(out).toContain("\r\nok\r\n");
+  });
+
+  it("lists each shell with the seat it was opened beside, as a daemon with terminal-label does", () => {
+    const { host, events } = open("ok");
+    host.terminals!.open("eng-platform-beetle-ox-eb64");
+    host.terminals!.open("scientist-frog-ox-va67");
+    vi.advanceTimersByTime(300);
+    expect(events.filter((event) => event.type === "terminals").at(-1)).toEqual({
+      type: "terminals",
+      terminals: [
+        { id: "terminal-1", label: "eng-platform-beetle-ox-eb64" },
+        { id: "terminal-2", label: "scientist-frog-ox-va67" },
+      ],
+    });
   });
 
   it("drops the shell from the list and then reports its exit, the order hardest on the pane", () => {
