@@ -2,6 +2,7 @@ import { nextUnseen } from "./activity";
 import { type AttentionSettings, loadAttention, storeAttention } from "./attention";
 import { chime, isBlocked, unlock, watchBlocked } from "./chime";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
+import { discover, newFoundHosts } from "./discovery";
 import { upsertMessage } from "./messages";
 import { MockHost, terminalModeFrom } from "./mock-host";
 import type { View } from "./mcp-apps";
@@ -129,6 +130,21 @@ export async function checkHost(host: Host): Promise<void> {
   }
   // Picked while the probe was still out, so attach now that it answered.
   if (app.selectedHostId === host.id && app.attachedHostId !== host.id) selectHost(host);
+  if (!host.found) void addFoundHosts(host);
+}
+
+/** Lists the daemons this host sees. One that predates the frame adds none. */
+async function addFoundHosts(source: Host): Promise<void> {
+  let found;
+  try {
+    found = await discover(source.address);
+  } catch {
+    return;
+  }
+  const added = newFoundHosts(app.hosts, found);
+  // Before the demo host, which stays last.
+  app.hosts.splice(app.hosts.length - 1, 0, ...added);
+  for (const host of added) void checkHost(app.hosts.find((candidate) => candidate.id === host.id)!);
 }
 
 /** Adds a host by tailnet name, remembered on this device. Throws a readable message. */

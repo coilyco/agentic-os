@@ -2,8 +2,9 @@
 // the Wire contract section of the aterm daemon page in coilyco/agentic-os.
 import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
-import type { Ask, AskOutcome, ContextReading, HostConnection, HostEvent, MessageState, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, HostConnection, HostEvent, MessageState, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
 import { parseRoster } from "./roster";
+import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
 import { parseTyping, refusalOf, typingNotice, type Typing } from "./typing";
 
 export const FORMAT = "aterm.daemon.v1";
@@ -98,6 +99,13 @@ interface Frame {
   typing?: unknown;
   reason?: unknown;
   features?: string[];
+  driver?: string;
+  url?: string;
+  title?: string;
+  holder?: string;
+  client?: string;
+  seq?: number;
+  metadata?: Record<string, number>;
   view?: ViewFrame;
   view_id?: string;
   tool_result?: ToolResult;
@@ -114,6 +122,45 @@ interface ViewFrame {
   csp?: { connect_domains?: string[]; resource_domains?: string[]; frame_domains?: string[]; base_uri_domains?: string[] };
   prefers_border?: boolean;
   tool_input?: Record<string, unknown>;
+}
+
+/** `welcome.features` names this when the daemon streams a session's browser. */
+export const BROWSER_FEATURE = "browser";
+
+/** CDP's ScreencastFrameMetadata as the daemon sends it, in snake_case. */
+export function toFrameMetadata(raw: Record<string, number> | undefined): FrameMetadata {
+  return {
+    deviceWidth: raw?.device_width ?? 0,
+    deviceHeight: raw?.device_height ?? 0,
+    offsetTop: raw?.offset_top ?? 0,
+    pageScaleFactor: raw?.page_scale_factor ?? 1,
+  };
+}
+
+const BROWSER_STATES: BrowserState[] = ["none", "live", "closed"];
+
+/** A `browser_state` over what the client already holds, which keeps the last frame. */
+export function toBrowserState(frame: Frame, previous: SharedBrowser | undefined): SharedBrowser {
+  const state = BROWSER_STATES.find((each) => each === frame.state) ?? "none";
+  const driver: Driver = frame.driver === "person" ? "person" : "agent";
+  return {
+    session: frame.session ?? "",
+    state,
+    driver,
+    url: frame.url ?? "",
+    title: frame.title ?? "",
+    // Only the daemon knows each connection's name, and it sends this one's as `client`.
+    heldHere: driver === "person" && !!frame.holder && frame.holder === frame.client,
+    ...(frame.holder ? { holder: frame.holder } : {}),
+    ...(typeof frame.reason === "string" && frame.reason ? { reason: frame.reason } : {}),
+    ...(previous?.frame ? { frame: previous.frame } : {}),
+  };
+}
+
+/** A `browser_frame` drawn onto the browser it belongs to. Null before any state. */
+export function withBrowserFrame(previous: SharedBrowser | undefined, frame: Frame, at: number): SharedBrowser | null {
+  if (!previous || !frame.data) return null;
+  return { ...previous, frame: { src: `data:image/jpeg;base64,${frame.data}`, metadata: toFrameMetadata(frame.metadata), at, seq: frame.seq ?? 0 } };
 }
 
 /** A `view` frame as the client holds it. The result comes later, in `view_update`. */
@@ -224,6 +271,9 @@ export class DaemonHost implements HostConnection {
   private lastPoke = new Map<string, number>();
   private busy = new Set<string>();
   private ticker: ReturnType<typeof setInterval>;
+  private browsers = new Map<string, SharedBrowser>();
+  /** Set once the welcome lists `browser`, so an older daemon keeps the empty state. */
+  browser?: BrowserChannel;
 
   constructor(url = DEFAULT_DAEMON_URL) {
     this.socket = new WebSocket(url);
@@ -310,6 +360,19 @@ export class DaemonHost implements HostConnection {
     this.socket.close();
   }
 
+  private browserChannel(): BrowserChannel {
+    return {
+      watch: (session, size) => void this.request({ type: "browser_watch", session, ...(size ?? {}) }),
+      unwatch: (session) => {
+        this.browsers.delete(session);
+        this.request({ type: "browser_unwatch", session });
+      },
+      control: (session, take, force) => void this.request({ type: "browser_control", session, take, ...(force ? { force } : {}) }),
+      input: (session: string, kind: InputKind, params: Record<string, unknown>) => void this.request({ type: "browser_input", session, kind, params }),
+      navigate: (session, url) => void this.request({ type: "browser_navigate", session, url }),
+    };
+  }
+
   /** Watch every live seat without replay or resize, to see when it is busy. */
   private monitor(): void {
     const live = new Set(this.sessionViews.map((view) => view.name));
@@ -370,6 +433,7 @@ export class DaemonHost implements HostConnection {
           return;
         }
         this.open = true;
+        if (frame.features?.includes(BROWSER_FEATURE)) this.browser = this.browserChannel();
         this.setTyping(parseTyping(frame.typing));
         this.features = new Set(frame.features ?? []);
         this.last.features = { type: "features", terminals: this.features.has("terminals") };
@@ -435,6 +499,20 @@ export class DaemonHost implements HostConnection {
       case "message":
         if (frame.message) this.emit({ type: "message", message: toMessage(frame.message) });
         return;
+      case "browser_state": {
+        if (!frame.session) return;
+        const next = toBrowserState(frame, this.browsers.get(frame.session));
+        this.browsers.set(frame.session, next);
+        this.emit({ type: "browser", browser: next });
+        return;
+      }
+      case "browser_frame": {
+        const next = frame.session ? withBrowserFrame(this.browsers.get(frame.session), frame, Date.now()) : null;
+        if (!next) return;
+        this.browsers.set(next.session, next);
+        this.emit({ type: "browser", browser: next });
+        return;
+      }
       case "launched":
         if (frame.id) this.launches.delete(frame.id);
         this.emit({ type: "launch", role: frame.role ?? "", state: "started", text: `${frame.role} launched. It appears here once its session starts.` });

@@ -34,6 +34,14 @@ export function isDriving(browser: SharedBrowser | undefined): boolean {
 
 export type InputKind = "mouse" | "wheel" | "key" | "text";
 
+// The pane in CSS pixels, which bounds the host's screencast. The host wants both
+// sides, so `minHeight` stands in for a squeezed pane. No width, no size.
+export function paneSize(box: { width: number; height: number } | undefined, minHeight = 0): { width: number; height: number } | undefined {
+  if (!box || box.width < 1) return undefined;
+  const height = Math.max(Math.round(box.height), minHeight);
+  return height < 1 ? undefined : { width: Math.round(box.width), height };
+}
+
 /** A frame older than this while the page is live means the stream stalled. */
 export const STALL_MS = 5000;
 

@@ -44,6 +44,8 @@ type daemon struct {
 	// daemon adopts what it finds there.
 	holdDir string
 	tailnet tailnetState
+	// discovery answers the hosts frame.
+	discovery *hostDiscovery
 	// capture sends panics to Sentry, nil without a DSN. Set before goroutines start.
 	capture *sentryCapture
 	// ledgerDir holds a record per session for `aterm resume`. Empty keeps none.
@@ -68,7 +70,11 @@ type daemon struct {
 	launch     func(role, seat string) error
 	// proxyFetch reads Agent Proxy's session usage. Nil when no proxy is configured.
 	proxyFetch proxyFetcher
-	logf       func(string, ...any)
+	// browsers holds a session's streamed Chromium. browserLaunch replaces the
+	// real one in tests.
+	browsers      browserHub
+	browserLaunch browserLauncher
+	logf          func(string, ...any)
 
 	// apps is the per-session MCP Apps gateway and the views it captured.
 	apps appsState
@@ -90,6 +96,7 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		passkeys:    defaultPasskeys(),
 		roster:      launchableRoster,
 		launch:      launchRole,
+		discovery:   newHostDiscovery(),
 		logf:        logf,
 	}
 }
@@ -205,6 +212,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	go d.watchContext(contextDone, contextEvery)
 	d.adoptHolders()
 	d.clientDir = options.ClientDir
+	d.discovery.port = func() string { return options.TailnetPort }
 	if options.Websocket != "" {
 		server, err := d.listenWebsocket(options.Websocket)
 		if err != nil {
@@ -239,6 +247,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		go d.serve(raw)
 	}
 	_ = os.Remove(socket)
+	d.browsers.closeAll()
 	d.closeApps()
 	if options.EndSessions {
 		d.endAll()
@@ -357,6 +366,9 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
 	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, mcpAppsFeature}}
+	if d.browserServed() {
+		welcome.Features = append(welcome.Features, browserFeature)
+	}
 	if peer.web {
 		welcome.Typing = d.typingStanding(cl)
 	}
@@ -373,6 +385,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		}
 		asked := cl.asks
 		d.settleWhere(func(ask choiceAsk) bool { return slices.Contains(asked, ask.ID) }, "the asking call ended")
+		d.browsers.leave(c)
 		d.mu.Lock()
 		d.conns--
 		d.lastActive = time.Now()
@@ -393,6 +406,9 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 }
 
 func (d *daemon) handle(cl *client, message frame) error {
+	if cl.remote && !cl.asserted && remoteLocked[message.Type] {
+		return d.typingRefusal(cl, "")
+	}
 	switch message.Type {
 	case "spawn":
 		var s *ptySession
@@ -503,6 +519,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 			return err
 		}
 		return cl.c.write(frame{Type: "roster", ID: message.ID, Roster: &roster})
+	case "hosts":
+		return d.hosts(cl.c, message)
 	case "whoami":
 		s := d.byToken(message.Token)
 		if s == nil {
@@ -528,6 +546,14 @@ func (d *daemon) handle(cl *client, message frame) error {
 			}
 		}
 		return nil
+	case "browser_watch":
+		return d.browserWatch(cl, message)
+	case "browser_unwatch":
+		return d.browserUnwatch(cl, message)
+	case "browser_control":
+		return d.browserControl(cl, message)
+	case "browser_input", "browser_navigate":
+		return d.browserDrive(cl, message)
 	case "gateway_add":
 		return d.addGateway(cl, message)
 	case "view_call":
@@ -736,6 +762,7 @@ func (d *daemon) forget(s *ptySession) {
 	}
 	d.mu.Unlock()
 	d.settleWhere(func(ask choiceAsk) bool { return ask.Session == s.name }, s.name+" ended")
+	d.browsers.end(s.name)
 	d.dropApps(s.name)
 	d.pushSessions()
 }

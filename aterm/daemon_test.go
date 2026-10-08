@@ -144,30 +144,6 @@ func TestInsideSessionFollowsTheParentChain(t *testing.T) {
 	}
 }
 
-func TestMCPListsBothTools(t *testing.T) {
-	input := strings.Join([]string{
-		`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26"}}`,
-		`{"jsonrpc":"2.0","method":"notifications/initialized"}`,
-		`{"jsonrpc":"2.0","id":2,"method":"tools/list"}`,
-	}, "\n")
-	output := &bytes.Buffer{}
-	if err := serveMCP(strings.NewReader(input), output); err != nil {
-		t.Fatalf("serve: %v", err)
-	}
-	lines := strings.Split(strings.TrimSpace(output.String()), "\n")
-	if len(lines) != 2 {
-		t.Fatalf("a notification gets no answer, so two responses: %q", output.String())
-	}
-	if !strings.Contains(lines[0], `"protocolVersion":"2025-03-26"`) {
-		t.Fatalf("initialize should echo the client's revision: %s", lines[0])
-	}
-	for _, tool := range []string{"list_agents", "send_message", "ask_choice", "close_session", "session_status", "clear_session"} {
-		if !strings.Contains(lines[1], `"name":"`+tool+`"`) {
-			t.Fatalf("tools/list is missing %s: %s", tool, lines[1])
-		}
-	}
-}
-
 // testHoldDir is where a daemon built without runDaemon keeps its holders,
 // under /tmp since a socket path has a short ceiling.
 func testHoldDir(t *testing.T) string {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { app } from "../lib/app.svelte";
+  import { PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge";
   import { resultText, ViewBridge, viewDocument, type DisplayMode, type View } from "../lib/mcp-apps";
 
   let { view }: { view: View } = $props();
@@ -26,23 +27,15 @@
     return mode;
   }
 
-  function onMessage(event: MessageEvent): void {
-    // A sandboxed view has an opaque origin, so its window is how it is known.
-    if (!frame || event.source !== frame.contentWindow) return;
-    bridge?.receive(event.data);
-    if (bridge?.started) silent = false;
-  }
-
   onMount(() => {
     bridge = new ViewBridge(
-      // Views come from app state, whose proxies cannot be structured-cloned into a postMessage.
-      (message) => frame?.contentWindow?.postMessage($state.snapshot(message), "*"),
       {
         callTool: (name, args) => app.connection?.views?.call(view.id, "tools/call", { name, arguments: args }) ?? Promise.reject(new Error("This host no longer forwards view calls.")),
         readResource: (uri) => app.connection?.views?.call(view.id, "resources/read", { uri }) ?? Promise.reject(new Error("This host no longer forwards view calls.")),
         openLink: (url) => window.open(url, "_blank", "noopener,noreferrer"),
         resize: (next) => (height = Math.max(MIN_HEIGHT, Math.ceil(next))),
         displayMode: setMode,
+        started: () => (silent = false),
       },
       {
         theme: "dark",
@@ -54,7 +47,9 @@
         containerDimensions: { maxHeight: MAX_INLINE_HEIGHT, width: frame?.clientWidth ?? 360 },
       },
     );
-    window.addEventListener("message", onMessage);
+    // A sandboxed view has an opaque origin, so its window is how it is known.
+    const win = frame?.contentWindow;
+    if (win) void bridge.connect(new PostMessageTransport(win, win));
     sync();
     startTimer = setTimeout(() => {
       if (!bridge?.started) silent = true;
@@ -64,8 +59,9 @@
   function sync(): void {
     const { toolInput, toolResult, cancelled } = view;
     if (!bridge) return;
-    bridge.setInput(toolInput);
-    if (toolResult) bridge.setResult(toolResult);
+    // Views come from app state, whose proxies cannot be structured-cloned into a postMessage.
+    bridge.setInput($state.snapshot(toolInput));
+    if (toolResult) bridge.setResult($state.snapshot(toolResult));
     else if (cancelled !== undefined) bridge.cancel(cancelled);
   }
 
@@ -73,11 +69,11 @@
 
   onDestroy(() => {
     clearTimeout(startTimer);
-    window.removeEventListener("message", onMessage);
+    void bridge?.close();
   });
 
   async function close(): Promise<void> {
-    await bridge?.teardown("The person closed the view.");
+    await bridge?.teardown();
     app.connection?.views?.close(view.id);
     delete app.views[view.id];
   }

@@ -171,12 +171,15 @@ func TestTerminalSpawnRefusesWhatOnlyASeatTakes(t *testing.T) {
 	}
 }
 
-func TestTerminalSpawnFromARemoteDeviceWaitsOnGating(t *testing.T) {
+func TestTerminalSpawnFromARemoteDeviceIsRefusedBeforeAndAfterAPasskey(t *testing.T) {
 	d := newDaemon(func(string, ...any) {})
 	d.holdDir = testHoldDir(t)
-	err := d.handle(&client{peerStanding: peerStanding{remote: true}, owned: map[string]bool{}, attached: map[string]*ptySession{}}, frame{Type: "spawn", Kind: kindTerminal})
-	if reasonFor(err) != reasonRemoteTerminal {
-		t.Fatalf("a remote device gets %q, got %v", reasonRemoteTerminal, err)
+	for asserted, want := range map[bool]string{false: reasonPasskeyRequired, true: reasonRemoteTerminal} {
+		cl := &client{peerStanding: peerStanding{remote: true}, asserted: asserted, owned: map[string]bool{}, attached: map[string]*ptySession{}}
+		err := d.handle(cl, frame{Type: "spawn", Kind: kindTerminal})
+		if reasonFor(err) != want {
+			t.Fatalf("a remote device with asserted=%v gets %q, got %v", asserted, want, err)
+		}
 	}
 	if len(d.terminals) != 0 {
 		t.Fatal("nothing starts for a refused remote spawn")

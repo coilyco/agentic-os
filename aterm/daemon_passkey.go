@@ -7,6 +7,13 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
+// remoteLocked are the frames a remote device needs a passkey for, besides the ones
+// that type (see typingRefusal). The rest only read, or resize a view.
+var remoteLocked = map[string]bool{
+	"spawn": true, "close": true, "send": true, "claim": true, "ask": true, "cancel_ask": true,
+	"gateway_add": true, "view_call": true, "view_close": true,
+}
+
 // passkeyCeremony is the one challenge a connection has open, spent by the
 // first finish it sees, right or wrong.
 type passkeyCeremony struct {
