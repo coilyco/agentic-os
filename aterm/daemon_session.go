@@ -141,7 +141,7 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 		suffix = randomID(3)
 	} else {
 		token = randomID(24)
-		env, suffix = sessionEnv(message.Env, name, token), token[:6]
+		env, suffix = d.withCDPEndpoint(sessionEnv(message.Env, name, token), token), token[:6]
 	}
 	spec := frame{
 		Type: "spawn", Session: name, Role: message.Role, Identity: message.Identity, Seat: message.Seat,

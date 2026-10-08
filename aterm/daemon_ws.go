@@ -80,6 +80,10 @@ func (d *daemon) handler(policy accessPolicy) http.Handler {
 			d.serveGateway(w, r)
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, cdpPrefix) {
+			d.serveCDP(w, r)
+			return
+		}
 		if !strings.EqualFold(r.Header.Get("Upgrade"), "websocket") {
 			d.serveClient(w, r)
 			return
@@ -158,6 +162,9 @@ func (d *daemon) listenWebsocket(address string) (*http.Server, error) {
 		return nil, err
 	}
 	server := &http.Server{Handler: d.handler(loopbackPolicy())}
+	d.mu.Lock()
+	d.loopbackAddr = listener.Addr().String()
+	d.mu.Unlock()
 	go func() { _ = server.Serve(listener) }()
 	d.logf("serving websocket on ws://%s", listener.Addr())
 	return server, nil

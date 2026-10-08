@@ -24,6 +24,11 @@ type cdpClient struct {
 	mu      sync.Mutex
 	nextID  int64
 	pending map[int64]chan cdpReply
+	// relayed are commands forwarded for a CDP peer, answered with the browser's
+	// message as it came. taps see every event, in order, on the read loop.
+	relayed map[int64]func(cdpMessage)
+	taps    map[int]func(cdpMessage)
+	nextTap int
 	// done closes when the stream ends, and err says why.
 	done chan struct{}
 	err  error
@@ -40,15 +45,17 @@ type cdpMessage struct {
 	Params    json.RawMessage `json:"params"`
 	Result    json.RawMessage `json:"result"`
 	SessionID string          `json:"sessionId"`
-	Error     *struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-	} `json:"error"`
+	Error     *cdpErrorBody   `json:"error"`
+}
+
+type cdpErrorBody struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
 }
 
 // newCDPClient reads r until it ends, delivering events to onEvent in order.
 func newCDPClient(r io.Reader, w io.Writer, onEvent func(sessionID, method string, params json.RawMessage)) *cdpClient {
-	c := &cdpClient{w: w, onEvent: onEvent, pending: map[int64]chan cdpReply{}, done: make(chan struct{})}
+	c := &cdpClient{w: w, onEvent: onEvent, pending: map[int64]chan cdpReply{}, relayed: map[int64]func(cdpMessage){}, taps: map[int]func(cdpMessage){}, done: make(chan struct{})}
 	go c.read(bufio.NewReaderSize(r, 1<<20))
 	return c
 }
@@ -73,12 +80,27 @@ func (c *cdpClient) read(r *bufio.Reader) {
 			if c.onEvent != nil {
 				c.onEvent(message.SessionID, message.Method, message.Params)
 			}
+			c.mu.Lock()
+			taps := make([]func(cdpMessage), 0, len(c.taps))
+			for _, tap := range c.taps {
+				taps = append(taps, tap)
+			}
+			c.mu.Unlock()
+			for _, tap := range taps {
+				tap(message)
+			}
 			continue
 		}
 		c.mu.Lock()
 		reply := c.pending[message.ID]
 		delete(c.pending, message.ID)
+		forwarded := c.relayed[message.ID]
+		delete(c.relayed, message.ID)
 		c.mu.Unlock()
+		if forwarded != nil {
+			forwarded(message)
+			continue
+		}
 		if reply == nil {
 			continue
 		}
@@ -94,7 +116,12 @@ func (c *cdpClient) read(r *bufio.Reader) {
 		reply <- cdpReply{err: errors.New("the browser's CDP stream ended")}
 		delete(c.pending, id)
 	}
+	ended := c.relayed
+	c.relayed = map[int64]func(cdpMessage){}
 	c.mu.Unlock()
+	for _, forwarded := range ended {
+		forwarded(cdpMessage{Error: &cdpErrorBody{Code: -32000, Message: "the browser's CDP stream ended"}})
+	}
 	close(c.done)
 }
 
@@ -121,19 +148,7 @@ func (c *cdpClient) call(ctx context.Context, sessionID, method string, params a
 	c.pending[id] = reply
 	c.mu.Unlock()
 
-	request := struct {
-		ID        int64           `json:"id"`
-		Method    string          `json:"method"`
-		Params    json.RawMessage `json:"params"`
-		SessionID string          `json:"sessionId,omitempty"`
-	}{id, method, encodedParams, sessionID}
-	encoded, err := json.Marshal(request)
-	if err == nil {
-		c.writeMu.Lock()
-		_, err = c.w.Write(append(encoded, 0))
-		c.writeMu.Unlock()
-	}
-	if err != nil {
+	if err := c.write(id, sessionID, method, encodedParams); err != nil {
 		c.mu.Lock()
 		delete(c.pending, id)
 		c.mu.Unlock()
@@ -147,6 +162,66 @@ func (c *cdpClient) call(ctx context.Context, sessionID, method string, params a
 		delete(c.pending, id)
 		c.mu.Unlock()
 		return nil, ctx.Err()
+	}
+}
+
+func (c *cdpClient) write(id int64, sessionID, method string, params json.RawMessage) error {
+	request := struct {
+		ID        int64           `json:"id"`
+		Method    string          `json:"method"`
+		Params    json.RawMessage `json:"params"`
+		SessionID string          `json:"sessionId,omitempty"`
+	}{id, method, params, sessionID}
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		return err
+	}
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	_, err = c.w.Write(append(encoded, 0))
+	return err
+}
+
+// relay sends a command for a CDP peer under an id of this client's own.
+// done gets the whole answer on the read loop, so it must not block.
+func (c *cdpClient) relay(sessionID, method string, params json.RawMessage, done func(cdpMessage)) {
+	if len(params) == 0 {
+		params = json.RawMessage("{}")
+	}
+	c.mu.Lock()
+	select {
+	case <-c.done:
+		c.mu.Unlock()
+		done(cdpMessage{Error: &cdpErrorBody{Code: -32000, Message: "the browser's CDP stream ended"}})
+		return
+	default:
+	}
+	c.nextID++
+	id := c.nextID
+	c.relayed[id] = done
+	c.mu.Unlock()
+	if err := c.write(id, sessionID, method, params); err != nil {
+		c.mu.Lock()
+		_, waiting := c.relayed[id]
+		delete(c.relayed, id)
+		c.mu.Unlock()
+		if waiting {
+			done(cdpMessage{Error: &cdpErrorBody{Code: -32000, Message: err.Error()}})
+		}
+	}
+}
+
+// tap delivers every browser event to fn until the returned stop is called.
+func (c *cdpClient) tap(fn func(cdpMessage)) (stop func()) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.nextTap++
+	key := c.nextTap
+	c.taps[key] = fn
+	return func() {
+		c.mu.Lock()
+		delete(c.taps, key)
+		c.mu.Unlock()
 	}
 }
 

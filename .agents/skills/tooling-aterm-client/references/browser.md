@@ -14,6 +14,12 @@ The [aterm host daemon](../../../../docs/aterm-daemon.md) can run one headless C
 
 **It ends with its session, its process, or the daemon.** The daemon asks Chromium to close over CDP, which writes cookies out (SIGTERM skips that, and Chromium otherwise flushes about 30 seconds after a login). The session's process group gets SIGTERM after 2 seconds, then SIGKILL after 3 more. A browser that exits, or whose page closes, becomes `closed` with a reason, and the next `browser_watch` starts a new one. A daemon killed outright leaves its Chromium running (COI-2519).
 
+**A session's Playwright MCP can drive this same browser.** A launch with `ATERM_BROWSER_PROXY=1` in its environment gets `PLAYWRIGHT_MCP_CDP_ENDPOINT=ws://127.0.0.1:7419/cdp/<session token>`, which `@playwright/mcp` 0.0.78 reads in place of `--cdp-endpoint`, so the projected MCP config stays static. It is opt-in because the shared browser runs on a temporary profile, so a role's Playwright logins are not in it (COI-2517). The first CDP connection starts the browser, with no watcher needed, and a person's `browser_watch` later sees the page the agent opened.
+* **The peer is vouched for twice.** The token names the session, and the socket's owning pid must run under that session's own process. A pid or process table the daemon cannot read refuses, the opposite default of the typing guard, since this admits a peer instead of limiting one. A request with an `Origin` or from off loopback is refused.
+* **The agent gets its own CDP sessions and nothing else.** The daemon relays the agent's commands under ids of its own and passes back only events from sessions the agent created or auto-attached. The session the daemon streams and types into answers `Session with given id not found.` so the agent cannot address it.
+* **The browser belongs to the person watching it.** `Browser.close` is acknowledged and dropped, and so is the agent's `Target.setDiscoverTargets`, which would switch off the daemon's own tracking. When the agent disconnects, the daemon closes the tabs and contexts it opened, detaches its sessions and turns auto-attach off. A newer connection replaces an older one for the same session.
+* **One run against the real thing:** `ATERM_REAL_PLAYWRIGHT_MCP=<path to @playwright/mcp cli.js> go test -run RealPlaywright` in `aterm/`, with Chrome or Chromium installed. It skips without both.
+
 **The daemon follows the first page target and nothing else.** `browser_state` carries that page's url and title, kept current from `Target.targetInfoChanged`.
 
 ## Frames
@@ -40,6 +46,5 @@ Request frames carry an `id`, and a refusal comes back as `error` with that `id`
 
 ## What is not built
 
-* Pointing the session's Playwright MCP at this Chromium, so the agent drives the browser a person watches (COI-2516).
 * Refusing the agent's commands while a person holds control (COI-2520).
 * Cleanup after a killed daemon, and tabs beyond the first page (COI-2519).

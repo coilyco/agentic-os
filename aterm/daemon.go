@@ -44,6 +44,11 @@ type daemon struct {
 	// daemon adopts what it finds there.
 	holdDir string
 	tailnet tailnetState
+	// loopbackAddr is where the loopback listener bound, empty while it is not
+	// serving. A session's Playwright reaches its browser there.
+	loopbackAddr string
+	// agents are the CDP connections sessions' Playwright hold to their browsers.
+	agents cdpProxies
 	// discovery answers the hosts frame.
 	discovery *hostDiscovery
 	// capture sends panics to Sentry, nil without a DSN. Set before goroutines start.
