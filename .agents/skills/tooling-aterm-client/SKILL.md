@@ -51,6 +51,7 @@ than editing it by hand.
 * [architecture.md](references/architecture.md) - the host seam, envelopes, activity, the composer.
 * [choices.md](references/choices.md) - native choice cards and `ask_choice`.
 * [views-and-browser.md](references/views-and-browser.md) - MCP Apps views and the shared browser.
+* [terminal-split.md](references/terminal-split.md) - the Terminal tab, the split, and the side panel's default tab by role.
 * [mcp-apps-gateway.md](references/mcp-apps-gateway.md) - the daemon gateway and the `views` frames a client receives.
 * [deploy.md](references/deploy.md) - served by a daemon, or hosted.
 * [running.md](references/running.md) - alt-tab use and running it.

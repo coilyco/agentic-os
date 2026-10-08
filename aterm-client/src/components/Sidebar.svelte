@@ -3,10 +3,10 @@
   import Creature from "./Creature.svelte";
   import { app, asksFor, glowSeats, selectHost, selectRole, selectSession } from "../lib/app.svelte";
   import type { Host, Session } from "../lib/protocol";
-  import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel } from "../lib/sessions";
+  import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel, splitSessions } from "../lib/sessions";
   import { tablistKeys } from "../lib/tabs";
 
-  const live = $derived(orderSessions(app.sessions, app.roles));
+  const live = $derived(splitSessions(orderSessions(app.sessions, app.roles)));
   const onScreen = $derived(Boolean(app.selectedSession || app.selectedRole));
   const glowing = $derived(new Set(app.alerts.visual ? glowSeats().map((seat) => seat.sessionId) : []));
 
@@ -38,6 +38,46 @@
   }
 </script>
 
+<!-- One tab stop per group: the selected tab, else the group's first. -->
+{#snippet seatTab(session: Session, group: Session[])}
+  {@const role = roleFor(session, app.roles)}
+  {@const selected = app.selectedSession === session.id}
+  {@const code = sessionCode(session)}
+  {@const stop = group.some((each) => each.id === app.selectedSession) ? selected : session === group[0]}
+  <button
+    role="tab"
+    id={`tab-session-${session.id}`}
+    aria-selected={selected}
+    aria-controls="main-panel"
+    aria-label={sessionLabel(session, role, stateText(session))}
+    tabindex={stop ? 0 : -1}
+    class="tab seat"
+    data-state={session.state}
+    data-activity={activity(session)}
+    data-degraded={session.degraded.length > 0}
+    data-glow={glowing.has(session.id)}
+    style:--accent={role.color}
+    onclick={() => selectSession(session.id)}
+  >
+    <span class="avatar">
+      <Creature role={role.slug} color={role.color} size={36} />
+      {#if session.degraded.length}<span class="warn-badge" aria-hidden="true">!</span>{/if}
+    </span>
+    <span class="text">
+      <span class="name-row">
+        <span class="name">{session.identity}</span>
+        <span class="harness mono">{session.seat}</span>
+        {#if code}<span class="code-inline mono">{code}</span>{/if}
+      </span>
+      <span class="detail">{code ? `${role.displayName} // ${code}` : role.displayName}</span>
+      <span class="detail state-text">{stateText(session)}</span>
+      {#if session.degraded.length}
+        <span class="degraded">started without {session.degraded.join(", ")}</span>
+      {/if}
+    </span>
+  </button>
+{/snippet}
+
 <nav class="sidebar" aria-label="Hosts and sessions">
   <div class="mark">ATERM</div>
 
@@ -62,48 +102,19 @@
   </div>
 
   {#if app.attachedHostId}
-    <h2 id="sessions-label">Running <span class="count">{live.length}</span></h2>
-    {#if live.length === 0}
+    <h2 id="sessions-label">Running <span class="count">{live.running.length}</span></h2>
+    {#if live.running.length === 0}
       <p class="waiting">Nothing running on this host. Start a seat below.</p>
     {:else}
       <div role="tablist" aria-labelledby="sessions-label" aria-orientation="vertical" tabindex="-1" onkeydown={tablistKeys}>
-        {#each live as session (session.id)}
-          {@const role = roleFor(session, app.roles)}
-          {@const selected = app.selectedSession === session.id}
-          {@const code = sessionCode(session)}
-          <button
-            role="tab"
-            id={`tab-session-${session.id}`}
-            aria-selected={selected}
-            aria-controls="main-panel"
-            aria-label={sessionLabel(session, role, stateText(session))}
-            tabindex={selected || (!app.selectedSession && session === live[0]) ? 0 : -1}
-            class="tab seat"
-            data-state={session.state}
-            data-activity={activity(session)}
-            data-degraded={session.degraded.length > 0}
-            data-glow={glowing.has(session.id)}
-            style:--accent={role.color}
-            onclick={() => selectSession(session.id)}
-          >
-            <span class="avatar">
-              <Creature role={role.slug} color={role.color} size={36} />
-              {#if session.degraded.length}<span class="warn-badge" aria-hidden="true">!</span>{/if}
-            </span>
-            <span class="text">
-              <span class="name-row">
-                <span class="name">{session.identity}</span>
-                <span class="harness mono">{session.seat}</span>
-                {#if code}<span class="code-inline mono">{code}</span>{/if}
-              </span>
-              <span class="detail">{code ? `${role.displayName} // ${code}` : role.displayName}</span>
-              <span class="detail state-text">{stateText(session)}</span>
-              {#if session.degraded.length}
-                <span class="degraded">started without {session.degraded.join(", ")}</span>
-              {/if}
-            </span>
-          </button>
-        {/each}
+        {#each live.running as session (session.id)}{@render seatTab(session, live.running)}{/each}
+      </div>
+    {/if}
+
+    {#if live.failed.length}
+      <h2 id="failed-label">Launch failed <span class="count">{live.failed.length}</span></h2>
+      <div role="tablist" aria-labelledby="failed-label" aria-orientation="vertical" tabindex="-1" onkeydown={tablistKeys}>
+        {#each live.failed as session (session.id)}{@render seatTab(session, live.failed)}{/each}
       </div>
     {/if}
 

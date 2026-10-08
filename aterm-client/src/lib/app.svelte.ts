@@ -3,12 +3,13 @@ import { type AttentionSettings, loadAttention, storeAttention } from "./attenti
 import { chime, isBlocked, unlock, watchBlocked } from "./chime";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
 import { upsertMessage } from "./messages";
-import { MockHost } from "./mock-host";
+import { MockHost, terminalModeFrom } from "./mock-host";
 import type { View } from "./mcp-apps";
 import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
 import type { Ask, Host, HostConnection, LaunchState, PeerMessage, Session } from "./protocol";
 import type { Role } from "./roster";
+import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
 import { TYPING_OPEN, type Typing } from "./typing";
 
 /** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
@@ -56,7 +57,66 @@ export const app = $state({
   views: {} as Record<string, View>,
   /** Each seat's shared browser, by session id. */
   browsers: {} as Record<string, SharedBrowser>,
+  /** Plain shells the host holds, tagged with the seat each sits beside. */
+  terminals: [] as TerminalEntry[],
+  /** Whether the host's welcome lists the terminal feature. Unknown until it arrives. */
+  terminalSupport: "unknown" as Support,
+  /** Terminal id to the seat it was opened beside. The host does not say. */
+  terminalSeats: loadSeats(),
+  /** The host's first terminal list has arrived, so an empty one means none. */
+  terminalsLoaded: false,
+  /** Seats whose terminal is being opened, and the host's reason when it would not. */
+  terminalOpening: {} as Record<string, true>,
+  terminalRefusals: {} as Record<string, string>,
+  /** Seats Kai closed a terminal for, so opening their tab does not bring it back. */
+  terminalClosed: loadClosed(),
 });
+
+// Ids Kai closed: they leave the list on purpose, so they are not an ended shell.
+const dismissed = new Set<string>();
+const openTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function settleOpen(label: string): void {
+  clearTimeout(openTimers.get(label));
+  openTimers.delete(label);
+  delete app.terminalOpening[label];
+}
+
+/** A shell that arrived after a timed-out spawn makes that refusal wrong. */
+function shellArrived(label: string): void {
+  settleOpen(label);
+  delete app.terminalRefusals[label];
+}
+
+/** Opens a shell beside a seat. Asking again is what clears a refusal or an exit. */
+export function openTerminal(sessionId: string): void {
+  const channel = app.connection?.terminals;
+  if (!channel || app.terminalSupport !== "yes" || app.terminalOpening[sessionId]) return;
+  delete app.terminalRefusals[sessionId];
+  app.terminalClosed = app.terminalClosed.filter((each) => each !== sessionId);
+  storeClosed(app.terminalClosed);
+  app.terminals = app.terminals.filter((entry) => !(entry.label === sessionId && entry.exit));
+  app.terminalOpening[sessionId] = true;
+  openTimers.set(
+    sessionId,
+    setTimeout(() => {
+      settleOpen(sessionId);
+      app.terminalRefusals[sessionId] = NO_ANSWER;
+    }, OPEN_TIMEOUT_MS),
+  );
+  channel.open(sessionId);
+}
+
+/** Ends a seat's shell, or dismisses one that already ended, and keeps it closed. */
+export function closeTerminal(sessionId: string): void {
+  const entry = terminalFor(app.terminals, sessionId);
+  if (!entry) return;
+  dismissed.add(entry.id);
+  if (entry.exit) app.terminals = app.terminals.filter((each) => each.id !== entry.id);
+  else app.connection?.terminals?.close(entry.id);
+  app.terminalClosed = [...app.terminalClosed.filter((each) => each !== sessionId), sessionId];
+  storeClosed(app.terminalClosed);
+}
 
 export async function checkHost(host: Host): Promise<void> {
   if (host.kind !== "daemon") return;
@@ -118,7 +178,12 @@ export function selectHost(host: Host): void {
   app.attention = {};
   app.views = {};
   app.browsers = {};
-  const connection = host.kind === "daemon" ? new DaemonHost(host.address) : new MockHost();
+  app.terminals = [];
+  app.terminalSupport = "unknown";
+  app.terminalsLoaded = false;
+  for (const label of Object.keys(app.terminalOpening)) settleOpen(label);
+  app.terminalRefusals = {};
+  const connection = host.kind === "daemon" ? new DaemonHost(host.address) : new MockHost(undefined, terminalModeFrom(typeof location === "undefined" ? "" : location.search));
   app.connection = connection;
   app.attachedHostId = host.id;
   connection.subscribe((event) => {
@@ -140,6 +205,24 @@ export function selectHost(host: Host): void {
     }
     else if (event.type === "view_closed") delete app.views[event.id];
     else if (event.type === "browser") app.browsers[event.browser.session] = event.browser;
+    else if (event.type === "features") app.terminalSupport = event.terminals ? "yes" : "no";
+    else if (event.type === "terminals") {
+      app.terminals = applyList(app.terminals, event.terminals, app.terminalSeats, dismissed);
+      app.terminalsLoaded = true;
+      for (const each of app.terminals) if (each.label && !each.exit) shellArrived(each.label);
+    }
+    else if (event.type === "terminal_opened") {
+      app.terminalSeats[event.id] = event.label;
+      storeSeats(app.terminalSeats);
+      app.terminals = claim(app.terminals, event.id, event.label);
+      // The reply can beat the list, so opening ends when the list shows the shell.
+      if (app.terminals.some((entry) => entry.id === event.id)) shellArrived(event.label);
+    }
+    else if (event.type === "terminal_exit") app.terminals = recordExit(app.terminals, event.id, event.code);
+    else if (event.type === "terminal_refused") {
+      settleOpen(event.label);
+      app.terminalRefusals[event.label] = event.text;
+    }
     else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
     else if (event.type === "closed") {
       host.status = { kind: "unreachable", reason: event.reason };

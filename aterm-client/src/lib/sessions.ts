@@ -41,8 +41,16 @@ export function sessionLabel(session: Session, role: Role, activity: string): st
   return parts.join(", ");
 }
 
+/** A failed launch keeps its tab but is not running. Count `.running`, not the list. */
+export function splitSessions<T extends Pick<Session, "state">>(sessions: readonly T[]): { running: T[]; failed: T[] } {
+  return {
+    running: sessions.filter((session) => session.state !== "failed"),
+    failed: sessions.filter((session) => session.state === "failed"),
+  };
+}
+
 /** Attached host: count the list the Running heading lists, not the connect probe. */
 export function hostRunning(host: Host, attachedHostId: string | null, sessions: readonly Session[]): number | null {
   if (host.status.kind !== "online") return null;
-  return host.id === attachedHostId ? sessions.length : host.status.sessionCount;
+  return host.id === attachedHostId ? splitSessions(sessions).running.length : host.status.sessionCount;
 }
