@@ -45,6 +45,8 @@ export interface Session {
   degraded: string[];
   /** Absent until a source has read one, and from a daemon that predates it. */
   context?: ContextReading;
+  /** Not yet ready for input, so its terminal may have nothing to draw. */
+  starting?: boolean;
   failure?: string;
 }
 
