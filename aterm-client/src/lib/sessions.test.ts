@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Host, Session } from "./protocol";
 import type { Role } from "./roster";
-import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel } from "./sessions";
+import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel, splitSessions } from "./sessions";
 
 function live(id: string, role: string, identity: string, seat = "claude"): Session {
   return { id, role, identity, seat, state: "idle", pending: 0, drafting: false, paste: true, degraded: [] };
@@ -62,8 +62,29 @@ describe("hostRunning", () => {
     expect(hostRunning(online("local", 5), "local", [])).toBe(0);
   });
 
+  it("does not count a failed launch as running, so the tab agrees with the Running heading and the lede", () => {
+    const withFailure = [...five, { ...live("f", "scientist", "Frog-Ox"), state: "failed" as const }];
+    const running = splitSessions(withFailure).running.length;
+    expect(hostRunning(online("local", 5), "local", withFailure)).toBe(5);
+    expect(running).toBe(5);
+  });
+
   it("keeps the probe for a host it is not attached to, and says nothing for one that is not online", () => {
     expect(hostRunning(online("saved:x", 3), "local", five)).toBe(3);
     expect(hostRunning({ ...online("local", 5), status: { kind: "checking" } }, "local", five)).toBeNull();
+  });
+});
+
+describe("splitSessions", () => {
+  it("sets a failed launch beside the running seats, keeping its place in the list", () => {
+    const failed = { ...live("b", "scientist", "Frog-Ox"), state: "failed" as const };
+    const split = splitSessions([live("a", "scientist", "Frog-Ox"), failed, { ...live("c", "scientist", "Frog-Ox"), state: "working" as const }]);
+    expect(split.running.map((each) => each.id)).toEqual(["a", "c"]);
+    expect(split.failed).toEqual([failed]);
+  });
+
+  it("is all running with no failure, and all failed when nothing started", () => {
+    expect(splitSessions([live("a", "scientist", "Frog-Ox")]).failed).toEqual([]);
+    expect(splitSessions([{ ...live("a", "scientist", "Frog-Ox"), state: "failed" as const }]).running).toEqual([]);
   });
 });

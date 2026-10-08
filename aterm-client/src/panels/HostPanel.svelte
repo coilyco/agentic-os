@@ -1,11 +1,12 @@
 <script lang="ts">
   import { addHost, app, checkHost, HOSTED, removeHost, selectHost, selectedHost } from "../lib/app.svelte";
   import type { Host } from "../lib/protocol";
+  import { splitSessions } from "../lib/sessions";
   import InstallCard from "../components/InstallCard.svelte";
 
   const host = $derived(selectedHost());
   const silent = $derived(app.hosts.filter((candidate) => candidate.status.kind === "unreachable"));
-  const running = $derived(app.sessions.filter((session) => session.state !== "failed").length);
+  const running = $derived(splitSessions(app.sessions).running.length);
 
   let draft = $state("");
   let draftError = $state("");
