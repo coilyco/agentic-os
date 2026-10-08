@@ -355,3 +355,39 @@ func TestMintAndRevokeRefuseFromInsideASession(t *testing.T) {
 		}
 	}
 }
+
+func TestLockedRemoteDeviceCannotSpawnCloseSendClaimOrAsk(t *testing.T) {
+	d, _ := wsDaemon(t)
+	d.passkeys, _ = newPasskeyStore("", passkeyRPID, []string{passkeyOrigin})
+	wsSession(t, d, false)
+	device := pipeClient(t, d, peerStanding{web: true, remote: true})
+	nextFrame(t, device, "welcome")
+	for kind := range remoteLocked {
+		reply, err := device.request(frame{Type: kind, Target: "scientist-evie", Session: "x", AskID: "x"})
+		if err == nil || reply.Reason != reasonPasskeyRequired {
+			t.Fatalf("%s should be refused as %s while locked: %+v, %v", kind, reasonPasskeyRequired, reply, err)
+		}
+	}
+	for _, read := range []frame{{Type: "list"}, {Type: "roster"}, {Type: "status", Target: "scientist-evie"}} {
+		if reply, err := device.request(read); err != nil || reply.Reason != "" {
+			t.Fatalf("%s only reads, so a locked device may: %+v, %v", read.Type, reply, err)
+		}
+	}
+	if d.session("scientist-evie") == nil {
+		t.Fatal("a refused close must leave the session alive")
+	}
+
+	code := mintCode(t, d)
+	begin, err := device.request(frame{Type: "passkey_enroll_begin", EnrollCode: code})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := device.request(frame{Type: "passkey_enroll_finish", Credential: newSoftKey(t).register(begin.Options)}); err != nil {
+		t.Fatal(err)
+	}
+	nextFrame(t, device, "typing")
+	reply, err := device.request(frame{Type: "claim", Session: "scientist-evie", Peek: true})
+	if err != nil || reply.Type != "claimed" {
+		t.Fatalf("an unlocked device may claim a name: %+v, %v", reply, err)
+	}
+}
