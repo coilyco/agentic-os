@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HostEvent } from "./protocol";
-import { DaemonHost, daemonUrl, hostLabel, launchRefusal, toAsk, toMessage, toSession } from "./daemon-host";
+import { DaemonHost, daemonUrl, hostLabel, launchRefusal, toAsk, toMessage, toSession, toView } from "./daemon-host";
 
 describe("aterm.daemon.v1 mapping", () => {
   it("reads a ready session as idle and carries the draft flag", () => {
@@ -85,6 +85,9 @@ class StubSocket {
   receive(frame: Record<string, unknown>): void {
     for (const handler of this.handlers.get("message") ?? []) handler({ data: JSON.stringify(frame) });
   }
+  drop(): void {
+    for (const handler of this.handlers.get("close") ?? []) handler({});
+  }
 }
 
 function connect(): { host: DaemonHost; events: HostEvent[]; socket: StubSocket } {
@@ -140,6 +143,108 @@ describe("the typing guard", () => {
     const failed = events.filter((event) => event.type === "launch" && event.state === "failed");
     expect(failed).toHaveLength(1);
     expect(failed[0]).toMatchObject({ role: "frontend-eng", text: expect.stringMatching(/started by an agent session/) });
+    host.close();
+  });
+});
+
+const WELCOME = { type: "welcome", format: "aterm.daemon.v1" };
+const sentFrames = (socket: StubSocket) => socket.sent.map((line) => JSON.parse(line) as Record<string, unknown>);
+const VIEW = {
+  id: "v1",
+  server: "sysadmin",
+  tool: "disk",
+  resource_uri: "ui://sysadmin/disk",
+  html: "<p>74.6%</p>",
+  csp: { connect_domains: ["https://stats.example"], resource_domains: [] },
+  prefers_border: true,
+  tool_input: { host: "kai-server" },
+};
+
+describe("toView", () => {
+  it("maps the frame to the client's shape and drops the fields the daemon left out", () => {
+    expect(toView("s1", VIEW)).toEqual({
+      id: "v1", session: "s1", server: "sysadmin", tool: "disk", resourceUri: "ui://sysadmin/disk", html: "<p>74.6%</p>",
+      csp: { connectDomains: ["https://stats.example"], resourceDomains: [] }, prefersBorder: true, toolInput: { host: "kai-server" },
+    });
+    const bare = toView("s1", { id: "v2", server: "x", tool: "t", resource_uri: "ui://x", html: "" });
+    expect(bare).toEqual({ id: "v2", session: "s1", server: "x", tool: "t", resourceUri: "ui://x", html: "", toolInput: {} });
+    expect("csp" in bare || "prefersBorder" in bare).toBe(false);
+  });
+});
+
+describe("MCP Apps views", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("subscribes to views only when the welcome lists mcp-apps, and offers the channel only then", () => {
+    const without = connect();
+    without.socket.receive(WELCOME);
+    expect(sentFrames(without.socket).some((frame) => frame.channel === "views")).toBe(false);
+    expect(without.host.views).toBeUndefined();
+    without.host.close();
+
+    const withFeature = connect();
+    withFeature.socket.receive({ ...WELCOME, features: ["mcp-apps"] });
+    expect(sentFrames(withFeature.socket).filter((frame) => frame.type === "subscribe").map((frame) => frame.channel)).toEqual(["sessions", "views"]);
+    expect(withFeature.host.views).toBeDefined();
+    withFeature.host.close();
+  });
+
+  it("turns view, view_update and view_closed into the events the panel already reads", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, features: ["mcp-apps"] });
+    socket.receive({ type: "view", session: "s1", view: VIEW });
+    socket.receive({ type: "view_update", session: "s1", view_id: "v1", tool_result: { content: [{ type: "text", text: "74.6" }] } });
+    socket.receive({ type: "view_update", session: "s1", view_id: "v2", cancelled: "the call failed" });
+    socket.receive({ type: "view_closed", view_id: "v1" });
+    const seen = events.filter((event) => event.type.startsWith("view"));
+    expect(seen.map((event) => event.type)).toEqual(["view", "view_update", "view_update", "view_closed"]);
+    expect(seen[0]).toMatchObject({ view: { id: "v1", session: "s1", resourceUri: "ui://sysadmin/disk" } });
+    expect(seen[1]).toEqual({ type: "view_update", id: "v1", toolResult: { content: [{ type: "text", text: "74.6" }] } });
+    expect(seen[2]).toEqual({ type: "view_update", id: "v2", cancelled: "the call failed" });
+    expect(seen[3]).toEqual({ type: "view_closed", id: "v1" });
+    host.close();
+  });
+
+  it("resolves a view call on its view_result and ignores a result for a call it did not make", async () => {
+    const { host, socket } = connect();
+    socket.receive({ ...WELCOME, features: ["mcp-apps"] });
+    const pending = host.views!.call("v1", "tools/call", { name: "disk", arguments: {} });
+    const call = sentFrames(socket).at(-1)!;
+    expect(call).toMatchObject({ type: "view_call", view_id: "v1", method: "tools/call", params: { name: "disk", arguments: {} } });
+    socket.receive({ type: "view_result", id: "c999", view_id: "v1", result: "stranger" });
+    socket.receive({ type: "view_result", id: call.id, view_id: "v1", result: { content: [] } });
+    await expect(pending).resolves.toEqual({ content: [] });
+    host.close();
+  });
+
+  it("rejects a view call on an error with its id, in the daemon's words, without a stray notice", async () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, features: ["mcp-apps"] });
+    const pending = host.views!.call("v1", "tools/call", { name: "hidden" });
+    socket.receive({ type: "error", id: sentFrames(socket).at(-1)!.id, code: 2, error: "tool is not visible to the app" });
+    await expect(pending).rejects.toThrow("tool is not visible to the app");
+    expect(events.filter((event) => event.type === "notice")).toEqual([]);
+    host.close();
+  });
+
+  it("treats a view call the typing guard refused as a refusal: the read-only state, and the reason as the error", async () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, features: ["mcp-apps"], typing: { allowed: true } });
+    const pending = host.views!.call("v1", "tools/call", { name: "disk" });
+    socket.receive({ type: "error", id: sentFrames(socket).at(-1)!.id, code: 6, error: "view_call refused", reason: "session_descendant" });
+    await expect(pending).rejects.toThrow(/started by an agent session/);
+    expect(events.filter((event) => event.type === "typing").at(-1)).toEqual({ type: "typing", typing: { allowed: false, reason: "session_descendant" } });
+    host.close();
+  });
+
+  it("sends view_close with the view id, and rejects calls still pending when the socket drops", async () => {
+    const { host, socket } = connect();
+    socket.receive({ ...WELCOME, features: ["mcp-apps"] });
+    host.views!.close("v1");
+    expect(sentFrames(socket).at(-1)).toMatchObject({ type: "view_close", view_id: "v1" });
+    const pending = host.views!.call("v1", "resources/read", { uri: "ui://x" });
+    socket.drop();
+    await expect(pending).rejects.toThrow("The daemon closed the connection.");
     host.close();
   });
 });

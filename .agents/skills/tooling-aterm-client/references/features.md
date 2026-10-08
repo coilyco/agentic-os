@@ -16,11 +16,11 @@ A coarse inventory of what ships. Architecture: [architecture.md](architecture.m
 * **Composer** - a real text field under the terminal, so dictation tools like Wispr Flow and phone keyboards work. Enter sends as one bracketed paste, with Enter a beat later, when the program asked for it. Typing `@` and a prefix offers the live sessions from the sidebar's list, with role and identity. Up and Down choose, Tab or Enter inserts the full name, Escape closes. It adds no daemon verb.
 * **Peer message marking** - envelope lines are matched in the terminal buffer and striped in the sender's colour, across wrapped rows.
 * **Messages** - each seat's sent and received messages with queued, held, launching, typed in, and failed states, and the daemon's reason.
-* **Views and Browser tabs** - MCP Apps views and the seat's streamed browser, awaiting daemon frames. [views-and-browser.md](views-and-browser.md).
+* **Views and Browser tabs** - MCP Apps views from a daemon that lists `mcp-apps`, and the seat's streamed browser, awaiting its frames. [views-and-browser.md](views-and-browser.md).
 * **Read-only state** - when the daemon's typing guard refuses this browser (`welcome.typing`, or an `error` with `session_descendant` or `peer_unread`), the terminal, composer, choice cards, and launch buttons say read only and send nothing. The passkey locked state waits on accepted frames (COI-2484).
 * **Terminal tab and split** - a plain shell beside a seat, a resizable split, and the side panel opening on a tab by role (sysadmin Terminal, frontend Browser). [terminal-split.md](terminal-split.md).
 * **Hosted build** - the client under a path prefix behind a deployment's own sign-in, hosts added per device. [deploy.md](deploy.md).
-* **Installable** - a web manifest and icons so Android and the Mac can install it as an app.
+* **Installable** - a manifest, icons, and an app-shell service worker, so Chrome installs it from the daemon's address or the hosted build into its own window. With no daemon answering, a launch opens to the "not answering" panel instead of a browser error. An install card on the host panel says what installing does and hides once installed. [deploy.md](deploy.md).
 
 Designed, not built: the switchboard.
 

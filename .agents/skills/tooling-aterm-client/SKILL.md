@@ -52,6 +52,7 @@ than editing it by hand.
 * [choices.md](references/choices.md) - native choice cards and `ask_choice`.
 * [views-and-browser.md](references/views-and-browser.md) - MCP Apps views and the shared browser.
 * [terminal-split.md](references/terminal-split.md) - the Terminal tab, the split, and the side panel's default tab by role.
+* [mcp-apps-gateway.md](references/mcp-apps-gateway.md) - the daemon gateway and the `views` frames a client receives.
 * [deploy.md](references/deploy.md) - served by a daemon, or hosted.
 * [running.md](references/running.md) - alt-tab use and running it.
 * [slack-adapter.md](references/slack-adapter.md) - the Slack client design. Kai froze new work on this web client on 2026-10-02 (`teable:coilyco/agentic-os#8700`), so merged code stays and features go to Slack.

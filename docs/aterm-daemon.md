@@ -5,11 +5,11 @@ attached to it.
 
 ## What the daemon owns
 
-**`_session` hands the harness to the daemon instead of running it.** After the card it sends a `spawn` with the argv, environment, directory and window size, then attaches as one client. The argv reaches the harness untouched. The window holds on a non-zero exit.
+**`_session` hands the harness to the daemon instead of running it.** After the card it sends a `spawn` with the argv, environment, directory and window size, then attaches as one client. The argv reaches the harness untouched.
 
-**A session is named `<role>-<identity>`, with `-2`, `-3` only for concurrent instances, and a live name refuses a spawn.** A `claim` frame grants each launch the first free pool name for two minutes, so a relaunch takes the bare one back.
+**A session is named `<role>-<identity>`, with `-2`, `-3` only for concurrent instances, and a live name refuses a spawn.** A `claim` frame grants each launch the first free pool name for two minutes.
 
-**The harness starts without agent-compose's Enter gate**, as the window drew its own card (`AGENT_COMPOSE_NO_PAUSE=1`). agent-compose's `ESC ] 7750 ; agent-compose ; degraded=<steps> BEL` becomes the session's `degraded` field.
+**The harness starts without agent-compose's Enter gate**, as the window drew its own card. agent-compose's `ESC ] 7750 ; agent-compose ; degraded=<steps> BEL` becomes the session's `degraded` field.
 
 **`list` reads each session's screen.** The daemon rebuilds each terminal's screen from its output and reports `state`: `starting`, `prompt` (a permission or choice card is up), `busy` (recent output or the interrupt hint), else `idle`. `aterm status` adds the prompt text, quiet seconds, the draft, and the last rows, never typing.
 
@@ -51,8 +51,10 @@ attached to it.
 * `send` answers `sent` with the message state, waiting 3 seconds, or `wait` up to 120, for delivery unless `launching`. One not yet final earns the sender `[from aterm daemon] message <id> to <session>: <state>`, never the body. `notify_idle` adds `<session> is idle`, `is held at a prompt` or `ended`.
 * `status` (with `lines`), `clear` and `close` (with optional `force`), each with a `target`, answer `status`, `cleared` and `closed` with the exit `code`. `claim` with a `session` base answers `claimed` with a free pool name, and `peek` holds none.
 * `list` answers `sessions`, each with `state`, `quiet_seconds` and `context` ([the meter](../.agents/skills/tooling-aterm-client/references/context-meter.md)). `subscribe` to channel `sessions` pushes the roster on every change, and `message` events carry each state change, never the body.
-* `welcome` to a websocket adds `typing-guard` and `typing` `{allowed, reason}`, the answer at connect. A refused `input`, `answer`, `launch` or `clear` answers `error` with `id`, `code` and `reason`, `session_descendant` or `peer_unread`.
+* `welcome` to a websocket adds `typing-guard` and `typing` `{allowed, reason}`. A refused `input`, `answer`, `launch` or `clear` answers `error` with `id`, `code` and `reason`, `session_descendant` or `peer_unread`.
 * `whoami` resolves a token to its session. `roster` answers `aterm.roster.v1`, the launchable roles `aterm --list --json` prints. `launch` with a `role` and optional `seat` opens it headless, answering `launched`.
 * `ask` takes a `question`, `options` (`label`, `description`), `header`, `allow_other`, `multi`. MCP `ask_choice` takes up to four `questions`, one card each. The daemon stamps the asker and pushes `ask` to subscribers, replayed on subscribe. `answer` (`ask_id`, `picks`, `text`) or `cancel_ask` settles it, and `asked` tells every client to drop the card. An asker leaving cancels its asks, and an answer takes the typing guard as Kai's input.
 
 **Browsers get the client from `--client-dir` at `/`, and a websocket there.** Loopback is `127.0.0.1:7419`. The tailnet is HTTPS on this node's tailnet name, port 7419, probed every 30 seconds and rebound after two failures. `tailscale whois` admits a peer, never the request: this node owner's untagged device or one tagged `tag:physical`. A websocket opens only from the served page or `https://coilyco.dev`.
+
+**Views** come from the [MCP Apps gateway](../.agents/skills/tooling-aterm-client/references/mcp-apps-gateway.md).

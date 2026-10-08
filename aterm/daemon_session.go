@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -63,6 +64,8 @@ type ptySession struct {
 	cwd     string
 	pid     int
 	started time.Time
+	// mcpApps is whether the launch opted in to the MCP Apps gateway.
+	mcpApps bool
 	// holder is the connection to the aterm hold process that owns the PTY
 	// and the child. It outlives this daemon, which adopts it again.
 	holder     *conn
@@ -154,6 +157,7 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 	if err != nil {
 		return nil, fmt.Errorf("attach to the holder of %s: %w", name, err)
 	}
+	s.mcpApps = slices.Contains(message.Env, mcpAppsEnv+"=1")
 	return s, nil
 }
 

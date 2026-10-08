@@ -68,6 +68,9 @@ type daemon struct {
 	// proxyFetch reads Agent Proxy's session usage. Nil when no proxy is configured.
 	proxyFetch proxyFetcher
 	logf       func(string, ...any)
+
+	// apps is the per-session MCP Apps gateway and the views it captured.
+	apps appsState
 }
 
 func newDaemon(logf func(string, ...any)) *daemon {
@@ -230,6 +233,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		go d.serve(raw)
 	}
 	_ = os.Remove(socket)
+	d.closeApps()
 	if options.EndSessions {
 		d.endAll()
 	} else {
@@ -343,7 +347,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, terminalsFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, terminalsFeature, mcpAppsFeature}}
 	if peer.web {
 		welcome.Typing = d.typingStanding(cl)
 	}
@@ -365,6 +369,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		d.lastActive = time.Now()
 		delete(d.subscribers, c)
 		d.mu.Unlock()
+		d.unwatchViews(c)
 		d.pushSessions()
 	}()
 	for {
@@ -494,6 +499,9 @@ func (d *daemon) handle(cl *client, message frame) error {
 		}
 		return cl.c.write(frame{Type: "sessions", ID: message.ID, Sessions: []sessionView{s.view()}})
 	case "subscribe":
+		if message.Channel == "views" {
+			return d.watchViews(cl, message)
+		}
 		if message.Channel != "sessions" {
 			return fmt.Errorf("no channel named %q", message.Channel)
 		}
@@ -509,6 +517,12 @@ func (d *daemon) handle(cl *client, message frame) error {
 			}
 		}
 		return nil
+	case "gateway_add":
+		return d.addGateway(cl, message)
+	case "view_call":
+		return d.viewCall(cl, message)
+	case "view_close":
+		return d.closeView(cl, message)
 	case "ask":
 		return d.ask(cl, message)
 	case "answer":
@@ -711,6 +725,7 @@ func (d *daemon) forget(s *ptySession) {
 	}
 	d.mu.Unlock()
 	d.settleWhere(func(ask choiceAsk) bool { return ask.Session == s.name }, s.name+" ended")
+	d.dropApps(s.name)
 	d.pushSessions()
 }
 
