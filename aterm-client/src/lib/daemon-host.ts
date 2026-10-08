@@ -1,7 +1,8 @@
 // aterm.daemon.v1 over the daemon's loopback websocket. The frame reference is
 // the Wire contract section of the aterm daemon page in coilyco/agentic-os.
 import { parseFrom } from "./messages";
-import type { Ask, AskOutcome, ContextReading, HostConnection, HostEvent, MessageState, PeerMessage, Session } from "./protocol";
+import type { ToolResult, View, ViewCsp } from "./mcp-apps";
+import type { Ask, AskOutcome, ContextReading, HostConnection, HostEvent, MessageState, PeerMessage, Session, ViewChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import { parseTyping, refusalOf, typingNotice, type Typing } from "./typing";
 
@@ -90,6 +91,43 @@ interface Frame {
   state?: string;
   typing?: unknown;
   reason?: unknown;
+  features?: string[];
+  view?: ViewFrame;
+  view_id?: string;
+  tool_result?: ToolResult;
+  cancelled?: string;
+  result?: unknown;
+}
+
+interface ViewFrame {
+  id: string;
+  server: string;
+  tool: string;
+  resource_uri: string;
+  html: string;
+  csp?: { connect_domains?: string[]; resource_domains?: string[]; frame_domains?: string[]; base_uri_domains?: string[] };
+  prefers_border?: boolean;
+  tool_input?: Record<string, unknown>;
+}
+
+/** A `view` frame as the client holds it. The result comes later, in `view_update`. */
+export function toView(session: string, view: ViewFrame): View {
+  const csp: ViewCsp = {};
+  if (view.csp?.connect_domains) csp.connectDomains = view.csp.connect_domains;
+  if (view.csp?.resource_domains) csp.resourceDomains = view.csp.resource_domains;
+  if (view.csp?.frame_domains) csp.frameDomains = view.csp.frame_domains;
+  if (view.csp?.base_uri_domains) csp.baseUriDomains = view.csp.base_uri_domains;
+  return {
+    id: view.id,
+    session,
+    server: view.server,
+    tool: view.tool,
+    resourceUri: view.resource_uri,
+    html: view.html,
+    toolInput: view.tool_input ?? {},
+    ...(view.csp ? { csp } : {}),
+    ...(view.prefers_border === undefined ? {} : { prefersBorder: view.prefers_border }),
+  };
 }
 
 /** Output this recent means the seat is busy. A working agent redraws constantly. */
@@ -151,6 +189,8 @@ export function launchRefusal(code: number | undefined, error: string | undefine
 export class DaemonHost implements HostConnection {
   readonly canLaunch = true;
   private launches = new Map<string, string>();
+  private features = new Set<string>();
+  private calls = new Map<string, { resolve: (result: unknown) => void; reject: (error: Error) => void }>();
   private socket: WebSocket;
   private listeners = new Set<(event: HostEvent) => void>();
   private outbox: string[] = [];
@@ -168,7 +208,11 @@ export class DaemonHost implements HostConnection {
     this.socket = new WebSocket(url);
     this.socket.addEventListener("open", () => this.socket.send(JSON.stringify({ type: "hello", format: FORMAT })));
     this.socket.addEventListener("message", (event) => this.receive(JSON.parse(String(event.data)) as Frame));
-    this.socket.addEventListener("close", () => this.emit({ type: "closed", reason: "The daemon closed the connection." }));
+    this.socket.addEventListener("close", () => {
+      for (const call of this.calls.values()) call.reject(new Error("The daemon closed the connection."));
+      this.calls.clear();
+      this.emit({ type: "closed", reason: "The daemon closed the connection." });
+    });
     this.ticker = setInterval(() => this.settle(), 500);
   }
 
@@ -179,6 +223,21 @@ export class DaemonHost implements HostConnection {
     if (this.last.typing) listener({ type: "typing", typing: this.last.typing });
     return () => this.listeners.delete(listener);
   }
+
+  /** Only a welcome listing `mcp-apps` forwards views. Otherwise the panel says so. */
+  get views(): ViewChannel | undefined {
+    return this.features.has("mcp-apps") ? this.viewChannel : undefined;
+  }
+
+  private viewChannel: ViewChannel = {
+    call: (viewId, method, params) =>
+      new Promise((resolve, reject) => {
+        this.calls.set(this.request({ type: "view_call", view_id: viewId, method, params }), { resolve, reject });
+      }),
+    close: (viewId) => {
+      this.request({ type: "view_close", view_id: viewId });
+    },
+  };
 
   attach(sessionId: string, rows: number, cols: number): void {
     this.refs.set(sessionId, (this.refs.get(sessionId) ?? 0) + 1);
@@ -289,8 +348,10 @@ export class DaemonHost implements HostConnection {
         }
         this.open = true;
         this.setTyping(parseTyping(frame.typing));
+        this.features = new Set(frame.features ?? []);
         this.request({ type: "subscribe", channel: "sessions" });
         this.request({ type: "roster" });
+        if (this.features.has("mcp-apps")) this.request({ type: "subscribe", channel: "views" });
         for (const line of this.outbox.splice(0)) this.socket.send(line);
         return;
       case "ask":
@@ -304,6 +365,23 @@ export class DaemonHost implements HostConnection {
         this.monitor();
         this.publishSessions();
         return;
+      case "view":
+        if (frame.view && frame.session) this.emit({ type: "view", view: toView(frame.session, frame.view) });
+        return;
+      case "view_update":
+        if (frame.view_id) this.emit({ type: "view_update", id: frame.view_id, ...(frame.tool_result ? { toolResult: frame.tool_result } : {}), ...(frame.cancelled ? { cancelled: frame.cancelled } : {}) });
+        return;
+      case "view_closed":
+        if (frame.view_id) this.emit({ type: "view_closed", id: frame.view_id });
+        return;
+      case "view_result": {
+        const call = frame.id ? this.calls.get(frame.id) : undefined;
+        if (call && frame.id) {
+          this.calls.delete(frame.id);
+          call.resolve(frame.result);
+        }
+        return;
+      }
       case "roster":
         this.last.roles = { type: "roster", roles: parseRoster(frame.roster) };
         this.emit(this.last.roles);
@@ -325,6 +403,12 @@ export class DaemonHost implements HostConnection {
         const role = frame.id ? this.launches.get(frame.id) : undefined;
         const refused = refusalOf(frame);
         this.setTyping(refused);
+        const call = frame.id ? this.calls.get(frame.id) : undefined;
+        if (call && frame.id) {
+          this.calls.delete(frame.id);
+          call.reject(new Error(refused ? typingNotice(refused) : (frame.error ?? "The daemon refused the view call.")));
+          return;
+        }
         if (role !== undefined && frame.id) {
           this.launches.delete(frame.id);
           this.emit({ type: "launch", role, state: "failed", text: refused ? typingNotice(refused) : launchRefusal(frame.code, frame.error) });

@@ -1,0 +1,15 @@
+# The aterm MCP Apps gateway
+
+The [daemon](../../../../docs/aterm-daemon.md) fronts each session's MCP servers and pushes any `ui://` view a tool returns to the clients, which draw it in the Views panel. Its `welcome.features` carries `mcp-apps`.
+
+**The daemon fronts each session's MCP servers so a tool that returns a view shows it on the client.** The harness is the MCP client, so nothing else sees a tool result. The session registers a server with `gateway_add` (its `token`, a `server` name, and a `gateway` that is a stdio `command`, `args`, `env`, `cwd` or an http `url`, `headers`), and `gateway_added` answers the `path` to point the harness at, `/mcp/<token>/<server>` on the loopback address (`http://127.0.0.1:7419` by default). **It is off unless the launch opts in:** a session whose environment lacks `ATERM_MCP_APPS=1` at launch has `gateway_add` refused (error code 2), and nothing routes any harness's MCP registry through it by default (Kai, COI-2492). A browser may not register one, since a stdio spec is a command the daemon runs. Re-adding a name replaces it, and a session ending closes its servers and views.
+
+**The path is Streamable HTTP, one JSON answer per POST, and every request is forwarded.** The gateway initializes the server itself, advertising `io.modelcontextprotocol/ui`, and answers the harness's `initialize` with the server's. `tools/list` drops a tool whose `_meta.ui.visibility` leaves out `model`, and a direct call to one is refused. Only a loopback peer with no `Origin` is answered. Not forwarded: server-to-harness notifications and requests (list changes, progress, sampling). A daemon restart drops registrations, so a session re-adds.
+
+**A view starts when a call's tool names a `ui://` resource in `_meta.ui.resourceUri`** (the deprecated `ui/resourceUri` too), or its result does. The gateway reads the resource (`text/html;profile=mcp-app`, at most 2 MiB), sends `view`, forwards the call, then sends `view_update`. A result with no resource never makes a view, and an unreadable resource costs the view, not the call.
+
+* `subscribe` channel `views` answers `subscribed`, replays each live view as `view` then its latest `view_update`, and pushes later ones.
+* `view` `{session, view: {id, server, tool, resource_uri, html, csp?: {connect_domains, resource_domains, frame_domains, base_uri_domains}, prefers_border?, tool_input}}`.
+* `view_update` `{session, view_id, tool_result?, cancelled?}`. `tool_result` is the raw `CallToolResult`, and `cancelled` the reason a failed call has none.
+* `view_call` `{id, view_id, method, params}` with `method` `tools/call` or `resources/read`, proxied to that view's server with no consent step. It answers `view_result` `{id, view_id, result}` or `error`. A tool whose visibility leaves out `app` answers `error` code 2. A view call is Kai's input, so it takes the typing guard.
+* `view_close` `{id, view_id}` answers `view_closed`, which every watcher also gets. A session keeps its newest 16 views, and an older one closes the same way.
