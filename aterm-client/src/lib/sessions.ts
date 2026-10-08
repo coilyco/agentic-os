@@ -1,6 +1,6 @@
 // Live sessions as peers: every instance on every harness gets its own tab,
 // so two Beetle-Ox sessions, or one on claude and one on codex, never fold into one.
-import type { Session } from "./protocol";
+import type { Host, Session } from "./protocol";
 import type { Role } from "./roster";
 
 /** The pool slot after `<role>-<identity>` ("2", "3"), or "" for the bare name. */
@@ -39,4 +39,10 @@ export function sessionLabel(session: Session, role: Role, activity: string): st
   parts.push(activity);
   if (session.degraded.length) parts.push(`started without ${session.degraded.join(", ")}`);
   return parts.join(", ");
+}
+
+/** Attached host: count the list the Running heading lists, not the connect probe. */
+export function hostRunning(host: Host, attachedHostId: string | null, sessions: readonly Session[]): number | null {
+  if (host.status.kind !== "online") return null;
+  return host.id === attachedHostId ? sessions.length : host.status.sessionCount;
 }

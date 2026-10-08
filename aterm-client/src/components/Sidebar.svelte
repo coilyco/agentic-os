@@ -2,14 +2,15 @@
   import Creature from "./Creature.svelte";
   import { app, asksFor, selectHost, selectRole, selectSession } from "../lib/app.svelte";
   import type { Host, Session } from "../lib/protocol";
-  import { orderSessions, roleFor, sessionCode, sessionLabel } from "../lib/sessions";
+  import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel } from "../lib/sessions";
   import { tablistKeys } from "../lib/tabs";
 
   const live = $derived(orderSessions(app.sessions, app.roles));
   const onScreen = $derived(Boolean(app.selectedSession || app.selectedRole));
 
   function hostDetail(host: Host): string {
-    if (host.status.kind === "online") return `${host.status.sessionCount} running`;
+    const running = hostRunning(host, app.attachedHostId, app.sessions);
+    if (running !== null) return `${running} running`;
     if (host.status.kind === "unreachable") return "no answer";
     return "checking";
   }
