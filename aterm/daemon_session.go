@@ -94,6 +94,8 @@ type ptySession struct {
 	draft   int
 	keys    keyState
 	pending []*pendingSend
+	// inbox keeps what enqueue accepted, for a seat that reads over MCP.
+	inbox inbox
 	// sending is the message submit is writing. finish leaves it to submit,
 	// since a session that exited mid-write has already taken the bytes.
 	sending *pendingSend
@@ -667,6 +669,8 @@ func (s *ptySession) enqueue(p *pendingSend) {
 	s.mu.Lock()
 	s.pending = append(s.pending, p)
 	s.mu.Unlock()
+	queued := p.snapshot()
+	s.inbox.add(inboxMessage{ID: queued.ID, From: queued.From, Text: p.text, Received: time.Now().UTC()})
 	p.setState("queued", "")
 	s.nudge()
 	s.d.pushSessions()

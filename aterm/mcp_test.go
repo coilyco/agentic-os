@@ -14,7 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var mcpToolNames = []string{"ask_choice", "clear_session", "close_session", "list_agents", "send_message", "session_status"}
+var mcpToolNames = []string{"ask_choice", "clear_session", "close_session", "list_agents", "read_messages", "send_message", "session_status"}
 
 func fakeBackend() mcpBackend {
 	return mcpBackend{
@@ -42,6 +42,12 @@ func fakeBackend() mcpBackend {
 		},
 		close: func(target string, force bool) (string, int, error) {
 			return target, 0, nil
+		},
+		inbox: func(all bool) ([]inboxMessage, error) {
+			if all {
+				return nil, errors.New("inbox of all")
+			}
+			return []inboxMessage{{ID: "m9", From: "eng-platform Beetle-Ox", Text: "[from eng-platform Beetle-Ox] hi"}}, nil
 		},
 		ask: func(ask choiceAsk) (choiceAnswer, error) {
 			if ask.Question == "cancel" {
@@ -87,7 +93,7 @@ func callTool(t *testing.T, session *mcp.ClientSession, name string, arguments a
 	return text.String(), result.IsError
 }
 
-func TestMCPListsTheSixToolsWithTypedSchemas(t *testing.T) {
+func TestMCPListsTheSevenToolsWithTypedSchemas(t *testing.T) {
 	listed, err := mcpClient(t, fakeBackend()).ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
@@ -126,7 +132,7 @@ func TestMCPListsTheSixToolsWithTypedSchemas(t *testing.T) {
 	}
 }
 
-func TestMCPCallsAllSixTools(t *testing.T) {
+func TestMCPCallsAllSevenTools(t *testing.T) {
 	session := mcpClient(t, fakeBackend())
 	cases := []struct {
 		tool      string
@@ -136,6 +142,7 @@ func TestMCPCallsAllSixTools(t *testing.T) {
 		{"list_agents", map[string]any{}, `"name": "eng-platform-beetle-ox"`},
 		{"send_message", map[string]any{"to": "ox", "message": "hi", "wait_seconds": 2}, "delivered m1 to ox: 2s"},
 		{"session_status", map[string]any{"to": "beetle", "lines": 5}, `"beetle"`},
+		{"read_messages", map[string]any{}, `"text": "[from eng-platform Beetle-Ox] hi"`},
 		{"clear_session", map[string]any{"to": "ox"}, "typed /clear into ox"},
 		{"close_session", map[string]any{"to": "ox", "force": true}, "closed ox (exit 0)"},
 		{"ask_choice", map[string]any{"question": "Ship?", "options": []map[string]any{{"label": "yes"}}},
@@ -159,6 +166,7 @@ func TestMCPReportsToolFailuresAsOutputNotProtocolErrors(t *testing.T) {
 	}{
 		{"backend error", "send_message", map[string]any{"to": "nobody", "message": "hi"}, "no live session answers to nobody"},
 		{"failed delivery", "send_message", map[string]any{"to": "ox", "message": "fail"}, "failed m1 to ox"},
+		{"inbox error", "read_messages", map[string]any{"all": true}, "inbox of all"},
 		{"status error", "session_status", map[string]any{"to": "ox"}, "status of ox"},
 		{"cancelled ask", "ask_choice", map[string]any{"question": "cancel", "options": []map[string]any{{"label": "a"}}},
 			"the ask was cancelled: a client dismissed it"},
