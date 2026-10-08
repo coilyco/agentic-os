@@ -37,10 +37,40 @@ func writeBrowserRecord(dir string, record browserRecord) error {
 	return os.WriteFile(browserRecordPath(dir, record.PID), raw, 0o600)
 }
 
-// groupAlive is whether any process is left in the process group pgid.
+// groupAlive is whether a non-zombie is left in process group pgid, since kill(2)
+// succeeds on a zombie and a container whose pid 1 does not reap keeps them.
 func groupAlive(pgid int) bool {
 	err := syscall.Kill(-pgid, 0)
-	return err == nil || errors.Is(err, syscall.EPERM)
+	if err != nil && !errors.Is(err, syscall.EPERM) {
+		return false
+	}
+	return !onlyZombies(pgid)
+}
+
+// onlyZombies reads procfs, and is false where there is none.
+func onlyZombies(pgid int) bool {
+	stats, _ := filepath.Glob("/proc/[0-9]*/stat")
+	if len(stats) == 0 {
+		return false
+	}
+	found := false
+	for _, path := range stats {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		// "pid (comm) state ppid pgrp ...", and comm may hold spaces and parentheses.
+		rest := string(raw[strings.LastIndexByte(string(raw), ')')+1:])
+		fields := strings.Fields(rest)
+		if len(fields) < 3 || fields[2] != strconv.Itoa(pgid) {
+			continue
+		}
+		if fields[0] != "Z" {
+			return false
+		}
+		found = true
+	}
+	return found
 }
 
 // browserProcessMatches is whether pid is still the Chromium the record names,
