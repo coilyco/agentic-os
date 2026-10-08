@@ -300,6 +300,9 @@ func (h *holder) clientList() []*conn {
 func (h *holder) sendTo(clients []*conn, message frame) {
 	for _, c := range clients {
 		if err := c.write(message); err != nil {
+			// The client's connection stays open on its side and gets nothing
+			// more, so leave a trace in the holder log (COI-2515).
+			fmt.Fprintf(os.Stderr, "aterm hold: dropped a client after a failed %s write: %v\n", message.Type, err)
 			h.mu.Lock()
 			delete(h.clients, c)
 			h.mu.Unlock()

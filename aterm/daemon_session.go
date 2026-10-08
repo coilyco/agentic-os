@@ -225,6 +225,7 @@ func (d *daemon) connectHolder(socket string, adopted bool) (*ptySession, error)
 		s.scr = newScreen(clampSize(info.Rows, 24), clampSize(info.Cols, 80))
 	}
 	go s.readHold()
+	go s.waitEnded(neverLimit, childPollEvery)
 	if s.kind != kindTerminal {
 		go s.deliverLoop()
 	}
@@ -436,6 +437,55 @@ func (s *ptySession) askToExit() bool {
 	}
 }
 
+// exitFrameGrace is how long a child that no longer exists gets for its holder's
+// exit frame to arrive before the daemon ends the session on its own say.
+var exitFrameGrace = time.Second
+
+// childPollEvery paces the watch that runs for a session's whole life, and
+// closePollEvery paces the one a close runs while it waits.
+const (
+	childPollEvery = 2 * time.Second
+	closePollEvery = 100 * time.Millisecond
+	neverLimit     = time.Duration(1<<63 - 1)
+)
+
+// childGone reports that the session's child no longer exists. A zombie still
+// does, and the holder reaps its child before it reports the exit.
+func (s *ptySession) childGone() bool {
+	return s.pid > 0 && errors.Is(syscall.Kill(s.pid, 0), syscall.ESRCH)
+}
+
+// waitEnded waits up to limit for the session to end. A child gone for exitFrameGrace
+// with no holder exit frame ends it here (COI-2515).
+func (s *ptySession) waitEnded(limit, poll time.Duration) bool {
+	deadline := time.NewTimer(limit)
+	defer deadline.Stop()
+	tick := time.NewTicker(poll)
+	defer tick.Stop()
+	var goneSince time.Time
+	for {
+		select {
+		case <-s.done:
+			return true
+		case <-deadline.C:
+			return false
+		case <-tick.C:
+			if !s.childGone() {
+				goneSince = time.Time{}
+				continue
+			}
+			if goneSince.IsZero() {
+				goneSince = time.Now()
+			}
+			if time.Since(goneSince) >= exitFrameGrace {
+				s.d.logf("session %s (pid %d) is gone and its holder sent no exit", s.name, s.pid)
+				s.finish(1)
+				return true
+			}
+		}
+	}
+}
+
 // end asks the harness to quit, then stops it the way closing its terminal
 // would, then harder.
 func (s *ptySession) end() {
@@ -449,15 +499,11 @@ func (s *ptySession) end() {
 		stop = syscall.SIGHUP
 	}
 	_ = syscall.Kill(-s.pid, stop)
-	select {
-	case <-s.done:
+	if s.waitEnded(terminateGrace, closePollEvery) {
 		return
-	case <-time.After(terminateGrace):
 	}
 	_ = syscall.Kill(-s.pid, syscall.SIGKILL)
-	select {
-	case <-s.done:
-	case <-time.After(time.Second):
+	if !s.waitEnded(time.Second+exitFrameGrace, closePollEvery) {
 		s.d.logf("session %s (pid %d) would not end", s.name, s.pid)
 	}
 }
