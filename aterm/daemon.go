@@ -80,6 +80,7 @@ type daemon struct {
 	browsers      browserHub
 	browserLaunch browserLauncher
 	logf          func(string, ...any)
+	refused       refusalLog
 
 	// apps is the per-session MCP Apps gateway and the views it captured.
 	apps appsState

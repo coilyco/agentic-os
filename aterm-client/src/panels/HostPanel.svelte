@@ -73,6 +73,8 @@
     <div class="alert" role="alert">
       {#if host.answered}
         <p>{host.status.reason} It answered earlier on this page, so it is probably restarting. Retry asks it again.</p>
+      {:else if host.status.layer && host.status.layer !== "network"}
+        <p>{host.status.reason}</p>
       {:else}
         <p>{host.status.reason} On that machine, <code>aterm doctor</code> says which. A stopped daemon starts with <code>aterm daemon</code>, or by launching any seat with <code>aterm</code>. Then retry.</p>
       {/if}

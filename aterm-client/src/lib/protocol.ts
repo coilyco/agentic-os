@@ -2,6 +2,7 @@
 // and `MockHost` scripts it for the demo. Why: the architecture reference.
 import type { ToolResult, View } from "./mcp-apps";
 import type { Role } from "./roster";
+import type { Layer } from "./reach";
 import type { InputKind, SharedBrowser } from "./screencast";
 import type { ListedTerminal } from "./terminals";
 import type { Typing } from "./typing";
@@ -11,7 +12,7 @@ export type HostKind = "daemon" | "demo";
 export type HostStatus =
   | { kind: "checking" }
   | { kind: "online"; sessionCount: number }
-  | { kind: "unreachable"; reason: string };
+  | { kind: "unreachable"; reason: string; layer?: Layer };
 
 export interface Host {
   id: string;

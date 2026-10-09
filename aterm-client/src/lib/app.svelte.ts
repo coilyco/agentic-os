@@ -5,6 +5,7 @@ import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host"
 import { discover, listedAddresses, newFoundHosts, staleFoundHosts } from "./discovery";
 import { upsertMessage } from "./messages";
 import { MockHost, terminalModeFrom } from "./mock-host";
+import { diagnose } from "./reach";
 import type { View } from "./mcp-apps";
 import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
@@ -143,7 +144,9 @@ export async function checkHost(host: Host): Promise<void> {
     host.status = { kind: "online", sessionCount: await probe(host.address) };
     host.answered = true;
   } catch {
-    host.status = { kind: "unreachable", reason: "Nothing answered, so the daemon is stopped or its tailnet listener is failing TLS. A browser cannot tell which." };
+    // The socket failure says nothing, so ask over HTTPS which layer stopped it.
+    const { layer, message } = await diagnose(host.address);
+    host.status = { kind: "unreachable", reason: message, layer };
     return;
   }
   // Picked while the probe was still out, so attach now that it answered.

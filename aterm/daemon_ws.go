@@ -58,7 +58,7 @@ func loopbackPolicy() accessPolicy {
 	return accessPolicy{
 		admit: func(r *http.Request) error {
 			if !isLoopbackHost(r.Host) {
-				return errors.New("loopback hosts only")
+				return &refusal{"name", "loopback hosts only"}
 			}
 			return nil
 		},
@@ -73,7 +73,11 @@ func (d *daemon) websocketHandler() http.Handler { return d.handler(loopbackPoli
 func (d *daemon) handler(policy accessPolicy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := policy.admit(r); err != nil {
-			http.Error(w, "aterm daemon: "+err.Error(), http.StatusForbidden)
+			d.refuse(w, r, policy, layerOf(err), err.Error())
+			return
+		}
+		if r.URL.Path == reachPath {
+			serveReach(w, r, policy)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, gatewayPrefix) {
@@ -91,7 +95,7 @@ func (d *daemon) handler(policy accessPolicy) http.Handler {
 		origin := r.Header.Get("Origin")
 		parsed, err := url.Parse(origin)
 		if origin == "" || err != nil || !policy.origin(r, parsed) {
-			http.Error(w, "aterm daemon: this page may not open a session socket", http.StatusForbidden)
+			d.refuse(w, r, policy, "origin", "this page may not open a session socket")
 			return
 		}
 		// The origin was judged above, per listener, so the library's own
