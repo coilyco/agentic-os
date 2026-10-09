@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick, untrack } from "svelte";
   import { restoreRefused } from "../lib/drafts";
+  import { ESCAPE, HOLD_MS, INTERRUPT, showStop } from "../lib/stop";
   import { findMention, insertMention, mentionMatches } from "../lib/mentions";
   import type { HostConnection, Session } from "../lib/protocol";
   import Unlock from "./Unlock.svelte";
@@ -10,7 +11,7 @@
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
   // `offline` is the host not answering: the draft stays editable and Send waits, since a frame typed into a dead link is lost.
   // `draft` and `ondraft` keep the text outside this component, so a seat change or a remount does not take it. `onsent` says a send left.
-  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, draft = "", ondraft, onsent, onfocuschange, place }: {
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, draft = "", ondraft, onsent, onfocuschange, place, working = false }: {
     connection: HostConnection;
     session: Session;
     sessions?: readonly Session[];
@@ -23,6 +24,8 @@
     onfocuschange?: (focused: boolean) => void;
     /** Where the page unlocks from, which changes what a locked device is told. */
     place?: Place;
+    /** The seat is busy, so an empty field offers Stop in Send's place. */
+    working?: boolean;
   } = $props();
 
   let text = $state(untrack(() => draft));
@@ -104,6 +107,40 @@
     clearTimeout(flashTimer);
     flashTimer = setTimeout(() => (sentFlash = false), 1500);
     onsent?.();
+  }
+
+  const stopping = $derived(showStop({ working, hasText: text.trim() !== "", justSent: sentFlash, offline }));
+  let holdTimer: ReturnType<typeof setTimeout> | undefined;
+  let held = false;
+
+  function press(key: string, name: string): void {
+    connection.input(session.id, key);
+    status = `Sent ${name} to ${session.identity}.`;
+  }
+
+  function holdStart(): void {
+    held = false;
+    clearTimeout(holdTimer);
+    holdTimer = setTimeout(() => {
+      held = true;
+      press(INTERRUPT, "Control-C");
+    }, HOLD_MS);
+  }
+
+  function holdEnd(): void {
+    clearTimeout(holdTimer);
+  }
+
+  // A hold already sent Control-C, so the click that ends it sends nothing more.
+  function tapStop(): void {
+    if (held) held = false;
+    else press(ESCAPE, "Escape");
+  }
+
+  function stopKey(event: KeyboardEvent): void {
+    if (event.key !== "Enter" || !event.shiftKey) return;
+    event.preventDefault();
+    press(INTERRUPT, "Control-C");
   }
 
   function syncCaret(): void {
@@ -214,7 +251,23 @@
       spellcheck="true"
     ></textarea>
   </div>
-  <button class="button primary" type="submit" disabled={!text.trim() || offline}>{offline ? "Waits for host" : sentFlash && !text.trim() ? "Sent" : "Send"}</button>
+  {#if stopping}
+    <button
+      class="button stop"
+      type="button"
+      aria-label={`Stop ${session.identity}. Sends Escape. Touch and hold, or Shift and Enter, sends Control-C.`}
+      aria-keyshortcuts="Shift+Enter"
+      onpointerdown={holdStart}
+      onpointerup={holdEnd}
+      onpointerleave={holdEnd}
+      onpointercancel={holdEnd}
+      oncontextmenu={(event) => event.preventDefault()}
+      onclick={tapStop}
+      onkeydown={stopKey}
+    >Stop</button>
+  {:else}
+    <button class="button primary" type="submit" disabled={!text.trim() || offline}>{offline ? "Waits for host" : sentFlash && !text.trim() ? "Sent" : "Send"}</button>
+  {/if}
   <p class="visually-hidden" role="status">{note}</p>
 </form>
 {/if}
@@ -235,6 +288,8 @@
   }
   textarea:focus-visible { border-color: var(--brand); }
   button:disabled { opacity: 0.5; cursor: default; }
+  .composer :global(.button) { min-width: 76px; justify-content: center; }
+  .stop { border-color: var(--warn); background: var(--warn-fill); color: var(--warn-text); font-weight: 600; touch-action: manipulation; user-select: none; -webkit-touch-callout: none; }
   .mentions {
     position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 5; margin: 0; padding: 4px; list-style: none;
     max-height: 40vh; overflow-y: auto; border: 1px solid var(--control-line); border-radius: 10px; background: var(--surface);

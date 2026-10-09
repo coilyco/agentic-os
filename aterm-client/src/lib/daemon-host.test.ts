@@ -874,8 +874,18 @@ describe("the device key", () => {
     host.close();
   });
 
-  it("enrolls: asks the phone first, spends the code, enrolls on the daemon's challenge, finishes with the key", async () => {
+  it("enrolls: asks the phone first, spends the code, enrolls on the challenge, finishes, then asserts at once", async () => {
+    // After enrolling the phone reports its key, as the real plugin does.
     const invoke = plugin();
+    invoke.mockImplementation(async (command: string) => {
+      if (command.endsWith("status")) return enrolledNow ? { enrolled: true, key_id: "k1", biometric: "ready" } : { enrolled: false, key_id: null, biometric: "ready" };
+      if (command.endsWith("enroll")) {
+        enrolledNow = true;
+        return { key_id: "k1", public_key: "PUB", attestation: ["LEAF", "INTERMEDIATE", "ROOT"] };
+      }
+      return { key_id: "k1", signature: "SIG" };
+    });
+    let enrolledNow = false;
     const { host, socket } = connect();
     socket.receive({ ...FEATURES, typing: { ...LOCKED, device_key: "unenrolled" } });
     const done = host.deviceKey!.enroll("ABCD-1234");
@@ -886,7 +896,36 @@ describe("the device key", () => {
     expect(invoke).toHaveBeenCalledWith("plugin:devicekey|enroll", { challenge: "CHAL" });
     expect(lastSent(socket)).toMatchObject({ public_key: "PUB", attestation: ["LEAF", "INTERMEDIATE", "ROOT"] });
     socket.receive({ type: "device_enrolled", id: lastSent(socket).id, key_id: "k1" });
+    await vi.waitFor(() => expect(lastSent(socket)).toMatchObject({ type: "device_assert_begin", key_id: "k1" }));
+    socket.receive({ type: "device_assert_challenge", id: lastSent(socket).id, challenge: "CHAL2" });
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_assert_finish"));
+    expect(invoke).toHaveBeenCalledWith("plugin:devicekey|sign", { challenge: "CHAL2", prompt: "Unlock aterm to type" });
+    socket.receive({ type: "device_asserted", id: lastSent(socket).id });
     await expect(done).resolves.toBeUndefined();
+    host.close();
+  });
+
+  it("keeps the key and says so when the prompt after enrolling is closed", async () => {
+    let enrolledNow = false;
+    const invoke = plugin();
+    invoke.mockImplementation(async (command: string) => {
+      if (command.endsWith("status")) return enrolledNow ? { enrolled: true, key_id: "k1", biometric: "ready" } : { enrolled: false, key_id: null, biometric: "ready" };
+      if (command.endsWith("enroll")) {
+        enrolledNow = true;
+        return { key_id: "k1", public_key: "PUB", attestation: ["LEAF"] };
+      }
+      throw { code: "cancelled", message: "x" };
+    });
+    const { host, socket } = connect();
+    socket.receive(FEATURES);
+    const done = host.deviceKey!.enroll("ABCD-1234");
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_enroll_begin"));
+    socket.receive({ type: "device_enroll_challenge", id: lastSent(socket).id, challenge: "CHAL" });
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_enroll_finish"));
+    socket.receive({ type: "device_enrolled", id: lastSent(socket).id, key_id: "k1" });
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_assert_begin"));
+    socket.receive({ type: "device_assert_challenge", id: lastSent(socket).id, challenge: "CHAL2" });
+    await expect(done).rejects.toThrow(/closed the prompt.*Your key is set up/);
     host.close();
   });
 

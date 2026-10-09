@@ -6,7 +6,7 @@ import type { ToolResult, View, ViewCsp } from "./mcp-apps";
 import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, MessageState, PasskeyChannel, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
-import { bridge, DeviceKeyError, enrollKey, keyStatus, KEY_CODE_SPENT, mayEnroll, signChallenge, biometricNotice } from "./device-key";
+import { bridge, DeviceKeyError, type Invoke, enrollKey, keyStatus, KEY_CODE_SPENT, mayEnroll, signChallenge, biometricNotice } from "./device-key";
 import { CODE_SPENT, createCredential, getCredential, passkeySupport, PasskeyError } from "./passkey";
 import { keepStanding, parseTyping, refusalOf, typingNotice, type Typing } from "./typing";
 
@@ -21,6 +21,7 @@ const PTY_SIZE_FEATURE = "pty-size";
 const NO_PLUGIN = "This app has no way to hold a key on this phone.";
 const NO_KEY_YET = "This phone has no key yet. Set one up with a code first.";
 const UNLOCK_PROMPT = "Unlock aterm to type";
+const KEY_SET_UP = "Your key is set up, so the Unlock button will work.";
 const KEY_UNKNOWN_REASON = "device_key_unknown";
 const KEY_UNKNOWN = "This host does not know this phone's key. Set one up again with a new code.";
 
@@ -429,6 +430,17 @@ export class DaemonHost implements HostConnection {
     return this.features.has("device-key") ? this.deviceKeyChannel : undefined;
   }
 
+  // Enrolling does not unlock the connection, so an assertion follows it at once.
+  private assertDeviceKey = async (invoke: Invoke): Promise<void> => {
+    const status = await keyStatus(invoke);
+    if (!status.enrolled || !status.keyId) throw new DeviceKeyError(NO_KEY_YET);
+    const notice = biometricNotice(status.biometric);
+    if (notice) throw new DeviceKeyError(notice);
+    const begun = await this.exchange({ type: "device_assert_begin", key_id: status.keyId });
+    const signed = await signChallenge(invoke, String(begun.challenge), UNLOCK_PROMPT);
+    await this.exchange({ type: "device_assert_finish", key_id: signed.keyId, signature: signed.signature });
+  };
+
   private deviceKeyChannel: DeviceKeyChannel = {
     status: async () => {
       const invoke = bridge();
@@ -448,17 +460,17 @@ export class DaemonHost implements HostConnection {
       } catch (error) {
         throw new DeviceKeyError(`${error instanceof Error ? error.message : String(error)} ${KEY_CODE_SPENT}`);
       }
+      try {
+        await this.assertDeviceKey(invoke);
+      } catch (error) {
+        const reason = error instanceof DeviceKeyError ? error.reason : undefined;
+        throw new DeviceKeyError(`${error instanceof Error ? error.message : String(error)} ${KEY_SET_UP}`, reason);
+      }
     },
     assert: async () => {
       const invoke = bridge();
       if (!invoke) throw new DeviceKeyError(NO_PLUGIN);
-      const status = await keyStatus(invoke);
-      if (!status.enrolled || !status.keyId) throw new DeviceKeyError(NO_KEY_YET);
-      const notice = biometricNotice(status.biometric);
-      if (notice) throw new DeviceKeyError(notice);
-      const begun = await this.exchange({ type: "device_assert_begin", key_id: status.keyId });
-      const signed = await signChallenge(invoke, String(begun.challenge), UNLOCK_PROMPT);
-      await this.exchange({ type: "device_assert_finish", key_id: signed.keyId, signature: signed.signature });
+      await this.assertDeviceKey(invoke);
     },
   };
 
