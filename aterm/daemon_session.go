@@ -97,6 +97,8 @@ type ptySession struct {
 	draft   int
 	keys    keyState
 	pending []*pendingSend
+	// parked is a message typed into a busy seat's box that the seat has not taken.
+	parked *parkedSend
 	// inbox keeps what enqueue accepted, for a seat that reads over MCP.
 	inbox inbox
 	// sending is the message submit is writing. finish leaves it to submit,
@@ -400,6 +402,10 @@ func (s *ptySession) finish(code int) {
 			}
 		}
 		s.pending = nil
+		if s.parked != nil {
+			pending = append(pending, s.parked.p)
+			s.parked = nil
+		}
 		s.mu.Unlock()
 		close(s.done)
 		_ = s.holder.write(frame{Type: "release"})
@@ -762,6 +768,12 @@ func (s *ptySession) cardReason() string {
 
 func (s *ptySession) deliverNext(now time.Time) {
 	s.mu.Lock()
+	if s.parked != nil {
+		s.mu.Unlock()
+		s.settleParked(now)
+		s.holdBehindParked()
+		return
+	}
 	if len(s.pending) == 0 {
 		s.mu.Unlock()
 		return
@@ -805,6 +817,11 @@ func (s *ptySession) deliverNext(now time.Time) {
 	}
 	s.mu.Unlock()
 	s.writeMu.Unlock()
+	var parkedAt *parkedError
+	if errors.As(err, &parkedAt) {
+		s.park(next, parkedAt.before)
+		return
+	}
 	if errors.Is(err, errNotSubmitted) || errors.Is(err, errNotSeen) {
 		next.setState("failed", s.name+": "+err.Error())
 		return

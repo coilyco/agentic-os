@@ -53,7 +53,7 @@ func (s *ptySession) confirmClaude(text string, before int) error {
 			}
 			if now.Sub(lastEnter) >= min(enterGap<<retries, enterCeiling) && !s.holdsCard() {
 				if retries == claudeEnters {
-					return errNotSubmitted
+					return s.unsent(before)
 				}
 				retries++
 				if err := s.writePTY([]byte("\r")); err != nil {
@@ -71,7 +71,7 @@ func (s *ptySession) confirmClaude(text string, before int) error {
 		}
 		if now.Sub(start) > arrivalWindow {
 			if holds {
-				return errNotSubmitted
+				return s.unsent(before)
 			}
 			return errNotSeen
 		}

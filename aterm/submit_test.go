@@ -10,14 +10,18 @@ import (
 	"time"
 )
 
-// fakeBoxCommand plays a claude seat that boots late, drops N Enters (COI-2474) and reads
-// nothing for a while once its prompt is up (COI-2300). Args: boot, drops, lag ms.
+// fakeBoxCommand plays a claude seat that boots late, drops N Enters (COI-2474), reads
+// nothing for a lag (COI-2300), then deaf mid-turn (COI-2619). Args: boot/drops/lag/deaf
 const fakeBoxCommand = "fake-claude-box"
 
 func runFakeBox() {
 	boot, _ := strconv.Atoi(os.Args[2])
 	drops, _ := strconv.Atoi(os.Args[3])
 	lag, _ := strconv.Atoi(os.Args[4])
+	deaf := 0
+	if len(os.Args) > 5 {
+		deaf, _ = strconv.Atoi(os.Args[5])
+	}
 	fmt.Print("\x1b[?2004h")
 	time.Sleep(time.Duration(boot) * time.Millisecond)
 	var sent []string
@@ -27,10 +31,14 @@ func runFakeBox() {
 		for _, line := range sent {
 			fmt.Printf("> %s\r\n", line)
 		}
+		if deaf > 0 {
+			fmt.Print("✻ Working… (12s · ↓ 1.2k tokens)\r\n")
+		}
 		rule := strings.Repeat("─", 60)
 		fmt.Printf("%s\r\n❯ %s%s\r\n%s\r\n  auto mode on\r\n", rule, input.String(), placeholder, rule)
 	}
 	draw(` Try "how do I log an error?"`)
+	deafUntil := time.Now().Add(time.Duration(deaf) * time.Millisecond)
 	time.Sleep(time.Duration(lag) * time.Millisecond)
 	reader := bufio.NewReader(os.Stdin)
 	inPaste := false
@@ -57,6 +65,9 @@ func runFakeBox() {
 				draw("")
 			}
 		case b == '\r' && !inPaste:
+			if time.Now().Before(deafUntil) {
+				continue
+			}
 			if drops > 0 {
 				drops--
 				continue
@@ -76,6 +87,11 @@ func runFakeBox() {
 
 func fakeBoxSeat(t *testing.T, bootMillis, drops, lagMillis int) (token string, target *testClient) {
 	t.Helper()
+	return fakeBusyBoxSeat(t, bootMillis, drops, lagMillis, 0)
+}
+
+func fakeBusyBoxSeat(t *testing.T, bootMillis, drops, lagMillis, deafMillis int) (token string, target *testClient) {
+	t.Helper()
 	testDaemon(t)
 	sender := dialTest(t)
 	sender.spawn("eng-platform-beetle-ox", "eng-platform", "Beetle-Ox", `echo TOKEN=$ATERM_SESSION_TOKEN; sleep 60`)
@@ -83,7 +99,7 @@ func fakeBoxSeat(t *testing.T, bootMillis, drops, lagMillis int) (token string, 
 	target = dialTest(t)
 	_, err := target.c.request(frame{
 		Type: "spawn", Session: "eng-junior-beetle-ox", Role: "eng-junior", Identity: "Beetle-Ox", Seat: "claude",
-		Argv: []string{"/bin/sh", "-c", fmt.Sprintf("stty raw -echo; exec %s %s %d %d %d", os.Args[0], fakeBoxCommand, bootMillis, drops, lagMillis)},
+		Argv: []string{"/bin/sh", "-c", fmt.Sprintf("stty raw -echo; exec %s %s %d %d %d %d", os.Args[0], fakeBoxCommand, bootMillis, drops, lagMillis, deafMillis)},
 		Env:  os.Environ(), Cwd: "/", Rows: 24, Cols: 200,
 	})
 	if err != nil {

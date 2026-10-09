@@ -31,7 +31,7 @@ attached to it.
 
 **Delivery serializes with the keyboard.** One lock covers every PTY write. A message is `queued` until the target is ready, `held` behind Kai's typing, an unsent draft or a card, then `delivered` or `failed`.
 
-**A program that asked for bracketed paste gets one paste, then Enter 300ms later**, since an Enter inside it reads as a newline. codex and goose turn it on at their prompt, so **ready means paste is on**. claude and opencode drop a paste before the prompt, so **ready means `Try "` or `Ask anything` showed**, or 20s passed. **`delivered` means opencode took Enter** (3 retries) **and claude's transcript shows the message** (COI-2300). Enter backs off while it sits in the box, and a message unseen for 90s is `failed`.
+**A bracketed-paste program gets one paste, then Enter 300ms later**, since an Enter inside reads as a newline. codex and goose turn it on at their prompt, so **ready means paste is on**. claude and opencode drop a paste before the prompt, so **ready means `Try "` or `Ask anything` showed**, or 20s passed. **`delivered` means opencode took Enter and claude's transcript shows the message**. Unseen for 90s is `failed`, and a mid-turn seat that took no Enter is [parked](../.agents/skills/tooling-aterm-client/references/parked.md).
 
 **A process inside a session cannot type into one.** The daemon walks the connecting pid's parents. Such a process may send, stamped, but not type, unless it spawned that session.
 
