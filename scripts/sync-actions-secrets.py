@@ -14,6 +14,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 
 from agentic_os import shared_ssl_context
@@ -38,9 +39,6 @@ MAPPING: dict[str, dict[str, str]] = {
         "ATERM_ANDROID_KEYSTORE_B64": "/coilysiren/aterm/write/android-keystore-b64",
         "ATERM_ANDROID_KEYSTORE_PASSWORD": "/coilysiren/aterm/write/android-keystore-password",
         "ATERM_ANDROID_CERT_SHA256": "/coilysiren/aterm/write/android-keystore-cert-sha256",
-    },
-    slug("ward"): {
-        "CI_RELEASE_TOKEN": "/forgejo/coilyco-ops/ci-release-token",
     },
     slug("umbra"): {
         "CI_RELEASE_TOKEN": "/forgejo/coilyco-ops/ci-release-token",
@@ -119,6 +117,30 @@ def admin_token() -> str:
     return token
 
 
+def apply_plan(
+    plan: list[tuple[str, str, str]],
+    token: str,
+    read=ssm_get,
+    write=put_secret,
+) -> list[str]:
+    """Write every secret, returning one line per failure instead of stopping.
+
+    A stale repo or an empty SSM parameter must not leave the entries after it
+    unsynced (COI-2634). A failure names the repo, secret and cause, never a value.
+    """
+    failures: list[str] = []
+    for repo_slug, name, param in plan:
+        try:
+            write(token, repo_slug, name, read(param))
+        except urllib.error.HTTPError as err:
+            failures.append(f"{repo_slug}: {name}: HTTP {err.code}")
+        except (urllib.error.URLError, subprocess.CalledProcessError, SystemExit) as err:
+            failures.append(f"{repo_slug}: {name}: {type(err).__name__}")
+        else:
+            print(f"{repo_slug}: {name} set")
+    return failures
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dry-run", action="store_true", help="print the plan, write nothing")
@@ -143,10 +165,12 @@ def main() -> int:
     if args.dry_run:
         return 0
 
-    token = admin_token()
-    for repo_slug, name, param in plan:
-        put_secret(token, repo_slug, name, ssm_get(param))
-        print(f"{repo_slug}: {name} set")
+    failures = apply_plan(plan, admin_token())
+    if failures:
+        print(f"{len(failures)} of {len(plan)} secrets failed:", file=sys.stderr)
+        for line in failures:
+            print(f"  {line}", file=sys.stderr)
+        return 1
     return 0
 
 

@@ -365,7 +365,7 @@ sweep-documentation-layout *ARGS:
 sweep-precommit *ARGS:
     @uv run python scripts/sweep-precommit.py "$@"
 
-# Sync Forgejo Actions secrets (release PATs, package-repository writers, housecast's PyPI token, and deploy's pin-reconciler pair) from their SSM sources of truth. Entries are keyed `owner/repo`, so the mapping spans orgs: aos + ward + umbra + housecast under coilyco-flight-deck, plus coilyco/deploy. Values flow SSM -> Forgejo API in-process, never disk or argv. An attended operator supplies `FORGEJO_ADMIN_TOKEN`; `--dry-run` previews the mapping. See docs/release.md.
+# Sync Forgejo Actions secrets (release PATs, package-repository writers, housecast's PyPI token, and deploy's pin-reconciler pair) from their SSM sources of truth. Entries are keyed `owner/repo`, so the mapping spans orgs: aos + umbra + housecast + deploy. Values flow SSM -> Forgejo API in-process, never disk or argv. An attended operator supplies `FORGEJO_ADMIN_TOKEN`; `--dry-run` previews the mapping. See docs/release.md.
 sync-actions-secrets *ARGS:
     @uv run python scripts/sync-actions-secrets.py "$@"
 
