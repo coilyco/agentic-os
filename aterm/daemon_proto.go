@@ -61,8 +61,9 @@ type frame struct {
 	// and on each terminals entry. The daemon attaches no meaning to it.
 	Label string `json:"label,omitempty"`
 
-	// attach
+	// attach. Scales says this client renders a PTY larger than its box by panning.
 	Replay bool `json:"replay,omitempty"`
+	Scales bool `json:"scales,omitempty"`
 
 	// input and output
 	Data   []byte `json:"data,omitempty"`
