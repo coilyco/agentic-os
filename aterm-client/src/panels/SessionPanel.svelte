@@ -6,7 +6,7 @@
   import SidePanel from "../components/SidePanel.svelte";
   import SplitHandle from "../components/SplitHandle.svelte";
   import Terminal from "../components/Terminal.svelte";
-  import { app, asksFor, colorOf, jumpToWaiting, messagesFor, placeNow, reconnecting } from "../lib/app.svelte";
+  import { app, asksFor, colorOf, messagesFor, placeNow, reconnecting } from "../lib/app.svelte";
   import { askAnswer, CANCEL, choiceFromAsk, detectChoice, keysFor, type Choice } from "../lib/choices";
   import { contextPercent, contextText } from "../lib/context";
   import { isBlank } from "../lib/screen";
@@ -95,12 +95,6 @@
     chunks.forEach((chunk, index) => setTimeout(() => app.connection?.input(session.id, chunk), index * KEY_GAP_MS));
     choice = null;
     shownKey = "";
-    nextIfTriaging();
-  }
-
-  // Alt-tabbed in to clear the queue, so an answer moves straight to the next seat.
-  function nextIfTriaging(): void {
-    if (app.triage) setTimeout(jumpToWaiting, 250);
   }
 </script>
 
@@ -147,11 +141,9 @@
                     onanswer={(picks, text) => {
                       const reply = askAnswer(ask, picks, text);
                       app.connection?.answer(ask.id, reply.picks, reply.text);
-                      nextIfTriaging();
                     }}
                     oncancel={() => {
                       app.connection?.cancelAsk(ask.id);
-                      nextIfTriaging();
                     }}
                   />
                 </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ATTENTION_OFF, detectCue, parseAttention } from "./attention";
+import { ATTENTION_DEFAULT, detectCue, parseAttention } from "./attention";
 
 describe("detectCue", () => {
   it("fires when a seat enters waiting", () => {
@@ -35,18 +35,24 @@ describe("detectCue", () => {
 });
 
 describe("parseAttention", () => {
-  it("reads both switches off when nothing is stored", () => {
-    expect(parseAttention(null)).toEqual(ATTENTION_OFF);
+  it("reads the glow on and sound off when nothing is stored, so a fresh browser glows", () => {
+    expect(parseAttention(null)).toEqual({ sound: false, visual: true });
+    expect(ATTENTION_DEFAULT).toEqual({ sound: false, visual: true });
   });
 
-  it("round-trips each switch on its own", () => {
+  it("round-trips each switch on its own, and a stored opt-out of the glow wins", () => {
     expect(parseAttention('{"sound":true,"visual":false}')).toEqual({ sound: true, visual: false });
     expect(parseAttention('{"sound":false,"visual":true}')).toEqual({ sound: false, visual: true });
+    expect(parseAttention('{"sound":false,"visual":false}')).toEqual({ sound: false, visual: false });
   });
 
-  it("reads anything malformed as off", () => {
-    expect(parseAttention("not json")).toEqual(ATTENTION_OFF);
-    expect(parseAttention('{"sound":"yes"}')).toEqual(ATTENTION_OFF);
-    expect(parseAttention("[]")).toEqual(ATTENTION_OFF);
+  it("reads a stored value that never mentions the glow as the default, which is on", () => {
+    expect(parseAttention('{"sound":true}')).toEqual({ sound: true, visual: true });
+  });
+
+  it("reads anything malformed as the default", () => {
+    expect(parseAttention("not json")).toEqual(ATTENTION_DEFAULT);
+    expect(parseAttention('{"sound":"yes"}')).toEqual(ATTENTION_DEFAULT);
+    expect(parseAttention("[]")).toEqual(ATTENTION_DEFAULT);
   });
 });

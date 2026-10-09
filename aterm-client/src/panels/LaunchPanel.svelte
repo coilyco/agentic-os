@@ -1,6 +1,6 @@
 <script lang="ts">
   import Creature from "../components/Creature.svelte";
-  import { app, failedLaunchOf, placeNow, reconnecting, selectSession } from "../lib/app.svelte";
+  import { app, failedLaunchOf, placeNow, reconnecting, openByPerson } from "../lib/app.svelte";
   import type { Role } from "../lib/roster";
   import { sessionCode } from "../lib/sessions";
   import Unlock from "../components/Unlock.svelte";
@@ -31,7 +31,7 @@
       <p>Running now, and a launch opens another beside {running.length === 1 ? "it" : "them"}:</p>
       <ul>
         {#each running as each (each.id)}
-          <li><button class="link" onclick={() => selectSession(each.id)}>{each.identity} on {each.seat}{sessionCode(each) ? ` // ${sessionCode(each)}` : ""}</button></li>
+          <li><button class="link" onclick={() => openByPerson(each.id)}>{each.identity} on {each.seat}{sessionCode(each) ? ` // ${sessionCode(each)}` : ""}</button></li>
         {/each}
       </ul>
     </div>

@@ -1,27 +1,27 @@
-// Opt-in cues for a seat that starts waiting on you, off until switched on.
-// Settings live in this browser only.
+// Cues for a seat that starts waiting on you. The glow is on until switched off, sound
+// stays off until switched on. Settings live in this browser only.
 
 export interface AttentionSettings {
   sound: boolean;
   visual: boolean;
 }
 
-export const ATTENTION_OFF: AttentionSettings = { sound: false, visual: false };
+export const ATTENTION_DEFAULT: AttentionSettings = { sound: false, visual: true };
 
 const KEY = "aterm.attention.v1";
 
 /** Asks replay on subscribe as separate frames, so attach is not news. */
 export const SETTLE_MS = 1500;
 
-/** Stored settings, with anything missing or malformed read as off. */
+/** Stored settings. Missing or malformed reads as the default. A stored opt-out wins. */
 export function parseAttention(raw: string | null): AttentionSettings {
   try {
     const parsed: unknown = JSON.parse(raw ?? "null");
-    if (typeof parsed !== "object" || parsed === null) return ATTENTION_OFF;
+    if (typeof parsed !== "object" || parsed === null) return ATTENTION_DEFAULT;
     const { sound, visual } = parsed as { sound?: unknown; visual?: unknown };
-    return { sound: sound === true, visual: visual === true };
+    return { sound: sound === true, visual: visual !== false };
   } catch {
-    return ATTENTION_OFF;
+    return ATTENTION_DEFAULT;
   }
 }
 
@@ -29,7 +29,7 @@ export function loadAttention(): AttentionSettings {
   try {
     return parseAttention(localStorage.getItem(KEY));
   } catch {
-    return ATTENTION_OFF;
+    return ATTENTION_DEFAULT;
   }
 }
 

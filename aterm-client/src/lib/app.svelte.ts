@@ -60,11 +60,9 @@ export const app = $state({
   alerts: { ...loadAttention(), soundBlocked: false } as AttentionSettings & { soundBlocked: boolean },
   /** ask_choice calls waiting on a person, by ask id. */
   asks: {} as Record<string, Ask>,
-  /** True from alt-tabbing in until you leave, while answers walk the waiting seats. */
-  triage: false,
-  /** Bumped to ask the visible choice card to take keyboard focus. */
+  /** Bumped when a person opens a seat with an ask, so its card takes the keyboard. */
   focusCard: 0,
-  /** The seat whose card a triage jump asked for the keyboard. Spent once it has it. */
+  /** The seat whose card was asked for the keyboard. Spent once it has it. */
   focusAsk: null as string | null,
   /** The composer has focus. On a phone that is the soft keyboard being up. */
   composing: false,
@@ -416,16 +414,14 @@ export function waitingSeats(): Waiting[] {
     .map(({ session, kind }) => ({ sessionId: session.id, role: session.role, identity: session.identity, kind }));
 }
 
-/** Opens the seat that most needs you and hands its answer card the keyboard. */
-export function jumpToWaiting(): boolean {
-  const next = waitingSeats()[0];
-  if (!next) return false;
-  selectSession(next.sessionId);
-  if (next.kind === "asking") {
-    app.focusAsk = next.sessionId;
+// A person opened this seat by click or tap, the only way one is selected.
+// A pending ask takes the keyboard, as it does for anyone who opens its seat.
+export function openByPerson(id: string): void {
+  selectSession(id);
+  if (asksFor(id).length) {
+    app.focusAsk = id;
     app.focusCard++;
   }
-  return true;
 }
 
 /** The seat on screen, while the tab is: the one seat the cues leave alone. */

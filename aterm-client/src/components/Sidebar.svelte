@@ -2,7 +2,9 @@
   import { onMount, tick } from "svelte";
   import AttentionSwitches from "./AttentionSwitches.svelte";
   import Creature from "./Creature.svelte";
-  import { app, asksFor, glowSeats, reconnecting, selectHost, selectRole, selectSession, sessionById, waitingSeats } from "../lib/app.svelte";
+  import SeatPreview from "./SeatPreview.svelte";
+  import { app, asksFor, colorOf, glowSeats, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
+  import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
   import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel, splitSessions } from "../lib/sessions";
   import { tablistKeys } from "../lib/tabs";
@@ -58,7 +60,7 @@
     if (inside || document.activeElement === menuButton) void tick().then(() => menuButton?.focus());
   }
 
-  // A seat that opens from off the row, as when a triage jump lands on it, scrolls into the row.
+  // A seat opened from off the row, as from a toast, scrolls into the row.
   $effect(() => {
     const id = app.selectedSession;
     if (!narrow || !id) return;
@@ -66,9 +68,21 @@
   });
 
   function openSession(id: string): void {
-    selectSession(id);
+    openByPerson(id);
     closeMenu();
   }
+
+  // Hovering or focusing a glowing seat says what it wants without opening it. A phone has no hover, so it gets the toast.
+  let hover = $state<{ id: string; top: number; left: number } | null>(null);
+  const canHover = () => typeof matchMedia === "function" && matchMedia("(hover: hover)").matches && !narrow;
+  function showPreview(id: string, row: HTMLElement): void {
+    if (!glowing.has(id) || !canHover()) return;
+    const box = row.getBoundingClientRect();
+    hover = { id, top: Math.max(8, box.top), left: box.right + 8 };
+  }
+  const hidePreview = () => (hover = null);
+  const previewing = $derived(hover ? waitingSeats().find((seat) => seat.sessionId === hover!.id) : undefined);
+  const preview = $derived(previewing ? previewFor(previewing, asksFor(previewing.sessionId)[0]) : null);
 
   function openRole(slug: string): void {
     selectRole(slug);
@@ -126,8 +140,13 @@
     data-activity={activity(session)}
     data-degraded={session.degraded.length > 0}
     data-glow={glowing.has(session.id)}
+    aria-describedby={hover?.id === session.id && preview ? "seat-preview" : undefined}
     style:--accent={role.color}
     onclick={() => openSession(session.id)}
+    onpointerenter={(event) => showPreview(session.id, event.currentTarget)}
+    onpointerleave={hidePreview}
+    onfocus={(event) => showPreview(session.id, event.currentTarget)}
+    onblur={hidePreview}
   >
     <span class="avatar">
       <Creature role={role.slug} color={role.color} size={36} />
@@ -271,6 +290,9 @@
     <AttentionSwitches />
   {/if}
 </nav>
+{#if hover && preview}
+  <SeatPreview {preview} top={hover.top} left={hover.left} color={colorOf(sessionById(hover.id)?.role ?? "")} />
+{/if}
 
 
 <style>
@@ -282,6 +304,7 @@
   .tab:hover { background: #171a21; }
   .tab[aria-selected="true"] { background: #1d1729; box-shadow: inset 0 0 0 1px #3a3350; }
   .seat[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--ground)); box-shadow: inset 0 0 0 1px var(--accent); }
+  .seat[data-glow="true"][data-activity="asking"] { box-shadow: inset 7px 0 0 var(--accent); }
   .seat[data-glow="true"] { background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 45%, var(--ground)), color-mix(in srgb, var(--accent) 8%, var(--ground)) 85%); box-shadow: inset 4px 0 0 var(--accent); }
   .dot { width: 10px; height: 10px; border-radius: 5px; background: var(--ok); flex: none; }
   [data-kind="unreachable"] .dot { background: none; border: 2px solid var(--danger); }

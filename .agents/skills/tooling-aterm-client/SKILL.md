@@ -1,6 +1,6 @@
 ---
 name: tooling-aterm-client
-description: Work on the aterm web client in aterm-client/ (Svelte 5, TypeScript, Vite, xterm.js), the window onto aterm agent sessions. Covers its architecture, native choice cards, views and browser, how it is built and served, and the rules for changing it. Triggers - aterm client, aterm-client, svelte, xterm, aterm.daemon.v1 client, alt-tab triage.
+description: Work on the aterm web client in aterm-client/ (Svelte 5, TypeScript, Vite, xterm.js), the window onto aterm agent sessions. Covers its architecture, native choice cards, views and browser, how it is built and served, and the rules for changing it. Triggers - aterm client, aterm-client, svelte, xterm, aterm.daemon.v1 client, waiting seats, glow, toast.
 ---
 
 # aterm client
