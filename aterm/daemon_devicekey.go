@@ -120,6 +120,7 @@ func (d *daemon) deviceKeyFrames(cl *client, message frame) error {
 	if want == "enroll" {
 		keyID, err := d.finishDeviceEnroll(store, ceremony, message)
 		if err != nil {
+			d.logf("a device key enrollment was refused: %v", err)
 			return withExit(exitUsage, err)
 		}
 		if err := cl.c.write(frame{Type: "device_enrolled", ID: message.ID, KeyID: keyID}); err != nil {
@@ -129,6 +130,7 @@ func (d *daemon) deviceKeyFrames(cl *client, message frame) error {
 		return cl.c.write(frame{Type: "typing", Typing: d.typingStanding(cl)})
 	}
 	if err := finishDeviceAssert(store, ceremony, message); err != nil {
+		d.logf("a device key assertion was refused: %v", err)
 		return withExit(exitUsage, err)
 	}
 	cl.asserted = true

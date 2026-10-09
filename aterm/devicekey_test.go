@@ -446,3 +446,26 @@ func TestTheAppOriginMayOpenASocketBesideTheConfiguredPages(t *testing.T) {
 		}
 	}
 }
+
+func TestRefusedDeviceKeyCeremoniesAreLogged(t *testing.T) {
+	d, _ := deviceDaemon(t, newPhone(t, attest{}))
+	logs := &logCapture{}
+	d.logf = logs.logf
+	device := pipeClient(t, d, peerStanding{web: true, remote: true})
+	nextFrame(t, device, "welcome")
+	begin, err := device.request(frame{Type: "device_enroll_begin", EnrollCode: mintCode(t, d)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	challenge, _ := rawURL.DecodeString(begin.Challenge)
+	soft := newPhone(t, attest{challenge: challenge, software: true})
+	d.passkeys.roots = soft.roots
+	if _, err = device.request(frame{Type: "device_enroll_finish", PublicKey: rawURL.EncodeToString(soft.spki), Attestation: jsonOf(soft.chain)}); err == nil {
+		t.Fatal("a software attestation was accepted")
+	}
+	logs.mu.Lock()
+	defer logs.mu.Unlock()
+	if !slices.Contains(logs.lines, "a device key enrollment was refused: %v") {
+		t.Fatalf("the refusal was not logged: %v", logs.lines)
+	}
+}
