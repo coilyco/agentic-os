@@ -1,3 +1,0 @@
-# NDK r27 links at 4 KiB pages. Phones with 16 KiB pages refuse a library below that.
-[target.aarch64-linux-android]
-rustflags = ["-C", "link-arg=-Wl,-z,max-page-size=16384"]

@@ -13,7 +13,7 @@ CMDLINE_TOOLS_REV=15859902
 CMDLINE_TOOLS_SHA256=4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583
 ANDROID_PLATFORM=android-37.0
 BUILD_TOOLS=36.0.0
-NDK_VERSION=27.3.13750724
+NDK_VERSION=28.2.13676358
 RUST_TARGET=aarch64-linux-android
 APP_ID=dev.coilyco.aterm
 KEY_ALIAS=aterm
@@ -95,7 +95,7 @@ sign() {
   local in="${1:?usage: sign IN OUT}" out="${2:?usage: sign IN OUT}" ks work
   use_java
   work=$(mktemp -d)
-  trap 'rm -rf "$work"' EXIT
+  trap "rm -rf '$work'" EXIT
   ks="$work/aterm.p12"
   if [ -n "${ATERM_ANDROID_KEYSTORE_B64:-}" ]; then
     [ -n "${ATERM_ANDROID_KEYSTORE_PASSWORD:-}" ] || fail "ATERM_ANDROID_KEYSTORE_B64 is set without ATERM_ANDROID_KEYSTORE_PASSWORD"
@@ -111,19 +111,23 @@ sign() {
   apksigner sign --ks "$ks" --ks-key-alias "$KEY_ALIAS" --ks-pass env:ATERM_ANDROID_KEYSTORE_PASSWORD \
     --key-pass env:ATERM_ANDROID_KEYSTORE_PASSWORD --out "$out" "$in"
   rm -f "$out.idsig"
-  verify "$out"
+  if ! (verify "$out"); then
+    rm -f "$out"
+    fail "$out failed verification and was removed"
+  fi
 }
 
 # verify APK: signature, manifest, and 16 KiB page alignment of the native library.
 verify() {
-  local apk="${1:?usage: verify APK}" cert badging libs lib work
+  local apk="${1:?usage: verify APK}" cert want badging libs lib work
   use_java
   apksigner verify --verbose "$apk" | grep -E "^Verified using v(2|3) scheme .*: true" >/dev/null \
     || fail "$apk has no valid v2 or v3 signature"
   cert=$(apksigner verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
   [ -n "$cert" ] || fail "no signer certificate on $apk"
-  if [ -n "${ATERM_ANDROID_CERT_SHA256:-}" ] && [ "$cert" != "$ATERM_ANDROID_CERT_SHA256" ]; then
-    fail "signer certificate $cert is not the expected $ATERM_ANDROID_CERT_SHA256, an update would not install over the last release"
+  want=$(printf '%s' "${ATERM_ANDROID_CERT_SHA256:-}" | tr 'A-F' 'a-f')
+  if [ -n "$want" ] && [ "$cert" != "$want" ]; then
+    fail "signer certificate $cert is not the expected $want, an update would not install over the last release"
   fi
   badging=$(aapt2 dump badging "$apk")
   printf '%s\n' "$badging" | grep -q "^package: name='$APP_ID' " || fail "package name is not $APP_ID"
