@@ -81,8 +81,10 @@ type ptySession struct {
 	// interleaves with a person's keystrokes.
 	writeMu sync.Mutex
 
-	mu           sync.Mutex
-	clients      map[*conn]bool
+	mu      sync.Mutex
+	clients map[*conn]bool
+	// size is what each client can show and the PTY size chosen from it.
+	size         sizeState
 	scrollback   []byte
 	outputOffset int64
 	modeTracker
@@ -579,21 +581,7 @@ func (s *ptySession) detach(c *conn) {
 	s.mu.Lock()
 	delete(s.clients, c)
 	s.mu.Unlock()
-}
-
-func (s *ptySession) resize(rows, cols int) {
-	if rows <= 0 || cols <= 0 {
-		return
-	}
-	rows, cols = clampSize(rows, 24), clampSize(cols, 80)
-	if s.holder != nil {
-		_ = s.holder.write(frame{Type: "resize", Rows: rows, Cols: cols})
-	}
-	s.mu.Lock()
-	if s.scr != nil {
-		s.scr.resize(rows, cols)
-	}
-	s.mu.Unlock()
+	s.forgetSize(c)
 }
 
 // typeInput is a person at a client. It is the only path that is not stamped.

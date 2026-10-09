@@ -53,6 +53,7 @@ than editing it by hand.
 * [choices.md](references/choices.md) - native choice cards and `ask_choice`.
 * [passkey.md](references/passkey.md) - the passkey unlock a remote device needs before it types.
 * [reach.md](references/reach.md) - why a device cannot reach the daemon, the layers the client names, and what the daemon logs.
+* [sizing.md](references/sizing.md) - how a session's PTY is sized when clients of different sizes attach, the `size` frame, and `pty-size`.
 * [device-key.md](references/device-key.md) - the Android app's unlock with the phone's own key, as a person sees it.
 * [device-key-daemon.md](references/device-key-daemon.md) - the daemon half: the frames, the attestation checks, and the app origin.
 * [views-and-browser.md](references/views-and-browser.md) - MCP Apps views and the shared browser.

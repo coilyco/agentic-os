@@ -404,7 +404,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, mcpAppsFeature, inboxFeature, deviceKeyFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -495,8 +495,13 @@ func (d *daemon) handle(cl *client, message frame) error {
 		if err := cl.c.write(frame{Type: "attached", ID: message.ID, Session: s.name, PID: s.pid}); err != nil {
 			return err
 		}
+		s.report(cl.c, message.Rows, message.Cols, &message.Scales)
+		if size, ok := s.sizeFrame(); ok {
+			if err := cl.c.write(size); err != nil {
+				return err
+			}
+		}
 		s.attach(cl.c, message.Replay, message.Offset)
-		s.resize(message.Rows, message.Cols)
 		d.pushSessions()
 		return nil
 	case "detach":
@@ -519,7 +524,7 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return s.typeInput(message.Data)
 	case "resize":
 		if s := cl.attached[message.Session]; s != nil {
-			s.resize(message.Rows, message.Cols)
+			s.report(cl.c, message.Rows, message.Cols, nil)
 		}
 		return nil
 	case "send":
