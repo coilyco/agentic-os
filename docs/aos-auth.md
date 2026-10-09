@@ -113,8 +113,8 @@ separate authenticated inference boundary.
 
 ## Linear MCP key
 
-A native launch reads SSM `/coilysiren/linear/key` and exports `LINEAR_API_KEY`
-and `LINEAR_MCP_AUTHORIZATION` (`Bearer <key>`, since Codex sends an env header
-variable verbatim) for `public_coilyco_linear`. An ambient value skips the fetch.
-A failed read warns, never names a value, and lets the launch continue. Nothing
-touches disk. Source: `aos-cli/native_linear_credentials.go`.
+A native launch reads SSM `/coilysiren/linear/key` and exports `LINEAR_API_KEY` and `LINEAR_MCP_AUTHORIZATION` (`Bearer
+<key>`, since Codex sends the header verbatim) for `public_coilyco_linear`. An ambient value skips the fetch. A role with
+SSM `/coilysiren/linear/apps/<role>/client-id` and `client-secret` swaps the authorization for its app's
+`client_credentials` token (`read,write`, 30 days), so its comments show the app, not Kai. No app is silent. A failed read
+or mint warns by role and keeps Kai's key. Nothing touches disk. Source: `aos-cli/native_linear_credentials.go` (COI-967).
