@@ -247,11 +247,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	checkInDone := make(chan struct{})
 	defer close(checkInDone)
 	if options.SentryDSN != "" {
-		if cron, err := newSentryCron(options.SentryDSN, sentryMonitorSlug(hostName())); err != nil {
-			logf("no Sentry check-ins: %v", err)
-		} else {
-			go d.sentryCheckIns(checkInDone, cron)
-		}
+		d.startSentryCheckIns(options.SentryDSN, checkInDone)
 	}
 	if options.TailnetPort != "" {
 		d.tailnet.want()
