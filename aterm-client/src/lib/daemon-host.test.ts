@@ -826,3 +826,124 @@ describe("pty-size", () => {
     host.close();
   });
 });
+
+describe("the device key", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const LOCKED = { allowed: false, reason: "passkey_required" };
+  const FEATURES = { ...WELCOME, features: ["typing-guard", "device-key"] };
+  const lastSent = (socket: StubSocket) => sentFrames(socket).at(-1)!;
+  const kinds = (socket: StubSocket) => sentFrames(socket).map((frame) => frame.type);
+
+  function plugin(overrides: Record<string, unknown> = {}) {
+    const answers: Record<string, unknown> = {
+      status: { enrolled: false, key_id: null, biometric: "ready" },
+      enroll: { key_id: "k1", public_key: "PUB", attestation: ["LEAF", "INTERMEDIATE", "ROOT"] },
+      sign: { key_id: "k1", signature: "SIG" },
+      ...overrides,
+    };
+    const invoke = vi.fn(async (command: string) => {
+      const answer = answers[command.replace("plugin:devicekey|", "")];
+      if (answer instanceof Error) throw answer;
+      return answer;
+    });
+    vi.stubGlobal("__TAURI__", { core: { invoke } });
+    return invoke;
+  }
+
+  it("offers the channel only when the welcome lists device-key, and says so as an event", () => {
+    const none = connect();
+    none.socket.receive(WELCOME);
+    expect(none.host.deviceKey).toBeUndefined();
+    expect(none.events.filter((event) => event.type === "device_key")).toEqual([{ type: "device_key", available: false }]);
+    none.host.close();
+
+    const { host, events, socket } = connect();
+    socket.receive(FEATURES);
+    expect(host.deviceKey).toBeDefined();
+    expect(events.filter((event) => event.type === "device_key")).toEqual([{ type: "device_key", available: true }]);
+    host.close();
+  });
+
+  it("reads the device key standing off the typing frames, and keeps it when a refusal omits it", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, device_key: "enrolled" } });
+    socket.receive({ type: "error", id: "c9", code: 6, error: "refused", reason: "passkey_required" });
+    const typing = events.filter((event) => event.type === "typing");
+    expect(typing.at(-1)).toEqual({ type: "typing", typing: { ...LOCKED, deviceKey: "enrolled" } });
+    host.close();
+  });
+
+  it("enrolls: asks the phone first, spends the code, enrolls on the daemon's challenge, finishes with the key", async () => {
+    const invoke = plugin();
+    const { host, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, device_key: "unenrolled" } });
+    const done = host.deviceKey!.enroll("ABCD-1234");
+    await vi.waitFor(() => expect(lastSent(socket)).toMatchObject({ type: "device_enroll_begin", enroll_code: "ABCD-1234" }));
+    expect(invoke.mock.calls[0]![0]).toBe("plugin:devicekey|status");
+    socket.receive({ type: "device_enroll_challenge", id: lastSent(socket).id, challenge: "CHAL" });
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_enroll_finish"));
+    expect(invoke).toHaveBeenCalledWith("plugin:devicekey|enroll", { challenge: "CHAL" });
+    expect(lastSent(socket)).toMatchObject({ public_key: "PUB", attestation: ["LEAF", "INTERMEDIATE", "ROOT"] });
+    socket.receive({ type: "device_enrolled", id: lastSent(socket).id, key_id: "k1" });
+    await expect(done).resolves.toBeUndefined();
+    host.close();
+  });
+
+  it("never sends a code for a phone that cannot ask for a fingerprint", async () => {
+    plugin({ status: { enrolled: false, key_id: null, biometric: "none_enrolled" } });
+    const { host, socket } = connect();
+    socket.receive(FEATURES);
+    await expect(host.deviceKey!.enroll("ABCD-1234")).rejects.toThrow(/Set up a fingerprint or screen lock/);
+    expect(kinds(socket)).not.toContain("device_enroll_begin");
+    host.close();
+  });
+
+  it("says the code is used up when the phone ends the enrollment after the daemon took it", async () => {
+    plugin({ enroll: Object.assign(new Error("native"), { code: "cancelled" }) });
+    const { host, socket } = connect();
+    socket.receive(FEATURES);
+    const done = host.deviceKey!.enroll("ABCD-1234");
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_enroll_begin"));
+    socket.receive({ type: "device_enroll_challenge", id: lastSent(socket).id, challenge: "CHAL" });
+    await expect(done).rejects.toThrow(/That code is used up/);
+    host.close();
+  });
+
+  it("asserts: names its own key, signs the challenge behind the prompt, and finishes with the signature", async () => {
+    const invoke = plugin({ status: { enrolled: true, key_id: "k1", biometric: "ready" } });
+    const { host, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, device_key: "enrolled" } });
+    const done = host.deviceKey!.assert();
+    await vi.waitFor(() => expect(lastSent(socket)).toMatchObject({ type: "device_assert_begin", key_id: "k1" }));
+    socket.receive({ type: "device_assert_challenge", id: lastSent(socket).id, challenge: "CHAL" });
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_assert_finish"));
+    expect(invoke).toHaveBeenCalledWith("plugin:devicekey|sign", { challenge: "CHAL", prompt: "Unlock aterm to type" });
+    expect(lastSent(socket)).toMatchObject({ key_id: "k1", signature: "SIG" });
+    socket.receive({ type: "device_asserted", id: lastSent(socket).id });
+    await expect(done).resolves.toBeUndefined();
+    host.close();
+  });
+
+  it("says the host forgot this phone's key as a typed failure the panel can act on", async () => {
+    plugin({ status: { enrolled: true, key_id: "k1", biometric: "ready" } });
+    const { host, socket } = connect();
+    socket.receive(FEATURES);
+    const done = host.deviceKey!.assert();
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_assert_begin"));
+    socket.receive({ type: "error", id: lastSent(socket).id, code: 6, error: "no such key", reason: "device_key_unknown" });
+    await expect(done).rejects.toMatchObject({ reason: "device_key_unknown", message: expect.stringMatching(/does not know this phone/) });
+    host.close();
+  });
+
+  it("will not prompt a phone with no key yet, and says there is no plugin outside the app", async () => {
+    plugin();
+    const { host, socket } = connect();
+    socket.receive(FEATURES);
+    await expect(host.deviceKey!.assert()).rejects.toThrow(/no key yet/);
+    expect(kinds(socket)).not.toContain("device_assert_begin");
+    vi.unstubAllGlobals();
+    await expect(host.deviceKey!.status()).rejects.toThrow(/no way to hold a key/);
+    host.close();
+  });
+});

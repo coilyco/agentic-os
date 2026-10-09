@@ -1,17 +1,22 @@
-# The Android app's device key
+# Device key unlock
 
-The app types with a key held in the phone's hardware, not a WebAuthn passkey (COI-2623). A page at `https://tauri.localhost` cannot assert for the `coilyco.dev` relying party, and WebView passkeys need a public Digital Asset Links file past the gate. The daemon half is `aterm/daemon_devicekey.go` and `devicekey_attest.go`.
+The Android app types after proving it holds a key in the phone's Keystore, behind the fingerprint prompt. A page at https://tauri.localhost cannot assert the coilyco.dev passkey, so this stands in for it (COI-2623). Only Kai's own terminal grants it: the code comes from `aterm passkey enroll`, which refuses inside a session.
 
-**Only Kai's terminal grants typing.** `aterm passkey enroll` mints the one-time code, and `aterm passkey revoke` forgets every passkey and device key. Both refuse inside a session. A code enrolls either credential, and a device key is stored beside the passkeys in `passkeys.json`.
+## What a person sees
 
-**Frames**, on a web connection, with every binary field base64url and no padding:
+* **No bridge or no daemon support** - "the app cannot unlock yet".
+* **No screen lock** - one sentence, no controls, and no code sent.
+* **A changed fingerprint** - the sentence, then the enrollment steps, since the old key no longer works.
+* **A key the host knows** - "Unlock with fingerprint". A phone redials on every wake, so each wake costs one tap and one prompt.
+* **A key the host forgot** - the enrollment steps, with a sentence saying so.
+* **A closed prompt** - one line, and the button stays.
 
-* `device_enroll_begin {enroll_code}` answers `device_enroll_challenge {challenge}`: 32 random bytes, 60 s, single use, bound to the connection, spent by any finish.
-* `device_enroll_finish {public_key, attestation}` answers `device_enrolled {key_id}`. `public_key` is SPKI DER of a P-256 key. `attestation` is an array of DER certificates, leaf first (one comma-joined string is also read). `key_id` is base64url SHA-256 of the SPKI. Enrolling does not unlock typing.
-* `device_assert_begin {key_id}` answers `device_assert_challenge {challenge}`. A key not enrolled here is the error reason `device_key_unknown`.
-* `device_assert_finish {key_id, signature}` answers `device_asserted`, then a `typing` push. The signature is ECDSA P-256 SHA-256 in DER over `"aterm-device-assert-v1" || 0x00 || challenge`. Every new connection asserts again. There is no grace window.
-* `welcome` lists `device-key`, and `typing.device_key` is `enrolled` or `unenrolled`.
+## The plugin
 
-**Enrollment verifies the attestation instead of trusting it.** The chain must lead to one of the two roots Google publishes at android.googleapis.com/attestation/root, pinned in `devicekey_roots.go`. The leaf's attestation challenge must equal the issued one, its public key must equal `public_key`, both security levels must be TrustedEnvironment or StrongBox, and the hardware list must say EC, P-256, sign, a nonzero `userAuthType`, with `noAuthRequired` absent from both lists. Software-only attestation is refused. Google's attestation revocation list is not checked.
+Called as `window.__TAURI__.core.invoke("plugin:devicekey|status" | "enroll" | "sign")`. `status` never prompts, and runs before a code is sent. A rejection is `{code, message}` with a code of `cancelled`, `lockout`, `none_enrolled`, `unsupported`, `invalidated`, or `other`.
 
-**The app's origin `https://tauri.localhost` is always allowed.** `ATERM_DAEMON_ALLOW_ORIGINS` replaces the default list rather than adding to it, so the origin is in code. Admission to the tailnet listener is unchanged.
+## The frames
+
+`device_enroll_begin`, `_finish` and `device_assert_begin`, `_finish`, each answered by a challenge or `device_enrolled` and `device_asserted`. `typing` carries `device_key` standing beside `passkey`. The assertion names its `key_id`, and `device_key_unknown` means the host forgot it.
+
+The daemon half, the frames and the attestation checks, is [device-key-daemon.md](device-key-daemon.md).
