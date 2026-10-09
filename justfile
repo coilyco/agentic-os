@@ -209,6 +209,26 @@ aterm-client-install-dir:
     @just aterm-client-build
     @dir="${ATERM_CLIENT_DIR:?set ATERM_CLIENT_DIR, the daemon serves its embedded client unless it is set}"; mkdir -p "$dir" && rsync -a --delete aterm-client/dist/ "$dir/" && echo "installed to $dir"
 
+# Install the aterm Android app's Tauri CLI from its frozen pnpm-lock.yaml. See docs/aterm-android.md.
+aterm-android-install *ARGS:
+    @cd aterm-android && {{pnpm}} install --frozen-lockfile "$@"
+
+# Run the pinned Tauri CLI inside the aterm Android project, for example `just aterm-android-tauri info`.
+aterm-android-tauri *ARGS:
+    @cd aterm-android && {{pnpm}} exec tauri "$@"
+
+# Install the JDK, Android SDK, NDK and Rust target the aterm APK build needs. Run as root, as the CI container does.
+aterm-android-toolchain:
+    @bash scripts/ci/aterm-android.sh toolchain
+
+# Build the unsigned aterm APK at OUT for a major.minor.patch VERSION, with the client bundle built for the app.
+aterm-android-build VERSION OUT:
+    @bash scripts/ci/aterm-android.sh build "{{VERSION}}" "{{OUT}}"
+
+# Sign the unsigned APK IN to OUT with ATERM_ANDROID_KEYSTORE_B64 and ATERM_ANDROID_KEYSTORE_PASSWORD, or a throwaway key when unset, then verify it.
+aterm-android-sign IN OUT:
+    @bash scripts/ci/aterm-android.sh sign "{{IN}}" "{{OUT}}"
+
 # Build the aterm web client for a hosted deployment: ATERM_CLIENT_BASE sets the base path, hosts are added per device and none are baked in.
 aterm-client-build-hosted:
     @cd aterm-client && ATERM_CLIENT_BASE="${ATERM_CLIENT_BASE:?set ATERM_CLIENT_BASE to the base path of the deployment, e.g. /aterm/}" VITE_ATERM_HOSTED=1 {{pnpm}} run build
