@@ -1,5 +1,6 @@
 // The client's view of a host. `DaemonHost` maps aterm.daemon.v1 onto it,
 // and `MockHost` scripts it for the demo. Why: the architecture reference.
+import type { KeyStatus } from "./device-key";
 import type { ToolResult, View } from "./mcp-apps";
 import type { Role } from "./roster";
 import type { Layer } from "./reach";
@@ -112,6 +113,8 @@ export type HostEvent =
   | { type: "features"; terminals: boolean }
   // Whether this daemon runs a passkey ceremony. Apart from `features`, which tests pin.
   | { type: "passkey"; available: boolean }
+  // Whether the daemon lists `device-key`. The page also needs the app's plugin.
+  | { type: "device_key"; available: boolean }
   // The PTY's effective size, which a client sets its terminal to exactly.
   | { type: "size"; sessionId: string; rows: number; cols: number }
   | { type: "terminals"; terminals: ListedTerminal[] }
@@ -151,9 +154,20 @@ export interface PasskeyChannel {
   assert(): Promise<void>;
 }
 
+/** The app's phone-held key. Needs a daemon with `device-key` and the plugin. */
+export interface DeviceKeyChannel {
+  /** The phone's own state, answered without a prompt. */
+  status(): Promise<KeyStatus>;
+  /** Spends the one-time code, makes a Keystore key, and unlocks. Rejects in words. */
+  enroll(code: string): Promise<void>;
+  /** Asks for a fingerprint, signs the challenge, and unlocks. Rejects in words. */
+  assert(): Promise<void>;
+}
+
 export interface HostConnection {
   readonly canLaunch: boolean;
   readonly passkey?: PasskeyChannel;
+  readonly deviceKey?: DeviceKeyChannel;
   readonly views?: ViewChannel;
   readonly browser?: BrowserChannel;
   readonly terminals?: TerminalChannel;

@@ -12,7 +12,7 @@ The aterm binary embeds the client it was released with (`just aterm-client-embe
 
 ## In the Android app
 
-`VITE_ATERM_APP=1` builds the page the app bundles, with base `/`. The webview serves it from `https://tauri.localhost`, which needs Tauri 2.1.0 or later with `useHttpsScheme`. The daemon refuses an origin that is not https, and `--allow-origins` must list this one. Like the hosted build it has no "this Mac" host and adds hosts by name. It registers no service worker, since a cached shell would outlive an APK update, and shows no install card. It offers no passkey, because the relying party is coilyco.dev and the daemon spends the code before the page can notice. A locked device says the app cannot unlock yet (COI-2623).
+`VITE_ATERM_APP=1` builds the page the app bundles, with base `/`. The webview serves it from `https://tauri.localhost`, which needs Tauri 2.1.0 or later with `useHttpsScheme`. The daemon refuses an origin that is not https, and `--allow-origins` must list this one. Like the hosted build it has no "this Mac" host and adds hosts by name. It registers no service worker, since a cached shell would outlive an APK update, and shows no install card. It offers no passkey, because the relying party is coilyco.dev and the daemon spends the code before the page can notice. It unlocks with the phone's own key instead: when the daemon lists `device-key` and the page has the app's `window.__TAURI__` bridge, a locked device shows one button for the fingerprint prompt, or the enrollment steps and a code field. Otherwise it says the app cannot unlock yet (COI-2623). The plugin's calls and the frames are in [device-key.md](device-key.md).
 
 ## Hosts are added per device
 

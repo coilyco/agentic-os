@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { addHost, app, checkHost, reconnecting, removeHost, saveFoundHost, selectHost, selectedHost } from "../lib/app.svelte";
-  import PasskeyUnlock from "../components/PasskeyUnlock.svelte";
+  import { addHost, app, checkHost, placeNow, reconnecting, removeHost, saveFoundHost, selectHost, selectedHost } from "../lib/app.svelte";
+  import Unlock from "../components/Unlock.svelte";
   import { CAN_PASSKEY, EXTERNAL } from "../lib/build";
   import type { Host } from "../lib/protocol";
   import { typingNotice } from "../lib/typing";
@@ -105,11 +105,11 @@
   {#if host?.id === app.attachedHostId}
     <!-- The passkey section is here whatever the lock says, so enrollment never depends on a lock that failed to show. -->
     {#if !app.typing.allowed}
-      <p class="lede" role="status"><strong>Read only.</strong> {typingNotice(app.typing)}</p>
-    {:else if CAN_PASSKEY && app.passkeyAvailable}
+      <p class="lede" role="status"><strong>Read only.</strong> {typingNotice(app.typing, placeNow())}</p>
+    {:else if (CAN_PASSKEY && app.passkeyAvailable) || app.deviceKeyAvailable}
       <p class="lede" role="status">Typing is on for this device.</p>
     {/if}
-    <PasskeyUnlock always />
+    <Unlock always />
   {/if}
   <p class="note" role="status">{app.notice}</p>
   <InstallCard />

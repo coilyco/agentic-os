@@ -3,9 +3,10 @@
 import { backoffDelay, differentBuild } from "./backoff";
 import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, HostConnection, HostEvent, MessageState, PasskeyChannel, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, MessageState, PasskeyChannel, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
+import { bridge, DeviceKeyError, enrollKey, keyStatus, KEY_CODE_SPENT, mayEnroll, signChallenge, biometricNotice } from "./device-key";
 import { CODE_SPENT, createCredential, getCredential, passkeySupport, PasskeyError } from "./passkey";
 import { keepStanding, parseTyping, refusalOf, typingNotice, type Typing } from "./typing";
 
@@ -17,6 +18,11 @@ const DIAL_TIMEOUT_MS = 10000;
 const INPUT_IDS_KEPT = 64;
 const NOT_SENT_CLOSED = "Not sent. The connection to the host closed, and it is reconnecting.";
 const PTY_SIZE_FEATURE = "pty-size";
+const NO_PLUGIN = "This app has no way to hold a key on this phone.";
+const NO_KEY_YET = "This phone has no key yet. Set one up with a code first.";
+const UNLOCK_PROMPT = "Unlock aterm to type";
+const KEY_UNKNOWN_REASON = "device_key_unknown";
+const KEY_UNKNOWN = "This host does not know this phone's key. Set one up again with a new code.";
 
 /** A queued attach with a box says it pans, once the welcome lists pty-size. */
 function withScales(line: string): string {
@@ -117,6 +123,7 @@ interface Frame {
   typing?: unknown;
   reason?: unknown;
   features?: string[];
+  challenge?: string;
   rows?: number;
   cols?: number;
   label?: string;
@@ -310,7 +317,7 @@ export class DaemonHost implements HostConnection {
   private nextId = 0;
   // Input has no reply on success, so an error naming one of these is its only failure.
   private inputIds = new Set<string>();
-  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; passkey?: HostEvent; terminals?: HostEvent } = {};
+  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; passkey?: HostEvent; deviceKey?: HostEvent; terminals?: HostEvent } = {};
   private sessionViews: SessionView[] = [];
   private refs = new Map<string, number>();
   private lastOutput = new Map<string, number>();
@@ -390,6 +397,7 @@ export class DaemonHost implements HostConnection {
     if (this.last.sessions) listener({ type: "sessions", sessions: this.last.sessions });
     if (this.last.typing) listener({ type: "typing", typing: this.last.typing });
     if (this.last.passkey) listener(this.last.passkey);
+    if (this.last.deviceKey) listener(this.last.deviceKey);
     if (this.last.features) listener(this.last.features);
     if (this.last.terminals) listener(this.last.terminals);
     return () => this.listeners.delete(listener);
@@ -415,6 +423,44 @@ export class DaemonHost implements HostConnection {
   get passkey(): PasskeyChannel | undefined {
     return this.features.has("passkey") ? this.passkeyChannel : undefined;
   }
+
+  /** Only a welcome listing `device-key` has one. Without the plugin it says so. */
+  get deviceKey(): DeviceKeyChannel | undefined {
+    return this.features.has("device-key") ? this.deviceKeyChannel : undefined;
+  }
+
+  private deviceKeyChannel: DeviceKeyChannel = {
+    status: async () => {
+      const invoke = bridge();
+      if (!invoke) throw new DeviceKeyError(NO_PLUGIN);
+      return keyStatus(invoke);
+    },
+    enroll: async (code) => {
+      const invoke = bridge();
+      if (!invoke) throw new DeviceKeyError(NO_PLUGIN);
+      // The code is spent at begin, so a phone that cannot ask is caught first.
+      const status = await keyStatus(invoke);
+      if (!mayEnroll(status)) throw new DeviceKeyError(biometricNotice(status.biometric) ?? NO_PLUGIN);
+      const begun = await this.exchange({ type: "device_enroll_begin", enroll_code: code });
+      try {
+        const key = await enrollKey(invoke, String(begun.challenge));
+        await this.exchange({ type: "device_enroll_finish", public_key: key.publicKey, attestation: key.attestation });
+      } catch (error) {
+        throw new DeviceKeyError(`${error instanceof Error ? error.message : String(error)} ${KEY_CODE_SPENT}`);
+      }
+    },
+    assert: async () => {
+      const invoke = bridge();
+      if (!invoke) throw new DeviceKeyError(NO_PLUGIN);
+      const status = await keyStatus(invoke);
+      if (!status.enrolled || !status.keyId) throw new DeviceKeyError(NO_KEY_YET);
+      const notice = biometricNotice(status.biometric);
+      if (notice) throw new DeviceKeyError(notice);
+      const begun = await this.exchange({ type: "device_assert_begin", key_id: status.keyId });
+      const signed = await signChallenge(invoke, String(begun.challenge), UNLOCK_PROMPT);
+      await this.exchange({ type: "device_assert_finish", key_id: signed.keyId, signature: signed.signature });
+    },
+  };
 
   private passkeyChannel: PasskeyChannel = {
     enroll: async (code) => {
@@ -618,6 +664,8 @@ export class DaemonHost implements HostConnection {
         this.features = new Set(frame.features ?? []);
         this.last.passkey = { type: "passkey", available: this.features.has("passkey") };
         this.emit(this.last.passkey);
+        this.last.deviceKey = { type: "device_key", available: this.features.has("device-key") };
+        this.emit(this.last.deviceKey);
         this.last.features = { type: "features", terminals: this.features.has("terminals") };
         this.emit(this.last.features);
         this.request({ type: "subscribe", channel: "sessions" });
@@ -667,7 +715,11 @@ export class DaemonHost implements HostConnection {
       case "passkey_enroll_options":
       case "passkey_enrolled":
       case "passkey_assert_options":
-      case "passkey_asserted": {
+      case "passkey_asserted":
+      case "device_enroll_challenge":
+      case "device_enrolled":
+      case "device_assert_challenge":
+      case "device_asserted": {
         const call = frame.id ? this.calls.get(frame.id) : undefined;
         if (call && frame.id) {
           this.calls.delete(frame.id);
@@ -724,7 +776,8 @@ export class DaemonHost implements HostConnection {
         const call = frame.id ? this.calls.get(frame.id) : undefined;
         if (call && frame.id) {
           this.calls.delete(frame.id);
-          call.reject(new Error(refused ? typingNotice(refused) : (frame.error ?? "The daemon refused the view call.")));
+          if (frame.reason === KEY_UNKNOWN_REASON) call.reject(new DeviceKeyError(KEY_UNKNOWN, KEY_UNKNOWN_REASON));
+          else call.reject(new Error(refused ? typingNotice(refused) : (frame.error ?? "The daemon refused the view call.")));
           return;
         }
         const seat = frame.id ? this.pendingOpens.get(frame.id) : undefined;
