@@ -3,13 +3,14 @@
   import { restoreRefused } from "../lib/drafts";
   import { findMention, insertMention, mentionMatches } from "../lib/mentions";
   import type { HostConnection, Session } from "../lib/protocol";
-  import PasskeyUnlock from "./PasskeyUnlock.svelte";
+  import Unlock from "./Unlock.svelte";
+  import type { Place } from "../lib/build";
   import { typingNotice, type Typing } from "../lib/typing";
 
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
   // `offline` is the host not answering: the draft stays editable and Send waits, since a frame typed into a dead link is lost.
   // `draft` and `ondraft` keep the text outside this component, so a seat change or a remount does not take it. `onsent` says a send left.
-  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, draft = "", ondraft, onsent, onfocuschange }: {
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, draft = "", ondraft, onsent, onfocuschange, place }: {
     connection: HostConnection;
     session: Session;
     sessions?: readonly Session[];
@@ -20,6 +21,8 @@
     onsent?: () => void;
     /** Whether the field has focus, for chrome that gives way to the keyboard. */
     onfocuschange?: (focused: boolean) => void;
+    /** Where the page unlocks from, which changes what a locked device is told. */
+    place?: Place;
   } = $props();
 
   let text = $state(untrack(() => draft));
@@ -155,12 +158,12 @@
 <p class="visually-hidden" role="status">{unlocked}</p>
 {#if !typing.allowed}
   <div class="composer locked">
-    <p role="status"><strong>Read only.</strong> {typingNotice(typing)}</p>
+    <p role="status"><strong>Read only.</strong> {typingNotice(typing, place)}</p>
     {#if kept}
       <p class="kept" role="status"><strong>That message was not sent.</strong> It is kept as your draft and comes back here once typing is allowed again.</p>
     {/if}
     {#if text}<pre class="draft">{text}</pre>{/if}
-    <PasskeyUnlock />
+    <Unlock />
   </div>
 {:else}
 <form class="composer" onsubmit={(event) => { event.preventDefault(); send(); }}>

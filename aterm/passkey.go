@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"crypto/subtle"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -33,6 +34,7 @@ const (
 type passkeyUser struct {
 	ID          []byte                `json:"id"`
 	Credentials []webauthn.Credential `json:"credentials"`
+	DeviceKeys  []deviceKey           `json:"device_keys,omitempty"`
 }
 
 func (u *passkeyUser) WebAuthnID() []byte                         { return u.ID }
@@ -47,6 +49,8 @@ type passkeyStore struct {
 	path string
 	rp   *webauthn.WebAuthn
 	user passkeyUser
+	// roots is what a device key's attestation chain must lead to.
+	roots *x509.CertPool
 
 	code     string
 	expires  time.Time
@@ -66,7 +70,7 @@ func newPasskeyStore(path, rpID string, origins []string) (*passkeyStore, error)
 	if err != nil {
 		return nil, err
 	}
-	store := &passkeyStore{path: path, rp: rp, now: time.Now}
+	store := &passkeyStore{path: path, rp: rp, now: time.Now, roots: pinnedRoots()}
 	if path == "" {
 		return store, nil
 	}
@@ -208,7 +212,7 @@ func (s *passkeyStore) finishAssert(session webauthn.SessionData, raw []byte) er
 	return s.save()
 }
 
-// revoke forgets every passkey, which is how a lost device stops mattering.
+// revoke forgets every passkey and device key, so a lost device stops mattering.
 func (s *passkeyStore) revoke() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

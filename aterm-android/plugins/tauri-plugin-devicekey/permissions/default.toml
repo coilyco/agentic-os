@@ -1,0 +1,5 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Lets the aterm window ask for the device key's status, enroll it, sign an assertion, and forget it."
+permissions = ["allow-status", "allow-enroll", "allow-sign", "allow-forget"]
