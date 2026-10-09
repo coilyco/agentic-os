@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { addHost, app, checkHost, HOSTED, reconnecting, removeHost, saveFoundHost, selectHost, selectedHost } from "../lib/app.svelte";
+  import { addHost, app, checkHost, reconnecting, removeHost, saveFoundHost, selectHost, selectedHost } from "../lib/app.svelte";
   import PasskeyUnlock from "../components/PasskeyUnlock.svelte";
+  import { CAN_PASSKEY, EXTERNAL } from "../lib/build";
   import type { Host } from "../lib/protocol";
   import { typingNotice } from "../lib/typing";
   import { splitSessions } from "../lib/sessions";
@@ -52,7 +53,7 @@
         <button class="button" onclick={() => retry(quiet)}>Retry {quiet.label}</button>
       </div>
     {/each}
-    {#if HOSTED && !hasDaemonHost}
+    {#if EXTERNAL && !hasDaemonHost}
       <p class="lede">No hosts on this device yet. Add one by its tailnet name, once, and this device remembers it.</p>
     {/if}
     <form class="add" onsubmit={add}>
@@ -105,7 +106,7 @@
     <!-- The passkey section is here whatever the lock says, so enrollment never depends on a lock that failed to show. -->
     {#if !app.typing.allowed}
       <p class="lede" role="status"><strong>Read only.</strong> {typingNotice(app.typing)}</p>
-    {:else if HOSTED && app.passkeyAvailable}
+    {:else if CAN_PASSKEY && app.passkeyAvailable}
       <p class="lede" role="status">Typing is on for this device.</p>
     {/if}
     <PasskeyUnlock always />

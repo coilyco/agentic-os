@@ -9,8 +9,7 @@ export type Typing = { allowed: true; passkey?: PasskeyStanding } | { allowed: f
 
 export const TYPING_OPEN: Typing = { allowed: true };
 
-/** The hosted build is the only page whose origin a passkey can belong to. */
-const HOSTED_BUILD = import.meta.env.VITE_ATERM_HOSTED === "1";
+import { PLACE, type Place } from "./build";
 
 /** The `reason` values the daemon sends when it refuses a guarded frame. */
 const REFUSAL_REASONS = new Set(["session_descendant", "peer_unread", "passkey_required"]);
@@ -60,7 +59,7 @@ export function needsPasskey(typing: Typing): boolean {
 }
 
 /** What the person reads in place of the composer. Empty when typing is allowed. */
-export function typingNotice(typing: Typing, hosted = HOSTED_BUILD): string {
+export function typingNotice(typing: Typing, place: Place = PLACE): string {
   if (typing.allowed) return "";
   switch (typing.reason) {
     case "session_descendant":
@@ -68,7 +67,8 @@ export function typingNotice(typing: Typing, hosted = HOSTED_BUILD): string {
     case "peer_unread":
       return "The daemon could not tell which program opened this page, so it blocks typing to be safe. You can still watch.";
     case "passkey_required":
-      return hosted
+      if (place === "app") return "This device is locked, and the app cannot unlock it yet. It can watch but not type.";
+      return place === "hosted"
         ? "This device is locked. It can watch, and types after you unlock it with a passkey."
         : "This device is locked, and passkeys only work from the hosted client at coilyco.dev. Open it there, add this host, and unlock it.";
     default:

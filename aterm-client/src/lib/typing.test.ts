@@ -40,11 +40,17 @@ describe("typingNotice", () => {
     expect(words[3]).toContain("something_new");
   });
 
+  it("says the app cannot unlock yet, instead of pointing at a page it cannot reach", () => {
+    const locked: Typing = { allowed: false, reason: "passkey_required", passkey: "unenrolled" };
+    expect(typingNotice(locked, "app")).toMatch(/app cannot unlock it yet/);
+    expect(typingNotice(locked, "app")).not.toMatch(/coilyco\.dev|passkey/);
+  });
+
   it("points a locked device at the hosted client unless this is the hosted client", () => {
     const locked: Typing = { allowed: false, reason: "passkey_required", passkey: "enrolled" };
-    expect(typingNotice(locked, true)).toMatch(/unlock it with a passkey/);
-    expect(typingNotice(locked, true)).not.toMatch(/coilyco\.dev/);
-    expect(typingNotice(locked, false)).toMatch(/hosted client at coilyco\.dev/);
+    expect(typingNotice(locked, "hosted")).toMatch(/unlock it with a passkey/);
+    expect(typingNotice(locked, "hosted")).not.toMatch(/coilyco\.dev/);
+    expect(typingNotice(locked, "served")).toMatch(/hosted client at coilyco\.dev/);
   });
 });
 

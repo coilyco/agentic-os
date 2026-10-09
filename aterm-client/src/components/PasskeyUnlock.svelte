@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { app, HOSTED } from "../lib/app.svelte";
+  import { app } from "../lib/app.svelte";
+  import { CAN_PASSKEY } from "../lib/build";
   import { passkeyOffer } from "../lib/typing";
 
   // `always` is the host page, where enrollment stays reachable when nothing is locked.
@@ -9,7 +10,7 @@
   const channel = $derived(app.passkeyAvailable ? app.connection?.passkey : undefined);
   const standing = $derived(app.typing.passkey);
   // Only the hosted page can run the ceremony. Sending a code from any other page would spend it for nothing.
-  const offer = $derived(passkeyOffer(app.typing, { hosted: HOSTED, channel: channel !== undefined, always }));
+  const offer = $derived(passkeyOffer(app.typing, { hosted: CAN_PASSKEY, channel: channel !== undefined, always }));
   const hostName = $derived(app.hosts.find((host) => host.id === app.attachedHostId)?.label ?? "the host");
 
   let code = $state("");

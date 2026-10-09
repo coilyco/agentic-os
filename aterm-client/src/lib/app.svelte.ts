@@ -1,4 +1,5 @@
 import { nextUnseen } from "./activity";
+import { EXTERNAL } from "./build";
 import { type AttentionSettings, loadAttention, storeAttention } from "./attention";
 import { chime, isBlocked, unlock, watchBlocked } from "./chime";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
@@ -15,7 +16,6 @@ import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, re
 import { TYPING_OPEN, type Typing } from "./typing";
 
 /** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
-export const HOSTED = import.meta.env.VITE_ATERM_HOSTED === "1";
 
 function savedHost(saved: { label: string; address: string }): Host {
   return { id: `saved:${saved.address}`, label: saved.label, address: saved.address, kind: "daemon", status: { kind: "checking" } };
@@ -23,7 +23,7 @@ function savedHost(saved: { label: string; address: string }): Host {
 
 export const app = $state({
   hosts: [
-    ...(HOSTED ? [] : [{ id: "local", label: hostLabel(location, import.meta.env.DEV), address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } } as Host]),
+    ...(EXTERNAL ? [] : [{ id: "local", label: hostLabel(location, import.meta.env.DEV), address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } } as Host]),
     ...loadSavedHosts().map(savedHost),
     { id: "demo", label: "Demo host", address: "scripted, no daemon", kind: "demo", status: { kind: "online", sessionCount: 4 } },
   ] as Host[],
@@ -323,7 +323,7 @@ export function selectHost(host: Host): void {
         if (app.link.state === "restored") app.link = { state: "live" };
       }, RESTORED_MS);
       // A hosted page is not served by the daemon, so a reload brings no new build.
-      if (event.newerBuild && !HOSTED) app.newerBuild = true;
+      if (event.newerBuild && !EXTERNAL) app.newerBuild = true;
     }
     else if (event.type === "closed") {
       clearTimeout(restoredTimer);

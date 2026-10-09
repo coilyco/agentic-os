@@ -14,7 +14,7 @@ A device on another machine types only after a passkey assertion with user verif
 
 ## Why it is shaped this way
 
-* **Only the hosted build offers the ceremony.** The relying party is `coilyco.dev`, so the daemon-served page cannot assert. It shows where to go and sends nothing.
+* **Only the hosted build offers the ceremony**, and the Android app does not. The relying party is `coilyco.dev`, so the daemon-served page cannot assert. It shows where to go and sends nothing.
 * **The daemon spends the code at `passkey_enroll_begin`**, before it returns options. The client checks the browser can run a ceremony first, and a failure after begin says the code is used up.
 * **Cancel on an ask is refused for a locked device**, so it stays disabled there, unlike a loopback read-only browser.
 * **A read-only terminal lets Tab leave.** xterm traps Tab, and the unlock button sits after the terminal.
