@@ -93,11 +93,10 @@ matched the command string, missing `just <verb>` while blocking the direct call
   MultiEdit, and NotebookEdit. `autoMemoryEnabled: false` stops the harness
   writing memory files, and the deny stops an agent authoring one by hand.
 
-`BASE_ALLOWED_PERMISSIONS` carries two ssh host rules, Kai's call 2026-09-20.
-Both miss a flagged `ssh -o ...`: `teable:coilyco-flight-deck/agentic-os#7992`.
-
-It also carries an exact `describe` rule for `forgejo` and `forgejo-admin`
-(COI-2659). Whether they skip the classifier is unverified until a host converges.
+`BASE_ALLOWED_PERMISSIONS` carries two ssh host rules, Kai's call 2026-09-20, that both miss a flagged `ssh -o ...`: `teable:coilyco-flight-deck/agentic-os#7992`.
+Its `aosguard` rules (COI-2659, COI-2662) are exact `describe` for `forgejo` and `forgejo-admin`, then `*`, `ops *`, `update *`, and `ops <area> *` per area in `aosguard ops --help`.
+`autoMode.allow` merges beside `$defaults` the same way, never `Bash(*)`.
+Whether these rules skip the classifier is unverified until a host converges.
 
 `effortLevel` is deliberately not a fleet key. It tunes latency and spend per
 host, which makes it operator-local preference under the config-placement axes,

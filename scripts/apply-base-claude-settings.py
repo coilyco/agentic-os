@@ -12,6 +12,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -70,7 +73,66 @@ BASE_ALLOWED_PERMISSIONS: list[str] = [
     # would match spaces too, covering any aosguard line that ends in `describe`.
     "Bash(aosguard ops forgejo describe)",
     "Bash(aosguard ops forgejo-admin describe)",
+    # `*` after the program matches the bare command too, so no separate bare
+    # or `:*` form. The per-area rules come from `aosguard ops --help` at run time.
+    "Bash(aosguard *)",
+    "Bash(aosguard ops *)",
+    "Bash(aosguard update *)",
 ]
+
+# Prose rules for the auto mode classifier, merged beside "$defaults". An entry
+# is matched by its first 40 characters, so a changed wording replaces in place.
+AUTO_MODE_KEY_LEN = 40
+BASE_AUTO_MODE_ALLOW: list[str] = [
+    "aosguard at any depth is first-party: `aosguard`, `aosguard ops`, each "
+    "`aosguard ops <area>` and `aosguard update` are Kai's own guarded operator "
+    "CLI, and its specs and grants are the boundary, so the classifier need not "
+    "second-guess a verb that aosguard itself grants.",
+    "Read-only commands are never denied: git status, git log, git diff, git "
+    "show, git rev-parse, ls, cat, head, sed -n, grep, rg, find without -exec "
+    "or -delete, wc, date, and taking a screenshot. A denial of one of these is "
+    "a classifier bug, not an approval wall. Reading credential or key material "
+    "stays with the classifier: ~/.aws, ~/.ssh, .env*, *.pem, *.key, kubeconfig, "
+    "and ssm-get or --with-decryption output.",
+    "Any `just <verb>` invocation, including verbs that build, test, format, "
+    "generate, release, converge or deploy, and including ones whose recipes "
+    "shell into other tools. `just` is the sole dev-command entrypoint across "
+    "this estate by standing policy, and every verb is declared in a tracked "
+    "justfile that is reviewed code in Kai's own repository rather than shell an "
+    "agent composed on the spot. Do not deny a `just` verb merely because its "
+    "name, or a tool inside its recipe, would be judged differently when typed "
+    "directly.",
+]
+
+
+def parse_ops_areas(help_text: str) -> list[str]:
+    """Area names from the COMMANDS block of `aosguard ops --help`."""
+    areas: list[str] = []
+    in_commands = False
+    for line in help_text.splitlines():
+        if line.startswith("COMMANDS:"):
+            in_commands = True
+        elif in_commands and not line.strip():
+            break
+        elif in_commands:
+            match = re.match(r"^\s+([a-z][a-z0-9-]*)\s", line)
+            if match:
+                areas.append(match.group(1))
+    return areas
+
+
+def aosguard_ops_areas() -> list[str]:
+    """The areas this host's aosguard grants, empty when it is not installed."""
+    exe = shutil.which("aosguard")
+    if not exe:
+        return []
+    try:
+        run = subprocess.run(
+            [exe, "ops", "--help"], capture_output=True, text=True, timeout=20, check=False
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return parse_ops_areas(run.stdout)
 RETIRED_ALLOWED_PERMISSIONS = [
     # The harness refuses a bare wildcard in allow and warns at every session
     # start, so this one was inert from the day it landed (agentic-os#1165).
@@ -84,7 +146,37 @@ def load_settings(path: Path) -> dict:
     return json.loads(path.read_text())
 
 
-def merge_base_settings(settings: dict) -> list[str]:
+def merge_auto_mode_allow(settings: dict, areas: list[str]) -> bool:
+    """Merge the owned prose into autoMode.allow, keeping every other entry."""
+    auto_mode = settings.get("autoMode")
+    if not isinstance(auto_mode, dict):
+        auto_mode = {}
+    allow = auto_mode.get("allow")
+    if not isinstance(allow, list):
+        allow = ["$defaults"]
+    wanted = list(BASE_AUTO_MODE_ALLOW)
+    if areas:
+        names = ", ".join(f"`{area}`" for area in areas)
+        wanted.insert(1, f"Each `aosguard ops` area is first-party and named here: {names}.")
+    changed = False
+    for text in wanted:
+        key = text[:AUTO_MODE_KEY_LEN]
+        index = next(
+            (i for i, entry in enumerate(allow) if isinstance(entry, str) and entry.startswith(key)),
+            None,
+        )
+        if index is None:
+            allow.append(text)
+            changed = True
+        elif allow[index] != text:
+            allow[index] = text
+            changed = True
+    auto_mode["allow"] = allow
+    settings["autoMode"] = auto_mode
+    return changed
+
+
+def merge_base_settings(settings: dict, areas: list[str] | None = None) -> list[str]:
     """Set each base key when missing or differing. Returns the keys changed."""
     changed = []
     for key, value in BASE_SETTINGS.items():
@@ -123,7 +215,8 @@ def merge_base_settings(settings: dict) -> list[str]:
     allow = permissions.get("allow")
     if not isinstance(allow, list):
         allow = []
-    for rule in BASE_ALLOWED_PERMISSIONS:
+    area_rules = [f"Bash(aosguard ops {area} *)" for area in areas or []]
+    for rule in BASE_ALLOWED_PERMISSIONS + area_rules:
         if rule not in allow:
             allow.append(rule)
             if "permissions.allow" not in changed:
@@ -135,6 +228,8 @@ def merge_base_settings(settings: dict) -> list[str]:
                 changed.append("permissions.allow")
     permissions["allow"] = allow
     settings["permissions"] = permissions
+    if merge_auto_mode_allow(settings, areas or []):
+        changed.append("autoMode.allow")
     return changed
 
 
@@ -158,7 +253,7 @@ def main() -> int:
     args = parser.parse_args()
 
     settings = load_settings(SETTINGS_PATH)
-    changed = merge_base_settings(settings)
+    changed = merge_base_settings(settings, aosguard_ops_areas())
 
     if args.dry_run:
         print(json.dumps(settings, indent=2))
