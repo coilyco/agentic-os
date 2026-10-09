@@ -814,6 +814,9 @@ func (d *daemon) send(c *conn, message frame) error {
 	if strings.TrimSpace(message.Body) == "" {
 		return withExit(exitUsage, errors.New("the message is empty"))
 	}
+	if len(message.Body) > maxSendBody {
+		return errSendTooLong()
+	}
 	from := sender.role + " " + sender.identity
 	pending := &pendingSend{
 		msg: peerMessage{
