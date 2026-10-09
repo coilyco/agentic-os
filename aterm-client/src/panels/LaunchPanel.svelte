@@ -1,9 +1,9 @@
 <script lang="ts">
   import Creature from "../components/Creature.svelte";
-  import { app, failedLaunchOf, reconnecting, selectSession } from "../lib/app.svelte";
+  import { app, failedLaunchOf, placeNow, reconnecting, selectSession } from "../lib/app.svelte";
   import type { Role } from "../lib/roster";
   import { sessionCode } from "../lib/sessions";
-  import PasskeyUnlock from "../components/PasskeyUnlock.svelte";
+  import Unlock from "../components/Unlock.svelte";
   import { typingNotice } from "../lib/typing";
 
   let { role }: { role: Role } = $props();
@@ -44,8 +44,8 @@
         </button>
       {/each}
     </div>
-    <p class="launch-state" data-state={launch?.state ?? "idle"} role="status">{app.typing.allowed ? (launch?.text ?? "") : `Read only. ${typingNotice(app.typing)}`}</p>
-    <PasskeyUnlock />
+    <p class="launch-state" data-state={launch?.state ?? "idle"} role="status">{app.typing.allowed ? (launch?.text ?? "") : `Read only. ${typingNotice(app.typing, placeNow())}`}</p>
+    <Unlock />
   {:else}
     <p class="howto">Not running. Launching from this window is not wired to the daemon yet, so start it on the host:</p>
     <pre class="mono">aterm {role.slug}</pre>

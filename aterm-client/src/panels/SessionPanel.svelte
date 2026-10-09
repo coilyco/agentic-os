@@ -6,7 +6,7 @@
   import SidePanel from "../components/SidePanel.svelte";
   import SplitHandle from "../components/SplitHandle.svelte";
   import Terminal from "../components/Terminal.svelte";
-  import { app, asksFor, colorOf, jumpToWaiting, messagesFor, reconnecting } from "../lib/app.svelte";
+  import { app, asksFor, colorOf, jumpToWaiting, messagesFor, placeNow, reconnecting } from "../lib/app.svelte";
   import { askAnswer, CANCEL, choiceFromAsk, detectChoice, keysFor, type Choice } from "../lib/choices";
   import { contextPercent, contextText } from "../lib/context";
   import { isBlank } from "../lib/screen";
@@ -181,6 +181,7 @@
             ondraft={(text) => (text ? (app.drafts[session.id] = text) : delete app.drafts[session.id])}
             onsent={() => (app.inputNotice = "")}
             onfocuschange={(focused) => (app.composing = focused)}
+            place={placeNow()}
           />
         {/key}
       {/if}

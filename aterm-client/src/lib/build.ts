@@ -9,5 +9,5 @@ export const EXTERNAL = HOSTED || IN_APP;
 /** Only the coilyco.dev page can run the ceremony, since the daemon's RP is there. */
 export const CAN_PASSKEY = HOSTED && !IN_APP;
 
-export type Place = "hosted" | "app" | "served";
+export type Place = "hosted" | "app" | "app-key" | "served";
 export const PLACE: Place = IN_APP ? "app" : HOSTED ? "hosted" : "served";

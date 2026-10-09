@@ -1,5 +1,6 @@
 import { nextUnseen } from "./activity";
-import { EXTERNAL } from "./build";
+import { EXTERNAL, PLACE, type Place } from "./build";
+import { bridge } from "./device-key";
 import { type AttentionSettings, loadAttention, storeAttention } from "./attention";
 import { chime, isBlocked, unlock, watchBlocked } from "./chime";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
@@ -36,6 +37,8 @@ export const app = $state({
   newerBuild: false,
   /** Whether the daemon's guard lets this connection type. A mock host never refuses. */
   typing: TYPING_OPEN as Typing,
+  /** The host lists device-key and this page has the app's plugin. */
+  deviceKeyAvailable: false,
   /** The welcome lists passkey. Reactive, which the connection's feature list is not. */
   passkeyAvailable: false,
   roles: [] as Role[],
@@ -256,6 +259,7 @@ export function selectHost(host: Host): void {
   app.newerBuild = false;
   app.typing = TYPING_OPEN;
   app.passkeyAvailable = false;
+  app.deviceKeyAvailable = false;
   app.inputNotice = "";
   app.drafts = {};
   app.roles = [];
@@ -294,6 +298,7 @@ export function selectHost(host: Host): void {
     else if (event.type === "view_closed") delete app.views[event.id];
     else if (event.type === "browser") app.browsers[event.browser.session] = event.browser;
     else if (event.type === "passkey") app.passkeyAvailable = event.available;
+    else if (event.type === "device_key") app.deviceKeyAvailable = event.available && bridge() !== null;
     else if (event.type === "features") app.terminalSupport = event.terminals ? "yes" : "no";
     else if (event.type === "terminals") {
       app.terminals = applyList(app.terminals, event.terminals, app.terminalSeats, dismissed);
@@ -459,4 +464,9 @@ export async function setAlert(key: keyof AttentionSettings, on: boolean): Promi
 /** Plays the cue if Sound is on. */
 export function playCue(): void {
   if (app.alerts.sound) chime();
+}
+
+/** Where this page unlocks from, for the words a locked device shows. */
+export function placeNow(): Place {
+  return app.deviceKeyAvailable ? "app-key" : PLACE;
 }

@@ -5,7 +5,9 @@
 export type PasskeyStanding = "enrolled" | "unenrolled";
 
 /** `passkey` rides on an allowed answer too, so an unlocked device can still enroll. */
-export type Typing = { allowed: true; passkey?: PasskeyStanding } | { allowed: false; reason: string; passkey?: PasskeyStanding };
+export type Typing =
+  | { allowed: true; passkey?: PasskeyStanding; deviceKey?: PasskeyStanding }
+  | { allowed: false; reason: string; passkey?: PasskeyStanding; deviceKey?: PasskeyStanding };
 
 export const TYPING_OPEN: Typing = { allowed: true };
 
@@ -17,9 +19,11 @@ const REFUSAL_REASONS = new Set(["session_descendant", "peer_unread", "passkey_r
 /** `welcome.typing` or a `typing` push, or null from a daemon that predates the guard. */
 export function parseTyping(raw: unknown): Typing | null {
   if (typeof raw !== "object" || raw === null) return null;
-  const { allowed, reason, passkey } = raw as { allowed?: unknown; reason?: unknown; passkey?: unknown };
-  const standing: { passkey?: PasskeyStanding } = passkey === "enrolled" || passkey === "unenrolled" ? { passkey } : {};
-  if (allowed === true) return standing.passkey ? { allowed: true, ...standing } : TYPING_OPEN;
+  const { allowed, reason, passkey, device_key } = raw as { allowed?: unknown; reason?: unknown; passkey?: unknown; device_key?: unknown };
+  const standing: { passkey?: PasskeyStanding; deviceKey?: PasskeyStanding } = {};
+  if (passkey === "enrolled" || passkey === "unenrolled") standing.passkey = passkey;
+  if (device_key === "enrolled" || device_key === "unenrolled") standing.deviceKey = device_key;
+  if (allowed === true) return standing.passkey || standing.deviceKey ? { allowed: true, ...standing } : TYPING_OPEN;
   if (allowed !== false) return null;
   return { allowed: false, reason: typeof reason === "string" && reason ? reason : "unspecified", ...standing };
 }
@@ -31,8 +35,10 @@ export function refusalOf(frame: { reason?: unknown }): Typing | null {
 
 /** A refusal frame names no passkey standing, so keep the one the welcome gave. */
 export function keepStanding(next: Typing, previous: Typing | undefined): Typing {
-  if (next.allowed || next.passkey || !previous || previous.allowed || previous.reason !== next.reason || !previous.passkey) return next;
-  return { ...next, passkey: previous.passkey };
+  if (next.allowed || !previous || previous.allowed || previous.reason !== next.reason) return next;
+  const passkey = next.passkey ?? previous.passkey;
+  const deviceKey = next.deviceKey ?? previous.deviceKey;
+  return { ...next, ...(passkey ? { passkey } : {}), ...(deviceKey ? { deviceKey } : {}) };
 }
 
 /** What the passkey section offers. */
@@ -67,6 +73,7 @@ export function typingNotice(typing: Typing, place: Place = PLACE): string {
     case "peer_unread":
       return "The daemon could not tell which program opened this page, so it blocks typing to be safe. You can still watch.";
     case "passkey_required":
+      if (place === "app-key") return "This device is locked. It can watch, and types after you unlock it with your fingerprint or screen lock.";
       if (place === "app") return "This device is locked, and the app cannot unlock it yet. It can watch but not type.";
       return place === "hosted"
         ? "This device is locked. It can watch, and types after you unlock it with a passkey."

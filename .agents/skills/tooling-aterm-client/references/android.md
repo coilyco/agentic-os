@@ -10,7 +10,7 @@ The [aterm web client](../../../../aterm-client/README.md) wrapped as an Android
 
 ## Build
 
-* **`just aterm-android-toolchain`** installs JDK 17, the Android command-line tools (pinned by SHA-256), platform 36, build-tools 36.0.0, NDK 27.3.13750724 and the `aarch64-linux-android` Rust target. It runs as root, as the CI container does.
+* **`just aterm-android-toolchain`** installs JDK 17, the Android command-line tools (pinned by SHA-256), platform 37.0, build-tools 36.0.0, NDK 27.3.13750724 and the `aarch64-linux-android` Rust target. It runs as root, as the CI container does.
 * **`just aterm-android-build VERSION OUT`** builds the client with `VITE_ATERM_APP=1`, runs `tauri android init`, then `tauri android build --apk --target aarch64`. Only arm64 is built, which is every current Pixel. Tauri derives the Android versionCode from VERSION as major*1000000 + minor*1000 + patch, so a larger version always installs over a smaller one.
 * **`just aterm-android-sign IN OUT`** signs with apksigner from `ATERM_ANDROID_KEYSTORE_B64` and `ATERM_ANDROID_KEYSTORE_PASSWORD`, and with a throwaway key when they are unset, then runs verify. Verify checks the v2 or v3 signature, the package name, arm64-only native code, 16 KiB page alignment of the native library, and the signer certificate against `ATERM_ANDROID_CERT_SHA256` when that is set, because an update signed with another key does not install over the last one.
 
