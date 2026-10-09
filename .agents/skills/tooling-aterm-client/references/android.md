@@ -16,8 +16,13 @@ The [aterm web client](../../../../aterm-client/README.md) wrapped as an Android
 
 The scripted steps are [`scripts/ci/aterm-android.sh`](../../../../scripts/ci/aterm-android.sh). Every Android pin is manual and lives at its top.
 
+## Pins
+
+**Rust and Gradle resolve the same bytes every build (COI-2625).** `src-tauri/Cargo.lock` is committed, and `build` stops before compiling when it is missing or stale, or when the build rewrote it. Refresh it with `just aterm-android-lock` after a pin change.
+
+**`aterm-android/gradle/verification-metadata.xml` holds a SHA-256 for every Gradle and Maven artifact the release build resolves, and `build` copies it into the generated project.** The Gradle distribution and the wrapper jar are checked against the vendor's published checksums, which `GRADLE_*` in the script carry. Gradle runs in strict verification, so an artifact that changed upstream, or a new one a Tauri bump pulls in, fails the build until `just aterm-android-gradle-pins` rewrites the file. Review that diff, because it trusts what Maven serves at that moment. It records checksums only, not publisher signatures.
+
 ## Not yet verified
 
 * An APK installed and opened on a phone.
 * Whether Android System WebView honours `interactive-widget=resizes-content` for the keyboard.
-* Gradle and Maven dependencies are not hash-verified. Tauri's generated project pulls the Android Gradle plugin and AndroidX from Google Maven and Maven Central with no dependency verification metadata.
