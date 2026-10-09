@@ -18,11 +18,11 @@ and needs to be walked through it. That reader exists for umbra, mcp-beaver,
 housecast and agent-compose. Everywhere else the reader is Kai or an agent,
 and what they need is reference in `docs/` or a skill.
 
-agentic-os holds a shelf too, only for the user-facing commands a human runs as
-a product, such as the aterm client. Repo procedure (committing, running hooks)
-is still procedure and lives in `docs/*.md` under the ordinary per-doc caps. If
-your repo is not one of these, the rest of this page is background: you are
-writing a `docs/` page.
+agentic-os holds a shelf too, only for what a human does day to day in the aterm
+client: what they open, see and answer. An agent types the commands, so a guide
+never lists them. Repo procedure (committing, running hooks) lives in `docs/*.md`
+under the ordinary caps. If your repo is not one of these, the rest of this page
+is background: you are writing a `docs/` page.
 
 ## The test
 
