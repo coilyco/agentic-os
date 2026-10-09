@@ -452,7 +452,7 @@ func checkTailnetListener(ctx context.Context, report *doctorReport, roots *x509
 	defer cancel()
 	config := &tls.Config{ServerName: node.FQDN, RootCAs: roots, MinVersion: tls.VersionTLS12}
 	if err := probeTailnetTLS(ctx, address, config); err != nil {
-		report.add("tailnet", doctorWarn, "%v. The daemon binds a new listener after %d failed probes %s apart, so this clears on its own unless Tailscale is down", err, tailnetProbe.fails, tailnetProbe.every)
+		report.add("tailnet", doctorWarn, "%v. The daemon binds a new listener after %d failed probes %s apart, so this clears on its own when the listener went stale. If it persists, check that the daemon's binary still exists (an upgrade removes it and macOS then drops its flows)", err, tailnetProbe.fails, tailnetProbe.every)
 		return
 	}
 	report.add("tailnet", doctorOK, "a TLS handshake to %s as %s completed", address, node.FQDN)

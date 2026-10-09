@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -89,6 +90,11 @@ type daemon struct {
 
 	// push sends Web Push to a browser that is not connected. See daemon_push.go.
 	push pushState
+
+	// replaced is set when the daemon stops because its binary was removed.
+	replaced atomic.Bool
+	// stopServing closes the main listener, which is how a signal stops the daemon.
+	stopServing func()
 }
 
 func newDaemon(logf func(string, ...any)) *daemon {
@@ -160,6 +166,8 @@ type daemonOptions struct {
 	VAPIDKey string
 	// Stop ends the daemon when closed, as a signal does. A test's handle.
 	Stop <-chan struct{}
+	// tailnetListen replaces the tailnet bind, so a test needs no Tailscale.
+	tailnetListen func() (*tailnetServing, error)
 }
 
 // runDaemon holds the lock, owns the socket, and serves until idle. A second
@@ -211,6 +219,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
 	defer signal.Stop(stop)
+	d.stopServing = func() { _ = listener.Close() }
 	go func() {
 		select {
 		case <-stop:
@@ -254,9 +263,13 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		d.tailnet.want()
 		done := make(chan struct{})
 		defer close(done)
-		go d.serveTailnetWhenUp(done, func() (*tailnetServing, error) {
-			return d.listenTailnet(options.TailnetPort, options.AllowTags, options.AllowOrigins, filepath.Join(dir, "tailnet"))
-		})
+		listen := options.tailnetListen
+		if listen == nil {
+			listen = func() (*tailnetServing, error) {
+				return d.listenTailnet(options.TailnetPort, options.AllowTags, options.AllowOrigins, filepath.Join(dir, "tailnet"))
+			}
+		}
+		go d.serveTailnetWhenUp(done, listen)
 	}
 	go d.watchIdle(listener, idle)
 	for {
@@ -275,6 +288,9 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		d.letGoAll()
 	}
 	logf("stopped")
+	if d.replaced.Load() {
+		return errExecutableReplaced
+	}
 	return nil
 }
 
