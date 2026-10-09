@@ -11,7 +11,7 @@ repo_root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 # published SHA-256 and is re-checked against the bytes at each download.
 CMDLINE_TOOLS_REV=15859902
 CMDLINE_TOOLS_SHA256=4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583
-ANDROID_PLATFORM=android-36
+ANDROID_PLATFORM=android-37.0
 BUILD_TOOLS=36.0.0
 NDK_VERSION=27.3.13750724
 RUST_TARGET=aarch64-linux-android
@@ -53,9 +53,12 @@ toolchain() {
     mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
     rm "$zip"
   fi
+  # dev-base carries node but no pnpm, and Gradle's Rust plugin execs a literal pnpm.
+  corepack enable pnpm
+  command -v pnpm >/dev/null || fail "pnpm is not on PATH after corepack enable"
   use_java
   yes | sdkmanager --licenses >/dev/null || true
-  sdkmanager "platforms;$ANDROID_PLATFORM" "build-tools;$BUILD_TOOLS" "ndk;$NDK_VERSION"
+  sdkmanager "platform-tools" "platforms;$ANDROID_PLATFORM" "build-tools;$BUILD_TOOLS" "ndk;$NDK_VERSION"
   rustup target add "$RUST_TARGET"
   java -version
   echo "toolchain ready: platform $ANDROID_PLATFORM, build-tools $BUILD_TOOLS, ndk $NDK_VERSION, rust target $RUST_TARGET"
@@ -131,9 +134,10 @@ verify() {
   libs=$(find "$work/lib/arm64-v8a" -name '*.so')
   [ -n "$libs" ] || fail "no native library in $apk"
   for lib in $libs; do
-    "$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -lW "$lib" \
-      | awk '$1 == "LOAD" { if (strtonum($NF) < 16384) bad = 1 } END { exit bad }' \
-      || fail "$(basename "$lib") has a LOAD segment aligned below 16 KiB"
+    for align in $("$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf" -lW "$lib" \
+      | awk '$1 == "LOAD" { print $NF }'); do
+      [ $((align)) -ge 16384 ] || fail "$(basename "$lib") has a LOAD segment aligned at $align, below 16 KiB"
+    done
   done
   rm -rf "$work"
   echo "signer SHA-256: $cert"

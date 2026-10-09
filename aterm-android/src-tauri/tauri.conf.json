@@ -22,6 +22,9 @@
     "targets": "all",
     "icon": [
       "icons/icon.png"
-    ]
+    ],
+    "android": {
+      "minSdkVersion": 30
+    }
   }
 }
