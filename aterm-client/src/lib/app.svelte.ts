@@ -36,6 +36,8 @@ export const app = $state({
   newerBuild: false,
   /** Whether the daemon's guard lets this connection type. A mock host never refuses. */
   typing: TYPING_OPEN as Typing,
+  /** The welcome lists passkey. Reactive, which the connection's feature list is not. */
+  passkeyAvailable: false,
   roles: [] as Role[],
   sessions: [] as Session[],
   messages: [] as PeerMessage[],
@@ -59,6 +61,12 @@ export const app = $state({
   triage: false,
   /** Bumped to ask the visible choice card to take keyboard focus. */
   focusCard: 0,
+  /** The seat whose card a triage jump asked for the keyboard. Spent once it has it. */
+  focusAsk: null as string | null,
+  /** What was typed and not sent, by seat, so a lock or a seat change never takes it. */
+  drafts: {} as Record<string, string>,
+  /** Why typed input was not taken. Stays until dismissed or the next send. */
+  inputNotice: "",
   /** MCP Apps views by view id, newest last. */
   views: {} as Record<string, View>,
   /** Each seat's shared browser, by session id. */
@@ -245,6 +253,9 @@ export function selectHost(host: Host): void {
   app.link = { state: "live" };
   app.newerBuild = false;
   app.typing = TYPING_OPEN;
+  app.passkeyAvailable = false;
+  app.inputNotice = "";
+  app.drafts = {};
   app.roles = [];
   app.sessions = [];
   app.messages = [];
@@ -270,6 +281,7 @@ export function selectHost(host: Host): void {
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
     else if (event.type === "typing") app.typing = event.typing;
     else if (event.type === "notice") app.notice = event.text;
+    else if (event.type === "input_refused") app.inputNotice = event.text;
     else if (event.type === "ask") app.asks[event.ask.id] = event.ask;
     else if (event.type === "asked") delete app.asks[event.id];
     else if (event.type === "view") app.views[event.view.id] = event.view;
@@ -279,6 +291,7 @@ export function selectHost(host: Host): void {
     }
     else if (event.type === "view_closed") delete app.views[event.id];
     else if (event.type === "browser") app.browsers[event.browser.session] = event.browser;
+    else if (event.type === "passkey") app.passkeyAvailable = event.available;
     else if (event.type === "features") app.terminalSupport = event.terminals ? "yes" : "no";
     else if (event.type === "terminals") {
       app.terminals = applyList(app.terminals, event.terminals, app.terminalSeats, dismissed);
@@ -401,7 +414,10 @@ export function jumpToWaiting(): boolean {
   const next = waitingSeats()[0];
   if (!next) return false;
   selectSession(next.sessionId);
-  if (next.kind === "asking") app.focusCard++;
+  if (next.kind === "asking") {
+    app.focusAsk = next.sessionId;
+    app.focusCard++;
+  }
   return true;
 }
 

@@ -685,3 +685,75 @@ describe("riding out a daemon restart", () => {
     host.close();
   });
 });
+
+describe("typed input that goes nowhere", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  const refused = (events: HostEvent[]) => events.filter((event) => event.type === "input_refused");
+  const lastId = (socket: StubSocket) => (JSON.parse(socket.sent.at(-1)!) as { id: string }).id;
+
+  it("says so in the daemon's words when an error answers typed input and no lock explains it", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, typing: { allowed: true } });
+    host.input("seat", "hello");
+    socket.receive({ type: "error", id: lastId(socket), code: 1, error: 'not attached to "seat"' });
+    expect(refused(events)).toEqual([{ type: "input_refused", text: 'Not sent. not attached to "seat"' }]);
+    host.close();
+  });
+
+  it("leaves a refusal the lock already shows to the lock", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, typing: { allowed: true } });
+    host.input("seat", "hello");
+    socket.receive({ type: "error", id: lastId(socket), code: 6, error: "assert this device's passkey before it types", reason: "passkey_required" });
+    expect(refused(events)).toEqual([]);
+    expect(typings(events).at(-1)).toEqual({ type: "typing", typing: { allowed: false, reason: "passkey_required" } });
+    host.close();
+  });
+
+  it("ignores an error that names nothing typed", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, typing: { allowed: true } });
+    host.input("seat", "hello");
+    socket.receive({ type: "error", id: "c999", code: 1, error: "unrelated" });
+    expect(refused(events)).toEqual([]);
+    host.close();
+  });
+
+  it("reports input lost to a closed socket instead of dropping it unseen", () => {
+    vi.useFakeTimers();
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, typing: { allowed: true } });
+    socket.drop();
+    const before = socket.sent.length;
+    host.input("seat", "hello");
+    expect(socket.sent.length).toBe(before);
+    expect(refused(events)).toEqual([{ type: "input_refused", text: expect.stringMatching(/^Not sent\./) }]);
+    host.close();
+  });
+});
+
+describe("the passkey flag", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const flags = (events: HostEvent[]) => events.filter((event) => event.type === "passkey");
+
+  it("says whether the welcome lists passkey, and replays it to a later subscriber", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, features: ["typing-guard", "passkey"] });
+    expect(flags(events)).toEqual([{ type: "passkey", available: true }]);
+    const late: HostEvent[] = [];
+    host.subscribe((event) => late.push(event));
+    expect(flags(late)).toEqual([{ type: "passkey", available: true }]);
+    host.close();
+  });
+
+  it("says no for a daemon that lists no passkey", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, features: ["typing-guard"] });
+    expect(flags(events)).toEqual([{ type: "passkey", available: false }]);
+    host.close();
+  });
+});

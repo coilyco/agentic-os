@@ -4,7 +4,8 @@
 /** A remote device's passkey, as the daemon last said: one exists, or none yet. */
 export type PasskeyStanding = "enrolled" | "unenrolled";
 
-export type Typing = { allowed: true } | { allowed: false; reason: string; passkey?: PasskeyStanding };
+/** `passkey` rides on an allowed answer too, so an unlocked device can still enroll. */
+export type Typing = { allowed: true; passkey?: PasskeyStanding } | { allowed: false; reason: string; passkey?: PasskeyStanding };
 
 export const TYPING_OPEN: Typing = { allowed: true };
 
@@ -18,13 +19,10 @@ const REFUSAL_REASONS = new Set(["session_descendant", "peer_unread", "passkey_r
 export function parseTyping(raw: unknown): Typing | null {
   if (typeof raw !== "object" || raw === null) return null;
   const { allowed, reason, passkey } = raw as { allowed?: unknown; reason?: unknown; passkey?: unknown };
-  if (allowed === true) return TYPING_OPEN;
+  const standing: { passkey?: PasskeyStanding } = passkey === "enrolled" || passkey === "unenrolled" ? { passkey } : {};
+  if (allowed === true) return standing.passkey ? { allowed: true, ...standing } : TYPING_OPEN;
   if (allowed !== false) return null;
-  return {
-    allowed: false,
-    reason: typeof reason === "string" && reason ? reason : "unspecified",
-    ...(passkey === "enrolled" || passkey === "unenrolled" ? { passkey } : {}),
-  };
+  return { allowed: false, reason: typeof reason === "string" && reason ? reason : "unspecified", ...standing };
 }
 
 /** An `error` frame the guard sent. Any other error, reason or not, is no refusal. */
@@ -36,6 +34,24 @@ export function refusalOf(frame: { reason?: unknown }): Typing | null {
 export function keepStanding(next: Typing, previous: Typing | undefined): Typing {
   if (next.allowed || next.passkey || !previous || previous.allowed || previous.reason !== next.reason || !previous.passkey) return next;
   return { ...next, passkey: previous.passkey };
+}
+
+/** What the passkey section offers. */
+export interface PasskeyOffer {
+  /** Assertion with a passkey that already exists. Left out when none does. */
+  unlock: boolean;
+  /** The enrollment code field, which stays reachable even when nothing is locked. */
+  enroll: boolean;
+  /** Open by default, because no passkey is known to exist yet. */
+  enrollOpen: boolean;
+}
+
+/** `always` is the host page. An unknown standing shows both paths, never none. */
+export function passkeyOffer(typing: Typing, opts: { hosted: boolean; channel: boolean; always?: boolean }): PasskeyOffer | null {
+  if (!opts.hosted || !opts.channel) return null;
+  const locked = needsPasskey(typing);
+  if (!locked && !opts.always) return null;
+  return { unlock: locked && typing.passkey !== "unenrolled", enroll: true, enrollOpen: typing.passkey !== "enrolled" };
 }
 
 /** True while a passkey can lift the lock. A refused `cancel_ask` stays disabled then. */

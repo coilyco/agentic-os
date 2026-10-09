@@ -127,7 +127,8 @@
                   <ChoiceCard
                     choice={choiceFromAsk(ask)}
                     identity={session.identity}
-                    focusToken={app.focusCard}
+                    focusToken={app.focusAsk === session.id ? app.focusCard : 0}
+                    onfocused={() => (app.focusAsk = null)}
                     locked={!app.typing.allowed || reconnecting()}
                     lockedLabel={reconnecting() ? "Reconnecting" : "Read only"}
                     cancelLocked={needsPasskey(app.typing) || reconnecting()}
@@ -152,7 +153,22 @@
               {/key}
             {/if}
           </div>
-          <Composer connection={app.connection} {session} sessions={app.sessions} typing={app.typing} offline={reconnecting()} />
+          {#if app.inputNotice}
+            <p class="input-notice" role="alert">
+              <span>{app.inputNotice}</span>
+              <button type="button" onclick={() => (app.inputNotice = "")}>Dismiss</button>
+            </p>
+          {/if}
+          <Composer
+            connection={app.connection}
+            {session}
+            sessions={app.sessions}
+            typing={app.typing}
+            offline={reconnecting()}
+            draft={app.drafts[session.id] ?? ""}
+            ondraft={(text) => (text ? (app.drafts[session.id] = text) : delete app.drafts[session.id])}
+            onsent={() => (app.inputNotice = "")}
+          />
         {/key}
       {/if}
     </div>
@@ -175,6 +191,8 @@
   .work { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .screen { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
   .screen[data-link="reconnecting"] :global(.xterm) { filter: grayscale(1); opacity: 0.7; }
+  .input-notice { margin: 0; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; border-top: 1px solid var(--danger); background: var(--danger-fill); color: var(--danger-text); font-size: 14px; }
+  .input-notice button { min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--danger); background: transparent; color: var(--danger-text); }
   .starting { position: absolute; inset: 0; margin: 0; padding: 24px; display: grid; place-content: center; text-align: center; color: var(--muted); pointer-events: none; }
   .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
   .body { --side: 360px; --strip: calc(56px + env(safe-area-inset-bottom)); flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--side); min-height: 0; }

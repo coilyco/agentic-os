@@ -101,9 +101,14 @@
       <button class="button remove" onclick={() => keep(host)}>Save {host.label} to this device</button>
     {/if}
   {/if}
-  {#if !app.typing.allowed && host?.id === app.attachedHostId}
-    <p class="lede" role="status"><strong>Read only.</strong> {typingNotice(app.typing)}</p>
-    <PasskeyUnlock />
+  {#if host?.id === app.attachedHostId}
+    <!-- The passkey section is here whatever the lock says, so enrollment never depends on a lock that failed to show. -->
+    {#if !app.typing.allowed}
+      <p class="lede" role="status"><strong>Read only.</strong> {typingNotice(app.typing)}</p>
+    {:else if HOSTED && app.passkeyAvailable}
+      <p class="lede" role="status">Typing is on for this device.</p>
+    {/if}
+    <PasskeyUnlock always />
   {/if}
   <p class="note" role="status">{app.notice}</p>
   <InstallCard />

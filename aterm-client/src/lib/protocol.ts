@@ -94,6 +94,8 @@ export type HostEvent =
   | { type: "output"; sessionId: string; data: string | Uint8Array }
   | { type: "message"; message: PeerMessage }
   | { type: "notice"; text: string }
+  // Typed input not taken for a reason the lock does not show, or lost to a dead socket.
+  | { type: "input_refused"; text: string }
   | { type: "ask"; ask: Ask }
   | { type: "asked"; id: string; outcome: AskOutcome }
   | { type: "launch"; role: string; state: LaunchState; text: string }
@@ -108,6 +110,8 @@ export type HostEvent =
   | { type: "view_closed"; id: string }
   | { type: "browser"; browser: SharedBrowser }
   | { type: "features"; terminals: boolean }
+  // Whether this daemon runs a passkey ceremony. Apart from `features`, which tests pin.
+  | { type: "passkey"; available: boolean }
   | { type: "terminals"; terminals: ListedTerminal[] }
   | { type: "terminal_opened"; label: string; id: string }
   | { type: "terminal_exit"; id: string; code: number }
