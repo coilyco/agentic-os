@@ -51,6 +51,7 @@ than editing it by hand.
 * [architecture.md](references/architecture.md) - the host seam, envelopes, activity, the composer.
 * [discovery.md](references/discovery.md) - the `hosts` frame and how the host list merges the daemons it finds.
 * [choices.md](references/choices.md) - native choice cards and `ask_choice`.
+* [grants.md](references/grants.md) - approval grants: one Kai decision carried to the executing seats, and the daemon's refusals.
 * [passkey.md](references/passkey.md) - the passkey unlock a remote device needs before it types.
 * [reach.md](references/reach.md) - why a device cannot reach the daemon, the layers the client names, and what the daemon logs.
 * [sizing.md](references/sizing.md) - how a session's PTY is sized when clients of different sizes attach, the `size` frame, and `pty-size`.
