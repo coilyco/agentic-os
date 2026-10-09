@@ -13,6 +13,7 @@ vi.mock("./daemon-host", async (original) => ({
     return 2;
   }),
 }));
+vi.mock("./reach", () => ({ diagnose: vi.fn(async () => ({ layer: "network", message: "Nothing answered." })) }));
 vi.mock("./discovery", async (original) => ({
   ...(await original<typeof import("./discovery")>()),
   discover: vi.fn(async () => replies.found),

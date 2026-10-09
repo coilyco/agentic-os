@@ -30,6 +30,10 @@ const (
 	whoisTTL = time.Minute
 )
 
+// whoisRefusedTTL keeps a refusal just long enough for one page load to cost one
+// whois, so a device tagged a moment ago is admitted on its next load.
+var whoisRefusedTTL = 2 * time.Second
+
 // defaultAllowTags mirrors the tailnet's SSH grant between physical devices,
 // so admitting them grants nothing SSH does not. See docs/aterm-daemon.md.
 var defaultAllowTags = []string{"tag:physical"}
@@ -106,6 +110,7 @@ func readTailnetNode() (tailnetNode, error) {
 			DNSName      string   `json:"DNSName"`
 			TailscaleIPs []string `json:"TailscaleIPs"`
 			UserID       int64    `json:"UserID"`
+			Tags         []string `json:"Tags"`
 		} `json:"Self"`
 		User map[string]struct {
 			LoginName string `json:"LoginName"`
@@ -114,9 +119,11 @@ func readTailnetNode() (tailnetNode, error) {
 	if err := json.Unmarshal(raw, &status); err != nil {
 		return tailnetNode{}, fmt.Errorf("tailscale status: %w", err)
 	}
-	node := tailnetNode{
-		FQDN:  strings.TrimSuffix(status.Self.DNSName, "."),
-		Owner: status.User[strconv.FormatInt(status.Self.UserID, 10)].LoginName,
+	node := tailnetNode{FQDN: strings.TrimSuffix(status.Self.DNSName, ".")}
+	// A tagged node has no owner. Tailscale lends it a login named after the
+	// node, which no person's device carries.
+	if len(status.Self.Tags) == 0 {
+		node.Owner = status.User[strconv.FormatInt(status.Self.UserID, 10)].LoginName
 	}
 	for _, ip := range status.Self.TailscaleIPs {
 		if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() != nil {
@@ -127,7 +134,7 @@ func readTailnetNode() (tailnetNode, error) {
 	if status.BackendState != "Running" {
 		return tailnetNode{}, fmt.Errorf("the tailscale backend is %q, not Running", status.BackendState)
 	}
-	if node.FQDN == "" || node.IPv4 == "" || node.Owner == "" {
+	if node.FQDN == "" || node.IPv4 == "" || (node.Owner == "" && len(status.Self.Tags) == 0) {
 		return tailnetNode{}, errors.New("tailscale reports no name, address, or owner for this node")
 	}
 	return node, nil
@@ -178,7 +185,7 @@ func tailnetPolicy(node tailnetNode, allowTags, allowOrigins []string, whois fun
 	return accessPolicy{
 		admit: func(r *http.Request) error {
 			if host, _, err := net.SplitHostPort(r.Host); err != nil || !strings.EqualFold(host, node.FQDN) {
-				return errors.New("open this daemon by its tailnet name")
+				return &refusal{"name", "open this daemon by its tailnet name"}
 			}
 			ip, _, err := net.SplitHostPort(r.RemoteAddr)
 			if err != nil {
@@ -195,7 +202,11 @@ func tailnetPolicy(node tailnetNode, allowTags, allowOrigins []string, whois fun
 				err = admitPeer(peer, node.Owner, allowTags)
 			}
 			mu.Lock()
-			cache[ip] = verdict{err: err, expires: time.Now().Add(whoisTTL)}
+			ttl := whoisTTL
+			if err != nil {
+				ttl = whoisRefusedTTL
+			}
+			cache[ip] = verdict{err: err, expires: time.Now().Add(ttl)}
 			mu.Unlock()
 			return err
 		},
@@ -367,7 +378,11 @@ func (d *daemon) listenTailnet(port string, allowTags, allowOrigins []string, ce
 	}
 	ended := make(chan error, 1)
 	go func() { ended <- server.ServeTLS(listener, "", "") }()
-	d.logf("serving https on this node's tailnet name, port %s, for %s and its own owner", port, strings.Join(allowTags, ", "))
+	who := "its own owner"
+	if node.Owner == "" {
+		who = "no untagged device, since this node is tagged and has no owner"
+	}
+	d.logf("serving https on this node's tailnet name, port %s, for %s and %s", port, strings.Join(allowTags, ", "), who)
 	address, config := net.JoinHostPort(node.IPv4, port), &tls.Config{ServerName: node.FQDN, MinVersion: tls.VersionTLS12}
 	return &tailnetServing{
 		server: server,

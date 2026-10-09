@@ -78,7 +78,7 @@
     if (kindOf(host) === "reconnecting") return "reconnecting";
     const running = hostRunning(host, app.attachedHostId, app.sessions);
     if (running !== null) return host.found ? `${running} running, found on tailnet` : `${running} running`;
-    if (host.status.kind === "unreachable") return "no answer";
+    if (host.status.kind === "unreachable") return host.status.layer && host.status.layer !== "network" ? "refused" : "no answer";
     return "checking";
   }
 
