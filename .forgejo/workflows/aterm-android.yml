@@ -81,7 +81,7 @@ jobs:
         with:
           tag: ${{ steps.tag.outputs.new_tag }}
           name: aterm Android ${{ steps.tag.outputs.new_tag }}
-          body: ${{ steps.tag.outputs.changelog }}
+          body: aterm Android ${{ steps.tag.outputs.new_version }} built from ${{ github.sha }}
 
       - name: Attach the APK
         if: ${{ github.event_name != 'pull_request' }}
