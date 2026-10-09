@@ -14,6 +14,9 @@ id or DSN into a tracked file.
 
 - `/coilysiren/aterm/vapid-key` - VAPID private key for aterm Web Push, made by `aterm vapid` and fed to the daemon as `ATERM_VAPID_KEY`. See `.agents/skills/tooling-aterm-client/references/web-push.md`. Created when push is turned on.
 
+- `/coilysiren/aterm/write/android-keystore-b64` - base64 PKCS12 release keystore for the aterm Android APK, SecureString. Synced to the `ATERM_ANDROID_KEYSTORE_B64` Actions secret by `just sync-actions-secrets`. Losing it means the next build cannot update the installed app in place.
+- `/coilysiren/aterm/write/android-keystore-password` - store and key password for that keystore, SecureString, synced to `ATERM_ANDROID_KEYSTORE_PASSWORD`.
+
 ## `/forgejo/`
 
 - `/forgejo/coilyco-ops/api-token` - Forgejo token used by `scripts/git-credential-forgejo-ssm.sh` for HTTPS git authentication.
