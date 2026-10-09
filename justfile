@@ -217,6 +217,10 @@ aterm-android-install *ARGS:
 aterm-android-tauri *ARGS:
     @cd aterm-android && {{pnpm}} exec tauri "$@"
 
+# Re-resolve aterm-android/src-tauri/Cargo.lock after a dependency pin changes, then commit it.
+aterm-android-lock:
+    @cd aterm-android/src-tauri && cargo generate-lockfile
+
 # Install the JDK, Android SDK, NDK and Rust target the aterm APK build needs. Run as root, as the CI container does.
 aterm-android-toolchain:
     @bash scripts/ci/aterm-android.sh toolchain
