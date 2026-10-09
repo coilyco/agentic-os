@@ -70,6 +70,8 @@ repos:
     - eco-server/**
   lore:
     band: micro # its info lives primarily in skills
+  mcp-beaver:
+    band: small # the guarded MCP runtime and chart, docs trimmed to the small caps (COI-2638)
   sentry-bridge:
     band: small # one small poller service
   sirens-echo:
