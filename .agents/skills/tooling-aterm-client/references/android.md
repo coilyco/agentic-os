@@ -16,6 +16,10 @@ The [aterm web client](../../../../aterm-client/README.md) wrapped as an Android
 
 The scripted steps are [`scripts/ci/aterm-android.sh`](../../../../scripts/ci/aterm-android.sh). Every Android pin is manual and lives at its top.
 
+## Pins
+
+**`src-tauri/Cargo.lock` is committed, so the Rust side resolves the same crates every build (COI-2625).** `build` stops before compiling when the lock is missing or stale, and after the build when the build rewrote it. Refresh it with `just aterm-android-lock` after a pin change. The Gradle and Maven side is not pinned yet: the work is on branch `aos/claude/coi-2625-gradle-pins-wip` and is not validated.
+
 ## Not yet verified
 
 * An APK installed and opened on a phone.

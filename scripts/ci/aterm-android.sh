@@ -82,9 +82,14 @@ build() {
   just aterm-client-install
   VITE_ATERM_APP=1 just aterm-client-build
   just aterm-android-install
+  cargo metadata --locked --format-version 1 --filter-platform "$RUST_TARGET" \
+    --manifest-path "$android_dir/src-tauri/Cargo.toml" >/dev/null || fail "Cargo.lock is missing or stale, run just aterm-android-lock"
   rm -rf "$android_dir/src-tauri/gen/android"
   just aterm-android-tauri android init --ci
   just aterm-android-tauri android build --apk --target aarch64 --ci --config "{\"version\":\"$version\"}"
+  if [ -e "$repo_root/.git" ] && ! git -C "$repo_root" diff --quiet -- aterm-android/src-tauri/Cargo.lock; then
+    fail "the build changed Cargo.lock, commit the lock it resolved"
+  fi
   cp "$(find_unsigned)" "$out"
   echo "unsigned APK: $out"
 }
