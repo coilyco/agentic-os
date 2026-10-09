@@ -1,0 +1,28 @@
+[package]
+name = "aterm-app"
+version = "0.1.0"
+description = "The aterm client as an Android app: a Tauri 2 shell around aterm-client's built bundle."
+authors = ["coilyco"]
+license = "MIT"
+repository = "https://github.com/coilyco/agentic-os"
+edition = "2024"
+rust-version = "1.90"
+
+[lib]
+name = "aterm_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = "=2.7.1"
+
+# The page talks to the daemon over its own websocket, so the one plugin is the device
+# key and no app IPC commands exist. See .agents/skills/tooling-aterm-client/references/android.md.
+[dependencies]
+tauri = "=2.12.1"
+tauri-plugin-devicekey = { path = "../plugins/tauri-plugin-devicekey" }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

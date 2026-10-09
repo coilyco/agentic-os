@@ -1,0 +1,10 @@
+{
+  "identifier": "default",
+  "description": "The aterm window may call the device key plugin and nothing else.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "devicekey:default"
+  ]
+}
