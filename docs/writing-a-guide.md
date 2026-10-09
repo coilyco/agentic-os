@@ -18,10 +18,11 @@ and needs to be walked through it. That reader exists for umbra, mcp-beaver,
 housecast and agent-compose. Everywhere else the reader is Kai or an agent,
 and what they need is reference in `docs/` or a skill.
 
-This repo used to carry a shelf and no longer does. Internal procedure is
-still procedure, and it lives in `docs/*.md` under the ordinary per-doc caps
-rather than on a shelf with none. If your repo is not one of the four, the
-rest of this page is background: you are writing a `docs/` page.
+agentic-os holds a shelf too, only for the user-facing commands a human runs as
+a product, such as the aterm client. Repo procedure (committing, running hooks)
+is still procedure and lives in `docs/*.md` under the ordinary per-doc caps. If
+your repo is not one of these, the rest of this page is background: you are
+writing a `docs/` page.
 
 ## The test
 

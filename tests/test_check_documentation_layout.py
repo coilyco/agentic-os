@@ -959,9 +959,7 @@ def test_a_repo_with_no_guides_dir_is_untouched(tmp_path: Path, monkeypatch) -> 
 
 
 def test_every_repo_shipping_guides_is_ratified_for_them() -> None:
-    # The shelf is for the externally facing flagship repos. This repo is not
-    # one, gave its own shelf up, and must not grow one back unratified.
+    # Flagships and this repo (for its user-facing commands) hold a shelf, by entry.
     repos = config.load_ratification()["repos"]
     assert repos["agent-compose"]["guides"] is True
-    assert "guides" not in repos["agentic-os"]
-    assert not (config.REPO_ROOT / "guides").is_dir()
+    assert repos["agentic-os"]["guides"] is True

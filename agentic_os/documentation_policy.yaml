@@ -13,6 +13,7 @@ repos:
     band: large
   agentic-os:
     band: large
+    guides: true # user-facing commands a human runs (aterm), never repo procedure
     excludes:
     - SSM.md
   agentic-os-hardware:

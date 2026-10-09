@@ -269,7 +269,7 @@ def check_guides_are_ratified() -> list[str]:
         return []
     return [
         f"{name}: this repo is not ratified to author a guides/ shelf. The "
-        f"shelf is for the externally facing flagship repos only, and it is "
+        f"shelf is for ratified repos only, and it is "
         f"the one destination with no count cap, so opening one takes an entry "
         f"in agentic_os/documentation_policy.yaml, copied by hand into both "
         f"repos, rather than a mkdir. Move the page into docs/*.md instead."
