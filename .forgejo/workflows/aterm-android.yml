@@ -45,6 +45,7 @@ jobs:
     env:
       ATERM_ANDROID_KEYSTORE_B64: ${{ secrets.ATERM_ANDROID_KEYSTORE_B64 }}
       ATERM_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ATERM_ANDROID_KEYSTORE_PASSWORD }}
+      ATERM_ANDROID_CERT_SHA256: ${{ secrets.ATERM_ANDROID_CERT_SHA256 }}
     steps:
       - uses: actions/checkout@v6
         with:
