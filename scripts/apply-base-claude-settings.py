@@ -66,6 +66,10 @@ RETIRED_DENIED_PERMISSIONS = [
 BASE_ALLOWED_PERMISSIONS: list[str] = [
     "Bash(ssh coilysiren@ser8:*)",
     "Bash(ssh firem@kai-tower-3026:*)",
+    # Exact matches, one per area with a `describe` verb. A `*` in the area slot
+    # would match spaces too, covering any aosguard line that ends in `describe`.
+    "Bash(aosguard ops forgejo describe)",
+    "Bash(aosguard ops forgejo-admin describe)",
 ]
 RETIRED_ALLOWED_PERMISSIONS = [
     # The harness refuses a bare wildcard in allow and warns at every session

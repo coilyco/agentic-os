@@ -96,6 +96,9 @@ matched the command string, missing `just <verb>` while blocking the direct call
 `BASE_ALLOWED_PERMISSIONS` carries two ssh host rules, Kai's call 2026-09-20.
 Both miss a flagged `ssh -o ...`: `teable:coilyco-flight-deck/agentic-os#7992`.
 
+It also carries an exact `describe` rule for `forgejo` and `forgejo-admin`
+(COI-2659). Whether they skip the classifier is unverified until a host converges.
+
 `effortLevel` is deliberately not a fleet key. It tunes latency and spend per
 host, which makes it operator-local preference under the config-placement axes,
 so it stays hand-edited and no writer owns it.
