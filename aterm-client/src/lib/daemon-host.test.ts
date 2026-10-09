@@ -757,3 +757,72 @@ describe("the passkey flag", () => {
     host.close();
   });
 });
+
+describe("pty-size", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const SIZED = { ...WELCOME, features: ["pty-size"] };
+  const frames = (socket: StubSocket) => socket.sent.map((line) => JSON.parse(line) as Record<string, unknown>);
+  const attaches = (socket: StubSocket) => frames(socket).filter((frame) => frame.type === "attach" && frame.rows !== undefined);
+
+  it("says a terminal pans only when the welcome lists pty-size", () => {
+    const { host, socket } = connect();
+    socket.receive(SIZED);
+    host.attach("seat", 28, 47);
+    expect(host.ptySize).toBe(true);
+    expect(attaches(socket).at(-1)).toMatchObject({ rows: 28, cols: 47, scales: true });
+    host.close();
+  });
+
+  it("keeps today's frames on a daemon that does not size the PTY", () => {
+    const { host, socket } = connect();
+    socket.receive(WELCOME);
+    host.attach("seat", 28, 47);
+    expect(host.ptySize).toBe(false);
+    expect(attaches(socket).at(-1)).not.toHaveProperty("scales");
+    host.close();
+  });
+
+  it("adds it to an attach queued before the welcome, once the welcome lists pty-size", () => {
+    const { host, socket } = connect();
+    host.attach("seat", 28, 47);
+    expect(socket.sent).toEqual([]);
+    socket.receive(SIZED);
+    expect(attaches(socket)).toEqual([expect.objectContaining({ rows: 28, cols: 47, scales: true })]);
+    host.close();
+  });
+
+  it("never claims a box for a seat that is only watched", () => {
+    const { host, socket } = connect();
+    socket.receive(SIZED);
+    socket.receive({ type: "sessions", sessions: [{ name: "seat", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 }] });
+    const watch = frames(socket).find((frame) => frame.type === "attach" && frame.session === "seat");
+    expect(watch).toMatchObject({ replay: false });
+    expect(watch).not.toHaveProperty("scales");
+    expect(watch).not.toHaveProperty("rows");
+    host.close();
+  });
+
+  it("carries the box and the claim again when a terminal is re-attached after a redial", () => {
+    vi.useFakeTimers();
+    const { host, socket } = connect();
+    socket.receive({ ...SIZED, features: ["pty-size"] });
+    host.attach("seat", 28, 47);
+    socket.drop();
+    vi.advanceTimersByTime(60_000);
+    const next = StubSocket.last;
+    next.receive({ ...SIZED, features: ["pty-size"] });
+    next.receive({ type: "sessions", sessions: [{ name: "seat", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 }] });
+    expect(attaches(next).at(-1)).toMatchObject({ rows: 28, cols: 47, scales: true, replay: true });
+    host.close();
+    vi.useRealTimers();
+  });
+
+  it("turns a size frame into an event for that seat, and ignores one with no size", () => {
+    const { host, events, socket } = connect();
+    socket.receive(SIZED);
+    socket.receive({ type: "size", session: "seat", rows: 50, cols: 200 });
+    socket.receive({ type: "size", session: "seat" });
+    expect(events.filter((event) => event.type === "size")).toEqual([{ type: "size", sessionId: "seat", rows: 50, cols: 200 }]);
+    host.close();
+  });
+});

@@ -18,6 +18,7 @@ A coarse inventory of what ships. Architecture: [architecture.md](architecture.m
 * **Peer message marking** - envelope lines are matched in the terminal buffer and striped in the sender's colour, across wrapped rows.
 * **Messages** - each seat's sent and received messages with queued, held, launching, typed in, and failed states, and the daemon's reason.
 * **Views and Browser tabs** - MCP Apps views from a daemon that lists `mcp-apps`, and the seat's streamed browser, awaiting its frames. [views-and-browser.md](views-and-browser.md).
+* **PTY size** - when the daemon lists `pty-size`, a terminal reports its box's capacity (`fit.proposeDimensions()`) with `scales: true` on attach, and sets xterm to exactly the `size` frame the daemon answers with. A PTY larger than the box pans, anchored bottom-left, so the input and newest text stay in view. An older daemon keeps fitting and sending.
 * **Read-only state** - when the daemon's typing guard refuses this browser (`welcome.typing`, or an `error` with `session_descendant` or `peer_unread`), the terminal, composer, choice cards, and launch buttons say read only and send nothing.
 * **Passkey unlock** - a locked remote device enrolls and asserts a passkey from the hosted build, then types. [passkey.md](passkey.md).
 * **Terminal tab and split** - a plain shell beside a seat, a resizable split, and the side panel opening on a tab by role (sysadmin Terminal, frontend Browser). [terminal-split.md](terminal-split.md).

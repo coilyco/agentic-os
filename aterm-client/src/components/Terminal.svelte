@@ -4,6 +4,7 @@
   import "@xterm/xterm/css/xterm.css";
   import { onMount } from "svelte";
   import { envelopeRows } from "../lib/messages";
+  import { boxToReport } from "../lib/pty-size";
   import { screenRows } from "../lib/screen";
   import type { HostConnection, PeerMessage } from "../lib/protocol";
 
@@ -31,6 +32,8 @@
 
   let host: HTMLDivElement;
   let term: Terminal | undefined;
+  // The daemon sizes the PTY to the largest client, so this box pans a terminal that may be bigger.
+  let panning = $state(false);
   let decorations: IDisposable[] = [];
   const marked = new Set<number>();
 
@@ -88,6 +91,13 @@
     reportScreen();
   }
 
+  // The input and the newest text sit at the bottom left, so that corner stays in view
+  // unless the person has panned away.
+  function anchor(wasAtBottom: boolean): void {
+    if (wasAtBottom) host.scrollTop = host.scrollHeight;
+    host.scrollLeft = 0;
+  }
+
   function remark(): void {
     decorations.forEach((decoration) => decoration.dispose());
     decorations = [];
@@ -115,10 +125,24 @@
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(host);
-    fit.fit();
+    panning = connection.ptySize === true;
+    // This client's capacity is what its box can hold, which is not what xterm currently is.
+    const own = () => ({ rows: terminal.rows, cols: terminal.cols });
+    let reported: { rows: number; cols: number } | undefined;
+    const capacity = () => fit.proposeDimensions() ?? own();
+    if (!panning) fit.fit();
     const observer = new ResizeObserver(() => {
-      fit.fit();
-      connection.resize(sessionId, terminal.rows, terminal.cols);
+      if (connection.ptySize === true) {
+        panning = true;
+        const box = boxToReport(fit.proposeDimensions(), true, own());
+        if (box && (box.rows !== reported?.rows || box.cols !== reported?.cols)) {
+          reported = box;
+          connection.resize(sessionId, box.rows, box.cols);
+        }
+      } else {
+        fit.fit();
+        connection.resize(sessionId, terminal.rows, terminal.cols);
+      }
       remark();
     });
     observer.observe(host);
@@ -130,13 +154,20 @@
     const unsubscribe = connection.subscribe((event) => {
       if (event.type === "output" && event.sessionId === sessionId) terminal.write(event.data, afterWrite);
       // The host attaches this seat again with replay right after, so the old screen would print twice.
-      else if (event.type === "reconnected") {
+      else if (event.type === "size" && event.sessionId === sessionId) {
+        const atBottom = host.scrollHeight - host.clientHeight - host.scrollTop < 2;
+        terminal.resize(event.cols, event.rows);
+        remark();
+        anchor(atBottom);
+      } else if (event.type === "reconnected") {
         terminal.reset();
         remark();
       }
     });
     // Subscribed first, so the replay the attach triggers is not missed.
-    connection.attach(sessionId, terminal.rows, terminal.cols);
+    const box = capacity();
+    connection.attach(sessionId, panning ? box.rows : terminal.rows, panning ? box.cols : terminal.cols);
+    if (panning) reported = box;
     return () => {
       unsubscribe();
       connection.detach(sessionId);
@@ -160,8 +191,10 @@
   });
 </script>
 
-<div class="term-host" role="region" aria-label={`Terminal for ${label}`} bind:this={host}></div>
+<div class="term-host" class:panning role="region" aria-label={`Terminal for ${label}`} bind:this={host}></div>
 
 <style>
   .term-host { flex: 1 1 auto; min-height: 240px; padding: 12px 0 12px 16px; background: var(--terminal); overflow: hidden; }
+  .term-host.panning { overflow: auto; }
+  .term-host.panning :global(.xterm) { width: max-content; }
 </style>

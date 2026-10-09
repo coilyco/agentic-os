@@ -112,6 +112,8 @@ export type HostEvent =
   | { type: "features"; terminals: boolean }
   // Whether this daemon runs a passkey ceremony. Apart from `features`, which tests pin.
   | { type: "passkey"; available: boolean }
+  // The PTY's effective size, which a client sets its terminal to exactly.
+  | { type: "size"; sessionId: string; rows: number; cols: number }
   | { type: "terminals"; terminals: ListedTerminal[] }
   | { type: "terminal_opened"; label: string; id: string }
   | { type: "terminal_exit"; id: string; code: number }
@@ -161,7 +163,10 @@ export interface HostConnection {
   attach(sessionId: string, rows: number, cols: number): void;
   detach(sessionId: string): void;
   input(sessionId: string, data: string): void;
+  /** `rows` and `cols` are this client's box. A `ptySize` daemon answers `size`. */
   resize(sessionId: string, rows: number, cols: number): void;
+  /** The daemon sizes the PTY itself and sends `size`, so the terminal follows it. */
+  readonly ptySize?: boolean;
   launch(role: string, seat: string): void;
   answer(askId: string, picks: number[], text?: string): void;
   cancelAsk(askId: string): void;
