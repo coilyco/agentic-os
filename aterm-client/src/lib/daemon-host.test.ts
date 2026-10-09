@@ -986,3 +986,36 @@ describe("the device key", () => {
     host.close();
   });
 });
+
+describe("a pane that never drew", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("still gets a frame when a listener before it throws", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1" });
+    host.subscribe(() => {
+      throw new Error("an earlier listener broke");
+    });
+    const seen: HostEvent[] = [];
+    host.subscribe((event) => seen.push(event));
+    socket.receive({ type: "output", session: "s", data: btoa("hello") });
+    expect(seen.filter((event) => event.type === "output")).toHaveLength(1);
+    host.close();
+  });
+
+  it("asks again for the seat's screen with its own box and no new reference", () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1" });
+    host.attach("s", 40, 120);
+    socket.sent.length = 0;
+    host.replay("s");
+    expect(socket.sent.map((line) => JSON.parse(line))).toEqual([expect.objectContaining({ type: "attach", session: "s", replay: true, rows: 40, cols: 120 })]);
+    host.detach("s");
+    expect(socket.sent.map((line) => JSON.parse(line).type)).toContain("detach");
+    host.close();
+  });
+});

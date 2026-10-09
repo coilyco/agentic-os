@@ -1,6 +1,7 @@
 // aterm.daemon.v1 over the daemon's loopback websocket. The frame reference is
 // the Wire contract section of the aterm daemon page in coilyco/agentic-os.
 import { backoffDelay, differentBuild } from "./backoff";
+import { safely } from "./pane-watch";
 import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
 import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, MessageState, PasskeyChannel, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
@@ -394,13 +395,14 @@ export class DaemonHost implements HostConnection {
 
   subscribe(listener: (event: HostEvent) => void): () => void {
     this.listeners.add(listener);
-    if (this.last.roles) listener(this.last.roles);
-    if (this.last.sessions) listener({ type: "sessions", sessions: this.last.sessions });
-    if (this.last.typing) listener({ type: "typing", typing: this.last.typing });
-    if (this.last.passkey) listener(this.last.passkey);
-    if (this.last.deviceKey) listener(this.last.deviceKey);
-    if (this.last.features) listener(this.last.features);
-    if (this.last.terminals) listener(this.last.terminals);
+    const tell = (event: HostEvent) => safely("a host listener", () => listener(event));
+    if (this.last.roles) tell(this.last.roles);
+    if (this.last.sessions) tell({ type: "sessions", sessions: this.last.sessions });
+    if (this.last.typing) tell({ type: "typing", typing: this.last.typing });
+    if (this.last.passkey) tell(this.last.passkey);
+    if (this.last.deviceKey) tell(this.last.deviceKey);
+    if (this.last.features) tell(this.last.features);
+    if (this.last.terminals) tell(this.last.terminals);
     return () => this.listeners.delete(listener);
   }
 
@@ -507,6 +509,13 @@ export class DaemonHost implements HostConnection {
     this.attached.set(sessionId, { rows, cols, count: (this.attached.get(sessionId)?.count ?? 0) + 1 });
     this.lastPoke.set(sessionId, Date.now());
     this.request({ type: "attach", session: sessionId, replay: true, rows, cols, ...(this.ptySize ? { scales: true } : {}) });
+  }
+
+  replay(sessionId: string): void {
+    const shown = this.attached.get(sessionId);
+    this.lastPoke.set(sessionId, Date.now());
+    const box = shown ? { rows: shown.rows, cols: shown.cols, ...(this.ptySize ? { scales: true } : {}) } : {};
+    this.request({ type: "attach", session: sessionId, replay: true, ...box });
   }
 
   // The activity monitor holds its own reference, so closing a terminal tab
@@ -815,8 +824,9 @@ export class DaemonHost implements HostConnection {
     this.emit({ type: "typing", typing: this.last.typing });
   }
 
+  // A listener that throws must not keep the others, a terminal included, from the frame.
   private emit(event: HostEvent): void {
-    for (const listener of this.listeners) listener(event);
+    for (const listener of this.listeners) safely("a host listener", () => listener(event));
   }
 }
 

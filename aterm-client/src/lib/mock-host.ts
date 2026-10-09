@@ -134,6 +134,10 @@ export class MockHost implements HostConnection {
     this.emit({ type: "output", sessionId, data: this.buffers.get(sessionId) ?? "" });
   }
 
+  replay(sessionId: string): void {
+    this.emit({ type: "output", sessionId, data: this.buffers.get(sessionId) ?? "" });
+  }
+
   detach(sessionId: string): void {
     this.attached.delete(sessionId);
   }

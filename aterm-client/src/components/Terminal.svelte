@@ -6,7 +6,8 @@
   import { envelopeRows } from "../lib/messages";
   import { harnessInputRows } from "../lib/harness";
   import { boxToReport } from "../lib/pty-size";
-  import { screenRows } from "../lib/screen";
+  import { isBlank, screenRows } from "../lib/screen";
+  import { safely, watchDelay } from "../lib/pane-watch";
   import type { HostConnection, PeerMessage } from "../lib/protocol";
 
   let {
@@ -38,6 +39,8 @@
   let term: Terminal | undefined;
   // The box scrolls when the terminal is bigger than it: a PTY sized to a larger client, or a cropped harness box.
   let panning = $state(false);
+  // Said in the pane while it has drawn nothing and the host is being asked again. Empty otherwise.
+  let waiting = $state("");
   const HIDE_SETTLE_MS = 350;
   let decorations: IDisposable[] = [];
   const marked = new Set<number>();
@@ -101,11 +104,15 @@
     host.scrollLeft = 0;
   }
 
+  // A step that throws here would stop xterm taking any more writes, so each runs on its own.
   function afterWrite(): void {
-    markEnvelopes();
-    reportScreen();
-    watchHarness();
+    safely("marking envelopes", markEnvelopes);
+    safely("reading the screen", reportScreen);
+    safely("watching the harness", () => watchHarness());
+    safely("noting the screen drew", () => noteDrawn());
   }
+
+  let noteDrawn = () => {};
 
   function remark(): void {
     decorations.forEach((decoration) => decoration.dispose());
@@ -201,6 +208,46 @@
     terminal.textarea?.setAttribute("inputmode", cropping() ? "none" : "text");
     // A terminal that types nothing has no use for Tab, so it leaves instead of trapping focus.
     terminal.attachCustomKeyEventHandler((event) => !(locked && event.key === "Tab"));
+    // The replay is the only thing an idle seat sends, so a pane that is still empty asks again.
+    let asked = 0;
+    let watching: ReturnType<typeof setTimeout> | undefined;
+    const empty = () => isBlank(screenRows(terminal.buffer.active, terminal.rows));
+    noteDrawn = () => {
+      if (!waiting && asked === 0) return;
+      if (empty()) return;
+      waiting = "";
+      asked = 0;
+      clearTimeout(watching);
+    };
+    function watch(): void {
+      clearTimeout(watching);
+      const wait = watchDelay(asked);
+      if (wait === null) {
+        waiting = "This seat's screen has not arrived. Select the seat again to ask once more.";
+        return;
+      }
+      watching = setTimeout(() => {
+        if (!empty()) return noteDrawn();
+        asked += 1;
+        waiting = "Waiting for this seat's screen. Asking the host again.";
+        // The replay is the whole history, so the half-drawn screen goes before it.
+        terminal.reset();
+        remark();
+        connection.replay(sessionId);
+        watch();
+      }, wait);
+    }
+    // A hidden window pauses painting, and a pane left blank then is not told to try again.
+    const wake = () => {
+      if (document.visibilityState !== "visible") return;
+      safely("repainting", () => terminal.refresh(0, terminal.rows - 1));
+      if (empty()) {
+        asked = 0;
+        watch();
+      }
+    };
+    document.addEventListener("visibilitychange", wake);
+    window.addEventListener("focus", wake);
     const input = terminal.onData((data) => {
       if (!locked) connection.input(sessionId, data);
     });
@@ -215,13 +262,19 @@
       } else if (event.type === "reconnected") {
         terminal.reset();
         remark();
+        asked = 0;
+        watch();
       }
     });
     // Subscribed first, so the replay the attach triggers is not missed.
     const box = fit.proposeDimensions() ?? own();
     connection.attach(sessionId, panning ? box.rows : terminal.rows, panning ? box.cols : terminal.cols);
     if (panning) reported = box;
+    watch();
     return () => {
+      document.removeEventListener("visibilitychange", wake);
+      window.removeEventListener("focus", wake);
+      clearTimeout(watching);
       phone.removeEventListener("change", shapeForPhone);
       clearTimeout(settle);
       unsubscribe();
@@ -246,10 +299,13 @@
   });
 </script>
 
-<div class="term-host" class:panning role="region" aria-label={`Terminal for ${label}`} bind:this={host}></div>
+<div class="term-host" class:panning role="region" aria-label={`Terminal for ${label}`} bind:this={host}>
+  <p class="waiting" role="status">{waiting}</p>
+</div>
 
 <style>
-  .term-host { flex: 1 1 auto; min-height: 240px; padding: 12px 0 12px 16px; background: var(--terminal); overflow: hidden; }
+  .term-host { position: relative; flex: 1 1 auto; min-height: 240px; padding: 12px 0 12px 16px; background: var(--terminal); overflow: hidden; }
+  .waiting { position: absolute; z-index: 1; top: 12px; left: 16px; right: 16px; margin: 0; color: var(--muted); font-size: 13px; pointer-events: none; }
   .term-host.panning { overflow: auto; }
   .term-host.panning :global(.xterm) { width: max-content; }
 </style>

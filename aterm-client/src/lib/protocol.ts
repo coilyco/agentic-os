@@ -175,6 +175,8 @@ export interface HostConnection {
   /** Dial now, skipping the backoff. Only a connection that redials has it. */
   retry?(): void;
   attach(sessionId: string, rows: number, cols: number): void;
+  /** Asks again for a seat's screen when its replay never drew. No new reference. */
+  replay(sessionId: string): void;
   detach(sessionId: string): void;
   input(sessionId: string, data: string): void;
   /** `rows` and `cols` are this client's box. A `ptySize` daemon answers `size`. */
