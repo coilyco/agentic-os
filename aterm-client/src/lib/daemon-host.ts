@@ -13,6 +13,16 @@ export const FORMAT = "aterm.daemon.v1";
 const LOOPBACK_DAEMON = "ws://127.0.0.1:7419";
 // A sleeping tailnet path can hold a dial open for minutes. Give up on it sooner.
 const DIAL_TIMEOUT_MS = 10000;
+/** Input ids kept so an error naming one can be told from any other. */
+const INPUT_IDS_KEPT = 64;
+const NOT_SENT_CLOSED = "Not sent. The connection to the host closed, and it is reconnecting.";
+const PTY_SIZE_FEATURE = "pty-size";
+
+/** A queued attach with a box says it pans, once the welcome lists pty-size. */
+function withScales(line: string): string {
+  const frame = JSON.parse(line) as { type?: string; rows?: number };
+  return frame.type === "attach" && frame.rows !== undefined ? JSON.stringify({ ...frame, scales: true }) : line;
+}
 
 // The dev server reaches the local daemon. A build is served by the daemon
 // itself, so it dials the origin it came from.
@@ -107,6 +117,8 @@ interface Frame {
   typing?: unknown;
   reason?: unknown;
   features?: string[];
+  rows?: number;
+  cols?: number;
   label?: string;
   driver?: string;
   url?: string;
@@ -296,7 +308,9 @@ export class DaemonHost implements HostConnection {
   private attached = new Map<string, { rows: number; cols: number; count: number }>();
   private watching = new Map<string, { width: number; height: number } | undefined>();
   private nextId = 0;
-  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; terminals?: HostEvent } = {};
+  // Input has no reply on success, so an error naming one of these is its only failure.
+  private inputIds = new Set<string>();
+  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; passkey?: HostEvent; terminals?: HostEvent } = {};
   private sessionViews: SessionView[] = [];
   private refs = new Map<string, number>();
   private lastOutput = new Map<string, number>();
@@ -375,6 +389,7 @@ export class DaemonHost implements HostConnection {
     if (this.last.roles) listener(this.last.roles);
     if (this.last.sessions) listener({ type: "sessions", sessions: this.last.sessions });
     if (this.last.typing) listener({ type: "typing", typing: this.last.typing });
+    if (this.last.passkey) listener(this.last.passkey);
     if (this.last.features) listener(this.last.features);
     if (this.last.terminals) listener(this.last.terminals);
     return () => this.listeners.delete(listener);
@@ -391,6 +406,10 @@ export class DaemonHost implements HostConnection {
       this.request({ type: "view_close", view_id: viewId });
     },
   };
+
+  get ptySize(): boolean {
+    return this.features.has(PTY_SIZE_FEATURE);
+  }
 
   /** Only a welcome listing `passkey` has a ceremony. The page decides if it can run. */
   get passkey(): PasskeyChannel | undefined {
@@ -429,7 +448,7 @@ export class DaemonHost implements HostConnection {
     this.refs.set(sessionId, (this.refs.get(sessionId) ?? 0) + 1);
     this.attached.set(sessionId, { rows, cols, count: (this.attached.get(sessionId)?.count ?? 0) + 1 });
     this.lastPoke.set(sessionId, Date.now());
-    this.request({ type: "attach", session: sessionId, replay: true, rows, cols });
+    this.request({ type: "attach", session: sessionId, replay: true, rows, cols, ...(this.ptySize ? { scales: true } : {}) });
   }
 
   // The activity monitor holds its own reference, so closing a terminal tab
@@ -449,7 +468,13 @@ export class DaemonHost implements HostConnection {
 
   input(sessionId: string, data: string): void {
     this.lastPoke.set(sessionId, Date.now());
-    this.request({ type: "input", session: sessionId, data: encode(data) });
+    // A closed socket drops what is sent. Say so rather than lose it unseen.
+    if (!this.open && this.answered) {
+      this.emit({ type: "input_refused", text: NOT_SENT_CLOSED });
+      return;
+    }
+    this.inputIds.add(this.request({ type: "input", session: sessionId, data: encode(data) }));
+    if (this.inputIds.size > INPUT_IDS_KEPT) this.inputIds.delete(this.inputIds.values().next().value as string);
   }
 
   resize(sessionId: string, rows: number, cols: number): void {
@@ -564,7 +589,8 @@ export class DaemonHost implements HostConnection {
       if (!live.has(name)) continue;
       const shown = this.attached.get(name);
       if (shown) this.lastPoke.set(name, Date.now());
-      this.request({ type: "attach", session: name, replay: shown !== undefined, ...(shown ? { rows: shown.rows, cols: shown.cols } : {}) });
+      const box = shown ? { rows: shown.rows, cols: shown.cols, ...(this.ptySize ? { scales: true } : {}) } : {};
+      this.request({ type: "attach", session: name, replay: shown !== undefined, ...box });
     }
     for (const [session, size] of this.watching) this.request({ type: "browser_watch", session, ...(size ?? {}) });
   }
@@ -590,12 +616,14 @@ export class DaemonHost implements HostConnection {
         this.browser = frame.features?.includes(BROWSER_FEATURE) ? this.browserChannel() : undefined;
         this.setTyping(parseTyping(frame.typing));
         this.features = new Set(frame.features ?? []);
+        this.last.passkey = { type: "passkey", available: this.features.has("passkey") };
+        this.emit(this.last.passkey);
         this.last.features = { type: "features", terminals: this.features.has("terminals") };
         this.emit(this.last.features);
         this.request({ type: "subscribe", channel: "sessions" });
         this.request({ type: "roster" });
         if (this.features.has("mcp-apps")) this.request({ type: "subscribe", channel: "views" });
-        for (const line of this.outbox.splice(0)) this.socket.send(line);
+        for (const line of this.outbox.splice(0)) this.socket.send(this.ptySize ? withScales(line) : line);
         return;
       }
       case "ask":
@@ -650,6 +678,9 @@ export class DaemonHost implements HostConnection {
       case "typing":
         this.setTyping(parseTyping(frame.typing));
         return;
+      case "size":
+        if (frame.session && frame.rows && frame.cols) this.emit({ type: "size", sessionId: frame.session, rows: frame.rows, cols: frame.cols });
+        return;
       case "roster":
         this.last.roles = { type: "roster", roles: parseRoster(frame.roster) };
         this.emit(this.last.roles);
@@ -685,6 +716,11 @@ export class DaemonHost implements HostConnection {
         const role = frame.id ? this.launches.get(frame.id) : undefined;
         const refused = refusalOf(frame);
         this.setTyping(refused);
+        // The lock shows the refusals it knows. Say any other in the daemon's words.
+        if (frame.id && this.inputIds.delete(frame.id) && !refused) {
+          this.emit({ type: "input_refused", text: `Not sent. ${frame.error ?? "The daemon did not take that input."}` });
+          return;
+        }
         const call = frame.id ? this.calls.get(frame.id) : undefined;
         if (call && frame.id) {
           this.calls.delete(frame.id);

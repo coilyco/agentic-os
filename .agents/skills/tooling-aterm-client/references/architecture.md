@@ -32,7 +32,11 @@ See [views-and-browser.md](views-and-browser.md).
 
 ## Narrow screens
 
-Below 720px the sidebar becomes one row of seat tabs and a Menu button, and the menu (hosts, alert switches, roles to start) opens over the seat. With no seat on screen those lists stay in the page, because the host's own panel sits below them. The session header folds to two rows, the composer's hint shortens, and a waiting card may use the whole terminal area (COI-2550). Below 1000px the side panel becomes a bottom sheet over the terminal (COI-2506, [views-and-browser.md](views-and-browser.md)).
+Below 720px the top is one bar, the seat switcher, which names the seat on screen and opens a sheet of seats, alerts, roles to start, and hosts. The session header keeps only a heading for screen readers. The tab strip is 44px and goes away while the composer has focus, so the keyboard leaves the seat's text the screen (COI-2608). With no seat on screen those lists stay in the page. Below 1000px the side panel becomes a bottom sheet ([views-and-browser.md](views-and-browser.md)).
+
+## One input on a phone
+
+The composer is the input, and the harness's own input box is scrolled out of view. A tap on the terminal raises no keyboard. Why the composer wins: it is a real textarea, so dictation, paste, and `@` work, where xterm's hidden textarea is unreliable on Android. The box is hidden only when the screen ends in a rule, one prompt row, a rule, and at most three status rows (`lib/harness.ts`). A permission dialog or select menu never matches, so a seat waiting on a prompt is never hidden. The hidden rows are asked of the PTY anyway and clipped at a row, so the harness draws them below the fold. An unrecognised harness shows both inputs. Desktop keeps the box, and the composer opens at three lines.
 
 ## A restart is not a loss
 

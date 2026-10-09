@@ -1,11 +1,13 @@
 <script lang="ts">
   import { advanceIndex, type Choice } from "../lib/choices";
 
-  let { choice, identity, onanswer, oncancel, focusToken = 0, locked = false, cancelLocked = locked, lockedLabel = "Read only" }: {
+  let { choice, identity, onanswer, oncancel, focusToken = 0, onfocused, locked = false, cancelLocked = locked, lockedLabel = "Read only" }: {
     choice: Choice;
     identity: string;
     /** Each change asks the card to take the keyboard, as when you alt-tab in. */
     focusToken?: number;
+    /** Said once the card has taken the keyboard, so the request is spent and a later card does not repeat it. */
+    onfocused?: () => void;
     /** Indexes of the picked options, and the typed text when "Type something." was one. */
     onanswer: (picks: number[], text?: string) => void;
     oncancel: () => void;
@@ -24,6 +26,7 @@
     if (focusToken && focusToken !== lastFocus) {
       lastFocus = focusToken;
       card?.querySelector<HTMLButtonElement>("button.option, button.advance")?.focus();
+      onfocused?.();
     }
   });
   let text = $state("");

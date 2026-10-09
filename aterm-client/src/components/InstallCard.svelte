@@ -1,8 +1,9 @@
 <script lang="ts">
+  import { IN_APP } from "../lib/build";
   import { currentInstallState, install, pwa } from "../lib/pwa.svelte";
 
   const state = $derived(currentInstallState());
-  const shown = $derived(state.kind !== "installed" && (state.kind !== "menu" || pwa.waited));
+  const shown = $derived(!IN_APP && state.kind !== "installed" && (state.kind !== "menu" || pwa.waited));
 </script>
 
 {#if shown}

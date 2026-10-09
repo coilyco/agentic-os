@@ -10,6 +10,10 @@ The aterm binary embeds the client it was released with (`just aterm-client-embe
 
 `just aterm-client-build-hosted` builds for a path-prefixed static host. The deployment sets `ATERM_CLIENT_BASE` to its base path and publishes `dist/` with its own sign-in. The daemon admits a websocket from a hosted page only when the page's Origin is allowed (`--allow-origins`, [aterm-daemon.md](../../../../docs/aterm-daemon.md)), and `tailscale whois` still decides who gets in.
 
+## In the Android app
+
+`VITE_ATERM_APP=1` builds the page the app bundles, with base `/`. The webview serves it from `https://tauri.localhost`, which needs Tauri 2.1.0 or later with `useHttpsScheme`. The daemon refuses an origin that is not https, and `--allow-origins` must list this one. Like the hosted build it has no "this Mac" host and adds hosts by name. It registers no service worker, since a cached shell would outlive an APK update, and shows no install card. It offers no passkey, because the relying party is coilyco.dev and the daemon spends the code before the page can notice. A locked device says the app cannot unlock yet (COI-2623).
+
 ## Hosts are added per device
 
 Tailnet names are opaque identifiers, so the hosted build ships none. The first time on a device, add each host by its tailnet name, and the device remembers it in local storage. A gate failure would expose no hostnames. Kai chose this on teable:coilyco/website#8256.
@@ -17,6 +21,8 @@ Tailnet names are opaque identifiers, so the hosted build ships none. The first 
 ## Installed as an app
 
 Both builds are installable. The manifest uses relative paths, so it works at `/` and under a hosted prefix, and the service worker's scope is the build's own base. Chrome installs from https or from localhost, Safari on a Mac from File, Add to Dock.
+
+The manifest link says `crossorigin="use-credentials"`. A manifest request omits cookies otherwise, so a host behind a sign-in gate redirects it, and Chrome calls the page not installable (COI-2528).
 
 `sw.js` is written by the build ([`pwa-plugin.ts`](../../../../aterm-client/pwa-plugin.ts)) with every built file listed and a version taken from their bytes, so a new build is a new cache and the old one is dropped when it takes over. It caches the shell only. A launch asks the network first and falls back to the cached shell after 3 seconds or on failure, so a stopped daemon shows the client's "not answering" panel. Nothing else is cached, and a websocket never passes through it.
 

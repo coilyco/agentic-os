@@ -1,4 +1,5 @@
 import { nextUnseen } from "./activity";
+import { EXTERNAL } from "./build";
 import { type AttentionSettings, loadAttention, storeAttention } from "./attention";
 import { chime, isBlocked, unlock, watchBlocked } from "./chime";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
@@ -15,7 +16,6 @@ import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, re
 import { TYPING_OPEN, type Typing } from "./typing";
 
 /** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
-export const HOSTED = import.meta.env.VITE_ATERM_HOSTED === "1";
 
 function savedHost(saved: { label: string; address: string }): Host {
   return { id: `saved:${saved.address}`, label: saved.label, address: saved.address, kind: "daemon", status: { kind: "checking" } };
@@ -23,7 +23,7 @@ function savedHost(saved: { label: string; address: string }): Host {
 
 export const app = $state({
   hosts: [
-    ...(HOSTED ? [] : [{ id: "local", label: hostLabel(location, import.meta.env.DEV), address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } } as Host]),
+    ...(EXTERNAL ? [] : [{ id: "local", label: hostLabel(location, import.meta.env.DEV), address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } } as Host]),
     ...loadSavedHosts().map(savedHost),
     { id: "demo", label: "Demo host", address: "scripted, no daemon", kind: "demo", status: { kind: "online", sessionCount: 4 } },
   ] as Host[],
@@ -36,6 +36,8 @@ export const app = $state({
   newerBuild: false,
   /** Whether the daemon's guard lets this connection type. A mock host never refuses. */
   typing: TYPING_OPEN as Typing,
+  /** The welcome lists passkey. Reactive, which the connection's feature list is not. */
+  passkeyAvailable: false,
   roles: [] as Role[],
   sessions: [] as Session[],
   messages: [] as PeerMessage[],
@@ -59,6 +61,14 @@ export const app = $state({
   triage: false,
   /** Bumped to ask the visible choice card to take keyboard focus. */
   focusCard: 0,
+  /** The seat whose card a triage jump asked for the keyboard. Spent once it has it. */
+  focusAsk: null as string | null,
+  /** The composer has focus. On a phone that is the soft keyboard being up. */
+  composing: false,
+  /** What was typed and not sent, by seat, so a lock or a seat change never takes it. */
+  drafts: {} as Record<string, string>,
+  /** Why typed input was not taken. Stays until dismissed or the next send. */
+  inputNotice: "",
   /** MCP Apps views by view id, newest last. */
   views: {} as Record<string, View>,
   /** Each seat's shared browser, by session id. */
@@ -245,6 +255,9 @@ export function selectHost(host: Host): void {
   app.link = { state: "live" };
   app.newerBuild = false;
   app.typing = TYPING_OPEN;
+  app.passkeyAvailable = false;
+  app.inputNotice = "";
+  app.drafts = {};
   app.roles = [];
   app.sessions = [];
   app.messages = [];
@@ -270,6 +283,7 @@ export function selectHost(host: Host): void {
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
     else if (event.type === "typing") app.typing = event.typing;
     else if (event.type === "notice") app.notice = event.text;
+    else if (event.type === "input_refused") app.inputNotice = event.text;
     else if (event.type === "ask") app.asks[event.ask.id] = event.ask;
     else if (event.type === "asked") delete app.asks[event.id];
     else if (event.type === "view") app.views[event.view.id] = event.view;
@@ -279,6 +293,7 @@ export function selectHost(host: Host): void {
     }
     else if (event.type === "view_closed") delete app.views[event.id];
     else if (event.type === "browser") app.browsers[event.browser.session] = event.browser;
+    else if (event.type === "passkey") app.passkeyAvailable = event.available;
     else if (event.type === "features") app.terminalSupport = event.terminals ? "yes" : "no";
     else if (event.type === "terminals") {
       app.terminals = applyList(app.terminals, event.terminals, app.terminalSeats, dismissed);
@@ -308,7 +323,7 @@ export function selectHost(host: Host): void {
         if (app.link.state === "restored") app.link = { state: "live" };
       }, RESTORED_MS);
       // A hosted page is not served by the daemon, so a reload brings no new build.
-      if (event.newerBuild && !HOSTED) app.newerBuild = true;
+      if (event.newerBuild && !EXTERNAL) app.newerBuild = true;
     }
     else if (event.type === "closed") {
       clearTimeout(restoredTimer);
@@ -401,7 +416,10 @@ export function jumpToWaiting(): boolean {
   const next = waitingSeats()[0];
   if (!next) return false;
   selectSession(next.sessionId);
-  if (next.kind === "asking") app.focusCard++;
+  if (next.kind === "asking") {
+    app.focusAsk = next.sessionId;
+    app.focusCard++;
+  }
   return true;
 }
 

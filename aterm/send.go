@@ -105,6 +105,7 @@ func newSendCommand() *cli.Command {
 		ArgsUsage:     "<role|seat|session> <message...>",
 		Description: "The daemon stamps `[from <role> <identity>]` from this session's token,\n" +
 			"so the sender cannot choose that line. A message of `-` reads stdin.\n" +
+			"A message over 256 KiB is refused, so send a file's path instead.\n" +
 			"It waits while Kai is typing in the target and lands after her draft.",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "launch", Usage: "when no session answers to a role, open one and deliver into it"},
@@ -120,7 +121,8 @@ func newSendCommand() *cli.Command {
 			}
 			body := strings.Join(args[1:], " ")
 			if body == "-" {
-				raw, err := io.ReadAll(os.Stdin)
+				// One byte past the limit is enough to know it is over.
+				raw, err := io.ReadAll(io.LimitReader(os.Stdin, maxSendBody+1))
 				if err != nil {
 					return err
 				}
@@ -155,6 +157,9 @@ type sendOptions struct {
 // sendMessage is the one path both front doors take, the CLI and the MCP
 // tool, so the two cannot drift.
 func sendMessage(target, body string, opts sendOptions) (peerMessage, error) {
+	if len(body) > maxSendBody {
+		return peerMessage{}, errSendTooLong()
+	}
 	token := strings.TrimSpace(os.Getenv(sessionTokenEnv))
 	if token == "" {
 		return peerMessage{}, withExit(exitUsage, fmt.Errorf(

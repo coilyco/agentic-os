@@ -685,3 +685,144 @@ describe("riding out a daemon restart", () => {
     host.close();
   });
 });
+
+describe("typed input that goes nowhere", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  const refused = (events: HostEvent[]) => events.filter((event) => event.type === "input_refused");
+  const lastId = (socket: StubSocket) => (JSON.parse(socket.sent.at(-1)!) as { id: string }).id;
+
+  it("says so in the daemon's words when an error answers typed input and no lock explains it", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, typing: { allowed: true } });
+    host.input("seat", "hello");
+    socket.receive({ type: "error", id: lastId(socket), code: 1, error: 'not attached to "seat"' });
+    expect(refused(events)).toEqual([{ type: "input_refused", text: 'Not sent. not attached to "seat"' }]);
+    host.close();
+  });
+
+  it("leaves a refusal the lock already shows to the lock", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, typing: { allowed: true } });
+    host.input("seat", "hello");
+    socket.receive({ type: "error", id: lastId(socket), code: 6, error: "assert this device's passkey before it types", reason: "passkey_required" });
+    expect(refused(events)).toEqual([]);
+    expect(typings(events).at(-1)).toEqual({ type: "typing", typing: { allowed: false, reason: "passkey_required" } });
+    host.close();
+  });
+
+  it("ignores an error that names nothing typed", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, typing: { allowed: true } });
+    host.input("seat", "hello");
+    socket.receive({ type: "error", id: "c999", code: 1, error: "unrelated" });
+    expect(refused(events)).toEqual([]);
+    host.close();
+  });
+
+  it("reports input lost to a closed socket instead of dropping it unseen", () => {
+    vi.useFakeTimers();
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, typing: { allowed: true } });
+    socket.drop();
+    const before = socket.sent.length;
+    host.input("seat", "hello");
+    expect(socket.sent.length).toBe(before);
+    expect(refused(events)).toEqual([{ type: "input_refused", text: expect.stringMatching(/^Not sent\./) }]);
+    host.close();
+  });
+});
+
+describe("the passkey flag", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const flags = (events: HostEvent[]) => events.filter((event) => event.type === "passkey");
+
+  it("says whether the welcome lists passkey, and replays it to a later subscriber", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, features: ["typing-guard", "passkey"] });
+    expect(flags(events)).toEqual([{ type: "passkey", available: true }]);
+    const late: HostEvent[] = [];
+    host.subscribe((event) => late.push(event));
+    expect(flags(late)).toEqual([{ type: "passkey", available: true }]);
+    host.close();
+  });
+
+  it("says no for a daemon that lists no passkey", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, features: ["typing-guard"] });
+    expect(flags(events)).toEqual([{ type: "passkey", available: false }]);
+    host.close();
+  });
+});
+
+describe("pty-size", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const SIZED = { ...WELCOME, features: ["pty-size"] };
+  const frames = (socket: StubSocket) => socket.sent.map((line) => JSON.parse(line) as Record<string, unknown>);
+  const attaches = (socket: StubSocket) => frames(socket).filter((frame) => frame.type === "attach" && frame.rows !== undefined);
+
+  it("says a terminal pans only when the welcome lists pty-size", () => {
+    const { host, socket } = connect();
+    socket.receive(SIZED);
+    host.attach("seat", 28, 47);
+    expect(host.ptySize).toBe(true);
+    expect(attaches(socket).at(-1)).toMatchObject({ rows: 28, cols: 47, scales: true });
+    host.close();
+  });
+
+  it("keeps today's frames on a daemon that does not size the PTY", () => {
+    const { host, socket } = connect();
+    socket.receive(WELCOME);
+    host.attach("seat", 28, 47);
+    expect(host.ptySize).toBe(false);
+    expect(attaches(socket).at(-1)).not.toHaveProperty("scales");
+    host.close();
+  });
+
+  it("adds it to an attach queued before the welcome, once the welcome lists pty-size", () => {
+    const { host, socket } = connect();
+    host.attach("seat", 28, 47);
+    expect(socket.sent).toEqual([]);
+    socket.receive(SIZED);
+    expect(attaches(socket)).toEqual([expect.objectContaining({ rows: 28, cols: 47, scales: true })]);
+    host.close();
+  });
+
+  it("never claims a box for a seat that is only watched", () => {
+    const { host, socket } = connect();
+    socket.receive(SIZED);
+    socket.receive({ type: "sessions", sessions: [{ name: "seat", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 }] });
+    const watch = frames(socket).find((frame) => frame.type === "attach" && frame.session === "seat");
+    expect(watch).toMatchObject({ replay: false });
+    expect(watch).not.toHaveProperty("scales");
+    expect(watch).not.toHaveProperty("rows");
+    host.close();
+  });
+
+  it("carries the box and the claim again when a terminal is re-attached after a redial", () => {
+    vi.useFakeTimers();
+    const { host, socket } = connect();
+    socket.receive({ ...SIZED, features: ["pty-size"] });
+    host.attach("seat", 28, 47);
+    socket.drop();
+    vi.advanceTimersByTime(60_000);
+    const next = StubSocket.last;
+    next.receive({ ...SIZED, features: ["pty-size"] });
+    next.receive({ type: "sessions", sessions: [{ name: "seat", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 }] });
+    expect(attaches(next).at(-1)).toMatchObject({ rows: 28, cols: 47, scales: true, replay: true });
+    host.close();
+    vi.useRealTimers();
+  });
+
+  it("turns a size frame into an event for that seat, and ignores one with no size", () => {
+    const { host, events, socket } = connect();
+    socket.receive(SIZED);
+    socket.receive({ type: "size", session: "seat", rows: 50, cols: 200 });
+    socket.receive({ type: "size", session: "seat" });
+    expect(events.filter((event) => event.type === "size")).toEqual([{ type: "size", sessionId: "seat", rows: 50, cols: 200 }]);
+    host.close();
+  });
+});

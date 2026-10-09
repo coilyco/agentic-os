@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
+  import { restoreRefused } from "../lib/drafts";
   import { findMention, insertMention, mentionMatches } from "../lib/mentions";
   import type { HostConnection, Session } from "../lib/protocol";
   import PasskeyUnlock from "./PasskeyUnlock.svelte";
@@ -7,9 +8,27 @@
 
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
   // `offline` is the host not answering: the draft stays editable and Send waits, since a frame typed into a dead link is lost.
-  let { connection, session, sessions = [], typing = { allowed: true }, offline = false }: { connection: HostConnection; session: Session; sessions?: readonly Session[]; typing?: Typing; offline?: boolean } = $props();
+  // `draft` and `ondraft` keep the text outside this component, so a seat change or a remount does not take it. `onsent` says a send left.
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, draft = "", ondraft, onsent, onfocuschange }: {
+    connection: HostConnection;
+    session: Session;
+    sessions?: readonly Session[];
+    typing?: Typing;
+    offline?: boolean;
+    draft?: string;
+    ondraft?: (text: string) => void;
+    onsent?: () => void;
+    /** Whether the field has focus, for chrome that gives way to the keyboard. */
+    onfocuschange?: (focused: boolean) => void;
+  } = $props();
 
-  let text = $state("");
+  let text = $state(untrack(() => draft));
+  $effect(() => ondraft?.(text));
+  // Input has no reply, so a lock that follows a send moments later is that send refused, and its text comes back.
+  let lastSent: { body: string; at: number } | null = null;
+  let kept = $state(false);
+  let sentFlash = $state(false);
+  let flashTimer: ReturnType<typeof setTimeout> | undefined;
   let status = $state("");
   let caret = $state(0);
   let active = $state(0);
@@ -23,7 +42,14 @@
     if (!typing.allowed) {
       wasLocked = true;
       unlocked = "";
+      const back = restoreRefused(untrack(() => text), lastSent, Date.now());
+      if (back.restored) {
+        text = back.draft;
+        kept = true;
+      }
+      lastSent = null;
     } else if (wasLocked) {
+      kept = false;
       wasLocked = false;
       unlocked = "Unlocked. You can type again.";
       void tick().then(() => field?.focus());
@@ -36,7 +62,10 @@
     const read = () => (narrow = query.matches);
     read();
     query.addEventListener("change", read);
-    return () => query.removeEventListener("change", read);
+    return () => {
+      query.removeEventListener("change", read);
+      onfocuschange?.(false);
+    };
   });
   const PASTE_OPEN = "\x1b[200~";
   const PASTE_CLOSE = "\x1b[201~";
@@ -64,9 +93,14 @@
     } else {
       connection.input(session.id, `${body.replace(/\r?\n/g, " ")}\r`);
     }
+    lastSent = { body, at: Date.now() };
     text = "";
     caret = 0;
     status = `Sent to ${session.identity}.`;
+    sentFlash = true;
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => (sentFlash = false), 1500);
+    onsent?.();
   }
 
   function syncCaret(): void {
@@ -122,6 +156,10 @@
 {#if !typing.allowed}
   <div class="composer locked">
     <p role="status"><strong>Read only.</strong> {typingNotice(typing)}</p>
+    {#if kept}
+      <p class="kept" role="status"><strong>That message was not sent.</strong> It is kept as your draft and comes back here once typing is allowed again.</p>
+    {/if}
+    {#if text}<pre class="draft">{text}</pre>{/if}
     <PasskeyUnlock />
   </div>
 {:else}
@@ -156,7 +194,12 @@
       oninput={typed}
       onkeyup={syncCaret}
       onclick={syncCaret}
-      onfocus={syncCaret}
+      onfocus={() => {
+        syncCaret();
+        onfocuschange?.(true);
+      }}
+      onblur={() => onfocuschange?.(false)}
+      enterkeyhint="send"
       role="combobox"
       aria-autocomplete="list"
       aria-expanded={open}
@@ -168,7 +211,7 @@
       spellcheck="true"
     ></textarea>
   </div>
-  <button class="button primary" type="submit" disabled={!text.trim() || offline}>{offline ? "Waits for host" : "Send"}</button>
+  <button class="button primary" type="submit" disabled={!text.trim() || offline}>{offline ? "Waits for host" : sentFlash && !text.trim() ? "Sent" : "Send"}</button>
   <p class="visually-hidden" role="status">{note}</p>
 </form>
 {/if}
@@ -178,6 +221,9 @@
   /* Above the terminal, which overflows its row when the layout is squeezed. */
   .composer.locked { display: block; position: relative; z-index: 1; }
   .locked p { margin: 0; color: var(--text-soft); }
+  .locked p + p { margin-top: 8px; }
+  .kept { color: var(--warn-text); }
+  .draft { margin: 8px 0 0; padding: 8px 10px; max-height: 6.5em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--control-line); border-radius: 8px; background: var(--terminal); color: var(--text-soft); font: 14px/1.4 var(--font-body); }
   .field { position: relative; flex: 1; min-width: 0; display: flex; }
   textarea {
     flex: 1; min-width: 0; min-height: 44px; max-height: 40vh; field-sizing: content; resize: none;
@@ -196,4 +242,14 @@
   .role { font-size: 13px; color: var(--muted); }
   .name { flex-basis: 100%; font: 13px/1.3 var(--font-mono); overflow-wrap: anywhere; }
   .mention.active .role { color: var(--brand-ink); }
+  /* The one input on a desktop window is also the one Kai types in, so it opens at three lines. */
+  @media (min-width: 721px) {
+    .composer { padding: 12px 16px; }
+    textarea { min-height: 96px; max-height: 50vh; font-size: 16px; }
+  }
+  /* A phone gives the seat's text the screen. Four lines is the most this field takes. */
+  @media (max-width: 720px) {
+    .composer { gap: 8px; padding: 6px 8px; }
+    textarea { padding: 9px 12px; max-height: 112px; }
+  }
 </style>
