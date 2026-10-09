@@ -13,7 +13,8 @@ func newPasskeyCommand() *cli.Command {
 		Name:  "passkey",
 		Usage: "enroll or revoke the passkey a remote tailnet device asserts to type",
 		Description: "A device on the tailnet reads sessions but types only after a passkey assertion\n" +
-			"with user verification, from the client at " + passkeyOrigin + ". Both verbs refuse\n" +
+			"with user verification, from the client at " + passkeyOrigin + ", or a device key\n" +
+			"from the Android app. One code enrolls either, and revoke forgets both. Both verbs refuse\n" +
 			"from inside a session, since only Kai's own terminal may change who can type.",
 		Commands: []*cli.Command{
 			{
@@ -25,7 +26,7 @@ func newPasskeyCommand() *cli.Command {
 						return err
 					}
 					_, err = fmt.Fprintf(cmd.Root().Writer, "enrollment code %s, good for %d minutes and one enrollment.\n"+
-						"Enter it in the aterm client at %s.\n", reply.EnrollCode, reply.ExpiresIn/60, passkeyOrigin)
+						"Enter it in the aterm client at %s, or in the aterm Android app.\n", reply.EnrollCode, reply.ExpiresIn/60, passkeyOrigin)
 					return err
 				},
 			},

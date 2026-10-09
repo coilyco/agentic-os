@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/url"
@@ -41,6 +42,10 @@ var defaultAllowTags = []string{"tag:physical"}
 // defaultAllowOrigins are hosted client pages that may open a session socket
 // on the tailnet, besides the page the daemon serves itself.
 var defaultAllowOrigins = []string{"https://coilyco.dev"}
+
+// appOrigin is the Android app's webview, always allowed beside the configured
+// pages, since ATERM_DAEMON_ALLOW_ORIGINS replaces the default.
+const appOrigin = "https://tauri.localhost"
 
 var tailscaleBin = "tailscale"
 
@@ -215,7 +220,7 @@ func tailnetPolicy(node tailnetNode, allowTags, allowOrigins []string, whois fun
 				return false
 			}
 			site := "https://" + strings.ToLower(origin.Host)
-			return strings.EqualFold(origin.Host, r.Host) || slices.Contains(allowOrigins, site)
+			return strings.EqualFold(origin.Host, r.Host) || slices.Contains(allowOrigins, site) || site == appOrigin
 		},
 	}
 }
@@ -312,6 +317,21 @@ func (d *daemon) serveTailnetWhenUp(done <-chan struct{}, listen func() (*tailne
 	}
 }
 
+// executableGone reports that the file this process runs from no longer exists,
+// as after an upgrade removes the old Cellar version. macOS then drops its flows.
+var executableGone = func() bool {
+	self, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	_, err = os.Stat(self)
+	return errors.Is(err, fs.ErrNotExist)
+}
+
+// errExecutableReplaced is what runDaemon returns after stopping for a new build.
+// It is not nil so the exit is non-zero and launchd restarts the daemon.
+var errExecutableReplaced = errors.New("the binary this daemon started from was removed, so it stopped for launchd to start the installed one")
+
 // holdTailnet closes the listener when it returns. It reports true when done
 // closed, and false when the listener went bad and wants rebinding.
 func (d *daemon) holdTailnet(done <-chan struct{}, serving *tailnetServing) bool {
@@ -339,10 +359,24 @@ func (d *daemon) holdTailnet(done <-chan struct{}, serving *tailnetServing) bool
 				continue
 			}
 			if failed++; failed >= tailnetProbe.fails {
+				if executableGone() {
+					d.logf("the tailnet listener failed %d handshakes and this binary is gone from disk, so macOS drops its flows. Stopping for launchd to start the installed build: %v", failed, err)
+					d.stopForReplacement()
+					return true
+				}
 				d.logf("the tailnet listener failed %d handshakes in a row, binding a new one: %v", failed, err)
 				return false
 			}
 		}
+	}
+}
+
+// stopForReplacement ends the daemon the way a signal does, so the sessions go
+// back to their holders for the next daemon to adopt, and marks the exit as a failure.
+func (d *daemon) stopForReplacement() {
+	d.replaced.Store(true)
+	if d.stopServing != nil {
+		d.stopServing()
 	}
 }
 

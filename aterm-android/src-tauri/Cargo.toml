@@ -15,10 +15,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = "=2.7.1"
 
-# One dependency on purpose: the page talks to the daemon over its own websocket,
-# so the app registers no plugins and no IPC commands. See .agents/skills/tooling-aterm-client/references/android.md.
+# The page talks to the daemon over its own websocket, so the one plugin is the device
+# key and no app IPC commands exist. See .agents/skills/tooling-aterm-client/references/android.md.
 [dependencies]
 tauri = "=2.12.1"
+tauri-plugin-devicekey = { path = "../plugins/tauri-plugin-devicekey" }
 
 [profile.release]
 codegen-units = 1

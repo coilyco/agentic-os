@@ -16,6 +16,23 @@ describe("harnessInputRows", () => {
     expect(harnessInputRows(screen)).toBe(5);
   });
 
+  it("leaves opencode's own box alone, since its permission dialog has not been captured", () => {
+    // A real opencode 1.18 start screen. Its box has no rules, and a dialog may share it.
+    const screen = [
+      "                               █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
+      "",
+      "             ┃",
+      '             ┃  Ask anything… "Fix broken tests"',
+      "             ┃",
+      "             ┃  Build · Claude Sonnet 4.6 (US) Amazon Bedrock",
+      "             ╹" + "▀".repeat(60),
+      "                                                             tab agents  ctrl+p commands",
+      "",
+      "  /path/to/project:main                                                         1.18.35",
+    ];
+    expect(harnessInputRows(screen)).toBe(0);
+  });
+
   it("finds a rounded box with the prompt inside it", () => {
     const screen = [...text(10), "╭" + "─".repeat(38) + "╮", "│ > half a thought      │", "╰" + "─".repeat(38) + "╯", "  ? for shortcuts"];
     expect(harnessInputRows(screen)).toBe(4);

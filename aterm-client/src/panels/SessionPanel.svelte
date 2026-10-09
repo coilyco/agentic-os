@@ -182,6 +182,7 @@
             onsent={() => (app.inputNotice = "")}
             onfocuschange={(focused) => (app.composing = focused)}
             place={placeNow()}
+            working={session.state === "working" && !blank}
           />
         {/key}
       {/if}
