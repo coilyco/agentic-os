@@ -1,0 +1,92 @@
+# Build the aterm Android APK, publish the signed build from main (COI-2623).
+# Steps live in scripts/ci/aterm-android.sh and aterm-android-guard.sh.
+
+name: aterm-android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "aterm-android/**"
+      - "aterm-client/**"
+      - "scripts/ci/aterm-android.sh"
+      - ".forgejo/workflows/aterm-android.yml"
+  pull_request:
+    paths:
+      - "aterm-android/**"
+      - "scripts/ci/aterm-android.sh"
+      - ".forgejo/workflows/aterm-android.yml"
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump for the published build."
+        required: false
+        default: "minor"
+        type: choice
+        options: [minor, patch]
+      allow_throwaway:
+        description: "Publish even when the signing secrets are unset. The APK will not install over a later properly signed build."
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: aterm-android-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: docker
+    timeout-minutes: 60
+    container: forgejo.coilysiren.me/coilyco/agentic-os:release
+    env:
+      ATERM_ANDROID_KEYSTORE_B64: ${{ secrets.ATERM_ANDROID_KEYSTORE_B64 }}
+      ATERM_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ATERM_ANDROID_KEYSTORE_PASSWORD }}
+      ATERM_ANDROID_CERT_SHA256: ${{ secrets.ATERM_ANDROID_CERT_SHA256 }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Refuse to publish a throwaway-signed APK
+        if: ${{ github.event_name != 'pull_request' && !inputs.allow_throwaway }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-guard.sh"
+
+      - id: tag
+        uses: ./actions/tag-bump
+        with:
+          bump: ${{ github.event.inputs.bump || 'minor' }}
+          tag_prefix: aterm-android-v
+          create_tag: ${{ github.event_name != 'pull_request' }}
+          release_sha: ${{ github.sha }}
+
+      - name: Install the Android toolchain
+        run: mkdir -p "$GITHUB_WORKSPACE/aterm-android-out" && bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" toolchain
+
+      - name: Build the unsigned APK
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" build "${{ steps.tag.outputs.new_version }}" "$GITHUB_WORKSPACE/aterm-android-out/aterm-unsigned.apk"
+
+      - name: Sign the APK
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" sign "$GITHUB_WORKSPACE/aterm-android-out/aterm-unsigned.apk" "$GITHUB_WORKSPACE/aterm-android-out/aterm.apk"
+
+      - name: Verify the signature
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" verify "$GITHUB_WORKSPACE/aterm-android-out/aterm.apk"
+
+      - id: create
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: ./actions/create-release
+        with:
+          tag: ${{ steps.tag.outputs.new_tag }}
+          name: aterm Android ${{ steps.tag.outputs.new_tag }}
+          body: ${{ steps.tag.outputs.changelog }}
+
+      - name: Attach the APK
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: ./actions/upload-release-asset
+        with:
+          release_id: ${{ steps.create.outputs.release_id }}
+          file: ${{ github.workspace }}/aterm-android-out/aterm.apk
+          name: aterm.apk

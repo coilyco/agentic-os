@@ -34,6 +34,10 @@ MAPPING: dict[str, dict[str, str]] = {
         "CI_RELEASE_TOKEN": "/forgejo/coilyco-ops/ci-release-token",
         "TAP_WRITE_TOKEN": "/forgejo/coilyco-ops/tap-bump-token",
         "SCOOP_WRITE_TOKEN": "/forgejo/coilyco-ops/scoop-write-token",
+        # The aterm Android release keystore, read by aterm-android.yml (COI-2623).
+        "ATERM_ANDROID_KEYSTORE_B64": "/coilysiren/aterm/write/android-keystore-b64",
+        "ATERM_ANDROID_KEYSTORE_PASSWORD": "/coilysiren/aterm/write/android-keystore-password",
+        "ATERM_ANDROID_CERT_SHA256": "/coilysiren/aterm/write/android-keystore-cert-sha256",
     },
     slug("ward"): {
         "CI_RELEASE_TOKEN": "/forgejo/coilyco-ops/ci-release-token",
