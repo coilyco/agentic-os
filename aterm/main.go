@@ -226,6 +226,7 @@ func newCommand(deps commandDeps) *cli.Command {
 			newClearCommand(),
 			newPasskeyCommand(),
 			newAskCommand(),
+			newGrantCommand(),
 			newAgentsCommand(),
 			newMCPCommand(),
 		},

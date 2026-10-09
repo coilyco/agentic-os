@@ -40,6 +40,7 @@ type daemon struct {
 	tokens     map[string]*ptySession
 	orphans    []*pendingSend
 	asks       map[string]*pendingAsk
+	grants     *grantStore
 	askTimeout time.Duration
 	clientDir  string
 	clientFS   fs.FS
@@ -103,6 +104,7 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		terminals:   map[string]*ptySession{},
 		tokens:      map[string]*ptySession{},
 		asks:        map[string]*pendingAsk{},
+		grants:      newGrantStore(),
 		ended:       map[string]endedSession{},
 		claims:      map[string]time.Time{},
 		askTimeout:  defaultAskTimeout,
@@ -625,6 +627,10 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return d.ask(cl, message)
 	case "answer":
 		return d.answer(cl, message)
+	case "grant_request":
+		return d.grantRequest(cl, message)
+	case "grant_check":
+		return d.grantCheck(cl, message)
 	case "cancel_ask":
 		if !d.settle(message.AskID, choiceAnswer{State: "cancelled", Reason: "a client dismissed it"}) {
 			return withExit(exitOffRoster, fmt.Errorf("no pending ask %q", message.AskID))

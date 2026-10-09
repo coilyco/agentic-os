@@ -11,6 +11,7 @@ import (
 // that type (see typingRefusal). The rest only read, or resize a view.
 var remoteLocked = map[string]bool{
 	"spawn": true, "close": true, "send": true, "claim": true, "ask": true, "cancel_ask": true,
+	"grant_request": true, "grant_check": true,
 	"gateway_add": true, "view_call": true, "view_close": true, "push_subscribe": true, "push_unsubscribe": true,
 }
 

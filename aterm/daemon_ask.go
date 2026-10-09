@@ -40,12 +40,16 @@ type choiceAnswer struct {
 	Labels []string `json:"labels,omitempty"`
 	Text   string   `json:"text,omitempty"`
 	Reason string   `json:"reason,omitempty"`
+	// GrantID is the record an approved grant ask minted. See grant.go.
+	GrantID string `json:"grant_id,omitempty"`
 }
 
 type pendingAsk struct {
 	ask  choiceAsk
 	done chan choiceAnswer
 	once sync.Once
+	// grant is set on an ask made for a grant, which mints on approval.
+	grant *grantSpec
 }
 
 func validateAsk(ask choiceAsk) error {
@@ -87,10 +91,6 @@ func validateAnswer(ask choiceAsk, picks []int, text string) error {
 // ask registers the question, broadcasts it, and answers the asker when it
 // settles. The asker's connection holds the id, so its loss cancels the ask.
 func (d *daemon) ask(cl *client, message frame) error {
-	asker := d.byToken(message.Token)
-	if asker == nil {
-		return withExit(exitUsage, errors.New("aterm ask speaks for a session aterm launched, and this token names no live one"))
-	}
 	if message.Ask == nil {
 		return withExit(exitUsage, errors.New("an ask frame carries an ask"))
 	}
@@ -98,11 +98,23 @@ func (d *daemon) ask(cl *client, message frame) error {
 	if err := validateAsk(ask); err != nil {
 		return withExit(exitUsage, err)
 	}
+	return d.register(cl, message, ask, nil)
+}
+
+// register stamps the asker from its token and puts the ask to every client.
+func (d *daemon) register(cl *client, message frame, ask choiceAsk, spec *grantSpec) error {
+	asker := d.byToken(message.Token)
+	if asker == nil {
+		return withExit(exitUsage, errors.New("aterm ask speaks for a session aterm launched, and this token names no live one"))
+	}
+	if spec != nil {
+		ask = spec.ask(asker.role + " " + asker.identity)
+	}
 	ask.ID = randomID(6)
 	ask.Session = asker.name
 	ask.From = asker.role + " " + asker.identity
 	ask.Asked = time.Now().UTC()
-	pending := &pendingAsk{ask: ask, done: make(chan choiceAnswer, 1)}
+	pending := &pendingAsk{ask: ask, done: make(chan choiceAnswer, 1), grant: spec}
 	d.mu.Lock()
 	d.asks[ask.ID] = pending
 	d.mu.Unlock()
@@ -142,7 +154,17 @@ func (d *daemon) answer(cl *client, message frame) error {
 		labels = append(labels, pending.ask.Options[pick].Label)
 	}
 	answer := choiceAnswer{State: "answered", Picks: message.Picks, Labels: labels, Text: message.Text}
+	// The grant is minted here, past the typing guard above, and before the settle
+	// so the asker's answer carries the id. Option 0 of a grant ask is Approve.
+	var minted string
+	if pending.grant != nil && slices.Contains(message.Picks, 0) {
+		record := d.grants.mint(*pending.grant, pending.ask.From, pending.ask.ID)
+		minted, answer.GrantID = record.ID, record.ID
+	}
 	if !d.settle(message.AskID, answer) {
+		if minted != "" {
+			d.grants.revoke(minted)
+		}
 		return withExit(exitOffRoster, fmt.Errorf("ask %q was already settled", message.AskID))
 	}
 	return cl.c.write(frame{Type: "asked", ID: message.ID, AskID: message.AskID, State: "answered"})
@@ -193,4 +215,32 @@ func (d *daemon) pendingAsks() []choiceAsk {
 	d.mu.Unlock()
 	slices.SortFunc(asks, func(a, b choiceAsk) int { return a.Asked.Compare(b.Asked) })
 	return asks
+}
+
+// grantRequest puts a structured grant to Kai. The question is rendered from the
+// spec, so the seat cannot show one thing and bind another.
+func (d *daemon) grantRequest(cl *client, message frame) error {
+	if message.Grant == nil {
+		return withExit(exitUsage, errors.New("a grant_request frame carries a grant"))
+	}
+	spec := *message.Grant
+	if err := spec.normalize(); err != nil {
+		return withExit(exitUsage, err)
+	}
+	return d.register(cl, message, choiceAsk{}, &spec)
+}
+
+// grantCheck is a gate asking whether a grant covers what it is about to do. The
+// presenting role comes from the token, never from the frame.
+func (d *daemon) grantCheck(cl *client, message frame) error {
+	verdict := grantVerdict{Reason: "unknown_seat"}
+	if message.Check != nil {
+		check := *message.Check
+		check.Role = ""
+		if seat := d.byToken(message.Token); seat != nil {
+			check.Role = seat.role
+			verdict = d.grants.check(check)
+		}
+	}
+	return cl.c.write(frame{Type: "grant_verdict", ID: message.ID, Verdict: &verdict})
 }

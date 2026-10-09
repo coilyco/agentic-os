@@ -106,9 +106,14 @@ type frame struct {
 	Text   string        `json:"text,omitempty"`
 	State  string        `json:"state,omitempty"`
 	Answer *choiceAnswer `json:"answer,omitempty"`
-	Roster *listedRoster `json:"roster,omitempty"`
-	Code   int           `json:"code,omitempty"`
-	Error  string        `json:"error,omitempty"`
+	// grant_request carries Grant, grant_check carries Check, and the reply is
+	// grant_verdict. See grant.go.
+	Grant   *grantSpec    `json:"grant,omitempty"`
+	Check   *grantCheck   `json:"check,omitempty"`
+	Verdict *grantVerdict `json:"verdict,omitempty"`
+	Roster  *listedRoster `json:"roster,omitempty"`
+	Code    int           `json:"code,omitempty"`
+	Error   string        `json:"error,omitempty"`
 	// Passkey ceremonies: EnrollCode is the one-time code, Options and Credential
 	// are WebAuthn JSON. See docs/aterm-daemon.md.
 	EnrollCode string          `json:"enroll_code,omitempty"`
