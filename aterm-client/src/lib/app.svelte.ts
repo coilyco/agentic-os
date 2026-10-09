@@ -63,6 +63,8 @@ export const app = $state({
   focusCard: 0,
   /** The seat whose card a triage jump asked for the keyboard. Spent once it has it. */
   focusAsk: null as string | null,
+  /** The composer has focus. On a phone that is the soft keyboard being up. */
+  composing: false,
   /** What was typed and not sent, by seat, so a lock or a seat change never takes it. */
   drafts: {} as Record<string, string>,
   /** Why typed input was not taken. Stays until dismissed or the next send. */

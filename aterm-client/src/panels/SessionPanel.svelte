@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Creature from "../components/Creature.svelte";
   import ChoiceCard from "../components/ChoiceCard.svelte";
   import Composer from "../components/Composer.svelte";
@@ -17,6 +18,15 @@
   import { loadSide, storeSide } from "../lib/split";
 
   let { role, session }: { role: Role; session: Session } = $props();
+  // On a phone the switcher bar names the seat, so the header keeps only a heading for screen readers.
+  let phone = $state(typeof matchMedia === "function" && matchMedia("(max-width: 720px)").matches);
+  onMount(() => {
+    const query = matchMedia("(max-width: 720px)");
+    const read = () => (phone = query.matches);
+    read();
+    query.addEventListener("change", read);
+    return () => query.removeEventListener("change", read);
+  });
   const messages = $derived(messagesFor(session));
   // A structured ask beats a menu read off the screen: it is the seat's own words.
   const ask = $derived(asksFor(session.id)[0]);
@@ -96,28 +106,30 @@
 
 <section class="session" style:--accent={role.color}>
   <header>
-    <Creature role={role.slug} color={role.color} size={40} />
-    <h1>{session.identity}</h1>
-    <span class="role">{role.displayName} // {session.seat}{sessionCode(session) ? ` // ${sessionCode(session)}` : ""}</span>
-    {#if session.context}
-      {@const percent = contextPercent(session.context)}
-      <span class="context mono" data-source={session.context.source} title={`context read from ${session.context.source}`}>
-        {contextText(session.context)}
-        {#if percent !== null}<span class="bar" aria-hidden="true" style:--fill={`${Math.min(percent, 100)}%`}></span>{/if}
-      </span>
+    {#if !phone}<Creature role={role.slug} color={role.color} size={40} />{/if}
+    <h1 class:visually-hidden={phone}>{session.identity}</h1>
+    {#if !phone}
+      <span class="role">{role.displayName} // {session.seat}{sessionCode(session) ? ` // ${sessionCode(session)}` : ""}</span>
+      {#if session.context}
+        {@const percent = contextPercent(session.context)}
+        <span class="context mono" data-source={session.context.source} title={`context read from ${session.context.source}`}>
+          {contextText(session.context)}
+          {#if percent !== null}<span class="bar" aria-hidden="true" style:--fill={`${Math.min(percent, 100)}%`}></span>{/if}
+        </span>
+      {/if}
+      <span class="state mono">{session.state}</span>
     {/if}
-    <span class="state mono">{session.state}</span>
     {#if session.degraded.length}
       <p class="degraded">Started without {session.degraded.join(", ")}. agent-compose skipped these steps at launch, so this seat may be missing what they set up.</p>
     {/if}
   </header>
-  <div class="body" class:wide style:--side={sideWidth ? `${sideWidth}px` : undefined}>
+  <div class="body" class:wide data-composing={app.composing} style:--side={sideWidth ? `${sideWidth}px` : undefined}>
     <div class="work">
       {#if app.connection}
         {#key session.id}
           <!-- The card overlays the terminal so it never resizes it, which would make the harness redraw its menu. -->
           <div class="screen" data-link={app.link.state}>
-            <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} locked={!app.typing.allowed || reconnecting()} />
+            <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness locked={!app.typing.allowed || reconnecting()} />
             {#if session.starting && blank}
               <p class="starting" role="status">Starting {session.identity} on {session.seat}. Its first screen shows here as soon as {session.seat} has opened.</p>
             {/if}
@@ -168,6 +180,7 @@
             draft={app.drafts[session.id] ?? ""}
             ondraft={(text) => (text ? (app.drafts[session.id] = text) : delete app.drafts[session.id])}
             onsent={() => (app.inputNotice = "")}
+            onfocuschange={(focused) => (app.composing = focused)}
           />
         {/key}
       {/if}
@@ -195,19 +208,18 @@
   .input-notice button { min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--danger); background: transparent; color: var(--danger-text); }
   .starting { position: absolute; inset: 0; margin: 0; padding: 24px; display: grid; place-content: center; text-align: center; color: var(--muted); pointer-events: none; }
   .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
-  .body { --side: 360px; --strip: calc(56px + env(safe-area-inset-bottom)); flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--side); min-height: 0; }
+  .body { --side: 360px; --strip: calc(44px + env(safe-area-inset-bottom)); flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--side); min-height: 0; }
   .body.wide { --side: minmax(360px, 50%); }
   .body :global(.panel) { border-left: none; }
   /* A phone: the seat's name and state on one row, its role and context on the next, so the header does not cost the terminal a third of the screen. */
   @media (max-width: 720px) {
-    header { min-height: 0; padding: 6px 12px; gap: 2px 10px; }
-    header :global(.creature), header :global(.swatch) { width: 28px !important; height: 28px !important; }
-    h1 { font-size: 18px; }
-    .state, .context + .state { order: 1; margin-left: auto; padding: 2px 8px; }
-    .role { order: 2; font-size: 12px; }
-    .context { order: 3; padding: 2px 8px; }
-    .degraded { order: 4; font-size: 12px; }
+    /* The header gives its two rows back. A degraded start still says so. */
+    header { min-height: 0; padding: 0; border-bottom-width: 2px; }
+    .degraded { margin: 4px 8px; font-size: 12px; }
     .overlay { max-height: 100%; padding-bottom: 6px; }
+    /* The tab strip gives way to the keyboard, so typing has the whole screen but the seat's text. */
+    .body[data-composing="true"] :global(.panel) { display: none; }
+    .body[data-composing="true"] { --strip: 0px; }
   }
   @media (max-width: 1000px) {
     /* The sheet floats over this row, so the strip's height stays clear of the composer and the terminal never resizes as it rises. */

@@ -9,7 +9,7 @@
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
   // `offline` is the host not answering: the draft stays editable and Send waits, since a frame typed into a dead link is lost.
   // `draft` and `ondraft` keep the text outside this component, so a seat change or a remount does not take it. `onsent` says a send left.
-  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, draft = "", ondraft, onsent }: {
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, draft = "", ondraft, onsent, onfocuschange }: {
     connection: HostConnection;
     session: Session;
     sessions?: readonly Session[];
@@ -18,6 +18,8 @@
     draft?: string;
     ondraft?: (text: string) => void;
     onsent?: () => void;
+    /** Whether the field has focus, for chrome that gives way to the keyboard. */
+    onfocuschange?: (focused: boolean) => void;
   } = $props();
 
   let text = $state(untrack(() => draft));
@@ -60,7 +62,10 @@
     const read = () => (narrow = query.matches);
     read();
     query.addEventListener("change", read);
-    return () => query.removeEventListener("change", read);
+    return () => {
+      query.removeEventListener("change", read);
+      onfocuschange?.(false);
+    };
   });
   const PASTE_OPEN = "\x1b[200~";
   const PASTE_CLOSE = "\x1b[201~";
@@ -189,7 +194,12 @@
       oninput={typed}
       onkeyup={syncCaret}
       onclick={syncCaret}
-      onfocus={syncCaret}
+      onfocus={() => {
+        syncCaret();
+        onfocuschange?.(true);
+      }}
+      onblur={() => onfocuschange?.(false)}
+      enterkeyhint="send"
       role="combobox"
       aria-autocomplete="list"
       aria-expanded={open}
@@ -232,4 +242,14 @@
   .role { font-size: 13px; color: var(--muted); }
   .name { flex-basis: 100%; font: 13px/1.3 var(--font-mono); overflow-wrap: anywhere; }
   .mention.active .role { color: var(--brand-ink); }
+  /* The one input on a desktop window is also the one Kai types in, so it opens at three lines. */
+  @media (min-width: 721px) {
+    .composer { padding: 12px 16px; }
+    textarea { min-height: 96px; max-height: 50vh; font-size: 16px; }
+  }
+  /* A phone gives the seat's text the screen. Four lines is the most this field takes. */
+  @media (max-width: 720px) {
+    .composer { gap: 8px; padding: 6px 8px; }
+    textarea { padding: 9px 12px; max-height: 112px; }
+  }
 </style>

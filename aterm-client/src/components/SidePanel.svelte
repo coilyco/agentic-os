@@ -124,7 +124,7 @@
   .panel { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-left: 1px solid var(--line); }
   .head { display: flex; align-items: flex-end; border-bottom: 1px solid var(--line); }
   .tabs { display: flex; flex: 1; min-width: 0; gap: 0; padding: 8px 8px 0; overflow-x: auto; }
-  [role="tab"] { min-height: 44px; padding: 0 9px; border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-family: var(--font-display); font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  [role="tab"] { min-height: 40px; padding: 0 9px; border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-family: var(--font-display); font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
   [role="tab"][aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent, var(--brand)); }
   .badge { font-family: var(--font-body); font-weight: 600; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--line); color: var(--text-soft); }
   .badge[data-live="true"] { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }

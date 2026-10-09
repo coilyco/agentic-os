@@ -4,6 +4,7 @@
   import "@xterm/xterm/css/xterm.css";
   import { onMount } from "svelte";
   import { envelopeRows } from "../lib/messages";
+  import { harnessInputRows } from "../lib/harness";
   import { boxToReport } from "../lib/pty-size";
   import { screenRows } from "../lib/screen";
   import type { HostConnection, PeerMessage } from "../lib/protocol";
@@ -17,6 +18,7 @@
     colorOf,
     onscreen,
     locked = false,
+    cropHarness = false,
   }: {
     connection: HostConnection;
     sessionId: string;
@@ -28,12 +30,15 @@
     onscreen?: (rows: string[]) => void;
     /** The daemon refuses this connection's typing, so keys go nowhere. */
     locked?: boolean;
+    /** On a phone the composer is the one input, so the harness's own input box is scrolled out of view. */
+    cropHarness?: boolean;
   } = $props();
 
   let host: HTMLDivElement;
   let term: Terminal | undefined;
-  // The daemon sizes the PTY to the largest client, so this box pans a terminal that may be bigger.
+  // The box scrolls when the terminal is bigger than it: a PTY sized to a larger client, or a cropped harness box.
   let panning = $state(false);
+  const HIDE_SETTLE_MS = 350;
   let decorations: IDisposable[] = [];
   const marked = new Set<number>();
 
@@ -86,16 +91,20 @@
     onscreen(screenRows(term.buffer.active, term.rows));
   }
 
+  let watchHarness = () => {};
+  // The input and the newest text sit at the bottom left, so that corner stays in view
+  // unless the person has panned away. Cropped rows lie below it.
+  let hiddenPx = () => 0;
+  const atBottom = () => host.scrollHeight - host.clientHeight - host.scrollTop - hiddenPx() < 2;
+  function anchor(follow: boolean): void {
+    if (follow) host.scrollTop = Math.max(0, host.scrollHeight - host.clientHeight - hiddenPx());
+    host.scrollLeft = 0;
+  }
+
   function afterWrite(): void {
     markEnvelopes();
     reportScreen();
-  }
-
-  // The input and the newest text sit at the bottom left, so that corner stays in view
-  // unless the person has panned away.
-  function anchor(wasAtBottom: boolean): void {
-    if (wasAtBottom) host.scrollTop = host.scrollHeight;
-    host.scrollLeft = 0;
+    watchHarness();
   }
 
   function remark(): void {
@@ -106,11 +115,12 @@
   }
 
   onMount(() => {
+    const phone = matchMedia("(max-width: 720px)");
     const terminal = new Terminal({
       cursorBlink: true,
       fontFamily: '"JetBrains Mono", ui-monospace, monospace',
       fontSize: 14,
-      lineHeight: 1.3,
+      lineHeight: phone.matches ? 1.15 : 1.3,
       allowProposedApi: true,
       theme: { background: "#101216", foreground: "#d4d8e0", cursor: accent, selectionBackground: `${accent}55` },
     });
@@ -125,27 +135,70 @@
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(host);
-    panning = connection.ptySize === true;
+    const cropping = () => cropHarness && phone.matches;
+    let hidden = 0;
+    const extra = () => (cropping() ? hidden : 0);
+    const cell = () => (host.querySelector<HTMLElement>(".xterm-screen")?.clientHeight ?? 0) / Math.max(terminal.rows, 1);
+    // The window ends at the last shown row, not at the padding below it, which would show a sliver of the box.
+    hiddenPx = () => (extra() > 0 ? extra() * cell() + parseFloat(getComputedStyle(host).paddingBottom) : 0);
     // This client's capacity is what its box can hold, which is not what xterm currently is.
     const own = () => ({ rows: terminal.rows, cols: terminal.cols });
     let reported: { rows: number; cols: number } | undefined;
-    const capacity = () => fit.proposeDimensions() ?? own();
-    if (!panning) fit.fit();
-    const observer = new ResizeObserver(() => {
+    // Rows the box cannot show are asked for anyway, so the harness draws its input below the fold.
+    function layout(): void {
+      const more = extra();
       if (connection.ptySize === true) {
         panning = true;
         const box = boxToReport(fit.proposeDimensions(), true, own());
-        if (box && (box.rows !== reported?.rows || box.cols !== reported?.cols)) {
-          reported = box;
-          connection.resize(sessionId, box.rows, box.cols);
+        const asked = box && { rows: box.rows + more, cols: box.cols };
+        if (asked && (asked.rows !== reported?.rows || asked.cols !== reported?.cols)) {
+          reported = asked;
+          connection.resize(sessionId, asked.rows, asked.cols);
         }
       } else {
+        panning = more > 0;
         fit.fit();
+        if (more > 0) terminal.resize(terminal.cols, terminal.rows + more);
         connection.resize(sessionId, terminal.rows, terminal.cols);
       }
       remark();
+      // Cut at a row, whatever the box height, so no sliver of the hidden box shows.
+      requestAnimationFrame(() => {
+        if (terminal.element) terminal.element.style.clipPath = more > 0 ? `inset(0 0 ${more * cell()}px 0)` : "";
+        if (more > 0) anchor(true);
+      });
+    }
+    panning = connection.ptySize === true;
+    if (!panning) fit.fit();
+    const observer = new ResizeObserver(() => {
+      const follow = atBottom();
+      layout();
+      anchor(follow);
     });
     observer.observe(host);
+    // A pause lets a redraw finish, so a half-drawn box does not count as a box that left.
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    watchHarness = () => {
+      if (!cropping()) return;
+      clearTimeout(settle);
+      settle = setTimeout(() => {
+        const next = harnessInputRows(screenRows(terminal.buffer.active, terminal.rows));
+        if (next === hidden) return;
+        hidden = next;
+        layout();
+        anchor(true);
+      }, HIDE_SETTLE_MS);
+    };
+    // A soft keyboard would only be a second input, so a tap on the terminal does not raise one.
+    const shapeForPhone = () => {
+      terminal.textarea?.setAttribute("inputmode", cropping() ? "none" : "text");
+      terminal.options.lineHeight = phone.matches ? 1.15 : 1.3;
+      if (!cropping()) hidden = 0;
+      layout();
+      anchor(true);
+    };
+    phone.addEventListener("change", shapeForPhone);
+    terminal.textarea?.setAttribute("inputmode", cropping() ? "none" : "text");
     // A terminal that types nothing has no use for Tab, so it leaves instead of trapping focus.
     terminal.attachCustomKeyEventHandler((event) => !(locked && event.key === "Tab"));
     const input = terminal.onData((data) => {
@@ -155,20 +208,22 @@
       if (event.type === "output" && event.sessionId === sessionId) terminal.write(event.data, afterWrite);
       // The host attaches this seat again with replay right after, so the old screen would print twice.
       else if (event.type === "size" && event.sessionId === sessionId) {
-        const atBottom = host.scrollHeight - host.clientHeight - host.scrollTop < 2;
+        const follow = atBottom();
         terminal.resize(event.cols, event.rows);
         remark();
-        anchor(atBottom);
+        anchor(follow);
       } else if (event.type === "reconnected") {
         terminal.reset();
         remark();
       }
     });
     // Subscribed first, so the replay the attach triggers is not missed.
-    const box = capacity();
+    const box = fit.proposeDimensions() ?? own();
     connection.attach(sessionId, panning ? box.rows : terminal.rows, panning ? box.cols : terminal.cols);
     if (panning) reported = box;
     return () => {
+      phone.removeEventListener("change", shapeForPhone);
+      clearTimeout(settle);
       unsubscribe();
       connection.detach(sessionId);
       input.dispose();

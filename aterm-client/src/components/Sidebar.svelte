@@ -2,7 +2,7 @@
   import { onMount, tick } from "svelte";
   import AttentionSwitches from "./AttentionSwitches.svelte";
   import Creature from "./Creature.svelte";
-  import { app, asksFor, glowSeats, reconnecting, selectHost, selectRole, selectSession } from "../lib/app.svelte";
+  import { app, asksFor, glowSeats, reconnecting, selectHost, selectRole, selectSession, sessionById, waitingSeats } from "../lib/app.svelte";
   import type { Host, Session } from "../lib/protocol";
   import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel, splitSessions } from "../lib/sessions";
   import { tablistKeys } from "../lib/tabs";
@@ -10,6 +10,10 @@
   const live = $derived(splitSessions(orderSessions(app.sessions, app.roles)));
   const onScreen = $derived(Boolean(app.selectedSession || app.selectedRole));
   const glowing = $derived(new Set(app.alerts.visual ? glowSeats().map((seat) => seat.sessionId) : []));
+  // On a phone the one seat on screen is named here and nowhere else, and the rest waits behind it.
+  const current = $derived(sessionById(app.selectedSession));
+  const currentRole = $derived(current ? roleFor(current, app.roles) : app.roles.find((role) => role.slug === app.selectedRole));
+  const waitingElsewhere = $derived(waitingSeats().filter((seat) => seat.sessionId !== app.selectedSession).length);
   // The host tab that holds the tab stop, even while a seat is on screen.
   const hereHost = $derived(app.selectedHostId ?? app.hosts[0]?.id);
 
@@ -217,21 +221,27 @@
 <nav class="sidebar" aria-label="Hosts and sessions" data-link={app.link.state} onkeydown={escape}>
   {#if narrow}
     {#if onScreen || app.attachedHostId}
-      <div class="bar">
+      <div class="bar" class:on-seat={onScreen}>
         {#if onScreen}
           <button
             type="button"
-            class="menu-button"
+            class="switcher"
             bind:this={menuButton}
+            style:--accent={currentRole?.color}
             aria-expanded={menuOpen}
             aria-controls="sidebar-menu"
+            aria-label={`${current?.identity ?? `Start ${currentRole?.displayName ?? "a seat"}`}. Seats, starting a seat, hosts and alerts`}
             onclick={toggleMenu}
           >
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
-            Menu
+            {#if currentRole}<Creature role={currentRole.slug} color={currentRole.color} size={28} />{/if}
+            <span class="who">{current?.identity ?? `Start ${currentRole?.displayName ?? "a seat"}`}</span>
+            {#if current}<span class="state mono" data-state={current.state}>{current.state}</span>{/if}
+            {#if waitingElsewhere}<span class="elsewhere" aria-hidden="true">{waitingElsewhere} waiting</span>{/if}
+            <svg class="chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </button>
+        {:else if app.attachedHostId}
+          <div class="seats">{@render runningGroup()}{@render failedGroup()}</div>
         {/if}
-        {#if app.attachedHostId}<div class="seats">{@render runningGroup()}{@render failedGroup()}</div>{/if}
       </div>
     {/if}
     {#if onScreen && menuOpen}
@@ -241,10 +251,12 @@
     {/if}
     {#if !onScreen || menuOpen}
       <div id="sidebar-menu" class="menu" data-flow={onScreen ? "sheet" : "page"}>
-        {@render hostsGroup()}
-        <!-- Over a seat the roles are the long list, so the switches sit ahead of it, in reach without a scroll. -->
+        <!-- Over a seat the menu is the seat switcher too, since the bar names only the one on screen. -->
+        {#if onScreen && app.attachedHostId}{@render runningGroup()}{@render failedGroup()}{/if}
+        {#if !onScreen}{@render hostsGroup()}{/if}
         {#if onScreen}<AttentionSwitches />{/if}
         {#if app.attachedHostId}{@render startGroup()}{/if}
+        {#if onScreen}{@render hostsGroup()}{/if}
         {#if !onScreen}<AttentionSwitches compact />{/if}
       </div>
     {/if}
@@ -330,8 +342,13 @@
   @media (max-width: 720px) {
     .sidebar { width: auto; flex: none; position: relative; z-index: 7; padding: 0; gap: 0; overflow: visible; border-right: none; border-bottom: 1px solid var(--line); }
     .bar { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 4px 8px 4px 12px; background: var(--ground); }
-    .menu-button { flex: none; min-height: 44px; padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text-soft); font-weight: 600; }
-    .menu-button[aria-expanded="true"] { border-color: var(--brand); color: var(--text); background: #1d1729; }
+    .bar.on-seat { min-height: 48px; padding: 2px 8px; }
+    .switcher { flex: 1; min-width: 0; min-height: 44px; padding: 0 10px; display: flex; align-items: center; gap: 10px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font-weight: 600; text-align: left; }
+    .switcher[aria-expanded="true"] { border-color: var(--accent, var(--brand)); background: #1d1729; }
+    .switcher .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-display); font-size: 16px; }
+    .switcher .state { flex: none; font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--accent, var(--line)); color: var(--text-soft); font-weight: 400; }
+    .elsewhere { flex: none; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--brand); color: var(--brand-ink); }
+    .chevron { flex: none; color: var(--muted); }
     .seats { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; }
     .seats h2 { display: none; }
     .seats [role="tablist"] { flex-direction: row; gap: 8px; }
