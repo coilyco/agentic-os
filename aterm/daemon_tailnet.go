@@ -42,6 +42,10 @@ var defaultAllowTags = []string{"tag:physical"}
 // on the tailnet, besides the page the daemon serves itself.
 var defaultAllowOrigins = []string{"https://coilyco.dev"}
 
+// appOrigin is the Android app's webview, always allowed beside the configured
+// pages, since ATERM_DAEMON_ALLOW_ORIGINS replaces the default.
+const appOrigin = "https://tauri.localhost"
+
 var tailscaleBin = "tailscale"
 
 // tailnetGate says whether the tailscale CLI may run without starting the
@@ -215,7 +219,7 @@ func tailnetPolicy(node tailnetNode, allowTags, allowOrigins []string, whois fun
 				return false
 			}
 			site := "https://" + strings.ToLower(origin.Host)
-			return strings.EqualFold(origin.Host, r.Host) || slices.Contains(allowOrigins, site)
+			return strings.EqualFold(origin.Host, r.Host) || slices.Contains(allowOrigins, site) || site == appOrigin
 		},
 	}
 }

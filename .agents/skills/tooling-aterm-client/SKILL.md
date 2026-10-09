@@ -53,6 +53,8 @@ than editing it by hand.
 * [choices.md](references/choices.md) - native choice cards and `ask_choice`.
 * [passkey.md](references/passkey.md) - the passkey unlock a remote device needs before it types.
 * [reach.md](references/reach.md) - why a device cannot reach the daemon, the layers the client names, and what the daemon logs.
+* [device-key.md](references/device-key.md) - the Android app's unlock with the phone's own key, as a person sees it.
+* [device-key-daemon.md](references/device-key-daemon.md) - the daemon half: the frames, the attestation checks, and the app origin.
 * [views-and-browser.md](references/views-and-browser.md) - MCP Apps views and the shared browser.
 * [browser.md](references/browser.md) - the daemon's streamed Chromium and its `browser_*` frames.
 * [web-push.md](references/web-push.md) - the daemon's Web Push to a closed browser, the frames, and what the service worker builds against.

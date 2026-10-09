@@ -366,8 +366,9 @@ type client struct {
 	attached map[string]*ptySession
 	asks     []string
 	// asserted is a passkey assertion on this connection, which a remote device needs.
-	asserted bool
-	ceremony *passkeyCeremony
+	asserted       bool
+	ceremony       *passkeyCeremony
+	deviceCeremony *deviceCeremony
 }
 
 func (d *daemon) serve(raw net.Conn) {
@@ -387,7 +388,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, mcpAppsFeature, inboxFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, mcpAppsFeature, inboxFeature, deviceKeyFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -548,6 +549,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return cl.c.write(frame{Type: "launched", ID: message.ID, Role: message.Role, Seat: message.Seat})
 	case "passkey_mint", "passkey_revoke", "passkey_enroll_begin", "passkey_enroll_finish", "passkey_assert_begin", "passkey_assert_finish":
 		return d.passkey(cl, message)
+	case "device_enroll_begin", "device_enroll_finish", "device_assert_begin", "device_assert_finish":
+		return d.deviceKeyFrames(cl, message)
 	case "roster":
 		roster, err := d.roster(context.Background())
 		if err != nil {
@@ -1127,7 +1130,7 @@ func (d *daemon) typingRefusal(cl *client, message string) error {
 		if cl.asserted {
 			return nil
 		}
-		return withReason(reasonPasskeyRequired, errors.New("assert this device's passkey before it types"))
+		return withReason(reasonPasskeyRequired, errors.New("unlock this device with its passkey or device key before it types"))
 	}
 	if !d.clientDescendsFrom(cl, d.sessionRoots()) {
 		return nil
@@ -1146,9 +1149,12 @@ func (d *daemon) typingStanding(cl *client) *typingStanding {
 		standing = &typingStanding{Reason: reasonFor(err)}
 	}
 	if cl.remote {
-		standing.Passkey = "unenrolled"
+		standing.Passkey, standing.DeviceKey = "unenrolled", "unenrolled"
 		if d.passkeys.enrolled() {
 			standing.Passkey = "enrolled"
+		}
+		if d.passkeys.deviceKeyEnrolled() {
+			standing.DeviceKey = "enrolled"
 		}
 	}
 	return standing

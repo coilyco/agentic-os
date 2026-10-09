@@ -114,6 +114,13 @@ type frame struct {
 	ExpiresIn  int             `json:"expires_in,omitempty"`
 	Options    json.RawMessage `json:"options,omitempty"`
 	Credential json.RawMessage `json:"credential,omitempty"`
+	// Device key ceremonies. The binary fields are base64url, no padding, and
+	// Attestation is an array of DER certificates, leaf first.
+	Challenge   string          `json:"challenge,omitempty"`
+	PublicKey   string          `json:"public_key,omitempty"`
+	KeyID       string          `json:"key_id,omitempty"`
+	Signature   string          `json:"signature,omitempty"`
+	Attestation json.RawMessage `json:"attestation,omitempty"`
 	// Reason is the stable name of a typing refusal on an error, and of a
 	// refusal standing on a welcome. See docs/aterm-daemon.md.
 	Reason string `json:"reason,omitempty"`
