@@ -18,6 +18,8 @@ Tailnet names are opaque identifiers, so the hosted build ships none. The first 
 
 Both builds are installable. The manifest uses relative paths, so it works at `/` and under a hosted prefix, and the service worker's scope is the build's own base. Chrome installs from https or from localhost, Safari on a Mac from File, Add to Dock.
 
+The manifest link says `crossorigin="use-credentials"`. A manifest request omits cookies otherwise, so a host behind a sign-in gate redirects it, and Chrome calls the page not installable (COI-2528).
+
 `sw.js` is written by the build ([`pwa-plugin.ts`](../../../../aterm-client/pwa-plugin.ts)) with every built file listed and a version taken from their bytes, so a new build is a new cache and the old one is dropped when it takes over. It caches the shell only. A launch asks the network first and falls back to the cached shell after 3 seconds or on failure, so a stopped daemon shows the client's "not answering" panel. Nothing else is cached, and a websocket never passes through it.
 
 It refuses to install when a shell file comes back through a redirect, because a hosted build behind a sign-in would otherwise cache the sign-in page as the client. A new release replaces the embedded client, and the next launch picks up the new worker.
