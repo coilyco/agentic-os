@@ -108,3 +108,31 @@ def test_put_secret_targets_the_mapping_key(monkeypatch) -> None:
         f"{mod.FORGEJO_BASE}/repos/coilyco-bridge/deploy"
         "/actions/secrets/DEPLOY_PUSH_TOKEN"
     )
+
+
+def test_apply_plan_reports_every_failure_and_still_writes_the_rest() -> None:
+    """A 404 on one repo must not stop the entries after it (COI-2634)."""
+    mod = _load_script()
+    written: list[tuple[str, str]] = []
+
+    def _read(param):
+        if param == "/empty":
+            raise SystemExit("ssm parameter /empty resolved empty")
+        return "secret-value"
+
+    def _write(token, repo_slug, name, value):
+        if repo_slug == "o/gone":
+            raise mod.urllib.error.HTTPError("u", 404, "Not Found", {}, None)
+        written.append((repo_slug, name))
+
+    plan = [
+        ("o/gone", "A", "/p"),
+        ("o/ok", "B", "/p"),
+        ("o/ok", "C", "/empty"),
+        ("o/ok", "D", "/p"),
+    ]
+    failures = mod.apply_plan(plan, "t", read=_read, write=_write)
+
+    assert written == [("o/ok", "B"), ("o/ok", "D")]
+    assert failures == ["o/gone: A: HTTP 404", "o/ok: C: SystemExit"]
+    assert not any("secret-value" in line for line in failures)
