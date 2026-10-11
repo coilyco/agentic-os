@@ -44,8 +44,7 @@ Major shipped capabilities, not files.
 - [Homebrew updates](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - `aosguard update brew` refreshes tap metadata, upgrades this estate's own formulae first, then the rest, and exits non-zero on anything left behind.
 - [Teable schema admin](../.agents/skills/tooling-aosguard/references/teable-admin.md) - guarded field and table creation plus select-choice rename/add, each re-read and refused unless it stored as asked. Free convert and table-delete are refused by name.
 - [Teable personal records](../.agents/skills/tooling-aosguard/references/teable-personal.md) - guarded record reads and writes over one SSM-pinned base that the caller cannot name. Writes re-read before reporting success, and record-delete is unmounted and refused by name.
-- [Ward integration boundary](ward-specs.md) - one generic runner for every
-  [composed role](aos-cli.md#generic-warded-roles), and no role-derived authority.
+- [Ward record](ward-specs.md) - the archived Ward schema, kept as a record, and no role-derived authority.
 - [Cross-repo tooling and release](release.md) - aos-precommit and release operations.
 - [dev-base image](dev-base-image.md) - parallel cached language payloads feeding one automatically released full development surface.
 - [Pinned and vendored build inputs](vendor-forgejo-policy.md) - the Forgejo policy pushes down to deploy, and the WASM toolchain is baked so no build downloads it.

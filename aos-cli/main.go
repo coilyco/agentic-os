@@ -19,18 +19,28 @@ const (
 )
 
 type launchDefaults struct {
-	Warded       bool
 	RoleShortcut bool
 	HostNetwork  bool
 }
 
 func main() {
+	if retiredInvocation(os.Args[0]) {
+		fmt.Fprintln(os.Stderr, "aosward: retired with Ward (COI-2727), use aos")
+		os.Exit(1)
+	}
 	cmd := newCommandForInvocation(os.Args[0])
 	args := normalizeRoleShortcutArgs(commandDefaultsForInvocation(os.Args[0]), os.Args)
 	if err := cmd.Run(context.Background(), args); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %v\n", cmd.Name, err)
 		os.Exit(1)
 	}
+}
+
+// retiredInvocation is a stale aosward link, which must not fall through to the
+// standalone launcher: that is a different boundary than the one it asked for.
+func retiredInvocation(executable string) bool {
+	name := strings.TrimSuffix(strings.ToLower(filepath.Base(executable)), ".exe")
+	return name == "aosward" || strings.HasPrefix(name, "aosward-")
 }
 
 func newCommand() *cli.Command {
@@ -45,9 +55,6 @@ func newCommandForInvocation(executable string) *cli.Command {
 
 func commandDefaultsForInvocation(executable string) launchDefaults {
 	name := strings.TrimSuffix(strings.ToLower(filepath.Base(executable)), ".exe")
-	if name == "aosward" || strings.HasPrefix(name, "aosward-") {
-		return launchDefaults{Warded: true}
-	}
 	for _, alias := range []string{"aoscompose", "aoscomposed"} {
 		if name == alias || strings.HasPrefix(name, alias+"-") {
 			return launchDefaults{RoleShortcut: true, HostNetwork: true}
@@ -58,9 +65,6 @@ func commandDefaultsForInvocation(executable string) launchDefaults {
 
 func commandNameForInvocation(executable string) string {
 	name := strings.TrimSuffix(strings.ToLower(filepath.Base(executable)), ".exe")
-	if name == "aosward" || strings.HasPrefix(name, "aosward-") {
-		return "aosward"
-	}
 	for _, alias := range []string{"aoscompose", "aoscomposed"} {
 		if name == alias || strings.HasPrefix(name, alias+"-") {
 			return alias
@@ -112,7 +116,7 @@ func hasDashTerminator(args []string) bool {
 
 func rootFlagTakesValue(name string) bool {
 	switch name {
-	case "role", "agent-id", "agent", "image", "layout", "density", "delivery", "kubeconfig":
+	case "role", "agent", "image", "layout", "density", "delivery", "kubeconfig":
 		return true
 	default:
 		return false
@@ -145,16 +149,8 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 				Usage: "shared role slug selected across enabled capabilities",
 			},
 			&cli.StringFlag{
-				Name:  "agent-id",
-				Usage: "optional stable peer id for a generic warded role",
-			},
-			&cli.StringFlag{
 				Name:  "agent",
 				Usage: "agent harness selected for the launch",
-			},
-			&cli.BoolFlag{
-				Name:  "warded",
-				Usage: "delegate the runtime lifecycle and authority boundary to Ward",
 			},
 			&cli.BoolFlag{
 				Name:  "composed",
@@ -291,7 +287,7 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 			},
 			{
 				Name:      "acompose",
-				Usage:     "launch a standalone composed agent in the AOS image (no Ward: use the root action for --warded)",
+				Usage:     "launch a standalone composed agent in the AOS image",
 				ArgsUsage: "-- <harness> [args...]",
 				Action:    runAcompose,
 			},
@@ -431,7 +427,7 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 
 // The legacy subcommand honors none of these. --composed is absent on purpose:
 // it is a documented no-op rather than a dropped capability.
-var acomposeRefusedFlags = []string{"warded", "guarded", "agent"}
+var acomposeRefusedFlags = []string{"guarded", "agent"}
 
 func refuseIntegratedFlags(cmd *cli.Command) error {
 	ignored := make([]string, 0, len(acomposeRefusedFlags))
@@ -444,10 +440,9 @@ func refuseIntegratedFlags(cmd *cli.Command) error {
 		return nil
 	}
 	return fmt.Errorf(
-		"acompose does not honor %s: it launches a standalone AOS container "+
-			"with no Ward lifecycle and no broker boundary.\n"+
+		"acompose does not honor %s: it launches a standalone AOS container.\n"+
 			"For the integrated launch, use the root action:\n"+
-			"  aos --warded --guarded --composed --role <role> --agent <agent>\n"+
+			"  aos --role <role> --agent <agent>\n"+
 			"For the standalone container, keep the documented form:\n"+
 			"  aos --role <role> acompose -- <harness>",
 		strings.Join(ignored, " "),

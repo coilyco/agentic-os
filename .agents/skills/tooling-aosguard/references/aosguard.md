@@ -35,9 +35,7 @@ Specgen renders one concise native skill, `aosguard/SKILL.md`, plus a complete
 lazy command index at `aosguard/references/commands.yaml`.
 
 The full image builds those beside the binary and `aos --guarded` projects the
-skill into the selected agent's skill root. In warded mode AOS also puts the
-binary under the generic bundle's `bin/`, which Ward mounts read-only after the
-image's PATH so it cannot shadow an image tool. The skill grants no permission:
+skill into the selected agent's skill root. The skill grants no permission:
 `aosguard --help`, nested group help, and `describe` stay authoritative.
 
 ## Source ownership

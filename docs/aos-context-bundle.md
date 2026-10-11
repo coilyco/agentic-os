@@ -1,4 +1,4 @@
-# AOS context bundle and connectivity
+# AOS context bundle and connectivity (Ward consumer retired, COI-2727)
 
 Ward accepts one narrow, provider-neutral directory:
 

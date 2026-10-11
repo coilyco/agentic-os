@@ -90,7 +90,7 @@ A pin its source does not list launches on the harness default, with one warning
 
 The loader checks shape: effort is `low` to `max`, and a claude model is an alias (`sonnet`, `opus`, `haiku`, `fable`, plus `[1m]`) or a `claude-*` id. `aos models check` (`just aos-models-check`) checks claude pins with the operational `ANTHROPIC_MODELS_API_KEY`, resolves an alias to its newest id, fails an absent id or unsupported effort, warns on a newer sibling, and refuses Bedrock, Vertex, or Foundry. `--offline` runs the loader alone.
 
-A top-level `permissions.claude: skip` (`COI-2687`) puts `--dangerously-skip-permissions` after `claude` on every launch, role or not, native and both container plans, but excludes `--warded` and `aosward` by decision (`COI-2726`, Ward is archived). A typed `--permission-mode` or skip flag wins and an absent key changes nothing. The loader is strict, so ship a binary that knows the key before the YAML carries it.
+A top-level `permissions.claude: skip` (`COI-2687`) puts `--dangerously-skip-permissions` after `claude` on every launch, role or not, native and both container plans, which are every launch since `--warded` and `aosward` were retired (`COI-2727`). A typed `--permission-mode` or skip flag wins and an absent key changes nothing. The loader is strict, so ship a binary that knows the key before the YAML carries it.
 
 ## Claude UI
 
