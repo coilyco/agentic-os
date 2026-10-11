@@ -460,3 +460,34 @@ func TestChownTreeStillFailsOnNonPermissionErrors(t *testing.T) {
 		t.Fatalf("chownTree swallowed a non-permission error: %v", err)
 	}
 }
+
+func TestStageHarnessDefaultsSeedsClaudeFirstRunState(t *testing.T) {
+	t.Parallel()
+	home := t.TempDir()
+	workspace := "/workspace/repo"
+	writeTestClaudeConfig(t, filepath.Join(home, ".claude.json"), map[string]any{
+		"mcpServers": map[string]any{"kept": map[string]any{"type": "stdio"}},
+	})
+	if err := stageHarnessDefaults("platform", "claude", home, workspace); err != nil {
+		t.Fatal(err)
+	}
+	config := readTestClaudeConfig(t, nativeClaudeConfigPath(home))
+	if config["hasCompletedOnboarding"] != true {
+		t.Errorf("onboarding not seeded: %v", config)
+	}
+	if _, ok := config["mcpServers"].(map[string]any)["kept"]; !ok {
+		t.Errorf("existing MCP registry dropped: %v", config)
+	}
+	project := config["projects"].(map[string]any)[workspace].(map[string]any)
+	for _, key := range nativeClaudeTrustKeys {
+		if project[key] != true {
+			t.Errorf("workspace trust key %s not seeded: %v", key, project)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(home, ".claude", "settings.json")); !os.IsNotExist(err) {
+		t.Fatalf("bypass acceptance seeded without authorization: %v", err)
+	}
+	if err := stageHarnessDefaults("platform", "claude", t.TempDir(), " "); err == nil {
+		t.Fatal("empty workspace accepted")
+	}
+}

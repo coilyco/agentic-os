@@ -67,20 +67,36 @@ var nativeClaudeTrustKeys = []string{
 	"hasClaudeMdExternalIncludesWarningShown",
 }
 
-// Folder trust is keyed by absolute project path, and every native session
-// mints a fresh one, so the launcher pre-accepts the paths it just created.
-func seedNativeClaudeTrust(configPath string, projects []string) error {
-	path := nativeClaudeWritePath(configPath)
+func readNativeClaudeJSON(path string) (map[string]json.RawMessage, error) {
 	top := map[string]json.RawMessage{}
 	raw, err := os.ReadFile(path)
 	switch {
 	case err == nil:
 		if err := json.Unmarshal(raw, &top); err != nil {
-			return fmt.Errorf("parse Claude config %s: %w", path, err)
+			return nil, fmt.Errorf("parse Claude config %s: %w", path, err)
 		}
 	case errors.Is(err, fs.ErrNotExist):
 	default:
-		return fmt.Errorf("read Claude config %s: %w", path, err)
+		return nil, fmt.Errorf("read Claude config %s: %w", path, err)
+	}
+	return top, nil
+}
+
+func writeNativeClaudeJSON(path string, top map[string]json.RawMessage) error {
+	payload, err := json.MarshalIndent(top, "", "  ")
+	if err != nil {
+		return fmt.Errorf("render Claude config: %w", err)
+	}
+	return writeAtomicFile(path, appendNativeTrailingNewline(payload), 0o600)
+}
+
+// Folder trust is keyed by absolute project path, and every native session
+// mints a fresh one, so the launcher pre-accepts the paths it just created.
+func seedNativeClaudeTrust(configPath string, projects []string) error {
+	path := nativeClaudeWritePath(configPath)
+	top, err := readNativeClaudeJSON(path)
+	if err != nil {
+		return err
 	}
 	entries := map[string]map[string]json.RawMessage{}
 	if current := top["projects"]; len(current) > 0 {
@@ -111,11 +127,22 @@ func seedNativeClaudeTrust(configPath string, projects []string) error {
 		return fmt.Errorf("render Claude project state: %w", err)
 	}
 	top["projects"] = encoded
-	payload, err := json.MarshalIndent(top, "", "  ")
+	return writeNativeClaudeJSON(path, top)
+}
+
+// setNativeClaudeFlag sets one top-level boolean in a Claude JSON file and
+// leaves every other key as found. It is a no-op when the flag is already true.
+func setNativeClaudeFlag(path, key string) error {
+	path = nativeClaudeWritePath(path)
+	top, err := readNativeClaudeJSON(path)
 	if err != nil {
-		return fmt.Errorf("render Claude config: %w", err)
+		return err
 	}
-	return writeAtomicFile(path, appendNativeTrailingNewline(payload), 0o600)
+	if string(top[key]) == "true" {
+		return nil
+	}
+	top[key] = json.RawMessage("true")
+	return writeNativeClaudeJSON(path, top)
 }
 
 // macOS resolves /var to /private/var, and the harness records whichever form
