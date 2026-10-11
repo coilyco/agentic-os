@@ -33,7 +33,9 @@ Major shipped capabilities, not files.
 - [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) - guarded CLI with PR
   merge, sealed
   [Forgejo storage measurement](../.agents/skills/tooling-aosguard/references/forgejo-ops.md),
-  and a guarded `gh` replacement withholding every pull-request write.
+  a guarded `gh` withholding pull-request writes, a
+  [guarded `git`](../.agents/skills/tooling-aosguard/references/git-shim.md) refusing hook-skips
+  and force-pushes, and an [fs guard](../.agents/skills/tooling-aosguard/references/fs-shims.md).
 - [Guarded helm releases](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - cluster-pinned upgrade, install, and rollback with release destruction unexposed.
 - [Code review skill](../.agents/composed/tooling-code-review/COMPOSED.md) - Portfolio Director gate-decision review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
@@ -68,19 +70,17 @@ Major shipped capabilities, not files.
 - [Catalog caps reference](catalog-caps-reference.md) - generated numeric caps for validators.
 - [TLS trust-store fallback](../.agents/skills/tooling-aosguard/references/tls-trust-store.md) -
   operator verbs and repo modules load a system CA bundle when the interpreter
-  ships without one, instead of failing every HTTPS call closed with an error
-  that reads like a bad endpoint. Verification is never weakened.
+  ships without one, instead of failing every HTTPS call closed.
+  Verification is never weakened.
 - [Narrative guides shelf](documentation-bands.md) - `guides/*.md` as a second
   structural documentation type beside `docs/*.md`, with its own roomier size
-  caps and no count cap, so an end-to-end walkthrough has somewhere legal to
-  live when the reference shelf is full.
+  caps and no count cap, for end-to-end walkthroughs.
 - [Centrally ratified documentation exclusions](ratifying-an-exclusion.md) -
   a `documentation-layout` exclusion applies only when the repo's own config and
   agentic-os both name it, so adding one costs two pull requests, a release and
-  a pin bump, while removing one costs one. An unratified local pattern fails
-  the hook by name rather than silently not applying.
+  a pin bump, while removing one costs one. An unratified pattern fails the hook by name.
 - [Issue-ref links](../scripts/issue-ref-links.sh) - a Stop hook naming the URL that resolves each
-  hash-ref in a reply, read off the payload key rather than the unflushed transcript. Warn first,
+  hash-ref in a reply. Warn first,
   and never a Forgejo issue URL.
 - [PR merge-status check](../scripts/pr-merge-status-check.py) - a Stop hook asking Forgejo
   whether each cited pull request really merged. Blocks on a contradiction.

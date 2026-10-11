@@ -32,6 +32,8 @@ def shim(tmp_path_factory: pytest.TempPathFactory) -> Path:
             "umbra",
             "--project-root",
             str(PROJECT),
+            "--guardfile",
+            str(MEMBER),
             "build",
             "--out",
             str(binary),

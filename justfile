@@ -110,15 +110,24 @@ aosguard-build *ARGS:
     @umbra --project-root .umbra/guardfiles --skills-out dist/skills build --out dist/aosguard "$@"
     @uv run python -m agentic_os.generators.generate_aosguard_skills --skills-root dist/skills
 
-# Materialize the guarded `gh` replacement binary from its own .umbra project root. It occupies `gh` on an agent session's PATH; see the tooling-aosguard skill's gh-replacement reference.
+# Materialize the guarded `gh` replacement binary. It occupies `gh` on an agent session's PATH; see the tooling-aosguard skill's gh-replacement reference.
 gh-shim-build *ARGS:
     @cp .umbra/guardfiles/specverb.lock .umbra/shims/specverb.lock
-    @umbra --project-root .umbra/shims build --out dist/shims/gh "$@"
+    @umbra --project-root .umbra/shims --guardfile "$(pwd)/.umbra/shims/gh/gh.kdl" build --out dist/shims/gh "$@"
+
+# Materialize the umbra replacements under dist/shims: gh and git. See the tooling-aosguard skill's gh-replacement and git-shim references.
+shims-build *ARGS:
+    @cp .umbra/guardfiles/specverb.lock .umbra/shims/specverb.lock
+    @for k in gh/gh git/git; do umbra --project-root .umbra/shims --guardfile "$(pwd)/.umbra/shims/$k.kdl" build --out "dist/shims/${k##*/}" "$@" || exit 1; done
+
+# Install the rm, find and mv fs guard stubs into a shim directory (an arbitrary path, never the live one unless rolling out by hand). See the tooling-aosguard skill's fs-shims reference.
+fs-shims-install DEST:
+    @sh scripts/fs-shims/install.sh "{{DEST}}"
 
 # Negative controls: every never and withhold in both .umbra roots must refuse by its own text and be load-bearing (umbra docs/negative-controls.md).
 guard-controls *ARGS:
     @umbra --project-root .umbra/guardfiles controls "$@"
-    @umbra --project-root .umbra/shims controls "$@"
+    @for k in gh/gh git/git; do umbra --project-root .umbra/shims --guardfile "$(pwd)/.umbra/shims/$k.kdl" controls "$@" || exit 1; done
 
 # Refresh aosguard's vendored API snapshot and frozen umbra dependency graph with the packaged umbra driver. Pass umbra lock flags as trailing arguments.
 aosguard-lock *ARGS:
