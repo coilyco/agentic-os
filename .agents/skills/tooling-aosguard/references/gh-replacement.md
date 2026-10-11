@@ -29,9 +29,9 @@ umbra's own doc is blunt about the limit, and it is worth restating here: **a PA
 
 ## Building and installing it
 
-`just gh-shim-build` writes `dist/shims/gh`.
+`just gh-shim-build` writes `dist/shims/gh`, and `just shims-build` writes it beside the [guarded `git`](git-shim.md). The `.umbra/shims` root now holds both, so every call names its member with `--guardfile <absolute path>`. The rollout role in `coilyco/infrastructure` still names `.umbra/guardfiles/gh/gh.kdl`, a path that no longer exists here, and has to follow.
 
-**`gh` has its own project root, `.umbra/shims`, and that is load-bearing.** `--project-root` is a recursive discovery root and umbra refuses to guess between members, so while `gh` sat beside `aosguard` under `.umbra/guardfiles` every verb against that root had to name one with `--guardfile`. A call site that missed the sweep failed with `2 binaries in .../guardfiles (aosguard, gh); pass --guardfile to pick one`, and the one that missed it was the release build, which is why aos published no assets between `aos-v0.322.0` and `aos-v0.329.0`. One binary per root means no call site has to name anything.
+**`gh` has its own project root, `.umbra/shims`, and that was load-bearing.** `--project-root` is a recursive discovery root and umbra refuses to guess between members, so while `gh` sat beside `aosguard` under `.umbra/guardfiles` every verb against that root had to name one with `--guardfile`. A call site that missed the sweep failed with `2 binaries in .../guardfiles (aosguard, gh); pass --guardfile to pick one`, and the one that missed it was the release build, which is why aos published no assets between `aos-v0.322.0` and `aos-v0.329.0`. One binary per root means no call site has to name anything.
 
 Both roots build against one committed `specverb.lock`, the copy under `guardfiles/`. It holds no per-member content at all, only `go`, `cliGuard`, `goMod` and `goSum`, so a second committed copy would be one pin in two places waiting to drift. umbra reads the lock from the project root and rejects a symlink that escapes it, so `just gh-shim-build` stages a copy into `.umbra/shims` and `.gitignore` keeps it out of the tree. `just aosguard-lock` writes the original and nothing else.
 
