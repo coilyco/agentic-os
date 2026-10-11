@@ -526,7 +526,11 @@ func findSingleBundle(root string) (string, error) {
 // stageHarnessDefaults carries container-boundary settings that the selected harness
 // cannot infer from projected role context (agentic-os#723, agentic-os#724).
 func stageHarnessDefaults(role, layout, home, workspace string) error {
-	if layout != "codex" {
+	switch layout {
+	case "claude":
+		return stageClaudeDefaults(home, workspace)
+	case "codex":
+	default:
 		return nil
 	}
 	if strings.TrimSpace(workspace) == "" {
@@ -546,6 +550,22 @@ func stageHarnessDefaults(role, layout, home, workspace string) error {
 		"trust_level = \"trusted\"\n"
 	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(body), 0o644); err != nil {
 		return fmt.Errorf("write codex config: %w", err)
+	}
+	return nil
+}
+
+// stageClaudeDefaults pre-answers the onboarding and folder-trust dialogs of a
+// fresh container home (COI-2732). Bypass acceptance is deliberately not seeded.
+func stageClaudeDefaults(home, workspace string) error {
+	if strings.TrimSpace(workspace) == "" {
+		return fmt.Errorf("claude workspace must not be empty")
+	}
+	config := nativeClaudeConfigPath(home)
+	if err := setNativeClaudeFlag(config, "hasCompletedOnboarding"); err != nil {
+		return fmt.Errorf("seed claude onboarding: %w", err)
+	}
+	if err := seedNativeClaudeTrust(config, []string{workspace}); err != nil {
+		return fmt.Errorf("seed claude workspace trust: %w", err)
 	}
 	return nil
 }
