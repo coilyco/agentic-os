@@ -258,6 +258,9 @@ func runStandaloneIntegratedLaunch(
 	if err != nil {
 		return err
 	}
+	if command, err = applyConfiguredPermissionMode(command, opts.Agent); err != nil {
+		return err
+	}
 	uid, gid := hostIdentity()
 	auth, err := authForLaunch(ctx, opts.Auth, opts.Agent)
 	if err != nil {

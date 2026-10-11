@@ -510,6 +510,9 @@ func runComposedLaunch(
 	if err != nil {
 		return err
 	}
+	if command, err = applyConfiguredPermissionMode(command, layout); err != nil {
+		return err
+	}
 	uid, gid := hostIdentity()
 	auth, err := authForLaunch(ctx, cmd.Bool("auth"), layout)
 	if err != nil {

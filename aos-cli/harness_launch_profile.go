@@ -23,6 +23,7 @@ var errHarnessLaunchProfilesMissing = errors.New("harness launch profiles missin
 
 type harnessLaunchProfileDocument struct {
 	Roles         map[string]harnessLaunchRole `yaml:"roles"`
+	Permissions   map[string]string            `yaml:"permissions"`
 	DefaultAgents map[string]string            `yaml:"-"`
 }
 
@@ -38,6 +39,9 @@ func loadHarnessLaunchProfiles(data []byte) (harnessLaunchProfileDocument, error
 	}
 	if len(document.Roles) == 0 {
 		return harnessLaunchProfileDocument{}, fmt.Errorf("harness launch profile roles are empty")
+	}
+	if err := validateHarnessPermissions(document.Permissions); err != nil {
+		return harnessLaunchProfileDocument{}, err
 	}
 	document.DefaultAgents = make(map[string]string, len(document.Roles))
 	for role, profile := range document.Roles {

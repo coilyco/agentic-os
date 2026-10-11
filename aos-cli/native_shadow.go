@@ -279,6 +279,9 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 			return err
 		}
 	}
+	if command, err = applyConfiguredPermissionMode(command, harness); err != nil {
+		return err
+	}
 	applyNativeSessionHeader(harness, workspace.SessionHome, runtime.Stderr)
 	if err := prependNativeShimPath(workspace.SessionHome); err != nil {
 		return err
