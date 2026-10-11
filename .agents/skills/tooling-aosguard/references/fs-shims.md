@@ -4,7 +4,7 @@
 
 ## What it checks
 
-* **Inert without roots.** With neither `AOS_NATIVE_SESSION_PROJECTS` nor `AOS_FS_GUARD_ROOTS` set, every call passes through. The dev-base image puts the stubs on `PATH` for CI jobs as well, and a guard that refused every `rm` there would break them. A container seat is therefore unguarded until its launcher exports `AOS_FS_GUARD_ROOTS`, a `:` list of directories it may change (COI-2731).
+* **Inert without roots.** With neither `AOS_NATIVE_SESSION_PROJECTS` nor `AOS_FS_GUARD_ROOTS` set, every call passes through. The dev-base image puts the stubs on `PATH` for CI jobs as well, and a guard that refused every `rm` there would break them. The `aos` container plans, standalone and acompose, export `AOS_FS_GUARD_ROOTS` as the workspace mount plus `/tmp`, a `:` list of directories a seat may change, and leave `PATH` to the image (COI-2731, COI-2734). A container started any other way is unguarded.
 * **Allowed roots** are the shadow (the parent of `AOS_NATIVE_SESSION_PROJECTS`, which holds `projects/`, `home/` and `seat/`) and `/private/tmp/claude-<uid>` or `/tmp/claude-<uid>`. A root that is `/` or the home directory is dropped, so a mis-set variable cannot widen the boundary. If every named root is dropped, every call is refused.
 * **`rm`** needs every operand inside. **`mv`** needs every operand inside, source and target, because a move deletes one and overwrites the other. `-t` and `--target-directory=` count as operands.
 * **`find`** is refused only when it carries `-delete`, `-exec`, `-execdir`, `-ok`, `-okdir` or an `-fprint` family predicate, and then every start path must be inside. A read-only `find` passes anywhere.

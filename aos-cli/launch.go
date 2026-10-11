@@ -249,6 +249,9 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 		"--tmpfs", "/tmp:rw,exec,size="+runtimeTmpfsSize,
 		"--workdir", workspace,
 		"--env", "AOS_CONTAINER=1",
+		// The image's fs guard stays inert without roots (COI-2731), so a seat
+		// may change its workspace mount and the scratch tmpfs and nothing else.
+		"--env", "AOS_FS_GUARD_ROOTS="+mountTarget+":/tmp",
 	)
 	for _, key := range opts.ForwardedEnvs {
 		if _, pinned := opts.PinnedEnvs[key]; !pinned {

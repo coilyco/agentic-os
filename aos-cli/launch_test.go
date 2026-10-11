@@ -345,6 +345,7 @@ func TestBuildLaunchPlanMountsCWDAndRunsInternalCompose(t *testing.T) {
 		"--tmpfs\n/tmp:rw,exec,size=" + runtimeTmpfsSize,
 		"--workdir\n/workspace/my-repo",
 		"--env\nAOS_CONTAINER=1",
+		"--env\nAOS_FS_GUARD_ROOTS=/workspace/my-repo:/tmp",
 		"--env\nOPENAI_API_KEY",
 		"type=bind,source=/host/auth.json,target=/run/aos/auth/codex.json,readonly",
 		"--entrypoint\n/usr/local/bin/aos",
@@ -368,6 +369,29 @@ func TestBuildLaunchPlanMountsCWDAndRunsInternalCompose(t *testing.T) {
 	}
 	if containsArg(plan.DockerArgs, "--pull") {
 		t.Fatalf("custom image unexpectedly forced a registry pull:\n%s", joined)
+	}
+}
+
+// The image puts /opt/agentic-os/shims first on PATH (COI-2731). A plan that
+// set PATH would replace that, so the plan leaves it to the image.
+func TestBuildLaunchPlanLeavesPATHToTheImage(t *testing.T) {
+	t.Parallel()
+	plan, err := buildLaunchPlan(launchOptions{
+		Image:    "agentic-os:test",
+		Role:     "platform",
+		Layout:   "claude",
+		Delivery: "native-skills",
+		Composed: true,
+		CWD:      filepath.Join(t.TempDir(), "repo"),
+		Command:  []string{"claude"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, arg := range plan.DockerArgs {
+		if arg == "PATH" || strings.HasPrefix(arg, "PATH=") {
+			t.Fatalf("launch plan sets PATH, which would drop the image's shim directory: %q", arg)
+		}
 	}
 }
 
@@ -399,6 +423,7 @@ func TestBuildLaunchPlanMountsWorkspaceSourceAndNestedCWD(t *testing.T) {
 		"type=bind,source=" + source + ",target=/workspace",
 		"--workdir\n/workspace/owner/repo/docs",
 		"--workspace\n/workspace/owner/repo/docs",
+		"--env\nAOS_FS_GUARD_ROOTS=/workspace:/tmp",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("launch plan missing %q:\n%s", want, joined)
