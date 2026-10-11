@@ -224,3 +224,30 @@ def test_write_creates_a_plain_file_when_the_path_is_not_a_link(tmp_path) -> Non
     assert target == path
     assert not path.is_symlink()
     assert json.loads(path.read_text()) == {"theme": "dark"}
+
+
+def test_ssh_to_kai_server_is_allowed_once_and_survives_a_second_run() -> None:
+    settings: dict = {}
+    MODULE.merge_base_settings(settings)
+    rules = [r for r in settings["permissions"]["allow"] if r.startswith("Bash(ssh kai@kai-server")]
+    assert len(rules) == 1
+    assert MODULE.merge_base_settings(settings) == []
+
+
+def test_the_sudo_prose_names_exact_forms_and_keeps_destructive_kubectl_with_the_classifier() -> None:
+    settings: dict = {}
+    MODULE.merge_base_settings(settings)
+    prose = [e for e in settings["autoMode"]["allow"] if "ssh kai@kai-server" in e]
+    assert len(prose) == 1
+    assert "/bin/systemctl {start|stop|restart|status}" in prose[0]
+    assert "delete and drain stay with the classifier" in prose[0]
+    assert "sudo *" not in prose[0]
+
+
+def test_the_sudo_prose_replaces_a_reworded_copy_in_place() -> None:
+    owned = [e for e in MODULE.BASE_AUTO_MODE_ALLOW if "ssh kai@kai-server" in e][0]
+    older = owned[: MODULE.AUTO_MODE_KEY_LEN] + " an older wording."
+    settings = {"autoMode": {"allow": ["$defaults", older]}}
+    MODULE.merge_base_settings(settings)
+    merged = [e for e in settings["autoMode"]["allow"] if e.startswith(older[: MODULE.AUTO_MODE_KEY_LEN])]
+    assert merged == [owned]

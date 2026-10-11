@@ -93,7 +93,7 @@ matched the command string, missing `just <verb>` while blocking the direct call
   MultiEdit, and NotebookEdit. `autoMemoryEnabled: false` stops the harness
   writing memory files, and the deny stops an agent authoring one by hand.
 
-`BASE_ALLOWED_PERMISSIONS` carries two ssh host rules, Kai's call 2026-09-20, that both miss a flagged `ssh -o ...`: `teable:coilyco-flight-deck/agentic-os#7992`.
+`BASE_ALLOWED_PERMISSIONS` carries three ssh host rules, the first two Kai's call 2026-09-20 and `kai@kai-server` added under COI-2723, that each miss a flagged `ssh -o ...`: `teable:coilyco-flight-deck/agentic-os#7992`. A `sudo -n` on kai-server matches its sudoers entry by absolute path and exact arguments, so `autoMode.allow` names those forms.
 Its `aosguard` rules (COI-2659, COI-2662) are exact `describe` for `forgejo` and `forgejo-admin`, then `*`, `ops *`, `update *`, and `ops <area> *` per area in `aosguard ops --help`.
 `autoMode.allow` merges beside `$defaults` the same way, never `Bash(*)`.
 Whether these rules skip the classifier is unverified until a host converges.

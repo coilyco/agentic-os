@@ -69,6 +69,7 @@ RETIRED_DENIED_PERMISSIONS = [
 BASE_ALLOWED_PERMISSIONS: list[str] = [
     "Bash(ssh coilysiren@ser8:*)",
     "Bash(ssh firem@kai-tower-3026:*)",
+    "Bash(ssh kai@kai-server:*)",
     # Exact matches, one per area with a `describe` verb. A `*` in the area slot
     # would match spaces too, covering any aosguard line that ends in `describe`.
     "Bash(aosguard ops forgejo describe)",
@@ -102,6 +103,15 @@ BASE_AUTO_MODE_ALLOW: list[str] = [
     "agent composed on the spot. Do not deny a `just` verb merely because its "
     "name, or a tool inside its recipe, would be judged differently when typed "
     "directly.",
+    "Over `ssh kai@kai-server`, these `sudo -n` forms need no password, so a seat "
+    "never asks Kai for sudo for them: `/bin/systemctl {start|stop|restart|status} "
+    "{eco-server|core-keeper-server|icarus-server|factorio-server}`, "
+    "`/bin/systemctl daemon-reload`, `/usr/local/bin/k3s kubectl *` and "
+    "`/home/linuxbrew/.linuxbrew/bin/coily`. The match is the exact absolute path "
+    "and arguments, so an added `--no-pager` or a bare `systemctl` asks for a "
+    "password, which is a typo and not a gate. Running them is in-lane for the "
+    "role that owns that server. Destructive kubectl verbs such as delete and "
+    "drain stay with the classifier.",
 ]
 
 
