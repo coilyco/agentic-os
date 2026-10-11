@@ -80,5 +80,6 @@ target "full" {
     aosguard-spec                     = ".umbra"
     aosguard-python                   = "agentic_os"
     repo-lists                        = "aos-cli/repositories"
+    fs-shims                          = "scripts/fs-shims"
   }
 }

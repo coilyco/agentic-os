@@ -55,6 +55,7 @@ if [ "$MODE" = build ]; then
       --build-context aosguard-spec=.umbra
       --build-context aosguard-python=agentic_os
       --build-context repo-lists=aos-cli/repositories
+      --build-context fs-shims=scripts/fs-shims
       --target dev-base-full
       --file docker/dev-base/full/Dockerfile
       docker/dev-base

@@ -119,13 +119,32 @@ def test_mv_needs_both_ends_inside(world) -> None:
     assert run("mv", "-t", str(shadow / "projects"), str(outside / "keep")).returncode == 2
 
 
-def test_an_unset_shadow_refuses_everything(world, tmp_path: Path) -> None:
-    shadow, _, run = world
+def test_with_no_roots_named_the_guard_is_inert(world, tmp_path: Path) -> None:
+    shadow, _, _ = world
     victim = shadow / "projects" / "v"
     victim.mkdir()
     shims = tmp_path / "shims"
-    env = {k: v for k, v in os.environ.items() if k != "AOS_NATIVE_SESSION_PROJECTS"}
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("AOS_NATIVE_SESSION_PROJECTS", "AOS_FS_GUARD_ROOTS")}
     env["PATH"] = f"{shims}{os.pathsep}{env['PATH']}"
     result = subprocess.run([str(shims / "rm"), "-rf", str(victim)], env=env,
                             capture_output=True, text=True)
-    assert result.returncode == 2 and victim.exists()
+    assert result.returncode == 0 and not victim.exists()
+
+
+def test_named_roots_bind_outside_a_native_shadow(world, tmp_path: Path) -> None:
+    shadow, outside, _ = world
+    shims = tmp_path / "shims"
+    inside_dir = shadow / "projects" / "ws"
+    inside_dir.mkdir()
+    decoy = outside / "decoy"
+    decoy.mkdir()
+    env = {k: v for k, v in os.environ.items() if k != "AOS_NATIVE_SESSION_PROJECTS"}
+    env["PATH"] = f"{shims}{os.pathsep}{env['PATH']}"
+    env["AOS_FS_GUARD_ROOTS"] = str(inside_dir)
+    refused = subprocess.run([str(shims / "rm"), "-rf", str(decoy)], env=env,
+                             capture_output=True, text=True)
+    assert refused.returncode == 2 and decoy.exists()
+    allowed = subprocess.run([str(shims / "rm"), "-rf", str(inside_dir)], env=env,
+                             capture_output=True, text=True)
+    assert allowed.returncode == 0 and not inside_dir.exists()

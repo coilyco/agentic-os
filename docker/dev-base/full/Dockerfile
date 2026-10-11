@@ -45,6 +45,20 @@ RUN set -eux; \
     rm "/tmp/${umbra_asset}" /tmp/umbra-SHA256SUMS; umbra --version
 COPY --from=aosguard-spec . /tmp/aosguard-spec
 COPY --from=aosguard-python . /tmp/aosguard-python/agentic_os
+COPY --from=fs-shims . /tmp/fs-shims
+# COI-2731: the guarded gh and git, then the rm/find/mv fs guard, into one dir
+# the final stage puts first on PATH. The lock is staged here because the
+# shims root keeps a gitignored copy of it (see tooling-aosguard git-shim).
+RUN set -eux; \
+    mkdir -p /opt/agentic-os/shims; \
+    cp /tmp/aosguard-spec/guardfiles/specverb.lock /tmp/aosguard-spec/shims/specverb.lock; \
+    for k in gh git; do \
+      umbra --project-root /tmp/aosguard-spec/shims \
+        --guardfile "/tmp/aosguard-spec/shims/${k}/${k}.kdl" \
+        build --set-version "dev-base" --out "/opt/agentic-os/shims/${k}"; \
+    done; \
+    sh /tmp/fs-shims/install.sh /opt/agentic-os/shims; \
+    chmod -R a+rX /opt/agentic-os/shims; rm -rf /tmp/fs-shims
 RUN set -eux; \
     umbra --project-root /tmp/aosguard-spec/guardfiles \
       --skills-out /opt/agentic-os/aosguard-skill build \
@@ -108,6 +122,7 @@ COPY --from=repo-lists --chmod=0644 substrate-repos.txt /opt/agentic-os/substrat
 COPY --from=dev-base-tool-builder /usr/local/bin/aos /usr/local/bin/aos
 COPY --from=dev-base-tool-builder /usr/local/bin/aosguard /usr/local/bin/aosguard
 COPY --from=dev-base-tool-builder /opt/agentic-os/aosguard-skill /opt/agentic-os/aosguard-skill
+COPY --from=dev-base-tool-builder /opt/agentic-os/shims /opt/agentic-os/shims
 # aos#771: the system interpreter carries the operator modules. A global
 # PYTHONPATH would also reach every isolated venv and void a pinned hook rev.
 COPY --from=aosguard-python . /tmp/agentic-os-python/agentic_os/
@@ -176,6 +191,18 @@ RUN node --version && go version && dotnet --list-sdks && cargo --version && \
       cargo "+${pin}" fmt --version && \
       rustup target list --installed --toolchain "${pin}" | grep -qx wasm32-unknown-unknown; \
     done
+# Last on purpose: every RUN above needs the real git, rm and mv. ENV reaches
+# every process started from the image, not only interactive shells.
+ENV PATH=/opt/agentic-os/shims:${PATH}
+RUN set -eux; \
+    for t in git gh rm find mv; do test "$(command -v "$t")" = "/opt/agentic-os/shims/$t"; done; \
+    scratch="$(mktemp -d)"; cd "${scratch}"; \
+    git init -q .; git config user.email a@b.invalid; git config user.name t; \
+    echo x > f; git add f; \
+    if git commit --no-verify -q -m x 2>/tmp/refusal; then echo "commit --no-verify was not refused"; exit 1; fi; \
+    grep -q denied /tmp/refusal; \
+    git commit -q -m ok; \
+    cd /; rm -rf "${scratch}" /tmp/refusal
 WORKDIR /workspace
 ENTRYPOINT ["/opt/agentic-os/ward-shell-entrypoint.sh"]
 CMD ["bash"]
