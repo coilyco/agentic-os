@@ -117,4 +117,4 @@ A native launch reads SSM `/coilysiren/linear/key` and exports `LINEAR_API_KEY` 
 <key>`, since Codex sends the header verbatim) for `public_coilyco_linear`. An ambient value skips the fetch. A role with
 SSM `/coilysiren/linear/apps/<role>/client-id` and `client-secret` swaps the authorization for its app's
 `client_credentials` token (`read,write`, 30 days), so its comments show the app, not Kai. No app is silent. A failed read
-or mint warns by role and keeps Kai's key. Nothing touches disk. Source: `aos-cli/native_linear_credentials.go` (COI-967).
+or mint warns by role and keeps Kai's key. Nothing touches disk. Source: `aos-cli/native_linear_credentials.go` (COI-967). `aos-cli/native_mcp_credentials.go` exports further Bearer variables the same way, one SSM SecureString per entry and only for the roles it lists (COI-2720).

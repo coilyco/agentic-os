@@ -289,6 +289,7 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 		}
 	}
 	applyNativeLinearEnvironment(ctx, runtime.Stderr, role)
+	applyNativeMCPCredentials(ctx, runtime.Stderr, role)
 	runtime.Progress.Ready()
 	runtime.Progress.Exec(command)
 	return execNative(command)
