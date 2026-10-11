@@ -4,7 +4,8 @@
 
 ## What it checks
 
-* **Allowed roots** are the shadow (the parent of `AOS_NATIVE_SESSION_PROJECTS`, which holds `projects/`, `home/` and `seat/`) and `/private/tmp/claude-<uid>` or `/tmp/claude-<uid>`. A root that is `/`, the home directory, or fewer than three components deep is dropped, so a mis-set variable cannot widen the boundary. With no root left, every call is refused.
+* **Inert without roots.** With neither `AOS_NATIVE_SESSION_PROJECTS` nor `AOS_FS_GUARD_ROOTS` set, every call passes through. The dev-base image puts the stubs on `PATH` for CI jobs as well, and a guard that refused every `rm` there would break them. A container seat is therefore unguarded until its launcher exports `AOS_FS_GUARD_ROOTS`, a `:` list of directories it may change (COI-2731).
+* **Allowed roots** are the shadow (the parent of `AOS_NATIVE_SESSION_PROJECTS`, which holds `projects/`, `home/` and `seat/`) and `/private/tmp/claude-<uid>` or `/tmp/claude-<uid>`. A root that is `/` or the home directory is dropped, so a mis-set variable cannot widen the boundary. If every named root is dropped, every call is refused.
 * **`rm`** needs every operand inside. **`mv`** needs every operand inside, source and target, because a move deletes one and overwrites the other. `-t` and `--target-directory=` count as operands.
 * **`find`** is refused only when it carries `-delete`, `-exec`, `-execdir`, `-ok`, `-okdir` or an `-fprint` family predicate, and then every start path must be inside. A read-only `find` passes anywhere.
 * **Path resolution** follows symlinks in the parent and leaves the leaf alone, since `rm` and `mv` act on the link. A relative path is resolved against the working directory, and `--` hides no operand.

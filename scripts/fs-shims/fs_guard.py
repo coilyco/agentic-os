@@ -1,10 +1,10 @@
 """Refuse rm, find and mv when they would touch a path outside the session shadow.
 
-The `rm`, `find` and `mv` stubs beside this file call it as `fs_guard.py <tool>
-<caller args...>`. A call whose every path sits inside the session shadow or the
-Claude scratchpad runs the real tool, and anything else exits 2 naming the path.
-It is a script and not an umbra shim because umbra cannot express "inside a
-directory only known at runtime". Reference: tooling-aosguard, references/fs-shims.md.
+The rm, find and mv stubs beside this file call it as `fs_guard.py <tool> <args>`.
+A path inside the shadow, the scratchpad or AOS_FS_GUARD_ROOTS runs the real tool,
+and any other exits 2. With none of those set it is inert, because the dev-base
+image carries it for CI jobs too. Why a script, and what it misses:
+tooling-aosguard references/fs-shims.md.
 """
 import os
 import shutil
@@ -20,18 +20,23 @@ MV_PATH_FLAGS = {"-t", "--target-directory"}
 
 
 def allowed_roots():
+    """The roots a call may touch, or None when no launcher named any (guard inert)."""
     roots = []
     projects = os.environ.get("AOS_NATIVE_SESSION_PROJECTS", "")
+    named = os.environ.get("AOS_FS_GUARD_ROOTS", "")
+    if not projects and not named:
+        return None
     if projects:
         # The shadow holds projects/, home/ and seat/ side by side.
         roots.append(os.path.dirname(os.path.realpath(projects)))
+    roots += [os.path.realpath(r) for r in named.split(os.pathsep) if r]
     uid = os.getuid()
     for scratch in (f"/private/tmp/claude-{uid}", f"/tmp/claude-{uid}"):
         if os.path.isdir(scratch):
             roots.append(os.path.realpath(scratch))
     home = os.path.realpath(os.path.expanduser("~"))
     # A mis-set variable must not turn "inside the shadow" into "anywhere".
-    return [r for r in roots if r not in ("/", home) and r.count(os.sep) >= 3]
+    return [r for r in roots if r not in ("/", home)]
 
 
 def resolve(path):
@@ -88,9 +93,9 @@ def main(argv):
     if real is None:
         sys.stderr.write(f"{tool}: no real {tool} on PATH\n")
         return 127
-    reads_only = tool == "find" and not FIND_WRITES.intersection(args)
-    paths = [] if reads_only else operands(tool, args)
     roots = allowed_roots()
+    reads_only = tool == "find" and not FIND_WRITES.intersection(args)
+    paths = [] if roots is None or reads_only else operands(tool, args)
     for path in paths:
         if not roots or not inside(resolve(path), roots):
             sys.stderr.write(

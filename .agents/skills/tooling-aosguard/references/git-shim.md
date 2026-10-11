@@ -21,6 +21,10 @@ The refusal holds for every remote, because it reads argv and not the remote URL
 
 `just shims-build` writes `dist/shims/gh` and `dist/shims/git`. Both live under one project root, so every umbra call names its member with `--guardfile <absolute path>`, and a call that omits it fails with `2 binaries ... pass --guardfile`. `just guard-controls` checks the `never` and `withhold` rules. It does not count `never pass`, so the argv denials here are exercised by running the built binary.
 
+## In the dev-base image
+
+The full image builds the `gh` and `git` shims and installs the fs guard into `/opt/agentic-os/shims`, then puts that directory first on `PATH` with an image `ENV` as the last step before `WORKDIR`. It is last because every earlier `RUN` needs the real `git`, `rm` and `mv`. `ENV` reaches every process started from the image, not only interactive shells, and the same layer proves `command -v` resolves each tool there and that `git commit --no-verify` is refused, so a build that loses the shims fails. CI jobs run in this image too, so a repo script that force-pushes or passes `--no-verify` from one of them is refused now (COI-2731).
+
 ## What it does not stop
 
 * **A shim is not an enforcement floor.** `/usr/bin/git`, or any copy of git, walks around it, and nothing contains a same-user caller who declines to be occluded.
