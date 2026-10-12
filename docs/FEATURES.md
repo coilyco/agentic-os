@@ -7,6 +7,7 @@ Major shipped capabilities, not files.
 - [Shell and secrets](install.md) - shared shells, SSM, and GPG.
 - [Branded agent terminal](aterm.md) - `aterm` opens an agent session in kitty, with a macOS `.app` per [role bundle](aterm-bundles.md) and a [creature](aterm-creature.md). `aterm pane` [splits it](aterm-pane.md). A [host daemon](aterm-daemon.md) owns sessions across restarts and routes `aterm send`. A [web client and Android app](../aterm-android/README.md) attaches, with [MCP Apps](../.agents/skills/tooling-aterm-client/references/mcp-apps-gateway.md), a browser, and [Web Push](../.agents/skills/tooling-aterm-client/references/web-push.md) to a closed client. Mac and Linux.
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.
+- [Disk guard](install.md) - launchd job prunes Docker build cache under 15 GiB free.
 - [Agents and sessions](features-agents.md) - self-name, composition
   status, harness [and model](native-harness-config.md) policy, and
   [settings guardrails](native-claude-credentials.md).

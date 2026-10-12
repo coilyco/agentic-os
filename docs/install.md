@@ -97,6 +97,10 @@ multiplexer.
 
 `gpg-ssm` is a wrapper around `gpg` that pulls the signing passphrase from AWS SSM at sign time instead of caching it on disk. When the configured signing key is missing locally, it bootstraps `/coilysiren/gpg-secret-key` in memory before signing. Mac/Linux + Windows (`.cmd` shim for Git for Windows). Wire it in once with `just apply-shell-links`.
 
+## Disk-pressure guard
+
+`just disk-guard-install [--load]` installs `scripts/disk-guard/disk-guard.sh` and a launchd job that runs it every 15 minutes (COI-2766). Under 15 GiB free on the data volume it runs `docker builder prune -f` and logs `free before=N KiB after=M KiB`; images and volumes stay. Floor and paths are `DISK_GUARD_*` env vars. Add an in-use check if a prune ever lands mid-build. Host-wide rollout is ansible's.
+
 ## Install surface
 
 [README.md](../README.md) carries per-OS install steps. `just apply-shell-links` repairs shell links, `gpg-ssm`, and the Forgejo git credential helper. Windows skips `~/.bashrc` so Git Bash hook launchers cannot recreate stale state. Mac/Linux can also use plain `ln -sf`. Windows symlinks need Developer Mode or elevation.

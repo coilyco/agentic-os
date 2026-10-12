@@ -111,6 +111,10 @@ gh-shim-build *ARGS:
 fs-shims-install DEST:
     @sh scripts/fs-shims/install.sh "{{DEST}}"
 
+# Install the disk-pressure guard and its launchd job into the current user's home; pass --load to bootstrap it. See docs/install.md#disk-pressure-guard.
+disk-guard-install *ARGS:
+    @sh scripts/disk-guard/install.sh "$HOME/.local/bin" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/disk-guard.log" "$@"
+
 # Negative controls: every never and withhold in both .umbra roots must refuse by its own text and be load-bearing (umbra docs/negative-controls.md).
 guard-controls *ARGS:
     @umbra --project-root .umbra/guardfiles controls "$@"
