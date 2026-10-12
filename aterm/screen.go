@@ -54,17 +54,27 @@ func makeCells(rows, cols int) [][]rune {
 // write feeds terminal output into the screen.
 func (s *screen) write(data []byte) { s.parser.Parse(data) }
 
+// refit is cells at a new size, keeping what fits from the top left corner.
+func refit(cells [][]rune, rows, cols int) [][]rune {
+	next := makeCells(rows, cols)
+	for index := 0; index < min(rows, len(cells)); index++ {
+		copy(next[index], cells[index])
+	}
+	return next
+}
+
 // resize keeps what fits of the old contents from the top left corner.
 func (s *screen) resize(rows, cols int) {
 	rows, cols = max(rows, 1), max(cols, 1)
 	if rows == s.rows && cols == s.cols {
 		return
 	}
-	next := makeCells(rows, cols)
-	for index := 0; index < min(rows, s.rows); index++ {
-		copy(next[index], s.cells[index])
+	s.cells = refit(s.cells, rows, cols)
+	if s.alternate {
+		// The main buffer comes back on leaving, so it follows the size too.
+		s.main = refit(s.main, rows, cols)
 	}
-	s.cells, s.rows, s.cols = next, rows, cols
+	s.rows, s.cols = rows, cols
 	s.top, s.bottom = 0, rows-1
 	s.row, s.col = min(s.row, rows-1), min(s.col, cols-1)
 }

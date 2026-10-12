@@ -222,3 +222,24 @@ func TestScreenClaudeStyleRepaint(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+// A resize on the alternate screen once left the saved main buffer at its old
+// size, so leaving it swapped in too few cells and the next print panicked (COI-2741).
+func TestScreenResizeOnTheAlternateScreenResizesTheMainBufferToo(t *testing.T) {
+	s := screenOf(2, 3, "ab", "\x1b[?1049h", "alt")
+	s.resize(5, 8)
+	s.write([]byte("\x1b[?1049l"))
+	s.write([]byte("\x1b[5;8Hx"))
+	if got, want := s.text(), []string{"ab", "", "", "", "       x"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestScreenResizeSmallerOnTheAlternateScreenKeepsWhatFitsOfTheMainBuffer(t *testing.T) {
+	s := screenOf(4, 8, "keep", "\x1b[?1049h", "alt")
+	s.resize(2, 3)
+	s.write([]byte("\x1b[?1049l"))
+	if got, want := s.text(), []string{"kee"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
