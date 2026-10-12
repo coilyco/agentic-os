@@ -21,6 +21,7 @@ What they learned does not leave with them. This skill is the inventory.
 * [Ward patterns](references/ward-patterns.md) - admission and identity, state and recovery, authority, evidence, serialized mutation. What a governed unattended run has to get right.
 * [o2r patterns](references/o2r-patterns.md) - sessions and identity, the channel coordination protocol, trust and admission, activity as traces. What agents on different hosts have to agree on.
 * [Harness surface](references/harness-surface.md) - the orchestration tools available now, and which pattern each one can and cannot carry.
+* [Auto-mode denials and dispatch](references/classifier-denials.md) - who can authorize a gated step, the dispatch and shell rules, what to do with work behind a denied commit, and the session-wide "safety check" denial.
 * [What does not transfer](references/does-not-transfer.md) - the guarantees that stop being enforced once these two leave service. Read this before assuming coverage.
 
 ## Five rules that bind every use of the current surface
