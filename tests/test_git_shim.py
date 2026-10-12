@@ -52,6 +52,8 @@ REFUSED = [
     ["--config-env=core.hooksPath=X", "status"],
     ["config", "core.hooksPath", "/dev/null"],
     ["config", "--global", "core.hookspath", "/dev/null"],
+    ["-c", "alias.ci=commit --no-verify", "status"],
+    ["--config-env=alias.ci=X", "status"],
 ]
 
 ALLOWED = [
@@ -179,3 +181,60 @@ def test_the_real_attribution_wrapper_in_front_of_the_guard_still_commits(repo, 
     )
     assert result.returncode == 0, result.stderr
     assert "Claude <noreply@anthropic.com>" in git("log", "-1", "--format=%B", cwd=work).stdout
+
+
+def _hooks_path_sources(tmp_path: Path, work: Path):
+    """Every way but the command line to hand git a core.hooksPath (COI-2730)."""
+    nohooks = tmp_path / "nohooks"
+    included = tmp_path / "included.cfg"
+    included.write_text(f"[core]\n\thooksPath = {nohooks}\n")
+    return {
+        "GIT_CONFIG_GLOBAL file": ([], {"GIT_CONFIG_GLOBAL": str(included)}),
+        "-c include.path": (["-c", f"include.path={included}"], {}),
+        "GIT_CONFIG_COUNT pair": (
+            [], {"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "core.hooksPath",
+                 "GIT_CONFIG_VALUE_0": str(nohooks)}),
+        "a line appended to .git/config": ("append", {}),
+    }
+
+
+@pytest.mark.parametrize("source", ["GIT_CONFIG_GLOBAL file", "-c include.path",
+                                    "GIT_CONFIG_COUNT pair", "a line appended to .git/config"])
+def test_a_hooks_path_outside_the_work_tree_refuses_the_commit_from_any_source(
+        repo, tmp_path: Path, source: str) -> None:
+    work, _, _, path, git = repo
+    options, extra = _hooks_path_sources(tmp_path, work)[source]
+    if options == "append":
+        options = []
+        with (work / ".git" / "config").open("a") as config:
+            config.write(f"[core]\n\thooksPath = {tmp_path / 'nohooks'}\n")
+    git("add", "f", cwd=work)
+    head = git("rev-parse", "HEAD", cwd=work).stdout
+    result = _run(["git", *options, "commit", "-q", "-m", "x"], work, path, extra)
+    assert result.returncode == 2 and "denied" in result.stderr, result.stderr
+    assert git("rev-parse", "HEAD", cwd=work).stdout == head
+
+
+@pytest.mark.parametrize("value", [".githooks", "sub/../.githooks", "WORKTREE/.githooks"])
+def test_a_hooks_path_inside_the_work_tree_still_commits(repo, value: str) -> None:
+    """husky points core.hooksPath at a directory in the repo, so that stays allowed."""
+    work, _, _, path, git = repo
+    git("config", "core.hooksPath", value.replace("WORKTREE", str(work.resolve())), cwd=work)
+    git("add", "f", cwd=work)
+    result = _run(["git", "commit", "-q", "-m", "x"], work, path)
+    assert result.returncode == 0, result.stderr
+
+
+def test_a_relative_hooks_path_that_climbs_out_of_the_work_tree_is_refused(repo) -> None:
+    work, _, _, path, git = repo
+    git("config", "core.hooksPath", "../nohooks", cwd=work)
+    git("add", "f", cwd=work)
+    result = _run(["git", "commit", "-q", "-m", "x"], work, path)
+    assert result.returncode == 2 and "denied" in result.stderr, result.stderr
+
+
+def test_an_alias_defined_in_the_environment_is_refused(repo) -> None:
+    work, _, _, path, _ = repo
+    result = _run(["git", "status"], work, path, {
+        "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "alias.ci", "GIT_CONFIG_VALUE_0": "commit --no-verify"})
+    assert result.returncode == 2 and "denied" in result.stderr

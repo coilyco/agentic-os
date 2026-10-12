@@ -10,6 +10,8 @@ Everything unnamed is the ordinary git. Refusals are scoped to the verb, so `git
 * **`push` `-f`, any `--forc...` option** (`--force`, `--force-with-lease`, `--force-if-includes`), and a leading `+` on a refspec, which forces one ref with no flag.
 * **`--no-verify` on `push`, `merge`, `rebase`, `am`, `cherry-pick`, `revert` and `pull`**, which skip their hooks. `--no-verify-signatures` is a different flag and passes.
 * **`core.hooksPath`** set by `git -c`, `--config-env`, a `GIT_CONFIG_*` environment variable, or a `git config` write. A read or an unset passes, so `pre-commit install` can ask.
+* **An effective `core.hooksPath` outside the work tree**, on `commit`, `push`, `merge`, `rebase`, `am`, `cherry-pick`, `revert` and `pull`. The guard asks git (`config --type=path --get core.hooksPath`), so every source counts: `-c include.path=`, a `GIT_CONFIG_GLOBAL` file, a `GIT_CONFIG_COUNT` pair, a line appended to `.git/config` (COI-2730). A relative path or one inside the work tree passes, which is how husky works. If that ask fails or times out, the call passes.
+* **An alias defined from outside**, by `-c alias.*`, `--config-env=alias.*`, `GIT_CONFIG_KEY_n` or `GIT_CONFIG_PARAMETERS`, since an alias can carry `--no-verify` past the verb scan.
 
 Refusal is exit 2 naming the spelling. It reads argv, so it holds for every remote. A guard keyed on the forge remote would pass a force-push to a local bare remote, which is what the COI-1927 run measured.
 
@@ -30,7 +32,8 @@ The full image installs the stubs into `/opt/agentic-os/shims` and puts that dir
 ## What it does not stop
 
 * **A shim is not an enforcement floor.** `/usr/bin/git`, or any copy of git, walks around it.
-* **A git alias** that expands to `commit` or `push` is not resolved, so `git -c alias.x=commit x -n` is not caught.
-* **`GIT_CONFIG_COUNT` pairs** are read only for a `hookspath` value, and hook-disabling keys other than `core.hooksPath` are not read.
+* **Absolute paths and shell redirection** are accepted risks (COI-2730, Kai on COI-2687). `/bin/rm` and `/usr/bin/git` are not on the shim's PATH, and `>` reaches no wrapped binary, so only a container or sandbox bounds them. The `core.hooksPath` consequence of a redirected write into `.git/config` is caught above.
+* **A persistent alias** already in a config file that expands to `commit` or `push` is not resolved, so `git ci -n` passes when `alias.ci` is `commit`.
+* **`GIT_DIR` or `--git-dir`** pointing at a repo with no hooks.
 * **Server side.** Forgejo branch protection is the only layer that holds against a remote force-push from a caller who skips the shim. Whether `main` is protected against it was not checked here.
 * **Cost.** Each git call starts a Python interpreter first.

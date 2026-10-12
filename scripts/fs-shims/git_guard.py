@@ -9,6 +9,7 @@ references/git-shim.md.
 """
 import os
 import shutil
+import subprocess
 import sys
 
 # Global options whose value is the next token.
@@ -84,25 +85,63 @@ def config_write_of_hooks_path(args):
     return len(positional) >= 2 and "hookspath" in positional[0].lower()
 
 
+def split_verb(argv):
+    """The global options, the verb and the verb's arguments of one git call."""
+    i = 0
+    while i < len(argv) and argv[i].startswith("-"):
+        i += 2 if argv[i] in GLOBAL_VALUE_OPTS else 1
+    return argv[:i], (argv[i] if i < len(argv) else None), argv[i + 1:]
+
+
 def refusal(argv):
     """The reason this git call is refused, or None."""
     for key, value in os.environ.items():
         if key.startswith("GIT_CONFIG_") and "hookspath" in value.lower():
             return f"{key} setting core.hooksPath"
-    i = 0
-    while i < len(argv) and argv[i].startswith("-"):
-        step = 2 if argv[i] in GLOBAL_VALUE_OPTS else 1
-        sets_config = argv[i] in ("-c", "--config-env") or argv[i].startswith("--config-env=")
-        if sets_config and "hookspath" in " ".join(argv[i:i + step]).lower():
-            return "core.hooksPath on the command line"
-        i += step
-    if i >= len(argv):
+        # An alias can carry --no-verify past the verb scan.
+        if key == "GIT_CONFIG_PARAMETERS" and "'alias." in value.lower():
+            return f"{key} defining an alias"
+        if key.startswith("GIT_CONFIG_KEY_") and value.lower().startswith("alias."):
+            return f"{key} defining an alias"
+    options, sub, args = split_verb(argv)
+    for i, opt in enumerate(options):
+        if opt in ("-c", "--config-env") or opt.startswith("--config-env="):
+            setting = " ".join(options[i:i + (2 if opt in GLOBAL_VALUE_OPTS else 1)]).lower()
+            if "hookspath" in setting:
+                return "core.hooksPath on the command line"
+            if "alias." in setting:
+                return "an alias defined on the command line"
+    if sub is None:
         return None
-    sub, args = argv[i], argv[i + 1:]
     if sub == "config" and config_write_of_hooks_path(args):
         return "a write to core.hooksPath"
     found = hits(sub, args)
     return f"{found} on `{sub}`" if found else None
+
+
+def hooks_path_escape(real, env, options):
+    """The effective core.hooksPath when it leaves the work tree, else None.
+
+    Asks git itself, so every source it reads counts: -c, GIT_CONFIG_*, an
+    include.path, a GIT_CONFIG_GLOBAL file, and a line written straight into
+    .git/config. A relative path or one inside the work tree stays, which is how
+    husky works. Anything else skips the repo's hooks exactly as --no-verify does.
+    """
+    def ask(*argv):
+        try:
+            done = subprocess.run([real, *options, *argv], env=env, capture_output=True,
+                                  text=True, timeout=10)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return done.stdout.strip() if done.returncode == 0 else None
+
+    value = ask("config", "--type=path", "--get", "core.hooksPath")
+    top = ask("rev-parse", "--show-toplevel") if value else None
+    if not value or not top:
+        return None
+    top = os.path.realpath(top)
+    where = os.path.realpath(os.path.join(top, value))
+    return None if os.path.commonpath([where, top]) == top else value
 
 
 def real_git():
@@ -126,10 +165,15 @@ def main(argv):
         sys.stderr.write("git: no real git on PATH\n")
         return 127
     reason = refusal(args)
+    child = {**os.environ, "PATH": kept}
+    options, sub, _ = split_verb(args)
+    if not reason and sub in HOOK_RUNNERS:
+        escaped = hooks_path_escape(real, child, options)
+        reason = f"an effective core.hooksPath of {escaped!r}, outside the work tree" if escaped else None
     if reason:
         sys.stderr.write(f"git: {reason} is denied (umbra git guard, COI-2724)\n")
         return 2
-    os.execve(real, ["git", *args], {**os.environ, "PATH": kept})
+    os.execve(real, ["git", *args], child)
 
 
 if __name__ == "__main__":
