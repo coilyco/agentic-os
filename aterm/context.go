@@ -364,6 +364,7 @@ func (d *daemon) refreshContexts() {
 				d.logf("context of %s: %v", s.name, err)
 			}
 			changed = s.setContext(view) || changed
+			changed = s.refreshReply(entry, recorded) || changed
 		default:
 			proxied = append(proxied, s)
 		}

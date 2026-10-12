@@ -20,8 +20,15 @@ describe("previewFor", () => {
     expect(detail.endsWith("…")).toBe(true);
   });
 
-  it("gives a finished seat only its state, since the client holds no text of its last reply", () => {
+  it("gives a finished seat the first line of its last reply, and only its state when it has none", () => {
+    expect(previewFor({ identity: "Frog-Ox", kind: "done" }, undefined, "Merged  the PR.")).toEqual({ identity: "Frog-Ox", kind: "done", heading: "Done, your turn", detail: "Merged the PR." });
     expect(previewFor({ identity: "Frog-Ox", kind: "done" }, undefined)).toEqual({ identity: "Frog-Ox", kind: "done", heading: "Done, your turn", detail: null });
+  });
+
+  it("cuts a long last reply at a length a popup can hold", () => {
+    const detail = previewFor({ identity: "a", kind: "done" }, undefined, "word ".repeat(200)).detail ?? "";
+    expect(detail.length).toBeLessThanOrEqual(281);
+    expect(detail.endsWith("…")).toBe(true);
   });
 
   it("gives an asking seat with no ask in hand no detail rather than an empty line", () => {

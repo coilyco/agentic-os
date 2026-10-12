@@ -13,6 +13,12 @@ describe("aterm.daemon.v1 mapping", () => {
     expect(toSession(view).degraded).toEqual(["card", "telemetry"]);
   });
 
+  it("carries the first line of a seat's last reply, and omits it when the daemon sent none", () => {
+    const view = { name: "s", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 };
+    expect(toSession({ ...view, last_reply: "Merged the PR." }).lastReply).toBe("Merged the PR.");
+    expect(toSession(view)).not.toHaveProperty("lastReply");
+  });
+
   it("carries a context reading, and drops an absent window instead of showing zero", () => {
     const base = { name: "s", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 };
     expect(toSession({ ...base, context: { tokens: 1050, source: "claude" } }).context).toEqual({ tokens: 1050, source: "claude" });

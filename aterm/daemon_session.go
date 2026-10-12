@@ -121,6 +121,9 @@ type ptySession struct {
 	context      *contextView
 	contextFile  contextSource
 	contextRetry time.Time
+	// lastReply is kept across rounds, and replySig is the transcript it was read at.
+	lastReply string
+	replySig  fileSig
 }
 
 // keyState carries a partly read escape sequence across input chunks.
@@ -886,6 +889,7 @@ func (s *ptySession) view() sessionView {
 		Pending:      len(s.pending),
 		Degraded:     append([]string(nil), s.degraded...),
 		Context:      s.context,
+		LastReply:    s.lastReply,
 	}
 }
 

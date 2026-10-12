@@ -58,6 +58,8 @@ export interface Session {
   degraded: string[];
   /** Absent until a source has read one, and from a daemon that predates it. */
   context?: ContextReading;
+  /** First line of its last finished reply. Absent until read or from an old daemon. */
+  lastReply?: string;
   /** Not yet ready for input, so its terminal may have nothing to draw. */
   starting?: boolean;
   failure?: string;

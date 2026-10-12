@@ -61,6 +61,7 @@ interface SessionView {
   pending: number;
   degraded?: string[];
   context?: { tokens: number; window?: number; source: string };
+  last_reply?: string;
 }
 
 // A plain shell as the daemon lists it (COI-2498). `label` is whatever the opener sent
@@ -238,6 +239,7 @@ export function toSession(view: SessionView, busy = false): Session {
     degraded: view.degraded ?? [],
     ...(view.ready ? {} : { starting: true }),
     ...(view.context ? { context: toContext(view.context) } : {}),
+    ...(view.last_reply ? { lastReply: view.last_reply } : {}),
   };
 }
 

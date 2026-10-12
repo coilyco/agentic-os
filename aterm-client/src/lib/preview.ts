@@ -7,17 +7,20 @@ export interface Preview {
   kind: "asking" | "done";
   /** What the seat is doing to you, in the sidebar's own words. */
   heading: string;
-  /** The question it asks. A finished seat has none: no reply text is held here. */
+  /** The question it asks, or for a finished seat the first line of its last reply. */
   detail: string | null;
 }
 
 const DETAIL_CHARS = 280;
 
-export function previewFor(seat: { identity: string; kind: "asking" | "done" }, ask: Ask | undefined): Preview {
+const oneLine = (text: string): string => {
+  const line = text.trim().replace(/\s+/g, " ");
+  return line.length > DETAIL_CHARS ? `${line.slice(0, DETAIL_CHARS).trimEnd()}…` : line;
+};
+
+export function previewFor(seat: { identity: string; kind: "asking" | "done" }, ask: Ask | undefined, lastReply?: string): Preview {
   if (seat.kind === "asking") {
-    const question = ask?.question.trim().replace(/\s+/g, " ") ?? "";
-    const detail = question.length > DETAIL_CHARS ? `${question.slice(0, DETAIL_CHARS).trimEnd()}…` : question;
-    return { identity: seat.identity, kind: "asking", heading: "Asking you", detail: detail || null };
+    return { identity: seat.identity, kind: "asking", heading: "Asking you", detail: oneLine(ask?.question ?? "") || null };
   }
-  return { identity: seat.identity, kind: "done", heading: "Done, your turn", detail: null };
+  return { identity: seat.identity, kind: "done", heading: "Done, your turn", detail: oneLine(lastReply ?? "") || null };
 }
