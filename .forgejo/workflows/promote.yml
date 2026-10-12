@@ -26,6 +26,8 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+      - name: Use the system git while the release image carries the umbra git shim
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/plain-git.sh"
 
 
       - name: Cache uv downloads

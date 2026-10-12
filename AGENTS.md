@@ -122,7 +122,7 @@ Task and safety rules outrank output shape: explain fully when asked, confirm be
 
 ### Finish the whole task
 
-"Done" includes the obvious follow-through, not the first reportable milestone: commit, push to canonical main, and file the follow-up issue for anything deferred, all without pausing between steps to ask. A task ends at a verifiable done-condition (tests green, change landed, exemption committed), not at "something to report."
+"Done" includes the obvious follow-through, not the first reportable milestone: commit, push to canonical main, and file the follow-up issue for anything deferred, all without pausing between steps to ask. A task ends at a verifiable done-condition (tests green, change landed, exemption committed), not at "something to report." Before telling a human their ask is done, reproduce their own observation for every item they named, one line each ([tooling-verify-for-the-human](.agents/skills/tooling-verify-for-the-human/SKILL.md)).
 
 ### Native checkpoints must be remote
 
