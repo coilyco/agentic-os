@@ -9,6 +9,7 @@ The ansible `shell` role (in the infrastructure repo) symlinks, by `ansible_syst
 - `~/.zshrc` from `shell/zshrc` on all hosts
 - `~/.bashrc` from `shell/bashrc` on Mac and Linux
 - `~/.config/alacritty/alacritty.toml` from `alacritty/alacritty.toml` on Mac and Linux workstations
+- `~/.config/kitty/kitty.conf` from `kitty/kitty.conf` on Mac and Linux workstations
 - `~/.local/bin/gpg-ssm` from `scripts/gpg-ssm` (Mac, Linux) or `scripts/gpg-ssm.cmd` (Windows)
 - the Forgejo git credential helper from `scripts/git-credential-forgejo-ssm.*`
 - the Forgejo Docker credential helper from `scripts/docker-credential-forgejo-ssm*`
@@ -87,6 +88,7 @@ converged link and falls back to the checkout, so a host that has not run
 
 kitty supplies the portable Sombra rendering baseline for `aterm` windows. Mac
 and Linux workstations symlink the live kitty config to the canonical AOS file.
+`just kitty-config-check` parses it headlessly.
 kitty does not ship on Windows, so **`aterm` is Mac and Linux only** and is not
 built or packaged for Windows (agentic-os#1264). Alacritty keeps the Windows
 terminal baseline for everything else: infrastructure renders Git Bash as
