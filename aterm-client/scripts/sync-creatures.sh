@@ -2,6 +2,8 @@
 # Copy each role's creature out of this repository's aterm/icons as a small WebP.
 # macOS only: iconutil unpacks the .icns aterm embeds. Provenance: the architecture
 # reference of the tooling-aterm-client skill.
+# eng-junior has no .icns of its own, so its webp is a hand copy of eng-platform.webp,
+# matching retiredRoleIcons in aterm/bundle.go. This script leaves it alone.
 set -euo pipefail
 
 client_dir="$(cd "$(dirname "$0")/.." && pwd)"
