@@ -29,7 +29,7 @@ def world(tmp_path: Path):
     env = {
         **os.environ,
         "AOS_NATIVE_SESSION_PROJECTS": str(shadow / "projects"),
-        "PATH": f"{shims}{os.pathsep}{os.environ['PATH']}",
+        "PATH": f"{shims}{os.pathsep}/usr/bin:/bin",
     }
 
     def run(*argv: str, cwd: Path = shadow):
@@ -126,7 +126,7 @@ def test_with_no_roots_named_the_guard_is_inert(world, tmp_path: Path) -> None:
     shims = tmp_path / "shims"
     env = {k: v for k, v in os.environ.items()
            if k not in ("AOS_NATIVE_SESSION_PROJECTS", "AOS_FS_GUARD_ROOTS")}
-    env["PATH"] = f"{shims}{os.pathsep}{env['PATH']}"
+    env["PATH"] = f"{shims}{os.pathsep}/usr/bin:/bin"
     result = subprocess.run([str(shims / "rm"), "-rf", str(victim)], env=env,
                             capture_output=True, text=True)
     assert result.returncode == 0 and not victim.exists()
@@ -140,7 +140,7 @@ def test_named_roots_bind_outside_a_native_shadow(world, tmp_path: Path) -> None
     decoy = outside / "decoy"
     decoy.mkdir()
     env = {k: v for k, v in os.environ.items() if k != "AOS_NATIVE_SESSION_PROJECTS"}
-    env["PATH"] = f"{shims}{os.pathsep}{env['PATH']}"
+    env["PATH"] = f"{shims}{os.pathsep}/usr/bin:/bin"
     env["AOS_FS_GUARD_ROOTS"] = str(inside_dir)
     refused = subprocess.run([str(shims / "rm"), "-rf", str(decoy)], env=env,
                              capture_output=True, text=True)
