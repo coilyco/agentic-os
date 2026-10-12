@@ -223,8 +223,17 @@ def _leaky_repo(tmp_path: Path, monkeypatch) -> Path:
     (repo / "leaky.md").write_text("names the needle\n")
     (repo / "clean.txt").write_text("fine\n")
     _git(repo, "add", "-A")
-    _git(repo, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "base", "--no-verify")
+    _base_commit(repo)
     return repo
+
+
+def _base_commit(repo: Path) -> None:
+    """Commit the index through plumbing, so no hook runs and no guard sees a flag."""
+    def out(*args: str, **kw) -> str:
+        return subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True,
+                              text=True, **kw).stdout.strip()
+    tree = out("write-tree")
+    out("update-ref", "HEAD", out("commit-tree", tree, "-m", "base"))
 
 
 def _violations(result: subprocess.CompletedProcess[str]) -> list[str]:

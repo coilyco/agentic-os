@@ -90,7 +90,13 @@ def real_tool(tool):
     at = [i for i, p in enumerate(parts) if os.path.realpath(p) == shim_dir]
     rest = parts[at[0] + 1:] if at else parts
     kept = os.pathsep.join(p for p in rest if os.path.realpath(p) != shim_dir)
-    return shutil.which(tool, path=kept), kept
+    found = shutil.which(tool, path=kept)
+    if found is None:
+        # No PATH at all, as trufflehog's children run: try the system locations.
+        found = next((p for d in ("/bin", "/usr/bin", "/usr/local/bin")
+                      for p in [os.path.join(d, tool)]
+                      if os.access(p, os.X_OK) and os.path.realpath(d) != shim_dir), None)
+    return found, kept
 
 
 def main(argv):
