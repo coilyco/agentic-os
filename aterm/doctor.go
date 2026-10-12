@@ -157,7 +157,7 @@ func checkOverlay(
 			continue
 		}
 		expression := strings.TrimSpace(cmd.String("expression"))
-		document, err := loadOverlay(ctx, deps, agentCompose, role.Slug, seats[0].Harness, expression)
+		document, err := loadOverlay(ctx, deps, agentCompose, role.Slug, seats[0].Harness, expression, "")
 		if err != nil {
 			report.add("overlay", doctorFail, "%v", err)
 			return

@@ -174,6 +174,10 @@ func newCommand(deps commandDeps) *cli.Command {
 				Name:  "headless",
 				Usage: "run the session in the aterm daemon with no window, to type into from a client or `aterm attach`",
 			},
+			&cli.StringFlag{
+				Name:  "identity",
+				Usage: "answer to this one of the role's names, not the first free one",
+			},
 			&cli.BoolFlag{
 				Name:  "hold",
 				Usage: "keep the window open after a clean exit (a failure always holds)",
@@ -318,10 +322,25 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 			request.Creature = bakeCreaturePlate(role, creaturePresence, creatureWholeWindow)
 		})
 	}
-	document, err := loadOverlay(ctx, deps, agentCompose, role, seat, request.Expression)
+	document, err := loadOverlay(ctx, deps, agentCompose, role, seat, request.Expression, "")
 	group.Wait()
 	if err != nil {
 		return err
+	}
+	// Two instances of a role take two names from its pool, so a stamp says which
+	// sent it. An agent-compose too old to honor the name falls back to a slot.
+	chosen, err := chooseIdentity(identityPool(roster, role), role, cmd.String("identity"), deps.claim)
+	if err != nil {
+		return err
+	}
+	if chosen != "" && chosen != document.Seat.Name {
+		renamed, err := loadOverlay(ctx, deps, agentCompose, role, seat, request.Expression, chosen)
+		if err != nil {
+			return err
+		}
+		if renamed.Seat.Name == chosen {
+			document, request.Identity = renamed, chosen
+		}
 	}
 	// The identity's name is only known once the overlay is read, and the name
 	// has to be settled before it reaches the harness's argv.

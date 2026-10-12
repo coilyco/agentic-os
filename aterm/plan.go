@@ -28,6 +28,9 @@ type launchRequest struct {
 	// Conversation is the claude conversation id minted for this launch, so a
 	// later `aterm resume` can name it. Empty leaves the harness to pick.
 	Conversation string
+	// Identity is the alternate name this instance took from its role's pool, ""
+	// for the primary. See identity_pool.go.
+	Identity string
 	// Instance is the pool slot the daemon granted, "" for the bare name and "2"
 	// or "3" for a concurrent instance. See docs/aterm-daemon.md.
 	Instance string
@@ -74,7 +77,7 @@ func composeChild(request launchRequest, agentCompose, aos string, shadowed bool
 	launch := []string{agentCompose, "launch", request.Role, request.Seat}
 	launch = append(launch, request.Extra...)
 	if !shadowed {
-		return launch
+		return withIdentityEnv(request.Identity, launch)
 	}
 	child := []string{
 		aos, "_native-shadow",
@@ -85,7 +88,7 @@ func composeChild(request launchRequest, agentCompose, aos string, shadowed bool
 		child = append(child, "--session-id", request.ShadowID)
 	}
 	child = append(child, "--assigned-role", "--")
-	return append(child, launch...)
+	return withIdentityEnv(request.Identity, append(child, launch...))
 }
 
 // mintShadowID asks aos for the code, which keeps the contract to one Go
