@@ -12,6 +12,10 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+// defaultPermissionMode is what a resume asks claude for, since claude otherwise brings
+// back the mode stored with the conversation. COI-2687 made bypass the seats' mode.
+const defaultPermissionMode = "bypassPermissions"
+
 // resumeRun runs the launch a resume resolves to. A variable so a test reads the
 // arguments without opening a window.
 var resumeRun = func(self string, args []string, stdout, stderr io.Writer) error {
@@ -78,6 +82,29 @@ func resumeArgs(entry ledgerEntry, headless, dryRun bool) ([]string, error) {
 	return append(args, entry.Role, entry.Seat, "--", "--resume", entry.Conversation), nil
 }
 
+// keepPermissionMode leaves the mode the conversation stored, which is claude's own rule.
+const keepPermissionMode = "keep"
+
+// harnessArgs are what follows `--resume <id>`: the permission mode, unless the caller
+// named one or asked to keep the stored one, then the caller's own harness arguments.
+func harnessArgs(mode string, extra []string) []string {
+	var args []string
+	if mode != "" && mode != keepPermissionMode && !callerSetsPermissions(extra) {
+		args = append(args, "--permission-mode", mode)
+	}
+	return append(args, extra...)
+}
+
+func callerSetsPermissions(extra []string) bool {
+	for _, arg := range extra {
+		name, _, _ := strings.Cut(arg, "=")
+		if name == "--permission-mode" || name == "--dangerously-skip-permissions" {
+			return true
+		}
+	}
+	return false
+}
+
 func newResumeCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "resume",
@@ -90,6 +117,10 @@ func newResumeCommand() *cli.Command {
 			&cli.BoolFlag{Name: "list", Usage: "list the sessions that can be resumed"},
 			&cli.BoolFlag{Name: "headless", Usage: "resume in the daemon with no window"},
 			&cli.BoolFlag{Name: "dry-run", Usage: "print the launch plan without opening anything"},
+			&cli.StringFlag{
+				Name: "permission-mode", Value: defaultPermissionMode,
+				Usage: "claude permission mode for the resumed session, or `keep` for the stored one",
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			entries := readLedger(ledgerDir())
@@ -109,6 +140,7 @@ func newResumeCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
+			args = append(args, harnessArgs(cmd.String("permission-mode"), cmd.Args().Tail())...)
 			self, err := os.Executable()
 			if err != nil {
 				return err

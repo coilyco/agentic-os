@@ -277,9 +277,23 @@ func TestResumeVerbListsAndRelaunchesThroughTheNormalPath(t *testing.T) {
 	if _, err := run("eng-platform"); err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"--working-directory", "/", "eng-platform", "claude", "--", "--resume", id}
+	want := []string{"--working-directory", "/", "eng-platform", "claude", "--", "--resume", id,
+		"--permission-mode", "bypassPermissions"}
 	if !slices.Equal(captured, want) {
 		t.Fatalf("relaunch args = %v, want %v", captured, want)
+	}
+	if _, err := run("eng-platform", "--", "--model", "opus"); err != nil {
+		t.Fatal(err)
+	}
+	want = append(want, "--model", "opus")
+	if !slices.Equal(captured, want) {
+		t.Fatalf("args after -- must reach claude: %v, want %v", captured, want)
+	}
+	if _, err := run("--permission-mode", "keep", "eng-platform"); err != nil {
+		t.Fatal(err)
+	}
+	if want = []string{"--working-directory", "/", "eng-platform", "claude", "--", "--resume", id}; !slices.Equal(captured, want) {
+		t.Fatalf("keep must leave the stored mode alone: %v, want %v", captured, want)
 	}
 	if _, err := run("scientist"); exitCodeFor(err) != exitUsage {
 		t.Fatalf("a codex session is not resumable yet: %v", err)

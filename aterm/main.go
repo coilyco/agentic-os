@@ -219,6 +219,7 @@ func newCommand(deps commandDeps) *cli.Command {
 			newVAPIDCommand(),
 			newAttachCommand(),
 			newResumeCommand(),
+			newBypassCommand(),
 			newSendCommand(),
 			newCloseCommand(),
 			newStatusCommand(),
