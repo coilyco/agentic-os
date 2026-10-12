@@ -17,18 +17,13 @@ export AWS_PAGER=""
 export BAT_PAGER=""
 export HISTSIZE=100000
 export SAVEHIST=100000
-# Dev-base image for `ward agent` dispatch: point host shells at the moving
-# release alias.
-export WARD_AGENT_IMAGE="forgejo.coilysiren.me/coilyco/agentic-os"
-export WARD_AGENT_TAG="release"
 # shared-environment: end
 
 # Bare names to clear, so the exports block above stays declarative. Both
 # blocks are parsed by the rendered PowerShell profile. See docs/install.md.
 
 # shared-environment-clear: begin
-# Ward no longer consumes checkout-derived KDL references (ward#1615).
-unset WARD_CONFIG_REF
+
 # shared-environment-clear: end
 
 _siren_aos_repo_root() {
@@ -90,9 +85,6 @@ _siren_fresh_terminal_tree=0
 if [ -z "${_SIREN_SHELL_ENV:-}" ]; then
   _siren_fresh_terminal_tree=1
   export _SIREN_SHELL_ENV=1
-
-  # ward owns the whole workspace root (the security boundary, all orgs).
-  export WARD_LOCKDOWN_ROOT="$PROJECTS_ROOT"
 
   # Skipping when already present loses to `brew shellenv`, which re-prepends
   # unconditionally, so an inherited PATH keeps Homebrew ahead (aos#1467).

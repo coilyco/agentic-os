@@ -33,33 +33,6 @@ def _foreign_repo(tmp_path: Path) -> Path:
     return repo
 
 
-def test_common_shell_does_not_set_retired_ward_config_reference(tmp_path: Path) -> None:
-    foreign = _foreign_repo(tmp_path)
-    env = os.environ.copy()
-    env.update(
-        {
-            "HOME": str(tmp_path / "home"),
-            "PATH": "/usr/bin:/bin",
-            "AOS_REPO_ROOT": "",
-            "FORGEJO_WORKSPACE": str(REPO_ROOT),
-        }
-    )
-    proc = subprocess.run(
-        [
-            "bash",
-            "-lc",
-            f'source "{REPO_ROOT / "shell" / "common.sh"}"; printf "%s" "${{WARD_CONFIG_REF-}}"',
-        ],
-        cwd=foreign,
-        check=True,
-        capture_output=True,
-        text=True,
-        env=env,
-    )
-
-    assert proc.stdout == ""
-
-
 def test_container_entrypoint_seeds_the_read_only_surface_env(tmp_path: Path) -> None:
     foreign = _foreign_repo(tmp_path)
     env = os.environ.copy()

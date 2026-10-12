@@ -12,8 +12,8 @@ For a Go CLI, `//go:embed` a markdown file per command. The file stays editable 
 
 After the move, the skill shrinks to tiers 1 and 2 - Description and Body. That is the part that is genuinely human-to-agent and genuinely fuzzy-matched. Everything past Body is agent-parsed reference that belongs next to the code.
 
-The Body ends with a one-liner: "for command behavior, run `ward X help`."
+The Body ends with a one-liner: "for command behavior, run `<tool> help`."
 
-## Applying it to ward agent
+## Worked example: the retired Ward launcher
 
-`ward agent` is the command that takes this shape. Its behavioral reference - work vs headless vs task, the pre-flight GO/NO-GO read, reservation, `--new-tab`, refusal conditions - lives in `docs/agent.md` next to the code (embedded and emitted), not in a skill. A skill would only hold tiers 1 and 2 - the Description and Body that are genuinely human-to-agent and fuzzy-matched - and end with "for command behavior, run `ward agent <mode> work --help`." The retired `ward dispatch` was the first command to motivate this split (ward#174).
+Ward's agent launcher was the command that took this shape, before Ward retired (`COI-2727`). Its behavioral reference - work vs headless vs task, the pre-flight GO/NO-GO read, reservation, `--new-tab`, refusal conditions - lives in `docs/agent.md` next to the code (embedded and emitted), not in a skill. A skill would only hold tiers 1 and 2 - the Description and Body that are genuinely human-to-agent and fuzzy-matched - and end with a pointer to the command's own help. The retired `ward dispatch` was the first command to motivate this split (ward#174).

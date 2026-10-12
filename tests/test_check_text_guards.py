@@ -142,7 +142,7 @@ gh pr create --body "Closes #42"
 
 `owner/repo#88`
 
-> ward agent claude work owner/repo#88 --new-tab
+> aos platform owner/repo#88 --new-tab
 
 See https://warpdotdev/Warp/issues/2579 for the upstream workaround.
 """,

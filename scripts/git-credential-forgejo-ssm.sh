@@ -12,10 +12,6 @@ set -euo pipefail
 # git invokes helpers with a minimal env, so aws may not be on PATH.
 # Prepend the fleet install dirs: linuxbrew, homebrew, /usr/local, ~/.local.
 export PATH="/home/linuxbrew/.linuxbrew/bin:/opt/homebrew/bin:/usr/local/bin:${HOME}/.local/bin:${PATH}"
-# Ward configuration selects an agent runtime surface. It has no place in this
-# repository-access bootstrap and can interfere with nested credential lookup.
-unset WARD_CONFIG_REF
-
 # Seconds a token stays cached, 0 to turn the cache off. credential-cache needs unix
 # sockets, so where git lacks it every call below fails quietly and each get reads SSM.
 ttl="${FORGEJO_CREDENTIAL_CACHE_SECONDS:-600}"
