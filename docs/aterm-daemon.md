@@ -7,13 +7,13 @@ attached to it.
 
 **`_session` hands the harness to the daemon instead of running it.** It sends a `spawn` with the argv, environment, directory and window size, then attaches. The argv reaches the harness untouched.
 
-**A session is named `<role>-<identity>`, with `-2`, `-3` only for concurrent instances, and a live name refuses a spawn.** A `claim` frame grants each launch the first free pool name for two minutes.
+**A session is named `<role>-<identity>`, and a live name refuses a spawn.** A concurrent instance takes the next name in its role's pool (`--identity` picks one), and only a full pool adds `-2`, `-3`. A `claim` frame grants each launch the first free name for two minutes.
 
 **`list` reads each session's screen.** The daemon rebuilds each screen from its output and reports `state`: `starting`, `prompt` (a card is up), `busy` (recent output or the interrupt hint), else `idle`.
 
 **`aterm clear` types the harness's clear command, unstamped.** Only Kai's client and the `prod-director` role may, never on the caller's own session, a prompt, or a seat with no known command (claude only). Without `--force` it refuses a busy session, a draft, or queued messages.
 
-**A terminal is a login shell, not a seat.** `spawn` with `kind: "terminal"` and optional `cwd` runs `$SHELL -l` under a holder, named `terminal-<hex>`, with no token, and refuses every seat field, `argv` and `env`. It is absent from `sessions`, `aterm agents`, seat counts and every `send`, `status` and `clear` target. `list` and the `sessions` push carry `terminals` (`name`, `pid`, `started`, `clients`, `cwd`, `label`), feature `terminals`. A spawn `label` (feature `terminal-label`, text up to 256 bytes) is opaque, echoed unchanged in `spawned` and on the entry, kept by a restart. A seat spawn refuses it. `attach`, `input`, `resize` and `close` take its name, an exiting shell ends it, a restart adopts it. A remote device gets `remote_terminal`, passkey or not.
+**A terminal is a login shell, not a seat.** `spawn` with `kind: "terminal"` and optional `cwd` runs `$SHELL -l` under a holder, named `terminal-<hex>`, with no token, and refuses every seat field, `argv` and `env`. It is absent from `sessions`, `aterm agents`, seat counts and every `send`, `status` and `clear` target. `list` and the `sessions` push carry `terminals` (`name`, `pid`, `started`, `clients`, `cwd`, `label`). A spawn `label` (feature `terminal-label`, up to 256 bytes) is opaque and kept by a restart. A seat refuses it. `attach`, `input`, `resize` and `close` take its name, an exiting shell ends it, a restart adopts it. A remote device gets `remote_terminal`, passkey or not.
 
 **A session outlives its window.** `aterm close` types the harness's exit at an idle prompt, then SIGTERM after 10 seconds and SIGKILL after 3 more.
 

@@ -45,6 +45,8 @@ type rosterSeat struct {
 type rosterIdentity struct {
 	Name     string `json:"name"`
 	Pronouns string `json:"pronouns"`
+	// Alternates are the names a role's later live instances take, in order.
+	Alternates []string `json:"alternates,omitempty"`
 }
 
 type rosterRole struct {
