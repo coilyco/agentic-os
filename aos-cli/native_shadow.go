@@ -2165,7 +2165,7 @@ func stageStandaloneRoleHome(source, target string) error {
 		blocked map[string]bool
 	}{
 		{name: ".agents", blocked: map[string]bool{"skills": true}},
-		{name: ".claude", blocked: map[string]bool{"skills": true, ".credentials.json": true}},
+		{name: ".claude", blocked: standaloneClaudeBlocked()},
 	} {
 		if err := copyStandaloneHomeDirectory(
 			filepath.Join(source, spec.name),
@@ -2182,6 +2182,22 @@ func stageStandaloneRoleHome(source, target string) error {
 		}
 	}
 	return nil
+}
+
+// standaloneClaudeRuntimeState is what the harness writes as it runs, never config.
+// Its projects transcripts alone were 4 GiB in every shadow home. COI-2799
+var standaloneClaudeRuntimeState = []string{
+	"projects", "backups", "telemetry", "file-history", "shell-snapshots", "debug",
+	"paste-cache", "session-env", "sessions", "todos", "ide", "statsig", "security",
+	"cache", "plans", "history.jsonl",
+}
+
+func standaloneClaudeBlocked() map[string]bool {
+	blocked := map[string]bool{"skills": true, ".credentials.json": true}
+	for _, name := range standaloneClaudeRuntimeState {
+		blocked[name] = true
+	}
+	return blocked
 }
 
 func copyStandaloneHomeDirectory(source, target string, blocked map[string]bool) error {

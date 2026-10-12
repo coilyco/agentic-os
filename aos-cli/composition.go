@@ -35,6 +35,15 @@ type standaloneWorkspace struct {
 	HomeSource string
 }
 
+// Close removes the staged home copy once the launch is over. The session root and
+// any worktrees stay for the sweep, which checks them for unpushed work. COI-2799
+func (workspace standaloneWorkspace) Close() error {
+	if workspace.HomeSource == "" {
+		return nil
+	}
+	return os.RemoveAll(workspace.HomeSource)
+}
+
 func runIntegratedLaunch(
 	ctx context.Context,
 	cmd *cli.Command,
@@ -200,6 +209,9 @@ func runStandaloneIntegratedLaunch(
 	if err != nil {
 		return err
 	}
+	defer func() {
+		returnErr = errors.Join(returnErr, workspace.Close())
+	}()
 	var issuePins issuePinLaunchContext
 	if !opts.DryRun {
 		issuePins, err = prepareIssuePinLaunchContext(ctx, opts.Role)

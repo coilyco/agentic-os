@@ -374,23 +374,13 @@ func TestIntegratedStandaloneDryRunMountsSafeHomeProjection(t *testing.T) {
 	if lease.SessionHome == "" {
 		t.Fatalf("lease did not record a standalone home: %#v", lease)
 	}
-	for _, path := range []string{
-		filepath.Join(lease.SessionHome, ".agents", "settings.json"),
-		filepath.Join(lease.SessionHome, ".claude", "settings.json"),
-	} {
-		if _, err := os.Stat(path); err != nil {
-			t.Fatalf("safe home projection missing %s: %v", path, err)
-		}
+	if !strings.Contains(rendered, "source="+lease.SessionHome) {
+		t.Fatalf("standalone dry run did not mount the staged home %s:\n%s", lease.SessionHome, rendered)
 	}
-	for _, path := range []string{
-		filepath.Join(lease.SessionHome, ".claude", ".credentials.json"),
-		filepath.Join(lease.SessionHome, ".aws", "config"),
-		filepath.Join(lease.SessionHome, ".codex", "auth.json"),
-		filepath.Join(lease.SessionHome, ".gitconfig"),
-	} {
-		if _, err := os.Lstat(path); !os.IsNotExist(err) {
-			t.Fatalf("safe home projection included denied path %s: %v", path, err)
-		}
+	// The copy is a launch artifact. What it holds is checked where it is staged,
+	// in TestStageStandaloneRoleHome*, and it is gone once the launch returns. COI-2799
+	if _, err := os.Stat(lease.SessionHome); !os.IsNotExist(err) {
+		t.Fatalf("the staged home outlived the launch: %v", err)
 	}
 }
 

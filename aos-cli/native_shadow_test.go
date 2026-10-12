@@ -2478,3 +2478,62 @@ func TestNativeGitBoundedEndsAHungCall(t *testing.T) {
 		t.Fatalf("the call ran %s past its 200ms bound", took)
 	}
 }
+
+func TestStageStandaloneRoleHomeLeavesTheHarnessRuntimeStateBehind(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "source")
+	target := filepath.Join(t.TempDir(), "target")
+	state := []string{"projects", "backups", "telemetry", "file-history", "security", "todos"}
+	for _, name := range state {
+		dir := filepath.Join(source, ".claude", name, "nested")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "big.jsonl"), []byte("transcript\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"settings.json", "history.jsonl"} {
+		if err := os.WriteFile(filepath.Join(source, ".claude", name), []byte("x\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := stageStandaloneRoleHome(source, target); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Lstat(filepath.Join(target, ".claude", "settings.json")); err != nil {
+		t.Errorf("config was not copied: %v", err)
+	}
+	for _, name := range append(state, "history.jsonl") {
+		if _, err := os.Lstat(filepath.Join(target, ".claude", name)); !os.IsNotExist(err) {
+			t.Errorf("runtime state %s was copied into the session home: %v", name, err)
+		}
+	}
+}
+
+func TestStandaloneWorkspaceCloseRemovesOnlyTheStagedHome(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	projects := filepath.Join(root, "projects")
+	for _, dir := range []string{home, projects} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	workspace := standaloneWorkspace{Source: projects, HomeSource: home}
+
+	if err := workspace.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(home); !os.IsNotExist(err) {
+		t.Errorf("the staged home survived Close: %v", err)
+	}
+	if _, err := os.Stat(projects); err != nil {
+		t.Errorf("Close touched the worktrees: %v", err)
+	}
+	if err := (standaloneWorkspace{}).Close(); err != nil {
+		t.Errorf("Close with no staged home: %v", err)
+	}
+}

@@ -489,6 +489,9 @@ func runComposedLaunch(
 	if err != nil {
 		return err
 	}
+	defer func() {
+		returnErr = errors.Join(returnErr, workspace.Close())
+	}()
 	var issuePins issuePinLaunchContext
 	if !cmd.Bool("dry-run") {
 		issuePins, err = prepareIssuePinLaunchContext(ctx, role)
