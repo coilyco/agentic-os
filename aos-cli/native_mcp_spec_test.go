@@ -17,14 +17,14 @@ func TestNativeSpecMCPArgsRefusesWithoutAnInventory(t *testing.T) {
 	t.Setenv(openCodeConfigEnv, "")
 	for _, harness := range []string{"claude", "codex", "goose", "opencode"} {
 		spec := nativeLaunchSpec{Harness: harness}
-		_, err := nativeSpecMCPArgs(context.Background(), spec, "eng-platform", t.TempDir(), t.TempDir(), nil)
+		_, err := nativeSpecMCPScope(context.Background(), spec, "eng-platform", t.TempDir(), t.TempDir(), nil)
 		if !errors.Is(err, errNoMCPInventory) {
 			t.Fatalf("%s: a host with no inventory should refuse, got %v", harness, err)
 		}
 	}
 	spec := nativeLaunchSpec{Harness: "claude"}
-	got, err := nativeSpecMCPArgs(context.Background(), spec, "eng-platform", t.TempDir(), t.TempDir(), []string{"--mcp-config", "mine.json"})
-	if err != nil || got != nil {
+	got, err := nativeSpecMCPScope(context.Background(), spec, "eng-platform", t.TempDir(), t.TempDir(), []string{"--mcp-config", "mine.json"})
+	if err != nil || got.Flags != nil || got.Allow != nil {
 		t.Fatalf("a caller's own scope is used as given, got %v, %v", got, err)
 	}
 }
@@ -69,10 +69,11 @@ func TestSpecGooseScopeReplacesTheProfile(t *testing.T) {
 	stubRoleCatalog(t)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	home := scopeInventoryHome(t)
-	flags, err := nativeSpecMCPArgs(context.Background(), nativeLaunchSpec{Harness: "goose"}, "eng-platform", home, t.TempDir(), nil)
+	scope, err := nativeSpecMCPScope(context.Background(), nativeLaunchSpec{Harness: "goose"}, "eng-platform", home, t.TempDir(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+	flags := scope.Flags
 	want := "--no-profile|--with-builtin|developer|--with-streamable-http-extension|https://example.invalid/mcp|" +
 		"--with-extension|script:sh -c \"PATH=" + home + "/bin:$PATH exec tool\""
 	if got := strings.Join(flags, "|"); got != want {
@@ -92,7 +93,7 @@ func TestSpecOpenCodeScopeSetsTheInlineConfig(t *testing.T) {
 	stubRoleCatalog(t)
 	t.Setenv(openCodeConfigEnv, "")
 	home := scopeInventoryHome(t)
-	if _, err := nativeSpecMCPArgs(context.Background(), nativeLaunchSpec{Harness: "opencode"}, "eng-platform", home, t.TempDir(), nil); err != nil {
+	if _, err := nativeSpecMCPScope(context.Background(), nativeLaunchSpec{Harness: "opencode"}, "eng-platform", home, t.TempDir(), nil); err != nil {
 		t.Fatal(err)
 	}
 	var config struct {

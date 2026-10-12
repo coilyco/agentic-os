@@ -29,6 +29,8 @@ type nativeLaunchSpec struct {
 	RuntimeHome  string            `json:"runtime_home"`
 	EnvSet       map[string]string `json:"env_set"`
 	EnvUnset     []string          `json:"env_unset"`
+	// ClaudeAIConnectors is absent from an older agent-compose, which reads as no grant.
+	ClaudeAIConnectors []nativeSpecConnector `json:"claude_ai_connectors"`
 }
 
 func nativeLaunchSpecEnabled() bool {
@@ -195,7 +197,8 @@ func nativeSpecIdentityArgs(ctx context.Context, spec nativeLaunchSpec, inventor
 	if err != nil {
 		return nil, err
 	}
-	flags, err := nativeSpecMCPArgs(ctx, spec, role, inventoryHome, nativeSpecStateDir(spec), args)
+	scope, err := nativeSpecMCPScope(ctx, spec, role, inventoryHome, nativeSpecStateDir(spec), args)
+	flags := scope.Flags
 	if err != nil || spec.Harness != "claude" {
 		return flags, err
 	}
@@ -206,6 +209,12 @@ func nativeSpecIdentityArgs(ctx context.Context, spec nativeLaunchSpec, inventor
 		settings, err := writeNativeClaudeSettings(ctx, spec, role)
 		if err != nil {
 			return nil, err
+		}
+		if len(scope.Allow) > 0 {
+			settings, err = writeConnectorSettings(filepath.Join(nativeSpecStateDir(spec), "mcp"), role, settings, scope.Allow, scope.Deny)
+			if err != nil {
+				return nil, err
+			}
 		}
 		flags = append(flags, "--settings", settings)
 	}
