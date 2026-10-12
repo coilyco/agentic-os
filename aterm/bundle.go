@@ -292,7 +292,7 @@ func buildBundlePlan(ctx context.Context, deps commandDeps, cmd *cli.Command) (b
 	if err != nil {
 		return bundlePlan{}, fmt.Errorf("aterm binary: %w", err)
 	}
-	cwd, err := validateWorkingDirectory(cmd.String("working-directory"))
+	cwd, err := launchWorkingDirectory(cmd.IsSet("working-directory"), cmd.String("working-directory"))
 	if err != nil {
 		return bundlePlan{}, err
 	}

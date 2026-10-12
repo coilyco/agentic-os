@@ -262,7 +262,7 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 			return err
 		}
 	}
-	cwd, err := validateWorkingDirectory(cmd.String("working-directory"))
+	cwd, err := launchWorkingDirectory(cmd.IsSet("working-directory"), cmd.String("working-directory"))
 	if err != nil {
 		return withExit(exitUsage, err)
 	}

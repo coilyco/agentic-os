@@ -160,6 +160,13 @@ func sendMessage(target, body string, opts sendOptions) (peerMessage, error) {
 	if len(body) > maxSendBody {
 		return peerMessage{}, errSendTooLong()
 	}
+	// Ahead of the daemon, which would hold the message three minutes for a
+	// session that can never open (COI-2668).
+	if opts.Fresh || opts.Launch {
+		if err := checkDefaultWorkingDirectory(); err != nil {
+			return peerMessage{}, err
+		}
+	}
 	token := strings.TrimSpace(os.Getenv(sessionTokenEnv))
 	if token == "" {
 		return peerMessage{}, withExit(exitUsage, fmt.Errorf(
@@ -255,7 +262,13 @@ func launchRole(role, seat string) error {
 	if err != nil {
 		return err
 	}
-	output, err := exec.Command(self, launchRoleArgs(role, seat)...).CombinedOutput()
+	command := exec.Command(self, launchRoleArgs(role, seat)...)
+	// The daemon and a shadow seat both launch from an environment whose home
+	// is not the projects root's, so the child starts on the canonical one.
+	if environ := canonicalEnviron(os.Environ(), readCanonicalLaunch()); environ != nil {
+		command.Env = environ
+	}
+	output, err := command.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%v: %s", err, strings.TrimSpace(string(output)))
 	}
