@@ -10,5 +10,5 @@
 !statusline.d
 !statusline.d/**
 !verify-common.sh
-!ward-shell-entrypoint.sh
+!shell-entrypoint.sh
 !prepare-build-stage.sh

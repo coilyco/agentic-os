@@ -10,7 +10,7 @@ image contains every supported language toolchain.
 
 ## The motivating failure
 
-On an app, CI was green while **every** dispatched `warded` run died. The two
+On an app, CI was green while **every** dispatched agent run died. The two
 environments had diverged: CI ran a bare runner + `setup-uv` (which fetches its
 own writable Python, green), while the agent ran in dev-base where a root-owned
 `UV_PYTHON_INSTALL_DIR` blocked `uv run` (red, invisibly). CI was validating a
@@ -99,8 +99,7 @@ language matrix completes before the full job through `needs`.
 
 Language targets validate their isolated toolchains. The full image runs
 [`verify-common.sh`](../docker/dev-base/verify-common.sh) once after grafting
-all payloads and installing the shared surface. That gate includes
-`WARD_DOCTOR_ALLOW_PLACEHOLDERS=1 ward doctor`, followed by the
+all payloads and installing the shared surface. That gate runs the
 complete-toolchain smoke.
 
 ## Required status

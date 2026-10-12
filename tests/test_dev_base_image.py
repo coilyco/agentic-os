@@ -50,7 +50,7 @@ def test_language_targets_are_payload_only_and_share_architecture_mapping() -> N
         "install-common.sh",
         "verify-common.sh",
         "repo-lists",
-        "ward-shell-entrypoint.sh",
+        "shell-entrypoint.sh",
         "AGENT_COMPOSE_VERSION",
         "WARD_VERSION",
         "UMBRA_VERSION",
@@ -65,7 +65,7 @@ def test_full_image_owns_the_common_and_internal_tool_surface() -> None:
     assert text.count("source=install-common.sh,target=/tmp/install-common.sh") == 1
     assert text.count("source=verify-common.sh,target=/tmp/verify-common.sh") == 1
     assert "from=repo-lists,source=substrate-repos.txt" in text
-    assert '["/opt/agentic-os/ward-shell-entrypoint.sh"]' in text
+    assert '["/opt/agentic-os/shell-entrypoint.sh"]' in text
     assert "COPY --from=aosguard-spec" in text
     assert "COPY --from=aosguard-python" in text
     assert "--skills-out /opt/agentic-os/aosguard-skill" in text

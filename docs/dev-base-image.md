@@ -56,8 +56,7 @@ CLIs, and full-only gates in the full Dockerfile, so changing them reuses cached
 payloads rather than rebuilding toolchains. Every pin is manual, and only the
 agent-compose pin is [watched](build-file-headers.md) against upstream.
 Each other pin is only as current as the last person who checked it. The image owns this deployment's
-Git identity and maps it onto Ward's `WARD_GIT_*` contract, without redefining
-Ward policy, AOSguard policy, or agent-compose source data.
+Git identity, without redefining AOSguard policy or agent-compose source data.
 ## dev-base build cache
 
 Every multi-architecture payload and full-image build reuses a persistent Buildx

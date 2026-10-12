@@ -69,21 +69,18 @@ def test_container_entrypoint_seeds_the_read_only_surface_env(tmp_path: Path) ->
             "PATH": "/usr/bin:/bin",
             "AOS_REPO_ROOT": "",
             "FORGEJO_WORKSPACE": str(REPO_ROOT),
-            "WARD_READONLY": "1",
             "AOS_GIT_NAME": "deployment-bot",
             "AOS_GIT_EMAIL": "deployment-bot@example.com",
-            "WARD_GIT_NAME": "neutral-default",
-            "WARD_GIT_EMAIL": "neutral-default@example.com",
         }
     )
-    entrypoint = REPO_ROOT / "docker" / "dev-base" / "ward-shell-entrypoint.sh"
+    entrypoint = REPO_ROOT / "docker" / "dev-base" / "shell-entrypoint.sh"
     proc = subprocess.run(
         [
             "bash",
             str(entrypoint),
             "bash",
             "-lc",
-            'printf "%s\n%s\n%s" "$AOS_REPO_ROOT" "$WARD_GIT_NAME" "$WARD_GIT_EMAIL"',
+            'printf "%s" "$AOS_REPO_ROOT"',
         ],
         cwd=foreign,
         check=True,
@@ -92,7 +89,15 @@ def test_container_entrypoint_seeds_the_read_only_surface_env(tmp_path: Path) ->
         env=env,
     )
 
-    root, git_name, git_email = proc.stdout.splitlines()
-    assert root == str(REPO_ROOT)
-    assert git_name == env["AOS_GIT_NAME"]
-    assert git_email == env["AOS_GIT_EMAIL"]
+    assert proc.stdout == str(REPO_ROOT)
+
+
+def test_container_entrypoint_refuses_a_container_without_the_image_identity(tmp_path: Path) -> None:
+    env = {"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"}
+    entrypoint = REPO_ROOT / "docker" / "dev-base" / "shell-entrypoint.sh"
+    proc = subprocess.run(
+        ["bash", str(entrypoint), "true"], capture_output=True, text=True, env=env
+    )
+
+    assert proc.returncode != 0
+    assert "AOS_GIT_NAME is required" in proc.stderr
