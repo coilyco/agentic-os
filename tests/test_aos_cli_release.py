@@ -19,7 +19,6 @@ ATERM_TARGETS = ROOT / "aterm" / "release-targets.txt"
 RELEASE_BINARIES = (
     "aos",
     "aoscompose",
-    "aosward",
     "aosguard",
     "aterm",
 )
@@ -98,7 +97,6 @@ def test_packaging_covers_every_release_binary(tmp_path: Path) -> None:
     bins = manifest["architecture"]["64bit"]["bin"]
     assert ["aoscompose-windows-amd64.exe", "aoscompose"] in bins
     assert ["aoscompose-windows-amd64.exe", "aoscomposed"] in bins
-    assert ["aosward-windows-amd64.exe", "aosward"] in bins
     assert ["aosguard-windows-amd64.exe", "aosguard"] in bins
     # Nothing Windows-side may install aterm, on either surface.
     assert not [entry for entry in bins if entry[1] == "aterm"]

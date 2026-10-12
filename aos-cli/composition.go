@@ -1,31 +1,24 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/urfave/cli/v3"
 )
 
-var (
-	hostLookPath = exec.LookPath
-	hostCommand  = runHostCommand
-)
+var hostLookPath = exec.LookPath
 
 type integratedLaunchOptions struct {
 	Image       string
 	Role        string
-	AgentID     string
 	Agent       string
 	Layout      string
 	Delivery    string
-	Warded      bool
 	Composed    bool
 	Guarded     bool
 	NoSubstrate bool
@@ -34,12 +27,6 @@ type integratedLaunchOptions struct {
 	HostNetwork bool
 	DryRun      bool
 	Arguments   []string
-}
-
-type wardLaunchPlan struct {
-	Command     string
-	Environment []string
-	Args        []string
 }
 
 type standaloneWorkspace struct {
@@ -59,11 +46,9 @@ func runIntegratedLaunch(
 	opts := integratedLaunchOptions{
 		Image:       strings.TrimSpace(cmd.String("image")),
 		Role:        strings.TrimSpace(cmd.String("role")),
-		AgentID:     strings.TrimSpace(cmd.String("agent-id")),
 		Agent:       strings.TrimSpace(cmd.String("agent")),
 		Layout:      strings.TrimSpace(cmd.String("layout")),
 		Delivery:    strings.TrimSpace(cmd.String("delivery")),
-		Warded:      defaults.Warded || cmd.Bool("warded"),
 		Composed:    true,
 		Guarded:     true,
 		NoSubstrate: cmd.Bool("no-substrate"),
@@ -86,9 +71,6 @@ func runIntegratedLaunch(
 	}
 	opts.Layout = opts.Agent
 
-	if opts.Warded {
-		return runWardedLaunch(ctx, cmd, opts)
-	}
 	return runStandaloneIntegratedLaunch(ctx, cmd, opts)
 }
 
@@ -124,9 +106,6 @@ func validateIntegratedLaunch(opts integratedLaunchOptions) error {
 	if !safeRoleSlug(opts.Role) {
 		return fmt.Errorf("--role %q is not a safe shared role slug", opts.Role)
 	}
-	if opts.AgentID != "" && !safeAgentID(opts.AgentID) {
-		return fmt.Errorf("--agent-id %q is not a safe peer id", opts.AgentID)
-	}
 	if opts.Agent == "" {
 		return fmt.Errorf("integrated launch needs --agent")
 	}
@@ -145,25 +124,6 @@ func validateIntegratedLaunch(opts integratedLaunchOptions) error {
 	}
 	if !opts.Composed && opts.NoSubstrate {
 		return fmt.Errorf("--no-substrate needs --composed")
-	}
-	if opts.Warded {
-		if opts.Kubeconfig != "" {
-			return fmt.Errorf(
-				"--kubeconfig is available only for standalone launches because Ward owns warded runtime mounts",
-			)
-		}
-		if len(opts.Arguments) == 0 {
-			return fmt.Errorf("--warded role %s needs work text", opts.Role)
-		}
-		if forbidden := forbiddenWardArgument(opts.Arguments); forbidden != "" {
-			return fmt.Errorf(
-				"launch argument %q conflicts with AOS-owned Ward translation",
-				forbidden,
-			)
-		}
-	}
-	if opts.AgentID != "" && !opts.Warded {
-		return fmt.Errorf("--agent-id needs --warded")
 	}
 	return nil
 }
@@ -202,44 +162,6 @@ func safeRoleSlug(value string) bool {
 		return false
 	}
 	return true
-}
-
-func safeAgentID(value string) bool {
-	if value == "" || len(value) > 128 {
-		return false
-	}
-	for i, r := range value {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') ||
-			(r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' {
-			if i > 0 || (r != '-' && r != '_' && r != '.') {
-				continue
-			}
-		}
-		return false
-	}
-	return true
-}
-
-func forbiddenWardArgument(arguments []string) string {
-	owned := []string{
-		"--agent",
-		"--harness",
-		"--image",
-		"--tag",
-		"--context-bundle",
-		"--ward-source",
-		"--ward-version",
-		"--role",
-		"--agent-id",
-	}
-	for _, argument := range arguments {
-		for _, flag := range owned {
-			if argument == flag || strings.HasPrefix(argument, flag+"=") {
-				return argument
-			}
-		}
-	}
-	return ""
 }
 
 func runStandaloneIntegratedLaunch(
@@ -354,134 +276,19 @@ func prepareStandaloneWorkspace(harness string) (standaloneWorkspace, error) {
 	return result, nil
 }
 
-func runWardedLaunch(
-	ctx context.Context,
-	cmd *cli.Command,
-	opts integratedLaunchOptions,
-) error {
-	var launchEnvironment []string
-	if !opts.DryRun {
-		var err error
-		launchEnvironment, err = wardLaunchEnvironment(ctx)
-		if err != nil {
-			return err
-		}
-	}
-	bundlePath := ""
-	if opts.Composed || opts.Guarded {
-		if opts.DryRun {
-			uid, gid := hostIdentity()
-			plan, err := buildContextBundlePlan(contextBundlePlanOptions{
-				Image:    opts.Image,
-				Role:     opts.Role,
-				Agent:    opts.Agent,
-				Delivery: opts.Delivery,
-				Composed: opts.Composed,
-				Guarded:  opts.Guarded,
-				Output:   "<AOS_CONTEXT_BUNDLE_STAGING>",
-				UID:      uid,
-				GID:      gid,
-				Bundle:   "<AGENT_COMPOSE_BUNDLE>",
-			})
-			if err != nil {
-				return err
-			}
-			fmt.Fprintln(
-				cmd.Root().Writer,
-				shellJoin(append([]string{"docker"}, plan.DockerArgs...)),
-			)
-			bundlePath = "<AOS_CONTEXT_BUNDLE>"
-		} else {
-			wardPath, err := resolveWardWithContextContract(ctx)
-			if err != nil {
-				return err
-			}
-			_ = wardPath
-			bundlePath, err = materializeContextBundle(ctx, contextBundleMaterializeOptions{
-				Image:    opts.Image,
-				Role:     opts.Role,
-				Agent:    opts.Agent,
-				Delivery: opts.Delivery,
-				Composed: opts.Composed,
-				Guarded:  opts.Guarded,
-			})
-			if err != nil {
-				return err
-			}
-		}
-	}
-	plan, err := buildWardLaunchPlan(opts, bundlePath)
-	if err != nil {
-		return err
-	}
-	if opts.DryRun {
-		fmt.Fprintln(
-			cmd.Root().Writer,
-			shellJoin(append(plan.Environment, append([]string{plan.Command}, plan.Args...)...)),
-		)
-		return nil
-	}
-	wardPath, err := hostLookPath("ward")
-	if err != nil {
-		return fmt.Errorf("--warded needs Ward on the host PATH: %w", err)
-	}
-	plan.Command = wardPath
-	for _, entry := range plan.Environment {
-		key, value, ok := strings.Cut(entry, "=")
-		if !ok {
-			return fmt.Errorf("invalid Ward launch environment entry %q", entry)
-		}
-		launchEnvironment = replaceEnvironment(launchEnvironment, key, value)
-	}
-	return hostCommand(ctx, plan.Command, launchEnvironment, plan.Args...)
+func replaceEnvironment(environment []string, key, value string) []string {
+	updated := removeEnvironment(environment, key)
+	return append(updated, key+"="+value)
 }
 
-func buildWardLaunchPlan(opts integratedLaunchOptions, bundlePath string) (wardLaunchPlan, error) {
-	args := []string{"agent", "run", "--role", opts.Role}
-	if opts.AgentID != "" {
-		args = append(args, "--agent-id", opts.AgentID)
+func removeEnvironment(environment []string, key string) []string {
+	prefix := key + "="
+	updated := make([]string, 0, len(environment))
+	for _, entry := range environment {
+		if strings.HasPrefix(entry, prefix) {
+			continue
+		}
+		updated = append(updated, entry)
 	}
-	args = append(args, opts.Arguments...)
-	args = append(args, "--agent", opts.Agent, "--image", opts.Image)
-	if bundlePath != "" {
-		args = append(args, "--context-bundle", bundlePath)
-	}
-	return wardLaunchPlan{Command: "ward", Args: args}, nil
-}
-
-func resolveWardWithContextContract(ctx context.Context) (string, error) {
-	wardPath, err := hostLookPath("ward")
-	if err != nil {
-		return "", fmt.Errorf("--warded needs Ward on the host PATH: %w", err)
-	}
-	command := exec.CommandContext(ctx, wardPath, "agent", "flags")
-	var output bytes.Buffer
-	command.Stdout = &output
-	command.Stderr = &output
-	if err := command.Run(); err != nil {
-		return "", fmt.Errorf("inspect Ward context-bundle contract: %w", err)
-	}
-	if !strings.Contains(output.String(), "--context-bundle") {
-		return "", fmt.Errorf(
-			"installed Ward does not advertise --context-bundle; update Ward before using --composed or --guarded with --warded",
-		)
-	}
-	return wardPath, nil
-}
-
-func runHostCommand(
-	ctx context.Context,
-	name string,
-	environment []string,
-	args ...string,
-) error {
-	command := exec.CommandContext(ctx, name, args...)
-	command.Env = environment
-	command.Stdin = os.Stdin
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
-	if err := command.Run(); err != nil {
-		return fmt.Errorf("%s %s: %w", filepath.Base(name), args[0], err)
-	}
-	return nil
+	return updated
 }

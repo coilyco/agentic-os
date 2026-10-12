@@ -83,20 +83,18 @@ together.
 ```bash
 aoscompose platform                          # role's default agent
 aoscompose platform goose                    # override the agent
-aosward --agent codex --role eng-platform -- owner/repo#267
 aos converge                                 # host runtime inputs, --check for drift
 ```
 
 `aoscompose` is the canonical explicit alias of `aos`, and `aoscomposed`
-survives as a compatibility spelling. `aosward` adds `--warded`. Bare
+survives as a compatibility spelling. Bare
 `acompose <role> <harness>` is the native-host launcher and starts no Docker,
 while an `aos` prefix is the container boundary.
 
-Role names never union authority across layers. Ward owns fixed workflows and
-container lifecycle, agent-compose produces context, and umbra generates the
-guarded tools. AOS applies its own bounded standalone gates on top.
+Role names never union authority across layers. Agent-compose produces
+context, and umbra generates the guarded tools. AOS applies its own bounded standalone gates on top.
 
-Homebrew and Scoop install `aos`, `aoscompose`, `aoscomposed`, `aosward`,
+Homebrew and Scoop install `aos`, `aoscompose`, `aoscomposed`,
 `aosguard`, and `aterm`. The launch and handoff contract,
 release binaries, and the native update path are in
 [docs/aos-cli.md](docs/aos-cli.md). Convergence is in

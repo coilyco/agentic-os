@@ -37,14 +37,6 @@ aos-build *ARGS:
 aos-clean *ARGS:
     @go clean -C aos-cli "$@"
 
-# Render the always-composed, always-guarded Ward launch without starting Docker. Pass the Ward issue or freeform arguments as trailing arguments.
-aos-composition-dry-run *ARGS:
-    @./aos-cli/aos --agent codex --role eng-platform --warded --dry-run -- "$@"
-
-# Materialize the full local context bundle and render Ward's launch without starting an agent container. Pass the Ward issue or freeform arguments as trailing arguments.
-aos-composition-smoke *ARGS:
-    @bash scripts/aos-composition-smoke.sh "$@"
-
 # Launch the full local image through `aos`, compose the platform Codex HOME, verify its container-boundary defaults, hydrate substrate, and print the in-container Codex version.
 aos-container-smoke *ARGS:
     @go run -C aos-cli . --role eng-platform --layout codex --image agentic-os:aos-local acompose -- sh testdata/codex-smoke.sh "$@"

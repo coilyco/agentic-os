@@ -111,23 +111,8 @@ func TestValidateIntegratedLaunchMatrix(t *testing.T) {
 		},
 		{
 			Image: "aos:test", Role: "director", Agent: "goose",
-			Delivery: "compiled", Warded: true,
+			Delivery: "compiled", Composed: true,
 			Arguments: []string{"supervise the queue"},
-		},
-		{
-			Image: "aos:test", Role: "platform", Agent: "codex",
-			Delivery: "compiled", Warded: true, Composed: true,
-			AgentID: "platform-one", Arguments: []string{"owner/repo#1"},
-		},
-		{
-			Image: "aos:test", Role: "science", Agent: "opencode",
-			Delivery: "compiled", Warded: true, Composed: true,
-			Arguments: []string{"owner/repo#123"},
-		},
-		{
-			Image: "aos:test", Role: "story-architect", Agent: "codex",
-			Delivery: "compiled", Warded: true, Composed: true,
-			AgentID: "architect", Arguments: []string{"shape the premise"},
 		},
 	}
 	for _, opts := range valid {
@@ -156,42 +141,12 @@ func TestValidateIntegratedLaunchMatrix(t *testing.T) {
 			want: "unsupported --agent",
 		},
 		{
-			name: "generic role missing work",
-			opts: integratedLaunchOptions{
-				Image: "aos:test", Role: "frontend", Agent: "codex", Warded: true,
-			},
-			want: "needs work text",
-		},
-		{
-			name: "missing work",
-			opts: integratedLaunchOptions{
-				Image: "aos:test", Role: "platform", Agent: "codex", Warded: true,
-			},
-			want: "needs work text",
-		},
-		{
-			name: "authority translation override",
-			opts: integratedLaunchOptions{
-				Image: "aos:test", Role: "science", Agent: "codex", Warded: true,
-				Arguments: []string{"owner/repo#1", "--context-bundle", "other"},
-			},
-			want: "conflicts with AOS-owned Ward translation",
-		},
-		{
 			name: "substrate without composition",
 			opts: integratedLaunchOptions{
 				Image: "aos:test", Role: "platform", Agent: "codex",
 				Guarded: true, NoSubstrate: true,
 			},
 			want: "needs --composed",
-		},
-		{
-			name: "warded kubeconfig",
-			opts: integratedLaunchOptions{
-				Image: "aos:test", Role: "director", Agent: "codex",
-				Warded: true, Kubeconfig: "/host/config",
-			},
-			want: "only for standalone launches",
 		},
 	}
 	for _, test := range invalid {
@@ -203,143 +158,6 @@ func TestValidateIntegratedLaunchMatrix(t *testing.T) {
 				t.Fatalf("error = %v, want %q", err, test.want)
 			}
 		})
-	}
-}
-
-func TestBuildWardLaunchPlanUsesGenericRunForArbitraryComposedRole(t *testing.T) {
-	t.Parallel()
-	plan, err := buildWardLaunchPlan(integratedLaunchOptions{
-		Image:     "aos:test",
-		Role:      "story-architect",
-		AgentID:   "architect",
-		Agent:     "codex",
-		Arguments: []string{"shape the premise"},
-	}, "/cache/context")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := strings.Join(append([]string{plan.Command}, plan.Args...), " ")
-	for _, want := range []string{
-		"ward agent run --role story-architect --agent-id architect shape the premise",
-		"--agent codex",
-		"--image aos:test",
-		"--context-bundle /cache/context",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("Ward launch %q does not contain %q", got, want)
-		}
-	}
-}
-
-func TestBuildWardLaunchPlanOwnsSiblingTranslation(t *testing.T) {
-	t.Parallel()
-	plan, err := buildWardLaunchPlan(integratedLaunchOptions{
-		Image:     "aos:test",
-		Role:      "platform",
-		Agent:     "codex",
-		Arguments: []string{"owner/repo#267", "--print"},
-	}, "/cache/context")
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := strings.Join(append([]string{plan.Command}, plan.Args...), " ")
-	for _, want := range []string{
-		"ward agent run --role platform owner/repo#267 --print",
-		"--agent codex",
-		"--image aos:test",
-		"--context-bundle /cache/context",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("Ward launch %q does not contain %q", got, want)
-		}
-	}
-	if len(plan.Environment) != 0 {
-		t.Fatalf("Ward launch received AOS-owned harness environment: %v", plan.Environment)
-	}
-	if strings.Contains(got, "--config") {
-		t.Fatalf("Ward launch contains a workflow-local config flag: %q", got)
-	}
-}
-
-func TestIntegratedWardedDirectorCodexDryRunUsesOpaqueCompositionMetadata(t *testing.T) {
-	t.Parallel()
-	command := newCommand()
-	var output bytes.Buffer
-	command.Writer = &output
-	command.ErrWriter = &output
-	err := command.Run(context.Background(), []string{
-		"aos",
-		"--agent", "codex",
-		"--role", "director",
-		"--image", "aos:test",
-		"--warded",
-		"--composed",
-		"--guarded",
-		"--dry-run",
-		"--",
-		"supervise the queue",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	rendered := output.String()
-	for _, want := range []string{"ward agent run --role director", "--agent codex", "--context-bundle '<AOS_CONTEXT_BUNDLE>'"} {
-		if !strings.Contains(rendered, want) {
-			t.Errorf("dry run missing %q:\n%s", want, rendered)
-		}
-	}
-	for _, retired := range []string{
-		"WARD_CODEX_MODEL=",
-		"WARD_CODEX_REASONING_EFFORT=",
-		"WARD_CODEX_VERBOSITY=",
-	} {
-		if strings.Contains(rendered, retired) {
-			t.Fatalf("Ward launch retained AOS-owned harness environment %q:\n%s", retired, rendered)
-		}
-	}
-	if strings.Contains(rendered, "--config") {
-		t.Fatalf("Ward launch contains a workflow-local config flag:\n%s", rendered)
-	}
-}
-
-func TestIntegratedWardedDryRunStartsNoProcess(t *testing.T) {
-	t.Parallel()
-	command := newCommand()
-	var output bytes.Buffer
-	command.Writer = &output
-	command.ErrWriter = &output
-	err := command.Run(context.Background(), []string{
-		"aos",
-		"--agent", "codex",
-		"--role", "platform",
-		"--image", "aos:test",
-		"--warded",
-		"--composed",
-		"--guarded",
-		"--dry-run",
-		"--",
-		"owner/repo#267",
-		"--print",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	rendered := output.String()
-	for _, want := range []string{
-		"docker run",
-		"_container-context-bundle",
-		"--composed",
-		"--guarded",
-		"ward agent run --role platform",
-		"--agent codex",
-		"--image aos:test",
-		"--context-bundle '<AOS_CONTEXT_BUNDLE>'",
-		"owner/repo#267",
-		"--print",
-	} {
-		if !strings.Contains(rendered, want) {
-			t.Errorf("dry run missing %q:\n%s", want, rendered)
-		}
 	}
 }
 
@@ -678,38 +496,20 @@ func TestIntegratedStandaloneCompatibilityFlagsCannotDisableContexts(t *testing.
 	}
 }
 
-func TestAOSWardInvocationAlwaysUsesWardAndBothContexts(t *testing.T) {
+func TestRetiredWardRouteIsGone(t *testing.T) {
 	t.Parallel()
-	command := newCommandForInvocation("/usr/local/bin/aosward-windows-amd64.exe")
-	var output bytes.Buffer
-	command.Writer = &output
-	command.ErrWriter = &output
-	err := command.Run(context.Background(), []string{
-		"aosward",
-		"--agent", "codex",
-		"--role", "director",
-		"--image", "aos:test",
-		"--warded=false",
-		"--composed=false",
-		"--guarded=false",
-		"--dry-run",
-		"--",
-		"supervise the queue",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	rendered := output.String()
-	for _, want := range []string{
-		"_container-context-bundle",
-		"--composed",
-		"--guarded",
-		"ward agent run --role director",
-		"--context-bundle '<AOS_CONTEXT_BUNDLE>'",
-	} {
-		if !strings.Contains(rendered, want) {
-			t.Errorf("aosward dry run missing %q:\n%s", want, rendered)
+	for _, name := range []string{"aosward", "/usr/local/bin/aosward-windows-amd64.exe", "AOSWARD.EXE"} {
+		if !retiredInvocation(name) {
+			t.Errorf("%s is a stale aosward link and was not refused", name)
 		}
+	}
+	for _, name := range []string{"aos", "aoscompose", "/usr/bin/aoscomposed-linux"} {
+		if retiredInvocation(name) {
+			t.Errorf("%s is a live launcher name and was refused", name)
+		}
+	}
+	if err := runAOS(t, "--warded", "--role", "platform", "--dry-run"); err == nil {
+		t.Error("--warded still parses")
 	}
 }
 

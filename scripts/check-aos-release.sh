@@ -37,7 +37,7 @@ role_default_agent() {
 count_targets() {
     awk '!/^[[:space:]]*(#|$)/ { count++ } END { print count+0 }' "$1"
 }
-release_families="aos aos-bundle aoscompose aosward aosguard"
+release_families="aos aos-bundle aoscompose aosguard"
 family_count=$(printf '%s\n' $release_families | wc -l | tr -d ' ')
 target_count=$(count_targets "$repo_root/aos-cli/release-targets.txt")
 aterm_target_count=$(count_targets "$repo_root/aterm/release-targets.txt")
@@ -96,35 +96,29 @@ grep -F '"aoscompose"' "$dist/aos.rb" >/dev/null
 grep -F '"aoscompose"' "$dist/aos.json" >/dev/null
 grep -F "aoscomposed" "$dist/aos.rb" >/dev/null
 grep -F "aoscomposed" "$dist/aos.json" >/dev/null
-grep -F "aosward" "$dist/aos.rb" >/dev/null
-grep -F "aosward" "$dist/aos.json" >/dev/null
 
 case "$(uname -s)/$(uname -m)" in
     Darwin/arm64)
         native_aos="$dist/aos-darwin-arm64"
         native_aoscompose="$dist/aoscompose-darwin-arm64"
-        native_aosward="$dist/aosward-darwin-arm64"
         native_aosguard="$dist/aosguard-darwin-arm64"
         native_aterm="$dist/aterm-darwin-arm64"
         ;;
     Linux/x86_64)
         native_aos="$dist/aos-linux-amd64"
         native_aoscompose="$dist/aoscompose-linux-amd64"
-        native_aosward="$dist/aosward-linux-amd64"
         native_aosguard="$dist/aosguard-linux-amd64"
         native_aterm="$dist/aterm-linux-amd64"
         ;;
     Linux/aarch64 | Linux/arm64)
         native_aos="$dist/aos-linux-arm64"
         native_aoscompose="$dist/aoscompose-linux-arm64"
-        native_aosward="$dist/aosward-linux-arm64"
         native_aosguard="$dist/aosguard-linux-arm64"
         native_aterm="$dist/aterm-linux-arm64"
         ;;
     *)
         native_aos=""
         native_aoscompose=""
-        native_aosward=""
         native_aosguard=""
         native_aterm=""
         ;;
@@ -138,11 +132,6 @@ if [ -n "$native_aos" ]; then
     actual=$("$native_aoscompose" version)
     if [ "$actual" != "$version" ]; then
         echo "native aoscompose binary reports $actual, expected $version" >&2
-        exit 1
-    fi
-    actual=$("$native_aosward" version)
-    if [ "$actual" != "$version" ]; then
-        echo "native aosward binary reports $actual, expected $version" >&2
         exit 1
     fi
     aos_plan=$("$native_aos" \
@@ -165,16 +154,6 @@ if [ -n "$native_aos" ]; then
         --version)
     printf '%s\n' "$aoscompose_plan" | grep -F -- "--composed" >/dev/null
     printf '%s\n' "$aoscompose_plan" | grep -F -- "--guarded" >/dev/null
-    aosward_plan=$("$native_aosward" \
-        --agent codex \
-        --role prod-director \
-        --image agentic-os:test \
-        --dry-run \
-        -- \
-        "aos release smoke")
-    printf '%s\n' "$aosward_plan" | grep -F -- "--composed" >/dev/null
-    printf '%s\n' "$aosward_plan" | grep -F -- "--guarded" >/dev/null
-    printf '%s\n' "$aosward_plan" | grep -F "ward agent run --role prod-director" >/dev/null
     smoke_dir=$(mktemp -d)
     trap 'rm -rf "$smoke_dir"' EXIT HUP INT TERM
     # The launch profiles own which agent a role defaults to, so read the
@@ -277,4 +256,4 @@ PY
     )
 fi
 
-echo "verified aos, aoscompose, aosward, aosguard, and aterm release $version"
+echo "verified aos, aoscompose, aosguard, and aterm release $version"

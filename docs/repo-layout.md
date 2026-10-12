@@ -86,7 +86,7 @@ entry points, then run the first check. If the same repo also exists under
 `/substrate`, `/workspace/agentic-os` is authoritative.
 
 **Ward integration** - a change crossing AOS, Ward, agent-compose, or AOSguard.
-Run `rg -n "context-bundle|--warded|--composed|--guarded" aos docs`, `ward
+Run `rg -n "context-bundle|--composed|--guarded" aos docs`, `ward
 doctor`, `aosguard ops forgejo describe`. Ownership splits: `.agents/roles.kdl`
 owns behavioral composition, `.agents/harness-launch-profiles.yaml` owns
 role-to-default-agent mapping, the `justfile` owns repository commands,

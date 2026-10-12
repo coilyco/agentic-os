@@ -155,6 +155,8 @@ func mintLinearAppToken(ctx context.Context, creds linearAppCredentials) (string
 	return body.AccessToken, nil
 }
 
+type environmentLookup func(string) (string, bool)
+
 func applyLinearEnvironment(
 	ctx context.Context,
 	stderr io.Writer,

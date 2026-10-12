@@ -83,12 +83,6 @@ invisible to scripts and agent tool calls, which then restate the raw
 converged link and falls back to the checkout, so a host that has not run
 `just apply-shell-links` yet still resolves it.
 
-The integrated `aos --warded` launch uses the same on-demand posture for its
-deployment-owned Forgejo broker credential. AOS resolves the value through the
-host AWS session only when `FORGEJO_TOKEN` is absent, passes it to Ward's
-privileged broker launch environment, and never projects it into the agent
-harness. See the [AOS to Ward credential handoff](aos-cluster-access.md).
-
 ## Cross-platform terminal
 
 kitty supplies the portable Sombra rendering baseline for `aterm` windows. Mac

@@ -30,7 +30,7 @@ const (
 	nativeUpdateStateFormat = "agentic-os.native-update.v1"
 )
 
-// The aos formula ships aterm, aosguard, aosward and aoscompose beside aos
+// The aos formula ships aterm, aosguard and aoscompose beside aos
 // itself, so two names cover every binary a launch resolves.
 var nativeUpdateFormulae = []string{"aos", "agent-compose"}
 

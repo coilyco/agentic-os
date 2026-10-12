@@ -43,8 +43,8 @@ dictatable shape `ab85`: two lowercase letters then two digits.
 Native and standalone AOS use this shadow before agent-compose or Docker runs.
 Bare harness commands let the native roster infer a role.
 `acompose <role> <harness> [args...]` enters the clean shadow workspace for
-every role. A native director has no Ward broker. Dispatch and credentials
-need a warded launch. Native AOS clears deprecated model selectors, so every
+every role. A native director has no broker.
+Native AOS clears deprecated model selectors, so every
 harness receives the complete selected role composition. User skills stay empty.
 Claude auto-updates cannot replace the host launcher, and both harnesses trust
 the workspace. Assigned launches apply [Codex hook trust](native-harness-config.md).
