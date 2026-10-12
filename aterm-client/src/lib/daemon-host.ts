@@ -324,6 +324,8 @@ export class DaemonHost implements HostConnection {
   private refs = new Map<string, number>();
   private lastOutput = new Map<string, number>();
   private lastPoke = new Map<string, number>();
+  // What arrived since a seat's last attach, so an ask-again can place a lost replay.
+  private arrived = new Map<string, { since: number; frames: number; bytes: number }>();
   private busy = new Set<string>();
   private ticker: ReturnType<typeof setInterval>;
   private browsers = new Map<string, SharedBrowser>();
@@ -508,11 +510,15 @@ export class DaemonHost implements HostConnection {
     this.refs.set(sessionId, (this.refs.get(sessionId) ?? 0) + 1);
     this.attached.set(sessionId, { rows, cols, count: (this.attached.get(sessionId)?.count ?? 0) + 1 });
     this.lastPoke.set(sessionId, Date.now());
+    this.arrived.set(sessionId, { since: Date.now(), frames: 0, bytes: 0 });
     this.request({ type: "attach", session: sessionId, replay: true, rows, cols, ...(this.ptySize ? { scales: true } : {}) });
   }
 
   replay(sessionId: string): void {
     const shown = this.attached.get(sessionId);
+    const got = this.arrived.get(sessionId);
+    // Zero frames, socket open: lost before here. Frames that never drew: in the pane.
+    console.warn(`aterm: asking ${sessionId} for its screen again, ${got ? `${got.frames} frame(s), ${got.bytes} byte(s) in ${Date.now() - got.since} ms since the last attach` : "no attach on record"}, socket ${this.open ? "open" : "closed"}, ${this.outbox.length} queued`);
     this.lastPoke.set(sessionId, Date.now());
     const box = shown ? { rows: shown.rows, cols: shown.cols, ...(this.ptySize ? { scales: true } : {}) } : {};
     this.request({ type: "attach", session: sessionId, replay: true, ...box });
@@ -530,6 +536,7 @@ export class DaemonHost implements HostConnection {
       return;
     }
     this.refs.delete(sessionId);
+    this.arrived.delete(sessionId);
     this.request({ type: "detach", session: sessionId });
   }
 
@@ -623,6 +630,15 @@ export class DaemonHost implements HostConnection {
     if (changed) this.publishSessions();
   }
 
+  private counted(name: string, data: Uint8Array): Uint8Array {
+    const got = this.arrived.get(name);
+    if (got) {
+      got.frames += 1;
+      got.bytes += data.length;
+    }
+    return data;
+  }
+
   private noteOutput(name: string): void {
     const now = Date.now();
     if (this.terminalNames.has(name) || now - (this.lastPoke.get(name) ?? 0) < SELF_WINDOW_MS) return;
@@ -655,7 +671,10 @@ export class DaemonHost implements HostConnection {
     for (const name of this.refs.keys()) {
       if (!live.has(name)) continue;
       const shown = this.attached.get(name);
-      if (shown) this.lastPoke.set(name, Date.now());
+      if (shown) {
+        this.lastPoke.set(name, Date.now());
+        this.arrived.set(name, { since: Date.now(), frames: 0, bytes: 0 });
+      }
       const box = shown ? { rows: shown.rows, cols: shown.cols, ...(this.ptySize ? { scales: true } : {}) } : {};
       this.request({ type: "attach", session: name, replay: shown !== undefined, ...box });
     }
@@ -761,7 +780,7 @@ export class DaemonHost implements HostConnection {
       case "output":
         if (!frame.session || !frame.data) return;
         this.noteOutput(frame.session);
-        this.emit({ type: "output", sessionId: frame.session, data: decode(frame.data) });
+        this.emit({ type: "output", sessionId: frame.session, data: this.counted(frame.session, decode(frame.data)) });
         return;
       case "message":
         if (frame.message) this.emit({ type: "message", message: toMessage(frame.message) });

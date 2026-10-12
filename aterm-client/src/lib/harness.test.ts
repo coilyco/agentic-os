@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { harnessInputRows } from "./harness";
+
+/** A screen read off a live seat with aterm status, trailing blanks trimmed. */
+const captured = (name: string): string[] => readFileSync(new URL(`./fixtures/${name}.txt`, import.meta.url), "utf8").split("\n");
 
 const rule = "─".repeat(40);
 const text = (n: number) => Array.from({ length: n }, (_, i) => `session text ${i + 1}`);
@@ -16,8 +20,8 @@ describe("harnessInputRows", () => {
     expect(harnessInputRows(screen)).toBe(5);
   });
 
-  it("leaves opencode's own box alone, since its permission dialog has not been captured", () => {
-    // A real opencode 1.18 start screen. Its box has no rules, and a dialog may share it.
+  it("finds opencode's left-rail box, with its hint row and the path row under it", () => {
+    // A real opencode 1.18 start screen. Its box has no rules.
     const screen = [
       "                               █▀▀█ █▀▀█ █▀▀█ █▀▀▄ █▀▀▀ █▀▀█ █▀▀█ █▀▀█",
       "",
@@ -30,7 +34,46 @@ describe("harnessInputRows", () => {
       "",
       "  /path/to/project:main                                                         1.18.35",
     ];
-    expect(harnessInputRows(screen)).toBe(0);
+    expect(harnessInputRows(screen)).toBe(8);
+  });
+
+  it("finds opencode's box from a real screen captured from a seat, idle and at work", () => {
+    expect(harnessInputRows(captured("opencode-home"))).toBe(7);
+    // The Update Complete dialog above the box stays on screen. Only the box goes.
+    const working = captured("opencode-working");
+    expect(harnessInputRows(working)).toBe(7);
+    expect(working.slice(0, working.length - 7).some((row) => row.includes("Update Complete"))).toBe(true);
+  });
+
+  it("finds codex's prompt row, its status row and its hint row, from a real seat", () => {
+    expect(harnessInputRows(captured("codex-working"))).toBe(5);
+  });
+
+  it("finds goose's gauge and send row, from the screen pinned in aterm/testdata/goose-startup.json", () => {
+    const screen = [
+      "    __( O)>  ● new session · ollama qwen3.8:27b",
+      "   \\____)    20261008_4 · /private/tmp/aterm-goose-fixture",
+      "     L L     goose is ready",
+      "  ⏳ loading extensions in background...",
+      "  ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌ 0% 0/128k",
+      "",
+      "> Enter to send · Ctrl+J newline",
+    ];
+    expect(harnessInputRows(screen)).toBe(3);
+    // A line already typed, or a shell prompt, is not goose's empty box.
+    expect(harnessInputRows([...screen.slice(0, 5), "", "> half a thought"])).toBe(0);
+    expect(harnessInputRows([...text(4), "> "])).toBe(0);
+  });
+
+  it("shows everything when a rail dialog or a codex prompt is not the plain box", () => {
+    // Constructed from the harnesses' approval words, not captured. See architecture.md.
+    const rail = ["  ┃  Permission required", "  ┃  Allow once   Allow always   Reject", "  ╹" + "▀".repeat(30), "  enter confirm  esc dismiss"];
+    expect(harnessInputRows([...text(5), ...rail])).toBe(0);
+    const model = ["  ┃  Allow bash: ls /etc/hosts", "  ┃  Build · Some Model", "  ╹" + "▀".repeat(30), "  tab agents  ctrl+p commands"];
+    expect(harnessInputRows([...text(5), ...model])).toBe(0);
+    const codex = ["  Would you like to run the following command?", "", "› 1. Yes, proceed (y)", "  2. No, and tell Codex what to do differently (esc)", "", "  Press enter to confirm or esc to cancel"];
+    expect(harnessInputRows([...text(5), ...codex])).toBe(0);
+    expect(harnessInputRows([...text(5), "› quoted earlier message", "", "  other output"])).toBe(0);
   });
 
   it("finds a rounded box with the prompt inside it", () => {
