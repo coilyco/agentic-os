@@ -51,6 +51,15 @@ func makeCells(rows, cols int) [][]rune {
 	return cells
 }
 
+// fitCells keeps what fits of old from the top left corner.
+func fitCells(old [][]rune, rows, cols int) [][]rune {
+	next := makeCells(rows, cols)
+	for index := 0; index < min(rows, len(old)); index++ {
+		copy(next[index], old[index])
+	}
+	return next
+}
+
 // write feeds terminal output into the screen.
 func (s *screen) write(data []byte) { s.parser.Parse(data) }
 
@@ -60,11 +69,7 @@ func (s *screen) resize(rows, cols int) {
 	if rows == s.rows && cols == s.cols {
 		return
 	}
-	next := makeCells(rows, cols)
-	for index := 0; index < min(rows, s.rows); index++ {
-		copy(next[index], s.cells[index])
-	}
-	s.cells, s.rows, s.cols = next, rows, cols
+	s.cells, s.rows, s.cols = fitCells(s.cells, rows, cols), rows, cols
 	s.top, s.bottom = 0, rows-1
 	s.row, s.col = min(s.row, rows-1), min(s.col, cols-1)
 }
@@ -218,8 +223,10 @@ func (s *screen) privateMode(cmd ansi.Cmd, params ansi.Params) {
 			s.cells = makeCells(s.rows, s.cols)
 			s.top, s.bottom = 0, s.rows-1
 		} else if !on && s.alternate {
-			s.cells, s.alternate = s.main, false
-			s.resize(s.rows, s.cols)
+			// The main buffer was saved at the size before any resize on the alternate one.
+			s.cells, s.alternate = fitCells(s.main, s.rows, s.cols), false
+			s.top, s.bottom = 0, s.rows-1
+			s.row, s.col = min(s.row, s.rows-1), min(s.col, s.cols-1)
 		}
 	}
 }
