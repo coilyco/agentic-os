@@ -27,7 +27,7 @@ The guard runs the first `git` after its own `PATH` entry and hands that git a `
 
 ## In the dev-base image
 
-The full image installs the stubs into `/opt/agentic-os/shims` and puts that directory first on `PATH` with an image `ENV` as the last step before `WORKDIR`. It is last because every earlier `RUN` needs the real `git`, `rm` and `mv`. `ENV` reaches every process started from the image, and the same layer proves `command -v` resolves each tool there and that `git commit --no-verify` is refused, so a build that loses the shims fails. CI jobs run in this image too (COI-2731).
+The full image installs the stubs into `/opt/agentic-os/shims` and puts that directory first on `PATH` with an image `ENV` as the last step before `WORKDIR`. It is last because every earlier `RUN` needs the real `git`, `rm` and `mv`. `ENV` reaches every process started from the image, and the same layer proves `command -v` resolves each tool there and that `git commit --no-verify` is refused, so a build that loses the shims fails. CI jobs run in this image too (COI-2731), and run the guard the image holds, not the checkout's, so a change under `scripts/fs-shims` takes effect in CI only after the image republishes. Both `dev-base-pr` and `dev-base-publish` list that directory in their path filters for that reason.
 
 ## What it does not stop
 

@@ -8,6 +8,7 @@ on:
     branches: [release]
     paths:
       - "docker/**"
+      - "scripts/fs-shims/**"
   workflow_dispatch:
     inputs:
       sha:
