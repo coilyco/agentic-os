@@ -60,7 +60,7 @@ ALLOWED = [
     ["log", "-n", "1"],
     ["push", "origin", "HEAD:refs/heads/task"],
     ["push", "-u", "origin", "HEAD:refs/heads/task2"],
-    ["merge", "--no-verify-signatures", "--no-edit", "main"],
+    ["merge", "--no-verify-signatures", "--no-edit", "HEAD"],
     ["-C", ".", "--version"],
     ["commit", "-a", "-m", "a message that mentions -n and --force"],
     ["commit", "-a", "-m", "feat(guard): a;b <c> $d `e` | f & g"],
