@@ -25,6 +25,8 @@ LONG_VALUE = {
     "push": {"--push-option", "--repo", "--receive-pack", "--exec"},
 }
 SHORT_VALUE = {"commit": set("mFCct"), "push": set("o")}
+# Where git lives when the caller passes no PATH, as trufflehog's `git log` child does.
+FALLBACKS = ("/usr/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git", "/bin/git")
 CONFIG_READS = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--list", "-l",
                 "--unset", "--unset-all", "--show-origin", "--default"}
 CONFIG_VALUE_OPTS = {"--file", "-f", "--blob", "--type", "--default"}
@@ -155,7 +157,11 @@ def real_git():
     at = [i for i, p in enumerate(parts) if os.path.realpath(p) == shim_dir]
     rest = parts[at[0] + 1:] if at else parts
     kept = os.pathsep.join(p for p in rest if os.path.realpath(p) != shim_dir)
-    return shutil.which("git", path=kept), kept
+    found = shutil.which("git", path=kept)
+    if found is None:
+        found = next((p for p in FALLBACKS if os.access(p, os.X_OK)
+                      and os.path.realpath(os.path.dirname(p)) != shim_dir), None)
+    return found, kept
 
 
 def main(argv):

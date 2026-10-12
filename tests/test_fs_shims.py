@@ -148,3 +148,15 @@ def test_named_roots_bind_outside_a_native_shadow(world, tmp_path: Path) -> None
     allowed = subprocess.run([str(shims / "rm"), "-rf", str(inside_dir)], env=env,
                              capture_output=True, text=True)
     assert allowed.returncode == 0 and not inside_dir.exists()
+
+
+def test_rm_still_runs_when_the_caller_passes_no_path(world, tmp_path: Path) -> None:
+    shadow, _, _ = world
+    shims = tmp_path / "shims"
+    victim = shadow / "projects" / "nopath"
+    victim.mkdir()
+    env = {k: v for k, v in os.environ.items() if k != "PATH"}
+    env["AOS_NATIVE_SESSION_PROJECTS"] = str(shadow / "projects")
+    result = subprocess.run([str(shims / "rm"), "-rf", str(victim)], env=env,
+                            capture_output=True, text=True)
+    assert result.returncode == 0 and not victim.exists(), result.stderr

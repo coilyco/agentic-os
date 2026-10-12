@@ -238,3 +238,11 @@ def test_an_alias_defined_in_the_environment_is_refused(repo) -> None:
     result = _run(["git", "status"], work, path, {
         "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "alias.ci", "GIT_CONFIG_VALUE_0": "commit --no-verify"})
     assert result.returncode == 2 and "denied" in result.stderr
+
+
+def test_git_still_runs_when_the_caller_passes_no_path(stubs: Path, tmp_path: Path) -> None:
+    """trufflehog starts its `git log` child with no PATH at all (COI-2797)."""
+    env = {k: v for k, v in BASE_ENV.items() if k != "PATH"}
+    result = subprocess.run([str(stubs / "git"), "--version"], cwd=tmp_path, env=env,
+                            capture_output=True, text=True)
+    assert result.returncode == 0 and result.stdout.startswith("git version"), result.stderr
