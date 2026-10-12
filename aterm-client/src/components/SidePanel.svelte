@@ -146,7 +146,7 @@
   /* A bottom sheet over the seat's terminal. Its tab strip always shows, and SessionPanel keeps that strip's height clear of the composer.
      Fixed to the window, since the shell's own sidebar and header can leave the page body too short to read a sheet in. */
   @media (max-width: 1000px) {
-    .panel { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; height: var(--strip); border-left: none; border-top: 1px solid var(--line); background: var(--ground); }
+    .panel { position: fixed; left: env(safe-area-inset-left); right: env(safe-area-inset-right); bottom: 0; z-index: 5; height: var(--strip); border-left: none; border-top: 1px solid var(--line); background: var(--ground); }
     .head { height: calc(var(--strip) - env(safe-area-inset-bottom)); flex: none; }
     .panel[data-open="false"] .content { display: none; }
     .panel[data-open="true"] { height: min(80dvh, calc(100dvh - 72px)); box-shadow: 0 -8px 16px rgb(0 0 0 / 0.35); }

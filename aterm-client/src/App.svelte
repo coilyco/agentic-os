@@ -32,7 +32,7 @@
   <Sidebar />
   <main>
     <LinkBanner />
-    <div id="main-panel" class="panel-root" role="tabpanel" aria-labelledby={labelledBy}>
+    <div id="main-panel" class="panel-root" class:clear-bottom={!(role && session && session.state !== "failed")} role="tabpanel" aria-labelledby={labelledBy}>
     {#if role && session && session.state !== "failed"}
       {#key session.id}
         <SessionPanel {role} {session} />
@@ -47,9 +47,12 @@
 </div>
 
 <style>
-  .shell { height: 100%; display: flex; }
+  /* viewport-fit=cover draws under the status bar, the cutout and the Android nav buttons, so the shell keeps clear of them (COI-2817). */
+  .shell { height: 100%; display: flex; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: auto; }
   .panel-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  /* A seat's panel clears the bottom itself, through the tab strip it reserves. The list and launch screens have no strip. */
+  .panel-root.clear-bottom { padding-bottom: env(safe-area-inset-bottom); }
   @media (max-width: 720px) {
     .shell { flex-direction: column; }
   }
