@@ -10,7 +10,7 @@
 * **`find`** is refused only when it carries `-delete`, `-exec`, `-execdir`, `-ok`, `-okdir` or an `-fprint` family predicate, and then every start path must be inside. A read-only `find` passes anywhere.
 * **Path resolution** follows symlinks in the parent and leaves the leaf alone, since `rm` and `mv` act on the link. A relative path is resolved against the working directory, and `--` hides no operand.
 
-Refusal is exit 2 with the path named. A passing call `exec`s the real tool, found on PATH with the shim directory removed.
+Refusal is exit 2 with the path named. A passing call `exec`s the first matching tool after the guard's own `PATH` entry, with a `PATH` that no longer holds it. Resolving only past its own entry is what stops two installs of the guard, or a wrapper, finding each other forever.
 
 ## Why it is a script and not an umbra shim
 
