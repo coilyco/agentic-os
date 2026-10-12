@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
 	"crypto/sha256"
@@ -164,6 +165,11 @@ func (d *daemon) finishDeviceEnroll(store *passkeyStore, ceremony *deviceCeremon
 	}
 	level, err := verifyAttestation(chain, store.roots, ceremony.challenge, pub, store.now())
 	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), revocationFetchTTL)
+	defer cancel()
+	if err := checkRevocation(ctx, store.revocations, chain, store.now()); err != nil {
 		return "", err
 	}
 	sum := sha256.Sum256(spki)

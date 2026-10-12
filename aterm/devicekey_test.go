@@ -260,6 +260,7 @@ func deviceDaemon(t *testing.T, p *phone) (*daemon, string) {
 		t.Fatal(err)
 	}
 	d.passkeys.roots = p.roots
+	d.passkeys.revocations = staticRevocations{}
 	return d, path
 }
 

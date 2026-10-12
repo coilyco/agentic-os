@@ -51,6 +51,8 @@ type passkeyStore struct {
 	user passkeyUser
 	// roots is what a device key's attestation chain must lead to.
 	roots *x509.CertPool
+	// revocations is Google's attestation status list, read at enrollment.
+	revocations revocationSource
 
 	code     string
 	expires  time.Time
@@ -70,7 +72,7 @@ func newPasskeyStore(path, rpID string, origins []string) (*passkeyStore, error)
 	if err != nil {
 		return nil, err
 	}
-	store := &passkeyStore{path: path, rp: rp, now: time.Now, roots: pinnedRoots()}
+	store := &passkeyStore{path: path, rp: rp, now: time.Now, roots: pinnedRoots(), revocations: newGoogleRevocations()}
 	if path == "" {
 		return store, nil
 	}

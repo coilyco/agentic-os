@@ -37,7 +37,7 @@ attached to it.
 
 **A websocket on this host gets the same walk**, its source port mapped to the pids holding it, so a browser a session started, or one the daemon cannot name, cannot type, answer, launch or clear. A browser outside every session types, an agent driving Kai's own Chrome included.
 
-**A device on the tailnet types only after a passkey.** Its `input`, `answer`, `launch`, `clear`, `spawn`, `close`, `send`, `claim`, `ask`, `cancel_ask`, `gateway_add`, `view_call` and `view_close` refuse until an assertion with user verification succeeds on that connection, then `typing` pushes `allowed`. The relying party is `coilyco.dev`, the only asserting origin `https://coilyco.dev`, so the daemon-served page cannot assert. `aterm passkey enroll` prints a one-time code and `revoke` forgets every passkey, neither from a session.
+**A device on the tailnet types only after a passkey.** Its `input`, `answer`, `launch`, `clear`, `spawn`, `close`, `send`, `claim`, `ask`, `cancel_ask`, `gateway_add`, `view_call` and `view_close` refuse until an assertion with user verification succeeds on that connection, then `typing` pushes `allowed`. Only `https://coilyco.dev` may assert. `aterm passkey enroll` prints a one-time code and `revoke` forgets every passkey, neither from a session. A chain on Google's status list, or an unreadable list, refuses (`attestation_revoked`).
 
 ## Wire contract
 
