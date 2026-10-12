@@ -1,0 +1,30 @@
+
+  ┃
+  ┃  [from frontend-eng Imp-Dragonfly] Screen capture test from frontend-eng. Please run
+  ┃  exactly one shell command, ls /etc/hosts, and print its output. Do nothing else. If
+  ┃  it asks for permission, leave the prompt unanswered.
+  ┃
+
+     ▣  Build · DeepSeek V4 Pro
+
+                  Update Complete                                      esc
+
+                  Successfully updated to OpenCode v1.19.0. Please
+                  restart the application.
+
+
+                                                                     ok
+
+
+
+
+
+
+
+
+  ┃
+  ┃
+  ┃
+  ┃  Build · DeepSeek V4 Pro Agent Proxy
+  ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
+   ⬝⬝⬝⬝⬝⬝⬝⬝  esc interrupt                                     tab agents  ctrl+p commands
