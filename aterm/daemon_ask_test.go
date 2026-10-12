@@ -3,22 +3,23 @@ package main
 import (
 	"net"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 )
 
-// nextFrame reads until a frame of the wanted type, failing on a deadline.
-func nextFrame(t *testing.T, c *conn, want string) frame {
+// nextFrame reads until a frame of a wanted type, failing on a deadline.
+func nextFrame(t *testing.T, c *conn, want ...string) frame {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		_ = c.raw.SetReadDeadline(deadline)
 		message, err := c.read()
 		if err != nil {
-			t.Fatalf("waiting for %s: %v", want, err)
+			t.Fatalf("waiting for %s: %v", strings.Join(want, " or "), err)
 		}
-		if message.Type == want {
+		if slices.Contains(want, message.Type) {
 			return message
 		}
 	}

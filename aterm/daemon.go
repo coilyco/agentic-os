@@ -111,7 +111,7 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		subscribers: map[*conn]bool{},
 		lastActive:  time.Now(),
 		clientFS:    embeddedClient(),
-		processes:   listProcesses,
+		processes:   func() ([]processEntry, error) { return processLister() },
 		peerLookup:  tcpPeerPIDs,
 		passkeys:    defaultPasskeys(),
 		roster:      launchableRoster,

@@ -41,6 +41,10 @@ func (s grantSeats) requestGrant(t *testing.T, token string, spec grantSpec, pic
 	if err := s.kai.write(frame{Type: "answer", ID: "a", AskID: shown.ID, Picks: []int{pick}}); err != nil {
 		t.Fatalf("answer: %v", err)
 	}
+	// A refused answer would otherwise show only as the asker timing out.
+	if refusal := nextFrame(t, s.kai, "asked", "error"); refusal.Type == "error" {
+		t.Fatalf("the daemon refused Kai's answer: %s", refusal.Error)
+	}
 	reply := nextFrame(t, asker, "answered")
 	return *shown, *reply.Answer
 }

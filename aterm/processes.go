@@ -18,7 +18,24 @@ type processEntry struct {
 }
 
 // listProcesses reads this user's processes, which is all a session may end.
-func listProcesses() ([]processEntry, error) {
+// processLister is what a new daemon lists processes with. A test swaps it.
+var processLister = listProcesses
+
+// processRetryPause spaces the one retry. A failed list refuses a person's answer.
+var processRetryPause = 100 * time.Millisecond
+
+func listProcesses() ([]processEntry, error) { return listWithRetry(psProcesses) }
+
+func listWithRetry(list func() ([]processEntry, error)) ([]processEntry, error) {
+	entries, err := list()
+	if err != nil {
+		time.Sleep(processRetryPause)
+		return list()
+	}
+	return entries, nil
+}
+
+func psProcesses() ([]processEntry, error) {
 	command := exec.Command("ps", "-xo", "pid=,ppid=,command=")
 	command.Env = append(os.Environ(), "LC_ALL=C")
 	raw, err := command.Output()
