@@ -80,8 +80,7 @@ operator config, not in the AOS product default.
 
 At launch, AOS reads the role config, fetches pinned issues when the cache is
 missing or stale, and writes a local Markdown context file. Standalone
-containers receive that file at `/run/aos/issue-pins.md`. Warded launches mount
-the same file into context-bundle materialization.
+containers receive that file at `/run/aos/issue-pins.md`.
 
 The rendered context preserves pin order, canonical URL, issue number and title,
 exact body text, issue `updated_at`, hydration time, source repository, and a

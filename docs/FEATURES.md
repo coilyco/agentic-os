@@ -25,7 +25,7 @@ Major shipped capabilities, not files.
 - [Agent tool evaluation](../.agents/skills/tooling-agent-tool-evaluation/SKILL.md) - cross-harness tool evals.
 - [Role-composed skills](role-composed-skills.md) - v2 Core Roster method slices.
 - [AOS launcher](aos-cli.md) - role context with
-  [convergence](aos-convergence.md), [connectivity](aos-context-bundle.md),
+  [convergence](aos-convergence.md), [connectivity](aos-connectivity.md),
   [kubeconfig](aos-cluster-access.md), [issue pins](aos-issue-flow.md), and
   [check-ins](aos-issue-flow.md).
 - [aos run](aos-cli.md) - `aos run <verb>` resolves a just verb to the resident repository

@@ -18,7 +18,7 @@ Every launch is a standalone container. The Ward route (`--warded`, `--agent-id`
 
 * Default image pulls each launch, custom images stay local, and standalone uses the native shadow: worktrees at `/workspace`, mapped CWD as workdir. HOME is copied to `/home/aos` from an allowlist, and composition hydrates the baked provider through `aos-substrate-cache`.
 * [Authentication](aos-auth.md) fails closed before Docker and projects file-backed or Keychain credentials read-only, auth env names crossing unrendered under `--auth=true`.
-* [Connectivity](aos-context-bundle.md) keeps host networking, MCP, and tailnet behavior, and [kubeconfig](aos-cluster-access.md) mounts one source read-only.
+* [Connectivity](aos-connectivity.md) keeps host networking, MCP, and tailnet behavior, and [kubeconfig](aos-cluster-access.md) mounts one source read-only.
 * Host HOME, AWS, Git, and Docker stay out, so credentials use auth projection only.
 
 Root performs bootstrap only and the harness runs as the host uid and gid. Composition verifies the immutable bundle with `project --scope home`, and `--no-substrate` omits unrelated reference trees.
