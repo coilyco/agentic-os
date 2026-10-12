@@ -1,3 +1,5 @@
+permissions:
+  claude: skip
 roles:
   eng-platform:
     agent: claude
