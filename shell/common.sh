@@ -26,7 +26,9 @@ export SAVEHIST=100000
 
 # shared-environment-clear: end
 
-_siren_aos_repo_root() {
+# Helpers a public function calls carry no leading underscore: a harness shell
+# snapshot drops _-prefixed functions, leaving the caller to print "command not found".
+siren_aos_repo_root() {
   local repo source_dir
   for repo in "${AOS_REPO_ROOT:-}" \
     "${FORGEJO_WORKSPACE:-}" \
@@ -55,14 +57,14 @@ _siren_aos_repo_root() {
   return 1
 }
 
-_siren_projects_root() {
+siren_projects_root() {
   local repo root
   if [ -n "${PROJECTS_ROOT:-}" ]; then
     root="$PROJECTS_ROOT"
   elif [ -d "$HOME/projects" ]; then
     root="$HOME/projects"
   else
-    repo=$(_siren_aos_repo_root) || repo=""
+    repo=$(siren_aos_repo_root) || repo=""
     if [ -n "$repo" ]; then
       root="$(cd "$repo/../.." && pwd -P)"
     else
@@ -77,7 +79,7 @@ _siren_projects_root() {
   printf '%s\n' "$root"
 }
 
-export PROJECTS_ROOT="$(_siren_projects_root)"
+export PROJECTS_ROOT="$(siren_projects_root)"
 
 # Env + PATH are inherited, so run once per terminal tree: the exported guard is
 # the "has this run in this terminal yet?" check. Aliases/functions always define.
@@ -192,7 +194,7 @@ bat() {
 
 # AOS gives native agents one leased, fleet-shaped worktree workspace and cleans
 # dead predecessors before agent-compose converges the real harness.
-_siren_native_shadow_available() {
+siren_native_shadow_available() {
   if [ -z "${_SIREN_NATIVE_SHADOW_PROBED+x}" ]; then
     _SIREN_NATIVE_SHADOW_PROBED=1
     if command -v aos >/dev/null 2>&1 &&
@@ -205,18 +207,18 @@ _siren_native_shadow_available() {
   [ "$_SIREN_NATIVE_SHADOW_AVAILABLE" = 1 ]
 }
 
-_siren_agent_launch() {
+siren_agent_launch() {
   local cli="$1"
   shift
   if command -v agent-compose >/dev/null 2>&1; then
-    if _siren_native_shadow_available; then
+    if siren_native_shadow_available; then
       command aos _native-shadow --harness "$cli" -- agent-compose compose -- "$cli" "$@"
       return
     fi
     command agent-compose compose -- "$cli" "$@"
     return
   fi
-  if _siren_native_shadow_available; then
+  if siren_native_shadow_available; then
     command aos _native-shadow --harness "$cli" -- "$cli" "$@"
     return
   fi
@@ -244,7 +246,7 @@ acompose() {
       # The seat is handed on unchecked: agent-compose owns the launchable set
       # and already refuses an unsupported one by name.
       if [ -n "$harness" ] && command -v agent-compose >/dev/null 2>&1; then
-        if _siren_native_shadow_available; then
+        if siren_native_shadow_available; then
           # This file is symlinked live while aos ships on the release train,
           # so an aos too old to scope projection takes --role and ignores it.
           command aos _native-shadow --harness "$harness" --role "$role" \
@@ -278,14 +280,14 @@ _siren_aterm_completion() {
   eval "$script"
 }
 
-claude() { _siren_agent_launch claude "$@"; }
-codex() { _siren_agent_launch codex "$@"; }
-goose() { _siren_agent_launch goose "$@"; }
-opencode() { _siren_agent_launch opencode "$@"; }
+claude() { siren_agent_launch claude "$@"; }
+codex() { siren_agent_launch codex "$@"; }
+goose() { siren_agent_launch goose "$@"; }
+opencode() { siren_agent_launch opencode "$@"; }
 
 pre-commit-aos-version-defined() {
   local repo
-  repo=$(_siren_aos_repo_root) || return 1
+  repo=$(siren_aos_repo_root) || return 1
   git -C "$repo" tag --list 'aos-precommit-v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname |
     grep -E '^aos-precommit-v[0-9]+\.[0-9]+\.[0-9]+$' |
     head -1
@@ -293,7 +295,7 @@ pre-commit-aos-version-defined() {
 
 pre-commit-aos-version-used() {
   yq -r '.repos[] | select(.repo | test("agentic-os$")) | .rev' \
-    "$(_siren_aos_repo_root)/.pre-commit-hooks.yaml"
+    "$(siren_aos_repo_root)/.pre-commit-hooks.yaml"
 }
 
 pre-commit-hooks-used() {
@@ -303,7 +305,7 @@ pre-commit-hooks-used() {
 
 pre-commit-hooks-defined() {
   yq -r '.[].id' \
-    "$(_siren_aos_repo_root)/.pre-commit-hooks.yaml"
+    "$(siren_aos_repo_root)/.pre-commit-hooks.yaml"
 }
 
 pre-commit-hooks-missing() {
@@ -414,7 +416,7 @@ git-pr-title() {
 
 apply-aos-common() {
   local repo
-  repo=$(_siren_aos_repo_root) || return 1
+  repo=$(siren_aos_repo_root) || return 1
   # shellcheck disable=SC1091
   source "$repo/shell/common.sh"
 }
@@ -527,7 +529,7 @@ github-token-load() {
 # implementation. See docs/install.md.
 ssm-get() {
   local script
-  for script in "$HOME/.local/bin/ssm-get" "$(_siren_aos_repo_root)/scripts/ssm-get"; do
+  for script in "$HOME/.local/bin/ssm-get" "$(siren_aos_repo_root)/scripts/ssm-get"; do
     [ -x "$script" ] && { "$script" "$@"; return; }
   done
   echo "ssm-get: scripts/ssm-get not found; run 'just apply-shell-links'" >&2

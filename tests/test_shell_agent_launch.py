@@ -255,3 +255,37 @@ def test_explicit_acompose_role_runs_without_native_shadow(
 
     assert result.returncode == 0, result.stderr
     assert result.stdout == "<launch>\n<qa>\n<goose>\n<run>\n"
+
+
+def _snapshot_shell(tmp_path: Path, command: str) -> subprocess.CompletedProcess[str]:
+    """Run command in a shell holding only the functions a harness snapshot keeps.
+
+    Claude Code's shell snapshot drops _-prefixed functions, so a public function
+    that calls one prints "command not found" there. See COI-2771.
+    """
+    env = os.environ.copy()
+    env.update(
+        {"HOME": str(tmp_path / "home"), "PATH": f"{tmp_path / 'bin'}:/usr/bin:/bin", "_SIREN_SHELL_ENV": "1"}
+    )
+    defs = tmp_path / "snapshot.sh"
+    dump = (
+        f"source {shlex.quote(str(COMMON_SH))} && "
+        f"for f in $(compgen -A function | grep -v '^_'); do declare -f \"$f\"; done > {shlex.quote(str(defs))}"
+    )
+    subprocess.run(["/bin/bash", "--noprofile", "--norc", "-c", dump], env=env, check=True)
+    return subprocess.run(
+        ["/bin/bash", "--noprofile", "--norc", "-c", f"source {shlex.quote(str(defs))}; {command}"],
+        cwd=tmp_path, env=env, capture_output=True, text=True, check=False,
+    )
+
+
+def test_public_functions_survive_a_snapshot_that_drops_underscore_functions(tmp_path: Path) -> None:
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "home" / ".local" / "bin").mkdir(parents=True)
+    _write_executable(tmp_path / "home" / ".local" / "bin" / "ssm-get", '#!/bin/sh\necho "fetched $1"\n')
+    _write_executable(tmp_path / "bin" / "codex", '#!/bin/sh\necho "codex 9.9.9"\n')
+
+    result = _snapshot_shell(tmp_path, "ssm-get /some/path; codex --version")
+
+    assert result.stderr == ""
+    assert result.stdout == "fetched /some/path\ncodex 9.9.9\n"
