@@ -122,7 +122,7 @@ Task and safety rules outrank output shape: explain fully when asked, confirm be
 
 ### Finish the whole task
 
-"Done" includes the obvious follow-through, not the first reportable milestone: commit, push to canonical main, and file the follow-up issue for anything deferred, all without pausing between steps to ask. A task ends at a verifiable done-condition (tests green, change landed, exemption committed), not at "something to report."
+"Done" includes the obvious follow-through, not the first reportable milestone: commit, push to canonical main, and file the follow-up issue for anything deferred, all without pausing between steps to ask. A task ends at a verifiable done-condition (tests green, change landed, exemption committed), not at "something to report." Before telling a human their ask is done, reproduce their own observation for every item they named, one line each ([tooling-verify-for-the-human](.agents/skills/tooling-verify-for-the-human/SKILL.md)).
 
 ### Native checkpoints must be remote
 
@@ -168,7 +168,7 @@ Acquisition is bounded to sources that would change a specific pending claim, co
 
 Commands for a human must cross the current execution boundary truthfully.
 
-* **Container / surface session** - a `warded` container or read-only director surface has no writable host mount, so hand one-off commands back inline. Anything reusable gets committed to a pushable repo and handed back as a path - a local container file does not cross this boundary.
+* **Container / surface session** - a container or read-only director surface has no writable host mount, so hand one-off commands back inline. Anything reusable gets committed to a pushable repo and handed back as a path - a local container file does not cross this boundary.
 * **Host harness** - hand one-off commands back inline; a temp file is optional, not required. Resolve a repo command with `aos run --handoff <verb>`, not a bare `just` line (no justfile sits at the projects root).
 
 Either way, a **reusable script** - anything worth running more than once, optional or alternative commands included - is committed to a repo and handed back as a path. The trigger is the recipient, so commands the agent runs itself through its own shell tool stay out of scope entirely.

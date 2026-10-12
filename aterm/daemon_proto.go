@@ -198,6 +198,9 @@ type sessionView struct {
 	// Context is how full the seat's context is. Absent until a source has read
 	// one, and from a daemon that predates the field.
 	Context *contextView `json:"context,omitempty"`
+	// LastReply is the first line of the seat's last finished reply. Absent until a
+	// transcript has shown one, and from a daemon that predates the field.
+	LastReply string `json:"last_reply,omitempty"`
 }
 
 // terminalView is one plain terminal as a client sees it. Cwd is where the shell

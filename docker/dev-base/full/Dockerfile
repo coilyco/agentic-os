@@ -46,17 +46,14 @@ RUN set -eux; \
 COPY --from=aosguard-spec . /tmp/aosguard-spec
 COPY --from=aosguard-python . /tmp/aosguard-python/agentic_os
 COPY --from=fs-shims . /tmp/fs-shims
-# COI-2731: the guarded gh and git, then the rm/find/mv fs guard, into one dir
+# COI-2731: the guarded gh, then the git/rm/find/mv script guards, into one dir
 # the final stage puts first on PATH. The lock is staged here because the
 # shims root keeps a gitignored copy of it (see tooling-aosguard git-shim).
 RUN set -eux; \
     mkdir -p /opt/agentic-os/shims; \
     cp /tmp/aosguard-spec/guardfiles/specverb.lock /tmp/aosguard-spec/shims/specverb.lock; \
-    for k in gh git; do \
-      umbra --project-root /tmp/aosguard-spec/shims \
-        --guardfile "/tmp/aosguard-spec/shims/${k}/${k}.kdl" \
-        build --set-version "dev-base" --out "/opt/agentic-os/shims/${k}"; \
-    done; \
+    umbra --project-root /tmp/aosguard-spec/shims \
+      build --set-version "dev-base" --out /opt/agentic-os/shims/gh; \
     sh /tmp/fs-shims/install.sh /opt/agentic-os/shims; \
     chmod -R a+rX /opt/agentic-os/shims; rm -rf /tmp/fs-shims
 RUN set -eux; \
@@ -115,7 +112,7 @@ RUN --mount=type=bind,source=install-common.sh,target=/tmp/install-common.sh \
 RUN set -eux; ln -sf /usr/bin/python3 /usr/local/bin/python; \
     ln -sf /usr/bin/pip3 /usr/local/bin/pip; \
     chmod -R a+rX /opt/uv; python --version; pip --version; pipenv --version
-COPY --chmod=0755 session-name.sh git-identity.sh statusline.sh ward-shell-entrypoint.sh /opt/agentic-os/
+COPY --chmod=0755 session-name.sh git-identity.sh statusline.sh shell-entrypoint.sh /opt/agentic-os/
 COPY --chmod=0755 statusline.d/ /opt/agentic-os/statusline.d/
 COPY --chmod=0644 claude-managed-settings.json /etc/claude-code/managed-settings.json
 COPY --from=repo-lists --chmod=0644 substrate-repos.txt /opt/agentic-os/substrate-repos.txt
@@ -204,5 +201,5 @@ RUN set -eux; \
     git commit -q -m ok; \
     cd /; rm -rf "${scratch}" /tmp/refusal
 WORKDIR /workspace
-ENTRYPOINT ["/opt/agentic-os/ward-shell-entrypoint.sh"]
+ENTRYPOINT ["/opt/agentic-os/shell-entrypoint.sh"]
 CMD ["bash"]

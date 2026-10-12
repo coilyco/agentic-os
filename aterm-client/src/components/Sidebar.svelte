@@ -82,7 +82,7 @@
   }
   const hidePreview = () => (hover = null);
   const previewing = $derived(hover ? waitingSeats().find((seat) => seat.sessionId === hover!.id) : undefined);
-  const preview = $derived(previewing ? previewFor(previewing, asksFor(previewing.sessionId)[0]) : null);
+  const preview = $derived(previewing ? previewFor(previewing, asksFor(previewing.sessionId)[0], sessionById(previewing.sessionId)?.lastReply) : null);
 
   function openRole(slug: string): void {
     selectRole(slug);

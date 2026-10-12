@@ -68,7 +68,7 @@ with no embedded fallback, and doctrine source paths never become policy.
 Native workspace projection and cleanup, the status-line tracker, and
 infrastructure's clone-and-fetch all read that same compiled set. It is
 distinct from Ward's baked container substrate and grants no role access on its
-own: role selection is sealed into the verified bundle AOS adapts for Ward.
+own: role selection is sealed into the verified agent-compose bundle.
 
 ## Running tasks
 
@@ -85,18 +85,18 @@ the commands that rediscover the current files when a surface shifts. Read the
 entry points, then run the first check. If the same repo also exists under
 `/substrate`, `/workspace/agentic-os` is authoritative.
 
-**Ward integration** - a change crossing AOS, Ward, agent-compose, or AOSguard.
-Run `rg -n "context-bundle|--composed|--guarded" aos docs`, `ward
-doctor`, `aosguard ops forgejo describe`. Ownership splits: `.agents/roles.kdl`
+**Launch integration** - a change crossing AOS, agent-compose, or AOSguard.
+Run `rg -n -e --composed -e --guarded aos-cli docs` and `aosguard ops forgejo
+describe`. Ownership splits: `.agents/roles.kdl`
 owns behavioral composition, `.agents/harness-launch-profiles.yaml` owns
 role-to-default-agent mapping, the `justfile` owns repository commands,
-agent-compose owns named seats and pronouns, and Ward and AOSguard own their
-separate surfaces.
+agent-compose owns named seats and pronouns, and AOSguard owns its separate
+surface.
 
 **Container startup and broker dispatch** - a run that starts wrong, mounts the
 wrong root, or has stale dispatch wiring. Run `rg -n
-"AOS_REPO_ROOT|ward agent|entrypoint" docker docs .ward`, then `just
-dev-base-build` as the first check. `ward agent` is the runtime entry point.
+"AOS_REPO_ROOT|entrypoint" docker docs`, then `just dev-base-build` as the
+first check. `aos` is the runtime entry point.
 
 **Forgejo ops surface discovery** - what Forgejo surface exists here now. Run
 `aosguard ops forgejo describe` first, then `--help` and `rg -n "aosguard ops
@@ -104,7 +104,7 @@ forgejo" docs .umbra`. Prefer runtime help over guessing a verb, and update
 [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) when the surface
 changes.
 
-**Ward PR workflow and director merge** - PR lifecycle, director merge, or
+**PR workflow and director merge** - PR lifecycle, director merge, or
 burn-down. Run `rg -n "pull-request-and-merge|director merge|WARD-OUTCOME"
-.ward docs` and `ward agent director --help`. Burndown containment is in
+docs`. Burndown containment is in
 [ward-specs](ward-specs.md).

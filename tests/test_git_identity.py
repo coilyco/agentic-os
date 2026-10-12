@@ -21,8 +21,8 @@ def _run(home: Path, extra_env: dict[str, str] | None = None) -> None:
         "PATH": "/usr/bin:/bin",
         "GIT_CONFIG_GLOBAL": str(home / ".gitconfig"),
         "GIT_CONFIG_SYSTEM": "/dev/null",
-        "WARD_GIT_NAME": DEPLOYMENT_NAME,
-        "WARD_GIT_EMAIL": DEPLOYMENT_EMAIL,
+        "AOS_GIT_NAME": DEPLOYMENT_NAME,
+        "AOS_GIT_EMAIL": DEPLOYMENT_EMAIL,
     }
     if extra_env is not None:
         env.update(extra_env)
@@ -98,8 +98,8 @@ def test_honors_committer_overrides(tmp_path: Path) -> None:
     _run(
         tmp_path,
         extra_env={
-            "WARD_GIT_NAME": "custom-bot",
-            "WARD_GIT_EMAIL": "custom-bot@example.com",
+            "AOS_GIT_NAME": "custom-bot",
+            "AOS_GIT_EMAIL": "custom-bot@example.com",
         },
     )
     assert _git_global("user.name", tmp_path) == "custom-bot"

@@ -6,11 +6,10 @@
 
 set -u
 
-# The image owns deployment identity. Replace neutral WARD_GIT_* launcher
-# defaults before Ward bootstraps Git in the container.
-export WARD_GIT_NAME="${AOS_GIT_NAME:?AOS_GIT_NAME is required}"
-export WARD_GIT_EMAIL="${AOS_GIT_EMAIL:?AOS_GIT_EMAIL is required}"
-unset WARD_CONFIG_REF
+# The image owns deployment identity, so a container that lost it refuses to
+# start rather than commit under an example fallback.
+: "${AOS_GIT_NAME:?AOS_GIT_NAME is required}"
+: "${AOS_GIT_EMAIL:?AOS_GIT_EMAIL is required}"
 
 _siren_aos_root=${AOS_REPO_ROOT:-${FORGEJO_WORKSPACE:-${GITHUB_WORKSPACE:-/workspace/agentic-os}}}
 if ! git -C "$_siren_aos_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then

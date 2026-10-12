@@ -99,7 +99,7 @@ Homebrew and Scoop install `aos`, `aoscompose`, `aoscomposed`,
 release binaries, and the native update path are in
 [docs/aos-cli.md](docs/aos-cli.md). Convergence is in
 [docs/aos-convergence.md](docs/aos-convergence.md), standalone connectivity in
-[docs/aos-context-bundle.md](docs/aos-context-bundle.md), and cluster access in
+[docs/aos-connectivity.md](docs/aos-connectivity.md), and cluster access in
 [docs/aos-cluster-access.md](docs/aos-cluster-access.md).
 
 ## Secrets pattern
@@ -148,7 +148,7 @@ grammar.
 
 - [AGENTS.md](AGENTS.md) - public-safe agent operating conventions and the global load point.
 - [docs/FEATURES.md](docs/FEATURES.md) - inventory of what ships today.
-- [Repo maps](docs/repo-layout.md) - compact starting points for high-churn warded workflow areas.
+- [Repo maps](docs/repo-layout.md) - compact starting points for high-churn workflow areas.
 - [CODE-REVIEW.md](CODE-REVIEW.md) - root review contract for repo-local invariants and historical issues.
 - [justfile](justfile) - dev verbs, which agents route through -, catalog metadata only.
 

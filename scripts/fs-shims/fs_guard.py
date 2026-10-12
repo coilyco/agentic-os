@@ -80,16 +80,22 @@ def operands(tool, args):
 
 
 def real_tool(tool):
-    """The tool on PATH once the directory holding this guard is dropped."""
+    """The tool and the PATH to run it with: only what follows this guard's own directory.
+
+    Another install of this guard, or a wrapper, that stayed in the child's PATH
+    would be found again, and each skipping only its own directory loops.
+    """
     shim_dir = os.path.dirname(os.path.realpath(__file__))
-    kept = [p for p in os.environ.get("PATH", "").split(os.pathsep)
-            if p and os.path.realpath(p) != shim_dir]
-    return shutil.which(tool, path=os.pathsep.join(kept))
+    parts = [p for p in os.environ.get("PATH", "").split(os.pathsep) if p]
+    at = [i for i, p in enumerate(parts) if os.path.realpath(p) == shim_dir]
+    rest = parts[at[0] + 1:] if at else parts
+    kept = os.pathsep.join(p for p in rest if os.path.realpath(p) != shim_dir)
+    return shutil.which(tool, path=kept), kept
 
 
 def main(argv):
     tool, args = argv[1], argv[2:]
-    real = real_tool(tool)
+    real, kept = real_tool(tool)
     if real is None:
         sys.stderr.write(f"{tool}: no real {tool} on PATH\n")
         return 127
@@ -104,7 +110,7 @@ def main(argv):
                 "the operation to Kai.\n"
             )
             return 2
-    os.execv(real, [tool, *args])
+    os.execve(real, [tool, *args], {**os.environ, "PATH": kept})
 
 
 if __name__ == "__main__":

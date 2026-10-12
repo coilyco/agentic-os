@@ -1,10 +1,10 @@
 # In-container agent identity
 
-Who a warded agent is to git and to itself.
+Who a dev-base agent is to git and to itself.
 
-## Warded-agent git identity
+## Agent git identity
 
-A warded aos session keeps its self-name on the status line and the session
+An in-container aos session keeps its self-name on the status line and the session
 banner. Git identity is separate: the committer NAME and EMAIL resolve to the
 deployment bot so Forgejo links the commit to the coilyco-ops account instead of
 an example fallback.
@@ -15,9 +15,8 @@ The Dockerfile owns `AOS_GIT_NAME` and `AOS_GIT_EMAIL` once. Every language
 target writes them into Git's system config through
 [`install-common.sh`](../docker/dev-base/install-common.sh), so every user
 inherits the deployment identity without a runtime write. The
-[`ward-shell-entrypoint.sh`](../docker/dev-base/ward-shell-entrypoint.sh) maps
-the same image-owned values onto Ward's provider-neutral `WARD_GIT_*` transport
-seam before Ward bootstraps the container. The baked
+[`shell-entrypoint.sh`](../docker/dev-base/shell-entrypoint.sh) refuses to
+start a container that lost those image-owned values. The baked
 [`git-identity.sh`](../docker/dev-base/git-identity.sh)
 is the fallback for older or custom images, and the
 policy-tier [`managed-settings.json`](../docker/dev-base/claude-managed-settings.json)
@@ -33,14 +32,14 @@ respects the Dockerfile-owned config instead of overwriting it.
 
 ## Why the bot identity is explicit
 
-The committer identity must not drift back to ward's example bot defaults. The
+The committer identity must not drift back to an example bot default. The
 image-level `AOS_GIT_NAME` and `AOS_GIT_EMAIL` config owns the deployment
-identity. Ward carries those values only through its generic runtime contract.
+identity.
 
 ## Scope and limits
 
 - **Best-effort.** A git failure is swallowed so it never breaks session start.
-- **all warded harnesses.** The entrypoint establishes the image-owned identity
+- **All harnesses.** The system git config carries the image-owned identity
   before any harness starts. Claude's SessionStart hook remains a fallback.
 - **Dockerfile owns the baseline.** The runtime hook is fallback only.
 
@@ -48,8 +47,8 @@ identity. Ward carries those values only through its generic runtime contract.
 
 A host session self-names through a Claude Code SessionStart + statusLine hook
 the claude-hooks ansible role wires into `~/.claude/settings.json`. That role
-never runs inside a `ward agent` container, so a warded explorer / headless
-agent in the [dev-base image](dev-base-image.md) would otherwise stay nameless.
+never runs inside a container, so an explorer / headless agent in the
+[dev-base image](dev-base-image.md) would otherwise stay nameless.
 The image bakes the same slice in directly.
 
 ## Agent Compose owns the name
@@ -79,30 +78,27 @@ authority.
 - [`git-identity.sh`](../docker/dev-base/git-identity.sh) - the git-identity
   stamp above, split out because it never had anything to do with naming
   beyond sharing a hook event.
-- [`statusline.d/20-container.sh`](../docker/dev-base/statusline.d/20-container.sh) -
-  a status-line row naming the warded container from `WARD_CONTAINER_NAME`,
-  since inside a container the hostname is an opaque id. Silent on a host.
 - [`managed-settings.json`](../docker/dev-base/claude-managed-settings.json) -
   landed at the fixed `/etc/claude-code/managed-settings.json`, adding the
   `statusLine` composer and the two `SessionStart` hooks.
 
 ## Status-line composer
 
-A provider-discovery framework that auto-mounts the **full segment-composed status line** into every warded container, so an in-container session shows the same line a host one does. A **composer** ([`docker/dev-base/statusline.sh`](../docker/dev-base/statusline.sh)) is Claude Code's `statusLine` command. It reads the `statusLine` JSON payload on stdin, runs each discovered **provider** in filename order (handing it the same payload on stdin), and joins their output into the multi-row line.
+A provider-discovery framework that auto-mounts the **full segment-composed status line** into every dev-base container, so an in-container session shows the same line a host one does. A **composer** ([`docker/dev-base/statusline.sh`](../docker/dev-base/statusline.sh)) is Claude Code's `statusLine` command. It reads the `statusLine` JSON payload on stdin, runs each discovered **provider** in filename order (handing it the same payload on stdin), and joins their output into the multi-row line.
 
-**Provider contract:** exit 0 with stdout = that segment, and empty stdout or a non-zero exit = skipped. So a segment **self-suppresses** when irrelevant: the Agent Compose provider renders nothing outside a projected workspace or where `acompose` is absent. `15-agent-compose.sh` asks `acompose statusline` for the immutable bundle identity, role and harness, catalog footprint, and composition health, and `20-container.sh` names the container as above. `10-agent-name.sh` and `20-repos.sh` were removed as a duplicate identity and a residency scan.
+**Provider contract:** exit 0 with stdout = that segment, and empty stdout or a non-zero exit = skipped. So a segment **self-suppresses** when irrelevant: the Agent Compose provider renders nothing outside a projected workspace or where `acompose` is absent. `15-agent-compose.sh` asks `acompose statusline` for the immutable bundle identity, role and harness, catalog footprint, and composition health. `10-agent-name.sh`, `20-repos.sh` and `20-container.sh` were removed as a duplicate identity, a residency scan and a container-name row whose Ward-set variable went with Ward.
 
 Agent Compose owns the row's content and bundle semantics, and AOS only discovers the provider and passes the project directory, so the line grows no second projection parser or identity cache.
 
 **Discovery and overlays.** The composer walks three provider dirs, lowest first: **base** `<composer-dir>/statusline.d`, baked in and overridden by `AOS_STATUSLINE_DIR`, **user** `${XDG_CONFIG_HOME:-$HOME/.config}/agentic-os/statusline.d`, and **repo** `<project_dir>/.agentic-os/statusline.d`. A same-named file in a higher dir **overrides** the lower one, a new `NN-*.sh` **adds** a row, and a shadowing file that is not executable **masks** the lower provider. So a project or an external user customizes the line by dropping in a provider, **no fork** of the composer. Use 2-digit prefixes, since a lexical sort puts `100` before `20`.
 
-**Why it auto-mounts everywhere.** ward injects no `statusLine` of its own, so the baked one is authoritative and a new base provider rides the next image build to **all** containers at once. On hosts, `install-session-name.py` migrates a legacy self-name command to this composer and repoints a SessionStart hook still wired to the retired `agent-name.sh`. The infrastructure claude-hooks role invokes it, keeping rollout separate from the provider authored here.
+**Why it auto-mounts everywhere.** no launcher injects a `statusLine` of its own, so the baked one is authoritative and a new base provider rides the next image build to **all** containers at once. On hosts, `install-session-name.py` migrates a legacy self-name command to this composer and repoints a SessionStart hook still wired to the retired `agent-name.sh`. The infrastructure claude-hooks role invokes it, keeping rollout separate from the provider authored here.
 
 ## Why policy-tier settings
 
-The image bakes in no user: ward owns the run-as-uid, mount set, and config
-injection. Policy settings are the one Claude Code surface whose location does
-not depend on the run-as-uid, `HOME`, or `CLAUDE_CONFIG_DIR` ward picks, so a
+The image bakes in no user: the launcher owns the run-as-uid, mount set, and
+config injection. Policy settings are the one Claude Code surface whose location does
+not depend on the run-as-uid, `HOME`, or `CLAUDE_CONFIG_DIR` the launcher picks, so a
 fixed `/etc/claude-code/managed-settings.json` reaches the agent regardless. It
-adds only those keys, so it layers over whatever ward injects into user settings
+adds only those keys, so it layers over whatever the launcher injects into user settings
 rather than replacing it.

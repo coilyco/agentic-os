@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Status-line composer for warded containers. See docs/dev-base-agent-identity.md.
+# Status-line composer for dev-base containers. See docs/dev-base-agent-identity.md.
 #
 # Receives Claude Code's statusLine JSON payload on stdin, runs each discovered
 # provider in filename order (handing it the same payload on stdin), and joins

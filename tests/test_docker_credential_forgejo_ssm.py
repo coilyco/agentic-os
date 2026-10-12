@@ -28,7 +28,6 @@ def _run_helper(tmp_path: Path, *, read_token: str = "read-token") -> subprocess
         """\
 aws() {
   if [[ "${1:-}" == ssm && "${2:-}" == get-parameter ]]; then
-    [[ -z "${WARD_CONFIG_REF:-}" ]] || return 9
     local name=""
     shift 2
     while [[ $# -gt 0 ]]; do
@@ -72,7 +71,6 @@ aws() {
         {
             "BASH_ENV": _bash_path(bash_env),
             "FAKE_REGISTRY_READ_TOKEN": read_token,
-            "WARD_CONFIG_REF": "file:///must-not-reach-aws",
         }
     )
     return subprocess.run(

@@ -13,6 +13,12 @@ describe("aterm.daemon.v1 mapping", () => {
     expect(toSession(view).degraded).toEqual(["card", "telemetry"]);
   });
 
+  it("carries the first line of a seat's last reply, and omits it when the daemon sent none", () => {
+    const view = { name: "s", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 };
+    expect(toSession({ ...view, last_reply: "Merged the PR." }).lastReply).toBe("Merged the PR.");
+    expect(toSession(view)).not.toHaveProperty("lastReply");
+  });
+
   it("carries a context reading, and drops an absent window instead of showing zero", () => {
     const base = { name: "s", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 };
     expect(toSession({ ...base, context: { tokens: 1050, source: "claude" } }).context).toEqual({ tokens: 1050, source: "claude" });
@@ -1016,6 +1022,22 @@ describe("a pane that never drew", () => {
     expect(socket.sent.map((line) => JSON.parse(line))).toEqual([expect.objectContaining({ type: "attach", session: "s", replay: true, rows: 40, cols: 120 })]);
     host.detach("s");
     expect(socket.sent.map((line) => JSON.parse(line).type)).toContain("detach");
+    host.close();
+  });
+
+  it("says what reached it since the attach when it asks again, so a lost replay can be placed", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1" });
+    host.attach("s", 40, 120);
+    host.replay("s");
+    expect(warn).toHaveBeenLastCalledWith(expect.stringMatching(/^aterm: asking s for its screen again, 0 frame\(s\), 0 byte\(s\) in \d+ ms since the last attach, socket open, 0 queued$/));
+    socket.receive({ type: "output", session: "s", data: btoa("hello") });
+    host.replay("s");
+    expect(warn).toHaveBeenLastCalledWith(expect.stringContaining("1 frame(s), 5 byte(s)"));
+    host.detach("s");
+    host.replay("s");
+    expect(warn).toHaveBeenLastCalledWith(expect.stringContaining("no attach on record"));
     host.close();
   });
 });

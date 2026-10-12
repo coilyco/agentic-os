@@ -105,3 +105,26 @@ func TestAMessageWaitsBehindTheAskUserQuestionReviewPage(t *testing.T) {
 	}
 	target.until("[from eng-platform Beetle-Ox] ping")
 }
+
+// COI-2653 gate: three sends to a seat at a card are each held, nothing is typed into the
+// card, and all three arrive in order once it clears.
+func TestThreeMessagesWaitBehindACardAndLandInOrder(t *testing.T) {
+	card := `printf 'Do you want to proceed?\r\n1. Yes\r\nEsc to cancel\r\n'`
+	token, _, target := spawnPair(t, `printf 'READY\033[?2004h\n'; `+card+`; sleep 8; printf '\033[3A\033[J'; exec cat`)
+	target.until("Esc to cancel")
+	for _, word := range []string{"one", "two", "three"} {
+		state := sendWaiting(t, token, "scientist", word, 1)
+		if state.State != "held" || !strings.Contains(state.Reason, "prompt card") {
+			t.Fatalf("%s: state = %+v, want held behind the card", word, state)
+		}
+	}
+	if strings.Contains(target.output.String(), "[from eng-platform") {
+		t.Fatalf("a message was typed into the card:\n%q", target.output.String())
+	}
+	target.until("[from eng-platform Beetle-Ox] three")
+	out := target.output.String()
+	first, second, third := strings.Index(out, "] one"), strings.Index(out, "] two"), strings.Index(out, "] three")
+	if first < 0 || first > second || second > third {
+		t.Fatalf("messages out of order (%d, %d, %d):\n%q", first, second, third, out)
+	}
+}

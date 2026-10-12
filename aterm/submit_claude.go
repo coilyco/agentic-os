@@ -85,6 +85,24 @@ func (s *ptySession) holdsCard() bool {
 	return s.cardReason() != ""
 }
 
+// awaitNoCard returns once no card is up, since an Enter now would answer it, or with
+// errNotSubmitted after arrivalWindow. A session that ends meanwhile returns nil.
+func (s *ptySession) awaitNoCard() error {
+	start := time.Now()
+	for s.holdsCard() {
+		select {
+		case <-s.done:
+			return nil
+		default:
+		}
+		if time.Since(start) > arrivalWindow {
+			return errNotSubmitted
+		}
+		time.Sleep(submitPoll)
+	}
+	return nil
+}
+
 // readClaude reads the screen under the lock: whether claude's box can be found, whether
 // it still holds the text, and how many times the text shows above it.
 func (s *ptySession) readClaude(text string) (readable, holds bool, echoes int) {

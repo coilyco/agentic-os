@@ -7,6 +7,7 @@ Major shipped capabilities, not files.
 - [Shell and secrets](install.md) - shared shells, SSM, and GPG.
 - [Branded agent terminal](aterm.md) - `aterm` opens an agent session in kitty, with a macOS `.app` per [role bundle](aterm-bundles.md) and a [creature](aterm-creature.md). `aterm pane` [splits it](aterm-pane.md). A [host daemon](aterm-daemon.md) owns sessions across restarts and routes `aterm send`. A [web client and Android app](../aterm-android/README.md) attaches, with [MCP Apps](../.agents/skills/tooling-aterm-client/references/mcp-apps-gateway.md), a browser, and [Web Push](../.agents/skills/tooling-aterm-client/references/web-push.md) to a closed client. Mac and Linux.
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.
+- [Disk guard](install.md) - launchd job prunes Docker build cache under 15 GiB free.
 - [Agents and sessions](features-agents.md) - self-name, composition
   status, harness [and model](native-harness-config.md) policy, and
   [settings guardrails](native-claude-credentials.md).
@@ -24,7 +25,7 @@ Major shipped capabilities, not files.
 - [Agent tool evaluation](../.agents/skills/tooling-agent-tool-evaluation/SKILL.md) - cross-harness tool evals.
 - [Role-composed skills](role-composed-skills.md) - v2 Core Roster method slices.
 - [AOS launcher](aos-cli.md) - role context with
-  [convergence](aos-convergence.md), [connectivity](aos-context-bundle.md),
+  [convergence](aos-convergence.md), [connectivity](aos-connectivity.md),
   [kubeconfig](aos-cluster-access.md), [issue pins](aos-issue-flow.md), and
   [check-ins](aos-issue-flow.md).
 - [aos run](aos-cli.md) - `aos run <verb>` resolves a just verb to the resident repository

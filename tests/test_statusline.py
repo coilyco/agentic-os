@@ -13,7 +13,6 @@ ROOT = Path(__file__).resolve().parent.parent
 COMPOSER = ROOT / "docker" / "dev-base" / "statusline.sh"
 COMPOSE_PROVIDER = ROOT / "docker" / "dev-base" / "statusline.d" / "15-agent-compose.sh"
 INSTALLER = ROOT / "scripts" / "install-session-name.py"
-CONTAINER_PROVIDER = ROOT / "docker" / "dev-base" / "statusline.d" / "20-container.sh"
 
 
 def _executable(path: Path, content: str) -> None:
@@ -128,25 +127,6 @@ def test_installer_leaves_a_foreign_sessionstart_hook_alone() -> None:
     ]
     assert "mine" in commands
     assert installer.SESSIONSTART_CMD in commands
-
-
-def test_container_provider_names_the_warded_container() -> None:
-    result = subprocess.run(
-        [str(CONTAINER_PROVIDER)],
-        text=True,
-        capture_output=True,
-        check=True,
-        env=os.environ | {"WARD_CONTAINER_NAME": "engineer-claude-ward-338"},
-    )
-    assert result.stdout.strip() == "[engineer-claude-ward-338]"
-
-
-def test_container_provider_self_suppresses_on_a_native_host() -> None:
-    env = {k: v for k, v in os.environ.items() if k != "WARD_CONTAINER_NAME"}
-    result = subprocess.run(
-        [str(CONTAINER_PROVIDER)], text=True, capture_output=True, env=env
-    )
-    assert result.stdout == ""
 
 
 def test_installer_writes_through_a_symlinked_settings_file(tmp_path: Path) -> None:

@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v6
 
       # The app's own gate verbs, defined in its justfile - identical to what a
-      # headless `ward agent` run executes. No hand-rolled uv/pip steps.
+      # headless agent run executes. No hand-rolled uv/pip steps.
       - run: just lint
       - run: just test
       - run: just smoke

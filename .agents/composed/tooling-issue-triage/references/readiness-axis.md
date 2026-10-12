@@ -19,10 +19,10 @@ An `autonomy/async-consult` issue waits for a person. A blocked-headless issue s
 
 Because readiness is orthogonal to autonomy, `blocked-on-dependency` does **not** replace an autonomy label - it rides alongside one. The common case is `autonomy/headless` + `blocked-on-dependency`: settled headless work, parked on an upstream, due to wake on its own.
 
-The triggering case is a ward issue blocked only on umbra exporting `ParseIssueRef`/`IssueRef`. Its `ward agent headless` pre-flight NO-GO'd it as a cross-repo coordination **fork** - reading a defer-and-wake as a needs-a-human async-consult, exactly the misread this state removes.
+The triggering case is a ward issue blocked only on umbra exporting `ParseIssueRef`/`IssueRef`. Its headless pre-flight (Ward's launcher, since retired) NO-GO'd it as a cross-repo coordination **fork** - reading a defer-and-wake as a needs-a-human async-consult, exactly the misread this state removes.
 
 If the blocker pointer is missing or ambiguous, the issue fails closed. The classifier keeps the ordinary autonomy and tier labels and does not claim wake behavior.
 
 ## What is named here vs built later
 
-This doc names the state and fixes its semantics. The enforcing half - teaching the `ward agent headless` pre-flight to detect it, plus the auto-resume **wake mechanism** that re-enters a dependent issue into the dispatch queue when its blocker issue closes - is the cross-repo build tracked in the dependency work.
+This doc names the state and fixes its semantics. The enforcing half - teaching the headless pre-flight to detect it, plus the auto-resume **wake mechanism** that re-enters a dependent issue into the dispatch queue when its blocker issue closes - is the cross-repo build tracked in the dependency work.

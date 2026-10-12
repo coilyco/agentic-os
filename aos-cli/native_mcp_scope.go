@@ -218,62 +218,67 @@ func agentComposeRoleSlugs(ctx context.Context) ([]string, error) {
 	return roles, nil
 }
 
-// nativeSpecMCPArgs narrows the inventory at <home>/.mcporter/mcporter.json to
+// nativeSpecMCPScope narrows the inventory at <home>/.mcporter/mcporter.json to
 // the role, and refuses without one, as agent-compose's launch does (#8260).
-func nativeSpecMCPArgs(ctx context.Context, spec nativeLaunchSpec, role, inventoryHome, stateDir string, args []string) ([]string, error) {
+func nativeSpecMCPScope(ctx context.Context, spec nativeLaunchSpec, role, inventoryHome, stateDir string, args []string) (mcpScopeLaunch, error) {
 	switch spec.Harness {
 	case "claude":
 		if nativeSpecArgsCarry(args, "--mcp-config") || nativeSpecArgsCarry(args, "--strict-mcp-config") {
-			return nil, nil
+			return mcpScopeLaunch{}, nil
 		}
 	case "codex":
 	case "goose":
 		if !gooseScopeApplies(args) {
-			return nil, nil
+			return mcpScopeLaunch{}, nil
 		}
 	case "opencode":
 		if strings.TrimSpace(os.Getenv(openCodeConfigEnv)) != "" {
-			return nil, nil
+			return mcpScopeLaunch{}, nil
 		}
 	default:
-		return nil, nil
+		return mcpScopeLaunch{}, nil
 	}
 	roles, err := agentComposeRoleSlugs(ctx)
 	if err != nil {
-		return nil, err
+		return mcpScopeLaunch{}, err
 	}
 	servers, err := loadMCPScopeInventory(filepath.Join(inventoryHome, ".mcporter", "mcporter.json"), roles)
 	if errors.Is(err, errNoMCPInventory) {
-		return nil, fmt.Errorf("mcp-scope refused the launch: %w; pass --mcp-config to launch with a scope of your own", err)
+		return mcpScopeLaunch{}, fmt.Errorf("mcp-scope refused the launch: %w; pass --mcp-config to launch with a scope of your own", err)
 	}
 	if err != nil {
-		return nil, err
+		return mcpScopeLaunch{}, err
 	}
 	selection := selectMCPScope(servers, role)
 	fmt.Fprintln(os.Stderr, selection.summary())
 	switch spec.Harness {
 	case "codex":
-		return selection.codexOverrides(), nil
+		return mcpScopeLaunch{Flags: selection.codexOverrides()}, nil
 	case "goose":
 		keep, err := gooseKeptExtensions(inventoryHome)
 		if err != nil {
-			return nil, err
+			return mcpScopeLaunch{}, err
 		}
-		return selection.gooseArgs(keep, inventoryHome)
+		flags, err := selection.gooseArgs(keep, inventoryHome)
+		return mcpScopeLaunch{Flags: flags}, err
 	case "opencode":
 		// An env var rather than a flag, set on this process the way the spec's
 		// own env is, since aos execs the harness with it.
 		content, err := selection.openCodeConfig(inventoryHome)
 		if err != nil {
-			return nil, err
+			return mcpScopeLaunch{}, err
 		}
-		return nil, os.Setenv(openCodeConfigEnv, content)
+		return mcpScopeLaunch{}, os.Setenv(openCodeConfigEnv, content)
 	}
 	path, err := selection.writeClaudeConfig(filepath.Join(stateDir, "mcp"), inventoryHome)
 	if err != nil {
-		return nil, err
+		return mcpScopeLaunch{}, err
 	}
-	return []string{"--strict-mcp-config", "--mcp-config", path}, nil
+	if !connectorsApply(os.Stderr, spec, args) {
+		return mcpScopeLaunch{Flags: []string{"--strict-mcp-config", "--mcp-config", path}}, nil
+	}
+	fmt.Fprintf(os.Stderr, "aos: claude.ai connectors for %s: %d, behind an allowlist\n", role, len(spec.ClaudeAIConnectors))
+	return mcpScopeLaunch{Flags: []string{"--mcp-config", path}, Allow: selection.allowlist(spec.ClaudeAIConnectors, inventoryHome), Deny: connectorDenied(spec.ClaudeAIConnectors)}, nil
 }
 
 // openCodeConfigEnv is OpenCode's inline config, merged over every other layer.

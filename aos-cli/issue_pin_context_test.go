@@ -196,9 +196,6 @@ func TestStageHydratedIssuePinContextAppendsSelectedInstruction(t *testing.T) {
 			t.Fatalf("instruction missing %q:\n%s", want, rendered)
 		}
 	}
-	if err := validateStagedHome(home, "codex"); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func serverIssueURL(id string) string {

@@ -315,3 +315,50 @@ func newReplyCommand() *cli.Command {
 		},
 	}
 }
+
+// replyLineChars bounds the line a roster carries, so a long one cannot bloat every push.
+const replyLineChars = 280
+
+// firstReplyLine is the first line of a reply with any text, spaces collapsed and cut at
+// replyLineChars.
+func firstReplyLine(text string) string {
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.Join(strings.Fields(line), " ")
+		if line == "" {
+			continue
+		}
+		if runes := []rune(line); len(runes) > replyLineChars {
+			return strings.TrimRight(string(runes[:replyLineChars]), " ") + "…"
+		}
+		return line
+	}
+	return ""
+}
+
+// refreshReply keeps the first line of a seat's latest finished reply, reading the
+// transcript only when it moved. A running turn keeps the earlier line (COI-2678).
+func (s *ptySession) refreshReply(entry ledgerEntry, all []ledgerEntry) bool {
+	s.mu.Lock()
+	path, seen := s.contextFile.path, s.replySig
+	s.mu.Unlock()
+	if path == "" {
+		return false
+	}
+	sig, ok := sigOf(path)
+	if !ok || sig == seen {
+		return false
+	}
+	reply, err := replyOf(entry, all)
+	if err != nil {
+		return false
+	}
+	line := firstReplyLine(reply.Text)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.replySig = sig
+	if !reply.Complete || line == "" || line == s.lastReply {
+		return false
+	}
+	s.lastReply = line
+	return true
+}

@@ -252,11 +252,13 @@
     ></textarea>
   </div>
   {#if stopping}
+    <!-- Focus stays in the field: a blur closes the keyboard, the layout moves, and the first tap on Stop is lost. -->
     <button
       class="button stop"
       type="button"
       aria-label={`Stop ${session.identity}. Sends Escape. Touch and hold, or Shift and Enter, sends Control-C.`}
       aria-keyshortcuts="Shift+Enter"
+      onmousedown={(event) => event.preventDefault()}
       onpointerdown={holdStart}
       onpointerup={holdEnd}
       onpointerleave={holdEnd}

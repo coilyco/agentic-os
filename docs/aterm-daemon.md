@@ -29,7 +29,7 @@ attached to it.
 
 **Targets resolve in tiers**: session name, role slug, identity, then harness. The first tier with a match wins, several in it refuse and name them, and none exits 3. `--launch` on a role slug opens the role and holds the message up to three minutes. `--new` opens another instance.
 
-**Delivery serializes with the keyboard.** One lock covers every PTY write. A message is `queued` until the target is ready, `held` behind Kai's typing, an unsent draft or a card, then `delivered` or `failed`.
+**Delivery serializes with the keyboard.** One lock covers every PTY write. A message is `queued` till it is ready, `held` (and those behind) for Kai's typing, a draft or a card, then `delivered` or `failed`.
 
 **A bracketed-paste program gets one paste, then Enter 300ms later**, since an Enter inside reads as a newline. codex and goose turn it on at their prompt, so **ready means paste is on**. claude and opencode drop a paste before the prompt, so **ready means `Try "` or `Ask anything` showed**, or 20s passed. **`delivered` means opencode took Enter and claude's transcript shows the message**. Unseen for 90s is `failed`, and a mid-turn seat that took no Enter is [parked](../.agents/skills/tooling-aterm-client/references/parked.md).
 
@@ -47,7 +47,7 @@ attached to it.
 * `send` answers `sent` with the message state, waiting 3 seconds, or `wait` up to 120, for delivery unless `launching`. One not yet final earns the sender `[from aterm daemon] message <id> to <session>: <state>`, never the body. `notify_idle` adds `<session> is idle`, `is held at a prompt` or `ended`.
 * `status` (with `lines`), `clear` and `close` (with optional `force`), each with a `target`, answer `status`, `cleared` and `closed` with the exit `code`. `claim` with a `session` base answers `claimed` with a free pool name, and `peek` holds none.
 * `inbox` (feature `inbox`) returns the caller's own messages by `token`, recorded at `enqueue` and marked read on return, `all` adding the read. Capped at 200, emptied by a restart.
-* `list` answers `sessions`, each with `state`, `quiet_seconds` and `context` ([the meter](../.agents/skills/tooling-aterm-client/references/context-meter.md)). `subscribe` to channel `sessions` pushes the roster on every change, and `message` events carry each state change, never the body. A stalled subscriber is dropped after 5 seconds.
+* `list` answers `sessions`, each with `state`, `quiet_seconds`, `last_reply` and `context` ([the meter](../.agents/skills/tooling-aterm-client/references/context-meter.md)). `subscribe` to `sessions` pushes the roster on every change, and `message` events carry each state change, never the body. A stalled subscriber drops after 5 seconds.
 * `welcome` to a websocket adds `typing-guard`, `passkey` and `typing` `{allowed, reason, passkey}`, `passkey` being `enrolled` or `unenrolled`. A refusal's `error` carries `reason`: `session_descendant`, `peer_unread` or `passkey_required`.
 * Passkey: `passkey_enroll_begin` (`enroll_code`) answers `passkey_enroll_options`, and `passkey_enroll_finish` (`credential`) answers `passkey_enrolled`. `passkey_assert_begin` answers `passkey_assert_options`, and `passkey_assert_finish` answers `passkey_asserted`. `options` and `credential` are WebAuthn JSON.
 * `push_*` serves [Web Push](../.agents/skills/tooling-aterm-client/references/web-push.md).

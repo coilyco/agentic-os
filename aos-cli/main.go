@@ -127,7 +127,7 @@ func isRootSubcommand(value string) bool {
 	switch value {
 	case "repositories", "version", "converge", "models", "claude-ui", "acompose", "acompose-checkin",
 		"_native-shadow", "_session-id", "_launch-agent", "_container-acompose",
-		"_container-socks-forward", "_container-context-bundle":
+		"_container-socks-forward":
 		return true
 	default:
 		return false
@@ -389,37 +389,6 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 						cmd.String("target"),
 					)
 				},
-			},
-			{
-				Name:   "_container-context-bundle",
-				Hidden: true,
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "output",
-						Required: true,
-					},
-					&cli.IntFlag{
-						Name:     "uid",
-						Required: true,
-					},
-					&cli.IntFlag{
-						Name:     "gid",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:   "bundle",
-						Hidden: true,
-					},
-					&cli.StringFlag{
-						Name:   "issue-pin-context",
-						Hidden: true,
-					},
-					&cli.StringFlag{
-						Name:   "issue-pin-digest",
-						Hidden: true,
-					},
-				},
-				Action: runContainerContextBundle,
 			},
 		},
 	}
