@@ -757,6 +757,20 @@ func (s *ptySession) cardReason() string {
 	return ""
 }
 
+// holdFollowers gives the messages queued behind a held one the same reason, so every
+// sender hears held rather than a queue position that never moves (COI-2653).
+func (s *ptySession) holdFollowers(reason string) {
+	s.mu.Lock()
+	var rest []*pendingSend
+	if len(s.pending) > 1 {
+		rest = append(rest, s.pending[1:]...)
+	}
+	s.mu.Unlock()
+	for _, p := range rest {
+		p.setState("held", reason)
+	}
+}
+
 func (s *ptySession) deliverNext(now time.Time) {
 	s.mu.Lock()
 	if s.parked != nil {
@@ -783,6 +797,7 @@ func (s *ptySession) deliverNext(now time.Time) {
 		return
 	case hold != "":
 		next.setState("held", hold)
+		s.holdFollowers(hold)
 		return
 	}
 	s.writeMu.Lock()
@@ -796,6 +811,7 @@ func (s *ptySession) deliverNext(now time.Time) {
 		s.mu.Unlock()
 		s.writeMu.Unlock()
 		next.setState("held", hold)
+		s.holdFollowers(hold)
 		return
 	}
 	s.sending = next
@@ -836,6 +852,10 @@ func (s *ptySession) inject(text string, paste bool) error {
 		return err
 	}
 	time.Sleep(submitDelay)
+	// A card can open as the paste lands, and Enter would answer it (COI-2653).
+	if err := s.awaitNoCard(); err != nil {
+		return err
+	}
 	return s.writePTY([]byte("\r"))
 }
 

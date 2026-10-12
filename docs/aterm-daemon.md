@@ -29,7 +29,7 @@ attached to it.
 
 **Targets resolve in tiers**: session name, role slug, identity, then harness. The first tier with a match wins, several in it refuse and name them, and none exits 3. `--launch` on a role slug opens the role and holds the message up to three minutes. `--new` opens another instance.
 
-**Delivery serializes with the keyboard.** One lock covers every PTY write. A message is `queued` until the target is ready, `held` behind Kai's typing, an unsent draft or a card, then `delivered` or `failed`.
+**Delivery serializes with the keyboard.** One lock covers every PTY write. A message is `queued` till it is ready, `held` (and those behind) for Kai's typing, a draft or a card, then `delivered` or `failed`.
 
 **A bracketed-paste program gets one paste, then Enter 300ms later**, since an Enter inside reads as a newline. codex and goose turn it on at their prompt, so **ready means paste is on**. claude and opencode drop a paste before the prompt, so **ready means `Try "` or `Ask anything` showed**, or 20s passed. **`delivered` means opencode took Enter and claude's transcript shows the message**. Unseen for 90s is `failed`, and a mid-turn seat that took no Enter is [parked](../.agents/skills/tooling-aterm-client/references/parked.md).
 

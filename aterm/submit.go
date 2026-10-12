@@ -54,6 +54,9 @@ func (s *ptySession) submit(text string, paste bool) error {
 		if retry == enterRetries {
 			return errNotSubmitted
 		}
+		if err := s.awaitNoCard(); err != nil {
+			return err
+		}
 		if err := s.writePTY([]byte("\r")); err != nil {
 			return err
 		}
