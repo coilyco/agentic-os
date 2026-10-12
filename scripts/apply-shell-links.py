@@ -126,6 +126,15 @@ def link_specs(home: Path, repo_root: Path = REPO_ROOT) -> list[LinkSpec]:
         )
     else:
         specs.insert(1, LinkSpec("bashrc", repo_root / "shell" / "bashrc", home / ".bashrc"))
+        # kitty does not ship on Windows, and the ansible shell role links
+        # alacritty only, so this is the one place the kitty config installs.
+        specs.append(
+            LinkSpec(
+                "kitty",
+                repo_root / "kitty" / "kitty.conf",
+                home / ".config" / "kitty" / "kitty.conf",
+            )
+        )
     return specs
 
 

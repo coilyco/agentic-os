@@ -25,9 +25,9 @@ agent-id *ARGS:
 agents-context-inventory *ARGS:
     @uv run python -m agentic_os.agents_context_inventory "$@"
 
-# Validate the shared kitty configuration against the installed kitty.
-kitty-config-check *ARGS:
-    @kitty --config kitty/kitty.conf +runpy 'raise SystemExit(0)' "$@"
+# Parse the shared kitty configuration with the installed kitty and fail on any warning it prints. Headless: `kitty --config` would open a window and never return.
+kitty-config-check:
+    @out="$(kitty +runpy 'from kitty.config import load_config; load_config("kitty/kitty.conf")' 2>&1)"; [ -z "$out" ] || { printf '%s\n' "$out"; exit 1; }
 
 # Compile the standalone Go `aos` container launcher.
 aos-build *ARGS:
