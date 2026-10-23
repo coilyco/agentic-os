@@ -85,6 +85,8 @@ repos:
     band: small # one small Swift app
   steam-ops:
     band: small
+  stunt-box:
+    band: small # one demo appliance: an emoji MCP server, a kiosk display, and its deploy kit (COI-2872)
   tally:
     band: small
   umbra:
