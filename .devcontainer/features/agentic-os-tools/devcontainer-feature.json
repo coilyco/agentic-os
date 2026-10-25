@@ -1,0 +1,24 @@
+{
+  "id": "agentic-os-tools",
+  "version": "1.0.0",
+  "name": "agentic-os fleet tools",
+  "description": "just, uv, pre-commit, trufflehog, golangci-lint, kdlfmt, yq and umbra, pinned with SHA-256 values.",
+  "options": {
+    "tools": {
+      "type": "string",
+      "default": "just uv pre-commit trufflehog golangci-lint kdlfmt yq umbra",
+      "description": "Space separated tools to install."
+    },
+    "sharedUv": {
+      "type": "boolean",
+      "default": true,
+      "description": "Keep uv tools and managed Pythons in /opt/uv, writable by any uid."
+    }
+  },
+  "containerEnv": {
+    "UV_TOOL_DIR": "/opt/uv/tools",
+    "UV_TOOL_BIN_DIR": "/usr/local/bin",
+    "UV_PYTHON_INSTALL_DIR": "/opt/uv/python"
+  },
+  "installsAfter": ["ghcr.io/devcontainers/features/common-utils"]
+}

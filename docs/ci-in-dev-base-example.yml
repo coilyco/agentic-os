@@ -1,6 +1,6 @@
 # Reference CI workflow: run an app's gate INSIDE the moving :release dev-base image,
 # through the same `just` verbs a dispatched agent runs, so a green CI
-# means "a headless agent can land this." See docs/ci-in-dev-base.md.
+# means "a headless agent can land this." See docs/dev-container.md.
 #
 # Copy this into an app's .forgejo/workflows/ci.yml. Keep the promoted :release
 # alias so the gate follows the same full image as the AOS launcher.

@@ -1,0 +1,58 @@
+{
+  "id": "agentic-os-agent",
+  "version": "1.0.0",
+  "name": "agentic-os agent surface",
+  "description": "aos, aosguard, the guarded git/gh/rm/find/mv shims, agent-compose and the agent harnesses.",
+  "options": {
+    "aosVersion": {
+      "type": "string",
+      "default": "0.477.0",
+      "description": "aos release whose bundle carries aos, aosguard, their skill and the shim sources."
+    },
+    "aosReleaseBase": {
+      "type": "string",
+      "default": "https://forgejo.coilysiren.me/coilyco/agentic-os/releases/download",
+      "description": "Release download root. Move to the GitHub release URL once the repo is public."
+    },
+    "agentComposeVersion": {
+      "type": "string",
+      "default": "2.210.0",
+      "description": "agent-compose release to install."
+    },
+    "agentComposeReleaseBase": {
+      "type": "string",
+      "default": "https://forgejo.coilysiren.me/coilyco/agent-compose/releases/download",
+      "description": "Release download root. GitHub carries no release past v1.32.0 yet."
+    },
+    "claudeVersion": {
+      "type": "string",
+      "default": "2.1.282",
+      "description": "@anthropic-ai/claude-code version."
+    },
+    "mcporterVersion": {
+      "type": "string",
+      "default": "0.12.3",
+      "description": "mcporter version."
+    },
+    "opencodeVersion": {
+      "type": "string",
+      "default": "1.18.12",
+      "description": "opencode-ai version."
+    }
+  },
+  "containerEnv": {
+    "PATH": "/opt/agentic-os/shims:${PATH}",
+    "AOS_GIT_NAME": "coilyco-ops",
+    "AOS_GIT_EMAIL": "coilyco-ops@coilysiren.me",
+    "AWS_DEFAULT_REGION": "us-east-1",
+    "AWS_REGION": "us-east-1",
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    "DOTNET_NOLOGO": "1"
+  },
+  "entrypoint": "/opt/agentic-os/shell-entrypoint.sh",
+  "installsAfter": [
+    "ghcr.io/devcontainers/features/node",
+    "ghcr.io/devcontainers/features/go",
+    "ghcr.io/devcontainers/features/github-cli"
+  ]
+}
