@@ -1,0 +1,19 @@
+# Installs the fleet tools a GitHub-hosted runner lacks. See docs/dev-container.md.
+name: setup-ci
+description: Install pinned fleet tools onto a GitHub-hosted Ubuntu runner.
+inputs:
+  tools:
+    description: Space separated tools to install.
+    default: just uv pre-commit
+runs:
+  using: composite
+  steps:
+    - name: Install fleet tools
+      shell: bash
+      env:
+        TOOLS: ${{ inputs.tools }}
+        INSTALL_DIR: ${{ runner.temp }}/fleet-bin
+      run: bash "${{ github.action_path }}/../../.devcontainer/features/agentic-os-tools/install.sh"
+    - name: Put the tools on PATH
+      shell: bash
+      run: echo "${{ runner.temp }}/fleet-bin" >> "$GITHUB_PATH"

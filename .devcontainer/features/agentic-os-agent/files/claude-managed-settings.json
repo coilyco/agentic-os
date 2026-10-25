@@ -1,0 +1,29 @@
+{
+  "deniedMcpServers": [
+    {
+      "serverName": "claude-in-chrome"
+    }
+  ],
+  "statusLine": {
+    "type": "command",
+    "command": "/opt/agentic-os/statusline.sh",
+    "padding": 2
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/opt/agentic-os/session-name.sh"
+          },
+          {
+            "type": "command",
+            "command": "/opt/agentic-os/git-identity.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

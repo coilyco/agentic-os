@@ -114,6 +114,7 @@ build_bundle() {
     cp "$repo_root/aos-cli/repositories/substrate-repos.txt" \
         "$repo_root/aos-cli/repositories/sealed-repos.gitignore" \
         "$bundle_root/share/aos/repositories/"
+    sh "$repo_root/scripts/stage-shim-src.sh" "$bundle_root/share/aos/shim-src"
     printf '%s\n' "$version" > "$bundle_root/share/aos/version.txt"
     tar -czf "$bundle" -C "$bundle_root" .
     rm -rf "$bundle_root"

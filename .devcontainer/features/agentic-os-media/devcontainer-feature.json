@@ -1,0 +1,6 @@
+{
+  "id": "agentic-os-media",
+  "version": "1.0.0",
+  "name": "agentic-os media tools",
+  "description": "ffmpeg and ImageMagick, which the media-handling roles call."
+}

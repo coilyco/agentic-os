@@ -197,6 +197,7 @@ def test_release_workflow_derives_assets_from_dist() -> None:
     assert 'grep -Fx "aosguard version $version"' in release_check
     assert 'grep -Fx "aterm version $version"' in release_check
     assert "share/aos/aosguard-skill/aosguard/SKILL.md" in release_check
+    assert "share/aos/shim-src/shims/gh/gh.kdl" in release_check
     assert "--dry-run" in release_check
     assert "agent-compose" in release_check
     assert "--aos-bin" in release_check

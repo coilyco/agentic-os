@@ -84,6 +84,8 @@ for target in $(awk '!/^[[:space:]]*(#|$)/ { print }' \
                 grep -Fx "./share/aos/python/agentic_os/$(basename "$module")" >/dev/null
         done
     tar -tzf "$bundle" | grep -Fx './share/aos/repositories/substrate-repos.txt' >/dev/null
+    tar -tzf "$bundle" | grep -Fx './share/aos/shim-src/shims/gh/gh.kdl' >/dev/null
+    tar -tzf "$bundle" | grep -Fx './share/aos/shim-src/fs-shims/git_guard.py' >/dev/null
 done
 
 python3 -m json.tool "$dist/aos.json" >/dev/null

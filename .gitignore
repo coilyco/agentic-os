@@ -109,3 +109,4 @@ test-images/
 # The client embedded into aterm, staged by `just aterm-client-embed`.
 /aterm/clientdist/*
 !/aterm/clientdist/.gitkeep
+.test-scratch/

@@ -17,8 +17,10 @@ on:
       - "aterm-client/**"
       - "scripts/aos-release-build.sh"
       - "scripts/check-aos-release.sh"
+      - "scripts/fs-shims/**"
       - "scripts/guardfile-python-modules.sh"
       - "scripts/render-aos-packaging.sh"
+      - "scripts/stage-shim-src.sh"
   workflow_dispatch:
     inputs:
       tag:
