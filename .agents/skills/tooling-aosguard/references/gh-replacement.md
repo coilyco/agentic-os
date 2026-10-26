@@ -24,7 +24,7 @@ A PR merged on GitHub for a repo still Forgejo-canonical makes the next 10-minut
 * **A URL selector is refused** on every verb that takes one (all but `create`), because gh lets the URL override `--repo`. Pass a number or a branch. A short flag's value that holds `://` is refused too, so use `--body` rather than `-b` for text with a link.
 * **`merge` is squash only.** `--merge`, `-m`, `--rebase`, `-r` and `--admin` are denied.
 * **`actions-permissions <endpoint>` is `gh api --method PUT <endpoint>`**, with the endpoint pinned to `repos/<repo>/actions/permissions` and `--field` and `--raw-field` the only flags. It exists as its own leaf because `api` cannot allow a write flag and pin one endpoint at once. `-X` on `api` stays refused.
-* **Open: a repeated `--repo`** is read by its first occurrence and gh uses the last (COI-2977, an umbra fix). It takes typing the flag twice on purpose, and `test_a_repeated_repo_flag_is_refused` is an `xfail` until it lands.
+* **A repeated `--repo` is refused** if any occurrence is off the list, because gh uses the last and umbra reads every one since v0.256.0 (COI-2977).
 * **At Forgejo teardown** (COI-2931) the lists and the withhold go, and AGENTS.md's lane text names GitHub.
 
 The first version of this file enumerated 23 read grants to protect the withholds. That list was an inventory of GitHub's CLI rather than a statement of this estate's policy, so it would have rotted against `gh` releases, and a verb nobody thought of would have been a verb the fleet silently lost. `default-allow` was added to umbra for exactly this case (umbra#372).

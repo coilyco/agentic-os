@@ -19,8 +19,8 @@ kdlfmt|0.1.7|amd64|https://github.com/hougesen/kdlfmt/releases/download/v0.1.7/k
 kdlfmt|0.1.7|arm64|https://github.com/hougesen/kdlfmt/releases/download/v0.1.7/kdlfmt-aarch64-unknown-linux-gnu.tar.xz|2ddbcc630e6a8d93b900fb5252b5182736064fc03f3876fbf8544b9d94f0fb70|kdlfmt-aarch64-unknown-linux-gnu/kdlfmt
 yq|4.53.3|amd64|https://github.com/mikefarah/yq/releases/download/v4.53.3/yq_linux_amd64|fa52a4e758c63d38299163fbdd1edfb4c4963247918bf9c1c5d31d84789eded4|-
 yq|4.53.3|arm64|https://github.com/mikefarah/yq/releases/download/v4.53.3/yq_linux_arm64|578648e463a11c1b6db6010cbf41eafed6bee79466fcffa1bb446672cf7945ea|-
-umbra|0.254.0|amd64|https://github.com/coilyco/umbra/releases/download/v0.254.0/umbra-linux-amd64|eb5ec1f5b5b4766803b4a98b4c4e062a32c92c057cfabdc237a9af8f8b55fa3b|-
-umbra|0.254.0|arm64|https://github.com/coilyco/umbra/releases/download/v0.254.0/umbra-linux-arm64|457a3a087c402a077a7610e7a7f034ad729e708a3a3717bb157d3ab2d9ded7b2|-
+umbra|0.256.0|amd64|https://github.com/coilyco/umbra/releases/download/v0.256.0/umbra-linux-amd64|6e85573e2f5bb61031e600523c5b2fc3f1afcd98cc5edce8a3a424486db3b668|-
+umbra|0.256.0|arm64|https://github.com/coilyco/umbra/releases/download/v0.256.0/umbra-linux-arm64|9a4776415783f23879e1d3027619fc3f907879cfb155fe5be7f423986ffb464c|-
 codex|0.146.0|amd64|https://github.com/openai/codex/releases/download/rust-v0.146.0/codex-x86_64-unknown-linux-musl.tar.gz|5ba3b9405543953081f661d0854d266f76e2abbe51d41349355a36de7673776a|codex-x86_64-unknown-linux-musl>codex
 codex|0.146.0|arm64|https://github.com/openai/codex/releases/download/rust-v0.146.0/codex-aarch64-unknown-linux-musl.tar.gz|975bac91562abeedeb8f79636d51a86649b31f34a9de6a3bcb059565b6cf1f87|codex-aarch64-unknown-linux-musl>codex
 goose|1.45.0|amd64|https://github.com/block/goose/releases/download/v1.45.0/goose-x86_64-unknown-linux-musl.tar.gz|d7aac29ae244ac5a16ea97b205ff463d63a5525f5791d3581d2cea2fc9840d59|goose
