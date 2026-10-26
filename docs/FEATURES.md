@@ -34,7 +34,7 @@ Major shipped capabilities, not files.
 - [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) - guarded CLI with PR
   merge, sealed
   [Forgejo storage measurement](../.agents/skills/tooling-aosguard/references/forgejo-ops.md),
-  a guarded `gh` withholding pull-request writes, a
+  a guarded `gh` gating pull-request writes per repo, a
   [guarded `git`](../.agents/skills/tooling-aosguard/references/git-shim.md) refusing hook-skips
   and force-pushes, and an [fs guard](../.agents/skills/tooling-aosguard/references/fs-shims.md).
 - [Guarded helm releases](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - cluster-pinned upgrade, install, and rollback with release destruction unexposed.

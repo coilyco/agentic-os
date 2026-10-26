@@ -25,17 +25,64 @@ wrap gh {
         describe "read-only GitHub REST GET. No method, field, or input flag mounts, so a write cannot be spelled through here"
     }
 
-    // Pull-request writes. Stated rather than absent: an unnamed verb forwards
-    // now, so silence would hand the caller the very thing this refuses.
-    withhold pr create {
-        reason "Forgejo is canonical and GitHub is a read-only downstream mirror, so a pull request opened here lands work on the copy and the next mirror push fails as a non-fast-forward. Push the branch to origin and run `aosguard ops forgejo pr create` instead."
+    // GitHub-canonical repos: one joins every list below in the change that flips its
+    // mirror direction (COI-2975). Why --repo is required: references/gh-replacement.md.
+    can run "pr create" {
+        when repo matches "coilyco/bluesky-mcp"
+        deny-flag "-R" aliases="none"
+        describe "open a pull request on a GitHub-canonical repo. Needs --repo OWNER/REPO naming one. Any other repo is Forgejo-canonical: run `aosguard ops forgejo pr create`"
     }
-    withhold pr merge {
-        reason "merging on the mirror writes a commit Forgejo never sees, which is the divergence only a human admin with a force-push can repair. Merge the Forgejo pull request with `aosguard ops forgejo pr merge`."
+    can run "pr edit" {
+        when repo matches "coilyco/bluesky-mcp"
+        deny-when any-arg matches "*://*"
+        deny-flag "-R" aliases="none"
+        value-flag "--repo"
+        value-flag "--add-assignee"
+        value-flag "--add-label"
+        value-flag "--add-project"
+        value-flag "--add-reviewer"
+        value-flag "--attach"
+        value-flag "--base"
+        value-flag "--body"
+        value-flag "--body-file"
+        value-flag "--milestone"
+        value-flag "--remove-assignee"
+        value-flag "--remove-label"
+        value-flag "--remove-project"
+        value-flag "--remove-reviewer"
+        value-flag "--title"
+        describe "edit a pull request on a GitHub-canonical repo. Needs --repo OWNER/REPO naming one and a number or branch, never a URL. Any other repo is Forgejo-canonical: run `aosguard ops forgejo pr edit`"
     }
-    withhold pr edit {
-        reason "the pull request this would edit belongs on Forgejo. Edit it there with `aosguard ops forgejo pr edit`."
+    // A URL selector overrides --repo in gh, so it is refused. Squash only:
+    // gh needs a method flag off a tty, and merge, rebase and admin are denied.
+    can run "pr merge" {
+        when repo matches "coilyco/bluesky-mcp"
+        deny-when any-arg matches "*://*"
+        deny-flag "-R" aliases="none"
+        deny-flag "--merge" aliases="-m"
+        deny-flag "--rebase" aliases="-r"
+        deny-flag "--admin" aliases="none"
+        value-flag "--repo"
+        value-flag "--author-email"
+        value-flag "--body"
+        value-flag "--body-file"
+        value-flag "--match-head-commit"
+        value-flag "--subject"
+        describe "squash-merge a pull request on a GitHub-canonical repo. Needs --repo OWNER/REPO naming one and a number or branch, never a URL. Any other repo is Forgejo-canonical: run `aosguard ops forgejo pr merge`"
     }
+
+    // `gh api` stays a GET, because a write flag there cannot be pinned to one
+    // endpoint. This leaf is `gh api --method PUT` and nothing else.
+    can run actions-permissions {
+        argv "api" "--method" "PUT"
+        when arg0 matches "repos/coilyco/bluesky-mcp/actions/permissions"
+        allow-flag "--field"
+        allow-flag "--raw-field"
+        value-flag "--field"
+        value-flag "--raw-field"
+        describe "set GitHub Actions permissions on a GitHub-canonical repo: actions-permissions repos/OWNER/REPO/actions/permissions --field enabled=true. Long flags only"
+    }
+
     withhold pr close {
         reason "closing a mirror pull request decides something on the copy. `aosguard ops forgejo pr close` acts on the canonical one."
     }
