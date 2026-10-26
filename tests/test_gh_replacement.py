@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -15,9 +16,12 @@ PROJECT = ROOT / ".umbra" / "shims"
 MEMBER = PROJECT / "gh" / "gh.kdl"
 LOCK = ROOT / ".umbra" / "guardfiles" / "specverb.lock"
 
-# The writes that must never reach the mirror. `create` is the one Kai asked
-# for; the rest decide the same pull request on the same copy.
-WITHHELD = ("create", "merge", "edit", "close", "reopen", "ready", "review", "comment")
+# The pull-request writes withheld for every repo. `create`, `edit` and `merge`
+# are granted per GitHub-canonical repo instead (COI-2975).
+WITHHELD = ("close", "reopen", "ready", "review", "comment")
+
+# Named by no list, so a refusal here is the allowlist and not a typo'd repo.
+UNLISTED = "coilyco/not-a-listed-repo"
 
 
 @pytest.fixture(scope="module")
@@ -138,6 +142,134 @@ def test_the_api_leaf_admits_no_flag_that_could_write(
     allowed = run(shim, fake_gh, "api", "repos/x/y", "--cache", "1h")
     assert allowed.returncode == 0, allowed.stdout + allowed.stderr
     assert "REAL_GH api repos/x/y --cache 1h" in allowed.stdout
+
+
+def refused(result: subprocess.CompletedProcess[str]) -> bool:
+    return result.returncode == 2 and "REAL_GH" not in result.stdout
+
+
+@pytest.fixture(scope="module")
+def listed(shim: Path, fake_gh: Path) -> list[str]:
+    """The GitHub-canonical repos, as the guard itself reports them on a refusal.
+
+    Read from umbra's own refusal text rather than the KDL, so the list has one
+    owner and these tests never restate it.
+    """
+    result = run(shim, fake_gh, "pr", "create", "--repo", UNLISTED, "--title", "x")
+    found = re.search(r"allowed pattern \[([^\]]*)\]", result.stderr)
+    assert found and found.group(1).split(), result.stderr
+    return found.group(1).split()
+
+
+def test_a_listed_repo_opens_edits_and_squash_merges(
+    shim: Path, fake_gh: Path, listed: list[str]
+) -> None:
+    for repo in listed:
+        for args in (
+            ("pr", "create", "--repo", repo, "--title", "t", "--body", "see https://x.test/1"),
+            ("pr", "create", f"--repo={repo}", "-t", "t", "-b", "b"),
+            ("pr", "edit", "12", "--repo", repo, "--title", "t", "--add-label", "bug"),
+            ("pr", "merge", "12", "--repo", repo, "--squash", "--delete-branch"),
+            ("pr", "merge", "--squash", "12", f"--repo={repo}"),
+        ):
+            result = run(shim, fake_gh, *args)
+            assert result.returncode == 0, (args, result.stdout + result.stderr)
+            assert f"REAL_GH {' '.join(args)}" in result.stdout, args
+
+
+def test_every_list_names_the_same_repos(
+    shim: Path, fake_gh: Path, listed: list[str]
+) -> None:
+    """One repo joins every list in the same change, or it is half flipped."""
+    for verb in ("edit", "merge"):
+        result = run(shim, fake_gh, "pr", verb, "12", "--repo", UNLISTED)
+        assert f"[{' '.join(listed)}]" in result.stderr, (verb, result.stderr)
+    result = run(shim, fake_gh, "actions-permissions", "repos/x/y/actions/permissions")
+    endpoints = [f"repos/{repo}/actions/permissions" for repo in listed]
+    assert f"[{' '.join(endpoints)}]" in result.stderr, result.stderr
+
+
+def test_an_unlisted_repo_is_refused_on_every_granted_verb(
+    shim: Path, fake_gh: Path
+) -> None:
+    for args in (
+        ("pr", "create", "--repo", UNLISTED, "--title", "t"),
+        ("pr", "edit", "12", "--repo", UNLISTED, "--title", "t"),
+        ("pr", "merge", "12", "--repo", UNLISTED, "--squash"),
+        ("actions-permissions", f"repos/{UNLISTED}/actions/permissions", "--field", "enabled=true"),
+    ):
+        assert refused(run(shim, fake_gh, *args)), args
+
+
+def test_a_call_that_names_no_repo_is_refused(shim: Path, fake_gh: Path) -> None:
+    """cwd inference is invisible to the guard, so --repo is required."""
+    for args in (
+        ("pr", "create", "--title", "t"),
+        ("pr", "edit", "12", "--title", "t"),
+        ("pr", "merge", "12", "--squash"),
+    ):
+        assert refused(run(shim, fake_gh, *args)), args
+
+
+def test_the_short_repo_flag_cannot_retarget_a_listed_repo(
+    shim: Path, fake_gh: Path, listed: list[str]
+) -> None:
+    """gh binds -R and --repo to one variable and the last one wins."""
+    repo = listed[0]
+    for verb_args in (("create", "--title", "t"), ("edit", "12"), ("merge", "12", "--squash")):
+        for flag in (("-R", UNLISTED), (f"-R{UNLISTED}",)):
+            args = ("pr", verb_args[0], *verb_args[1:], "--repo", repo, *flag)
+            assert refused(run(shim, fake_gh, *args)), args
+
+
+def test_a_url_selector_cannot_retarget_a_listed_repo(
+    shim: Path, fake_gh: Path, listed: list[str]
+) -> None:
+    """gh lets a pull request URL override --repo, in either flag order."""
+    url = f"https://github.com/{UNLISTED}/pull/3"
+    repo = listed[0]
+    for verb, extra in (("merge", ("--squash",)), ("edit", ("--title", "t"))):
+        for args in (
+            ("pr", verb, url, "--repo", repo, *extra),
+            ("pr", verb, *extra, url, "--repo", repo),
+        ):
+            assert refused(run(shim, fake_gh, *args)), args
+
+
+def test_merge_is_squash_only(shim: Path, fake_gh: Path, listed: list[str]) -> None:
+    repo = listed[0]
+    for flag in ("--merge", "-m", "--rebase", "-r", "--admin"):
+        assert refused(run(shim, fake_gh, "pr", "merge", "12", "--repo", repo, flag)), flag
+    assert run(shim, fake_gh, "pr", "merge", "12", "--repo", repo, "-s").returncode == 0
+
+
+def test_actions_permissions_is_a_put_on_one_endpoint(
+    shim: Path, fake_gh: Path, listed: list[str]
+) -> None:
+    """The write surface is gh api --method PUT, and nothing else can be spelled."""
+    endpoint = f"repos/{listed[0]}/actions/permissions"
+    ok = run(shim, fake_gh, "actions-permissions", endpoint, "--field", "enabled=true")
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    assert f"REAL_GH api --method PUT {endpoint} --field enabled=true" in ok.stdout
+
+    for args in (
+        ("actions-permissions", endpoint, "--method", "DELETE"),
+        ("actions-permissions", endpoint, "-F", "enabled=true"),
+        ("actions-permissions", f"{endpoint}/../../../{UNLISTED}"),
+        ("actions-permissions", f"repos/{listed[0]}/actions/secrets"),
+    ):
+        assert refused(run(shim, fake_gh, *args)), args
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="umbra reads the first --repo and gh the last, so a repeat retargets (COI-2977)",
+)
+def test_a_repeated_repo_flag_is_refused(
+    shim: Path, fake_gh: Path, listed: list[str]
+) -> None:
+    result = run(shim, fake_gh, "pr", "create", "--repo", listed[0], "--repo", UNLISTED, "--title", "t")
+    assert refused(result)
 
 
 def test_the_guardfile_grants_no_pull_request_write(shim: Path) -> None:

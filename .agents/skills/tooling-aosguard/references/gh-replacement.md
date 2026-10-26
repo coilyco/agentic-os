@@ -1,6 +1,6 @@
 # The guarded `gh`
 
-`gh` on an agent session's PATH is not GitHub's `gh`. It is a generated umbra replacement built from [`.umbra/shims/gh/gh.kdl`](../../../../.umbra/shims/gh/gh.kdl), and it refuses every pull-request write with the reason Forgejo owns them. The real binary is still there, one absolute path away, and every other verb reaches it untouched.
+`gh` on an agent session's PATH is not GitHub's `gh`. It is a generated umbra replacement built from [`.umbra/shims/gh/gh.kdl`](../../../../.umbra/shims/gh/gh.kdl), and it refuses pull-request writes except on the repos listed as GitHub-canonical, and everywhere else says Forgejo owns them. The real binary is still there, one absolute path away, and every other verb reaches it untouched.
 
 ## Why the guard is the binary rather than a harness rule
 
@@ -8,12 +8,26 @@ The first attempt put this in a Claude Code `PreToolUse` hook with settings deny
 
 ## The file is a boundary, not a catalog
 
-The wrap declares `default-allow`, so an unnamed verb forwards to the real `gh`. **Naming a verb here is how something is taken away, not how it is added.** Two things are named:
+The wrap declares `default-allow`, so an unnamed verb forwards to the real `gh`. **Naming a verb here is how something is taken away, not how it is added.** Three things are named:
 
-* **Eight `withhold` stubs** over the pull-request writes: `create`, `merge`, `edit`, `close`, `reopen`, `ready`, `review`, `comment`. Each mounts a real leaf whose `--help` line leads with `NOT AVAILABLE - withheld by policy`, and whose invocation exits `policy_denied` (2) carrying its reason, which names the `aosguard ops forgejo pr` verb that replaces it.
+* **Five `withhold` stubs** over the pull-request writes `close`, `reopen`, `ready`, `review` and `comment`. Each mounts a real leaf whose `--help` line leads with `NOT AVAILABLE - withheld by policy`, and whose invocation exits `policy_denied` (2) carrying its reason, which names the `aosguard ops forgejo pr` verb that replaces it. They stay withheld for every repo.
 * **`api`, allowlisted down to a GET.** `gh api -f title=x <path>` flips to POST with no method flag anywhere in the argv, so denying `--method` and `-X` would pass that spelling untouched. Only an allowlist sees the shape. The two real fleet callers pass `--cache` and `--jq` and nothing else.
+* **Per-repo grants** for `pr create`, `pr edit`, `pr merge` and `actions-permissions`, described below.
 
-The first version of this file enumerated 23 read grants to protect those 8 withholds. That list was an inventory of GitHub's CLI rather than a statement of this estate's policy, so it would have rotted against `gh` releases, and a verb nobody thought of would have been a verb the fleet silently lost. `default-allow` was added to umbra for exactly this case (umbra#372).
+## GitHub-canonical repos (COI-2975)
+
+A PR merged on GitHub for a repo still Forgejo-canonical makes the next 10-minute mirror push a non-fast-forward, which only a force-push repairs. So the three PR writes are granted per repo, never globally. Each is `can run` with `when repo matches <repo...>`, and a call outside the list exits 2 with `did not match any allowed pattern`.
+
+* **A repo joins** by being added to all four lists in `gh.kdl` in the same change that flips its mirror direction. The tests read the list from the guard's own refusal text, and fail if the lists differ or the `actions-permissions` endpoints are not the same repos.
+* **`--repo OWNER/REPO` is required.** The guard reads the flag, and a repo inferred from the cwd is invisible to it.
+* **`-R` is refused.** gh binds `-R` and `--repo` to one variable and the last wins, so the short spelling would retarget past the guard.
+* **A URL selector is refused** on `edit` and `merge`, because gh lets the URL override `--repo`. Pass a number or a branch. A short flag's value that holds `://` is refused too, so use `--body` rather than `-b` for text with a link.
+* **`merge` is squash only.** `--merge`, `-m`, `--rebase`, `-r` and `--admin` are denied.
+* **`actions-permissions <endpoint>` is `gh api --method PUT <endpoint>`**, with the endpoint pinned to `repos/<repo>/actions/permissions` and `--field` and `--raw-field` the only flags. It exists as its own leaf because `api` cannot allow a write flag and pin one endpoint at once. `-X` on `api` stays refused.
+* **Open: a repeated `--repo`** is read by its first occurrence and gh uses the last (COI-2977, an umbra fix). It takes typing the flag twice on purpose, and `test_a_repeated_repo_flag_is_refused` is an `xfail` until it lands.
+* **At Forgejo teardown** (COI-2931) the lists and the five withholds go, and AGENTS.md's lane text names GitHub.
+
+The first version of this file enumerated 23 read grants to protect the withholds. That list was an inventory of GitHub's CLI rather than a statement of this estate's policy, so it would have rotted against `gh` releases, and a verb nobody thought of would have been a verb the fleet silently lost. `default-allow` was added to umbra for exactly this case (umbra#372).
 
 `withhold` rather than `never run`, and the difference is the whole design. An exec-dialect `never run` mounts nothing at all, so the caller gets `unknown verb`, which reads as a wrapper missing a feature. Under default-allow it is worse than that: an unnamed verb forwards, so silence would hand the caller the very thing this refuses.
 
