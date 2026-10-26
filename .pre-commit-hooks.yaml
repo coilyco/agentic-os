@@ -1,7 +1,7 @@
 # aos-precommit hooks shipped by coilyco/agentic-os.
 # Consumers reference via:
 #
-#   - repo: https://forgejo.coilysiren.me/coilyco/agentic-os
+#   - repo: https://github.com/coilyco/agentic-os
 #     rev: aos-precommit-v0.1.0
 #     hooks:
 #       - id: catalog-trifecta

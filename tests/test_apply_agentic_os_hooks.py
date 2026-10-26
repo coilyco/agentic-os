@@ -256,6 +256,22 @@ repos:
     assert "rev: v0.1.0" not in rendered
 
 
+def test_refresh_replaces_a_block_that_names_another_host(tmp_path: Path) -> None:
+    """A consumer still pointing at the old hook host is moved to the current source."""
+    script = _load_script()
+    config = tmp_path / ".pre-commit-config.yaml"
+    old_host = "https://forgejo.example/owner/agentic-os"
+    stale = script.managed_block("v1.0.0").replace(script.AGENTIC_OS_REPO_URL, old_host)
+    config.write_text(f"repos:\n{stale}\n", encoding="utf-8")
+
+    status, _ = script.upsert_managed_block(config, "v2.0.0")
+    rendered = config.read_text(encoding="utf-8")
+
+    assert status == "updated"
+    assert old_host not in rendered
+    assert f"repo: {script.AGENTIC_OS_REPO_URL}\n    rev: v2.0.0" in rendered
+
+
 def test_vendored_trees_exclude_only_the_rewriting_hooks(tmp_path: Path) -> None:
     """A vendored tree opts out of the fixers, not the reporting hooks."""
     script = _load_script()
