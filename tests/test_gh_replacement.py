@@ -300,15 +300,17 @@ def test_actions_permissions_is_a_put_on_one_endpoint(
         assert refused(run(shim, fake_gh, *args)), args
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="umbra reads the first --repo and gh the last, so a repeat retargets (COI-2977)",
-)
 def test_a_repeated_repo_flag_is_refused(
     shim: Path, fake_gh: Path, listed: list[str]
 ) -> None:
-    result = run(shim, fake_gh, "pr", "create", "--repo", listed[0], "--repo", UNLISTED, "--title", "t")
-    assert refused(result)
+    """gh takes the last --repo, so the guard has to read every one (umbra v0.256.0)."""
+    for args in (
+        ("--repo", listed[0], "--repo", UNLISTED),
+        ("--repo", UNLISTED, "--repo", listed[0]),
+        (f"--repo={listed[0]}", "--repo", UNLISTED),
+    ):
+        assert refused(run(shim, fake_gh, "pr", "create", *args, "--title", "t")), args
+    assert run(shim, fake_gh, "pr", "create", "--repo", listed[0], f"--repo={listed[0]}").returncode == 0
 
 
 def test_the_guardfile_grants_no_pull_request_write(shim: Path) -> None:
