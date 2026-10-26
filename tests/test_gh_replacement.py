@@ -16,9 +16,9 @@ PROJECT = ROOT / ".umbra" / "shims"
 MEMBER = PROJECT / "gh" / "gh.kdl"
 LOCK = ROOT / ".umbra" / "guardfiles" / "specverb.lock"
 
-# The pull-request writes withheld for every repo. `create`, `edit` and `merge`
-# are granted per GitHub-canonical repo instead (COI-2975).
-WITHHELD = ("close", "reopen", "ready", "review", "comment")
+# The pull-request write withheld for every repo. The rest are granted per
+# GitHub-canonical repo instead (COI-2975).
+WITHHELD = ("review",)
 
 # Named by no list, so a refusal here is the allowlist and not a typo'd repo.
 UNLISTED = "coilyco/not-a-listed-repo"
@@ -101,6 +101,18 @@ def test_a_read_reaches_the_real_binary(shim: Path, fake_gh: Path) -> None:
     assert "REAL_GH pr list --state open" in result.stdout
 
 
+def test_viewing_and_checks_reach_the_real_binary_for_any_repo(
+    shim: Path, fake_gh: Path
+) -> None:
+    for args in (
+        ("pr", "view", "12", "--repo", UNLISTED),
+        ("pr", "checks", "12", "--repo", UNLISTED),
+    ):
+        result = run(shim, fake_gh, *args)
+        assert result.returncode == 0, (args, result.stdout + result.stderr)
+        assert f"REAL_GH {' '.join(args)}" in result.stdout, args
+
+
 def test_an_unnamed_verb_forwards_to_the_real_binary(
     shim: Path, fake_gh: Path
 ) -> None:
@@ -161,7 +173,7 @@ def listed(shim: Path, fake_gh: Path) -> list[str]:
     return found.group(1).split()
 
 
-def test_a_listed_repo_opens_edits_and_squash_merges(
+def test_a_listed_repo_accepts_every_granted_pull_request_verb(
     shim: Path, fake_gh: Path, listed: list[str]
 ) -> None:
     for repo in listed:
@@ -171,6 +183,10 @@ def test_a_listed_repo_opens_edits_and_squash_merges(
             ("pr", "edit", "12", "--repo", repo, "--title", "t", "--add-label", "bug"),
             ("pr", "merge", "12", "--repo", repo, "--squash", "--delete-branch"),
             ("pr", "merge", "--squash", "12", f"--repo={repo}"),
+            ("pr", "close", "12", "--repo", repo, "--comment", "done"),
+            ("pr", "reopen", "12", "--repo", repo),
+            ("pr", "comment", "12", "--repo", repo, "--body", "see https://x.test/1"),
+            ("pr", "ready", "12", "--repo", repo, "--undo"),
         ):
             result = run(shim, fake_gh, *args)
             assert result.returncode == 0, (args, result.stdout + result.stderr)
@@ -181,7 +197,7 @@ def test_every_list_names_the_same_repos(
     shim: Path, fake_gh: Path, listed: list[str]
 ) -> None:
     """One repo joins every list in the same change, or it is half flipped."""
-    for verb in ("edit", "merge"):
+    for verb in ("edit", "merge", "close", "reopen", "comment", "ready"):
         result = run(shim, fake_gh, "pr", verb, "12", "--repo", UNLISTED)
         assert f"[{' '.join(listed)}]" in result.stderr, (verb, result.stderr)
     result = run(shim, fake_gh, "actions-permissions", "repos/x/y/actions/permissions")
@@ -196,6 +212,10 @@ def test_an_unlisted_repo_is_refused_on_every_granted_verb(
         ("pr", "create", "--repo", UNLISTED, "--title", "t"),
         ("pr", "edit", "12", "--repo", UNLISTED, "--title", "t"),
         ("pr", "merge", "12", "--repo", UNLISTED, "--squash"),
+        ("pr", "close", "12", "--repo", UNLISTED),
+        ("pr", "reopen", "12", "--repo", UNLISTED),
+        ("pr", "comment", "12", "--repo", UNLISTED, "--body", "t"),
+        ("pr", "ready", "12", "--repo", UNLISTED),
         ("actions-permissions", f"repos/{UNLISTED}/actions/permissions", "--field", "enabled=true"),
     ):
         assert refused(run(shim, fake_gh, *args)), args
@@ -207,6 +227,10 @@ def test_a_call_that_names_no_repo_is_refused(shim: Path, fake_gh: Path) -> None
         ("pr", "create", "--title", "t"),
         ("pr", "edit", "12", "--title", "t"),
         ("pr", "merge", "12", "--squash"),
+        ("pr", "close", "12"),
+        ("pr", "reopen", "12"),
+        ("pr", "comment", "12", "--body", "t"),
+        ("pr", "ready", "12"),
     ):
         assert refused(run(shim, fake_gh, *args)), args
 
@@ -216,7 +240,15 @@ def test_the_short_repo_flag_cannot_retarget_a_listed_repo(
 ) -> None:
     """gh binds -R and --repo to one variable and the last one wins."""
     repo = listed[0]
-    for verb_args in (("create", "--title", "t"), ("edit", "12"), ("merge", "12", "--squash")):
+    for verb_args in (
+        ("create", "--title", "t"),
+        ("edit", "12"),
+        ("merge", "12", "--squash"),
+        ("close", "12"),
+        ("reopen", "12"),
+        ("comment", "12", "--body", "t"),
+        ("ready", "12"),
+    ):
         for flag in (("-R", UNLISTED), (f"-R{UNLISTED}",)):
             args = ("pr", verb_args[0], *verb_args[1:], "--repo", repo, *flag)
             assert refused(run(shim, fake_gh, *args)), args
@@ -228,7 +260,14 @@ def test_a_url_selector_cannot_retarget_a_listed_repo(
     """gh lets a pull request URL override --repo, in either flag order."""
     url = f"https://github.com/{UNLISTED}/pull/3"
     repo = listed[0]
-    for verb, extra in (("merge", ("--squash",)), ("edit", ("--title", "t"))):
+    for verb, extra in (
+        ("merge", ("--squash",)),
+        ("edit", ("--title", "t")),
+        ("close", ()),
+        ("reopen", ()),
+        ("comment", ("--body", "t")),
+        ("ready", ()),
+    ):
         for args in (
             ("pr", verb, url, "--repo", repo, *extra),
             ("pr", verb, *extra, url, "--repo", repo),
