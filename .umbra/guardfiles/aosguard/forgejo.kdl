@@ -21,13 +21,15 @@ wrap aosguard ops forgejo {
     // surface cannot rename them, so each needs its own (agentic-os#1378).
     restrict owner matches coily*
     restrict username matches coily*
-    // repos: read/create/edit/delete plus the cross-repo `search` finder. Fork
-    // and archive/unarchive are denied below as human-only irreversible toggles.
+    // repos: read/edit/delete plus the cross-repo `search` finder. Create (COI-2995),
+    // fork and archive/unarchive are denied as human-only or fleet-barred.
     can get repo
     can search repo {
         describe "cross-repo repo finder (GET /repos/search)"
     }
-    can create repo
+    never create repo {
+        message "creating a new Forgejo repository is denied fleet-wide (COI-2995): do not mint repos, extend an existing one"
+    }
     can edit repo
     never replace-all repo-topic {
         op repoUpdateTopics
@@ -54,9 +56,9 @@ wrap aosguard ops forgejo {
     never delete org {
         message "org deletion is irreversible and human-only"
     }
-    can create org-repo {
+    never create org-repo {
         op createOrgRepo
-        describe "create a repo inside an existing org (POST /orgs/{org}/repos); the org-scoped sibling of `create repo` (which targets /user/repos, a path the bot lacks write:user for). The coilyco-ops token already carries write:organization, so this is a missing verb, not a missing scope (ward#218). op pinned because a bare `create org-repo` also matches the deprecated alias. Org create/delete stay human-only; this creates repos within an org, not orgs themselves."
+        message "creating a new Forgejo repository is denied fleet-wide (COI-2995): do not mint repos, extend an existing one"
     }
     can list org-repo {
         op orgListRepos
