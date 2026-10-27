@@ -45,7 +45,7 @@ func connectorsApply(w io.Writer, spec nativeLaunchSpec, args []string) bool {
 func (selection mcpScopeSelection) allowlist(connectors []nativeSpecConnector, home string) []map[string]any {
 	var out []map[string]any
 	for _, name := range selection.Selected {
-		rendered := mcpScopeClaudeServer(selection.servers[name], home)
+		rendered := mcpScopeClaudeServer(selection.servers[name], home, selection.headerLookup())
 		if url, ok := rendered["url"].(string); ok {
 			out = append(out, map[string]any{"serverUrl": url})
 			continue

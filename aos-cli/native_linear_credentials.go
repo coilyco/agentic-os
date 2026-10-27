@@ -21,6 +21,9 @@ const (
 	linearKeyFetchTimeout     = 15 * time.Second
 	linearAppParameterRoot    = "/coilysiren/linear/apps/"
 	linearAppScope            = "read,write"
+	// ssmReadFixHint ends the warning for a header secret whose SSM read failed,
+	// since the AWS error body is withheld from the terminal.
+	ssmReadFixHint = "If the AWS SSO session expired, run `aws sso login` and relaunch."
 )
 
 // linearTokenEndpoint is a variable so a test can point it at a local server.
@@ -38,6 +41,12 @@ type linearAppFetch func(ctx context.Context, role string) (creds linearAppCrede
 type linearAppMint func(ctx context.Context, creds linearAppCredentials) (string, error)
 
 type linearKeyFetch func(context.Context) (string, error)
+
+// applyNativeLaunchCredentials is every SSM-backed header secret a launch exports.
+func applyNativeLaunchCredentials(ctx context.Context, stderr io.Writer, role string) {
+	applyNativeLinearEnvironment(ctx, stderr, role)
+	applyNativeMCPCredentials(ctx, stderr, role)
+}
 
 // applyNativeLinearEnvironment exports the Linear key for public_coilyco_linear.
 // A failed read never blocks the launch. See docs/aos-auth.md.
@@ -172,7 +181,7 @@ func applyLinearEnvironment(
 	if !ok || key == "" {
 		fetched, err := fetch(ctx)
 		if err != nil {
-			fmt.Fprintf(stderr, "aos: warning: read %s for the Linear MCP: %v\n", linearKeyParameter, err)
+			fmt.Fprintf(stderr, "aos: warning: the SSM read of %s failed (%v), so public_coilyco_linear gets no Authorization header. %s\n", linearKeyParameter, err, ssmReadFixHint)
 			return
 		}
 		key = strings.TrimSpace(fetched)

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -38,6 +39,58 @@ type mcpScopeSelection struct {
 	Omitted  []string
 	Scoped   int
 	servers  map[string]mcpScopeServer
+	// lookup resolves the ${VAR} sources of a header, os.LookupEnv unless a test sets it.
+	lookup environmentLookup
+}
+
+var mcpScopeEnvRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}`)
+
+// unreadableHeaders maps a header to its variables when every ${VAR} in the value
+// is unset or blank with no default. A present header turns Claude's OAuth fallback off.
+func unreadableHeaders(server mcpScopeServer, lookup environmentLookup) map[string][]string {
+	dropped := map[string][]string{}
+	for header, value := range server.Headers {
+		refs := mcpScopeEnvRef.FindAllStringSubmatch(value, -1)
+		if len(refs) == 0 {
+			continue
+		}
+		var names []string
+		for _, ref := range refs {
+			if current, _ := lookup(ref[1]); strings.TrimSpace(current) != "" || strings.TrimSpace(ref[2]) != "" {
+				names = nil
+				break
+			}
+			names = append(names, ref[1])
+		}
+		if names != nil {
+			dropped[header] = names
+		}
+	}
+	return dropped
+}
+
+func (selection mcpScopeSelection) headerLookup() environmentLookup {
+	if selection.lookup == nil {
+		return os.LookupEnv
+	}
+	return selection.lookup
+}
+
+// headerOmissions words one line per header left off the generated config, so
+// the launch names the cause. The value is never read into the line.
+func (selection mcpScopeSelection) headerOmissions() []string {
+	var lines []string
+	for _, name := range selection.Selected {
+		dropped := unreadableHeaders(selection.servers[name], selection.headerLookup())
+		for _, header := range sortedNativeKeys(selection.servers[name].Headers) {
+			if variables, ok := dropped[header]; ok {
+				lines = append(lines, fmt.Sprintf(
+					"aos: MCP %s: no %s header, %s is unset or empty. The server starts unauthenticated. Fix the credential read warned above, then relaunch",
+					name, header, strings.Join(variables, ", ")))
+			}
+		}
+	}
+	return lines
 }
 
 var errNoMCPInventory = errors.New("no MCP inventory")
@@ -116,7 +169,7 @@ func (selection mcpScopeSelection) codexOverrides() []string {
 func (selection mcpScopeSelection) writeClaudeConfig(dir, home string) (string, error) {
 	out := map[string]any{}
 	for name, server := range selection.servers {
-		out[name] = mcpScopeClaudeServer(server, home)
+		out[name] = mcpScopeClaudeServer(server, home, selection.headerLookup())
 	}
 	payload, err := json.MarshalIndent(map[string]any{"mcpServers": out}, "", "  ")
 	if err != nil {
@@ -146,7 +199,7 @@ func (selection mcpScopeSelection) writeClaudeConfig(dir, home string) (string, 
 	return path, os.Rename(tmp.Name(), path)
 }
 
-func mcpScopeClaudeServer(server mcpScopeServer, home string) map[string]any {
+func mcpScopeClaudeServer(server mcpScopeServer, home string, lookup environmentLookup) map[string]any {
 	expand := func(value string) string { return strings.ReplaceAll(value, "${HOME}", home) }
 	expandPath := func(value string) string {
 		if strings.Contains(value, "${HOME}") {
@@ -167,8 +220,17 @@ func mcpScopeClaudeServer(server mcpScopeServer, home string) map[string]any {
 	}
 	if strings.TrimSpace(endpoint) != "" {
 		out := map[string]any{"type": "http", "url": expand(endpoint)}
-		if len(server.Headers) > 0 {
-			out["headers"] = expandMap(server.Headers)
+		// Unreadable headers are left off. The rest keep ${VAR} literal, so no secret
+		// reaches the file.
+		headers := map[string]string{}
+		dropped := unreadableHeaders(server, lookup)
+		for header, value := range server.Headers {
+			if _, skip := dropped[header]; !skip {
+				headers[header] = value
+			}
+		}
+		if len(headers) > 0 {
+			out["headers"] = expandMap(headers)
 		}
 		return out
 	}
@@ -251,6 +313,9 @@ func nativeSpecMCPScope(ctx context.Context, spec nativeLaunchSpec, role, invent
 	}
 	selection := selectMCPScope(servers, role)
 	fmt.Fprintln(os.Stderr, selection.summary())
+	for _, line := range selection.headerOmissions() {
+		fmt.Fprintln(os.Stderr, line)
+	}
 	switch spec.Harness {
 	case "codex":
 		return mcpScopeLaunch{Flags: selection.codexOverrides()}, nil
@@ -352,7 +417,7 @@ func (selection mcpScopeSelection) gooseArgs(keep []string, home string) ([]stri
 	}
 	for _, name := range selection.Selected {
 		server := selection.servers[name]
-		rendered := mcpScopeClaudeServer(server, home)
+		rendered := mcpScopeClaudeServer(server, home, selection.headerLookup())
 		if url, ok := rendered["url"].(string); ok {
 			// The flag takes a URL alone, so a header would be dropped silently.
 			if len(server.Headers) > 0 {
@@ -420,7 +485,7 @@ func (selection mcpScopeSelection) openCodeConfig(home string) (string, error) {
 	mcp := map[string]any{}
 	for _, name := range selection.Selected {
 		server := selection.servers[name]
-		rendered := mcpScopeClaudeServer(server, home)
+		rendered := mcpScopeClaudeServer(server, home, selection.headerLookup())
 		if url, ok := rendered["url"].(string); ok {
 			entry := map[string]any{"type": "remote", "url": url, "enabled": true}
 			if headers, ok := rendered["headers"]; ok {

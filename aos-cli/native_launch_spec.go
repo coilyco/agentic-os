@@ -103,6 +103,8 @@ func resolveSpecLaunch(ctx context.Context, command []string) ([]string, error) 
 	if err := applyNativeLaunchSpecEnvironment(spec); err != nil {
 		return nil, err
 	}
+	// Before the MCP scope below, which leaves off a header whose variable is unset.
+	applyNativeLaunchCredentials(ctx, os.Stderr, role)
 	identity, err := nativeSpecIdentityArgs(ctx, spec, inventoryHome, args)
 	if err != nil {
 		return nil, err

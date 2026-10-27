@@ -274,10 +274,13 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 			return err
 		}
 	}
+	credentialsApplied := false
 	if nativeLaunchSpecEnabled() {
 		if command, err = resolveSpecLaunch(ctx, command); err != nil {
 			return err
 		}
+		// resolveSpecLaunch exported them before it wrote the MCP config.
+		credentialsApplied = true
 	}
 	if command, err = applyConfiguredPermissionMode(command, harness); err != nil {
 		return err
@@ -291,8 +294,9 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 			fmt.Fprintf(runtime.Stderr, "aos: withheld %s from %s: an Anthropic API key is for operational checks only\n", key, harness)
 		}
 	}
-	applyNativeLinearEnvironment(ctx, runtime.Stderr, role)
-	applyNativeMCPCredentials(ctx, runtime.Stderr, role)
+	if !credentialsApplied {
+		applyNativeLaunchCredentials(ctx, runtime.Stderr, role)
+	}
 	runtime.Progress.Ready()
 	runtime.Progress.Exec(command)
 	return execNative(command)

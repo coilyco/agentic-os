@@ -56,7 +56,7 @@ func applyMCPCredentials(
 		}
 		token, err := fetch(ctx, credential.Parameter)
 		if err != nil {
-			fmt.Fprintf(stderr, "aos: warning: read %s for %s: %v\n", credential.Parameter, credential.Env, err)
+			fmt.Fprintf(stderr, "aos: warning: the SSM read of %s for %s failed (%v), so its MCP entry gets no Authorization header. %s\n", credential.Parameter, credential.Env, err, ssmReadFixHint)
 			continue
 		}
 		token = strings.TrimSpace(token)

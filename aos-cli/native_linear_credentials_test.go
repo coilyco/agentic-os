@@ -88,6 +88,9 @@ func TestApplyLinearEnvironmentFailsOpenWithoutLeakingTheValue(t *testing.T) {
 			if strings.Contains(stderr.String(), "must-not-appear") {
 				t.Fatalf("warning leaked the value: %q", stderr.String())
 			}
+			if name == "error" && !strings.Contains(stderr.String(), "aws sso login") {
+				t.Fatalf("a failed read does not name the fix: %q", stderr.String())
+			}
 		})
 	}
 }
