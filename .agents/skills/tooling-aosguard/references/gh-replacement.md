@@ -41,6 +41,17 @@ Run on a listed repo through this guard on 2026-10-27, each verb exiting 0. Ever
 
 `gh` signs in with the host's stored login, and the real binary is one path away from this shim. So the token is guarded by the verbs the shim names and not by its scope. Narrowing the token is COI-2935.
 
+## The token broker (COI-2933)
+
+`aterm github-token --repo coilyco/NAME` prints one coilyco-ops App installation token and nothing else. The aterm daemon mints it, so a seat never reads the App key: it comes from the daemon's `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY_BASE64`, else SSM through `aws`. The `github_token` frame (feature `github-token`) names the caller by `ATERM_SESSION_TOKEN`, and a browser client or an unknown token is refused.
+
+* **One owner, one repo.** Only `coilyco`, and the mint requests `repositories: [NAME]`, so a leaked token reaches one repo for about an hour. A token is cached until five minutes before expiry.
+* **Permissions** default to contents write, pull_requests write, metadata read, as infrastructure's `github_app_token.py`. `ATERM_GITHUB_PERMISSIONS=actions=write,contents=write,...` widens them, and GitHub refuses the whole mint if the installation holds less, so widen only after the App grants it.
+* **Not wired to `gh` yet.** umbra's `env` value is fixed at parse and cannot read the validated `--repo`, so the shim needs an umbra change or a wrapper `exec` target. Until then nothing calls the broker.
+* **Not a floor.** It leaves the real `gh` and the host login reachable (COI-3013). A call with no single repo, such as `gh repo list ORG`, cannot take a single-repo token.
+
+The seam is `githubBroker.token` in `aterm/github_token.go`, and `ATERM_GITHUB_API` points it at a stand-in API for tests.
+
 The first version of this file enumerated 23 read grants to protect the withholds. That list was an inventory of GitHub's CLI rather than a statement of this estate's policy, so it would have rotted against `gh` releases, and a verb nobody thought of would have been a verb the fleet silently lost. `default-allow` was added to umbra for exactly this case (umbra#372).
 
 `withhold` rather than `never run`, and the difference is the whole design. An exec-dialect `never run` mounts nothing at all, so the caller gets `unknown verb`, which reads as a wrapper missing a feature. Under default-allow it is worse than that: an unnamed verb forwards, so silence would hand the caller the very thing this refuses.

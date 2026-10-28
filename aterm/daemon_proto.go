@@ -88,9 +88,15 @@ type frame struct {
 	All bool `json:"all,omitempty"`
 
 	// replies and events
-	Message  *peerMessage   `json:"message,omitempty"`
-	Inbox    []inboxMessage `json:"inbox,omitempty"`
-	Sessions []sessionView  `json:"sessions,omitempty"`
+	Message *peerMessage   `json:"message,omitempty"`
+	Inbox   []inboxMessage `json:"inbox,omitempty"`
+
+	// github_token: Repo names the OWNER/REPO asked for, GithubToken and Expires
+	// answer it. The token is a credential, so it rides only the reply frame.
+	Repo        string        `json:"repo,omitempty"`
+	GithubToken string        `json:"github_token,omitempty"`
+	Expires     string        `json:"expires,omitempty"`
+	Sessions    []sessionView `json:"sessions,omitempty"`
 
 	// Terminals rides beside Sessions and never inside it, so a consumer that
 	// counts or targets seats cannot meet a shell.

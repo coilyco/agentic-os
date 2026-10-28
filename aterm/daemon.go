@@ -33,6 +33,7 @@ const (
 
 type daemon struct {
 	mu       sync.Mutex
+	github   *githubBroker
 	sessions map[string]*ptySession
 	// terminals are plain login shells. They sit in their own map so every walk
 	// of sessions (send targets, roster, counts) skips them without a filter.
@@ -406,7 +407,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -584,6 +585,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return d.hosts(cl.c, message)
 	case "push_key", "push_subscribe", "push_unsubscribe":
 		return d.pushFrame(cl, message)
+	case "github_token":
+		return d.githubToken(cl, message)
 	case "whoami":
 		s := d.byToken(message.Token)
 		if s == nil {

@@ -233,6 +233,7 @@ func newCommand(deps commandDeps) *cli.Command {
 			newAskCommand(),
 			newGrantCommand(),
 			newAgentsCommand(),
+			newGithubTokenCommand(),
 			newMCPCommand(),
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
