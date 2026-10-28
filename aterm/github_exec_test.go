@@ -112,8 +112,9 @@ func TestGhExecRefusesWithoutRunningGhAndNeverFallsBack(t *testing.T) {
 	brokerDaemon(t)
 	t.Chdir(t.TempDir())
 	cases := map[string][]string{
-		"no repo and not a checkout": {"repo", "list"},
-		"another owner":              {"pr", "view", "1", "--repo", "coilysiren/website"},
+		"a write naming no repo outside a checkout": {"pr", "merge", "1"},
+		"a write on another owner":                  {"pr", "merge", "1", "--repo", "coilysiren/website"},
+		"a non-read verb on another owner":          {"workflow", "run", "x", "--repo", "other/x"},
 	}
 	for name, args := range cases {
 		var stdout, stderr bytes.Buffer
@@ -133,5 +134,42 @@ func TestGhExecRefusesWithoutRunningGhAndNeverFallsBack(t *testing.T) {
 	}
 	if _, err := os.Stat(record); err == nil {
 		t.Fatal("gh ran after the broker failed")
+	}
+}
+
+func TestGhExecRunsReadVerbsAnonymouslyOutsideCoilyco(t *testing.T) {
+	record := fakeGh(t)
+	brokerDaemon(t)
+	t.Setenv("GH_TOKEN", "host-login")
+	t.Chdir(t.TempDir())
+	for _, args := range [][]string{
+		{"pr", "view", "1", "--repo", "coilysiren/website"},
+		{"run", "view", "9", "--repo", "other/x", "--log-failed"},
+		{"api", "repos/cli/cli", "--jq", ".name"},
+		{"repo", "list", "coilysiren"},
+	} {
+		os.Remove(record)
+		var stdout, stderr bytes.Buffer
+		if code := runGhExec(args, &stdout, &stderr); code != 3 {
+			t.Fatalf("%v: exit %d, want gh's own 3. stderr: %s", args, code, stderr.String())
+		}
+		ran, err := os.ReadFile(record)
+		if err != nil {
+			t.Fatalf("%v: gh never ran: %v", args, err)
+		}
+		if !strings.Contains(string(ran), "token=\n") || !strings.Contains(string(ran), "cfgfiles=0") || strings.Contains(string(ran), "host-login") {
+			t.Errorf("%v: anonymous run saw a credential or a populated config: %s", args, ran)
+		}
+	}
+}
+
+func TestGhReadVerbIsAnAllowlistOfLeadingWords(t *testing.T) {
+	for args, want := range map[string]bool{
+		"pr view 1": true, "pr list": true, "run view 1 --log-failed": true, "search repos x": true, "api repos/a/b": true,
+		"pr merge 1": false, "pr create": false, "release create v1": false, "workflow run x": false, "repo delete x": false, "auth token": false, "": false,
+	} {
+		if got := ghReadVerb(strings.Fields(args)); got != want {
+			t.Errorf("%q = %v, want %v", args, got, want)
+		}
 	}
 }

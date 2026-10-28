@@ -70,6 +70,43 @@ func ghRepoFromRemotes(remotes string) string {
 	return repo
 }
 
+// ghReadVerbs are the gh verbs that run anonymously for a repo outside coilyco.
+// The guard already limits `gh api` to a GET, so it is listed whole.
+var ghReadVerbs = map[string][]string{
+	"pr":       {"view", "list", "checks", "diff", "status"},
+	"issue":    {"view", "list", "status"},
+	"run":      {"view", "list"},
+	"repo":     {"view", "list"},
+	"release":  {"view", "list"},
+	"workflow": {"view", "list"},
+	"search":   nil,
+	"api":      nil,
+}
+
+// ghVerbWords is the leading words of a call, before its first flag.
+func ghVerbWords(args []string) []string {
+	words := []string{}
+	for _, arg := range args {
+		if strings.HasPrefix(arg, "-") || len(words) == 2 {
+			break
+		}
+		words = append(words, arg)
+	}
+	return words
+}
+
+func ghReadVerb(args []string) bool {
+	words := ghVerbWords(args)
+	if len(words) == 0 {
+		return false
+	}
+	subs, known := ghReadVerbs[words[0]]
+	if !known {
+		return false
+	}
+	return subs == nil || (len(words) == 2 && slices.Contains(subs, words[1]))
+}
+
 func ghExecRefuse(stderr io.Writer, format string, args ...any) int {
 	fmt.Fprintf(stderr, "aterm gh-exec: "+format+"\n", args...)
 	return exitUsage
@@ -84,13 +121,17 @@ func runGhExec(args []string, stdout, stderr io.Writer) int {
 			repo = ghRepoFromRemotes(string(out))
 		}
 	}
-	if repo == "" {
-		return ghExecRefuse(stderr, "this call names no single repo, so no token can be minted. Add --repo OWNER/REPO")
-	}
-	token, err := requestGithubToken(repo)
-	if err != nil {
-		fmt.Fprintf(stderr, "aterm gh-exec: cannot mint a token for %s: %v\naterm gh-exec: refusing, and not falling back to the host login\n", repo, err)
-		return exitCodeFor(err)
+	token := ""
+	if owner, _, _ := strings.Cut(repo, "/"); owner == githubOwner {
+		minted, err := requestGithubToken(repo)
+		if err != nil {
+			fmt.Fprintf(stderr, "aterm gh-exec: cannot mint a token for %s: %v\naterm gh-exec: refusing, and not falling back to the host login\n", repo, err)
+			return exitCodeFor(err)
+		}
+		token = minted
+	} else if !ghReadVerb(args) {
+		// Anonymous is read-only: a write has no token to carry it.
+		return ghExecRefuse(stderr, "`gh %s` is refused. It is not a read verb, and a write needs a coilyco repo to mint a token for (this call names %q)", strings.Join(ghVerbWords(args), " "), repo)
 	}
 	gh, err := exec.LookPath("gh")
 	if err != nil {
@@ -111,7 +152,10 @@ func runGhExec(args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	child := exec.Command(gh, args...)
-	child.Env = append(env, "GH_TOKEN="+token, "GH_CONFIG_DIR="+config)
+	child.Env = append(env, "GH_CONFIG_DIR="+config)
+	if token != "" {
+		child.Env = append(child.Env, "GH_TOKEN="+token)
+	}
 	child.Stdin, child.Stdout, child.Stderr = os.Stdin, stdout, stderr
 	err = child.Run()
 	var exited *exec.ExitError

@@ -357,3 +357,77 @@ def test_the_replacement_declares_itself(shim: Path, fake_gh: Path) -> None:
     )
 
     assert "umbra replacement" in result.stdout + result.stderr
+
+
+# The seat variant execs `aterm gh-exec` (COI-2933). Its policy is derived from
+# the container guardfile's, so these prove the derivation, not the policy again.
+SEAT_PROJECT = ROOT / ".umbra" / "shims-seat"
+SEAT_MEMBER = SEAT_PROJECT / "gh" / "gh.kdl"
+
+
+@pytest.fixture(scope="module")
+def seat_shim(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    suffix = ".exe" if os.name == "nt" else ""
+    binary = tmp_path_factory.mktemp("gh-seat-shim") / f"gh{suffix}"
+    shutil.copyfile(LOCK, SEAT_PROJECT / "specverb.lock")
+    subprocess.run(
+        ["umbra", "--project-root", str(SEAT_PROJECT), "--guardfile", str(SEAT_MEMBER), "build", "--out", str(binary)],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return binary
+
+
+@pytest.fixture(scope="module")
+def fake_aterm(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Stands in for aterm, so what the seat shim hands it is observable offline."""
+    bin_dir = tmp_path_factory.mktemp("fake-aterm")
+    script = bin_dir / "aterm"
+    script.write_text('#!/bin/sh\nprintf "ATERM %s\\n" "$*"\n', encoding="utf-8")
+    script.chmod(0o755)
+    return bin_dir
+
+
+def test_the_seat_guardfile_is_the_container_one_but_for_its_exec_lines() -> None:
+    from agentic_os.generators import generate_gh_seat_guardfile as gen
+
+    assert SEAT_MEMBER.read_text(encoding="utf-8") == gen.render(MEMBER.read_text(encoding="utf-8"))
+    import difflib
+
+    def body(path: Path) -> list[str]:
+        return [x for x in path.read_text(encoding="utf-8").splitlines() if not x.startswith("//")]
+
+    changed = {
+        line[1:].strip()
+        for line in difflib.unified_diff(body(MEMBER), body(SEAT_MEMBER), lineterm="", n=0)
+        if line[:1] in "+-" and line[:3] not in ("+++", "---")
+    }
+    assert changed == {"exec gh", "replace", "exec aterm {", 'argv-prefix "gh-exec"', "}", 'replace "gh"'}
+
+
+def test_the_seat_shim_hands_validated_calls_to_aterm_gh_exec(
+    seat_shim: Path, fake_aterm: Path, listed: list[str]
+) -> None:
+    repo = listed[0]
+    for args, want in (
+        (("pr", "create", "--repo", repo, "--title", "x"), f"ATERM gh-exec pr create --repo {repo} --title x"),
+        (("pr", "update-branch", "3", "--repo", UNLISTED), f"ATERM gh-exec pr update-branch 3 --repo {UNLISTED}"),
+        (("run", "view", "9", "--repo", UNLISTED, "--log-failed"), f"ATERM gh-exec run view 9 --repo {UNLISTED} --log-failed"),
+        (("api", "repos/x/y", "--cache", "1h"), "ATERM gh-exec api repos/x/y --cache 1h"),
+    ):
+        result = run(seat_shim, fake_aterm, *args)
+        assert result.returncode == 0, (args, result.stdout + result.stderr)
+        assert want in result.stdout, (args, result.stdout)
+
+
+def test_the_seat_shim_keeps_every_refusal(seat_shim: Path, fake_aterm: Path) -> None:
+    for args in (
+        ("pr", "create", "--repo", UNLISTED, "--title", "x"),
+        ("pr", "merge", "1", "--repo", UNLISTED, "--squash"),
+        ("pr", "review", "1"),
+        ("api", "-X", "POST", "/repos/x/y/pulls"),
+    ):
+        result = run(seat_shim, fake_aterm, *args)
+        assert result.returncode != 0 and "ATERM" not in result.stdout, (args, result.stdout + result.stderr)
