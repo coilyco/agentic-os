@@ -1,0 +1,21 @@
+{
+  "hosted": ["ubuntu-24.04", "ubuntu-latest"],
+  "forgejo_to_github": {
+    "docker": "ubuntu-24.04",
+    "docker-build": "ubuntu-24.04",
+    "dev-base": "ubuntu-24.04",
+    "deploy": "ubuntu-24.04",
+    "rollout": "ubuntu-24.04",
+    "website": "ubuntu-24.04"
+  },
+  "needs_redesign": {
+    "rollout": "deploys belong in coilyco/deploy on a hosted runner over Tailscale (COI-2967)",
+    "website": "site deploys move into coilyco/deploy (COI-2967)",
+    "deploy": "image publish needs a registry seam first (COI-2938)"
+  },
+  "forbidden_hosts": ["forgejo.coilysiren.me"],
+  "setup_ci": {
+    "uses": "coilyco/agentic-os/actions/setup-ci",
+    "ref": "df1aee7cf7fd1c36c1eda3523291a76b0cdbbd35"
+  }
+}

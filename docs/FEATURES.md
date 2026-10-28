@@ -49,7 +49,7 @@ Major shipped capabilities, not files.
 - [Cross-repo tooling and release](release.md) - aos-precommit and release operations.
 - [dev-base image](dev-base-image.md) - parallel cached language payloads feeding one automatically released full development surface.
 - [Pinned and vendored build inputs](vendor-forgejo-policy.md) - the Forgejo policy pushes down to deploy, and the WASM toolchain is baked so no build downloads it.
-- [CI and dev container](dev-container.md) - CI runs in the dev-base image today. Hosted jobs use `actions/setup-ci` and agent containers build from `devcontainer.json`, replacing dev-base.
+- [CI, dev container and workflow porting](dev-container.md) - hosted CI via `actions/setup-ci`, agent containers via `devcontainer.json`, and `port-forgejo-workflow`.
 - [AGENTS pointer](features-agents.md) - generated sibling-repo workspace pointer.
 - [AGENTS git-workflow block](build-file-headers.md) - generated per-lane standing authorization to commit, branch, push, and open a PR. One fleet lane, `pull-request-and-merge`.
 - **Brand case** - the brand name is lowercase in prose, or all caps

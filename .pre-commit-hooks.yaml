@@ -138,6 +138,17 @@
   files: '(^|/)(\.github/workflows/.*\.ya?ml|\.forgejo/workflows/.*\.ya?ml|action\.ya?ml)$'
   stages: [pre-commit, pre-push]
 
+- id: github-workflow-contract
+  name: GitHub workflows stay portable
+  description: "Reject a .github/workflows file that runs on a label outside the GitHub-hosted contract or names the Forgejo host, which a hosted runner cannot reach. Forgejo workflow trees are left alone. See docs/dev-container.md."
+  entry: check-github-workflow-contract
+  language: python
+  additional_dependencies: [pyyaml]
+  always_run: true
+  pass_filenames: false
+  files: '(^|/)\.github/workflows/.*\.ya?ml$'
+  stages: [pre-commit, pre-push]
+
 - id: source-doc-refs
   name: source doc references
   description: Validate path-like documentation references in source comments so doc burndowns cannot leave stale pointers behind.

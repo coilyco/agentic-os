@@ -50,6 +50,8 @@ check-code-review-contract = "agentic_os.pre_commit.check_code_review_contract:m
 check-code-comments = "agentic_os.pre_commit.check_code_comments:main"
 check-brand-case = "agentic_os.pre_commit.check_brand_case:main"
 check-actions-run-one-line = "agentic_os.pre_commit.check_actions_run_one_line:main"
+check-github-workflow-contract = "agentic_os.pre_commit.check_github_workflow_contract:main"
+port-forgejo-workflow = "agentic_os.port_workflow:main"
 check-source-doc-refs = "agentic_os.pre_commit.check_source_doc_refs:main"
 check-documentation-placement = "agentic_os.pre_commit.check_documentation_layout:main_placement"
 check-documentation-size = "agentic_os.pre_commit.check_documentation_layout:main_size"
@@ -162,4 +164,5 @@ agentic_os = [
     "documentation_policy.yaml",
     "org_shortnames.json",
     "outbound_link_rules.json",
+    "workflow_contract.json",
 ]
