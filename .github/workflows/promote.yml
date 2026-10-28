@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
 
       - id: app
-        uses: ./actions/github-app-token
+        uses: ./actions/app-token
         with:
           app_id: ${{ secrets.COILYCO_OPS_APP_ID }}
           private_key_base64: ${{ secrets.COILYCO_OPS_APP_PRIVATE_KEY_BASE64 }}
