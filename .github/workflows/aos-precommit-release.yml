@@ -1,5 +1,5 @@
-# Release aos-precommit only when its installed hook surface changes, which
-# includes the package-data contracts a hook reads from the installed package.
+# Release aos-precommit only when its installed hook surface changes.
+# Runs on the release branch promote.yml advances. See docs/release.md.
 
 name: aos-precommit-release
 
@@ -37,21 +37,30 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
-    runs-on: docker
+    if: ${{ github.ref == 'refs/heads/release' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
-    container: forgejo.coilysiren.me/coilyco/agentic-os:release
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          persist-credentials: false
+
+      - id: app
+        uses: ./actions/github-app-token
+        with:
+          app_id: ${{ secrets.COILYCO_OPS_APP_ID }}
+          private_key_base64: ${{ secrets.COILYCO_OPS_APP_PRIVATE_KEY_BASE64 }}
+          repositories: ${{ github.event.repository.name }}
 
       - id: tag
         uses: ./actions/tag-bump
         with:
+          token: ${{ steps.app.outputs.token }}
           bump: ${{ github.event.inputs.bump || 'minor' }}
           tag_name: ${{ github.event.inputs.tag || '' }}
           tag_prefix: aos-precommit-v
@@ -60,13 +69,7 @@ jobs:
 
       - uses: ./actions/create-release
         with:
+          token: ${{ steps.app.outputs.token }}
           tag: ${{ steps.tag.outputs.new_tag }}
           name: aos-precommit ${{ steps.tag.outputs.new_tag }}
           body: ${{ steps.tag.outputs.changelog }}
-
-      - name: Alert Sentry on release failure
-        if: ${{ failure() && github.ref == 'refs/heads/release' }}
-        continue-on-error: true
-        env:
-          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
-        run: python3 scripts/alert_sentry.py

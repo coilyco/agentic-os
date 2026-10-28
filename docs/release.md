@@ -1,15 +1,6 @@
 # Release pipeline
 
-`promote.yml` gates every `main` push and fast-forwards `release` with
-`CI_RELEASE_TOKEN`. Three artifact workflows use native paths on that diff.
-`aos-cli-release.yml` cuts the versioned CLI bundle, `aos-precommit-release.yml`
-cuts the hook package, and `dev-base-publish.yml` publishes draft images under
-`draft-${sha}` only when the promoted diff changes `docker/`. After the full
-draft succeeds, it calls `release.yml` to publish the next root minor release.
-Manual dispatch overrides the path filter and can resume the image graph.
-`release.yml` is also a no-cancel retry and override queue. It never gates the
-branch. `main` stays yolo-able, while `release` is last-known-good. Forgejo owns releases per
-[forgejo-ops.md](../.agents/skills/tooling-aosguard/references/forgejo-ops.md).
+`.github/workflows/promote.yml` gates every `main` push through `ci.yml` and fast-forwards `release` with a coilyco-ops App token. Two artifact workflows filter on that diff. `aos-cli-release.yml` cuts the versioned CLI bundle and `aos-precommit-release.yml` cuts the hook package. Manual dispatch overrides the path filter and runs only against `release`, the last-known-good branch. The dev-base train (`dev-base-publish.yml` and `release.yml`, publishing draft images under `draft-${sha}` only when the promoted diff changes `docker/`) still runs from `.forgejo/workflows` until COI-2961 retires it.
 
 Promotion only gates and advances the branch. Non-artifact merges produce no
 package tag or draft image.
@@ -36,7 +27,7 @@ majors use `scripts/release.py --bump major`. Workflow dispatch remains the
 explicit patch, major, retry, and native path-filter override.
 
 `actions/tag-bump` also has a compute-only mode: derive the next semver first,
-create the public tag and Forgejo release only at the end.
+create the public tag and the release only at the end, so a failed build leaves no tag.
 
 ## Manual re-run (enqueue-miss recovery)
 
@@ -63,11 +54,7 @@ package tag is present.
 
 ## Mirror to GitHub
 
-No workflow in this repo mirrors to GitHub. A timer in the infrastructure repo
-fast-forwards Forgejo `main` onto the read-only GitHub mirror
-(`coilysiren/agentic-os`) with a GitHub App token, never `--force`. It skips
-`agentic-os` tags on purpose, since nothing consumes them from GitHub. See
-[forgejo-ops.md](../.agents/skills/tooling-aosguard/references/forgejo-ops.md) for the mirror-side detail.
+No workflow in this repo mirrors `main`. A timer in the infrastructure repo fast-forwards Forgejo `main` onto the GitHub copy with a GitHub App token, never `--force`. `release`, the `aos-v*` and `aos-precommit-v*` tags, and their releases are written on GitHub only.
 
 ## Skip markers
 
@@ -114,6 +101,7 @@ is renamed or removed while a Forgejo workflow calls it.
 * **Host** - `host`, `auto` by default: GitHub when `GITHUB_SERVER_URL` is `https://github.com`, else Forgejo.
 * **Token** - `token` wins over the Forgejo-era `forgejo_token` (default: the job token). A `GITHUB_TOKEN` tag starts no workflow and cannot write a tap, so those take an App token from `actions/app-token`: it decodes the base64 `COILYCO_OPS_APP_PRIVATE_KEY_BASE64` with `COILYCO_OPS_APP_ID`, masks it, and mints a `contents:write` token for `repositories` (COI-2935).
 * **Calls** - tag: Forgejo `POST /tags`, GitHub `POST /git/refs`. An existing tag or release (Forgejo 409, GitHub 422) is reused. Asset: Forgejo multipart, GitHub raw body to `uploads.github.com`. Formula: Contents API on both, and an empty `url_template` writes the host's clone URL.
+* **App token** - `actions/github-app-token` decodes `COILYCO_OPS_APP_PRIVATE_KEY_BASE64` and mints a token for the listed repositories with `contents:write`, plus `workflows:write` on request, revoked when the job ends. `promote.yml` needs the workflow scope because its push carries workflow edits to `release`. The trains use it for the tag, the release, and the tap and bucket commits.
 * **Proof** - `.github/workflows/release-actions-proof.yml` (manual) runs a real tag, release and asset on GitHub, reads them back, and deletes them. `tests/test_release_actions_hosts.py` runs each action against a fake API as both hosts.
 
 Forgejo imports use `uses: https://forgejo.coilysiren.me/coilyco/agentic-os/actions/<name>@main`. GitHub callers pin a ref: `uses: coilyco/agentic-os/actions/<name>@<sha>`.
