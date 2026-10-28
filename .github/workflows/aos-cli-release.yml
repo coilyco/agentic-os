@@ -112,6 +112,7 @@ jobs:
           tag: ${{ steps.next.outputs.new_tag }}
           name: aos ${{ steps.next.outputs.new_tag }}
           body: ${{ steps.next.outputs.changelog }}
+          make_latest: "true"
 
       - name: Attach release artifacts
         env:

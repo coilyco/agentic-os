@@ -42,6 +42,10 @@ inputs:
     description: "Markdown release notes."
     required: false
     default: ""
+  make_latest:
+    description: "true|false sets the GitHub latest flag, and re-applies it to an existing release. A repo has one latest across all its trains, so a train that must not take it passes false. Empty keeps GitHub's default. Ignored on Forgejo."
+    required: false
+    default: ""
 
 outputs:
   release_id:
@@ -63,4 +67,5 @@ runs:
         TAG: ${{ inputs.tag }}
         NAME: ${{ inputs.name }}
         BODY: ${{ inputs.body }}
+        MAKE_LATEST: ${{ inputs.make_latest }}
       run: bash "${GITHUB_ACTION_PATH}/run.sh"
