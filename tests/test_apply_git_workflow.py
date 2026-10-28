@@ -84,3 +84,23 @@ def test_a_repo_without_the_marker_is_still_written(tmp_path: Path) -> None:
 
     assert action == "wrote"
     assert (repo / "AGENTS.md").read_text(encoding="utf-8") != "# Repo\n"
+
+
+def test_a_repo_that_declares_github_gets_the_github_block(tmp_path: Path) -> None:
+    script = _load_script()
+    repo = _repo(
+        tmp_path,
+        "flipped",
+        "---\nward:\n  workflow: pull-request-and-merge\n---\n# Repo\n\n## Agent rules\n",
+    )
+    (repo / "pyproject.toml").write_text(
+        "[tool.agentic-os.git-workflow]\nforge = 'github'\n", encoding="utf-8"
+    )
+
+    action, detail = script.apply_to_repo(repo, dry_run=False)
+
+    assert action == "wrote"
+    assert detail.endswith("github")
+    written = (repo / "AGENTS.md").read_text(encoding="utf-8")
+    assert "opens a GitHub pull request" in written
+    assert "forgejo" not in written.lower()

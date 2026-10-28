@@ -20,10 +20,12 @@ from agentic_os import config as cfg  # noqa: E402
 from agentic_os import hook_catalog  # noqa: E402
 from agentic_os.generators.generate_git_workflow import (  # noqa: E402
     BODY_FULL,
+    FORGE_FORGEJO,
     apply_to_text,
     detect_lane,
     unknown_lane,
     resolve_body,
+    resolve_forge,
 )
 
 
@@ -52,8 +54,11 @@ def apply_to_repo(repo_dir: Path, dry_run: bool) -> tuple[str, str]:
         lane = f"undeclared (ward.workflow {bogus!r} is not a lane)"
     # Read the mode from the repo being written, never from the applier's cwd.
     body = resolve_body(repo_dir)
+    forge = resolve_forge(repo_dir)
     detail = lane if body == BODY_FULL else f"{lane}, {body} body"
-    after = apply_to_text(before, body)
+    if forge != FORGE_FORGEJO:
+        detail = f"{detail}, {forge}"
+    after = apply_to_text(before, body, forge)
     if after == before:
         return "ok", f"already current ({detail})"
     if not dry_run:

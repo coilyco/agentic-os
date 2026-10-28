@@ -54,6 +54,8 @@ Every repo declares its landing lane once, as `ward.workflow` in the AGENTS.md f
 - **`git-workflow`** (pre-commit hook) regenerates the block offline and fails on drift, a missing block, a block that no longer matches the declared lane, or a legacy stamp beside it. Org-agnostic, no base repo exempt: a lane binds in the base as in a consumer.
 - **`apply-git-workflow`** injects or refreshes the block in place, under `## Agent rules`. Idempotent: the lane comes from the file it rewrites.
 
+**Forge.** `[tool.agentic-os.git-workflow] forge` picks `forgejo` (the default) or `github`, and the block then names that forge's pull request and update and merge verbs, which for GitHub are the [guarded `gh` lifecycle](../.agents/skills/tooling-aosguard/references/gh-replacement.md). A repo sets it in the change that flips it, and the hook fails a repo carrying the other forge's block. The pointer body names no verbs, so the composed global keeps its Forgejo wording until the prose sweep (COI-2941).
+
 Fleet rollout waits on a tagged `aos-precommit` release, then runs in order: `apply-git-workflow` lands the block, the rollout enables the hook. Reversed, every commit breaks.
 
 Schema, rollout, and the applier live in [`agentic_os/generators/generate_git_workflow.py`](../agentic_os/generators/generate_git_workflow.py).

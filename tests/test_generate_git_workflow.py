@@ -6,6 +6,8 @@ from agentic_os.generators.generate_git_workflow import (
     BODY_POINTER,
     BRANCH_ONLY,
     END,
+    FORGE_FORGEJO,
+    FORGE_GITHUB,
     LANES,
     MERGE_MAIN,
     PR_AND_MERGE,
@@ -20,6 +22,7 @@ from agentic_os.generators.generate_git_workflow import (
     render_block,
     render_body,
     resolve_body,
+    resolve_forge,
 )
 
 AGENTS = """---
@@ -389,3 +392,73 @@ def test_resolve_body_ignores_a_nonsense_value(tmp_path):
         "[tool.agentic-os.git-workflow]\nbody = 'sparse'\n"
     )
     assert resolve_body(tmp_path) == BODY_FULL
+
+
+def test_forgejo_is_the_default_forge_and_names_its_verbs():
+    block = render_block(PR_AND_MERGE)
+
+    assert block == render_block(PR_AND_MERGE, forge=FORGE_FORGEJO)
+    assert "opens a Forgejo pull request" in block
+    assert "aosguard ops forgejo pr update" in block
+
+
+@pytest.mark.parametrize("lane", [PR_AND_MERGE, PULL_REQUEST])
+def test_the_github_block_names_github_and_no_forgejo_verb(lane):
+    block = render_block(lane, forge=FORGE_GITHUB)
+
+    assert "opens a GitHub pull request" in block
+    assert "Forgejo" not in block and "forgejo" not in block
+
+
+def test_the_github_block_names_the_lifecycle_verbs_the_guard_grants():
+    block = render_block(PR_AND_MERGE, forge=FORGE_GITHUB)
+
+    assert "gh pr update-branch <number> --repo <owner>/<repo>" in block
+    assert "gh pr merge <number> --repo <owner>/<repo> --squash" in block
+
+
+def test_the_pointer_body_takes_the_forge_in_its_lead_only():
+    block = render_block(PR_AND_MERGE, BODY_POINTER, FORGE_GITHUB)
+
+    assert "opens a GitHub pull request" in block
+    assert "gh pr update-branch" not in block
+
+
+def test_an_unknown_forge_renders_forgejo():
+    assert render_block(PR_AND_MERGE, forge="gitlab") == render_block(PR_AND_MERGE)
+
+
+def test_drift_is_checked_against_the_forge_the_repo_declares():
+    text = AGENTS.format(lane=PR_AND_MERGE)
+    forgejo = apply_to_text(text)
+    github = apply_to_text(text, forge=FORGE_GITHUB)
+
+    assert github != forgejo
+    assert check_drift(github, forge=FORGE_GITHUB) == []
+    assert check_drift(forgejo, forge=FORGE_FORGEJO) == []
+    # A flipped repo still carrying the old block is the drift this exists to catch.
+    assert check_drift(forgejo, forge=FORGE_GITHUB) != []
+    assert check_drift(github, forge=FORGE_FORGEJO) != []
+
+
+def test_resolve_forge_defaults_to_forgejo_and_reads_the_repo_opt_in(tmp_path):
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'x'\n")
+    assert resolve_forge(tmp_path) == FORGE_FORGEJO
+
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.agentic-os.git-workflow]\nforge = 'github'\n"
+    )
+    assert resolve_forge(tmp_path) == FORGE_GITHUB
+
+
+def test_resolve_forge_ignores_a_nonsense_value(tmp_path):
+    (tmp_path / "pyproject.toml").write_text(
+        "[tool.agentic-os.git-workflow]\nforge = 'gitlab'\n"
+    )
+    assert resolve_forge(tmp_path) == FORGE_FORGEJO
+
+
+def test_main_prints_the_github_block_for_forge_github(capsys):
+    assert main(["--lane", PR_AND_MERGE, "--forge", FORGE_GITHUB]) == 0
+
+    assert "opens a GitHub pull request" in capsys.readouterr().out
