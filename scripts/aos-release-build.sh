@@ -56,7 +56,7 @@ download_umbra() {
         asset="${asset}${host_suffix}"
     fi
     umbra="$release_build/umbra${host_suffix}"
-    base="https://forgejo.coilysiren.me/coilyco/umbra/releases/download/v${umbra_version}"
+    base="https://github.com/coilyco/umbra/releases/download/v${umbra_version}"
     if [ -z "$umbra_version" ]; then
         echo "$umbra_lock does not pin cliGuard" >&2
         exit 1
@@ -156,7 +156,7 @@ PY
         done
     (
         cd "$project"
-        GOPROXY=direct GOSUMDB=off GOPRIVATE=forgejo.coilysiren.me \
+        GOPROXY=direct GOSUMDB=off \
             GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
             go build -trimpath -ldflags "-s -w -X main.Version=${version}" -o "$raw" .
     )

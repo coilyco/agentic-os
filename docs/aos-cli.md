@@ -28,11 +28,11 @@ Root performs bootstrap only and the harness runs as the host uid and gid. Compo
 
 ## aos CLI release
 
-The portable CLI has an independent `aos-vMAJOR.MINOR.PATCH` clock inside the agentic-os Forgejo repository. Root `v*` tags remain owned by the full dev-base image and hooks use `aos-precommit-v*`, so CLI delivery never waits on either.
+The portable CLI has an independent `aos-vMAJOR.MINOR.PATCH` clock inside the agentic-os repository. Root `v*` tags remain owned by the full dev-base image and hooks use `aos-precommit-v*`, so CLI delivery never waits on either.
 
 ## Automatic release
 
-The promoted `release` branch drives `.forgejo/workflows/aos-cli-release.yml`, whose path filter covers the shipped Go roots, AOSguard specs and bridges, the Specgen pin, the launch profiles stamped into the binaries, and release scripts, and manual dispatch is the retry path. A test derives the builder's inputs from `scripts/aos-release-build.sh` and fails when the filter omits one. The release job validates through Ward, bumps the CLI minor version without reading commit messages, cross-compiles and tag-stamps every native binary, packages each target bundle, renders checksums plus Homebrew and Scoop metadata, creates or reuses the Forgejo release, replaces every asset from a clean `dist/`, then waits for the GitHub copy of those assets (the formula and manifest name GitHub URLs, and the ser8 mirror copies them across) and updates the tap and bucket when their write tokens exist.
+The promoted `release` branch drives `.github/workflows/aos-cli-release.yml`, whose path filter covers the shipped Go roots, AOSguard specs and bridges, the Specgen pin, the launch profiles stamped into the binaries, and release scripts, and manual dispatch against `release` is the retry path. A test derives the builder's inputs from `scripts/aos-release-build.sh` and fails when the filter omits one. The release job stages the embedded web client and tests the binary against it, computes the next CLI minor version without reading commit messages, cross-compiles and tag-stamps every native binary, packages each target bundle, renders checksums plus Homebrew and Scoop metadata, then creates the tag, the GitHub release and every asset, and commits the formula and manifest to `coilyco/homebrew-tap` and `coilyco/scoop-bucket`. The tag is created after the build, so a failed build leaves none behind. See [release.md](release.md) for the token and gate.
 
 Assets group `aos-*`, `aos-bundle-*`, `aoscompose-*`, `aosguard-*`, and `aterm-*` per target, with `SHA256SUMS`, `aos.rb`, and `aos.json` covering the version-aligned set. `aterm` reads its own [target list](../aterm/release-targets.txt), which has no Windows entry, so the Scoop manifest installs everything but it.
 
@@ -42,9 +42,9 @@ Homebrew on macOS or Linux taps `coilyco/tap` (github.com/coilyco/homebrew-tap),
 
 Both put `aos`, `aoscompose`, `aoscomposed`, `aosguard`, and `aterm` on `PATH`. `aoscomposed` aliases `aoscompose`, `aosguard` carries the operator CLI and Actions bridge, and `aterm` is the [branded session launcher](aterm.md).
 
-Publication consumes the repo-scoped `TAP_WRITE_TOKEN` and `SCOOP_WRITE_TOKEN` Actions secrets, synchronized from SSM by `just sync-actions-secrets`, and an operator supplies the attended `FORGEJO_ADMIN_TOKEN` in memory.
+Publication mints one coilyco-ops App token per run from the `COILYCO_OPS_APP_ID` and `COILYCO_OPS_APP_PRIVATE_KEY_BASE64` Actions secrets, scoped to this repo, the tap, and the bucket.
 
-Workflow dispatch accepts an existing or explicit `aos-v*` tag, or the operator selects patch, minor, or major. Existing releases and same-named assets are reused and replaced, so a retry is idempotent.
+Workflow dispatch accepts an existing or explicit `aos-v*` tag, or the operator selects patch, minor, or major. An existing tag or release is reused and a same-named asset is replaced, so a retry is idempotent.
 
 ## Actions secrets sync
 

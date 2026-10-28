@@ -1,0 +1,42 @@
+# Promote main to release after the same gate ci.yml runs. See docs/release.md.
+name: promote
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: promote-main
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    uses: ./.github/workflows/ci.yml
+
+  promote-release:
+    needs: [gate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: app
+        uses: ./actions/github-app-token
+        with:
+          app_id: ${{ secrets.COILYCO_OPS_APP_ID }}
+          private_key_base64: ${{ secrets.COILYCO_OPS_APP_PRIVATE_KEY_BASE64 }}
+          repositories: ${{ github.event.repository.name }}
+          workflows: write
+
+      - name: Promote main to release (fast-forward only)
+        env:
+          PROMOTE_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          SERVER: ${{ github.server_url }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/promote-release.sh"

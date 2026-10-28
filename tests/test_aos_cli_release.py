@@ -165,7 +165,7 @@ def test_release_check_family_list_matches_the_released_binaries() -> None:
 
 def test_release_workflow_derives_assets_from_dist() -> None:
     workflow = (
-        ROOT / ".forgejo" / "workflows" / "aos-cli-release.yml"
+        ROOT / ".github" / "workflows" / "aos-cli-release.yml"
     ).read_text(encoding="utf-8")
     workflow_script = (ROOT / "scripts" / "ci" / "aos-cli-release.sh").read_text(
         encoding="utf-8"
@@ -174,7 +174,8 @@ def test_release_workflow_derives_assets_from_dist() -> None:
         encoding="utf-8"
     )
 
-    assert "for asset in dist/*" in workflow_script
+    assert "gh release upload" in workflow_script
+    assert '"$dist"/*' in workflow_script
     assert "release-targets.txt" in builder
     assert "build_aosguard" in builder
     assert "build_aosguard_skill" in builder
@@ -265,7 +266,7 @@ def test_release_trigger_paths_cover_what_the_builder_embeds() -> None:
     assert embedded, "the builder embeds nothing, so the derivation is broken"
 
     workflow = yaml.safe_load(
-        (ROOT / ".forgejo" / "workflows" / "aos-cli-release.yml").read_text(
+        (ROOT / ".github" / "workflows" / "aos-cli-release.yml").read_text(
             encoding="utf-8"
         )
     )
@@ -293,7 +294,7 @@ def test_release_builds_the_client_before_the_go_binary() -> None:
     assert gate.index("just aterm-client-embed") < gate.index("ATERM_REQUIRE_EMBEDDED_CLIENT=1 just aterm-test")
 
     workflow = yaml.safe_load(
-        (ROOT / ".forgejo" / "workflows" / "aos-cli-release.yml").read_text(encoding="utf-8")
+        (ROOT / ".github" / "workflows" / "aos-cli-release.yml").read_text(encoding="utf-8")
     )
     filters = [
         _path_filter_regex(pattern)
@@ -323,61 +324,85 @@ def test_umbra_pin_is_owned_by_the_dependency_lock() -> None:
     assert f"ARG UMBRA_VERSION={pinned}\n" in dockerfile
 
 
-def _serve_assets(tmp_path: Path, missing_requests: int):
-    """A local release server whose assets 404 for the first requests, then answer."""
-    import http.server
-    import threading
+def _remote(tmp_path: Path, repo: str, path: str, text: str) -> Path:
+    """A bare repo standing in for a GitHub tap or bucket, with one file on main."""
+    seed = tmp_path / "seed" / repo
+    seed.mkdir(parents=True)
+    (seed / path).parent.mkdir(parents=True, exist_ok=True)
+    (seed / path).write_text(text, encoding="utf-8")
+    ident = ["-c", "user.name=seed", "-c", "user.email=seed@example.invalid"]
+    for args in (["init", "-q", "-b", "main"], ["add", "."], [*ident, "commit", "-qm", "seed"]):
+        subprocess.run(["git", *args], cwd=seed, check=True, capture_output=True)
+    bare = tmp_path / "remotes" / f"{repo}.git"
+    bare.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "clone", "-q", "--bare", str(seed), str(bare)], check=True)
+    return bare
 
-    served = {"count": 0}
 
-    class Handler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self) -> None:  # noqa: N802
-            served["count"] += 1
-            self.send_response(404 if served["count"] <= missing_requests else 200)
-            self.send_header("Content-Length", "1")
-            self.end_headers()
-            self.wfile.write(b"x")
-
-        def log_message(self, *args: object) -> None:
-            return
-
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+def _bump(tmp_path: Path, verb: str, **env: str) -> subprocess.CompletedProcess[str]:
     dist = tmp_path / "dist"
-    dist.mkdir()
-    base = f"http://127.0.0.1:{server.server_address[1]}/releases/download/aos-v1.2.3"
-    (dist / "aos.rb").write_text(f'url "{base}/aos-darwin-arm64"\n', encoding="utf-8")
-    (dist / "aos.json").write_text(f'{{"url": "{base}/aos-windows-amd64.exe"}}\n', encoding="utf-8")
-    return server, served
-
-
-def _wait(tmp_path: Path, **env: str) -> subprocess.CompletedProcess[str]:
+    dist.mkdir(exist_ok=True)
+    (dist / "aos.rb").write_text("formula 2\n", encoding="utf-8")
+    (dist / "aos.json").write_text('{"version": "2"}\n', encoding="utf-8")
     return subprocess.run(
-        ["bash", str(ROOT / "scripts" / "ci" / "aos-cli-release.sh"), "wait-github-assets"],
+        ["bash", str(ROOT / "scripts" / "ci" / "aos-cli-release.sh"), verb],
         cwd=tmp_path,
-        env=os.environ | env,
+        env=os.environ
+        | {
+            "AOS_RELEASE_DIST": str(dist),
+            "RELEASE_GIT_BASE": f"file://{tmp_path / 'remotes'}",
+            "RELEASE_GIT_TOKEN": "not-a-real-token",
+            "TAG": "aos-v1.2.3",
+        }
+        | env,
         capture_output=True,
         text=True,
         check=False,
     )
 
 
-def test_the_tap_bump_waits_until_every_release_asset_answers(tmp_path: Path) -> None:
-    server, served = _serve_assets(tmp_path, missing_requests=2)
-    try:
-        done = _wait(tmp_path, AOS_ASSET_WAIT="30", AOS_ASSET_POLL="0")
-    finally:
-        server.shutdown()
+def _main_log(bare: Path) -> list[str]:
+    done = subprocess.run(
+        ["git", "log", "--format=%an|%s", "main"],
+        cwd=bare,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return done.stdout.splitlines()
+
+
+def test_the_tap_bump_commits_the_rendered_formula(tmp_path: Path) -> None:
+    bare = _remote(tmp_path, "homebrew-tap", "Formula/aos.rb", "formula 1\n")
+    done = _bump(tmp_path, "update-homebrew")
+
     assert done.returncode == 0, done.stderr
-    assert served["count"] > 2
+    assert _main_log(bare)[0] == "coilyco-ops|chore(aos): bump formula to aos-v1.2.3 [skip ci]"
+    shown = subprocess.run(
+        ["git", "show", "main:Formula/aos.rb"], cwd=bare, check=True, capture_output=True, text=True
+    )
+    assert shown.stdout == "formula 2\n"
 
 
-def test_the_tap_bump_fails_loudly_when_an_asset_never_appears(tmp_path: Path) -> None:
-    server, _ = _serve_assets(tmp_path, missing_requests=10**6)
-    try:
-        done = _wait(tmp_path, AOS_ASSET_WAIT="1", AOS_ASSET_POLL="0")
-    finally:
-        server.shutdown()
-    assert done.returncode == 1
-    assert "still missing" in done.stderr
-    assert "aos-darwin-arm64" in done.stderr
+def test_the_bucket_bump_writes_the_manifest_under_bucket(tmp_path: Path) -> None:
+    bare = _remote(tmp_path, "scoop-bucket", "bucket/aos.json", "{}\n")
+    done = _bump(tmp_path, "update-scoop")
+
+    assert done.returncode == 0, done.stderr
+    assert _main_log(bare)[0].endswith("bump manifest to aos-v1.2.3 [skip ci]")
+
+
+def test_a_bump_that_changes_nothing_adds_no_commit(tmp_path: Path) -> None:
+    bare = _remote(tmp_path, "homebrew-tap", "Formula/aos.rb", "formula 2\n")
+    done = _bump(tmp_path, "update-homebrew")
+
+    assert done.returncode == 0, done.stderr
+    assert len(_main_log(bare)) == 1
+
+
+def test_a_bump_without_a_token_fails_instead_of_skipping(tmp_path: Path) -> None:
+    _remote(tmp_path, "homebrew-tap", "Formula/aos.rb", "formula 1\n")
+    done = _bump(tmp_path, "update-homebrew", RELEASE_GIT_TOKEN="")
+
+    assert done.returncode != 0
+    assert "RELEASE_GIT_TOKEN" in done.stderr
