@@ -18,7 +18,7 @@ The wrap declares `default-allow`, so an unnamed verb forwards to the real `gh`.
 
 A PR merged on GitHub for a repo still Forgejo-canonical makes the next 10-minute mirror push a non-fast-forward, which only a force-push repairs. So the PR writes are granted per repo, never globally. Each is `can run` with `when repo matches <repo...>`, and a call outside the list exits 2 with `did not match any allowed pattern`.
 
-* **A repo joins** by being added to all eight lists in `gh.kdl` in the same change that flips its mirror direction. The tests read the list from the guard's own refusal text, and fail if the lists differ or the `actions-permissions` endpoints are not the same repos.
+* **A repo joins** by being added to all eight lists in `gh.kdl` in the same change that flips its mirror direction. The tests read the list from the guard's own refusal text, and fail if the lists differ or the `actions-permissions` endpoints are not the same repos. The list is hand-kept, because the binary is built from this file and reads no other repo's git-workflow block.
 * **`--repo OWNER/REPO` is required.** The guard reads the flag, and a repo inferred from the cwd is invisible to it.
 * **`-R` is refused.** gh binds `-R` and `--repo` to one variable and the last wins, so the short spelling would retarget past the guard.
 * **A URL selector is refused** on every verb that takes one (all but `create`), because gh lets the URL override `--repo`. Pass a number or a branch. A short flag's value that holds `://` is refused too, so use `--body` rather than `-b` for text with a link.

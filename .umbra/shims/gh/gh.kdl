@@ -28,12 +28,12 @@ wrap gh {
     // GitHub-canonical repos: one joins every list below in the change that flips its
     // mirror direction (COI-2975). Why --repo is required: references/gh-replacement.md.
     can run "pr create" {
-        when repo matches "coilyco/bluesky-mcp"
+        when repo matches "coilyco/bluesky-mcp" "coilyco/homebrew-tap" "coilyco/scoop-bucket"
         deny-flag "-R" aliases="none"
         describe "open a pull request on a GitHub-canonical repo. Needs --repo OWNER/REPO naming one. Any other repo is Forgejo-canonical: run `aosguard ops forgejo pr create`"
     }
     can run "pr edit" {
-        when repo matches "coilyco/bluesky-mcp"
+        when repo matches "coilyco/bluesky-mcp" "coilyco/homebrew-tap" "coilyco/scoop-bucket"
         deny-when any-arg matches "*://*"
         deny-flag "-R" aliases="none"
         value-flag "--repo"
@@ -56,7 +56,7 @@ wrap gh {
     // A URL selector overrides --repo in gh, so it is refused. Squash only:
     // gh needs a method flag off a tty, and merge, rebase and admin are denied.
     can run "pr merge" {
-        when repo matches "coilyco/bluesky-mcp"
+        when repo matches "coilyco/bluesky-mcp" "coilyco/homebrew-tap" "coilyco/scoop-bucket"
         deny-when any-arg matches "*://*"
         deny-flag "-R" aliases="none"
         deny-flag "--merge" aliases="-m"
@@ -73,7 +73,7 @@ wrap gh {
 
     // Reversible, so granted on the same repos. `review` stays withheld below.
     can run "pr close" {
-        when repo matches "coilyco/bluesky-mcp"
+        when repo matches "coilyco/bluesky-mcp" "coilyco/homebrew-tap" "coilyco/scoop-bucket"
         deny-when any-arg matches "*://*"
         deny-flag "-R" aliases="none"
         value-flag "--repo"
@@ -81,7 +81,7 @@ wrap gh {
         describe "close a pull request on a GitHub-canonical repo. Needs --repo OWNER/REPO naming one and a number or branch, never a URL. Any other repo is Forgejo-canonical: run `aosguard ops forgejo pr close`"
     }
     can run "pr reopen" {
-        when repo matches "coilyco/bluesky-mcp"
+        when repo matches "coilyco/bluesky-mcp" "coilyco/homebrew-tap" "coilyco/scoop-bucket"
         deny-when any-arg matches "*://*"
         deny-flag "-R" aliases="none"
         value-flag "--repo"
@@ -89,7 +89,7 @@ wrap gh {
         describe "reopen a pull request on a GitHub-canonical repo. Needs --repo OWNER/REPO naming one and a number or branch, never a URL. Any other repo is Forgejo-canonical: run `aosguard ops forgejo pr reopen`"
     }
     can run "pr comment" {
-        when repo matches "coilyco/bluesky-mcp"
+        when repo matches "coilyco/bluesky-mcp" "coilyco/homebrew-tap" "coilyco/scoop-bucket"
         deny-when any-arg matches "*://*"
         deny-flag "-R" aliases="none"
         value-flag "--repo"
@@ -99,7 +99,7 @@ wrap gh {
         describe "comment on a pull request on a GitHub-canonical repo. Needs --repo OWNER/REPO naming one and a number or branch, never a URL. Any other repo is Forgejo-canonical: comment on the Forgejo pull request"
     }
     can run "pr ready" {
-        when repo matches "coilyco/bluesky-mcp"
+        when repo matches "coilyco/bluesky-mcp" "coilyco/homebrew-tap" "coilyco/scoop-bucket"
         deny-when any-arg matches "*://*"
         deny-flag "-R" aliases="none"
         value-flag "--repo"
@@ -110,7 +110,7 @@ wrap gh {
     // endpoint. This leaf is `gh api --method PUT` and nothing else.
     can run actions-permissions {
         argv "api" "--method" "PUT"
-        when arg0 matches "repos/coilyco/bluesky-mcp/actions/permissions"
+        when arg0 matches "repos/coilyco/bluesky-mcp/actions/permissions" "repos/coilyco/homebrew-tap/actions/permissions" "repos/coilyco/scoop-bucket/actions/permissions"
         allow-flag "--field"
         allow-flag "--raw-field"
         value-flag "--field"
