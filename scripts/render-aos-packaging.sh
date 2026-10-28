@@ -48,21 +48,20 @@ class Aos < Formula
   license "MIT"
 
   on_macos do
-    on_arm do
-      url "${base}/aos-darwin-arm64"
-      sha256 "${darwin_arm64}"
-      resource "aoscompose" do
-        url "${base}/aoscompose-darwin-arm64"
-        sha256 "${aoscompose_darwin_arm64}"
-      end
-      resource "aosguard" do
-        url "${base}/aosguard-darwin-arm64"
-        sha256 "${aosguard_darwin_arm64}"
-      end
-      resource "aterm" do
-        url "${base}/aterm-darwin-arm64"
-        sha256 "${aterm_darwin_arm64}"
-      end
+    depends_on arch: :arm64
+    url "${base}/aos-darwin-arm64"
+    sha256 "${darwin_arm64}"
+    resource "aoscompose" do
+      url "${base}/aoscompose-darwin-arm64"
+      sha256 "${aoscompose_darwin_arm64}"
+    end
+    resource "aosguard" do
+      url "${base}/aosguard-darwin-arm64"
+      sha256 "${aosguard_darwin_arm64}"
+    end
+    resource "aterm" do
+      url "${base}/aterm-darwin-arm64"
+      sha256 "${aterm_darwin_arm64}"
     end
   end
   on_linux do
