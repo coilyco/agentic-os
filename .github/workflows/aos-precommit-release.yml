@@ -73,3 +73,4 @@ jobs:
           tag: ${{ steps.tag.outputs.new_tag }}
           name: aos-precommit ${{ steps.tag.outputs.new_tag }}
           body: ${{ steps.tag.outputs.changelog }}
+          make_latest: "false"

@@ -80,26 +80,31 @@ release_json_make_create_payload() {
   tag=$2
   name=$3
   body=$4
+  latest=${5:-}
 
   case "$tool" in
     python3|python)
-      "$tool" - "$tag" "$name" "$body" <<'PY'
+      "$tool" - "$tag" "$name" "$body" "$latest" <<'PY'
 import json
 import sys
 
-tag, name, body = sys.argv[1:]
-print(json.dumps({
+tag, name, body, latest = sys.argv[1:]
+payload = {
     "tag_name": tag,
     "name": name,
     "body": body,
     "draft": False,
     "prerelease": False,
-}))
+}
+if latest:
+    payload["make_latest"] = latest
+print(json.dumps(payload))
 PY
       ;;
     jq)
-      jq -n --arg tag "$tag" --arg name "$name" --arg body "$body" \
-        '{tag_name:$tag, name:$name, body:$body, draft:false, prerelease:false}'
+      jq -n --arg tag "$tag" --arg name "$name" --arg body "$body" --arg latest "$latest" \
+        '{tag_name:$tag, name:$name, body:$body, draft:false, prerelease:false}
+         + (if $latest == "" then {} else {make_latest:$latest} end)'
       ;;
     *)
       echo "::error::unsupported JSON tool: $tool" >&2

@@ -50,7 +50,7 @@ class FakeApi:
                 self.end_headers()
                 self.wfile.write(data)
 
-            do_GET = do_POST = do_PUT = do_DELETE = handle_any
+            do_GET = do_POST = do_PUT = do_PATCH = do_DELETE = handle_any
 
             def log_message(self, *args: object) -> None:
                 pass
@@ -227,6 +227,52 @@ def test_create_release_github_and_idempotent_reuse(api: FakeApi, tmp_path: Path
     done, out = run_action("create-release", tmp_path, **release_env(api, "github"))
     assert done.returncode == 0, done.stderr + done.stdout
     assert out["release_id"] == "41"
+
+
+def test_create_release_github_sends_make_latest_on_create(api: FakeApi, tmp_path: Path) -> None:
+    api.route("POST", "/repos/owner/name/releases", (201, {"id": 41}))
+    done, _ = run_action("create-release", tmp_path, **release_env(api, "github", MAKE_LATEST="false"))
+    assert done.returncode == 0, done.stderr + done.stdout
+    (call,) = api.sent("POST", "/repos/owner/name/releases")
+    assert json.loads(call["body"])["make_latest"] == "false"
+    assert api.sent("PATCH", "/repos/owner/name/releases/41") == []
+
+
+def test_create_release_github_reapplies_make_latest_to_an_existing_release(api: FakeApi, tmp_path: Path) -> None:
+    exists = {"message": "Validation Failed", "errors": [{"code": "already_exists", "field": "tag_name"}]}
+    api.route("POST", "/repos/owner/name/releases", (422, exists))
+    api.route("GET", "/repos/owner/name/releases/tags/v1.2.0", (200, {"id": 41}))
+    api.route("PATCH", "/repos/owner/name/releases/41", (200, {"id": 41}))
+    done, out = run_action("create-release", tmp_path, **release_env(api, "github", MAKE_LATEST="true"))
+    assert done.returncode == 0, done.stderr + done.stdout
+    assert out["release_id"] == "41"
+    (call,) = api.sent("PATCH", "/repos/owner/name/releases/41")
+    assert json.loads(call["body"]) == {"make_latest": "true"}
+
+
+def test_create_release_github_fails_when_the_make_latest_update_is_refused(api: FakeApi, tmp_path: Path) -> None:
+    exists = {"message": "Validation Failed", "errors": [{"code": "already_exists", "field": "tag_name"}]}
+    api.route("POST", "/repos/owner/name/releases", (422, exists))
+    api.route("GET", "/repos/owner/name/releases/tags/v1.2.0", (200, {"id": 41}))
+    api.route("PATCH", "/repos/owner/name/releases/41", (403, {"message": "Forbidden"}))
+    done, _ = run_action("create-release", tmp_path, **release_env(api, "github", MAKE_LATEST="true"))
+    assert done.returncode == 1
+    assert "HTTP 403" in done.stdout
+
+
+def test_create_release_rejects_a_make_latest_value_before_any_call(api: FakeApi, tmp_path: Path) -> None:
+    done, _ = run_action("create-release", tmp_path, **release_env(api, "github", MAKE_LATEST="yes"))
+    assert done.returncode == 1
+    assert "make_latest must be true|false" in done.stderr
+    assert api.calls == []
+
+
+def test_create_release_forgejo_does_not_send_make_latest(api: FakeApi, tmp_path: Path) -> None:
+    api.route("POST", "/api/v1/repos/owner/name/releases", (201, {"id": 7}))
+    done, _ = run_action("create-release", tmp_path, **release_env(api, "forgejo", MAKE_LATEST="true"))
+    assert done.returncode == 0, done.stderr + done.stdout
+    (call,) = api.sent("POST", "/api/v1/repos/owner/name/releases")
+    assert "make_latest" not in json.loads(call["body"])
 
 
 def test_create_release_github_fails_on_other_422(api: FakeApi, tmp_path: Path) -> None:
