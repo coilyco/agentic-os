@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+source "${GITHUB_ACTION_PATH}/../_lib/release.sh"
+
 git fetch --tags --quiet
 
 prev_tag=$(git tag --list "${TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*" \
@@ -83,25 +85,40 @@ if [ -z "${new_version:-}" ]; then
 fi
 
 if [ "$create_tag" = "true" ]; then
-  payload=$(printf '{"tag_name":"%s","target":"%s"}' "$new_tag" "$RELEASE_SHA")
-  http_code=$(curl -sS -o /tmp/tagresp.json -w '%{http_code}' \
-    -X POST \
-    -H "Authorization: token $FORGEJO_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "$payload" \
-    "$FORGEJO_BASE_URL/api/v1/repos/$REPO/tags")
-  case "$http_code" in
-    201)
+  release_host_init
+  case "$RELEASE_HOST" in
+    github)
+      # A lightweight tag through the refs API. GitHub answers 422 when it exists.
+      tag_url="$RELEASE_API/repos/$REPO/git/refs"
+      payload=$(printf '{"ref":"refs/tags/%s","sha":"%s"}' "$new_tag" "$RELEASE_SHA")
+      exists_code=422
       ;;
-    409)
-      echo "tag already exists for $new_tag, continuing"
-      ;;
-    *)
-      echo "::error::forgejo tag create failed: HTTP $http_code"
-      cat /tmp/tagresp.json
-      exit 1
+    forgejo)
+      tag_url="$RELEASE_API/repos/$REPO/tags"
+      payload=$(printf '{"tag_name":"%s","target":"%s"}' "$new_tag" "$RELEASE_SHA")
+      exists_code=409
       ;;
   esac
+  if ! http_code=$(release_curl_status /tmp/tagresp.json \
+    -X POST \
+    "${RELEASE_HDRS[@]}" \
+    -H "Content-Type: application/json" \
+    -d "$payload" \
+    "$tag_url"); then
+    echo "::error::$RELEASE_HOST tag create request timed out or failed"
+    cat /tmp/tagresp.json
+    exit 1
+  fi
+  if [ "$http_code" = 201 ]; then
+    :
+  elif [ "$http_code" = "$exists_code" ] &&
+    { [ "$RELEASE_HOST" = forgejo ] || grep -q 'Reference already exists' /tmp/tagresp.json; }; then
+    echo "tag already exists for $new_tag, continuing"
+  else
+    echo "::error::$RELEASE_HOST tag create failed: HTTP $http_code"
+    cat /tmp/tagresp.json
+    exit 1
+  fi
 else
   echo "dry-run tag computation only; not creating $new_tag"
 fi

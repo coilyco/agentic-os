@@ -1,5 +1,52 @@
 #!/usr/bin/env bash
-# Shared helpers for the Forgejo release composite actions.
+# Shared helpers for the release composite actions. Each action runs on a
+# Forgejo runner or a GitHub one, and release_host_init picks the API. See
+# docs/release.md#release-actions-on-forgejo-and-github.
+
+# Sets RELEASE_HOST (github|forgejo), RELEASE_API, RELEASE_UPLOADS,
+# RELEASE_AUTH (the token) and RELEASE_HDRS (curl header args). Reads the
+# action inputs as env: RELEASE_HOST_INPUT, RELEASE_API_URL,
+# RELEASE_UPLOADS_URL, RELEASE_TOKEN_INPUT, FORGEJO_TOKEN, FORGEJO_BASE_URL.
+release_host_init() {
+  RELEASE_HOST=${RELEASE_HOST_INPUT:-auto}
+  if [ "$RELEASE_HOST" = auto ]; then
+    # A Forgejo runner reports its own server URL here, never github.com.
+    if [ "${GITHUB_SERVER_URL:-}" = "https://github.com" ]; then
+      RELEASE_HOST=github
+    else
+      RELEASE_HOST=forgejo
+    fi
+  fi
+
+  # The neutral `token` wins. forgejo_token defaults to the job token, so a
+  # caller that sets neither still authenticates as the job.
+  RELEASE_AUTH=${RELEASE_TOKEN_INPUT:-${FORGEJO_TOKEN:-}}
+  if [ -z "$RELEASE_AUTH" ]; then
+    echo "::error::no API token: set the token input" >&2
+    exit 1
+  fi
+
+  case "$RELEASE_HOST" in
+    github)
+      RELEASE_API=${RELEASE_API_URL:-https://api.github.com}
+      RELEASE_UPLOADS=${RELEASE_UPLOADS_URL:-${RELEASE_API_URL:-https://uploads.github.com}}
+      RELEASE_HDRS=(
+        -H "Authorization: Bearer $RELEASE_AUTH"
+        -H "Accept: application/vnd.github+json"
+        -H "X-GitHub-Api-Version: 2022-11-28"
+      )
+      ;;
+    forgejo)
+      RELEASE_API=${RELEASE_API_URL:-${FORGEJO_BASE_URL:?forgejo_base_url is empty}/api/v1}
+      RELEASE_UPLOADS=$RELEASE_API
+      RELEASE_HDRS=(-H "Authorization: token $RELEASE_AUTH")
+      ;;
+    *)
+      echo "::error::host must be auto|github|forgejo, got '$RELEASE_HOST'" >&2
+      exit 1
+      ;;
+  esac
+}
 
 release_json_tool() {
   if command -v python3 >/dev/null 2>&1; then
@@ -110,6 +157,30 @@ PY
       ;;
     jq)
       jq -r --arg n "$asset_name" '.[] | select(.name==$n) | .id' "$file" | head -n1
+      ;;
+    *)
+      echo "::error::unsupported JSON tool: $tool" >&2
+      exit 1
+      ;;
+  esac
+}
+
+release_json_count() {
+  tool=$1
+  file=$2
+
+  case "$tool" in
+    python3|python)
+      "$tool" - "$file" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as fh:
+    print(len(json.load(fh)))
+PY
+      ;;
+    jq)
+      jq -r 'length' "$file"
       ;;
     *)
       echo "::error::unsupported JSON tool: $tool" >&2

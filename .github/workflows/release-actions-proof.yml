@@ -1,0 +1,77 @@
+# Exercises the release actions on GitHub: a real tag, release and asset, read
+# back, then removed. Manual only. See docs/release.md.
+name: release-actions-proof
+
+on:
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: "Keep the proof tag and release instead of deleting them."
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-actions-proof
+  cancel-in-progress: false
+
+jobs:
+  proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: tag
+        uses: ./actions/tag-bump
+        with:
+          tag_prefix: release-actions-proof-v
+          create_tag: true
+          release_sha: ${{ github.sha }}
+
+      - id: release
+        uses: ./actions/create-release
+        with:
+          tag: ${{ steps.tag.outputs.new_tag }}
+          body: ${{ steps.tag.outputs.changelog }}
+
+      - id: payload
+        run: bash scripts/ci/release-actions-proof.sh payload
+
+      - uses: ./actions/upload-release-asset
+        with:
+          release_id: ${{ steps.release.outputs.release_id }}
+          file: ${{ steps.payload.outputs.file }}
+
+      - name: Upload the same asset again to prove the replace
+        uses: ./actions/upload-release-asset
+        with:
+          release_id: ${{ steps.release.outputs.release_id }}
+          file: ${{ steps.payload.outputs.file }}
+
+      - id: again
+        name: Create the release again to prove the reuse
+        uses: ./actions/create-release
+        with:
+          tag: ${{ steps.tag.outputs.new_tag }}
+
+      - name: Read the result back from GitHub
+        env:
+          TAG: ${{ steps.tag.outputs.new_tag }}
+          RELEASE_ID: ${{ steps.release.outputs.release_id }}
+          SECOND_RELEASE_ID: ${{ steps.again.outputs.release_id }}
+          PROOF_FILE: ${{ steps.payload.outputs.file }}
+        run: bash scripts/ci/release-actions-proof.sh verify
+
+      - name: Remove the proof tag and release
+        if: ${{ always() && !inputs.keep }}
+        env:
+          TAG: ${{ steps.tag.outputs.new_tag }}
+        run: bash scripts/ci/release-actions-proof.sh cleanup

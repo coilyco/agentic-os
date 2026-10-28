@@ -4,19 +4,27 @@ set -euo pipefail
 
 source "${GITHUB_ACTION_PATH}/../_lib/release.sh"
 json_tool=$(release_json_tool)
+release_host_init
 
+# An empty template means this host's clone URL.
+if [ -z "$URL_TEMPLATE" ]; then
+  case "$RELEASE_HOST" in
+    github) URL_TEMPLATE='https://github.com/{REPO}.git' ;;
+    forgejo) URL_TEMPLATE="${FORGEJO_BASE_URL}/{REPO}.git" ;;
+  esac
+fi
 url_value="${URL_TEMPLATE//\{REPO\}/$REPO}"
 message="${MSG_TEMPLATE//\{TAG\}/$TAG}"
 
 if ! meta_code=$(release_curl_status /tmp/formula-meta.json \
-  -H "Authorization: token $FORGEJO_TOKEN" \
-  "$FORGEJO_BASE_URL/api/v1/repos/$REPO/contents/$FORMULA_PATH?ref=$BRANCH"); then
-  echo "::error::forgejo contents lookup timed out or failed"
+  "${RELEASE_HDRS[@]}" \
+  "$RELEASE_API/repos/$REPO/contents/$FORMULA_PATH?ref=$BRANCH"); then
+  echo "::error::$RELEASE_HOST contents lookup timed out or failed"
   cat /tmp/formula-meta.json
   exit 1
 fi
 if [ "$meta_code" != "200" ]; then
-  echo "::error::forgejo contents lookup failed: HTTP $meta_code"
+  echo "::error::$RELEASE_HOST contents lookup failed: HTTP $meta_code"
   cat /tmp/formula-meta.json
   exit 1
 fi
@@ -30,9 +38,8 @@ awk -v repl="$new_line" '
   /^  url "/ && !done { print repl; done = 1; next }
   { print }
 ' "$tmp/formula.rb" > "$tmp/formula.new.rb"
-mv "$tmp/formula.new.rb" "$tmp/formula.rb"
 
-new_b64=$(base64 -w0 < "$tmp/formula.rb")
+new_b64=$(base64 < "$tmp/formula.new.rb" | tr -d '\n')
 if [ "$json_tool" = jq ]; then
   put_payload=$(jq -n --arg msg "$message" --arg c "$new_b64" \
     --arg sha "$cur_sha" --arg branch "$BRANCH" \
@@ -55,16 +62,16 @@ fi
 
 if ! http_code=$(release_curl_status /tmp/putresp.json \
   -X PUT \
-  -H "Authorization: token $FORGEJO_TOKEN" \
+  "${RELEASE_HDRS[@]}" \
   -H "Content-Type: application/json" \
   -d "$put_payload" \
-  "$FORGEJO_BASE_URL/api/v1/repos/$REPO/contents/$FORMULA_PATH"); then
-  echo "::error::forgejo formula bump request timed out or failed"
+  "$RELEASE_API/repos/$REPO/contents/$FORMULA_PATH"); then
+  echo "::error::$RELEASE_HOST formula bump request timed out or failed"
   cat /tmp/putresp.json
   exit 1
 fi
 if [ "$http_code" != "200" ] && [ "$http_code" != "201" ]; then
-  echo "::error::forgejo formula bump failed: HTTP $http_code"
+  echo "::error::$RELEASE_HOST formula bump failed: HTTP $http_code"
   cat /tmp/putresp.json
   exit 1
 fi

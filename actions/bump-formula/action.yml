@@ -1,21 +1,35 @@
-name: "Bump a Homebrew Formula via forgejo Contents API"
+name: "Bump a Homebrew Formula via the Contents API"
 description: |
   Rewrite the `url "..."` line of a Homebrew Formula to point at the new
-  tag + revision and PUT the result back via forgejo's Contents API. The
-  canonical brew clone URL is forgejo, and the bump commit lands on the
-  same forgejo repo that emitted the release - no cross-host writes.
+  tag + revision and PUT the result back via the Contents API of Forgejo or
+  GitHub (the `host` input). The bump commit lands on `repo`, which on GitHub
+  is usually the tap, not the repo running the workflow, so pass a GitHub
+  App token with contents:write on the tap as `token`. Contract:
+  docs/release.md.
 
 inputs:
   forgejo_token:
-    description: "Forgejo API token. Defaults to the auto-issued job token."
+    description: "Forgejo API token, kept for existing Forgejo callers. Defaults to the job token, which also covers GitHub when token is unset."
     required: false
     default: ${{ github.token }}
   forgejo_base_url:
-    description: "Forgejo base URL."
+    description: "Forgejo base URL. Used only when host resolves to forgejo."
     required: false
     default: "https://forgejo.coilysiren.me"
+  token:
+    description: "API token. Wins over forgejo_token when set. On GitHub pass a GitHub App token when a tag, release or push must start downstream workflows, since GITHUB_TOKEN events start none, or when the target repo is not the running one."
+    required: false
+    default: ""
+  host:
+    description: "API to call: auto|github|forgejo. auto reads the runner's server URL, github.com means GitHub and anything else Forgejo."
+    required: false
+    default: "auto"
+  api_url:
+    description: "API base URL override, for tests and other servers. Default https://api.github.com on GitHub, forgejo_base_url plus /api/v1 on Forgejo."
+    required: false
+    default: ""
   repo:
-    description: "owner/name on forgejo. The Formula lives in this repo."
+    description: "owner/name. The Formula lives in this repo."
     required: false
     default: ${{ github.repository }}
   formula_path:
@@ -30,10 +44,10 @@ inputs:
   url_template:
     description: |
       Template for the `url "..."` line that gets written. {REPO} is
-      substituted with the `repo` input. Default produces the forgejo
-      HTTPS clone URL.
+      substituted with the `repo` input. Empty (the default) writes the
+      HTTPS clone URL of the resolved host.
     required: false
-    default: 'https://forgejo.coilysiren.me/{REPO}.git'
+    default: ''
   branch:
     description: "Branch the Formula bump lands on."
     required: false
@@ -51,6 +65,9 @@ runs:
       env:
         FORGEJO_TOKEN: ${{ inputs.forgejo_token }}
         FORGEJO_BASE_URL: ${{ inputs.forgejo_base_url }}
+        RELEASE_TOKEN_INPUT: ${{ inputs.token }}
+        RELEASE_HOST_INPUT: ${{ inputs.host }}
+        RELEASE_API_URL: ${{ inputs.api_url }}
         REPO: ${{ inputs.repo }}
         FORMULA_PATH: ${{ inputs.formula_path }}
         TAG: ${{ inputs.tag }}

@@ -1,25 +1,38 @@
 name: "Semver tag bump"
 description: |
   Bump the latest semver tag by a fixed amount (minor by default) and
-  create the new tag on the forgejo repo via the Releases API, or run in
-  compute-only mode so a workflow can verify an image before the public tag
-  exists. Does NOT parse commit messages: every automated release is a minor
-  bump, and major is hand-driven only (pass bump: major, e.g. from a
-  workflow_dispatch). Nothing in commit history can escalate the bump.
-  Replaces mathieudutour/github-tag-action for the forgejo-canonical release
-  pipeline. Forgejo source of truth, no github API calls.
+  create the new tag on the repo, or run in compute-only mode so a workflow
+  can verify an image before the public tag exists. Does NOT parse commit
+  messages: every automated release is a minor bump, and major is
+  hand-driven only (pass bump: major, e.g. from a workflow_dispatch).
+  Nothing in commit history can escalate the bump. Runs on a Forgejo runner
+  (tags API) or a GitHub one (git refs API), chosen by the `host` input. A
+  tag made with GITHUB_TOKEN starts no workflow, so pass a GitHub App token
+  as `token` when a tag-triggered workflow must run. Contract: docs/release.md.
 
 inputs:
   forgejo_token:
-    description: "Forgejo API token. Defaults to the auto-issued job token."
+    description: "Forgejo API token, kept for existing Forgejo callers. Defaults to the job token, which also covers GitHub when token is unset."
     required: false
     default: ${{ github.token }}
   forgejo_base_url:
-    description: "Forgejo base URL."
+    description: "Forgejo base URL. Used only when host resolves to forgejo."
     required: false
     default: "https://forgejo.coilysiren.me"
+  token:
+    description: "API token. Wins over forgejo_token when set. On GitHub pass a GitHub App token when a tag, release or push must start downstream workflows, since GITHUB_TOKEN events start none, or when the target repo is not the running one."
+    required: false
+    default: ""
+  host:
+    description: "API to call: auto|github|forgejo. auto reads the runner's server URL, github.com means GitHub and anything else Forgejo."
+    required: false
+    default: "auto"
+  api_url:
+    description: "API base URL override, for tests and other servers. Default https://api.github.com on GitHub, forgejo_base_url plus /api/v1 on Forgejo."
+    required: false
+    default: ""
   repo:
-    description: "owner/name on forgejo."
+    description: "owner/name."
     required: false
     default: ${{ github.repository }}
   bump:
@@ -27,7 +40,7 @@ inputs:
     required: false
     default: "minor"
   create_tag:
-    description: "Create the Forgejo tag when true. Set false to only compute the next release tag/version."
+    description: "Create the tag when true. Set false to only compute the next release tag/version."
     required: false
     default: "true"
   tag_name:
@@ -65,6 +78,9 @@ runs:
       env:
         FORGEJO_TOKEN: ${{ inputs.forgejo_token }}
         FORGEJO_BASE_URL: ${{ inputs.forgejo_base_url }}
+        RELEASE_TOKEN_INPUT: ${{ inputs.token }}
+        RELEASE_HOST_INPUT: ${{ inputs.host }}
+        RELEASE_API_URL: ${{ inputs.api_url }}
         REPO: ${{ inputs.repo }}
         BUMP: ${{ inputs.bump }}
         CREATE_TAG: ${{ inputs.create_tag }}

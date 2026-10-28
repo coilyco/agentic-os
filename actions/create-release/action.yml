@@ -1,22 +1,34 @@
-name: "Create a forgejo Release"
+name: "Create a Release"
 description: |
-  POST a new Release to forgejo for the given tag. Replaces
-  softprops/action-gh-release for the forgejo-canonical release pipeline.
-  Idempotent: 409 (release already exists) is treated as success and the
-  existing release id is returned so subsequent asset-upload steps can
-  still attach files.
+  POST a new Release for the given tag, on Forgejo or GitHub (the `host`
+  input). Replaces softprops/action-gh-release. Idempotent: an existing
+  release (Forgejo 409, GitHub 422 already_exists) is treated as success and
+  the existing release id is returned so subsequent asset-upload steps can
+  still attach files. Contract: docs/release.md.
 
 inputs:
   forgejo_token:
-    description: "Forgejo API token. Defaults to the auto-issued job token."
+    description: "Forgejo API token, kept for existing Forgejo callers. Defaults to the job token, which also covers GitHub when token is unset."
     required: false
     default: ${{ github.token }}
   forgejo_base_url:
-    description: "Forgejo base URL."
+    description: "Forgejo base URL. Used only when host resolves to forgejo."
     required: false
     default: "https://forgejo.coilysiren.me"
+  token:
+    description: "API token. Wins over forgejo_token when set. On GitHub pass a GitHub App token when a tag, release or push must start downstream workflows, since GITHUB_TOKEN events start none, or when the target repo is not the running one."
+    required: false
+    default: ""
+  host:
+    description: "API to call: auto|github|forgejo. auto reads the runner's server URL, github.com means GitHub and anything else Forgejo."
+    required: false
+    default: "auto"
+  api_url:
+    description: "API base URL override, for tests and other servers. Default https://api.github.com on GitHub, forgejo_base_url plus /api/v1 on Forgejo."
+    required: false
+    default: ""
   repo:
-    description: "owner/name on forgejo."
+    description: "owner/name."
     required: false
     default: ${{ github.repository }}
   tag:
@@ -33,7 +45,7 @@ inputs:
 
 outputs:
   release_id:
-    description: "Forgejo release id, usable for asset upload."
+    description: "Release id, usable for asset upload."
     value: ${{ steps.create.outputs.release_id }}
 
 runs:
@@ -44,6 +56,9 @@ runs:
       env:
         FORGEJO_TOKEN: ${{ inputs.forgejo_token }}
         FORGEJO_BASE_URL: ${{ inputs.forgejo_base_url }}
+        RELEASE_TOKEN_INPUT: ${{ inputs.token }}
+        RELEASE_HOST_INPUT: ${{ inputs.host }}
+        RELEASE_API_URL: ${{ inputs.api_url }}
         REPO: ${{ inputs.repo }}
         TAG: ${{ inputs.tag }}
         NAME: ${{ inputs.name }}

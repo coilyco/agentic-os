@@ -104,17 +104,17 @@ Single-purpose validators for cryptic failure modes. These plus [`ward context-b
   the literal `release` ref when promotion has no matching tag yet.
 - GPG signing doctor that walks every check needed to diagnose `failed to sign the data` and names the likely fix per failure mode.
 
-## Forgejo-canonical release actions
+## Release actions
 
-Composite Forgejo Actions for the brew release pipeline, each a forgejo-API-only replacement for a github-coupled marketplace action:
+`actions/tag-bump`, `create-release`, `upload-release-asset` and `bump-formula`
+run on Forgejo and GitHub from one set of inputs, so a repo runs both
+workflows until it flips. Each input is described in its `action.yml`, and
+none is renamed or removed while a Forgejo workflow calls it.
 
-- `actions/tag-bump` - bump the latest semver tag by a fixed amount (minor by default, major hand-driven via the `bump` input), or run in compute-only mode before the public tag exists. Does not parse commit messages. Replaces `mathieudutour/github-tag-action`.
-- `actions/create-release` - POST to forgejo Releases API with bounded JSON marshalling and timeouts. Idempotent on tag collision. Replaces `softprops/action-gh-release` for release creation.
-- `actions/upload-release-asset` - POST a release asset with bounded lookup, delete, and upload calls.
-- `actions/bump-formula` - rewrite a Homebrew Formula's `url ".."` line to pin the new tag + revision and PUT via forgejo Contents API with bounded lookup and write calls.
+* **Host** - `host`, `auto` by default: GitHub when `GITHUB_SERVER_URL` is `https://github.com`, else Forgejo.
+* **Token** - `token` wins over the Forgejo-era `forgejo_token` (default: the job token). A GitHub `GITHUB_TOKEN` push starts no workflow, so a tag that must trigger one, or a write to another repo such as a tap, takes a GitHub App token (COI-2935).
+* **Calls** - tag: Forgejo `POST /tags`, GitHub `POST /git/refs`. An existing tag or release (Forgejo 409, GitHub 422) is reused. Asset: Forgejo multipart, GitHub raw body to `uploads.github.com`. Formula: Contents API on both, and an empty `url_template` writes the host's clone URL.
+* **Proof** - `.github/workflows/release-actions-proof.yml` (manual) runs a real tag, release and asset on GitHub, reads them back, and deletes them. `tests/test_release_actions_hosts.py` runs each action against a fake API as both hosts.
 
-Forgejo imports use a fully qualified canonical URL:
-`uses: https://forgejo.coilysiren.me/coilyco/agentic-os/actions/<name>@main`.
-GitHub uses the mirror.
-
-agentic-os dogfoods local `uses:` refs.
+Forgejo imports use a fully qualified canonical URL: `uses: https://forgejo.coilysiren.me/coilyco/agentic-os/actions/<name>@main`.
+GitHub callers pin a ref: `uses: coilyco/agentic-os/actions/<name>@<sha>`.
