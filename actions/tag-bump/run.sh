@@ -126,13 +126,16 @@ fi
 echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
 echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
 echo "previous_tag=$prev_tag" >> "$GITHUB_OUTPUT"
+# A first tag would carry the whole history into an env var past the exec
+# limit, so keep the newest commits and count the rest.
+changelog_max=100
 {
   echo "changelog<<EOF"
-  if [ -n "$prev_tag" ]; then
-    git log --pretty=format:'- %s (%h)' "$range"
-  else
-    git log --pretty=format:'- %s (%h)' HEAD
-  fi
+  git log --pretty=format:'- %s (%h)' -n "$changelog_max" "$range"
   echo ""
+  total=$(git rev-list --count "$range")
+  if [ "$total" -gt "$changelog_max" ]; then
+    echo "- ... and $((total - changelog_max)) older commits"
+  fi
   echo "EOF"
 } >> "$GITHUB_OUTPUT"

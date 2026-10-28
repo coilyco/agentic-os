@@ -67,7 +67,7 @@ outputs:
     description: "Tag the bump is relative to."
     value: ${{ steps.compute.outputs.previous_tag }}
   changelog:
-    description: "Markdown changelog of the commits included in the bump."
+    description: "Markdown changelog of the commits included in the bump: the newest 100, then a count of the older ones."
     value: ${{ steps.compute.outputs.changelog }}
 
 runs:

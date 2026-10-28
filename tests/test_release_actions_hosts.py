@@ -166,6 +166,28 @@ def test_tag_bump_compute_only_needs_no_api(api: FakeApi, repo: Path) -> None:
     assert api.calls == []
 
 
+def test_tag_bump_changelog_keeps_the_newest_100_commits(api: FakeApi, repo: Path) -> None:
+    # One fast-import stream, since 129 separate commits take a minute here.
+    def git_out(*args: str) -> str:
+        return subprocess.run(["git", "-C", str(repo), *args], check=True, capture_output=True, text=True).stdout.strip()
+
+    branch, tip = git_out("symbolic-ref", "--short", "HEAD"), git_out("rev-parse", "HEAD")
+    stream = "".join(
+        f"commit refs/heads/{branch}\ncommitter t <t@example.com> {1_700_000_000 + n} +0000\n"
+        f"data {len(f'c{n}')}\nc{n}\n" + ("" if n else f"from {tip}\n") + "\n"
+        for n in range(129)
+    )
+    subprocess.run(["git", "-C", str(repo), "fast-import", "--quiet"], input=stream, text=True, check=True)
+    git_out("reset", "-q", "--hard", branch)
+    done, _ = run_action("tag-bump", repo, **tag_env(api, "github", CREATE_TAG="false", TAG_NAME=""))
+    assert done.returncode == 0, done.stderr
+    lines = (repo / "github_output").read_text().split("changelog<<EOF\n")[1].split("\nEOF")[0].splitlines()
+    assert lines[0].startswith("- c128 (")
+    assert lines[99].startswith("- c29 (")
+    assert lines[100] == "- ... and 30 older commits"
+    assert len(lines) == 101
+
+
 def test_host_auto_reads_the_runner_server_url(api: FakeApi, repo: Path) -> None:
     api.route("POST", "/repos/owner/name/git/refs", (201, {}))
     env = tag_env(api, "auto", GITHUB_SERVER_URL="https://github.com")
