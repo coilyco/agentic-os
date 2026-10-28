@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import types
 from pathlib import Path
 
 import pytest
@@ -279,3 +280,31 @@ def test_repo_filter_rejects_a_malformed_slug(value) -> None:
     mod = _load_script()
     with pytest.raises(SystemExit, match="owner/repo"):
         mod.main(["--dry-run", "--repo", value])
+
+
+def test_ssm_get_restores_the_final_newline_a_private_key_needs(monkeypatch) -> None:
+    mod = _load_script()
+    outputs = {"/key": "-----BEGIN KEY-----\nbody\n-----END KEY-----\n", "/plain": "token\n"}
+
+    def _fake_run(argv, **kwargs):
+        return types.SimpleNamespace(stdout=outputs[argv[argv.index("--name") + 1]])
+
+    monkeypatch.setattr(mod.subprocess, "run", _fake_run)
+
+    assert mod.ssm_get("/key").endswith("-----END KEY-----\n")
+    assert mod.ssm_get("/plain") == "token"
+
+
+def test_secret_filter_narrows_the_plan_and_rejects_an_unknown_name(monkeypatch, capsys) -> None:
+    mod = _load_script()
+    monkeypatch.setattr(mod, "WORKFLOW_REPOS", ("o/a", "o/b"))
+    monkeypatch.setattr(mod, "FLEET_SECRETS", {"F": "/fleet"})
+    monkeypatch.setattr(mod, "GITHUB_MAPPING", {"o/a": {"G": "/g"}})
+
+    assert mod.main(["--dry-run", "--target", "github", "--secret", "G"]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "o/a: G <- ssm /g",
+        "1 secrets across 1 repos on GitHub",
+    ]
+    with pytest.raises(SystemExit, match="matched no planned secret"):
+        mod.main(["--dry-run", "--target", "github", "--secret", "NOPE"])

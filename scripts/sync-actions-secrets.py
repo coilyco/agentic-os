@@ -65,12 +65,14 @@ APP_SECRETS = {
     "COILYCO_OPS_APP_ID": "/github/coilyco-ops-app-id",
     "COILYCO_OPS_APP_PRIVATE_KEY_BASE64": "/github/coilyco-ops-private-key-base64",
 }
+TANGLED_SECRETS = {"TANGLED_SSH_KEY": "/coilysiren/tangled/push-key"}
 GITHUB_MAPPING: dict[str, dict[str, str]] = {
     # The tap, scoop and release-push sources in the COI-2935 consumer map. The tap
     # and bucket repos are only mint targets, so they hold no secret.
     slug("agentic-os"): {**APP_SECRETS, **ATERM_ANDROID_SECRETS},
-    slug("umbra"): dict(APP_SECRETS),
-    slug("agent-compose"): dict(APP_SECRETS),
+    slug("umbra"): {**APP_SECRETS, **TANGLED_SECRETS},
+    slug("agent-compose"): {**APP_SECRETS, **TANGLED_SECRETS},
+    slug("mcp-beaver"): dict(TANGLED_SECRETS),
     slug("housecast"): dict(PYPI_SECRETS),
 }
 # Forgejo reads this from an org secret. GitHub's org-secret plan tier is
@@ -140,7 +142,8 @@ def ssm_get(name: str) -> str:
     value = out.stdout.strip()
     if not value:
         raise SystemExit(f"ssm parameter {name} resolved empty")
-    return value
+    # OpenSSH rejects a private key with no final newline.
+    return value + "\n" if value.startswith("-----BEGIN") else value
 
 
 def put_secret(token: str, repo_slug: str, name: str, value: str) -> None:
@@ -256,6 +259,13 @@ def main(argv: list[str] | None = None) -> int:
         metavar="OWNER/REPO",
         help="limit the plan to this repo, repeatable. One installation token covers one repo",
     )
+    parser.add_argument(
+        "--secret",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="limit the plan to this secret name, repeatable",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--dry-run", action="store_true", help="print the plan, write nothing")
     mode.add_argument(
@@ -291,6 +301,11 @@ def main(argv: list[str] | None = None) -> int:
             f"{forge} would reject these secret names (reserved prefix or leading "
             "digit):\n  " + "\n  ".join(rejected)
         )
+
+    if args.secret:
+        plan = [row for row in plan if row[1] in args.secret]
+        if not plan:
+            raise SystemExit("--secret matched no planned secret: " + ", ".join(args.secret))
 
     if args.check:
         lines, problems = check_plan(plan)
