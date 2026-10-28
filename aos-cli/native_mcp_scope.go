@@ -47,9 +47,9 @@ var mcpScopeEnvRef = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*
 
 // unreadableHeaders maps a header to its variables when every ${VAR} in the value
 // is unset or blank with no default. A present header turns Claude's OAuth fallback off.
-func unreadableHeaders(server mcpScopeServer, lookup environmentLookup) map[string][]string {
+func unreadableHeaders(headers map[string]string, lookup environmentLookup) map[string][]string {
 	dropped := map[string][]string{}
-	for header, value := range server.Headers {
+	for header, value := range headers {
 		refs := mcpScopeEnvRef.FindAllStringSubmatch(value, -1)
 		if len(refs) == 0 {
 			continue
@@ -81,7 +81,7 @@ func (selection mcpScopeSelection) headerLookup() environmentLookup {
 func (selection mcpScopeSelection) headerOmissions() []string {
 	var lines []string
 	for _, name := range selection.Selected {
-		dropped := unreadableHeaders(selection.servers[name], selection.headerLookup())
+		dropped := unreadableHeaders(selection.servers[name].Headers, selection.headerLookup())
 		for _, header := range sortedNativeKeys(selection.servers[name].Headers) {
 			if variables, ok := dropped[header]; ok {
 				lines = append(lines, fmt.Sprintf(
@@ -223,7 +223,7 @@ func mcpScopeClaudeServer(server mcpScopeServer, home string, lookup environment
 		// Unreadable headers are left off. The rest keep ${VAR} literal, so no secret
 		// reaches the file.
 		headers := map[string]string{}
-		dropped := unreadableHeaders(server, lookup)
+		dropped := unreadableHeaders(server.Headers, lookup)
 		for header, value := range server.Headers {
 			if _, skip := dropped[header]; !skip {
 				headers[header] = value

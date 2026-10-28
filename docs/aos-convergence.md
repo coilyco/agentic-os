@@ -61,6 +61,8 @@ that need only the mcporter fallback.
 no network access and no filesystem mutation, and exits nonzero on catalogue,
 manifest, or MCP drift.
 
+Apply reads the SSM-backed MCP credentials first and leaves a `${VAR}` header out of `~/.claude.json` when its variable is unset or blank, with a warning that names `aws sso login`. Check judges the ambient environment alone, so a shell without the variable reports drift on that header.
+
 ## Ownership
 
 AOS owns source selection, cache policy, host paths, and MCP and Codex-approval
