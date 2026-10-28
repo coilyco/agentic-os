@@ -46,6 +46,18 @@ Publication consumes the repo-scoped `TAP_WRITE_TOKEN` and `SCOOP_WRITE_TOKEN` A
 
 Workflow dispatch accepts an existing or explicit `aos-v*` tag, or the operator selects patch, minor, or major. Existing releases and same-named assets are reused and replaced, so a retry is idempotent.
 
+## Actions secrets sync
+
+`just sync-actions-secrets` copies Actions secrets from SSM to a forge, in-process and never through disk or argv. Neither forge lets a secret be read back, so a stale value shows up as a dead workflow step.
+
+- `--target forgejo` - the default until the COI-2927 cutover. Writes the `MAPPING` table with the attended `FORGEJO_ADMIN_TOKEN`.
+- `--target github` - plans `FLEET_SECRETS` on every repo in `WORKFLOW_REPOS` plus `GITHUB_MAPPING`, then sets each through `gh secret set` with the value on stdin. `gh` reads `GH_TOKEN`, and the identity needs Actions secrets write on the repo. `--repo OWNER/REPO` (repeatable) limits the plan to one repo, because a coilyco-ops App installation token covers one.
+- `--dry-run` prints the `owner/repo: NAME <- ssm /path` plan and a count. `--check` (GitHub only) lists, per repo, whether every planned name is present. It reads names, never values.
+
+The GitHub plan carries `SENTRY_CI_DSN` on every repo, since the GitHub org plan tier is unverified. It carries `COILYCO_OPS_APP_ID` and `COILYCO_OPS_APP_PRIVATE_KEY_BASE64` on `agentic-os`, `umbra` and `agent-compose`, the repos whose workflows push to the tap, the bucket or a release. A workflow decodes the key and mints a short-lived installation token, so no long-lived token is stored. The Forgejo PATs in `MAPPING` are never copied to GitHub.
+
+`WORKFLOW_REPOS` is the set of Forgejo repos that carry `.forgejo/workflows`. Remove a repo when its Forgejo copy is archived. Secrets with no GitHub source yet (`REGISTRY_*`, `ECO_MOD_PACKAGE_TOKEN`, `MODIO_ACCESS_TOKEN`, `TEST_PYPI_TOKEN`, the Sentry browser DSNs) arrive with the flip of the repo that reads them.
+
 ## Local validation
 
 `just aos-release-build` creates the binaries and `SHA256SUMS`. With `AOS_RELEASE_VERSION` set, `aos-release-package` renders local metadata and `aos-release-check` verifies checksums, versions, `--help`, an `aterm --dry-run` against roster and overlay fixtures, and that `aterm` refuses an off-roster role. The ordinary Go tests and pre-commit verbs remain the release gate.
