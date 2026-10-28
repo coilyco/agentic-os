@@ -1,0 +1,47 @@
+name: "Mint a coilyco-ops App token"
+description: |
+  Mint a short-lived installation token from the coilyco-ops GitHub App for the
+  release actions' `token` input. SSM stores the App key base64 encoded (COI-2935),
+  so this decodes and masks it before actions/create-github-app-token reads it.
+  A GITHUB_TOKEN tag starts no workflow and cannot write another repo, so a
+  train that pushes a tag, or bumps a tap or bucket, mints one of these first.
+  Contract: docs/release.md.
+
+inputs:
+  app_id:
+    description: "The App id, secret COILYCO_OPS_APP_ID."
+    required: true
+  private_key_base64:
+    description: "The base64 App key, secret COILYCO_OPS_APP_PRIVATE_KEY_BASE64."
+    required: true
+  owner:
+    description: "Account the App is installed on."
+    required: false
+    default: ${{ github.repository_owner }}
+  repositories:
+    description: "Comma separated repository names the token may touch. Default: the running repository only."
+    required: false
+    default: ${{ github.event.repository.name }}
+
+outputs:
+  token:
+    description: "Installation token, masked in logs and revoked when the job ends."
+    value: ${{ steps.mint.outputs.token }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: key
+      shell: bash
+      env:
+        APP_KEY_BASE64: ${{ inputs.private_key_base64 }}
+      run: bash "${GITHUB_ACTION_PATH}/decode-key.sh"
+    - id: mint
+      uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      with:
+        app-id: ${{ inputs.app_id }}
+        private-key: ${{ steps.key.outputs.pem }}
+        owner: ${{ inputs.owner }}
+        repositories: ${{ inputs.repositories }}
+        permission-contents: write
+        permission-metadata: read
