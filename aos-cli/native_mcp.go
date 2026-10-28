@@ -30,11 +30,16 @@ type nativeMCPOptions struct {
 	Home          string
 	Check         bool
 	ProjectNative bool
+	// Environment judges each ${VAR} header of the Claude registry. Nil keeps every
+	// header, which is right where the variable arrives after the projection runs.
+	Environment environmentLookup
 }
 
 type nativeMCPResult struct {
 	Servers int
 	Changed bool
+	// HeaderOmissions words one line per header left out of the Claude registry.
+	HeaderOmissions []string
 }
 
 type nativeMCPServer struct {
@@ -93,6 +98,7 @@ func projectNativeMCP(opts nativeMCPOptions) (nativeMCPResult, error) {
 			claudePath,
 			inventory.Servers,
 			home,
+			opts.Environment,
 		)
 		if err != nil {
 			return nativeMCPResult{}, err
@@ -106,6 +112,7 @@ func projectNativeMCP(opts nativeMCPOptions) (nativeMCPResult, error) {
 			return nativeMCPResult{}, err
 		}
 		result.Changed = result.Changed || claudeChanged || codexChanged
+		result.HeaderOmissions = nativeHeaderOmissions(inventory.Servers, home, opts.Environment)
 	}
 	if opts.Check || !result.Changed {
 		return result, nil
@@ -261,6 +268,7 @@ func renderNativeClaude(
 	path string,
 	servers map[string]nativeMCPServer,
 	home string,
+	lookup environmentLookup,
 ) ([]byte, bool, error) {
 	top := map[string]json.RawMessage{}
 	if raw, err := os.ReadFile(path); err == nil {
@@ -272,7 +280,7 @@ func renderNativeClaude(
 	}
 	desired := map[string]any{}
 	for name, config := range servers {
-		desired[name] = nativeClaudeServer(config, home)
+		desired[name] = nativeClaudeServer(config, home, lookup)
 	}
 	mcpRaw, err := json.Marshal(desired)
 	if err != nil {
@@ -297,14 +305,48 @@ func renderNativeClaude(
 	return appendNativeTrailingNewline(payload), true, nil
 }
 
-func nativeClaudeServer(config nativeMCPServer, home string) map[string]any {
+// nativeClaudeHeaders expands ${HOME} and leaves out each unreadable header, since a
+// present empty Authorization turns Claude's OAuth fallback off.
+func nativeClaudeHeaders(config nativeMCPServer, home string, lookup environmentLookup) (kept map[string]string, dropped map[string][]string) {
+	expanded := expandNativeMap(config.Headers, home)
+	if lookup != nil {
+		dropped = unreadableHeaders(expanded, lookup)
+	}
+	kept = make(map[string]string, len(expanded))
+	for header, value := range expanded {
+		if _, skip := dropped[header]; !skip {
+			kept[header] = value
+		}
+	}
+	return kept, dropped
+}
+
+// nativeHeaderOmissions names each omitted header and the variable behind it. The
+// value is never read into the line.
+func nativeHeaderOmissions(servers map[string]nativeMCPServer, home string, lookup environmentLookup) []string {
+	var lines []string
+	for _, name := range sortedNativeKeys(servers) {
+		if servers[name].endpoint() == "" {
+			continue
+		}
+		_, dropped := nativeClaudeHeaders(servers[name], home, lookup)
+		for _, header := range sortedNativeKeys(dropped) {
+			lines = append(lines, fmt.Sprintf(
+				"MCP %s: no %s header in the Claude registry, %s is unset or empty, so a plain claude session falls back to OAuth. If the AWS SSO session expired, run `aws sso login` and rerun `aos converge`",
+				name, header, strings.Join(dropped[header], ", ")))
+		}
+	}
+	return lines
+}
+
+func nativeClaudeServer(config nativeMCPServer, home string, lookup environmentLookup) map[string]any {
 	if endpoint := config.endpoint(); strings.TrimSpace(endpoint) != "" {
 		output := map[string]any{
 			"type": "http",
 			"url":  expandNativeHome(endpoint, home),
 		}
-		if len(config.Headers) > 0 {
-			output["headers"] = expandNativeMap(config.Headers, home)
+		if headers, _ := nativeClaudeHeaders(config, home, lookup); len(headers) > 0 {
+			output["headers"] = headers
 		}
 		return output
 	}

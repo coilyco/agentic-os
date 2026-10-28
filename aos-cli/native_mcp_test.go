@@ -328,3 +328,110 @@ func TestLoadNativeMCPInventoryRefusesAMalformedEnvHeaderMapping(t *testing.T) {
 		}
 	}
 }
+
+const linearHeaderInventory = `{
+  "imports": [],
+  "mcpServers": {
+    "public_coilyco_linear": {"baseUrl": "https://mcp.example.test/mcp", "headers": {"Authorization": "${LINEAR_MCP_AUTHORIZATION:-}", "X-Static": "fixed"}, "x-codex": {"envHttpHeaders": {"Authorization": "LINEAR_MCP_AUTHORIZATION"}}},
+    "defaulted": {"baseUrl": "https://mcp.example.test/d", "headers": {"X-Mode": "${MODE:-ro}", "X-Home": "${HOME}/token"}}
+  }
+}
+`
+
+// projectLinearHeaders projects linearHeaderInventory with env as the lookup and
+// returns the Claude registry's servers and the projection result.
+func projectLinearHeaders(t *testing.T, home, inventoryPath string, check bool, env map[string]string) (map[string]map[string]any, nativeMCPResult) {
+	t.Helper()
+	result, err := projectNativeMCP(nativeMCPOptions{
+		Inventory:     inventoryPath,
+		Home:          home,
+		Check:         check,
+		ProjectNative: true,
+		Environment:   func(name string) (string, bool) { value, ok := env[name]; return value, ok },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var claude struct {
+		Servers map[string]map[string]any `json:"mcpServers"`
+	}
+	if raw, err := os.ReadFile(filepath.Join(home, ".claude.json")); err == nil {
+		if err := json.Unmarshal(raw, &claude); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return claude.Servers, result
+}
+
+// An unset or blank LINEAR_MCP_AUTHORIZATION leaves the header off the Claude registry
+// and the projection names the cause. A readable value leaves the entry as it was.
+func TestProjectNativeMCPLeavesOffAHeaderWhoseVariableIsUnset(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	inventoryPath := filepath.Join(root, "mcporter.json")
+	writeNativeMCPTestFile(t, inventoryPath, linearHeaderInventory)
+	writeNativeMCPTestFile(t, filepath.Join(home, ".claude.json"), `{"theme":"dark"}`+"\n")
+
+	for name, env := range map[string]map[string]string{"unset": {}, "blank": {"LINEAR_MCP_AUTHORIZATION": " \n"}} {
+		servers, result := projectLinearHeaders(t, home, inventoryPath, false, env)
+		headers, _ := servers["public_coilyco_linear"]["headers"].(map[string]any)
+		if _, present := headers["Authorization"]; present || headers["X-Static"] != "fixed" {
+			t.Fatalf("%s: headers = %v, want X-Static alone", name, headers)
+		}
+		defaulted, _ := servers["defaulted"]["headers"].(map[string]any)
+		if defaulted["X-Mode"] != "${MODE:-ro}" || defaulted["X-Home"] != home+"/token" {
+			t.Fatalf("%s: a header with a default or ${HOME} was judged unreadable: %v", name, defaulted)
+		}
+		omitted := strings.Join(result.HeaderOmissions, "\n")
+		for _, want := range []string{"public_coilyco_linear", "Authorization", "LINEAR_MCP_AUTHORIZATION", "aws sso login"} {
+			if !strings.Contains(omitted, want) {
+				t.Fatalf("%s: omission line lacks %q: %q", name, want, omitted)
+			}
+		}
+		if strings.Contains(omitted, "defaulted") {
+			t.Fatalf("%s: omission names a readable server: %q", name, omitted)
+		}
+		if name == "unset" {
+			again, second := projectLinearHeaders(t, home, inventoryPath, true, env)
+			if second.Changed || len(again["public_coilyco_linear"]) == 0 {
+				t.Fatalf("a second projection against the same environment drifted: %+v", second)
+			}
+		}
+	}
+
+	raw, err := os.ReadFile(filepath.Join(home, ".claude.json"))
+	if err != nil || !strings.Contains(string(raw), `"theme": "dark"`) {
+		t.Fatalf("foreign Claude state was not preserved: %v\n%s", err, raw)
+	}
+
+	readable := map[string]string{"LINEAR_MCP_AUTHORIZATION": "Bearer s3cret"}
+	servers, result := projectLinearHeaders(t, home, inventoryPath, false, readable)
+	headers, _ := servers["public_coilyco_linear"]["headers"].(map[string]any)
+	if headers["Authorization"] != "${LINEAR_MCP_AUTHORIZATION:-}" || len(result.HeaderOmissions) != 0 {
+		t.Fatalf("a readable credential changed the entry: %v %q", headers, result.HeaderOmissions)
+	}
+	raw, err = os.ReadFile(filepath.Join(home, ".claude.json"))
+	if err != nil || strings.Contains(string(raw), "s3cret") {
+		t.Fatalf("the credential value reached the registry: %v\n%s", err, raw)
+	}
+	if _, second := projectLinearHeaders(t, home, inventoryPath, true, readable); second.Changed {
+		t.Fatalf("a readable credential still drifts: %+v", second)
+	}
+}
+
+// No Environment keeps every header, the way stageMCPProjection projects into a
+// container whose variables arrive after the bootstrap.
+func TestProjectNativeMCPWithoutAnEnvironmentKeepsEveryHeader(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	inventoryPath := filepath.Join(root, "mcporter.json")
+	writeNativeMCPTestFile(t, inventoryPath, linearHeaderInventory)
+	result, err := projectNativeMCP(nativeMCPOptions{Inventory: inventoryPath, Home: home, ProjectNative: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(home, ".claude.json"))
+	if err != nil || !strings.Contains(string(raw), "${LINEAR_MCP_AUTHORIZATION:-}") || len(result.HeaderOmissions) != 0 {
+		t.Fatalf("a nil Environment judged a header: %v %q\n%s", err, result.HeaderOmissions, raw)
+	}
+}
