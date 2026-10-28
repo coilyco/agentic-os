@@ -200,6 +200,7 @@ PRE_PUSH_HOOK_IDS = [
     "code-comments",
     "brand-case",
     "actions-run-one-line",
+    "github-workflow-contract",
     "source-doc-refs",
     "outbound-link-hygiene",
     "repo-pointer-skills",

@@ -81,6 +81,27 @@ private. Both URLs are feature options, and they move with the release trains.
 - Publishing the features to a registry, so other repos can reference them.
 - Deleting `docker/dev-base/`, its release train and the doctrine that names it.
 
+## Porting a workflow
+
+[`workflow_contract.json`](../agentic_os/workflow_contract.json) owns the runner
+labels. Kai decided on 2026-10-25 that no job uses a self-hosted runner
+(COI-2967), so every Forgejo label maps to a hosted one. `rollout`, `website` and
+`deploy` map too but are redesigns, not ports, and print a `TODO`.
+
+- **Script** - `port-forgejo-workflow .forgejo/workflows/ci.yml` writes
+  `.github/workflows/ci.yml`. It maps `runs-on`, deletes `container:`, and adds the
+  pinned `actions/setup-ci` as the first step. Comments stay. It never touches
+  step bodies or secrets, and refuses to overwrite without `--force`.
+- **By hand after** - `actions/setup-go` with `go-version-file`, a `~/.cache/pre-commit`
+  cache, and `workflow_dispatch`. Leave out a `just pre-commit` step until the repo's
+  hook pin moves to GitHub (COI-2943), since a hosted runner cannot reach Forgejo.
+- **Hook** - `github-workflow-contract` fails a tracked `.github/workflows` file with
+  a label outside the contract, a runner group, a `runs-on` expression, or a scalar
+  naming `forgejo.coilysiren.me`. A comment may name it. It never reads
+  `.forgejo/workflows`, so a repo keeps both until the flip.
+- **Not ported** - the composite actions that call the Forgejo API (`tag-bump`,
+  `create-release`, `upload-release-asset`, `bump-formula`).
+
 ## Until the flip: CI in dev-base
 
 Forgejo CI still runs each job in the moving `:release` dev-base image through the

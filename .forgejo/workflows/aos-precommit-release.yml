@@ -15,6 +15,7 @@ on:
       - "agentic_os/generators/**"
       - "agentic_os/pre_commit/**"
       - "agentic_os/seed_skills_data.py"
+      - "agentic_os/workflow_contract.py"
       - "pyproject.toml"
       - "scripts/pr-guard-pre-push.sh"
       - "scripts/trufflehog-scan.sh"
