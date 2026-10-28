@@ -113,6 +113,24 @@ def test_viewing_and_checks_reach_the_real_binary_for_any_repo(
         assert f"REAL_GH {' '.join(args)}" in result.stdout, args
 
 
+def test_the_rest_of_the_github_pull_request_lifecycle_is_never_named(
+    shim: Path, fake_gh: Path
+) -> None:
+    """Update from main and read or rerun a run reach gh by being unnamed (COI-2933).
+
+    Naming one of these in the guardfile would take it from every seat, so this
+    fails first if a withhold or a repo list ever swallows them.
+    """
+    for args in (
+        ("pr", "update-branch", "12", "--repo", UNLISTED),
+        ("run", "view", "99", "--repo", UNLISTED, "--log-failed"),
+        ("run", "rerun", "99", "--repo", UNLISTED, "--failed"),
+    ):
+        result = run(shim, fake_gh, *args)
+        assert result.returncode == 0, (args, result.stdout + result.stderr)
+        assert f"REAL_GH {' '.join(args)}" in result.stdout, args
+
+
 def test_an_unnamed_verb_forwards_to_the_real_binary(
     shim: Path, fake_gh: Path
 ) -> None:

@@ -27,6 +27,20 @@ A PR merged on GitHub for a repo still Forgejo-canonical makes the next 10-minut
 * **A repeated `--repo` is refused** if any occurrence is off the list, because gh uses the last and umbra reads every one since v0.256.0 (COI-2977).
 * **At Forgejo teardown** (COI-2931) the lists and the withhold go, and AGENTS.md's lane text names GitHub.
 
+## The seat pull-request lifecycle on GitHub (COI-2933)
+
+Run on a listed repo through this guard on 2026-10-27, each verb exiting 0. Every one takes `--repo OWNER/REPO`, and `gh pr` verbs take a number or branch.
+
+* **Open** - `gh pr create --repo R --head BRANCH --base main --title T --body-file FILE`. Pass text by `--body-file`: the guard refuses `(`, `{` and a backslash in any argument, a title included.
+* **Update from main** - `gh pr update-branch N --repo R`. Unnamed, so it forwards on every repo. It merges base into the head branch and never forces.
+* **Merge** - `gh pr merge N --repo R --squash --delete-branch`.
+* **Read a failing run** - `gh run list --repo R`, then `gh run view ID --repo R --log-failed`. A run past GitHub's retention answers HTTP 410.
+* **Rerun** - `gh run rerun ID --repo R --failed`. Unnamed like `update-branch`, so a Forgejo-canonical repo's GitHub workflows can be rerun too. It changes no ref, so the mirror cannot diverge.
+* **Behind base** - GitHub refuses a merge as behind only when branch protection requires an up-to-date branch. The listed repo had none, and a behind branch merged cleanly. The Forgejo 405 rule has this counterpart, **inferred and not observed**: on a refusal, run `gh pr update-branch`, wait for checks, then merge.
+* **Push** - over the SSH remote. An HTTPS clone has no credential helper.
+
+`gh` signs in with the host's stored login, and the real binary is one path away from this shim. So the token is guarded by the verbs the shim names and not by its scope. Narrowing the token is COI-2935.
+
 The first version of this file enumerated 23 read grants to protect the withholds. That list was an inventory of GitHub's CLI rather than a statement of this estate's policy, so it would have rotted against `gh` releases, and a verb nobody thought of would have been a verb the fleet silently lost. `default-allow` was added to umbra for exactly this case (umbra#372).
 
 `withhold` rather than `never run`, and the difference is the whole design. An exec-dialect `never run` mounts nothing at all, so the caller gets `unknown verb`, which reads as a wrapper missing a feature. Under default-allow it is worse than that: an unnamed verb forwards, so silence would hand the caller the very thing this refuses.
