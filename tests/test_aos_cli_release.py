@@ -102,6 +102,11 @@ def test_packaging_covers_every_release_binary(tmp_path: Path) -> None:
     assert not [entry for entry in bins if entry[1] == "aterm"]
     assert "aterm" not in json.dumps(manifest["pre_install"])
     assert 'bin.install_symlink bin/"aoscompose" => "aoscomposed"' in formula
+    # Homebrew reads the formula as every macOS arch, and a block that names only
+    # arm leaves Intel with no URL, which fails `brew tap` outright.
+    macos = formula.split("on_macos do", 1)[1].split("on_linux do", 1)[0]
+    assert "depends_on arch: :arm64" in macos
+    assert "on_arm" not in macos and "on_intel" not in macos
     for program in RELEASE_BINARIES[1:]:
         assert f'resource("{program}")' in formula
 
