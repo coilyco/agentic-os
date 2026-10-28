@@ -108,13 +108,12 @@ Single-purpose validators for cryptic failure modes. These plus [`ward context-b
 
 `actions/tag-bump`, `create-release`, `upload-release-asset` and `bump-formula`
 run on Forgejo and GitHub from one set of inputs, so a repo runs both
-workflows until it flips. Each input is described in its `action.yml`, and
-none is renamed or removed while a Forgejo workflow calls it.
+workflows until it flips. Each input is described in its `action.yml`, and none
+is renamed or removed while a Forgejo workflow calls it.
 
 * **Host** - `host`, `auto` by default: GitHub when `GITHUB_SERVER_URL` is `https://github.com`, else Forgejo.
-* **Token** - `token` wins over the Forgejo-era `forgejo_token` (default: the job token). A GitHub `GITHUB_TOKEN` push starts no workflow, so a tag that must trigger one, or a write to another repo such as a tap, takes a GitHub App token (COI-2935).
+* **Token** - `token` wins over the Forgejo-era `forgejo_token` (default: the job token). A `GITHUB_TOKEN` tag starts no workflow and cannot write a tap, so those take an App token from `actions/app-token`: it decodes the base64 `COILYCO_OPS_APP_PRIVATE_KEY_BASE64` with `COILYCO_OPS_APP_ID`, masks it, and mints a `contents:write` token for `repositories` (COI-2935).
 * **Calls** - tag: Forgejo `POST /tags`, GitHub `POST /git/refs`. An existing tag or release (Forgejo 409, GitHub 422) is reused. Asset: Forgejo multipart, GitHub raw body to `uploads.github.com`. Formula: Contents API on both, and an empty `url_template` writes the host's clone URL.
 * **Proof** - `.github/workflows/release-actions-proof.yml` (manual) runs a real tag, release and asset on GitHub, reads them back, and deletes them. `tests/test_release_actions_hosts.py` runs each action against a fake API as both hosts.
 
-Forgejo imports use a fully qualified canonical URL: `uses: https://forgejo.coilysiren.me/coilyco/agentic-os/actions/<name>@main`.
-GitHub callers pin a ref: `uses: coilyco/agentic-os/actions/<name>@<sha>`.
+Forgejo imports use `uses: https://forgejo.coilysiren.me/coilyco/agentic-os/actions/<name>@main`. GitHub callers pin a ref: `uses: coilyco/agentic-os/actions/<name>@<sha>`.
