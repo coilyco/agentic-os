@@ -58,6 +58,8 @@ repos:
     band: small
   galaxy-gen:
     band: small
+  homebrew-tap:
+    band: small # one Formula per tool, a rendered formula tree with no prose to cap (COI-3033)
   housecast:
     band: small
     excludes:
@@ -73,6 +75,8 @@ repos:
     band: micro # its info lives primarily in skills
   mcp-beaver:
     band: small # the guarded MCP runtime and chart, docs trimmed to the small caps (COI-2638)
+  scoop-bucket:
+    band: small # one manifest per tool, a rendered bucket tree with no prose to cap (COI-3033)
   sentry-bridge:
     band: small # one small poller service
   sirens-echo:
