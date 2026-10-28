@@ -18,6 +18,8 @@ image lacks. The live example is [`.github/workflows/ci.yml`](../.github/workflo
 - **setup-ci adds** - `just`, `uv`, `pre-commit`, `trufflehog`, `golangci-lint`,
   `kdlfmt`, `yq` and `umbra`, each pinned with a SHA-256 value. Pick a subset with
   the `tools` input. The default is `just uv pre-commit`.
+- **agent-compose** - the aterm roster guard reads it. `scripts/ci/install-agent-compose.sh`
+  installs a pinned release and its roster from GitHub, checked against SHA-256 values.
 - **Per-language setup stays in the workflow** - `actions/setup-go` with
   `go-version-file`, `actions/setup-node` with `node-version-file`, and so on.
   The repo owns its versions, not a fleet image.

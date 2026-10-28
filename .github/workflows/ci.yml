@@ -31,6 +31,8 @@ jobs:
       - uses: ./actions/setup-ci
         with:
           tools: just
+      - name: Install the pinned agent-compose for the roster guard
+        run: bash scripts/ci/install-agent-compose.sh
       - name: Test the AOS CLI
         run: just aos-test
       - name: Test the native terminal companion
