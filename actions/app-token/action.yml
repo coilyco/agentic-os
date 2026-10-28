@@ -22,6 +22,10 @@ inputs:
     description: "Comma separated repository names the token may touch. Default: the running repository only."
     required: false
     default: ${{ github.event.repository.name }}
+  workflows:
+    description: "Set to write when the token pushes commits that change .github/workflows files, which contents:write alone is refused."
+    required: false
+    default: ""
 
 outputs:
   token:
@@ -45,3 +49,4 @@ runs:
         repositories: ${{ inputs.repositories }}
         permission-contents: write
         permission-metadata: read
+        permission-workflows: ${{ inputs.workflows }}
