@@ -28,7 +28,7 @@ import (
 )
 
 // githubTokenFeature is how a client knows the daemon answers a github_token
-// frame. See tooling-aosguard references/gh-replacement.md.
+// frame. The broker is parked with `gh-exec` (COI-3072), see github_exec.go.
 const githubTokenFeature = "github-token"
 
 const (
@@ -341,7 +341,7 @@ func requestGithubToken(repo string) (string, error) {
 func newGithubTokenCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "github-token",
-		Usage: "print a short-lived GitHub App token for one repo, minted by the daemon, for the guarded gh",
+		Usage: "print a short-lived GitHub App token for one repo, minted by the daemon",
 		Flags: []cli.Flag{&cli.StringFlag{Name: "repo", Required: true, Usage: "OWNER/REPO the token is scoped to"}},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			token, err := requestGithubToken(cmd.String("repo"))

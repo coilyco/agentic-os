@@ -50,8 +50,6 @@ build_shims() {
   local src="$work/bundle/share/aos/shim-src"
   [ -d "$src" ] || { echo "the aos $AOSVERSION bundle carries no shim-src" >&2; exit 1; }
   sh "$src/fs-shims/install.sh" /opt/agentic-os/shims
-  GOCACHE="$work/gocache" GOPATH="$work/gopath" \
-    umbra --project-root "$src/shims" build --set-version "$AOSVERSION" --out /opt/agentic-os/shims/gh
   chmod -R a+rX /opt/agentic-os/shims
 }
 
@@ -100,7 +98,7 @@ open_toolchain_dirs() {
 
 verify_guards() {
   local scratch tool
-  for tool in git gh rm find mv; do
+  for tool in git rm find mv; do
     [ "$(PATH="/opt/agentic-os/shims:$PATH" command -v "$tool")" = "/opt/agentic-os/shims/$tool" ] \
       || { echo "$tool is not the guarded shim" >&2; exit 1; }
   done

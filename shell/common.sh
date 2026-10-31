@@ -166,7 +166,7 @@ if [ -z "${_SIREN_SHELL_ENV:-}" ]; then
       ;;
   esac
   # Guarded replacements front the real tool for an agent session and nowhere
-  # else. Reference: the tooling-aosguard skill, references/gh-replacement.md.
+  # else. Reference: the tooling-aosguard skill, references/git-shim.md.
   [ -n "${AOS_NATIVE_SESSION:-}" ] && _siren_path_prepend "$HOME/.local/umbra/shims"
   export PATH
 

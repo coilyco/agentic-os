@@ -11,8 +11,8 @@ import (
 	"strings"
 )
 
-// ghExecCommand is the verb the guarded gh replacement execs, after umbra has
-// validated the argv: `aterm gh-exec <gh args>`.
+// PARKED (COI-3072): no caller since the seat gh guard was deleted. Kept for COI-3074.
+// ghExecCommand is `aterm gh-exec <gh args>`. The github-token command is parked too.
 const ghExecCommand = "gh-exec"
 
 // ghCredentialEnv are the variables gh reads a login from. They are dropped, so

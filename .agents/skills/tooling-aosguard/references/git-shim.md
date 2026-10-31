@@ -1,6 +1,6 @@
 # The guarded `git`
 
-`git` on an agent session's PATH is a stub that runs [`scripts/fs-shims/git_guard.py`](../../../../scripts/fs-shims/git_guard.py) before the real git, placed the same way as the [fs guard](fs-shims.md) and ahead of the [guarded `gh`](gh-replacement.md). It exists because `--dangerously-skip-permissions` removes the harness prompt, so a refusal that lives in the binary is the layer still standing (COI-2724).
+`git` on an agent session's PATH is a stub that runs [`scripts/fs-shims/git_guard.py`](../../../../scripts/fs-shims/git_guard.py) before the real git, placed the same way as the [fs guard](fs-shims.md). It exists because `--dangerously-skip-permissions` removes the harness prompt, so a refusal that lives in the binary is the layer still standing (COI-2724).
 
 ## What it refuses
 

@@ -2,7 +2,7 @@
   "id": "agentic-os-agent",
   "version": "1.0.0",
   "name": "agentic-os agent surface",
-  "description": "aos, aosguard, the guarded git/gh/rm/find/mv shims, agent-compose and the agent harnesses.",
+  "description": "aos, aosguard, the guarded git/rm/find/mv shims, agent-compose and the agent harnesses.",
   "options": {
     "aosVersion": {
       "type": "string",
