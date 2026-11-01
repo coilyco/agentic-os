@@ -1,6 +1,6 @@
 # Label taxonomy: three scoped axes
 
-Every triage label is a `prefix/value` pair, and Forgejo treats a prefixed group as exclusive when the group is declared so. That moves "exactly one per issue" from a convention agents must remember into a property the tracker enforces.
+Every triage label is a `prefix/value` pair, and on Forgejo a prefixed group was exclusive when declared so, which moved "exactly one per issue" from a convention agents must remember into a property the tracker enforced. Forgejo retired on 2026-11-01 (COI-2931), so which tracker enforces it now is open.
 
 | axis | exclusive | values |
 | --- | --- | --- |
@@ -90,17 +90,17 @@ role/human         unchanged, never a seat
 Each rename was an edit in place, so all 770 issues kept the label they already
 carried and none was touched. `role/gamedev` starts empty, and the game and mod
 work that predates the seat sits on `role/platform` until the sweep at
-[agent-compose#345](https://forgejo.coilysiren.me/coilyco/agent-compose/issues/345)
+agent-compose#345 (an archived Forgejo ref)
 finds it.
 
 The whole change is at
-[agent-compose#342](https://forgejo.coilysiren.me/coilyco/agent-compose/issues/342).
+agent-compose#342 (an archived Forgejo ref).
 
 ## This page describes, it does not define
 
 The taxonomy is declared in
-[`config/forgejo-label-taxonomy.yaml`](https://forgejo.coilysiren.me/coilyco/infrastructure/src/branch/main/config/forgejo-label-taxonomy.yaml)
-in infrastructure, and converged from there.
+`config/forgejo-label-taxonomy.yaml` in infrastructure, and converged
+from there onto Forgejo, which retired on 2026-11-01 (COI-2931).
 
 That split is new, and it is the fix for what produced the drift above. The
 authority used to be live Forgejo org state in one org, which a script copied

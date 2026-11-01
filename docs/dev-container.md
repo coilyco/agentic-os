@@ -72,9 +72,9 @@ upstream release's own checksums. A bump is one edit to the table in
 architectures without installing: `VERIFY_ONLY=1 ARCH=amd64 bash install.sh`, then
 `ARCH=arm64`. `PLAN=1` prints the table.
 
-The agent feature downloads the `aos` bundle and agent-compose from Forgejo for
-now. GitHub has no agent-compose release past v1.32.0 and its `aos` repo is
-private. Both URLs are feature options, and they move with the release trains.
+The agent feature's `aos` bundle and agent-compose download URLs still point at
+Forgejo, which was deleted on 2026-11-01 (COI-2931). Both URLs are feature
+options, and they move with the release trains.
 
 ## Not ported yet
 
@@ -84,6 +84,8 @@ private. Both URLs are feature options, and they move with the release trains.
 - Deleting `docker/dev-base/`, its release train and the doctrine that names it.
 
 ## Porting a workflow
+
+Forgejo was deleted on 2026-11-01, so the porting kit below, `port-forgejo-workflow`, is retired with Forgejo on 2026-11-01 and awaits cleanup (COI-2931).
 
 [`workflow_contract.json`](../agentic_os/workflow_contract.json) owns the runner
 labels. Kai decided on 2026-10-25 that no job uses a self-hosted runner
@@ -104,14 +106,14 @@ labels. Kai decided on 2026-10-25 that no job uses a self-hosted runner
 - **Not ported** - the composite actions that call the Forgejo API (`tag-bump`,
   `create-release`, `upload-release-asset`, `bump-formula`).
 
-## Until the flip: CI in dev-base
+## CI in dev-base (retired with Forgejo on 2026-11-01)
 
-Forgejo CI still runs each job in the moving `:release` dev-base image through the
-app's own `just` verbs, so a green run means a headless agent can land the change.
+Forgejo CI ran each job in the moving `:release` dev-base image through the
+app's own `just` verbs. The `forgejo.coilysiren.me` image below is retired with Forgejo on 2026-11-01 (COI-2953), and no GHCR replacement is documented here.
 
 - **Convention** - `container: forgejo.coilysiren.me/coilyco/agentic-os:release`,
   never `:latest`. [`ci-in-dev-base-example.yml`](ci-in-dev-base-example.yml) is
-  the copy-paste start, and `.forgejo/workflows/ci.yml` is the live gate.
+  the copy-paste start.
 - **Required status** - workflow `ci`, job `gate`, so branch protection can
   require `ci / gate`. `dev-base-pr / build` runs only for changes under `docker/`.
 - **Authoring and rollout** - aos authors the convention and publishes the alias.

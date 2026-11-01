@@ -8,7 +8,7 @@ description: Multi-agent orchestration patterns Ward and o2r formalized, kept pa
 Two subsystems in this estate formalized how autonomous agents coordinate, and both are leaving service.
 
 * **o2r** (`otel-a2a-relay`) is archived. It carried the wire: sessions, handoff, liveness, and agent activity as OTel spans.
-* **Ward** is being archived. [agentic-os#1299](https://forgejo.coilysiren.me/coilyco/agentic-os/issues/1299) cuts its runtime from AOS CI and the dev-base image, and Kai superseded that issue's freeze-rather-than-archive posture on 2026-08-27. It governed unattended runs: dispatch, reservation, lifecycle, recovery, and landing evidence.
+* **Ward** is being archived. agentic-os#1299 (an archived Forgejo ref) cuts its runtime from AOS CI and the dev-base image, and Kai superseded that issue's freeze-rather-than-archive posture on 2026-08-27. It governed unattended runs: dispatch, reservation, lifecycle, recovery, and landing evidence.
 
 What they learned does not leave with them. This skill is the inventory.
 

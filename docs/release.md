@@ -1,6 +1,6 @@
 # Release pipeline
 
-`.github/workflows/promote.yml` gates every `main` push through `ci.yml` and fast-forwards `release` with a coilyco-ops App token. Two artifact workflows filter on that diff. `aos-cli-release.yml` cuts the versioned CLI bundle and `aos-precommit-release.yml` cuts the hook package. Manual dispatch overrides the path filter and runs only against `release`, the last-known-good branch. The dev-base train (`dev-base-publish.yml` and `release.yml`, publishing draft images under `draft-${sha}` only when the promoted diff changes `docker/`) still runs from `.forgejo/workflows` until COI-2961 retires it.
+`.github/workflows/promote.yml` gates every `main` push through `ci.yml` and fast-forwards `release` with a coilyco-ops App token. Two artifact workflows filter on that diff. `aos-cli-release.yml` cuts the versioned CLI bundle and `aos-precommit-release.yml` cuts the hook package. Manual dispatch overrides the path filter and runs only against `release`, the last-known-good branch. The dev-base train (`dev-base-publish.yml` and `release.yml`, publishing draft images under `draft-${sha}` only when the promoted diff changes `docker/`) has its workflows in `.forgejo/workflows`, retired with Forgejo on 2026-11-01 (COI-2961, COI-2931).
 
 Promotion only gates and advances the branch. Non-artifact merges produce no
 package tag or draft image.
@@ -10,7 +10,7 @@ Dispatches can override `sha`, `tag`, and `source-tag` to resume or repair a
 publication. The moving alias is always `:release`, independent of the dispatch
 ref. Planning and release-metadata jobs bootstrap from the already-promoted
 `:latest` full image, so an absent `:release` alias remains repairable through
-the workflow. `draft-*` tags are staging refs for Forgejo package cleanup rules.
+the workflow. `draft-*` tags are staging refs.
 Language drafts and stable language cache refs are build-only artifacts.
 `:latest` is a compatibility alias for `:release`.
 
@@ -54,7 +54,7 @@ package tag is present.
 
 ## Mirror to GitHub
 
-No workflow in this repo mirrors `main`. A timer in the infrastructure repo fast-forwards Forgejo `main` onto the GitHub copy with a GitHub App token, never `--force`. `release`, the `aos-v*` and `aos-precommit-v*` tags, and their releases are written on GitHub only.
+GitHub is canonical, so nothing mirrors `main`. The Forgejo-to-GitHub mirror timer retired with Forgejo on 2026-11-01. `release`, the `aos-v*` and `aos-precommit-v*` tags, and their releases are written on GitHub only.
 
 ## Skip markers
 
@@ -67,7 +67,7 @@ commit at all. Shared composite actions live under `actions/*` in this repo.
 Managed repos pin `aos-precommit-v*` via `rev:`. The distribution keeps the
 `agentic_os` namespace but releases independently from dev-base and AOS.
 The suite covers Actions policy, contracts, links, source-doc refs,
-`actionlint`, Forgejo, `shellcheck`, and `typos`. `shfmt`, placeholders, and
+`actionlint`, `shellcheck`, and `typos`, plus a Forgejo runner validator retired with Forgejo on 2026-11-01 (COI-2931). `shfmt`, placeholders, and
 issue refs stay opt-in in [pre-commit hygiene](pre-commit-hygiene.md). See the
 [hook manifest](../.pre-commit-hooks.yaml).
 
@@ -94,9 +94,7 @@ Single-purpose validators for cryptic failure modes. These plus [`ward context-b
 ## Release actions
 
 `actions/tag-bump`, `create-release`, `upload-release-asset` and `bump-formula`
-run on Forgejo and GitHub from one set of inputs, so a repo runs both
-workflows until it flips. Each input is described in its `action.yml`, and none
-is renamed or removed while a Forgejo workflow calls it.
+run on GitHub. Their Forgejo host path is retired with Forgejo on 2026-11-01 (COI-2931) and stays in code until then. Each input is described in its `action.yml`.
 
 * **Host** - `host`, `auto` by default: GitHub when `GITHUB_SERVER_URL` is `https://github.com`, else Forgejo.
 * **Token** - `token` wins over the Forgejo-era `forgejo_token` (default: the job token). A `GITHUB_TOKEN` tag starts no workflow and cannot write a tap, so those take an App token from `actions/app-token`: it decodes the base64 `COILYCO_OPS_APP_PRIVATE_KEY_BASE64` with `COILYCO_OPS_APP_ID`, masks it, and mints a `contents:write` token for `repositories`, plus `workflows:write` when `workflows: write` is set, as `promote.yml` needs to push workflow edits (COI-2935).
@@ -104,4 +102,4 @@ is renamed or removed while a Forgejo workflow calls it.
 * **Latest** - `make_latest` sets GitHub's one-per-repo latest flag on create and on reuse. `aos-cli-release` passes true and `aos-precommit-release` false. `release-latest.yml` re-marks a named release by hand.
 * **Proof** - `.github/workflows/release-actions-proof.yml` (manual) runs a real tag, release and asset on GitHub, reads them back, and deletes them. `tests/test_release_actions_hosts.py` runs each action against a fake API as both hosts.
 
-Forgejo imports use `uses: https://forgejo.coilysiren.me/coilyco/agentic-os/actions/<name>@main`. GitHub callers pin a ref: `uses: coilyco/agentic-os/actions/<name>@<sha>`.
+Callers pin a ref: `uses: coilyco/agentic-os/actions/<name>@<sha>`.

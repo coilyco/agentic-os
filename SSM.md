@@ -20,4 +20,4 @@ id or DSN into a tracked file.
 
 ## `/forgejo/`
 
-- `/forgejo/coilyco-ops/api-token` - Forgejo token used by `scripts/git-credential-forgejo-ssm.sh` for HTTPS git authentication.
+- `/forgejo/coilyco-ops/api-token` - Forgejo token read by `scripts/git-credential-forgejo-ssm.sh`. Forgejo was deleted on 2026-11-01, so nothing authenticates with it now. Cleanup is COI-2931.

@@ -6,6 +6,8 @@ the output.
 
 ## Get the authoritative count first
 
+**Retired with Forgejo on 2026-11-01 (COI-2931).** The two endpoints, token, and base URL below are how the pool was counted on Forgejo. The tracker is now Linear (team `COI`) and its counting call is not written here yet, so the gate stands and the mechanics below are the record.
+
 Two endpoints return a total and they are backed by different sources:
 
 - **Per-repo** `GET /api/v1/repos/{owner}/{repo}/issues?type=issues&state=open` - the `X-Total-Count` response header is a **direct DB query**. Authoritative. Sum this for accounting.
@@ -145,5 +147,5 @@ issues costs the whole pass.
 
 ## See also
 
-- [global-forgejo-scope](global-forgejo-scope.md) - the fleet inventory, distribution accounting, and completion rules for a whole-fleet pass.
-- `/forgejo/coilyco-ops/read-token` in SSM - the scoped read PAT these calls use.
+- [global-fleet-scope](global-fleet-scope.md) - the fleet inventory, distribution accounting, and completion rules for a whole-fleet pass.
+- `/forgejo/coilyco-ops/read-token` in SSM - the scoped read PAT these calls used, retired with Forgejo (COI-2931).

@@ -1,10 +1,10 @@
-# Global Forgejo triage scope
+# Global triage scope
 
 Use this scope whenever Kai asks for issue triage, triage distribution, a backlog burn-down, or a global pass without explicitly narrowing the request.
 
 ## Inventory
 
-* Source - live Forgejo - enumerate every repository across organization and personal namespaces at the start of the run.
+* Source - the live tracker - enumerate every repository across organization and personal namespaces at the start of the run. This scope named Forgejo, which retired on 2026-11-01 (COI-2931), so the enumeration call is open until it is restated against Linear.
 * Included - active repositories - do not substitute a gaming-only, single-organization, on-disk, or cached catalog subset.
 * Exemptions - visible and explicit - retain archived repositories, repositories with issues disabled, and inaccessible repositories in the report instead of omitting them.
 * Narrowing - Kai-owned decision - use a smaller owner or repository scope only when Kai asks for it.

@@ -83,8 +83,8 @@ GITATTRIBUTES_RULES = [
     "*.cmd text eol=crlf",
 ]
 
-# Hook source. GitHub, because forgejo.coilysiren.me resolves to a tailnet address and
-# a hosted runner cannot clone it (COI-2943). Tags reach GitHub on the mirror's next tick.
+# Hook source. GitHub, because Forgejo is deleted and a hosted runner could never clone
+# it (COI-2943). A rev must be a tag on GitHub.
 AGENTIC_OS_REPO_URL = "https://github.com/coilyco/agentic-os"
 
 # Upstream check-merge-conflict, displaced from the agentic-os catalog

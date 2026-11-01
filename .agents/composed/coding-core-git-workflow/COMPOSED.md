@@ -1,6 +1,6 @@
 ---
 name: coding-core-git-workflow
-description: Git workflow for Kai's repositories. Covers Forgejo for git, the Linear tracker, commits, pushes, PR lanes, issues, TODOs, and recovery.
+description: Git workflow for Kai's repositories. Covers GitHub for git, the Linear tracker, commits, pushes, PR lanes, issues, TODOs, and recovery.
 ---
 
 # Git workflow
@@ -12,11 +12,11 @@ Default across `~/projects/coilyco-*/*` and `~/projects/coilysiren/*`:
 - Follow the resolved workflow for the repo and run:
 - Every slug names what **you, the author** do. `-and-merge` means you merge, not that someone else will get to it.
 - `pull-request-and-merge` - **the lane every repo runs.** Push a branch, open the PR, and merge it yourself once it is green. The PR is the record and the CI gate, not a wait state. Leaving one open and reporting it as awaiting someone is the failure this lane exists to prevent.
-- `pull-request` - push a branch and open a Forgejo PR, then stop. You do not merge. The director merge lane takes it from there, which is exactly why this lane has no `-and-merge`. Declared by no repo now, and kept for work a director has to gate.
+- `pull-request` - push a branch and open a GitHub PR, then stop. You do not merge. The director merge lane takes it from there, which is exactly why this lane has no `-and-merge`. Declared by no repo now, and kept for work a director has to gate.
 - `remote-branch-only` - push a branch and stop. No PR and no merge.
 - `merge-remote-main` - **retired.** It was the lane that let you push `main` directly, and pushing straight to `main` ended fleet-wide. The generator no longer renders it, so a repo declaring it reads as undeclared and gets the guarded `pull-request` shape. One repo still declares it and keeps it deliberately: `coilysiren/coilysiren`, which is GitHub-canonical, carries `.agentic-os-ignore`, and wires none of the catalog hooks.
 - A pushed branch always gets a PR. Only `remote-branch-only` stops at the branch, and only when the caller resolved that lane. Unassigned work defaults to `pull-request`. A branch with no PR is litter nobody reviews.
-- Spike or unfinished work opens its PR as Forgejo work in progress: prefix the title `WIP:` (or `[WIP]`, case-insensitive, the instance defaults). Forgejo refuses to merge a WIP PR, which is what stops a green spike from merging on `pull-request-and-merge`. Drop the prefix only once the work meets its acceptance condition, and never merge around it.
+- Spike or unfinished work opens its PR as a draft (`gh pr create --draft --repo coilyco/<repo>`). GitHub refuses to merge a draft PR, which is what stops a green spike from merging on `pull-request-and-merge`. Mark it ready only once the work meets its acceptance condition, and never merge around it.
 - `pr-guard` refuses any push whose destination is the default branch, with no lane exempting a repo any more. It runs at pre-push, so a repo whose other pre-push hooks are already failing cannot push at all until those are fixed. Never `--no-verify` around it.
 - Run tests, linters, builds without asking. Fix failures.
 - Never `--no-verify`.
