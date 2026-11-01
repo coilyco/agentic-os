@@ -11,7 +11,7 @@ Everything on this page retired with Forgejo on 2026-11-01 (COI-3075). GitHub is
 
 ## On GitHub
 
-Reading a failed run and rerunning it are `gh run list`, `gh run view ID --log-failed` and `gh run rerun ID --failed`, each with `--repo coilyco/<repo>`. The verbs are listed under the seat lifecycle in [gh-replacement.md](gh-replacement.md). A GitHub Actions workflow or runner image that replaces a Forgejo one exists only where its file has been read, so none is claimed here.
+Reading a failed run and rerunning it are `gh run list`, `gh run view ID --log-failed` and `gh run rerun ID --failed`, each with `--repo coilyco/<repo>`. A GitHub Actions workflow or runner image that replaces a Forgejo one exists only where its file has been read, so none is claimed here.
 
 ## History
 

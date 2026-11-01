@@ -6,9 +6,7 @@ set -eu
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 dest=${1:?usage: stage-shim-src.sh <dest>}
 
-mkdir -p "$dest/shims" "$dest/fs-shims"
-cp -R "$repo_root/.umbra/shims/." "$dest/shims/"
-cp "$repo_root/.umbra/guardfiles/specverb.lock" "$dest/shims/specverb.lock"
+mkdir -p "$dest/fs-shims"
 cp "$repo_root/scripts/fs-shims/fs_guard.py" "$repo_root/scripts/fs-shims/git_guard.py" \
     "$repo_root/scripts/fs-shims/install.sh" "$dest/fs-shims/"
 echo "staged shim sources into $dest"

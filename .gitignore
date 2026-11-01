@@ -63,9 +63,6 @@ Thumbs.db
 
 # Build outputs
 /dist
-# Staged by `just gh-shim-build` from the one committed copy under guardfiles/.
-.umbra/shims/specverb.lock
-.umbra/shims-seat/specverb.lock
 /build
 /out
 .umbra/**/*.md

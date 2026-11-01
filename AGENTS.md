@@ -66,7 +66,7 @@ Config splits on three axes, each a distinct owner: **permission/surface** (AOSg
 
 Conventional-commits 1.0.0 is encouraged house style, unenforced since the `conventional-commit`/`closes-issue` hooks retired. Reference a tracker record by its Linear identifier, `COI-<n>`. A `teable:<owner>/<repo>#<n>` ref is a frozen pre-cutover record, and a bare `<owner>/<repo>#<n>` is an archived Forgejo ref kept in the COI-3075 dump (`s3://kai-game-backups/backups/coi3075-forgejo-final/`), never rewritten one by one. Each release train advances only on a promoted diff touching its own inputs: the standalone AOS CLI on a shipped binary/package input, `aos-precommit-v*` on an installed hook input, dev-base publication on an image tier. Manual workflow dispatch is the explicit retry/override path; major versions are hand-driven only (`scripts/release.py --bump major` for aos-precommit, workflow dispatch for other trains), never inferred from commit messages. GitHub is canonical for every repo with no exceptions (`https://github.com/coilyco/<repo>`), and Forgejo was deleted on 2026-11-01 (COI-3075). A seat receiving dispatched work follows the resolved lane, defined once in the Git workflow block below.
 
-A read-only clone cannot push itself, so push or merge workflows need a writable surface. Track landed work by tracker-record state and commits on `main`. The guarded `gh` lists and views pull requests with `--repo OWNER/REPO` on every pull-request verb. Merge stays gated.
+A read-only clone cannot push itself, so push or merge workflows need a writable surface. Track landed work by tracker-record state and commits on `main`. `gh pr list` and `gh pr view` read pull requests, with `--repo OWNER/REPO` on every pull-request verb. Merge stays gated.
 
 ## Agent rules
 
@@ -87,7 +87,7 @@ The fleet runs one lane, and it authorizes the agent end to end. Pushing straigh
 * **ALWAYS open the pull request** in the same turn as the branch's first push, on every lane except `remote-branch-only`. A pushed branch with no pull request is litter nobody reviews.
 * **NEVER `--no-verify`** and **NEVER force-push**. Those two are the real walls, and they stay closed.
 * **ALWAYS merge your own pull request on `pull-request-and-merge`**, in the same turn, as soon as it is green. Reporting it as open and awaiting someone is the failure this lane exists to prevent.
-* **A merge refused because the head branch is behind the base branch is yours to fix, never a reason to ask.** Update the branch yourself, with `gh pr update-branch <number> --repo <owner>/<repo>` or by merging `origin/main` into it and pushing, never by force. Wait for green, then merge with `gh pr merge <number> --repo <owner>/<repo> --squash`. The guarded `gh` refuses a pull-request verb that names no `--repo`.
+* **A merge refused because the head branch is behind the base branch is yours to fix, never a reason to ask.** Update the branch yourself, with `gh pr update-branch <number> --repo <owner>/<repo>` or by merging `origin/main` into it and pushing, never by force. Wait for green, then merge with `gh pr merge <number> --repo <owner>/<repo> --squash`.
 * **NEVER merge on `pull-request` or `remote-branch-only`.** Those two stop where they stop, and the director merge lane carries a `pull-request` from there.
 <!-- END managed by agentic-os/scripts/apply-git-workflow.py -->
 

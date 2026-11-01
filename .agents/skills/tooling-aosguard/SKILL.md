@@ -24,9 +24,9 @@ been removed with the rest of the Forgejo issue surface, and the lesson stands.
 The agent had already read that operator verbs live in aosguard. It had the
 sentence loaded and did not recall it when a tool search came back empty, so
 this is a retrieval failure instead of a discovery one. That is why the
-per-area skills are named for the entity you are working with, so one matches
-while you are doing the work, and one large `aosguard` skill only loads if you
-already suspect the answer.
+per-area skills are named for the entity you are working with: `aosguard-forgejo`
+matches while you are merging a pull request, and one large `aosguard` skill only loads
+if you already suspect the answer.
 
 Enumerate before concluding: `aosguard ops <area> --help`, or `describe` where
 the rules offers it.
@@ -50,7 +50,6 @@ is exactly what a generated skill will never contain.
 
 * Verbs per area - the generated `aosguard-<area>` skills.
 * Rules and vendored specs - `.umbra/guardfiles/aosguard/`.
-* The `gh` shim that can still occupy the name on an agent session's PATH until COI-3077 removes it, and the GitHub pull-request lifecycle verbs - [`references/gh-replacement.md`](references/gh-replacement.md).
 * The guarded `git` (no `--no-verify`, no force-push) - [`references/git-shim.md`](references/git-shim.md). The `rm`, `find`, `mv` fs guard - [`references/fs-shims.md`](references/fs-shims.md).
 * Build rule and ownership - [`references/aosguard.md`](references/aosguard.md).
 * CERTIFICATE_VERIFY_FAILED on every call - [`references/tls-trust-store.md`](references/tls-trust-store.md). It is a local empty trust store, not a bad endpoint or credential.

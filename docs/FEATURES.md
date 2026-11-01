@@ -32,7 +32,7 @@ Major shipped capabilities, not files.
   declaring it, reports how far that checkout trails its upstream, and `--handoff` prints the
   absolute-path line to run outside a session shadow.
 - [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) - guarded CLI with PR
-  merge, a guarded `gh` gating pull-request writes per repo, a
+  merge, a
   [guarded `git`](../.agents/skills/tooling-aosguard/references/git-shim.md) refusing hook-skips
   and force-pushes, and an [fs guard](../.agents/skills/tooling-aosguard/references/fs-shims.md).
 - [Guarded helm releases](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - cluster-pinned upgrade, install, and rollback with release destruction unexposed.
