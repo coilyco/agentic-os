@@ -31,13 +31,12 @@ kubeconfig, or cluster transport: the standalone launcher may add an
 payload targets as cache-only dependencies and loading only
 `agentic-os:dev-base-local` for smoke verification.
 
-[`dev-base-publish.yml`](../.forgejo/workflows/dev-base-publish.yml) (Forgejo was
-deleted on 2026-11-01, COI-2961 and COI-2931 retire these workflows) skips
+[`dev-base-publish.yml`](../.github/workflows/dev-base-publish.yml) skips
 unless the promoted diff touches `docker/`. Its matrix publishes commit-scoped
 payload drafts, the full job consumes those exact manifests and publishes
 `draft-${sha}`, and a successful full draft calls the root release workflow.
 
-[`release.yml`](../.forgejo/workflows/release.yml) promotes only the full
+[`release.yml`](../.github/workflows/release.yml) promotes only the full
 manifest to its next minor tag, `release`, and `latest`, and manual dispatch
 reuses it for retries and overrides. Payload drafts and cache refs are internal
 transport with no release alias or compatibility contract. Writes are asserted

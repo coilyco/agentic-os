@@ -3,7 +3,7 @@
 Why each workflow and build-input file is shaped the way it is. This lived in
 each file's own header until the two-line comment cap reached YAML (#1119).
 
-## `.forgejo/workflows/ci.yml`
+## `.github/workflows/ci.yml`
 
 Pull-request CI gate for director-merge repos. This is the live version of docs/ci-in-dev-base-example.yml, and branch protection can require the resulting `ci / gate` status context on PR-gated workflows. `release` is the promoted last-known-good branch (ward#1117 / aos#469) and never re-gates: promote.yml already ran the suite on the exact sha it fast-forwarded, so a flaky rerun cannot fail a vouched promotion (Kai's call, 2026-07-12).
 
@@ -11,7 +11,7 @@ AOS CLI and Python package tests stay on every build. The separate dev-base-pr w
 
 uv builds the local packages through PEP 517, which resolves setuptools from PyPI whenever the uv cache is cold. That egress flakes on this runner, so the jobs cache ~/.cache/uv and raise uv's 30s HTTP timeout.
 
-## `.forgejo/workflows/models-check.yml`
+## `.github/workflows/models-check.yml`
 
 Live check of per-role model profiles against the Anthropic model list, so a retired model or unsupported effort turns red before a seat launch hits it. It runs daily and on dispatch. The key is operational-only: it lives only in the `ANTHROPIC_MODELS_API_KEY` secret, and every harness launch strips that name ([aos auth](aos-auth.md), Kai's rule of 2026-09-28). Until the secret exists, a scheduled run skips with a warning and a dispatched run fails (`teable:coilyco-flight-deck/agentic-os#7838`). Contract: [native harness configuration](native-harness-config.md).
 
@@ -23,19 +23,19 @@ It runs every six hours, since nothing else touches the pin between `docker/` ch
 
 It does not advance the pin, since that publishes a new `release` image and stays a reviewed push. A red scheduled run alerts Sentry. Fix it by advancing `AGENT_COMPOSE_VERSION` in `docker/dev-base/full/Dockerfile` together with the role count in `docker/dev-base/verify-common.sh`, which moves with the pin and so cannot notice one that lags. The pull-request trigger covers only the workflow's own two files and does not alert.
 
-## `.forgejo/workflows/promote.yml`
+## `.github/workflows/promote.yml`
 
-Promote main to release after the same suite ci.yml runs. ci.yml never re-gates release precisely because this gate already vouched for the exact sha, so the two must stay in step: a gate narrower than ci.yml promotes a red main. test_pull_request_ci_workflow.py holds them in step. Draft dev-base image publishing runs in a separate workflow keyed by the promoted SHA, so a transient registry or build failure cannot stall the release branch.
+Promote main to release after the same suite ci.yml runs. ci.yml never re-gates release precisely because this gate already vouched for the exact sha. promote calls ci.yml as its gate, so it cannot run a narrower suite and promote a red main. test_pull_request_ci_workflow.py holds that. Draft dev-base image publishing runs in a separate workflow keyed by the promoted SHA, so a transient registry or build failure cannot stall the release branch.
 
 uv builds the local packages through PEP 517, which resolves setuptools from PyPI whenever the uv cache is cold. That egress flakes on this runner, so the jobs cache ~/.cache/uv and raise uv's 30s HTTP timeout.
 
-## `.forgejo/workflows/release.yml`
+## `.github/workflows/release.yml`
 
-Forgejo-canonical full-image release publication. dev-base-publish.yml calls this workflow after the draft graph succeeds. Manual dispatch reuses the same jobs for retries and explicit version overrides.
+Full-image release publication on GHCR. dev-base-publish.yml calls this workflow after the draft graph succeeds. It passes `make_latest: "false"`, since `aos-cli-release.yml` owns the latest flag. Manual dispatch reuses the same jobs for retries and explicit version overrides.
 
-## `.forgejo/workflows/dev-base-publish.yml`
+## `.github/workflows/dev-base-publish.yml`
 
-Publish commit-scoped language payloads and the full image after release has advanced, then publish the root minor release from the verified full draft. Registry or build failures do not block branch promotion.
+Publish commit-scoped language payloads and the full image after release has advanced, then publish the root minor release from the verified full draft. Registry or build failures do not block branch promotion. Jobs run on `ubuntu-latest` and push to `ghcr.io/coilyco/agentic-os` with the workflow token. No job uses a self-hosted runner (COI-2967, COI-3042).
 
 ## `docker/dev-base/fleet-precommit-hooks.yaml`
 

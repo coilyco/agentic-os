@@ -1,6 +1,5 @@
-# Publish commit-scoped language payloads and the full image.
+# Publish commit-scoped language payloads and the full image to GHCR.
 # Rationale: docs/build-file-headers.md.
-
 name: dev-base-publish
 
 on:
@@ -39,15 +38,16 @@ concurrency:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   plan-draft:
-    runs-on: docker-build
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
       draft_tag: ${{ steps.draft.outputs.draft_tag }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -73,7 +73,7 @@ jobs:
   publish-language-payloads:
     name: publish-${{ matrix.tier }}
     needs: [plan-draft]
-    runs-on: docker-build
+    runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -87,7 +87,7 @@ jobs:
           - lang-python
     steps:
       - if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.tier == 'all' || github.event.inputs.tier == matrix.tier || github.event.inputs.tier == 'full' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - id: payload
         if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.tier == 'all' || github.event.inputs.tier == matrix.tier || github.event.inputs.tier == 'full' }}
         continue-on-error: true
@@ -95,14 +95,14 @@ jobs:
         with:
           tier: ${{ matrix.tier }}
           tag: ${{ needs.plan-draft.outputs.draft_tag }}
-          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+          registry-token: ${{ github.token }}
       - name: Retry the payload once, contract in actions/publish-dev-base
         if: ${{ steps.payload.outcome == 'failure' }}
         uses: ./actions/publish-dev-base
         with:
           tier: ${{ matrix.tier }}
           tag: ${{ needs.plan-draft.outputs.draft_tag }}
-          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+          registry-token: ${{ github.token }}
       - name: Assert the payload actually landed, not just that the job is green
         if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.tier == 'all' || github.event.inputs.tier == matrix.tier || github.event.inputs.tier == 'full' }}
         uses: ./actions/publish-dev-base
@@ -111,7 +111,7 @@ jobs:
           mode: verify
           tag: ${{ needs.plan-draft.outputs.draft_tag }}
           source-tag: ${{ needs.plan-draft.outputs.draft_tag }}
-          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+          registry-token: ${{ github.token }}
       - name: Alert Sentry on release failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
         continue-on-error: true
@@ -121,15 +121,15 @@ jobs:
   publish-full:
     needs: [plan-draft, publish-language-payloads]
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.tier == 'all' || github.event.inputs.tier == 'full' }}
-    runs-on: docker-build
+    runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./actions/publish-dev-base
         with:
           tier: full
           tag: ${{ needs.plan-draft.outputs.draft_tag }}
-          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+          registry-token: ${{ github.token }}
       - name: Alert Sentry on release failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
         continue-on-error: true
@@ -145,7 +145,7 @@ jobs:
   publish-release:
     needs: [plan-draft, publish-full]
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.tier == 'all' || github.event.inputs.tier == 'full' }}
-    uses: ./.forgejo/workflows/release.yml
+    uses: ./.github/workflows/release.yml
     with:
       sha: ${{ inputs.sha || github.sha }}
       source-tag: ${{ needs.plan-draft.outputs.draft_tag }}
@@ -155,10 +155,10 @@ jobs:
   assert-release-moved:
     needs: [plan-draft, publish-release]
     if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.tier == 'all' || github.event.inputs.tier == 'full' }}
-    runs-on: docker-build
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Assert release and latest moved, see actions/publish-dev-base
         uses: ./actions/publish-dev-base
         with:
@@ -167,7 +167,7 @@ jobs:
           tag: release
           extra-aliases: latest
           source-tag: ${{ needs.plan-draft.outputs.draft_tag }}
-          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+          registry-token: ${{ github.token }}
       - name: Alert Sentry on release failure
         if: ${{ failure() && github.ref == 'refs/heads/release' }}
         continue-on-error: true

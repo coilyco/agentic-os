@@ -38,10 +38,12 @@ use_java() {
 }
 
 toolchain() {
-  [ "$(id -u)" -eq 0 ] || fail "the toolchain step installs packages and must run as root, as the CI container does"
+  # A hosted runner is not root. The JDK path below is Debian's openjdk-17 layout.
+  local as_root=""
+  if [ "$(id -u)" -ne 0 ]; then as_root="sudo"; command -v sudo >/dev/null || fail "the toolchain step installs packages and needs root or sudo"; fi
   if ! ls /usr/lib/jvm/java-17-openjdk-* >/dev/null 2>&1; then
-    apt-get update
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openjdk-17-jdk-headless unzip
+    $as_root apt-get update
+    $as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openjdk-17-jdk-headless unzip
   fi
   if [ ! -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]; then
     local zip=/tmp/android-cmdline-tools.zip

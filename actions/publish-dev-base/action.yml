@@ -11,10 +11,10 @@ description: |
   draft tag is not a fleet alias.
 
   Build mode installs binfmt as part of the buildx builder setup. Promote mode
-  skips that setup and lands on the `docker` runner instead of `docker-build`,
-  so it inherits no handler from a build-mode run. The full-tier verification
-  runs one container per published platform in both modes, so promote installs
-  binfmt on its own before that step. See docs/dev-base-image.md.
+  skips that setup, so it inherits no handler from a build-mode run. The
+  full-tier verification runs one container per published platform in both
+  modes, so promote installs binfmt on its own before that step. See
+  docs/dev-base-image.md.
 
   Verify mode reads only: it asserts that `tag` and any aliases resolve to the
   same digest as `source-tag`, and fails when they do not. Promote mode runs the
@@ -23,10 +23,9 @@ description: |
   after a workflow it does not control, which is how a reusable-workflow call
   that reported success without executing is caught. See agentic-os#1032.
 
-  A skipped job is not this case and needs no backstop: this runner logs
-  "Skipping job '<id>' due to '<expression>'" and reports the job as skipped.
-  The failure verify exists for is a job log of `.MISSING`, whose content is
-  "job has not been executed yet", reported alongside a green caller.
+  A skipped job is not this case and needs no backstop, since the job is
+  reported as skipped. The failure verify exists for is a reusable-workflow call
+  that reports green without executing.
 
   Callers act on that retry-safety: dev-base-publish gives each payload one
   bounded retry, since the full job needs the whole matrix green in one run and
@@ -61,12 +60,12 @@ inputs:
     required: false
     default: ""
   registry-token:
-    description: "Forgejo PAT with write:package for the registry login."
+    description: "Registry token. The workflow GITHUB_TOKEN, with packages: write, logs in to GHCR."
     required: true
   image-base:
     description: "Registry image base."
     required: false
-    default: "forgejo.coilysiren.me/coilyco/agentic-os"
+    default: "ghcr.io/coilyco/agentic-os"
   platforms:
     description: "Platforms for the buildx publish."
     required: false

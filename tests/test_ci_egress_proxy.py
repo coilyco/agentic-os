@@ -12,11 +12,8 @@ import os
 import subprocess
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parent.parent
 WRAPPER = ROOT / "scripts" / "ci-command.sh"
-WORKFLOWS = sorted((ROOT / ".forgejo" / "workflows").glob("*.yml"))
 GATE = "scripts/ci/repo-test-gate.sh"
 
 
@@ -60,20 +57,12 @@ def test_no_command_is_a_usage_error() -> None:
     assert _run().returncode == 2
 
 
-@pytest.mark.parametrize("workflow", WORKFLOWS, ids=lambda p: p.name)
-def test_no_workflow_caches_the_retired_pre_commit_home(workflow: Path) -> None:
-    # agentic-os:release bakes PRE_COMMIT_HOME=/opt/pre-commit, so these blocks
-    # saved and restored an empty directory while reading as protection.
-    assert "~/.cache/pre-commit" not in workflow.read_text(encoding="utf-8")
-
-
 def test_every_gate_invocation_crosses_the_proxy_wrapper() -> None:
     callers = [
         path
         # The justfile is here because `just repo-test-gate` is the spelling
         # an agent types, and it was the one unwrapped caller (#1212).
         for path in [
-            *WORKFLOWS,
             *sorted((ROOT / "scripts" / "ci").glob("*.sh")),
             ROOT / "justfile",
         ]

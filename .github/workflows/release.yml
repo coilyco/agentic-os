@@ -1,6 +1,5 @@
-# Release aos-precommit only when its installed hook surface changes.
+# Promote the dev-base draft image to the version tag, release, and latest aliases.
 # Rationale: docs/build-file-headers.md.
-
 name: release
 
 on:
@@ -60,19 +59,19 @@ concurrency:
 
 permissions:
   contents: write
+  packages: write
 
 jobs:
   plan-release:
-    runs-on: docker
+    runs-on: ubuntu-latest
     timeout-minutes: 20
-    container: forgejo.coilysiren.me/coilyco/agentic-os:latest
     outputs:
       tag: ${{ steps.tag.outputs.new_tag }}
       version: ${{ steps.tag.outputs.new_version }}
       changelog: ${{ steps.tag.outputs.changelog }}
       draft_tag: ${{ steps.draft.outputs.draft_tag }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -100,10 +99,10 @@ jobs:
   retag-full:
     needs: [plan-release]
     if: ${{ needs.plan-release.outputs.tag != '' }}
-    runs-on: docker
+    runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: ./actions/publish-dev-base
         with:
@@ -113,7 +112,7 @@ jobs:
           source-tag: ${{ needs.plan-release.outputs.draft_tag }}
           alias: release
           extra-aliases: latest
-          registry-token: ${{ secrets.REGISTRY_TOKEN }}
+          registry-token: ${{ github.token }}
           build-timeout: 80m
 
       - name: Alert Sentry on main failure
@@ -125,10 +124,9 @@ jobs:
   release:
     needs: [plan-release, retag-full]
     if: ${{ needs.plan-release.outputs.tag != '' }}
-    runs-on: docker
-    container: forgejo.coilysiren.me/coilyco/agentic-os:latest
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -146,6 +144,7 @@ jobs:
           tag: ${{ needs.plan-release.outputs.tag }}
           name: ${{ needs.plan-release.outputs.tag }}
           body: ${{ needs.plan-release.outputs.changelog }}
+          make_latest: "false"
 
       - name: Alert Sentry on main failure
         if: ${{ failure() && github.ref == 'refs/heads/main' }}
