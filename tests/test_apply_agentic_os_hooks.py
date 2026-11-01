@@ -272,6 +272,13 @@ def test_refresh_replaces_a_block_that_names_another_host(tmp_path: Path) -> Non
     assert f"repo: {script.AGENTIC_OS_REPO_URL}\n    rev: v2.0.0" in rendered
 
 
+def test_the_managed_block_names_no_forgejo_hook_host() -> None:
+    """A fresh host installs hooks from the block, so no line may need a deleted host."""
+    script = _load_script()
+
+    assert "forgejo.coilysiren.me" not in script.managed_block("v1.0.0")
+
+
 def test_vendored_trees_exclude_only_the_rewriting_hooks(tmp_path: Path) -> None:
     """A vendored tree opts out of the fixers, not the reporting hooks."""
     script = _load_script()
