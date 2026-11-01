@@ -49,9 +49,9 @@ def test_self_hosted_fails(tmp_path: Path) -> None:
     assert [v.reason.split("`")[1] for v in found] == ["self-hosted", "linux"]
 
 
-def test_the_cluster_runner_label_fails_in_this_public_repo(tmp_path: Path) -> None:
-    # Public repos never target kai-server, since a fork PR can run code there
-    # (COI-3096). The contract lists only hosted labels, so the label is rejected.
+def test_the_cluster_runner_label_fails(tmp_path: Path) -> None:
+    # No job uses a self-hosted runner (COI-2967, COI-3042). The contract lists
+    # only hosted labels, so kai-server is rejected.
     found = violations(tmp_path, workflow("runs-on: kai-server"))
     assert len(found) == 1
     assert "outside the contract" in found[0].reason

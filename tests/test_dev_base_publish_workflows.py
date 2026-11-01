@@ -173,11 +173,11 @@ def test_publish_workflow_keeps_resume_inputs_and_non_blocking_alerts() -> None:
     _assert_alert_steps_are_non_blocking(release)
 
 
-def test_full_image_build_uses_the_hosted_runner_and_never_the_cluster_one() -> None:
+def test_full_image_build_uses_the_hosted_runner_and_never_a_self_hosted_one() -> None:
     publish = PUBLISH.read_text(encoding="utf-8")
 
-    # agentic-os is public, so no job targets kai-server (COI-3096). The verify
-    # job needs docker too, and plan-draft joined them, so four rather than three.
+    # No job uses a self-hosted runner (COI-2967). The verify job needs docker
+    # too, and plan-draft joined them, so four rather than three.
     assert "kai-server" not in publish
     assert publish.count("runs-on: ubuntu-latest") == 4
     assert "publish-language-payloads:" in publish

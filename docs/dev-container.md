@@ -88,8 +88,8 @@ options, and they move with the release trains.
 Forgejo was deleted on 2026-11-01, so the porting kit below, `port-forgejo-workflow`, is retired with Forgejo on 2026-11-01 and awaits cleanup (COI-2931).
 
 [`workflow_contract.json`](../agentic_os/workflow_contract.json) owns the runner
-labels. No job here uses a self-hosted runner (COI-2967). COI-3096 gives private
-repos `kai-server`, but a public repo's fork PR can run code there, so the hook rejects it here. `rollout`, `website` and
+labels. No job uses a self-hosted runner (COI-2967, COI-3042), so the hook rejects
+`kai-server` and every other label outside the hosted list. `rollout`, `website` and
 `deploy` map too but are redesigns, not ports, and print a `TODO`.
 
 - **Script** - `port-forgejo-workflow .forgejo/workflows/ci.yml` writes

@@ -35,7 +35,7 @@ Full-image release publication on GHCR. dev-base-publish.yml calls this workflow
 
 ## `.github/workflows/dev-base-publish.yml`
 
-Publish commit-scoped language payloads and the full image after release has advanced, then publish the root minor release from the verified full draft. Registry or build failures do not block branch promotion. Jobs run on `ubuntu-latest` and push to `ghcr.io/coilyco/agentic-os` with the workflow token. agentic-os is public, so none targets `kai-server` (COI-3096).
+Publish commit-scoped language payloads and the full image after release has advanced, then publish the root minor release from the verified full draft. Registry or build failures do not block branch promotion. Jobs run on `ubuntu-latest` and push to `ghcr.io/coilyco/agentic-os` with the workflow token. No job uses a self-hosted runner (COI-2967, COI-3042).
 
 ## `docker/dev-base/fleet-precommit-hooks.yaml`
 
