@@ -1,5 +1,4 @@
 # Gate the aterm web client only when its tree changes, so other changes pay nothing.
-
 name: aterm-client
 
 on:
@@ -7,14 +6,17 @@ on:
     branches: [main]
     paths:
       - "aterm-client/**"
-      - ".forgejo/workflows/aterm-client.yml"
+      - ".github/workflows/aterm-client.yml"
   pull_request:
     paths:
       - "aterm-client/**"
-      - ".forgejo/workflows/aterm-client.yml"
+      - ".github/workflows/aterm-client.yml"
 
 permissions:
   contents: read
+
+env:
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
 
 concurrency:
   group: aterm-client-${{ github.ref }}
@@ -22,12 +24,17 @@ concurrency:
 
 jobs:
   gate:
-    runs-on: docker
+    runs-on: ubuntu-latest
     timeout-minutes: 20
-    container: forgejo.coilysiren.me/coilyco/agentic-os:release
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: aterm-client/.node-version
+      - uses: ./actions/setup-ci
+        with:
+          tools: just
       - run: just aterm-client-install
       - run: just aterm-client-gate

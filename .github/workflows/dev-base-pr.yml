@@ -1,5 +1,4 @@
 # Build the heavy dev-base family only when the pull request changes Docker inputs.
-
 name: dev-base-pr
 
 on:
@@ -17,10 +16,10 @@ concurrency:
 
 jobs:
   build:
-    runs-on: docker-build
+    runs-on: ubuntu-latest
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Build and verify the complete dev-base family
         uses: ./actions/dev-base-build
         with:

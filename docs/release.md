@@ -1,6 +1,6 @@
 # Release pipeline
 
-`.github/workflows/promote.yml` gates every `main` push through `ci.yml` and fast-forwards `release` with a coilyco-ops App token. Two artifact workflows filter on that diff. `aos-cli-release.yml` cuts the versioned CLI bundle and `aos-precommit-release.yml` cuts the hook package. Manual dispatch overrides the path filter and runs only against `release`, the last-known-good branch. The dev-base train (`dev-base-publish.yml` and `release.yml`, publishing draft images under `draft-${sha}` only when the promoted diff changes `docker/`) has its workflows in `.forgejo/workflows`, retired with Forgejo on 2026-11-01 (COI-2961, COI-2931).
+`.github/workflows/promote.yml` gates every `main` push through `ci.yml` and fast-forwards `release` with a coilyco-ops App token. Two artifact workflows filter on that diff. `aos-cli-release.yml` cuts the versioned CLI bundle and `aos-precommit-release.yml` cuts the hook package. Manual dispatch overrides the path filter and runs only against `release`, the last-known-good branch. The dev-base train (`dev-base-publish.yml` and `release.yml`, publishing draft images under `draft-${sha}` only when the promoted diff changes `docker/`) publishes to `ghcr.io/coilyco/agentic-os` from `.github/workflows` on `ubuntu-latest` (COI-3096).
 
 Promotion only gates and advances the branch. Non-artifact merges produce no
 package tag or draft image.

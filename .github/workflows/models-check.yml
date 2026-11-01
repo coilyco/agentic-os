@@ -1,6 +1,5 @@
 # Live check of per-role model profiles against the provider model list.
 # Rationale: docs/build-file-headers.md.
-
 name: models-check
 
 on:
@@ -17,11 +16,17 @@ concurrency:
 
 jobs:
   models:
-    runs-on: docker
+    runs-on: ubuntu-latest
     timeout-minutes: 15
-    container: forgejo.coilysiren.me/coilyco/agentic-os:release
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: aos-cli/go.mod
+          cache-dependency-path: aos-cli/go.sum
+      - uses: ./actions/setup-ci
+        with:
+          tools: just
       - name: Check role model profiles against the provider
         env:
           ANTHROPIC_MODELS_API_KEY: ${{ secrets.ANTHROPIC_MODELS_API_KEY }}

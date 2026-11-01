@@ -7,8 +7,8 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PUBLISH = ROOT / ".forgejo" / "workflows" / "dev-base-publish.yml"
-RELEASE = ROOT / ".forgejo" / "workflows" / "release.yml"
+PUBLISH = ROOT / ".github" / "workflows" / "dev-base-publish.yml"
+RELEASE = ROOT / ".github" / "workflows" / "release.yml"
 PUBLISH_ACTION = ROOT / "actions" / "publish-dev-base" / "action.yml"
 PUBLISH_IMAGE = (
     ROOT / "actions" / "publish-dev-base" / "scripts" / "publish-image.sh"
@@ -173,21 +173,22 @@ def test_publish_workflow_keeps_resume_inputs_and_non_blocking_alerts() -> None:
     _assert_alert_steps_are_non_blocking(release)
 
 
-def test_full_image_build_uses_the_dedicated_runner() -> None:
+def test_full_image_build_uses_the_hosted_runner_and_never_the_cluster_one() -> None:
     publish = PUBLISH.read_text(encoding="utf-8")
 
-    # The verify job needs the same runner: it reads the registry through docker.
-    # plan-draft joined them, so four rather than three.
-    assert publish.count("runs-on: docker-build") == 4
+    # agentic-os is public, so no job targets kai-server (COI-3096). The verify
+    # job needs docker too, and plan-draft joined them, so four rather than three.
+    assert "kai-server" not in publish
+    assert publish.count("runs-on: ubuntu-latest") == 4
     assert "publish-language-payloads:" in publish
     assert "publish-full:" in publish
     assert "needs: [plan-draft, publish-language-payloads]" in publish
     plan_draft = publish.split("\n  plan-draft:\n", 1)[1].split(
         "\n  publish-language-payloads:\n", 1
     )[0]
-    # Exact, not a substring of docker-build, and no container: a container here
-    # made the publish graph depend on the image it publishes.
-    assert "runs-on: docker-build" in plan_draft
+    # No container: a container here made the publish graph depend on the image
+    # it publishes.
+    assert "runs-on: ubuntu-latest" in plan_draft
     assert "container:" not in plan_draft
 
 
@@ -414,3 +415,30 @@ def test_the_dispatch_guard_has_one_spelling() -> None:
     assert publish.count("github.event.inputs.tier == 'all'") == publish.count(
         "github.event_name != 'workflow_dispatch'"
     )
+
+
+def test_the_image_goes_to_ghcr_with_the_workflow_token_only() -> None:
+    publish = PUBLISH.read_text(encoding="utf-8")
+    release = RELEASE.read_text(encoding="utf-8")
+    action = PUBLISH_ACTION.read_text(encoding="utf-8")
+    login = (PUBLISH_ACTION.parent / "scripts" / "registry-login.sh").read_text(encoding="utf-8")
+
+    assert "packages: write" in publish
+    assert "packages: write" in release
+    for text in (publish, release):
+        assert "secrets.REGISTRY_TOKEN" not in text
+        assert "registry-token: ${{ github.token }}" in text
+        assert "forgejo" not in text.lower()
+    assert 'default: "ghcr.io/coilyco/agentic-os"' in action
+    assert "docker login ghcr.io" in login
+    assert "forgejo" not in login.lower()
+    # The called workflow is the GitHub one, so a rename cannot orphan it.
+    assert "uses: ./.github/workflows/release.yml" in publish
+    assert (ROOT / ".github" / "workflows" / "release.yml").is_file()
+
+
+def test_the_dev_base_release_does_not_take_the_repo_latest_flag() -> None:
+    # A repo has one latest across its trains, and aos-cli-release owns it.
+    release = RELEASE.read_text(encoding="utf-8")
+
+    assert 'make_latest: "false"' in release
