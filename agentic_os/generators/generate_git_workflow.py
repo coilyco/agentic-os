@@ -47,7 +47,6 @@ _FORGE_NAME = {FORGE_FORGEJO: "Forgejo", FORGE_GITHUB: "GitHub"}
 # Stands in for the one `_BODY` bullet that names a forge's verbs.
 _BEHIND_MARK = "@@BEHIND_BASE@@"
 
-# The guarded `gh` refuses a pull-request verb that names no --repo (COI-2975).
 _BEHIND_BASE = {
     FORGE_FORGEJO: (
         '* **A merge refused with 405 "the head branch is behind the base branch" '
@@ -61,8 +60,7 @@ _BEHIND_BASE = {
         "yours to fix, never a reason to ask.** Update the branch yourself, with "
         "`gh pr update-branch <number> --repo <owner>/<repo>` or by merging "
         "`origin/main` into it and pushing, never by force. Wait for green, then "
-        "merge with `gh pr merge <number> --repo <owner>/<repo> --squash`. The "
-        "guarded `gh` refuses a pull-request verb that names no `--repo`."
+        "merge with `gh pr merge <number> --repo <owner>/<repo> --squash`."
     ),
 }
 

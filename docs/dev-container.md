@@ -39,7 +39,7 @@ and arm64) and layers features on it.
 - **`agentic-os-media`** - ffmpeg and ImageMagick.
 - **`agentic-os-agent`** - `aos`, `aosguard`, agent-compose, the claude, codex,
   goose, opencode and mcporter harnesses, the Claude managed settings, and the
-  guarded `git`, `gh`, `rm`, `find` and `mv` shims. The shims build in place from
+  guarded `git`, `rm`, `find` and `mv` shims. The shims build in place from
   sources the `aos` release bundle carries ([`stage-shim-src.sh`](../scripts/stage-shim-src.sh)).
   The feature's build fails if a shim is not first on PATH or a guarded
   `git commit --no-verify` is not refused.

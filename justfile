@@ -102,20 +102,6 @@ aosguard-build *ARGS:
     @umbra --project-root .umbra/guardfiles --skills-out dist/skills build --out dist/aosguard "$@"
     @uv run python -m agentic_os.generators.generate_aosguard_skills --skills-root dist/skills
 
-# Materialize the guarded `gh` replacement binary. It occupies `gh` on an agent session's PATH; see the tooling-aosguard skill's gh-replacement reference.
-gh-shim-build *ARGS:
-    @cp .umbra/guardfiles/specverb.lock .umbra/shims/specverb.lock
-    @umbra --project-root .umbra/shims build --out dist/shims/gh "$@"
-
-# Regenerate the seat variant of the guarded `gh` guardfile from the container one. `--check` fails when the committed copy is stale.
-gh-seat-guardfile *ARGS:
-    @uv run python -m agentic_os.generators.generate_gh_seat_guardfile "$@"
-
-# Materialize the seat `gh` replacement, which execs `aterm gh-exec` for a per-repo App token. Containers keep `gh-shim-build`; see the tooling-aosguard skill's gh-replacement reference.
-gh-shim-build-seat *ARGS:
-    @cp .umbra/guardfiles/specverb.lock .umbra/shims-seat/specverb.lock
-    @umbra --project-root .umbra/shims-seat build --out dist/shims-seat/gh "$@"
-
 # Install the git, rm, find and mv guard stubs into a shim directory (an arbitrary path, never the live one unless rolling out by hand). See the tooling-aosguard skill's git-shim and fs-shims references.
 fs-shims-install DEST:
     @sh scripts/fs-shims/install.sh "{{DEST}}"
@@ -124,11 +110,9 @@ fs-shims-install DEST:
 disk-guard-install *ARGS:
     @sh scripts/disk-guard/install.sh "$HOME/.local/bin" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/disk-guard.log" "$@"
 
-# Negative controls: every never and withhold in both .umbra roots must refuse by its own text and be load-bearing (umbra docs/negative-controls.md).
+# Negative controls: every never and withhold in the .umbra root must refuse by its own text and be load-bearing (umbra docs/negative-controls.md).
 guard-controls *ARGS:
     @umbra --project-root .umbra/guardfiles controls "$@"
-    @umbra --project-root .umbra/shims controls "$@"
-    @umbra --project-root .umbra/shims-seat controls "$@"
 
 # Refresh aosguard's vendored API snapshot and frozen umbra dependency graph with the packaged umbra driver. Pass umbra lock flags as trailing arguments.
 aosguard-lock *ARGS:

@@ -6,8 +6,7 @@ repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 cd "$repo_root"
 
 umbra_bin=${UMBRA_BIN:-umbra}
-# The one lock both project roots build against. Reference doc: the
-# tooling-aosguard skill, references/gh-replacement.md.
+# The one committed lock the guardfiles root builds against.
 "$umbra_bin" \
     --project-root .umbra/guardfiles \
     --skills-out dist/skills \
