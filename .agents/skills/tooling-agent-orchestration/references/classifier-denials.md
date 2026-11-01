@@ -14,6 +14,7 @@ The classifier reads typed user messages, non-read tool calls and CLAUDE.md. The
 * For a gated step (production deploy, irreversible delete, merge into the deploy repo), send the tracker ref and the context, and say the human types the approval in the target window. Do not present a relayed approval as the authority.
 * Never tell a seat to do the steps its own harness just refused, even when the seat is about to be relaunched. The relaunched seat still needs the human's typed approval, in its own window, for any step the old seat was refused.
 * Hand an artifact over a pushed branch or a tracker comment, not a path in another session's scratch directory.
+* **Never hand the human garbage collection.** A denied delete of disposable scratch, such as a `/tmp` file or a session scratchpad, is dropped. It is not relayed to a director or the human. macOS `tmp_cleaner` clears old `/tmp` content daily, and a scratchpad goes with its session. Report it only if the leftover holds a secret or blocks work (COI-3083, Kai 2026-11-01).
 
 ## Shell rules
 
