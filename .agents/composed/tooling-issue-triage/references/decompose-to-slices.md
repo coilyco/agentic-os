@@ -56,7 +56,7 @@ Iterate until the breakdown is approved.
 
 Create through the repository's configured tracker surface, in dependency order
 (blockers first) so real issue numbers can go in the Blocked by field. coilyco
-repositories use Forgejo. Follow `coding-core-git-workflow` for tracker
+work is tracked in Linear (team `COI`). Follow `coding-core-git-workflow` for tracker
 selection and write authority.
 
 <issue-template>

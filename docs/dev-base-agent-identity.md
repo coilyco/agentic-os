@@ -6,8 +6,7 @@ Who a dev-base agent is to git and to itself.
 
 An in-container aos session keeps its self-name on the status line and the session
 banner. Git identity is separate: the committer NAME and EMAIL resolve to the
-deployment bot so Forgejo links the commit to the coilyco-ops account instead of
-an example fallback.
+deployment bot, the coilyco-ops account, instead of an example fallback.
 
 ## What runs
 

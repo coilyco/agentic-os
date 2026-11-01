@@ -35,5 +35,5 @@ The full image installs the stubs into `/opt/agentic-os/shims` and puts that dir
 * **Absolute paths and shell redirection** are accepted risks (COI-2730, Kai on COI-2687). `/bin/rm` and `/usr/bin/git` are not on the shim's PATH, and `>` reaches no wrapped binary, so only a container or sandbox bounds them. The `core.hooksPath` consequence of a redirected write into `.git/config` is caught above.
 * **A persistent alias** already in a config file that expands to `commit` or `push` is not resolved, so `git ci -n` passes when `alias.ci` is `commit`.
 * **`GIT_DIR` or `--git-dir`** pointing at a repo with no hooks.
-* **Server side.** Forgejo branch protection is the only layer that holds against a remote force-push from a caller who skips the shim. Whether `main` is protected against it was not checked here.
+* **Server side.** GitHub branch protection is the only layer that holds against a remote force-push from a caller who skips the shim. Whether `main` is protected against it was not checked here.
 * **Cost.** Each git call starts a Python interpreter first.

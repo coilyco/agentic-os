@@ -32,24 +32,20 @@ Major shipped capabilities, not files.
   declaring it, reports how far that checkout trails its upstream, and `--handoff` prints the
   absolute-path line to run outside a session shadow.
 - [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) - guarded CLI with PR
-  merge, sealed
-  [Forgejo storage measurement](../.agents/skills/tooling-aosguard/references/forgejo-ops.md),
-  a guarded `gh` gating pull-request writes per repo, a
+  merge, a guarded `gh` gating pull-request writes per repo, a
   [guarded `git`](../.agents/skills/tooling-aosguard/references/git-shim.md) refusing hook-skips
   and force-pushes, and an [fs guard](../.agents/skills/tooling-aosguard/references/fs-shims.md).
 - [Guarded helm releases](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - cluster-pinned upgrade, install, and rollback with release destruction unexposed.
 - [Code review skill](../.agents/composed/tooling-code-review/COMPOSED.md) - Portfolio Director gate-decision review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
-- [Forgejo Actions logs and rerun](../.agents/skills/tooling-aosguard/references/forgejo-actions-runs.md) - job logs, run ZIPs, and a guarded rerun of a failed pull-request run.
-- [Forgejo runner tokens](../.agents/skills/tooling-aosguard/references/forgejo-ops.md) - guarded registration-token minting.
 - [Homebrew updates](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - `aosguard update brew` refreshes tap metadata, upgrades this estate's own formulae first, then the rest, and exits non-zero on anything left behind.
 - [Teable schema admin](../.agents/skills/tooling-aosguard/references/teable-admin.md) - guarded field and table creation plus select-choice rename/add, each re-read and refused unless it stored as asked. Free convert and table-delete are refused by name.
 - [Teable personal records](../.agents/skills/tooling-aosguard/references/teable-personal.md) - guarded record reads and writes over one SSM-pinned base that the caller cannot name. Writes re-read before reporting success, and record-delete is unmounted and refused by name.
 - [Ward record](ward-specs.md) - the archived Ward schema, kept as a record, and no role-derived authority.
 - [Cross-repo tooling and release](release.md) - aos-precommit and release operations.
 - [dev-base image](dev-base-image.md) - parallel cached language payloads feeding one automatically released full development surface.
-- [Pinned and vendored build inputs](vendor-forgejo-policy.md) - the Forgejo policy pushes down to deploy, and the WASM toolchain is baked so no build downloads it.
-- [CI, dev container and workflow porting](dev-container.md) - hosted CI via `actions/setup-ci`, agent containers via `devcontainer.json`, and `port-forgejo-workflow`.
+- [Pinned and vendored build inputs](vendor-forgejo-policy.md) - the WASM toolchain is baked so no build downloads it. The Forgejo policy push is retired with Forgejo on 2026-11-01.
+- [CI, dev container and workflow porting](dev-container.md) - hosted CI via `actions/setup-ci` and agent containers via `devcontainer.json`.
 - [AGENTS pointer](features-agents.md) - generated sibling-repo workspace pointer.
 - [AGENTS git-workflow block](build-file-headers.md) - generated per-lane standing authorization to commit, branch, push, and open a PR. One fleet lane, `pull-request-and-merge`.
 - **Brand case** - the brand name is lowercase in prose, or all caps
@@ -79,10 +75,8 @@ Major shipped capabilities, not files.
   agentic-os both name it, so adding one costs two pull requests, a release and
   a pin bump, while removing one costs one. An unratified pattern fails the hook by name.
 - [Issue-ref links](../scripts/issue-ref-links.sh) - a Stop hook naming the URL that resolves each
-  hash-ref in a reply. Warn first,
-  and never a Forgejo issue URL.
-- [PR merge-status check](../scripts/pr-merge-status-check.py) - a Stop hook asking Forgejo
-  whether each cited pull request really merged. Blocks on a contradiction.
+  hash-ref in a reply. Warn first.
+- [PR merge-status check](../scripts/pr-merge-status-check.py) - a Stop hook that asked Forgejo whether each cited pull request merged, retired with Forgejo on 2026-11-01 (COI-2931).
 - [Canonical agent-id generator](build-output-is-not-content.md) - short lowercase agent IDs.
 - Skill mounts - `aos skills mount`.
 

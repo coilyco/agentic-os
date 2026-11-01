@@ -17,7 +17,6 @@ from agentic_os.config import is_enabled
 from agentic_os.generators.generate_git_workflow import (
     check_drift,
     resolve_body,
-    resolve_forge,
 )
 
 HOOK_ID = "git-workflow"
@@ -46,7 +45,6 @@ def main() -> int:
     problems = check_drift(
         agents.read_text(encoding="utf-8", errors="replace"),
         resolve_body(),
-        resolve_forge(),
     )
     if problems:
         fail(problems)

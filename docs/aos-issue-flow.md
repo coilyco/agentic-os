@@ -53,7 +53,8 @@ unauthenticated commands and does not turn a check-in into an inference proof.
 
 AOS can hydrate a bounded set of Forgejo pinned issues into launch context for
 one selected role. Agent Compose receives only local files. It never performs
-the Forgejo read.
+the Forgejo read. **Forgejo was deleted on 2026-11-01, so this read has no
+source until a GitHub replacement exists (cleanup COI-2931).**
 
 ## Configuration
 

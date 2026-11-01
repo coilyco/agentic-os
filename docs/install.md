@@ -11,8 +11,7 @@ The ansible `shell` role (in the infrastructure repo) symlinks, by `ansible_syst
 - `~/.config/alacritty/alacritty.toml` from `alacritty/alacritty.toml` on Mac and Linux workstations
 - `~/.config/kitty/kitty.conf` from `kitty/kitty.conf` on Mac and Linux workstations
 - `~/.local/bin/gpg-ssm` from `scripts/gpg-ssm` (Mac, Linux) or `scripts/gpg-ssm.cmd` (Windows)
-- the Forgejo git credential helper from `scripts/git-credential-forgejo-ssm.*`
-- the Forgejo Docker credential helper from `scripts/docker-credential-forgejo-ssm*`
+- the Forgejo git and Docker credential helpers from `scripts/*-credential-forgejo-ssm*` (retired with Forgejo on 2026-11-01, still linked until COI-2931 removes them)
 - the `~/.local/bin` PATH helpers
 
 A pre-existing regular shell, kitty, or Alacritty config is backed up to `<path>.bak`
@@ -26,14 +25,6 @@ is in [the README](../README.md).
 
 It refuses to run from a native-session checkout, and writes the durable host home into `gpg.program` rather than `$HOME`. Both guard the same failure: a session-scoped path is durable enough to write into global config and gone by the time anything resolves it (agentic-os#1137).
 
-Wire the helper into Git once:
-
-```bash
-git config --global credential.https://forgejo.coilysiren.me.helper \
-  "!C:/Users/firem/.local/bin/git-credential-forgejo-ssm.cmd"
-```
-
-The helper keeps the token in git's `credential-cache` daemon, in memory and never in a file, so a burst of requests costs one SSM read. A partial clone's lazy fetches each ask the helper, and a blobless clone of 120 commits under `git log -p -M` made 52 requests and 52 SSM reads before, and 1 after. `FORGEJO_CREDENTIAL_CACHE_SECONDS` sets the lifetime, 600 by default and 0 for none. When Forgejo rejects the token, git tells the helper, which drops its copy, so a rotated token takes effect on the next command and not after the lifetime. Where git has no `credential-cache`, as on native Windows, every request reads SSM as before.
 
 ## Per-host notes
 
@@ -105,4 +96,4 @@ multiplexer.
 
 ## Install surface
 
-[README.md](../README.md) carries per-OS install steps. `just apply-shell-links` repairs shell links, `gpg-ssm`, and the Forgejo git credential helper. Windows skips `~/.bashrc` so Git Bash hook launchers cannot recreate stale state. Mac/Linux can also use plain `ln -sf`. Windows symlinks need Developer Mode or elevation.
+[README.md](../README.md) carries per-OS install steps. `just apply-shell-links` repairs shell links and `gpg-ssm`. Windows skips `~/.bashrc` so Git Bash hook launchers cannot recreate stale state. Mac/Linux can also use plain `ln -sf`. Windows symlinks need Developer Mode or elevation.

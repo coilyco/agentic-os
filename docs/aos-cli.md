@@ -38,7 +38,7 @@ Assets group `aos-*`, `aos-bundle-*`, `aoscompose-*`, `aosguard-*`, and `aterm-*
 
 ## Install
 
-Homebrew on macOS or Linux taps `coilyco/tap` (github.com/coilyco/homebrew-tap), Scoop on Windows adds `https://github.com/coilyco/scoop-bucket`, since Forgejo is tailnet-only. Exact commands are in [the README](../README.md).
+Homebrew on macOS or Linux taps `coilyco/tap` (github.com/coilyco/homebrew-tap), Scoop on Windows adds `https://github.com/coilyco/scoop-bucket`. Exact commands are in [the README](../README.md).
 
 Both put `aos`, `aoscompose`, `aoscomposed`, `aosguard`, and `aterm` on `PATH`. `aoscomposed` aliases `aoscompose`, `aosguard` carries the operator CLI and Actions bridge, and `aterm` is the [branded session launcher](aterm.md).
 
@@ -50,13 +50,13 @@ Workflow dispatch accepts an existing or explicit `aos-v*` tag, or the operator 
 
 `just sync-actions-secrets` copies Actions secrets from SSM to a forge, in-process and never through disk or argv. Neither forge lets a secret be read back, so a stale value shows up as a dead workflow step.
 
-- `--target forgejo` - the default until the COI-2927 cutover. Writes the `MAPPING` table with the attended `FORGEJO_ADMIN_TOKEN`.
+- `--target forgejo` - retired with Forgejo on 2026-11-01 (COI-2931), though the script still defaults to it, so pass `--target github`.
 - `--target github` - plans `FLEET_SECRETS` on every repo in `WORKFLOW_REPOS` plus `GITHUB_MAPPING`, then sets each through `gh secret set` with the value on stdin. `gh` reads `GH_TOKEN`, and the identity needs Actions secrets write on the repo. `--repo OWNER/REPO` (repeatable) limits the plan to one repo, because a coilyco-ops App installation token covers one. `--secret NAME` (repeatable) limits it to those names.
 - `--dry-run` prints the `owner/repo: NAME <- ssm /path` plan and a count. `--check` (GitHub only) lists, per repo, whether every planned name is present. It reads names, never values.
 
 The GitHub plan carries `SENTRY_CI_DSN` on every repo, since the GitHub org plan tier is unverified. It carries `COILYCO_OPS_APP_ID` and `COILYCO_OPS_APP_PRIVATE_KEY_BASE64` on `agentic-os`, `umbra` and `agent-compose`, the repos whose workflows push to the tap, the bucket or a release. A workflow decodes the key and mints a short-lived installation token, so no long-lived token is stored. The Forgejo PATs in `MAPPING` are never copied to GitHub.
 
-`WORKFLOW_REPOS` is the set of Forgejo repos that carry `.forgejo/workflows`. Remove a repo when its Forgejo copy is archived. Secrets with no GitHub source yet (`REGISTRY_*`, `ECO_MOD_PACKAGE_TOKEN`, `MODIO_ACCESS_TOKEN`, `TEST_PYPI_TOKEN`, the Sentry browser DSNs) arrive with the flip of the repo that reads them.
+`WORKFLOW_REPOS` is the set of repos that carry `.forgejo/workflows`. Secrets with no GitHub source yet (`REGISTRY_*`, `ECO_MOD_PACKAGE_TOKEN`, `MODIO_ACCESS_TOKEN`, `TEST_PYPI_TOKEN`, the Sentry browser DSNs) arrive with the flip of the repo that reads them.
 
 ## Local validation
 

@@ -86,8 +86,7 @@ entry points, then run the first check. If the same repo also exists under
 `/substrate`, `/workspace/agentic-os` is authoritative.
 
 **Launch integration** - a change crossing AOS, agent-compose, or AOSguard.
-Run `rg -n -e --composed -e --guarded aos-cli docs` and `aosguard ops forgejo
-describe`. Ownership splits: `.agents/roles.kdl`
+Run `rg -n -e --composed -e --guarded aos-cli docs`. Ownership splits: `.agents/roles.kdl`
 owns behavioral composition, `.agents/harness-launch-profiles.yaml` owns
 role-to-default-agent mapping, the `justfile` owns repository commands,
 agent-compose owns named seats and pronouns, and AOSguard owns its separate
@@ -98,9 +97,9 @@ wrong root, or has stale dispatch wiring. Run `rg -n
 "AOS_REPO_ROOT|entrypoint" docker docs`, then `just dev-base-build` as the
 first check. `aos` is the runtime entry point.
 
-**Forgejo ops surface discovery** - what Forgejo surface exists here now. Run
-`aosguard ops forgejo describe` first, then `--help` and `rg -n "aosguard ops
-forgejo" docs .umbra`. Prefer runtime help over guessing a verb, and update
+**Ops surface discovery** - what aosguard surface exists here now. Run
+`aosguard ops --help` first, then `aosguard ops <area> describe`. The forgejo area
+retired with Forgejo on 2026-11-01 (COI-2931). Prefer runtime help over guessing a verb, and update
 [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) when the surface
 changes.
 

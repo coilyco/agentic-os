@@ -1,5 +1,7 @@
 # Pinned and vendored build inputs
 
+**The Forgejo policy push is retired with Forgejo on 2026-11-01 (COI-2931), so only the WASM toolchain section still applies.**
+
 Two cases of the same rule: the input is carried, never fetched mid-build.
 How `coilyco/deploy` gets a copy of this repo's Forgejo operator policy
 and why it arrives as a push, then why the WASM toolchain is baked into the
