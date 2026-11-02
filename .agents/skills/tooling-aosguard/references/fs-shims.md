@@ -12,13 +12,22 @@
 
 Refusal is exit 2 with the path named. A passing call `exec`s the first matching tool after the guard's own `PATH` entry, with a `PATH` that no longer holds it. Resolving only past its own entry is what stops two installs of the guard, or a wrapper, finding each other forever.
 
+## Temp files in a seat (COI-3177)
+
+The guard allows only the shadow, and the macOS default `TMPDIR` under `/var/folders` is outside it, so a script's `mktemp` succeeded and its `rm` cleanup was refused. Under `set -e` the script stopped halfway. Two parts close it.
+
+* **The launcher** exports `TMPDIR` as `<session root>/tmp`, created 0700, in a launch that links a worktree (`exportNativeSessionTemp` in `aos-cli/native_shadow.go`). An operator `TMPDIR` is replaced, because macOS always sets one, and the directory goes with the session when it is reaped. It also pins `AOS_NATIVE_SESSIONS_DIR` to the root it resolved, unless the operator set one, because other hosts derive that root from `TMPDIR` and a nested launch would resolve one inside this session.
+* **A `mktemp` stub** covers what `TMPDIR` cannot. macOS `mktemp` reads `confstr(_CS_DARWIN_USER_TEMP_DIR)` for its bare and `-t` forms and ignores `TMPDIR`, while Python, perl and GNU `mktemp` follow it. The stub adds `-p $TMPDIR` only when the guard has roots, `TMPDIR` resolves inside them, and the call names no template and no `-p`. Those pass through, as does a `TMPDIR` outside the roots. `install.sh` writes it on Darwin only.
+
+Not covered: a script naming a path under the host temp directory or `/tmp` itself, a launch that links no worktree (no markers, so the guard is inert), and a seat whose shim directory has not been converged since the stub landed. Ansible runs `install.sh` for it, and a hand rollout is `just fs-shims-install <dir>`.
+
 ## Why it is a script and not an umbra shim
 
 umbra cannot say "inside a directory known only at runtime". A `can run "*"` funnel refuses an `argv` or `embed` override, the preflight `gate` registry ships empty, and a glob can only list paths to deny. This is the closest fit to the [guarded `git`](git-shim.md) the grammar allows, and the missing umbra primitive is COI-2728. Rollout to hosts is COI-2729.
 
 ## Building and installing
 
-`just fs-shims-install <dir>` copies `scripts/fs-shims/fs_guard.py` into `<dir>` and writes three two-line stubs beside it. The stubs find the guard next to themselves, so install copies and does not link. `tests/test_fs_shims.py` runs the installed stubs against a temporary shadow.
+`just fs-shims-install <dir>` copies `scripts/fs-shims/fs_guard.py` into `<dir>` and writes three two-line stubs beside it, and a fourth for `mktemp` on macOS. The stubs find the guard next to themselves, so install copies and does not link. `tests/test_fs_shims.py` runs the installed stubs against a temporary shadow.
 
 ## What it does not stop
 
