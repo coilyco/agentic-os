@@ -1,7 +1,8 @@
 #!/bin/sh
 # Install the script guards and their git, rm, find and mv stubs into a shim
-# directory. usage: install.sh <shim-dir>. Copies rather than links: the stubs
-# find the guard beside themselves, and a link would resolve to the checkout.
+# directory, plus mktemp on macOS. usage: install.sh <shim-dir>. Copies rather
+# than links: the stubs find the guard beside themselves, and a link would
+# resolve to the checkout.
 set -eu
 
 here=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
@@ -15,4 +16,10 @@ stub() {
 }
 stub git git_guard.py
 for tool in rm find mv; do stub "$tool" fs_guard.py; done
-echo "installed guard stubs (git rm find mv) into $dest"
+names="git rm find mv"
+# GNU mktemp already honours TMPDIR, so only macOS needs the stub.
+if [ "$(uname -s)" = Darwin ]; then
+    stub mktemp fs_guard.py
+    names="$names mktemp"
+fi
+echo "installed guard stubs ($names) into $dest"

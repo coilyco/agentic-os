@@ -47,6 +47,10 @@ const (
 	pnpmStoreDirEnv          = "PNPM_CONFIG_STORE_DIR"
 	nativeSessionProjectsEnv = "AOS_NATIVE_SESSION_PROJECTS"
 	nativeSessionRootEnv     = "AOS_NATIVE_SESSION_ROOT"
+	nativeSessionsDirEnv     = "AOS_NATIVE_SESSIONS_DIR"
+	// The seat fs guard allows rm and mv only inside the session root, and the
+	// host temp directory is outside it. tooling-aosguard references/fs-shims.md
+	nativeSessionTempName = "tmp"
 	// A launcher inside a shadow needs the values the shadow replaced, so it
 	// can hand a new session the canonical ones. docs/native-shadow.md
 	nativeCanonicalHomeEnv     = "AOS_NATIVE_CANONICAL_HOME"
@@ -324,6 +328,24 @@ func prependNativeShimPath(sessionHome string) error {
 	return os.Setenv("PATH", shims)
 }
 
+// exportNativeSessionTemp points TMPDIR inside the session root, where the fs guard
+// allows cleanup, and pins the sessions root first. See references/fs-shims.md
+func exportNativeSessionTemp(sessionsRoot, sessionRoot string) error {
+	dir := filepath.Join(sessionRoot, nativeSessionTempName)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("create native session temp %s: %w", dir, err)
+	}
+	if strings.TrimSpace(os.Getenv(nativeSessionsDirEnv)) == "" {
+		if err := os.Setenv(nativeSessionsDirEnv, sessionsRoot); err != nil {
+			return fmt.Errorf("set %s: %w", nativeSessionsDirEnv, err)
+		}
+	}
+	if err := os.Setenv("TMPDIR", dir); err != nil {
+		return fmt.Errorf("set TMPDIR: %w", err)
+	}
+	return nil
+}
+
 func convergeNativeEnvironment(ctx context.Context, runtime nativeRuntime) error {
 	step := runtime.Progress.Step("converge environment")
 	result, err := convergeEnvironment(ctx, environmentConvergeOptions{
@@ -449,7 +471,7 @@ func resolveNativeRuntime() (nativeRuntime, error) {
 	if stateRoot == "" {
 		stateRoot = filepath.Join(cache, "agentic-os", "native-shadow")
 	}
-	sessionsRoot := strings.TrimSpace(os.Getenv("AOS_NATIVE_SESSIONS_DIR"))
+	sessionsRoot := strings.TrimSpace(os.Getenv(nativeSessionsDirEnv))
 	if sessionsRoot == "" {
 		if sessionsRoot, err = defaultNativeSessionsRoot(); err != nil {
 			return nativeRuntime{}, err
@@ -1981,6 +2003,9 @@ func createNativeSession(
 	}
 	if err := os.Setenv(nativeSessionProjectsEnv, sessionProjects); err != nil {
 		return nativeLaunchWorkspace{}, fmt.Errorf("set native session projects: %w", err)
+	}
+	if err := exportNativeSessionTemp(runtime.SessionsRoot, sessionRoot); err != nil {
+		return nativeLaunchWorkspace{}, err
 	}
 	// Pinned to the canonical home so the recorded path is the same string in
 	// every session. An operator setting wins. docs/native-shadow.md

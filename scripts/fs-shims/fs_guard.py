@@ -3,9 +3,11 @@
 The rm, find and mv stubs beside this file call it as `fs_guard.py <tool> <args>`.
 A path inside the shadow, the scratchpad or AOS_FS_GUARD_ROOTS runs the real tool,
 and any other exits 2. With none of those set it is inert, because the dev-base
-image carries it for CI jobs too. Why a script, and what it misses:
+image carries it for CI jobs too. The mktemp stub is not a guard: it keeps macOS
+mktemp inside TMPDIR. Why a script, and what it misses:
 tooling-aosguard references/fs-shims.md.
 """
+import getopt
 import os
 import shutil
 import sys
@@ -99,6 +101,27 @@ def real_tool(tool):
     return found, kept
 
 
+def mktemp_args(args, roots):
+    """The arguments that keep a bare or `-t` mktemp inside TMPDIR on macOS.
+
+    macOS mktemp takes confstr(_CS_DARWIN_USER_TEMP_DIR) for those two forms and
+    ignores TMPDIR, so the temp file lands outside the roots. A template operand
+    or an explicit -p is the caller's choice and passes through.
+    """
+    tmpdir = os.environ.get("TMPDIR", "")
+    if sys.platform != "darwin" or not roots or not tmpdir:
+        return args
+    if not inside(os.path.realpath(tmpdir), roots):
+        return args
+    try:
+        opts, operands = getopt.getopt(args, "dp:qt:u")
+    except getopt.GetoptError:
+        return args
+    if operands or any(flag == "-p" for flag, _ in opts):
+        return args
+    return ["-p", tmpdir, *args]
+
+
 def main(argv):
     tool, args = argv[1], argv[2:]
     real, kept = real_tool(tool)
@@ -106,6 +129,8 @@ def main(argv):
         sys.stderr.write(f"{tool}: no real {tool} on PATH\n")
         return 127
     roots = allowed_roots()
+    if tool == "mktemp":
+        os.execve(real, [tool, *mktemp_args(args, roots)], {**os.environ, "PATH": kept})
     reads_only = tool == "find" and not FIND_WRITES.intersection(args)
     paths = [] if roots is None or reads_only else operands(tool, args)
     for path in paths:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -32,9 +33,9 @@ def world(tmp_path: Path):
         "PATH": f"{shims}{os.pathsep}/usr/bin:/bin",
     }
 
-    def run(*argv: str, cwd: Path = shadow):
+    def run(*argv: str, cwd: Path = shadow, extra: dict[str, str] | None = None):
         return subprocess.run(
-            [str(shims / argv[0]), *argv[1:]], cwd=cwd, env=env,
+            [str(shims / argv[0]), *argv[1:]], cwd=cwd, env={**env, **(extra or {})},
             capture_output=True, text=True,
         )
 
@@ -160,3 +161,41 @@ def test_rm_still_runs_when_the_caller_passes_no_path(world, tmp_path: Path) -> 
     result = subprocess.run([str(shims / "rm"), "-rf", str(victim)], env=env,
                             capture_output=True, text=True)
     assert result.returncode == 0 and not victim.exists(), result.stderr
+
+
+# macOS mktemp ignores TMPDIR for the bare and -t forms (COI-3177), so the stub
+# exists there only. GNU mktemp honours TMPDIR and gets no stub.
+darwin_only = pytest.mark.skipif(sys.platform != "darwin", reason="the mktemp stub is macOS only")
+
+
+@darwin_only
+@pytest.mark.parametrize("flags", [[], ["-d"], ["-t", "probe"], ["-d", "-t", "probe"]])
+def test_mktemp_stays_in_tmpdir_so_its_cleanup_is_allowed(world, flags) -> None:
+    shadow, _, run = world
+    tmp = shadow / "tmp"
+    tmp.mkdir()
+    made = run("mktemp", *flags, extra={"TMPDIR": str(tmp)})
+    assert made.returncode == 0, made.stderr
+    path = Path(made.stdout.strip())
+    assert path.parent.resolve() == tmp.resolve() and path.exists()
+    assert run("rm", "-rf", str(path)).returncode == 0
+    assert not path.exists()
+
+
+@darwin_only
+def test_mktemp_leaves_a_template_and_an_explicit_dir_alone(world) -> None:
+    shadow, outside, run = world
+    tmp = shadow / "tmp"
+    tmp.mkdir()
+    named = run("mktemp", "-u", str(outside / "x.XXXXXX"), extra={"TMPDIR": str(tmp)})
+    assert named.returncode == 0 and Path(named.stdout.strip()).parent == outside
+    chosen = run("mktemp", "-u", "-p", str(outside), extra={"TMPDIR": str(tmp)})
+    assert chosen.returncode == 0 and Path(chosen.stdout.strip()).parent.resolve() == outside.resolve()
+
+
+@darwin_only
+def test_mktemp_does_not_follow_a_tmpdir_outside_the_roots(world) -> None:
+    _, outside, run = world
+    result = run("mktemp", "-u", extra={"TMPDIR": str(outside)})
+    assert result.returncode == 0
+    assert Path(result.stdout.strip()).parent.resolve() != outside.resolve()

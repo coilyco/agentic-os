@@ -78,6 +78,9 @@ func shortNativeSessionsRoot(t *testing.T) string {
 
 func nativeTestRuntime(t *testing.T, root string) nativeRuntime {
 	t.Helper()
+	// A launch exports both with os.Setenv, and a later t.TempDir reads TMPDIR.
+	t.Setenv("TMPDIR", os.TempDir())
+	t.Setenv(nativeSessionsDirEnv, "")
 	start, err := processStartIdentity(os.Getpid())
 	if err != nil {
 		t.Fatal(err)
@@ -394,6 +397,56 @@ func TestNativeLaunchExportsSessionMarkers(t *testing.T) {
 	}
 	if got := os.Getenv(nativeSessionProjectsEnv); got != lease.SessionProjects {
 		t.Fatalf("session projects = %s, want %s", got, lease.SessionProjects)
+	}
+}
+
+func TestNativeLaunchPointsTmpdirInsideTheSession(t *testing.T) {
+	root := t.TempDir()
+	repository, _ := createNativeTestRepository(t, root, "owner", "one")
+	runtime := nativeTestRuntime(t, root)
+	runtime.CWD = repository
+	writeNativeTestPlan(t, runtime.PlanFile, "one")
+	writeNativeTestList(t, runtime.FleetFile, "owner")
+	hostTemp := t.TempDir()
+	t.Setenv("TMPDIR", hostTemp)
+
+	if _, err := prepareNativeLaunch(runtime, "claude"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, lease := onlyNativeLease(t, runtime)
+	want := filepath.Join(lease.SessionRoot, nativeSessionTempName)
+	if got := os.Getenv("TMPDIR"); got != want {
+		t.Fatalf("TMPDIR = %s, want %s", got, want)
+	}
+	if _, inside := relativeWithin(lease.SessionRoot, os.Getenv("TMPDIR")); !inside {
+		t.Fatalf("TMPDIR %s is outside the session root %s", os.Getenv("TMPDIR"), lease.SessionRoot)
+	}
+	info, err := os.Stat(want)
+	if err != nil || !info.IsDir() || info.Mode().Perm() != 0o700 {
+		t.Fatalf("session temp %s = %v, %v, want a 0700 directory", want, info, err)
+	}
+	if got := os.Getenv(nativeSessionsDirEnv); got != runtime.SessionsRoot {
+		t.Fatalf("%s = %s, want the resolved sessions root %s", nativeSessionsDirEnv, got, runtime.SessionsRoot)
+	}
+}
+
+func TestNativeLaunchKeepsAnOperatorSessionsDir(t *testing.T) {
+	root := t.TempDir()
+	repository, _ := createNativeTestRepository(t, root, "owner", "one")
+	runtime := nativeTestRuntime(t, root)
+	runtime.CWD = repository
+	writeNativeTestPlan(t, runtime.PlanFile, "one")
+	writeNativeTestList(t, runtime.FleetFile, "owner")
+	operator := filepath.Join(root, "operator-sessions")
+	t.Setenv(nativeSessionsDirEnv, operator)
+
+	if _, err := prepareNativeLaunch(runtime, "claude"); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := os.Getenv(nativeSessionsDirEnv); got != operator {
+		t.Fatalf("%s = %s, want the operator value %s", nativeSessionsDirEnv, got, operator)
 	}
 }
 
