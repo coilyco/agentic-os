@@ -8,8 +8,8 @@ aosguard --version
 /usr/bin/python3 -c 'import yaml; print(yaml.__version__)'
 test -s /opt/agentic-os/aosguard-skill/aosguard/SKILL.md
 test -s /opt/agentic-os/aosguard-skill/aosguard/references/commands.yaml
-test -s /opt/agentic-os/aosguard-skill/aosguard-forgejo/SKILL.md
-test -s /opt/agentic-os/aosguard-skill/aosguard-forgejo/references/commands.yaml
+test -s /opt/agentic-os/aosguard-skill/aosguard-kubectl/SKILL.md
+test -s /opt/agentic-os/aosguard-skill/aosguard-kubectl/references/commands.yaml
 
 roster_dir="$(mktemp -d)"
 trap 'rm -rf "$roster_dir"' EXIT

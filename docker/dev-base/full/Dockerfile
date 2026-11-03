@@ -61,7 +61,7 @@ RUN set -eux; \
     test -s /opt/agentic-os/aosguard-skill/aosguard/references/commands.yaml; \
     PYTHONPATH=/tmp/aosguard-python python3 -m agentic_os.generators.generate_aosguard_skills \
       --skills-root /opt/agentic-os/aosguard-skill; \
-    test -s /opt/agentic-os/aosguard-skill/aosguard-forgejo/SKILL.md; \
+    test -s /opt/agentic-os/aosguard-skill/aosguard-kubectl/SKILL.md; \
     rm -rf /tmp/aosguard-spec /tmp/aosguard-python; aosguard --version
 
 FROM ${BASE_IMAGE} AS dev-base-full
