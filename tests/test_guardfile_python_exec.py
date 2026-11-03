@@ -95,9 +95,9 @@ def test_prose_naming_a_module_does_not_bundle_it(tmp_path: Path) -> None:
 def test_every_bundled_module_imports_only_modules_the_bundle_carries() -> None:
     """The bundler reads argv, so it cannot see an import.
 
-    `teable_personal` reuses `teable_admin`'s client, and nothing in the
-    derivation models that edge: both ship only because each has its own
-    guardfile. Dropping either guardfile would strand the other at import.
+    A module that reuses another module's client ships only because each has its
+    own guardfile, and nothing in the derivation models that edge. Dropping one
+    guardfile would strand the other at import.
     """
     listed = subprocess.run(
         ["sh", str(ROOT / "scripts" / "guardfile-python-modules.sh"), str(ROOT)],

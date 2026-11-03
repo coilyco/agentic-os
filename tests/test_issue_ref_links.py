@@ -122,8 +122,8 @@ def test_forgejo_ref_targets_a_pull_request(tmp_path):
 
 
 def test_ambiguous_ref_asks_rather_than_guesses(tmp_path):
-    """A wrong org does not 404. It resolves to a real unrelated row, which
-    docs/teable-tracker.md records as the worse failure."""
+    """A wrong org does not 404. It resolves to a real unrelated row, the
+    worse failure."""
     reason = _reason(_run(tmp_path, "want me to take #1234?", mode="block")[0])
     assert "ambiguous" in reason
     assert "teable:#1234" in reason

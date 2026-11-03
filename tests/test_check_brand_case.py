@@ -65,7 +65,7 @@ def test_ignores_a_link_target() -> None:
 
 
 def test_ignores_a_code_span() -> None:
-    assert scan_text(DOC, "the `Coilyco Teable` connector is addressed by name") == []
+    assert scan_text(DOC, "the `Coilyco Jev` connector is addressed by name") == []
 
 
 def test_ignores_a_fenced_block() -> None:
