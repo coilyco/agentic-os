@@ -96,6 +96,7 @@ repos:
     band: large
     excludes: # eval/<record>/ holds Sirens Deep evaluation records
     - eval/**
+    - agent/compose/person/** # agent-compose roster data, which agent-compose loads from exactly this path (COI-3215)
     size_excludes:
     - eval/**
   ssm-app:
