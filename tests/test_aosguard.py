@@ -187,7 +187,7 @@ def test_native_release_wrapper_embeds_the_actions_bridge() -> None:
     compile_binary = build.index('go build -trimpath -ldflags "-s -w -X main.Version=')
     assert generate < decode < compile_binary
     # Derived from the guardfiles rather than hand-listed, because a hand-listed
-    # copy shipped teable-admin's surface with no payload: agentic-os#6836.
+    # copy once shipped a verb's surface with no payload: agentic-os#6836.
     assert "scripts/guardfile-python-modules.sh" in build
     assert '"$repo_root/agentic_os/forgejo_actions_logs.py"' not in build
     assert "forgejo_storage_measure" not in build
