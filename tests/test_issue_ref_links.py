@@ -20,8 +20,6 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 HOOK = ROOT / "scripts" / "issue-ref-links.sh"
 
-READER = "https://claude.ai/code/artifact/f6de33ad-e4d9-4a46-9de6-bef8d986e8e6"
-
 # From the replay over 853 transcripts: each of these must stay silent, because
 # a hook that fires on the convention itself cannot be quoted in a reply.
 NEGATIVES = [
@@ -97,22 +95,28 @@ def test_fenced_block_stays_exempt(tmp_path):
     assert "reason=no-refs" in logged
 
 
-def test_teable_ref_targets_the_record_reader(tmp_path):
-    stdout, _ = _run(
+def test_teable_ref_is_logged_and_never_rewritten(tmp_path):
+    """No URL resolves a pre-cutover ref, so block mode lets the citation stand."""
+    stdout, logged = _run(
         tmp_path, "filed teable:coilyco-flight-deck/agentic-os#7244", mode="block"
     )
-    reason = _reason(stdout)
-    # Both forms: the page reads the hash first and falls back to ?n=, and
-    # whether a viewer forwards a query string into the frame is not guaranteed.
-    assert f"{READER}?n=7244#7244" in reason
+    assert _decision(stdout) is None
+    assert "reason=legacy-refs" in logged
+    assert "|record|" in logged
 
 
-def test_bare_teable_ref_targets_the_record_reader(tmp_path):
-    """`teable:#<n>` is the honest citation when the number is known and the org
-    is not, and `seq` is global so the number alone resolves."""
+def test_bare_teable_ref_is_logged_and_never_rewritten(tmp_path):
+    """`teable:#<n>` is the citation when the number is known and the org is not."""
     stdout, logged = _run(tmp_path, "cite teable:#7246", mode="block")
-    assert f"{READER}?n=7246#7246" in _reason(stdout)
+    assert _decision(stdout) is None
     assert "|record-bare|" in logged
+
+
+def test_a_teable_ref_beside_a_forgejo_ref_leaves_only_the_forgejo_one(tmp_path):
+    message = "teable:coilyco/agentic-os#7244 then coilyco-bridge/x#12"
+    reason = _reason(_run(tmp_path, message, mode="block")[0])
+    assert "coilyco-bridge/x#12 -> " in reason
+    assert "agentic-os#7244 -> " not in reason
 
 
 def test_forgejo_ref_targets_a_pull_request(tmp_path):
@@ -126,7 +130,7 @@ def test_ambiguous_ref_asks_rather_than_guesses(tmp_path):
     worse failure."""
     reason = _reason(_run(tmp_path, "want me to take #1234?", mode="block")[0])
     assert "ambiguous" in reason
-    assert "teable:#1234" in reason
+    assert "COI-<n>" in reason
 
 
 def test_reason_never_names_a_forgejo_issue_url(tmp_path):
