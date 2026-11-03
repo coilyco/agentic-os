@@ -157,14 +157,15 @@ def test_managed_block_includes_standard_hygiene_hooks() -> None:
         "check-json",
         "check-toml",
         "https://github.com/rhysd/actionlint",
-        "files: ^\\.forgejo/workflows/.*\\.(ya?ml)$",
-        "https://code.forgejo.org/forgejo/runner",
-        "forgejo-runner-validate",
+        "files: ^\\.github/workflows/.*\\.(ya?ml)$",
         "https://github.com/shellcheck-py/shellcheck-py",
         "https://github.com/crate-ci/typos",
         "args: [--force-exclude]",
     ):
         assert needle in block
+    # COI-3127: workflows live under .github now, and the Forgejo runner
+    # validator fetched from a Forgejo host.
+    assert "forgejo" not in block.lower()
 
 
 def _write_actionlint_config(repo_dir: Path) -> None:
@@ -200,7 +201,7 @@ def test_actionlint_config_flag_follows_the_consumer(tmp_path: Path) -> None:
         f"repos:\n{script.managed_block('v9.9.9', repo_dir=tmp_path)}"
     )
     assert with_config["args"] == ["-config-file", ".github/actionlint.yaml"]
-    assert with_config["files"] == r"^\.forgejo/workflows/.*\.(ya?ml)$"
+    assert with_config["files"] == r"^\.github/workflows/.*\.(ya?ml)$"
 
 
 def test_apply_carries_the_actionlint_config_flag(tmp_path: Path) -> None:
@@ -530,7 +531,6 @@ def test_the_source_repo_pins_every_shared_hook_repo_like_its_consumers() -> Non
     expected = {
         script.PRECOMMIT_HOOKS_REPO_URL: script.PRECOMMIT_HOOKS_REV,
         script.ACTIONLINT_REPO_URL: script.ACTIONLINT_REV,
-        script.FORGEJO_RUNNER_REPO_URL: script.FORGEJO_RUNNER_REV,
         script.SHELLCHECK_REPO_URL: script.SHELLCHECK_REV,
         script.TYPOS_REPO_URL: script.TYPOS_REV,
     }

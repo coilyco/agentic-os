@@ -112,13 +112,12 @@ VENDORED_CONFIG_SECTION = "managed-hooks"
 
 ACTIONLINT_REPO_URL = "https://github.com/rhysd/actionlint"
 ACTIONLINT_REV = "v1.7.12"
-FORGEJO_WORKFLOW_FILES = r"^\.forgejo/workflows/.*\.(ya?ml)$"
-# actionlint keys project detection off .github/workflows, so a Forgejo-only
-# repo never auto-discovers this config. See actionlint_args.
+GITHUB_WORKFLOW_FILES = r"^\.github/workflows/.*\.(ya?ml)$"
 ACTIONLINT_CONFIG_REL = ".github/actionlint.yaml"
 
+# Retired (COI-3127): no longer emitted, kept so a refresh still strips an
+# unmarked copy a consumer carried before.
 FORGEJO_RUNNER_REPO_URL = "https://code.forgejo.org/forgejo/runner"
-FORGEJO_RUNNER_REV = "v12.10.1"
 
 SHELLCHECK_REPO_URL = "https://github.com/shellcheck-py/shellcheck-py"
 SHELLCHECK_REV = "v0.11.0.1"
@@ -253,13 +252,8 @@ def managed_block(
   - repo: {ACTIONLINT_REPO_URL}
     rev: {ACTIONLINT_REV}
     hooks:
-      # Forgejo workflows use GitHub Actions syntax; no exclude split is needed yet.
       - id: actionlint{actionlint_args(repo_dir)}
-        files: {FORGEJO_WORKFLOW_FILES}
-  - repo: {FORGEJO_RUNNER_REPO_URL}
-    rev: {FORGEJO_RUNNER_REV}
-    hooks:
-      - id: forgejo-runner-validate
+        files: {GITHUB_WORKFLOW_FILES}
   - repo: {SHELLCHECK_REPO_URL}
     rev: {SHELLCHECK_REV}
     hooks:
