@@ -14,7 +14,6 @@ mode="${AOS_ISSUE_REF_MODE:-warn}"
 # file per session. The rollout passes an absolute path.
 log_file="${AOS_ISSUE_REF_LOG:-${HOME:-/tmp}/.claude/issue-ref-links.log}"
 
-record_reader="https://claude.ai/code/artifact/f6de33ad-e4d9-4a46-9de6-bef8d986e8e6"
 forgejo="https://forgejo.coilysiren.me"
 
 # Microseconds, or empty where the shell has no high-resolution clock, which is
@@ -102,13 +101,14 @@ fields=""
 targets=""
 ambiguous=0
 count=0
+legacy=0
 
 while IFS= read -r ref; do
   [ -n "$ref" ] || continue
   n=${ref##*#}
   case "$ref" in
-    teable:*/*#*) kind=record;      target="$record_reader?n=$n#$n" ;;
-    teable:#*)    kind=record-bare; target="$record_reader?n=$n#$n" ;;
+    teable:*/*#*) kind=record;      target="" ;;
+    teable:#*)    kind=record-bare; target="" ;;
     */*#*)        kind=forgejo-pull; target="$forgejo/${ref%#*}/pulls/$n" ;;
     \#*)          kind=ambiguous;   target="" ; ambiguous=1 ;;
     *)            continue ;;
@@ -119,21 +119,24 @@ while IFS= read -r ref; do
     *) where=code ;;
   esac
 
-  count=$((count + 1))
   fields="$fields ref=$ref|$kind|$where"
+  # A teable: ref cites a pre-cutover record and no URL resolves it, so it is
+  # logged and never rewritten. A Linear search for the ref finds the issue.
+  case "$kind" in record*) legacy=$((legacy + 1)); continue ;; esac
+  count=$((count + 1))
   if [ -n "$target" ]; then
     targets="$targets
   $ref -> $target"
   else
     targets="$targets
-  $ref -> ambiguous, qualify it as teable:<owner>/<repo>#$n for a tracker record, <owner>/<repo>#$n for a Forgejo pull request, or teable:#$n when you hold the number but not the org"
+  $ref -> ambiguous, qualify it as COI-<n> for a tracker record or <owner>/<repo>#$n for a Forgejo pull request"
   fi
 done <<EOF
 $refs
 EOF
 
 if [ "$count" -eq 0 ]; then
-  log "mode=$mode decision=pass reason=no-refs elapsed_ms=$(elapsed)"
+  log "mode=$mode decision=pass reason=legacy-refs refs=$legacy elapsed_ms=$(elapsed)$fields"
   exit 0
 fi
 
@@ -147,7 +150,7 @@ fi
 reason="Your reply referenced an issue or pull request by hash-ref, which costs the reader a browser and three clicks to resolve. Rewrite each one as the link beside it and resend:
 $targets
 
-A tracker record reads at the record reader. A Forgejo ref is a pull request. A bare number says neither, so name which one it is rather than leaving the reader to guess."
+A Forgejo ref is a pull request. A bare number says neither, so name which one it is rather than leaving the reader to guess."
 
 log "mode=$mode decision=block refs=$count ambiguous=$ambiguous elapsed_ms=$(elapsed)$fields"
 jq -nc --arg r "$reason" '{decision:"block", reason:$r}'
