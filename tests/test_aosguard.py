@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import gzip
 import json
 import os
 import re
@@ -10,7 +9,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = ROOT / ".umbra" / "guardfiles"
@@ -111,47 +109,6 @@ def test_aosguard_has_one_static_binary_group() -> None:
     assert wraps == {"aosguard"}
 
 
-def test_aosguard_actions_use_packaged_python_modules() -> None:
-    text = (SOURCE / "actions.kdl").read_text(encoding="utf-8")
-
-    assert "exec python3" in text
-    assert ".umbra/guardfiles/aosguard/scripts/" not in text
-    for module in ("forgejo_actions_logs",):
-        assert f'"agentic_os.{module}"' in text
-        assert (ROOT / "agentic_os" / f"{module}.py").is_file()
-
-
-def test_aosguard_forgejo_storage_measurement_is_sealed() -> None:
-    text = (SOURCE / "forgejo-storage.kdl").read_text(encoding="utf-8")
-
-    assert "wrap aosguard ops forgejo-storage" in text
-    assert 'argv "-I"' in text
-    assert 'embed "forgejo_storage_measure.py"' in text
-    assert "agentic_os.forgejo_storage_measure" not in text
-    assert "sealed" in text
-    assert (SOURCE / "forgejo_storage_measure.py").is_file()
-
-
-def test_aosguard_vendored_forgejo_contract_is_encoded_json() -> None:
-    vendored = sorted(SOURCE.glob("*.swagger.v1.json.gz"))
-    assert vendored
-    assert all(json.loads(gzip.decompress(path.read_bytes())) for path in vendored)
-
-    contract = json.loads(
-        gzip.decompress((SOURCE / "forgejo.swagger.v1.json.gz").read_bytes())
-    )
-    assert contract["info"]["version"].startswith("16.")
-    assert "/repos/{owner}/{repo}/actions/jobs/{job_id}/logs" in contract["paths"]
-    assert "/repos/{owner}/{repo}/actions/runs/{run_id}/logs" in contract["paths"]
-
-
-def test_aosguard_forgejo_lock_is_encoded_json() -> None:
-    encoded = sorted(SOURCE.glob("*.swagger.lock.json.gz"))
-    assert encoded
-    assert not list(SOURCE.glob("*.swagger.lock.json"))
-    assert all(json.loads(gzip.decompress(path.read_bytes())) for path in encoded)
-
-
 def test_aosguard_dependency_lock_is_committed() -> None:
     lock = json.loads((PROJECT / "specverb.lock").read_text(encoding="utf-8"))
     cli_guard = lock["cliGuard"]
@@ -189,177 +146,6 @@ def test_native_release_wrapper_embeds_the_actions_bridge() -> None:
     # Derived from the guardfiles rather than hand-listed, because a hand-listed
     # copy once shipped a verb's surface with no payload: agentic-os#6836.
     assert "scripts/guardfile-python-modules.sh" in build
-    assert '"$repo_root/agentic_os/forgejo_actions_logs.py"' not in build
-    assert "forgejo_storage_measure" not in build
-
-
-def test_aosguard_forgejo_storage_measurement_mounts_exec_group(
-    aosguard_binary: Path,
-) -> None:
-    result = subprocess.run(
-        [str(aosguard_binary), "ops", "forgejo-storage", "--help"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    assert "measure" in result.stdout
-    assert "bounded read-only Forgejo" in result.stdout
-
-
-def test_repo_topic_replace_all_dry_run_builds_put_body(
-    aosguard_binary: Path,
-) -> None:
-    result = subprocess.run(
-        [
-            str(aosguard_binary),
-            "ops",
-            "forgejo-admin",
-            "repo-topic",
-            "replace-all",
-            "coilyco-example",
-            "sample",
-            "--topics",
-            "release-ready",
-            "--topics",
-            "documentation",
-            "--dry-run",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    assert "method: PUT" in result.stdout
-    assert "/repos/coilyco-example/sample/topics" in result.stdout
-    assert "release-ready" in result.stdout
-    assert "documentation" in result.stdout
-    assert "Authorization: token <redacted>" in result.stdout
-
-
-def test_repo_description_edit_dry_run_builds_bounded_patch(
-    aosguard_binary: Path,
-) -> None:
-    result = subprocess.run(
-        [
-            str(aosguard_binary),
-            "ops",
-            "forgejo-admin",
-            "repo",
-            "edit",
-            "coilyco-example",
-            "sample",
-            "--description",
-            "Bounded repository description.",
-            "--dry-run",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    assert "method: PATCH" in result.stdout
-    assert "/repos/coilyco-example/sample" in result.stdout
-    assert "description: Bounded repository description." in result.stdout
-    assert "private:" not in result.stdout
-    assert "Authorization: token <redacted>" in result.stdout
-
-
-def test_repo_description_edit_rejects_out_of_scope_owner(
-    aosguard_binary: Path,
-) -> None:
-    result = subprocess.run(
-        [
-            str(aosguard_binary),
-            "ops",
-            "forgejo-admin",
-            "repo",
-            "edit",
-            "outside-example",
-            "sample",
-            "--description",
-            "Blocked repository description.",
-            "--dry-run",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-
-    assert result.returncode != 0
-    assert 'owner="outside-example" is outside the allowed scope' in result.stderr
-
-
-def test_repo_topic_replace_all_rejects_out_of_scope_owner(
-    aosguard_binary: Path,
-) -> None:
-    result = subprocess.run(
-        [
-            str(aosguard_binary),
-            "ops",
-            "forgejo-admin",
-            "repo-topic",
-            "replace-all",
-            "outside-example",
-            "sample",
-            "--topics",
-            "documentation",
-            "--dry-run",
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-
-    assert result.returncode != 0
-    assert 'owner="outside-example" is outside the allowed scope' in result.stderr
-
-
-@pytest.mark.parametrize(
-    ("resource", "identifier", "extra", "expected_path"),
-    [
-        (
-            "action-job",
-            "9134",
-            ("--attempt", "2"),
-            "/repos/coilyco-example/sample/actions/jobs/9134/logs?attempt=2",
-        ),
-        (
-            "action-run",
-            "6281",
-            (),
-            "/repos/coilyco-example/sample/actions/runs/6281/logs",
-        ),
-    ],
-)
-def test_forgejo_v16_log_leaves_resolve_official_routes(
-    aosguard_binary: Path,
-    resource: str,
-    identifier: str,
-    extra: tuple[str, ...],
-    expected_path: str,
-) -> None:
-    result = subprocess.run(
-        [
-            str(aosguard_binary),
-            "ops",
-            "forgejo",
-            resource,
-            "logs",
-            "coilyco-example",
-            "sample",
-            identifier,
-            *extra,
-            "--dry-run",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    assert "method: GET" in result.stdout
-    assert expected_path in result.stdout
-    assert "Authorization: token <redacted>" in result.stdout
 
 
 def test_aws_put_parameter_creates_and_overwrites_without_value_disclosure(

@@ -26,8 +26,7 @@ Major shipped capabilities, not files.
 - [Role-composed skills](role-composed-skills.md) - v2 Core Roster method slices.
 - [AOS launcher](aos-cli.md) - role context with
   [convergence](aos-convergence.md), [connectivity](aos-connectivity.md),
-  [kubeconfig](aos-cluster-access.md), [issue pins](aos-issue-flow.md), and
-  [check-ins](aos-issue-flow.md).
+  [kubeconfig](aos-cluster-access.md), and [check-ins](aos-issue-flow.md).
 - [aos run](aos-cli.md) - `aos run <verb>` resolves a just verb to the resident repository
   declaring it, reports how far that checkout trails its upstream, and `--handoff` prints the
   absolute-path line to run outside a session shadow.
@@ -42,7 +41,7 @@ Major shipped capabilities, not files.
 - [Ward record](ward-specs.md) - the archived Ward schema, kept as a record, and no role-derived authority.
 - [Cross-repo tooling and release](release.md) - aos-precommit and release operations.
 - [dev-base image](dev-base-image.md) - parallel cached language payloads feeding one automatically released full development surface.
-- [Pinned and vendored build inputs](vendor-forgejo-policy.md) - the WASM toolchain is baked so no build downloads it. The Forgejo policy push is retired with Forgejo on 2026-11-01.
+- [Pinned WASM toolchain](pinned-wasm-toolchain.md) - wasm-pack, wasm-opt and the wasm-bindgen CLI are baked so no build downloads them.
 - [CI, dev container and workflow porting](dev-container.md) - hosted CI via `actions/setup-ci` and agent containers via `devcontainer.json`.
 - [AGENTS pointer](features-agents.md) - generated sibling-repo workspace pointer.
 - [AGENTS git-workflow block](build-file-headers.md) - generated per-lane standing authorization to commit, branch, push, and open a PR. One fleet lane, `pull-request-and-merge`.

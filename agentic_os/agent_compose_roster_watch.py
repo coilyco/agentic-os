@@ -38,7 +38,7 @@ FETCH_ATTEMPTS = 3
 FETCH_TIMEOUT_SECONDS = 60
 
 EXIT_DRIFT = 1
-# Matches forgejo_actions_logs, where 69 means the far side could not be read.
+# EX_UNAVAILABLE: the far side could not be read.
 EXIT_UNCOMPARABLE = 69
 
 
