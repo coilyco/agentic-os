@@ -351,7 +351,7 @@ sweep-documentation-layout *ARGS:
 sweep-precommit *ARGS:
     @uv run python scripts/sweep-precommit.py "$@"
 
-# Sync Forgejo Actions secrets (release PATs, package-repository writers, housecast's PyPI token, and deploy's pin-reconciler pair) from their SSM sources of truth. Entries are keyed `owner/repo`, so the mapping spans orgs: aos + umbra + housecast + deploy. Values flow SSM -> Forgejo API in-process, never disk or argv. An attended operator supplies `FORGEJO_ADMIN_TOKEN`; `--dry-run` previews the mapping. `--target github` plans the 32 workflow repos and writes through `gh secret set`, and `--check` lists the secret names GitHub holds. See docs/aos-cli.md.
+# Sync GitHub Actions secrets from their SSM sources of truth: the coilyco-ops App id and key, the Sentry fleet DSN on every workflow repo, and a few per-repo keys. Values flow SSM -> `gh secret set` in-process, never disk or argv. `--dry-run` previews the plan, `--check` lists the secret names GitHub holds, `--repo` and `--secret` narrow it. See docs/aos-cli.md.
 sync-actions-secrets *ARGS:
     @uv run python scripts/sync-actions-secrets.py "$@"
 

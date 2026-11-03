@@ -1,72 +1,43 @@
 #!/usr/bin/env python3
-"""Sync Actions secrets from their SSM sources of truth to Forgejo or GitHub.
+"""Sync Actions secrets from their SSM sources of truth to GitHub.
 
-Actions secrets are write-only on both forges, so drift shows up as a silently dead
-alert, publication, or auto-deploy step. Entries are keyed `owner/repo`. Values never
-touch disk or argv: read from SSM with the AWS CLI, then PUT to the Forgejo API or
-piped to `gh secret set`, which seals them. `--check` lists GitHub secret names only.
+Actions secrets are write-only, so drift shows up as a silently dead alert,
+publication, or auto-deploy step. Entries are keyed `owner/repo`. Values never touch
+disk or argv: read from SSM with the AWS CLI, then piped to `gh secret set`, which
+seals them. `--check` lists secret names only.
 """
 from __future__ import annotations
 
 import argparse
-import json
-import os
 import re
 import subprocess
 import sys
-import urllib.error
-import urllib.request
 
-from agentic_os import shared_ssl_context
-
-FORGEJO_BASE = "https://forgejo.coilysiren.me/api/v1"
 OWNER = "coilyco"
 
 
 def slug(repo: str, owner: str = OWNER) -> str:
-    """Return the ``owner/repo`` key the Forgejo secrets API addresses."""
+    """Return the ``owner/repo`` key `gh secret set --repo` addresses."""
     return f"{owner}/{repo}"
 
 
-# Sources that name no forge credential, so both targets carry them.
 # The aterm Android release keystore, read by aterm-android.yml (COI-2623).
 ATERM_ANDROID_SECRETS = {
     "ATERM_ANDROID_KEYSTORE_B64": "/coilysiren/aterm/write/android-keystore-b64",
     "ATERM_ANDROID_KEYSTORE_PASSWORD": "/coilysiren/aterm/write/android-keystore-password",
     "ATERM_ANDROID_CERT_SHA256": "/coilysiren/aterm/write/android-keystore-cert-sha256",
 }
-# housecast's PyPI train, read by its publish workflow. Trusted publishing
-# has no Forgejo identity provider, so an API token is the only path.
+# housecast's PyPI train, read by its publish workflow.
 PYPI_SECRETS = {"PYPI_TOKEN": "/coilysiren/pypi/token"}
 
-# owner/repo -> secret name -> SSM parameter (see SSM.md in agentic-os-kai), the
-# owner-qualified key letting one mapping span orgs. Writers rotate separately.
-MAPPING: dict[str, dict[str, str]] = {
-    slug("agentic-os"): {
-        "CI_RELEASE_TOKEN": "/forgejo/coilyco-ops/ci-release-token",
-        "TAP_WRITE_TOKEN": "/forgejo/coilyco-ops/tap-bump-token",
-        "SCOOP_WRITE_TOKEN": "/forgejo/coilyco-ops/scoop-write-token",
-        **ATERM_ANDROID_SECRETS,
-    },
-    slug("umbra"): {
-        "CI_RELEASE_TOKEN": "/forgejo/coilyco-ops/ci-release-token",
-    },
-    slug("housecast"): dict(PYPI_SECRETS),
-    # deploy's scheduled pin reconciler.
-    slug("deploy"): {
-        "DEPLOY_PUSH_TOKEN": "/forgejo/coilyco-ops/ci-release-token",
-        "REGISTRY_READ_TOKEN": "/forgejo/coilyco-ops/registry-read-token",
-    },
-}
-
-# GitHub target (COI-2936): never the Forgejo PATs above. Workflows get the coilyco-ops
-# App id and base64 key and mint installation tokens. See docs/aos-cli.md.
+# owner/repo -> secret name -> SSM parameter (see SSM.md in agentic-os-kai).
+# Workflows mint installation tokens from the App id and key (COI-2936, docs/aos-cli.md).
 APP_SECRETS = {
     "COILYCO_OPS_APP_ID": "/github/coilyco-ops-app-id",
     "COILYCO_OPS_APP_PRIVATE_KEY_BASE64": "/github/coilyco-ops-private-key-base64",
 }
 TANGLED_SECRETS = {"TANGLED_SSH_KEY": "/coilysiren/tangled/push-key"}
-GITHUB_MAPPING: dict[str, dict[str, str]] = {
+MAPPING: dict[str, dict[str, str]] = {
     # The tap, scoop and release-push sources in the COI-2935 consumer map. The tap
     # and bucket repos are only mint targets, so they hold no secret.
     slug("agentic-os"): {**APP_SECRETS, **ATERM_ANDROID_SECRETS},
@@ -75,11 +46,9 @@ GITHUB_MAPPING: dict[str, dict[str, str]] = {
     slug("mcp-beaver"): dict(TANGLED_SECRETS),
     slug("housecast"): dict(PYPI_SECRETS),
 }
-# Forgejo reads this from an org secret. GitHub's org-secret plan tier is
-# unverified, so the GitHub target sets it per repo instead.
+# GitHub's org-secret plan tier is unverified, so this is set per repo.
 FLEET_SECRETS = {"SENTRY_CI_DSN": "/coilysiren/sentry/dsn/fleet-heartbeats"}
-# Repos carrying `.forgejo/workflows`, read from the Forgejo API 2026-10-27 (COI-2928).
-# A repo leaves this tuple when its Forgejo copy is archived.
+# Repos that carry workflows, read 2026-10-27 (COI-2928).
 WORKFLOW_REPOS = tuple(
     slug(repo)
     for repo in (
@@ -93,18 +62,17 @@ WORKFLOW_REPOS = tuple(
     )
 )
 
-# Mirrors Forgejo's own models/secret ValidateName, so a bad name fails here at
-# plan time instead of as a mid-write HTTP 400 that half-applies the plan.
+# GitHub's secret naming rules, so a bad name fails here at plan time instead of
+# as a mid-write error that half-applies the plan.
 SECRET_NAME_PATTERN = re.compile("(?i)^[A-Z_][A-Z0-9_]*$")
-FORBIDDEN_SECRET_PREFIX = re.compile("(?i)^(FORGEJO_|GITEA_|GITHUB_|[0-9])")
-GITHUB_FORBIDDEN_SECRET_PREFIX = re.compile("(?i)^(GITHUB_|[0-9])")
+FORBIDDEN_SECRET_PREFIX = re.compile("(?i)^(GITHUB_|[0-9])")
 
 
 def invalid_secret_names(
     mapping: dict[str, dict[str, str]],
     forbidden: re.Pattern[str] = FORBIDDEN_SECRET_PREFIX,
 ) -> list[str]:
-    """Return `repo_slug: NAME` for every secret the target forge would reject."""
+    """Return `repo_slug: NAME` for every secret GitHub would reject."""
     return [
         f"{repo_slug}: {name}"
         for repo_slug, secrets in mapping.items()
@@ -146,25 +114,7 @@ def ssm_get(name: str) -> str:
     return value + "\n" if value.startswith("-----BEGIN") else value
 
 
-def put_secret(token: str, repo_slug: str, name: str, value: str) -> None:
-    url = f"{FORGEJO_BASE}/repos/{repo_slug}/actions/secrets/{name}"
-    body = json.dumps({"data": value}).encode("utf-8")
-    request = urllib.request.Request(
-        url,
-        data=body,
-        method="PUT",
-        headers={
-            "Authorization": f"token {token}",
-            "Content-Type": "application/json",
-        },
-    )
-    with urllib.request.urlopen(
-        request, timeout=30, context=shared_ssl_context()
-    ) as response:
-        response.read()
-
-
-def gh_set_secret(_token: str, repo_slug: str, name: str, value: str) -> None:
+def gh_set_secret(repo_slug: str, name: str, value: str) -> None:
     """Seal and set one repo secret; the value rides stdin, so it never reaches argv."""
     subprocess.run(
         ["gh", "secret", "set", name, "--repo", repo_slug],
@@ -209,22 +159,10 @@ def check_plan(plan: list[tuple[str, str, str]], lister=gh_secret_names) -> tupl
     return lines, problems
 
 
-def admin_token() -> str:
-    """Return the attended site-admin token supplied by the operator."""
-    token = os.environ.get("FORGEJO_ADMIN_TOKEN", "").strip()
-    if not token:
-        raise SystemExit(
-            "FORGEJO_ADMIN_TOKEN is required; load it with the attended "
-            "infrastructure forgejo-admin-token helper"
-        )
-    return token
-
-
 def apply_plan(
     plan: list[tuple[str, str, str]],
-    token: str,
     read=ssm_get,
-    write=put_secret,
+    write=gh_set_secret,
 ) -> list[str]:
     """Write every secret, returning one line per failure instead of stopping.
 
@@ -234,10 +172,8 @@ def apply_plan(
     failures: list[str] = []
     for repo_slug, name, param in plan:
         try:
-            write(token, repo_slug, name, read(param))
-        except urllib.error.HTTPError as err:
-            failures.append(f"{repo_slug}: {name}: HTTP {err.code}")
-        except (urllib.error.URLError, subprocess.CalledProcessError, OSError, SystemExit) as err:
+            write(repo_slug, name, read(param))
+        except (subprocess.CalledProcessError, OSError, SystemExit) as err:
             failures.append(f"{repo_slug}: {name}: {type(err).__name__}")
         else:
             print(f"{repo_slug}: {name} set")
@@ -248,9 +184,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--target",
-        choices=("forgejo", "github"),
-        default="forgejo",
-        help="forge to write to (default forgejo until the COI-2927 cutover)",
+        choices=("github",),
+        default="github",
+        help="kept so existing invocations work; GitHub is the only target",
     )
     parser.add_argument(
         "--repo",
@@ -271,12 +207,9 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument(
         "--check",
         action="store_true",
-        help="github only: list which planned secret names each repo holds, names only",
+        help="list which planned secret names each repo holds, names only",
     )
     args = parser.parse_args(argv)
-    github = args.target == "github"
-    if args.check and not github:
-        raise SystemExit("--check reads GitHub secret names; pass --target github")
     bad_repos = [repo for repo in args.repo if repo.count("/") != 1 or "" in repo.split("/")]
     if bad_repos:
         raise SystemExit("--repo takes owner/repo, got: " + ", ".join(bad_repos))
@@ -284,21 +217,15 @@ def main(argv: list[str] | None = None) -> int:
     def only(mapping: dict[str, dict[str, str]]) -> dict[str, dict[str, str]]:
         return {k: v for k, v in mapping.items() if not args.repo or k in args.repo}
 
-    if github:
-        github_mapping = only(GITHUB_MAPPING)
-        plan = build_plan(github_mapping, FLEET_SECRETS, tuple(args.repo) or WORKFLOW_REPOS)
-        named = {**github_mapping, "fleet": FLEET_SECRETS}
-        forbidden, write, forge = GITHUB_FORBIDDEN_SECRET_PREFIX, gh_set_secret, "GitHub"
-    else:
-        named = only(MAPPING)
-        plan = build_plan(named)
-        forbidden, write, forge = FORBIDDEN_SECRET_PREFIX, put_secret, "Forgejo"
+    mapping = only(MAPPING)
+    plan = build_plan(mapping, FLEET_SECRETS, tuple(args.repo) or WORKFLOW_REPOS)
+    named = {**mapping, "fleet": FLEET_SECRETS}
 
     # Before any write, so a rejected name cannot half-apply the plan.
-    rejected = invalid_secret_names(named, forbidden)
+    rejected = invalid_secret_names(named)
     if rejected:
         raise SystemExit(
-            f"{forge} would reject these secret names (reserved prefix or leading "
+            "GitHub would reject these secret names (reserved prefix or leading "
             "digit):\n  " + "\n  ".join(rejected)
         )
 
@@ -314,11 +241,11 @@ def main(argv: list[str] | None = None) -> int:
 
     for repo_slug, name, param in plan:
         print(f"{repo_slug}: {name} <- ssm {param}")
-    print(f"{len(plan)} secrets across {len({row[0] for row in plan})} repos on {forge}")
+    print(f"{len(plan)} secrets across {len({row[0] for row in plan})} repos on GitHub")
     if args.dry_run:
         return 0
 
-    failures = apply_plan(plan, "" if github else admin_token(), write=write)
+    failures = apply_plan(plan)
     if failures:
         print(f"{len(failures)} of {len(plan)} secrets failed:", file=sys.stderr)
         for line in failures:
