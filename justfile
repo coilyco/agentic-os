@@ -339,14 +339,6 @@ prod-install-ref *ARGS:
 release *ARGS:
     @uv run python scripts/release.py "$@"
 
-# Remint the two-stage promote PAT on the coilyco-ops bot (write:repository + read:user - without read:user Forgejo drops the release enqueue, ward#1117) and overwrite SSM /forgejo/coilyco-ops/ci-release-token. Values stay in-process. `--dry-run` previews. Follow with `just sync-actions-secrets`.
-remint-ci-release-token *ARGS:
-    @uv run --with boto3 python scripts/remint-ci-release-token.py "$@"
-
-# Remint the coilyco-ops read:package token, verify it against the Forgejo registry, and overwrite SSM /forgejo/coilyco-ops/registry-read-token. Values stay in-process. `--dry-run` previews.
-remint-registry-read-token *ARGS:
-    @uv run --with boto3 python scripts/remint-registry-read-token.py "$@"
-
 # Run the exact repository CI gate, bootstrapping the pinned umbra release before pytest and the full pre-commit suite.
 repo-test-gate *ARGS:
     @bash scripts/ci-command.sh bash scripts/ci/repo-test-gate.sh "$@"

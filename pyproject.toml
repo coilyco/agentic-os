@@ -51,7 +51,6 @@ check-code-comments = "agentic_os.pre_commit.check_code_comments:main"
 check-brand-case = "agentic_os.pre_commit.check_brand_case:main"
 check-actions-run-one-line = "agentic_os.pre_commit.check_actions_run_one_line:main"
 check-github-workflow-contract = "agentic_os.pre_commit.check_github_workflow_contract:main"
-port-forgejo-workflow = "agentic_os.port_workflow:main"
 check-source-doc-refs = "agentic_os.pre_commit.check_source_doc_refs:main"
 check-documentation-placement = "agentic_os.pre_commit.check_documentation_layout:main_placement"
 check-documentation-size = "agentic_os.pre_commit.check_documentation_layout:main_size"
@@ -115,7 +114,6 @@ excludes = [
     ".pre-commit-hooks.yaml",
     "docs/skill-discipline-example-categories.yaml",
     "docs/skill-discipline-example-pre-commit-config.yaml",
-    "docs/ci-in-dev-base-example.yml",
 ]
 
 # Composed sources no role in .agents/roles.kdl selects. Each entry is a

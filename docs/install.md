@@ -11,7 +11,6 @@ The ansible `shell` role (in the infrastructure repo) symlinks, by `ansible_syst
 - `~/.config/alacritty/alacritty.toml` from `alacritty/alacritty.toml` on Mac and Linux workstations
 - `~/.config/kitty/kitty.conf` from `kitty/kitty.conf` on Mac and Linux workstations
 - `~/.local/bin/gpg-ssm` from `scripts/gpg-ssm` (Mac, Linux) or `scripts/gpg-ssm.cmd` (Windows)
-- the Forgejo git and Docker credential helpers from `scripts/*-credential-forgejo-ssm*` (retired with Forgejo on 2026-11-01, still linked until COI-2931 removes them)
 - the `~/.local/bin` PATH helpers
 
 A pre-existing regular shell, kitty, or Alacritty config is backed up to `<path>.bak`
