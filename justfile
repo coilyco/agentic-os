@@ -17,7 +17,7 @@ pnpm := if `command -v pnpm || true` != "" { "pnpm" } else { "corepack pnpm" }
 default:
     @just --list --unsorted
 
-# Canonical short agent-id generator over the dictatable alphabet (lowercase 2-letter+2-digit, e.g. `ab85`). Bare invocation prints a fresh `secrets`-backed id (`-n 5` for more); `--seed <s>` prints the deterministic contract id for a seed, `--org <forgejo-org>` prints the short container token, `--emit-vectors` regenerates agent_id_vectors.json. The cross-repo naming primitive ward and umbra's Go port build against. See docs/build-output-is-not-content.md.
+# Canonical short agent-id generator over the dictatable alphabet (lowercase 2-letter+2-digit, e.g. `ab85`). Bare invocation prints a fresh `secrets`-backed id (`-n 5` for more); `--seed <s>` prints the deterministic contract id for a seed, `--org <org>` prints the short container token, `--emit-vectors` regenerates agent_id_vectors.json. The cross-repo naming primitive ward and umbra's Go port build against. See docs/build-output-is-not-content.md.
 agent-id *ARGS:
     @uv run python -m agentic_os.agent_id "$@"
 
