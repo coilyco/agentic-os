@@ -1,4 +1,4 @@
-# Hosted twin of the Forgejo gate, no container image. See docs/dev-container.md.
+# The gate on a hosted runner, no container image. See docs/dev-container.md.
 name: ci
 
 on:

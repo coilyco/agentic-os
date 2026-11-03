@@ -1,31 +1,18 @@
 name: "Bump a Homebrew Formula via the Contents API"
 description: |
   Rewrite the `url "..."` line of a Homebrew Formula to point at the new
-  tag + revision and PUT the result back via the Contents API of Forgejo or
-  GitHub (the `host` input). The bump commit lands on `repo`, which on GitHub
-  is usually the tap, not the repo running the workflow, so pass a GitHub
-  App token with contents:write on the tap as `token`. Contract:
-  docs/release.md.
+  tag + revision and PUT the result back via the GitHub Contents API. The bump
+  commit lands on `repo`, which is usually the tap, not the repo running the
+  workflow, so pass a GitHub App token with contents:write on the tap as
+  `token`. Contract: docs/release.md.
 
 inputs:
-  forgejo_token:
-    description: "Forgejo API token, kept for existing Forgejo callers. Defaults to the job token, which also covers GitHub when token is unset."
+  token:
+    description: "API token. Defaults to the job token. Pass a GitHub App token when a tag, release or push must start downstream workflows, since GITHUB_TOKEN events start none, or when the target repo is not the running one."
     required: false
     default: ${{ github.token }}
-  forgejo_base_url:
-    description: "Forgejo base URL. Used only when host resolves to forgejo."
-    required: false
-    default: "https://forgejo.coilysiren.me"
-  token:
-    description: "API token. Wins over forgejo_token when set. On GitHub pass a GitHub App token when a tag, release or push must start downstream workflows, since GITHUB_TOKEN events start none, or when the target repo is not the running one."
-    required: false
-    default: ""
-  host:
-    description: "API to call: auto|github|forgejo. auto reads the runner's server URL, github.com means GitHub and anything else Forgejo."
-    required: false
-    default: "auto"
   api_url:
-    description: "API base URL override, for tests and other servers. Default https://api.github.com on GitHub, forgejo_base_url plus /api/v1 on Forgejo."
+    description: "API base URL override, for tests and other servers. Default https://api.github.com."
     required: false
     default: ""
   repo:
@@ -45,7 +32,7 @@ inputs:
     description: |
       Template for the `url "..."` line that gets written. {REPO} is
       substituted with the `repo` input. Empty (the default) writes the
-      HTTPS clone URL of the resolved host.
+      GitHub HTTPS clone URL.
     required: false
     default: ''
   branch:
@@ -63,10 +50,7 @@ runs:
     - id: bump
       shell: bash
       env:
-        FORGEJO_TOKEN: ${{ inputs.forgejo_token }}
-        FORGEJO_BASE_URL: ${{ inputs.forgejo_base_url }}
         RELEASE_TOKEN_INPUT: ${{ inputs.token }}
-        RELEASE_HOST_INPUT: ${{ inputs.host }}
         RELEASE_API_URL: ${{ inputs.api_url }}
         REPO: ${{ inputs.repo }}
         FORMULA_PATH: ${{ inputs.formula_path }}

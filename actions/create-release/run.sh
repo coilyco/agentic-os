@@ -6,27 +6,21 @@ source "${GITHUB_ACTION_PATH}/../_lib/release.sh"
 
 rel_name="${NAME:-$TAG}"
 json_tool=$(release_json_tool)
-release_host_init
+release_init
 
-# Only GitHub has a latest flag. A repo has one latest across every train that
-# releases into it, so a train that must not take it passes false.
+# A repo has one latest across every train that releases into it, so a train that
+# must not take it passes false.
 latest=""
 case "${MAKE_LATEST:-}" in
   "") ;;
-  true | false)
-    if [ "$RELEASE_HOST" = github ]; then
-      latest=$MAKE_LATEST
-    else
-      echo "make_latest has no effect on $RELEASE_HOST, ignoring"
-    fi
-    ;;
+  true | false) latest=$MAKE_LATEST ;;
   *)
     echo "::error::make_latest must be true|false, got '$MAKE_LATEST'" >&2
     exit 1
     ;;
 esac
 
-echo "creating $RELEASE_HOST release for $TAG"
+echo "creating GitHub release for $TAG"
 payload=$(release_json_make_create_payload "$json_tool" "$TAG" "$rel_name" "$BODY" "$latest")
 
 if ! http_code=$(release_curl_status /tmp/relresp.json \
@@ -35,14 +29,13 @@ if ! http_code=$(release_curl_status /tmp/relresp.json \
   -H "Content-Type: application/json" \
   -d "$payload" \
   "$RELEASE_API/repos/$REPO/releases"); then
-  echo "::error::$RELEASE_HOST release create request timed out or failed"
+  echo "::error::GitHub release create request timed out or failed"
   cat /tmp/relresp.json
   exit 1
 fi
 
-# Forgejo answers 409 for an existing release, GitHub 422 with code already_exists.
-if [ "$RELEASE_HOST" = github ] && [ "$http_code" = 422 ] &&
-  grep -q '"already_exists"' /tmp/relresp.json; then
+# GitHub answers 422 with code already_exists for an existing release.
+if [ "$http_code" = 422 ] && grep -q '"already_exists"' /tmp/relresp.json; then
   http_code=409
 fi
 
@@ -55,12 +48,12 @@ case "$http_code" in
     if ! http_code=$(release_curl_status /tmp/relresp.json \
       "${RELEASE_HDRS[@]}" \
       "$RELEASE_API/repos/$REPO/releases/tags/$TAG"); then
-      echo "::error::$RELEASE_HOST release lookup timed out or failed"
+      echo "::error::GitHub release lookup timed out or failed"
       cat /tmp/relresp.json
       exit 1
     fi
     if [ "$http_code" != "200" ]; then
-      echo "::error::$RELEASE_HOST release lookup failed: HTTP $http_code"
+      echo "::error::GitHub release lookup failed: HTTP $http_code"
       cat /tmp/relresp.json
       exit 1
     fi
@@ -85,7 +78,7 @@ case "$http_code" in
     fi
     ;;
   *)
-    echo "::error::$RELEASE_HOST release create failed: HTTP $http_code"
+    echo "::error::GitHub release create failed: HTTP $http_code"
     cat /tmp/relresp.json
     exit 1
     ;;

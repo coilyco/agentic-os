@@ -67,7 +67,7 @@ commit at all. Shared composite actions live under `actions/*` in this repo.
 Managed repos pin `aos-precommit-v*` via `rev:`. The distribution keeps the
 `agentic_os` namespace but releases independently from dev-base and AOS.
 The suite covers Actions policy, contracts, links, source-doc refs,
-`actionlint`, `shellcheck`, and `typos`, plus a Forgejo runner validator retired with Forgejo on 2026-11-01 (COI-2931). `shfmt`, placeholders, and
+`actionlint`, `shellcheck`, and `typos`. `shfmt`, placeholders, and
 issue refs stay opt-in in [pre-commit hygiene](pre-commit-hygiene.md). See the
 [hook manifest](../.pre-commit-hooks.yaml).
 
@@ -94,12 +94,11 @@ Single-purpose validators for cryptic failure modes. These plus [`ward context-b
 ## Release actions
 
 `actions/tag-bump`, `create-release`, `upload-release-asset` and `bump-formula`
-run on GitHub. Their Forgejo host path is retired with Forgejo on 2026-11-01 (COI-2931) and stays in code until then. Each input is described in its `action.yml`.
+run against the GitHub API. Each input is described in its `action.yml`.
 
-* **Host** - `host`, `auto` by default: GitHub when `GITHUB_SERVER_URL` is `https://github.com`, else Forgejo.
-* **Token** - `token` wins over the Forgejo-era `forgejo_token` (default: the job token). A `GITHUB_TOKEN` tag starts no workflow and cannot write a tap, so those take an App token from `actions/app-token`: it decodes the base64 `COILYCO_OPS_APP_PRIVATE_KEY_BASE64` with `COILYCO_OPS_APP_ID`, masks it, and mints a `contents:write` token for `repositories`, plus `workflows:write` when `workflows: write` is set, as `promote.yml` needs to push workflow edits (COI-2935).
-* **Calls** - tag: Forgejo `POST /tags`, GitHub `POST /git/refs`. An existing tag or release (Forgejo 409, GitHub 422) is reused. Asset: Forgejo multipart, GitHub raw body to `uploads.github.com`. Formula: Contents API on both, and an empty `url_template` writes the host's clone URL.
+* **Token** - `token` defaults to the job token. A `GITHUB_TOKEN` tag starts no workflow and cannot write a tap, so those take an App token from `actions/app-token`: it decodes the base64 `COILYCO_OPS_APP_PRIVATE_KEY_BASE64` with `COILYCO_OPS_APP_ID`, masks it, and mints a `contents:write` token for `repositories`, plus `workflows:write` when `workflows: write` is set, as `promote.yml` needs to push workflow edits (COI-2935).
+* **Calls** - tag: `POST /git/refs`. An existing tag or release (422) is reused. Asset: raw body to `uploads.github.com`. Formula: Contents API, and an empty `url_template` writes the GitHub clone URL.
 * **Latest** - `make_latest` sets GitHub's one-per-repo latest flag on create and on reuse. `aos-cli-release` passes true and `aos-precommit-release` false. `release-latest.yml` re-marks a named release by hand.
-* **Proof** - `.github/workflows/release-actions-proof.yml` (manual) runs a real tag, release and asset on GitHub, reads them back, and deletes them. `tests/test_release_actions_hosts.py` runs each action against a fake API as both hosts.
+* **Proof** - `.github/workflows/release-actions-proof.yml` (manual) runs a real tag, release and asset on GitHub, reads them back, and deletes them. `tests/test_release_actions_api.py` runs each action against a fake API.
 
 Callers pin a ref: `uses: coilyco/agentic-os/actions/<name>@<sha>`.

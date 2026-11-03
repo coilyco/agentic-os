@@ -1,4 +1,4 @@
-"""Guard the Forgejo release actions against unbounded installs and API calls."""
+"""Guard the release actions against unbounded installs and API calls."""
 from __future__ import annotations
 
 from pathlib import Path
