@@ -10,7 +10,6 @@ text hygiene that are too disruptive to flip on everywhere at once.
 - `actionlint` on `.github/workflows/*.yml` and `.yaml`
 - `actions-run-one-line` rejects block, folded, escaped-newline, and physically split `run:` commands in GitHub and Forgejo workflows plus composite actions, and rejects a program body inlined into one line. A tracked script, composite action, or `just` verb owns the implementation while YAML invokes it from one line. See [one line, and no inlined body](#one-line-and-no-inlined-body)
 - `github-workflow-contract` rejects a `.github/workflows` file that runs on a label outside the GitHub-hosted contract or names the Forgejo host. See [the porting kit](dev-container.md#porting-a-workflow)
-- `forgejo-runner-validate` for Forgejo-native workflow and local-action semantics
 - `shellcheck` on shell scripts
 - `typos` with repo-specific words in [`.typos.toml`](../.typos.toml)
 
