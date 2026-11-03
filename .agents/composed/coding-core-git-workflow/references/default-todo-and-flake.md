@@ -2,7 +2,7 @@
 
 ## Default TODO destination
 
-When the human asks to file a todo without naming a destination, file a record in Linear (team `COI`), with the repository the work actually touches as its `repo` label. `inbox` is the fallback only when no repository is clearly relevant. The tracker moved off Teable at the epic 51 cutover, and Teable is frozen. Forgejo was never the destination: its issue trackers were off fleet-wide (confirmed 2026-09-02 and re-verified 2026-09-03), and Forgejo itself was deleted on 2026-11-01 (COI-3075).
+When the human asks to file a todo without naming a destination, file a record in Linear (team `COI`), with the repository the work actually touches as its `repo` label. `inbox` is the fallback only when no repository is clearly relevant. The tracker moved off Teable at the epic 51 cutover, and Teable is retired. Forgejo was never the destination: its issue trackers were off fleet-wide (confirmed 2026-09-02 and re-verified 2026-09-03), and Forgejo itself was deleted on 2026-11-01 (COI-3075).
 
 GitHub is canonical for git history, branches, pull requests, and releases, for every repo. Cite a record as `COI-<n>`. A `teable:<owner>/<repo>#<n>` ref names a frozen pre-cutover record, and a bare `<owner>/<repo>#<n>` is an archived Forgejo ref kept in the COI-3075 dump (`s3://kai-game-backups/backups/coi3075-forgejo-final/`), never rewritten one by one. The `closes <forgejo url>` trailer is retired along with the trackers, so closing a record is a separate deliberate step that no commit performs for you. Mechanics, field mapping, and resolving an old `teable:` ref: `docs/linear-tracker.md` in `agentic-os-kai`.
 
