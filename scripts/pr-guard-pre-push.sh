@@ -10,9 +10,9 @@
 #      exempts a repo from this any more. Works against any forge, needs no
 #      credentials.
 #   2. Once a branch already exists on the remote, require an open PR before
-#      allowing further pushes to it. Forgejo API only, and only when
-#      FORGEJO_TOKEN is present; it degrades to a notice otherwise so a missing
-#      token never blocks a push.
+#      allowing further pushes to it. GitHub remotes only, through `gh`; it
+#      degrades to a notice when `gh` is missing or unauthenticated so that
+#      never blocks a push.
 #   3. Name the merged PR when one exists, because "no open PR" and "its PR
 #      already merged" want opposite next moves: open one, versus branch again
 #      from main. Asking the forge is the only way to see a squash or rebase
@@ -95,48 +95,40 @@ if [ "$branch" = "$default_branch" ]; then
 fi
 
 case "$remote_url" in
-  *forgejo*) ;;
+  *github.com*) ;;
   *) exit 0 ;;
 esac
 
-if [ -z "${FORGEJO_TOKEN:-}" ]; then
-  printf '[pr-guard] FORGEJO_TOKEN unset; skipping PR check for %s\n' "$branch" >&2
+if ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
+  printf '[pr-guard] gh missing or unauthenticated; skipping PR check for %s\n' "$branch" >&2
   exit 0
 fi
 
-api_root="$(printf '%s' "$remote_url" | sed -E 's#(https?://[^/]+)/.*#\1#')/api/v1"
-slug="$(printf '%s' "$remote_url" | sed -E 's#https?://[^/]+/##; s#\.git$##')"
-auth_header="Authorization: token $FORGEJO_TOKEN"
+slug="$(printf '%s' "$remote_url" | sed -E 's#^(https?://[^/]+/|git@[^:]+:|ssh://git@[^/]+/)##; s#\.git$##')"
 
-published="$(
-  curl -s -o /dev/null -w '%{http_code}' -H "$auth_header" \
-    "$api_root/repos/$slug/branches/$branch" 2>/dev/null || echo 000
-)"
 # Unpublished branch: no PR can exist yet, so this push is the one that
 # creates the ref a PR will later point at.
-[ "$published" = "200" ] || exit 0
+gh api "repos/$slug/branches/$branch" >/dev/null 2>&1 || exit 0
 
-prs_on_branch() {
-  curl -sf -H "$auth_header" "$api_root/repos/$slug/pulls?state=$1&limit=100" 2>/dev/null |
-    jq -c --arg b "$branch" '[.[] | select(.head.ref == $b)]' 2>/dev/null
+# Prints jq's answer over the PRs whose head is this branch, in one state.
+branch_prs() {
+  gh pr list --repo "$slug" --head "$branch" --state "$1" --limit 100 \
+    --json number --jq "$2" 2>/dev/null
 }
 
 # Open-only: one page of every state would drop an older open PR and refuse a
 # legitimate push. The open set is small enough that one page holds it.
-open_json="$(prs_on_branch open)"
+open_count="$(branch_prs open 'length')"
 # A failed lookup yields empty, which must not read as "zero open PRs".
-[ -n "$open_json" ] || {
+[ -n "$open_count" ] || {
   printf '[pr-guard] PR lookup failed for %s; allowing push\n' "$branch" >&2
   exit 0
 }
-[ "$(printf '%s' "$open_json" | jq 'length')" -eq 0 ] || exit 0
+[ "$open_count" -eq 0 ] || exit 0
 
 # The push is refused either way now. This read only picks which refusal is
 # true, so a miss costs the better message rather than the verdict.
-merged_pr="$(
-  prs_on_branch closed |
-    jq -r 'map(select(.merged_at != null)) | max_by(.number) | .number // empty'
-)"
+merged_pr="$(branch_prs merged 'map(.number) | max // empty')"
 
 if [ -n "$merged_pr" ]; then
   die "'$branch' already merged as PR #$merged_pr. This push would strand the
@@ -148,6 +140,6 @@ fi
 
 die "'$branch' is already on the remote but has no open PR.
      Open one, then push again:
-       ${remote_url%.git}/compare/$default_branch...$branch"
+       https://github.com/$slug/compare/$default_branch...$branch"
 
 exit 0

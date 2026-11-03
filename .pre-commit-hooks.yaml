@@ -48,7 +48,7 @@
 
 - id: pr-guard
   name: pre-push PR guard
-  description: "Refuse pushes whose destination is the remote default branch, and refuse to update an already-published branch that has no open PR, naming the merged PR when one exists so a stranded push is told to branch again rather than to open another PR on a dead branch. No lane exempts a repo from the first half: merge-remote-main was the one that did and it is retired, so every repo including an undeclared one stays guarded. The PR half needs FORGEJO_TOKEN and degrades to a notice without it. Client-side only; git push --no-verify bypasses it."
+  description: "Refuse pushes whose destination is the remote default branch, and refuse to update an already-published branch that has no open PR, naming the merged PR when one exists so a stranded push is told to branch again rather than to open another PR on a dead branch. No lane exempts a repo from the first half: merge-remote-main was the one that did and it is retired, so every repo including an undeclared one stays guarded. The PR half needs an authenticated gh and degrades to a notice without it. Client-side only; git push --no-verify bypasses it."
   entry: scripts/pr-guard-pre-push.sh
   language: script
   always_run: true

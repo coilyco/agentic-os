@@ -2,13 +2,12 @@
 
 A branch whose PR already merged is still pushable on three of the four repos,
 so the push succeeds, nothing points at the branch, and the work is stranded.
-The forge is the only source that sees a squash or rebase merge, whose branch
-tip is not an ancestor of the commit it merged as. See agentic-os#1034.
+GitHub is the only source that sees a squash or rebase merge, whose branch tip is
+not an ancestor of the commit it merged as. See agentic-os#1034.
 """
 
 from __future__ import annotations
 
-import json
 import os
 import re
 import shutil
@@ -21,7 +20,49 @@ ROOT = Path(__file__).resolve().parent.parent
 GUARD = ROOT / "scripts" / "pr-guard-pre-push.sh"
 
 BRANCH = "aos/feature"
-REMOTE_URL = "https://forgejo.example.invalid/coilyco-flight-deck/agentic-os.git"
+REMOTE_URL = "https://github.com/coilyco/agentic-os.git"
+
+
+def _stub_gh(
+    bin_dir: Path,
+    *,
+    open_prs: list,
+    closed_prs: list,
+    published: bool = True,
+    authenticated: bool = True,
+    lookup_fails: bool = False,
+) -> Path:
+    """A `gh` that answers like GitHub does after `--head` filtered the listing.
+
+    It reports the argv it received to `argv.log`, one call per line, so a test
+    can see which repo and state the guard asked about.
+    """
+    def on_branch(prs: list) -> list:
+        return [p for p in prs if p["head"]["ref"] == BRANCH]
+
+    open_count = len(on_branch(open_prs))
+    merged = [p["number"] for p in on_branch(closed_prs) if p["merged_at"]]
+    merged_answer = str(max(merged)) if merged else ""
+    gh = bin_dir / "gh"
+    gh.write_text(
+        f"""#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "{bin_dir}/argv.log"
+case "$1 $2" in
+  "auth status") exit {0 if authenticated else 1} ;;
+  "api repos/"*) exit {0 if published else 1} ;;
+esac
+[ "$1 $2" = "pr list" ] || exit 1
+[ "{int(lookup_fails)}" = 1 ] && exit 1
+case "$*" in
+  *"--state open"*) printf '%s\\n' {open_count} ;;
+  *"--state merged"*) printf '%s\\n' '{merged_answer}' ;;
+  *) exit 1 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    gh.chmod(0o755)
+    return gh
 
 
 def _run(
@@ -29,11 +70,15 @@ def _run(
     *,
     open_prs: list,
     closed_prs: list,
-    branch_http: str = "200",
+    published: bool = True,
+    authenticated: bool = True,
+    lookup_fails: bool = False,
     branch: str = BRANCH,
     lane: str | None = None,
+    remote_url: str = REMOTE_URL,
+    with_gh: bool = True,
 ):
-    """Run the guard against a curl stub serving fixed PR listings.
+    """Run the guard against a `gh` stub serving fixed PR listings.
 
     `lane` installs a `generate-git-workflow` stub on PATH answering
     `--print-lane` with that slug, which is the resolution path a consumer
@@ -47,23 +92,15 @@ def _run(
             f"#!/usr/bin/env bash\nprintf '{lane}\\n'\n", encoding="utf-8"
         )
         reader.chmod(0o755)
-    (bin_dir / "open.json").write_text(json.dumps(open_prs), encoding="utf-8")
-    (bin_dir / "closed.json").write_text(json.dumps(closed_prs), encoding="utf-8")
-
-    curl = bin_dir / "curl"
-    curl.write_text(
-        f"""#!/usr/bin/env bash
-args="$*"
-case "$args" in
-  *"/branches/"*) printf '{branch_http}' ;;
-  *"state=open"*) cat "{bin_dir}/open.json" ;;
-  *"state=closed"*) cat "{bin_dir}/closed.json" ;;
-  *) exit 1 ;;
-esac
-""",
-        encoding="utf-8",
-    )
-    curl.chmod(0o755)
+    if with_gh:
+        _stub_gh(
+            bin_dir,
+            open_prs=open_prs,
+            closed_prs=closed_prs,
+            published=published,
+            authenticated=authenticated,
+            lookup_fails=lookup_fails,
+        )
 
     # A real checkout, so the default-branch lookup behaves as it does in anger.
     repo = tmp_path / "repo"
@@ -80,9 +117,8 @@ esac
         | {
             "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
             "PRE_COMMIT_REMOTE_NAME": "origin",
-            "PRE_COMMIT_REMOTE_URL": REMOTE_URL,
+            "PRE_COMMIT_REMOTE_URL": remote_url,
             "PRE_COMMIT_REMOTE_BRANCH": f"refs/heads/{branch}",
-            "FORGEJO_TOKEN": "t",
         },
     )
 
@@ -122,6 +158,7 @@ def test_a_closed_unmerged_pr_is_not_a_merged_pr(tmp_path: Path) -> None:
     assert got.returncode == 1
     assert "has no open PR" in got.stderr
     assert "already merged" not in got.stderr
+    assert "https://github.com/coilyco/agentic-os/compare/main...aos/feature" in got.stderr
 
 
 def test_the_newest_merged_pr_is_the_one_named(tmp_path: Path) -> None:
@@ -147,68 +184,53 @@ def test_a_different_branch_merged_pr_is_ignored(tmp_path: Path) -> None:
 
 def test_an_unpublished_branch_is_left_alone(tmp_path: Path) -> None:
     # The first push of a branch cannot have a PR: it creates the ref one needs.
-    got = _run(tmp_path, open_prs=[], closed_prs=[], branch_http="404")
+    got = _run(tmp_path, open_prs=[], closed_prs=[], published=False)
 
     assert got.returncode == 0, got.stderr
 
 
-def test_a_missing_token_never_blocks_a_push(tmp_path: Path) -> None:
-    # A hook that wedges every push when Forgejo is unreachable is worse than
+def test_an_unauthenticated_gh_never_blocks_a_push(tmp_path: Path) -> None:
+    # A hook that wedges every push when GitHub is unreachable is worse than
     # the problem it solves.
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
-    env = {k: v for k, v in os.environ.items() if k != "FORGEJO_TOKEN"}
-    got = subprocess.run(
-        ["bash", str(GUARD)],
-        cwd=repo,
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env
-        | {
-            "PRE_COMMIT_REMOTE_NAME": "origin",
-            "PRE_COMMIT_REMOTE_URL": REMOTE_URL,
-            "PRE_COMMIT_REMOTE_BRANCH": f"refs/heads/{BRANCH}",
-        },
-    )
+    got = _run(tmp_path, open_prs=[], closed_prs=[], authenticated=False)
 
     assert got.returncode == 0
-    assert "FORGEJO_TOKEN unset" in got.stderr
+    assert "gh missing or unauthenticated" in got.stderr
 
 
 def test_an_unreachable_forge_never_blocks_a_push(tmp_path: Path) -> None:
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
-    curl = bin_dir / "curl"
-    curl.write_text(
-        '#!/usr/bin/env bash\ncase "$*" in *"/branches/"*) printf 200 ;; *) exit 7 ;; esac\n',
-        encoding="utf-8",
-    )
-    curl.chmod(0o755)
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=repo, check=True)
-    got = subprocess.run(
-        ["bash", str(GUARD)],
-        cwd=repo,
-        check=False,
-        capture_output=True,
-        text=True,
-        env=os.environ
-        | {
-            "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
-            "PRE_COMMIT_REMOTE_NAME": "origin",
-            "PRE_COMMIT_REMOTE_URL": REMOTE_URL,
-            "PRE_COMMIT_REMOTE_BRANCH": f"refs/heads/{BRANCH}",
-            "FORGEJO_TOKEN": "t",
-        },
-    )
+    got = _run(tmp_path, open_prs=[], closed_prs=[], lookup_fails=True)
 
     assert got.returncode == 0
     assert "lookup failed" in got.stderr
+
+
+@pytest.mark.parametrize(
+    "remote_url",
+    [
+        "https://github.com/coilyco/agentic-os.git",
+        "git@github.com:coilyco/agentic-os.git",
+        "ssh://git@github.com/coilyco/agentic-os.git",
+    ],
+)
+def test_every_github_remote_form_resolves_to_the_same_repo(
+    tmp_path: Path, remote_url: str
+) -> None:
+    got = _run(tmp_path, open_prs=[_pr(1, merged=False, state="open")], closed_prs=[], remote_url=remote_url)
+
+    assert got.returncode == 0, got.stderr
+    log = (tmp_path / "bin" / "argv.log").read_text(encoding="utf-8")
+    assert "--repo coilyco/agentic-os" in log
+    assert "repos/coilyco/agentic-os/branches/aos/feature" in log
+
+
+def test_a_remote_that_is_not_github_is_left_alone(tmp_path: Path) -> None:
+    got = _run(
+        tmp_path, open_prs=[], closed_prs=[], remote_url="https://git.example.invalid/o/r.git"
+    )
+
+    assert got.returncode == 0, got.stderr
+    assert not (tmp_path / "bin" / "argv.log").exists()
 
 
 def test_the_open_lookup_never_asks_for_state_all() -> None:
@@ -216,12 +238,9 @@ def test_the_open_lookup_never_asks_for_state_all() -> None:
     # older open PR falls off the page and a legitimate push is refused.
     text = GUARD.read_text(encoding="utf-8")
 
-    assert "prs_on_branch open" in text
-    assert "prs_on_branch closed" in text
     # Only the two named states are ever requested, prose about state=all aside.
-    calls = re.findall(r"prs_on_branch (\w+)", text)
-    assert set(calls) == {"open", "closed"}, calls
-
+    calls = re.findall(r"branch_prs (\w+)", text)
+    assert set(calls) == {"open", "merged"}, calls
 
 
 # The lane half. This guard stood down on `merge-remote-main` (#1321), which is
