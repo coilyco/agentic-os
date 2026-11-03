@@ -157,9 +157,7 @@ def test_managed_block_includes_standard_hygiene_hooks() -> None:
         "check-json",
         "check-toml",
         "https://github.com/rhysd/actionlint",
-        "files: ^\\.forgejo/workflows/.*\\.(ya?ml)$",
-        "https://code.forgejo.org/forgejo/runner",
-        "forgejo-runner-validate",
+        "files: ^\\.github/workflows/.*\\.(ya?ml)$",
         "https://github.com/shellcheck-py/shellcheck-py",
         "https://github.com/crate-ci/typos",
         "args: [--force-exclude]",
@@ -183,13 +181,10 @@ def _actionlint_hook(rendered: str) -> dict:
 
 
 def test_actionlint_config_flag_follows_the_consumer(tmp_path: Path) -> None:
-    """agentic-os#984: a Forgejo-only repo needs the flag to see its labels.
+    """The flag is not emitted unconditionally (agentic-os#984).
 
-    actionlint keys project detection off .github/workflows, so a repo whose
-    workflows live in .forgejo/workflows never auto-discovers its config and
-    reports a declared self-hosted runner label as unknown. The flag is not
-    emitted unconditionally: actionlint exits non-zero on a config path it
-    cannot read, which would break every consumer that ships no config.
+    actionlint exits non-zero on a config path it cannot read, which would break
+    every consumer that ships no config.
     """
     script = _load_script()
     without = _actionlint_hook(f"repos:\n{script.managed_block('v9.9.9', repo_dir=tmp_path)}")
@@ -200,7 +195,34 @@ def test_actionlint_config_flag_follows_the_consumer(tmp_path: Path) -> None:
         f"repos:\n{script.managed_block('v9.9.9', repo_dir=tmp_path)}"
     )
     assert with_config["args"] == ["-config-file", ".github/actionlint.yaml"]
-    assert with_config["files"] == r"^\.forgejo/workflows/.*\.(ya?ml)$"
+    assert with_config["files"] == r"^\.github/workflows/.*\.(ya?ml)$"
+
+
+def test_the_managed_block_lints_github_workflows_and_pins_no_forgejo_runner() -> None:
+    """COI-3127: the Forgejo trees are gone, so nothing would lint .github/workflows."""
+    script = _load_script()
+    block = script.managed_block("v9.9.9")
+    assert r"files: ^\.github/workflows/.*\.(ya?ml)$" in block
+    assert ".forgejo/workflows" not in block
+    assert "forgejo-runner-validate" not in block
+    assert "code.forgejo.org" not in block
+
+
+def test_a_retired_forgejo_runner_pin_is_stripped_on_refresh() -> None:
+    script = _load_script()
+    stale = (
+        "repos:\n"
+        "  - repo: https://code.forgejo.org/forgejo/runner\n"
+        "    rev: v12.10.1\n"
+        "    hooks:\n"
+        "      - id: forgejo-runner-validate\n"
+        "  - repo: https://example.com/other\n"
+        "    rev: v1\n"
+    )
+    text, removed = script.strip_legacy_blocks(stale)
+    assert removed == 1
+    assert "forgejo" not in text
+    assert "https://example.com/other" in text
 
 
 def test_apply_carries_the_actionlint_config_flag(tmp_path: Path) -> None:
@@ -530,7 +552,6 @@ def test_the_source_repo_pins_every_shared_hook_repo_like_its_consumers() -> Non
     expected = {
         script.PRECOMMIT_HOOKS_REPO_URL: script.PRECOMMIT_HOOKS_REV,
         script.ACTIONLINT_REPO_URL: script.ACTIONLINT_REV,
-        script.FORGEJO_RUNNER_REPO_URL: script.FORGEJO_RUNNER_REV,
         script.SHELLCHECK_REPO_URL: script.SHELLCHECK_REV,
         script.TYPOS_REPO_URL: script.TYPOS_REV,
     }

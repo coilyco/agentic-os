@@ -16,11 +16,6 @@ repos:
       - id: mixed-line-ending
       - id: trailing-whitespace
 
-  - repo: https://code.forgejo.org/forgejo/runner
-    rev: v12.10.1
-    hooks:
-      - id: forgejo-runner-validate
-
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
     hooks:
