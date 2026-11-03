@@ -466,44 +466,6 @@ func TestBuildLaunchPlanMountsHomeSource(t *testing.T) {
 	}
 }
 
-func TestBuildLaunchPlanMountsIssuePinContext(t *testing.T) {
-	t.Parallel()
-	source := filepath.Join(t.TempDir(), "issue-pins.md")
-	if err := os.WriteFile(source, []byte("pins\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	digest := strings.Repeat("a", 64)
-	plan, err := buildLaunchPlan(launchOptions{
-		Image:    "agentic-os:test",
-		Role:     "director",
-		Layout:   "codex",
-		Delivery: "native-skills",
-		Composed: true,
-		CWD:      t.TempDir(),
-		Command:  []string{"codex"},
-		UID:      1000,
-		GID:      1000,
-		IssuePinContext: issuePinLaunchContext{
-			HostPath: source,
-			Digest:   digest,
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	joined := strings.Join(plan.DockerArgs, "\n")
-	for _, want := range []string{
-		"--label\naos.issue-pin.digest=" + digest,
-		"type=bind,source=" + source + ",target=" + containerIssuePinContext + ",readonly",
-		"--issue-pin-context\n" + containerIssuePinContext,
-		"--issue-pin-digest\n" + digest,
-	} {
-		if !strings.Contains(joined, want) {
-			t.Errorf("launch plan missing %q:\n%s", want, joined)
-		}
-	}
-}
-
 func TestBuildLaunchPlanNamesAgentContainerForRole(t *testing.T) {
 	t.Parallel()
 	plan, err := buildLaunchPlan(launchOptions{

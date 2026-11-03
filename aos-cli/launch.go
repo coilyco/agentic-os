@@ -93,7 +93,6 @@ type launchOptions struct {
 	MCPInventory    string
 	TailnetNetwork  string
 	TailnetForwards []tailnetForward
-	IssuePinContext issuePinLaunchContext
 }
 
 type launchPlan struct {
@@ -193,9 +192,6 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 		"--label", "aos.role="+opts.Role,
 		"--mount", "type=bind,source="+mountSource+",target="+mountTarget,
 	)
-	if opts.IssuePinContext.Digest != "" {
-		args = append(args, "--label", "aos.issue-pin.digest="+opts.IssuePinContext.Digest)
-	}
 	if opts.Composed {
 		args = append(
 			args,
@@ -265,17 +261,6 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 		args = append(args, "--mount",
 			"type=bind,source="+mount.HostPath+",target="+mount.ContainerPath+",readonly")
 	}
-	if opts.IssuePinContext.HostPath != "" {
-		info, err := os.Stat(opts.IssuePinContext.HostPath)
-		if err != nil {
-			return launchPlan{}, fmt.Errorf("inspect issue-pin context: %w", err)
-		}
-		if !info.Mode().IsRegular() {
-			return launchPlan{}, fmt.Errorf("issue-pin context %s is not a regular file", opts.IssuePinContext.HostPath)
-		}
-		args = append(args, "--mount",
-			"type=bind,source="+opts.IssuePinContext.HostPath+",target="+containerIssuePinContext+",readonly")
-	}
 	args = append(args,
 		"--entrypoint", "/usr/local/bin/aos",
 		opts.Image,
@@ -300,13 +285,6 @@ func buildLaunchPlan(opts launchOptions) (launchPlan, error) {
 	)
 	if opts.MCPInventory != "" {
 		args = append(args, "--mcp-inventory", containerMCPInventory)
-	}
-	if opts.IssuePinContext.HostPath != "" {
-		args = append(
-			args,
-			"--issue-pin-context", containerIssuePinContext,
-			"--issue-pin-digest", opts.IssuePinContext.Digest,
-		)
 	}
 	for _, forward := range opts.TailnetForwards {
 		encoded, err := forward.encode()

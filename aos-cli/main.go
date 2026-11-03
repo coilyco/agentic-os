@@ -354,14 +354,6 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 						Name:   "tailnet-forward",
 						Hidden: true,
 					},
-					&cli.StringFlag{
-						Name:   "issue-pin-context",
-						Hidden: true,
-					},
-					&cli.StringFlag{
-						Name:   "issue-pin-digest",
-						Hidden: true,
-					},
 				},
 				Action: runContainerAcompose,
 			},
@@ -492,16 +484,6 @@ func runComposedLaunch(
 	defer func() {
 		returnErr = errors.Join(returnErr, workspace.Close())
 	}()
-	var issuePins issuePinLaunchContext
-	if !cmd.Bool("dry-run") {
-		issuePins, err = prepareIssuePinLaunchContext(ctx, role)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			returnErr = errors.Join(returnErr, issuePins.Close())
-		}()
-	}
 	mcp, err := discoverMCPLaunch(ctx)
 	if err != nil {
 		return err
@@ -528,7 +510,6 @@ func runComposedLaunch(
 		MCPInventory:    mcp.Inventory,
 		TailnetNetwork:  mcp.TailnetNetwork,
 		TailnetForwards: mcp.Forwards,
-		IssuePinContext: issuePins,
 	})
 	if err != nil {
 		return err
@@ -576,8 +557,6 @@ func runContainerAcompose(ctx context.Context, cmd *cli.Command) error {
 		NoSubstrate:     cmd.Bool("no-substrate"),
 		MCPInventory:    cmd.String("mcp-inventory"),
 		TailnetForwards: forwards,
-		IssuePinContext: strings.TrimSpace(cmd.String("issue-pin-context")),
-		IssuePinDigest:  strings.TrimSpace(cmd.String("issue-pin-digest")),
 	}, osCommandRunner{})
 	if err != nil {
 		return err
