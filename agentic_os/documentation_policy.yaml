@@ -5,10 +5,13 @@ repos:
   agent-compose:
     band: large
     guides: true
-    excludes:
+    excludes: # evaluations/<run>/ holds dated evaluation records moved in from housecast, one per file
     - testdata/contracts/**
     - testdata/handmade-bundle/**
     - seed/roster/data/**
+    - evaluations/**
+    size_excludes:
+    - evaluations/**
   agent-proxy:
     band: large
   agentic-os:
