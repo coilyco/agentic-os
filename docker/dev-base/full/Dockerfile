@@ -11,7 +11,7 @@ FROM ${LANG_PYTHON_IMAGE} AS dev-base-lang-python-graft
 
 FROM ubuntu:24.04 AS dev-base-tool-builder
 ARG UMBRA_VERSION=0.256.0
-ARG AOS_VERSION=0.390.0
+ARG AOS_VERSION=0.491.0
 ARG TARGETARCH
 ARG DEBIAN_FRONTEND=noninteractive
 ENV PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
@@ -23,7 +23,7 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 RUN set -eux; \
     aos_asset="aos-linux-${TARGETARCH}"; \
-    aos_base="https://forgejo.coilysiren.me/coilyco/agentic-os/releases/download/aos-v${AOS_VERSION}"; \
+    aos_base="https://github.com/coilyco/agentic-os/releases/download/aos-v${AOS_VERSION}"; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
       "${aos_base}/${aos_asset}" -o "/tmp/${aos_asset}"; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
@@ -34,7 +34,7 @@ RUN set -eux; \
     rm "/tmp/${aos_asset}" /tmp/aos-SHA256SUMS; aos --version
 RUN set -eux; \
     umbra_asset="umbra-linux-${TARGETARCH}"; \
-    umbra_base="https://forgejo.coilysiren.me/coilyco/umbra/releases/download/v${UMBRA_VERSION}"; \
+    umbra_base="https://github.com/coilyco/umbra/releases/download/v${UMBRA_VERSION}"; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
       "${umbra_base}/${umbra_asset}" -o "/tmp/${umbra_asset}"; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
@@ -65,7 +65,7 @@ RUN set -eux; \
     rm -rf /tmp/aosguard-spec /tmp/aosguard-python; aosguard --version
 
 FROM ${BASE_IMAGE} AS dev-base-full
-ARG AGENT_COMPOSE_VERSION=2.210.0
+ARG AGENT_COMPOSE_VERSION=2.219.0
 ARG CLAUDE_VERSION=2.1.282
 ARG MCPORTER_VERSION=0.12.3
 ARG CODEX_VERSION=0.146.0
