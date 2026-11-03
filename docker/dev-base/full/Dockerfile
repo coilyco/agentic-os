@@ -90,7 +90,7 @@ ENV PATH=/usr/local/go/bin:/usr/local/dotnet:/usr/local/node/bin:/usr/local/carg
     DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 \
     PRE_COMMIT_HOME=/opt/pre-commit \
     AOS_GIT_NAME=coilyco-ops AOS_GIT_EMAIL=coilyco-ops@coilysiren.me
-LABEL org.opencontainers.image.source="https://forgejo.coilysiren.me/coilyco/agentic-os" \
+LABEL org.opencontainers.image.source="https://github.com/coilyco/agentic-os" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.title="agentic-os full"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

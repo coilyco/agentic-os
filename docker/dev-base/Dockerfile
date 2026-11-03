@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Language targets are build-only payloads. Forgejo builds them in parallel,
+# Language targets are build-only payloads. CI builds them in parallel,
 # keeps stable registry caches across runs, and feeds their commit-scoped draft
 # manifests into the one released full image.
 
@@ -19,7 +19,7 @@ FROM ubuntu:24.04 AS dev-base-lang-node
 ARG NODE_VERSION
 ARG TARGETARCH
 ENV PATH=/usr/local/node/bin:/usr/local/bin:/usr/bin:/bin
-LABEL org.opencontainers.image.source="https://forgejo.coilysiren.me/coilyco/agentic-os" \
+LABEL org.opencontainers.image.source="https://github.com/coilyco/agentic-os" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.title="agentic-os Node build payload"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -40,7 +40,7 @@ FROM ubuntu:24.04 AS dev-base-lang-go
 ARG GO_VERSION
 ARG TARGETARCH
 ENV PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
-LABEL org.opencontainers.image.source="https://forgejo.coilysiren.me/coilyco/agentic-os" \
+LABEL org.opencontainers.image.source="https://github.com/coilyco/agentic-os" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.title="agentic-os Go build payload"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -58,7 +58,7 @@ ARG DOTNET_VERSION
 ARG TARGETARCH
 ENV PATH=/usr/local/dotnet:/usr/local/bin:/usr/bin:/bin \
     DOTNET_ROOT=/usr/local/dotnet DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
-LABEL org.opencontainers.image.source="https://forgejo.coilysiren.me/coilyco/agentic-os" \
+LABEL org.opencontainers.image.source="https://github.com/coilyco/agentic-os" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.title="agentic-os .NET build payload"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -83,7 +83,7 @@ ARG RUST_PINNED_VERSIONS
 ARG TARGETARCH
 ENV PATH=/usr/local/cargo/bin:/usr/local/bin:/usr/bin:/bin \
     CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup
-LABEL org.opencontainers.image.source="https://forgejo.coilysiren.me/coilyco/agentic-os" \
+LABEL org.opencontainers.image.source="https://github.com/coilyco/agentic-os" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.title="agentic-os Rust build payload"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -163,7 +163,7 @@ ARG TARGETARCH
 ENV PATH=/usr/local/bin:/usr/bin:/bin \
     UV_TOOL_DIR=/opt/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin \
     UV_PYTHON_INSTALL_DIR=/opt/uv/python
-LABEL org.opencontainers.image.source="https://forgejo.coilysiren.me/coilyco/agentic-os" \
+LABEL org.opencontainers.image.source="https://github.com/coilyco/agentic-os" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.title="agentic-os Python build payload"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

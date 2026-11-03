@@ -31,7 +31,6 @@ export SAVEHIST=100000
 siren_aos_repo_root() {
   local repo source_dir
   for repo in "${AOS_REPO_ROOT:-}" \
-    "${FORGEJO_WORKSPACE:-}" \
     "${GITHUB_WORKSPACE:-}" \
     /workspace/coilyco/agentic-os \
     /workspace/coilyco-flight-deck/agentic-os \

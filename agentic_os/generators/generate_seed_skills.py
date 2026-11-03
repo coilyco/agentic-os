@@ -24,7 +24,7 @@ DATA_PATH = Path(__file__).resolve().parents[1] / "seed_skills_data.py"
 
 DELIVERED_SKILLS_PREFIX = ".agents/skills"
 SOURCE_SKILLS_PREFIX = ".agents/composed"
-CANONICAL_REPO = "forgejo.coilysiren.me/coilyco/agentic-os"
+CANONICAL_REPO = "github.com/coilyco/agentic-os"
 
 
 def canonical_ref(skill: str) -> str:
@@ -38,8 +38,8 @@ def source_ref(skill: str) -> str:
 
 
 def suggested_url(skill: str) -> str:
-    """Full Forgejo URL shown in guidance when a reference is missing."""
-    return f"https://{CANONICAL_REPO}/src/branch/main/{source_ref(skill)}"
+    """Full GitHub URL shown in guidance when a reference is missing."""
+    return f"https://{CANONICAL_REPO}/blob/main/{source_ref(skill)}"
 
 
 def _parse_seed_block(name: str, seed: object) -> tuple[str, dict | None]:
