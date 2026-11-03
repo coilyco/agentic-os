@@ -5,7 +5,7 @@ each file's own header until the two-line comment cap reached YAML (#1119).
 
 ## `.github/workflows/ci.yml`
 
-Pull-request CI gate for director-merge repos. This is the live version of docs/ci-in-dev-base-example.yml, and branch protection can require the resulting `ci / gate` status context on PR-gated workflows. `release` is the promoted last-known-good branch (ward#1117 / aos#469) and never re-gates: promote.yml already ran the suite on the exact sha it fast-forwarded, so a flaky rerun cannot fail a vouched promotion (Kai's call, 2026-07-12).
+Pull-request CI gate for director-merge repos. Branch protection can require the resulting `ci / gate` status context on PR-gated workflows. `release` is the promoted last-known-good branch (ward#1117 / aos#469) and never re-gates: promote.yml already ran the suite on the exact sha it fast-forwarded, so a flaky rerun cannot fail a vouched promotion (Kai's call, 2026-07-12).
 
 AOS CLI and Python package tests stay on every build. The separate dev-base-pr workflow is path-filtered to Docker changes.
 

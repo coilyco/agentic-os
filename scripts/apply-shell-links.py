@@ -68,18 +68,6 @@ def _target_for_gpg_ssm(repo_root: Path) -> Path:
     return repo_root / "scripts" / "gpg-ssm"
 
 
-def _target_for_git_credential(repo_root: Path) -> Path:
-    if os.name == "nt":
-        return repo_root / "scripts" / "git-credential-forgejo-ssm.cmd"
-    return repo_root / "scripts" / "git-credential-forgejo-ssm.sh"
-
-
-def _target_for_docker_credential(repo_root: Path) -> Path:
-    if os.name == "nt":
-        return repo_root / "scripts" / "docker-credential-forgejo-ssm.cmd"
-    return repo_root / "scripts" / "docker-credential-forgejo-ssm"
-
-
 def link_specs(home: Path, repo_root: Path = REPO_ROOT) -> list[LinkSpec]:
     specs = [
         LinkSpec("zshrc", repo_root / "shell" / "zshrc", home / ".zshrc"),
@@ -93,16 +81,6 @@ def link_specs(home: Path, repo_root: Path = REPO_ROOT) -> list[LinkSpec]:
             repo_root / "scripts" / "ssm-get",
             home / ".local" / "bin" / "ssm-get",
         ),
-        LinkSpec(
-            "git-credential-forgejo-ssm",
-            _target_for_git_credential(repo_root),
-            home / ".local" / "bin" / _target_for_git_credential(repo_root).name,
-        ),
-        LinkSpec(
-            "docker-credential-forgejo-ssm",
-            _target_for_docker_credential(repo_root),
-            home / ".local" / "bin" / _target_for_docker_credential(repo_root).name,
-        ),
     ]
     if os.name == "nt":
         specs.extend(
@@ -111,16 +89,6 @@ def link_specs(home: Path, repo_root: Path = REPO_ROOT) -> list[LinkSpec]:
                     "gpg-ssm-bash",
                     repo_root / "scripts" / "gpg-ssm",
                     home / ".local" / "bin" / "gpg-ssm",
-                ),
-                LinkSpec(
-                    "git-credential-forgejo-ssm-bash",
-                    repo_root / "scripts" / "git-credential-forgejo-ssm.sh",
-                    home / ".local" / "bin" / "git-credential-forgejo-ssm.sh",
-                ),
-                LinkSpec(
-                    "docker-credential-forgejo-ssm-bash",
-                    repo_root / "scripts" / "docker-credential-forgejo-ssm",
-                    home / ".local" / "bin" / "docker-credential-forgejo-ssm",
                 ),
             ]
         )

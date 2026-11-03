@@ -85,36 +85,13 @@ options, and they move with the release trains.
 
 ## Porting a workflow
 
-Forgejo was deleted on 2026-11-01, so the porting kit below, `port-forgejo-workflow`, is retired with Forgejo on 2026-11-01 and awaits cleanup (COI-2931).
-
 [`workflow_contract.json`](../agentic_os/workflow_contract.json) owns the runner
 labels. No job uses a self-hosted runner (COI-2967, COI-3042), so the hook rejects
-`kai-server` and every other label outside the hosted list. `rollout`, `website` and
-`deploy` map too but are redesigns, not ports, and print a `TODO`.
+`kai-server` and every other label outside the hosted list.
 
-- **Script** - `port-forgejo-workflow .forgejo/workflows/ci.yml` writes
-  `.github/workflows/ci.yml`. It maps `runs-on`, deletes `container:`, and adds the
-  pinned `actions/setup-ci` as the first step. Comments stay. It never touches
-  step bodies or secrets, and refuses to overwrite without `--force`.
-- **By hand after** - `actions/setup-go` with `go-version-file`, a `~/.cache/pre-commit`
-  cache, and `workflow_dispatch`. Leave out a `just pre-commit` step until the repo's
-  hook pin moves to GitHub (COI-2943), since a hosted runner cannot reach Forgejo.
+- **By hand** - put `actions/setup-ci` first, then `actions/setup-go` with
+  `go-version-file` where the repo builds Go, a `~/.cache/pre-commit` cache, and
+  `workflow_dispatch`.
 - **Hook** - `github-workflow-contract` fails a tracked `.github/workflows` file with
   a label outside the contract, a runner group, a `runs-on` expression, or a scalar
-  naming `forgejo.coilysiren.me`. A comment may name it. It never reads
-  `.forgejo/workflows`, so a repo keeps both until the flip.
-- **Not ported** - the composite actions that call the Forgejo API (`tag-bump`,
-  `create-release`, `upload-release-asset`, `bump-formula`).
-
-## CI in dev-base (retired with Forgejo on 2026-11-01)
-
-Forgejo CI ran each job in the moving `:release` dev-base image through the
-app's own `just` verbs. The `forgejo.coilysiren.me` image below is retired with Forgejo on 2026-11-01 (COI-2953), and no GHCR replacement is documented here.
-
-- **Convention** - `container: forgejo.coilysiren.me/coilyco/agentic-os:release`,
-  never `:latest`. [`ci-in-dev-base-example.yml`](ci-in-dev-base-example.yml) is
-  the copy-paste start.
-- **Required status** - workflow `ci`, job `gate`, so branch protection can
-  require `ci / gate`. `dev-base-pr / build` runs only for changes under `docker/`.
-- **Authoring and rollout** - aos authors the convention and publishes the alias.
-  An infrastructure rollout templates the `:release` ref into each app's workflow.
+  naming `forgejo.coilysiren.me`. A comment may name it.
