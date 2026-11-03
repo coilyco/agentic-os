@@ -2,7 +2,7 @@
 """Split umbra's one aosguard skill into one skill per wrapped area.
 
 A single `aosguard` skill only loads once an agent already suspects it needs
-aosguard, which is the retrieval failure in agentic-os#1028. `aosguard-forgejo`
+aosguard, which is the retrieval failure in agentic-os#1028. `aosguard-kubectl`
 matches the entity the agent is demonstrably working with instead. Generated
 from umbra's own index. The concept skill that says what aosguard is, and is
 not, is hand-written at .agents/skills/tooling-aosguard.

@@ -2,8 +2,8 @@
 
 One `aosguard` skill only loads once an agent already suspects it needs
 aosguard, which is the retrieval failure agentic-os#1028 records: an agent
-concluded `issue reopen` was denied because the MCP lacked it, while
-`aosguard ops forgejo issue reopen` existed. Per-area skills match the entity
+concluded `release uninstall` was denied because the MCP lacked it, while
+`aosguard ops helm release uninstall` existed. Per-area skills match the entity
 the agent is demonstrably working with.
 """
 
@@ -32,16 +32,16 @@ def _index(root: Path, paths: list[list[str]]) -> Path:
 
 def test_each_wrapped_area_gets_its_own_skill(tmp_path: Path) -> None:
     _index(tmp_path, [
-        ["aosguard", "ops", "forgejo", "issue", "reopen"],
-        ["aosguard", "ops", "forgejo", "issue", "get"],
+        ["aosguard", "ops", "helm", "release", "uninstall"],
+        ["aosguard", "ops", "helm", "release", "list"],
         ["aosguard", "ops", "kubectl", "get"],
     ])
 
     written, _ = gen.generate(tmp_path)
 
-    assert written == ["aosguard-forgejo", "aosguard-kubectl"]
-    assert (tmp_path / "aosguard-forgejo" / "SKILL.md").is_file()
-    assert (tmp_path / "aosguard-forgejo" / "references" / "commands.yaml").is_file()
+    assert written == ["aosguard-helm", "aosguard-kubectl"]
+    assert (tmp_path / "aosguard-helm" / "SKILL.md").is_file()
+    assert (tmp_path / "aosguard-helm" / "references" / "commands.yaml").is_file()
 
 
 def test_a_new_area_needs_no_hand_edit(tmp_path: Path) -> None:
@@ -55,17 +55,17 @@ def test_a_new_area_needs_no_hand_edit(tmp_path: Path) -> None:
 
 def test_an_area_skill_carries_only_its_own_verbs(tmp_path: Path) -> None:
     _index(tmp_path, [
-        ["aosguard", "ops", "forgejo", "issue", "reopen"],
+        ["aosguard", "ops", "helm", "release", "uninstall"],
         ["aosguard", "ops", "kubectl", "get"],
     ])
     gen.generate(tmp_path)
 
     index = yaml.safe_load(
-        (tmp_path / "aosguard-forgejo" / "references" / "commands.yaml").read_text()
+        (tmp_path / "aosguard-helm" / "references" / "commands.yaml").read_text()
     )
 
     assert [c["path"] for c in index["commands"]] == [
-        ["aosguard", "ops", "forgejo", "issue", "reopen"]
+        ["aosguard", "ops", "helm", "release", "uninstall"]
     ]
 
 

@@ -4,25 +4,9 @@ Why each `aosguard` guardfile is shaped the way it is. This lived in each
 file's own header until the two-line comment cap reached YAML and KDL, and a
 skill's `references/` takes no size cap, so it lands here whole.
 
-## `actions.kdl`
-
-Retired with Forgejo on 2026-11-01, cleanup under COI-2931. AOSguard's Forgejo Actions log bridge. One verb, because it is the only Actions operation that still needs code: it unpacks a run ZIP, resumes by byte range in chunks, and caps the read, none of which a REST passthrough does. Listing left this file in agentic-os#1502's follow-up - `ops forgejo action-run list` and friends resolve the same endpoints from the spec on Forgejo 16, so the packaged list and rerun modules were redundant and are gone. Rerun went with them, and it 404'd on this Forgejo (agentic-os#1428).
-
-## `actions-rerun.kdl`
-
-Retired with Forgejo on 2026-11-01, cleanup under COI-2931. AOSguard's Forgejo Actions rerun bridge. Forgejo 16 has no REST rerun route, so the verb logs in as the bot and posts to the web UI route, with the bot password injected from SSM. It is its own wrap so that password reaches only this process and never the log bridge's. The code refuses anything but a failed or cancelled `pull_request` run before it logs in (teable:coilyco/agentic-os#8735).
-
 ## `aws.kdl`
 
 aosguard ops aws - the AWS CLI surface as an allowlist (umbra execverb). Each grant reads like the invocation you'd type: `can run <service> <operation>`. A per-operation guard constrains the kwarg or positional that names the resource - the `--secret-id` value, the s3:// positional - with no env-var escape and no opaque gate. An operation not listed here is denied.
-
-## `forgejo-admin.kdl`
-
-Retired with Forgejo on 2026-11-01, cleanup under COI-2931. Forgejo operations Forgejo refuses to the coilyco-ops bot, which is an org member holding push rather than an owner holding repo-admin. The separate wrapper keeps ordinary reads and writes on the bot token. Rationale: the tooling-aosguard skill.
-
-## `forgejo-storage.kdl`
-
-Retired with Forgejo on 2026-11-01, cleanup under COI-2931. Application-aware Forgejo storage measurement. The generic kubectl surface keeps exec denied. This sealed bridge fixes every target and command in the packaged module, so callers cannot turn measurement into a remote shell.
 
 ## `update.kdl`
 
@@ -40,10 +24,6 @@ cannot leave the tooling this estate runs on behind.
 The formula list is read from `brew list` at runtime rather than tracked here. A tracked
 inventory would be a second copy of something the tap already owns, and going stale is the
 exact defect the command exists to catch.
-
-## `forgejo.kdl`
-
-Retired with Forgejo on 2026-11-01, cleanup under COI-2931. Forgejo ops surface for the standalone AOSguard bundle. AOS authors it and AOSguard ships it. Ward mounts the built binary and owns nothing in here, and no leaf below defers a decision to Ward existing. Every `can` resolves its operationId by convention (verb + resource -> method + path). Hardened per ward#109: orgs and repos lose their irreversible verbs, repo-label CRUD moves to org-labels, and every path-{owner} leaf is scoped to coily* owners. Repo-level label create/edit are additionally policy-disabled per ward#107 (dup priority-tier prevention). The issue surface is gone: issue, issue-comment, issue-label, issue-pin, milestone and the create/view/comment/move-issue actions were removed once every repository but `coilysiren/coilysiren` reported `has_issues` false and the tracker moved to Teable, because a mounted verb against a disabled unit reads as a working path. Auto-resolution per umbra#147. See the tooling-aosguard skill.
 
 ## `helm.kdl`
 

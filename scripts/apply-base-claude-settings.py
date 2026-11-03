@@ -72,8 +72,7 @@ BASE_ALLOWED_PERMISSIONS: list[str] = [
     "Bash(ssh kai@kai-server:*)",
     # Exact matches, one per area with a `describe` verb. A `*` in the area slot
     # would match spaces too, covering any aosguard line that ends in `describe`.
-    "Bash(aosguard ops forgejo describe)",
-    "Bash(aosguard ops forgejo-admin describe)",
+    "Bash(aosguard ops aws describe)",
     # `*` after the program matches the bare command too, so no separate bare
     # or `:*` form. The per-area rules come from `aosguard ops --help` at run time.
     "Bash(aosguard *)",

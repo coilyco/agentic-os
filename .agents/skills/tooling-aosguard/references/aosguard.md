@@ -10,7 +10,7 @@ lock, and Homebrew and Scoop install it beside `aos`.
 
 ## Authority boundary
 
-The snapshot carries AWS, kubectl, helm, Tailscale and Netlify leaves, plus Forgejo, Actions and runner-token leaves that retired with Forgejo on 2026-11-01 and are cleanup under COI-2931. It excludes Ward role policy. AWS SSM permits single reads, SecureString-only writes, and named deletions. Three denies that guarded this surface are **deliberately absent** since 2026-09-02, Kai's call rather than collateral from the same edit: a `*/prod/*` and `*secret*` deny on `get-parameter`, a `*tfstate*` and `*-backup*` deny on `s3 ls`, and the `file:///*` value rule on `put-parameter`. The last one is worth naming twice, because SSM doctrine still says to pass `--value file:///...` so a secret never enters argv: that is now convention rather than enforcement, live since aos-v0.295.0. `put-parameter` gained `when type matches SecureString`, which fails closed on an absent flag and is the surface's one mandatory-value rule. The retired Forgejo leaves are described in [forgejo-ops.md](forgejo-ops.md) and [forgejo-actions-runs.md](forgejo-actions-runs.md).
+The snapshot carries AWS, kubectl, helm, Tailscale and Netlify leaves. It excludes Ward role policy. AWS SSM permits single reads, SecureString-only writes, and named deletions. Three denies that guarded this surface are **deliberately absent** since 2026-09-02, Kai's call rather than collateral from the same edit: a `*/prod/*` and `*secret*` deny on `get-parameter`, a `*tfstate*` and `*-backup*` deny on `s3 ls`, and the `file:///*` value rule on `put-parameter`. The last one is worth naming twice, because SSM doctrine still says to pass `--value file:///...` so a secret never enters argv: that is now convention rather than enforcement, live since aos-v0.295.0. `put-parameter` gained `when type matches SecureString`, which fails closed on an absent flag and is the surface's one mandatory-value rule.
 
 `aosguard ops helm` is the second half of the cluster-write surface, and requires `--kube-context` on every call the way `ops kubectl` requires `--context`. It goes one step further and refuses `--kubeconfig` on every leaf, because an allowlisted context **name** is only a pinned cluster when the file resolving that name is fixed too. Release destruction mounts as `uninstall`, marked irreversible and cluster-pinned, so attended deprovision is audited instead of reaching bare helm. The `delete` alias stays denied. The matching kubectl gap is agentic-os#1506.
 
@@ -43,11 +43,7 @@ skill into the selected agent's skill root. The skill grants no permission:
 inputs, and generated API locks. Ward owns its broker internally, neither
 product reads policy from the other, and no drift check forces them to match.
 
-The retired Forgejo guardfiles and their vendored swagger snapshots stay
-under that directory until COI-2931 removes them. Swagger and its lock use
-deterministic gzip and umbra decodes each
-before use, and the resulting `specverb.lock` pins umbra for reproducible
-builds. `aosguard-lock` refreshes the native skills under ignored
+The committed `specverb.lock` pins umbra for reproducible builds. `aosguard-lock` refreshes the native skills under ignored
 `dist/skills/`, while maintained documentation stays under `docs/`.
 
 ## Development
@@ -60,10 +56,8 @@ generated command. `just aosguard-lock` is the only lock-writing step and
 uses the packaged `umbra` executable. `just guard-controls` runs `umbra controls` over both roots in the repo gate: every `never` and `withhold` must refuse by its own text, and removing it must change the outcome.
 
 Cross-repository composition is tracked on the intake tracker, with AOS
-implementation in agentic-os#755 (an archived Forgejo ref).
+implementation in agentic-os#755 (an archived ref).
 
-## The Forgejo admin wrapper (retired)
+## Design calls kept from a retired wrapper
 
-`forgejo-admin` held repo settings, org labels, topics, branch protection, Actions secrets, runner registration tokens, package retention, repository contents and the bot's personal access tokens. It retired with Forgejo on 2026-11-01, and its guardfile and `/forgejo/admin-token` credential path are cleanup under COI-2931.
-
-Two design calls from it are kept as dated history. A guarded verb keeps a credential inside the binary, so a script that reads the token into a variable defeats the wrapper however carefully it handles it afterwards. And aosguard operates the estate and does not create principals in it, because a guard that can mint a user can mint one with any rights (Kai's call, 2026-08-16).
+The Forgejo admin wrapper held repo settings, Actions secrets, runner tokens and the bot's personal access tokens. It was deleted with Forgejo on 2026-11-01 (COI-2952). Two design calls from it are kept as dated history. A guarded verb keeps a credential inside the binary, so a script that reads the token into a variable defeats the wrapper however carefully it handles it afterwards. And aosguard operates the estate and does not create principals in it, because a guard that can mint a user can mint one with any rights (Kai's call, 2026-08-16).

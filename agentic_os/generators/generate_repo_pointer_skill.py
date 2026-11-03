@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a repo-pointer skill (`repo-<name>`) from a repo's Forgejo metadata.
+"""Generate a repo-pointer skill (`repo-<name>`) from a repo's metadata.
 
 A thin, fully-generated SKILL.md pointing at a repo's trifecta. Never
 hand-authored: check_repo_pointer_skills regenerates it and fails on drift, so

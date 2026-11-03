@@ -141,8 +141,8 @@ OPS_HELP = """NAME:
    aosguard ops - ops operations
 
 COMMANDS:
-   actions-rerun    guarded verbs (exec dialect)
-   forgejo          spec-driven verbs
+   aws    guarded verbs (exec dialect)
+   helm          spec-driven verbs
    help, h          Shows a list of commands
 
 OPTIONS:
@@ -151,35 +151,35 @@ OPTIONS:
 
 
 def test_areas_come_from_the_commands_block_of_the_help_text() -> None:
-    assert MODULE.parse_ops_areas(OPS_HELP) == ["actions-rerun", "forgejo"]
+    assert MODULE.parse_ops_areas(OPS_HELP) == ["aws", "helm"]
     assert MODULE.parse_ops_areas("") == []
 
 
 def test_each_area_gets_an_allow_rule_and_the_prose_names_it() -> None:
     settings: dict = {}
-    changed = MODULE.merge_base_settings(settings, ["actions-rerun", "forgejo"])
+    changed = MODULE.merge_base_settings(settings, ["aws", "helm"])
     allow = settings["permissions"]["allow"]
-    assert "Bash(aosguard ops forgejo *)" in allow
-    assert "Bash(aosguard ops actions-rerun *)" in allow
+    assert "Bash(aosguard ops helm *)" in allow
+    assert "Bash(aosguard ops aws *)" in allow
     assert "Bash(*)" not in allow
     assert "autoMode.allow" in changed
     prose = settings["autoMode"]["allow"]
     assert prose[0] == "$defaults"
-    assert any("`forgejo`" in entry for entry in prose)
-    assert MODULE.merge_base_settings(settings, ["actions-rerun", "forgejo"]) == []
+    assert any("`helm`" in entry for entry in prose)
+    assert MODULE.merge_base_settings(settings, ["aws", "helm"]) == []
 
 
 def test_auto_mode_prose_merges_beside_hand_added_entries() -> None:
     settings = {"autoMode": {"allow": ["$defaults", "a hand-written rule"], "environment": ["x"]}}
-    MODULE.merge_base_settings(settings, ["forgejo"])
+    MODULE.merge_base_settings(settings, ["helm"])
     assert settings["autoMode"]["allow"][:2] == ["$defaults", "a hand-written rule"]
     assert settings["autoMode"]["environment"] == ["x"]
 
 
 def test_a_new_area_replaces_the_area_entry_instead_of_adding_a_second() -> None:
     settings: dict = {}
-    MODULE.merge_base_settings(settings, ["forgejo"])
-    MODULE.merge_base_settings(settings, ["forgejo", "redis"])
+    MODULE.merge_base_settings(settings, ["helm"])
+    MODULE.merge_base_settings(settings, ["helm", "redis"])
     named = [e for e in settings["autoMode"]["allow"] if e.startswith("Each `aosguard ops` area")]
     assert len(named) == 1 and "`redis`" in named[0]
 

@@ -279,10 +279,6 @@ dev-base-check *ARGS:
 agent-compose-roster-watch *ARGS:
     @uv run python -m agentic_os.agent_compose_roster_watch "$@"
 
-# Fetch exact Forgejo 16 Actions log bytes: `just forgejo-actions-logs <owner> <repo> <run> [job] [attempt] [--max-bytes N]`. Omit job for a whole-run ZIP. Visible run/job indexes, explicit `id:<n>`, and exact job names are supported. Needs FORGEJO_TOKEN.
-forgejo-actions-logs *ARGS:
-    @uv run python -m agentic_os.forgejo_actions_logs "$@"
-
 # Render the managed AGENTS.md workspace-pointer block for an org (--org) or the cwd repo. Single source of truth for the block shape.
 gen-agents-pointer *ARGS:
     @uv run python -m agentic_os.generators.generate_agents_pointer "$@"
@@ -291,7 +287,7 @@ gen-agents-pointer *ARGS:
 gen-caps-reference *ARGS:
     @uv run python -m agentic_os.generators.generate_caps_reference "$@"
 
-# Generate a repo-<name> pointer skill from repository metadata. Pipe `aosguard ops forgejo repo view --repo coilysiren/<name> --json` into it with `<name> --from-json -`, or pass --description/--topic. See docs/features-agents.md.
+# Generate a repo-<name> pointer skill from repository metadata. Pipe `gh repo view coilyco/<name> --json description,repositoryTopics` into it with `<name> --from-json -`, or pass --description/--topic. See docs/features-agents.md.
 gen-repo-pointer-skill *ARGS:
     @uv run python -m agentic_os.generators.generate_repo_pointer_skill "$@"
 

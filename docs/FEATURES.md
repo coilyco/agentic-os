@@ -42,7 +42,7 @@ Major shipped capabilities, not files.
 - [Ward record](ward-specs.md) - the archived Ward schema, kept as a record, and no role-derived authority.
 - [Cross-repo tooling and release](release.md) - aos-precommit and release operations.
 - [dev-base image](dev-base-image.md) - parallel cached language payloads feeding one automatically released full development surface.
-- [Pinned and vendored build inputs](vendor-forgejo-policy.md) - the WASM toolchain is baked so no build downloads it. The Forgejo policy push is retired with Forgejo on 2026-11-01.
+- [Pinned WASM toolchain](pinned-wasm-toolchain.md) - wasm-pack, wasm-opt and the wasm-bindgen CLI are baked so no build downloads them.
 - [CI, dev container and workflow porting](dev-container.md) - hosted CI via `actions/setup-ci` and agent containers via `devcontainer.json`.
 - [AGENTS pointer](features-agents.md) - generated sibling-repo workspace pointer.
 - [AGENTS git-workflow block](build-file-headers.md) - generated per-lane standing authorization to commit, branch, push, and open a PR. One fleet lane, `pull-request-and-merge`.
