@@ -11,18 +11,18 @@
     },
     "aosReleaseBase": {
       "type": "string",
-      "default": "https://forgejo.coilysiren.me/coilyco/agentic-os/releases/download",
-      "description": "Release download root. Move to the GitHub release URL once the repo is public."
+      "default": "https://github.com/coilyco/agentic-os/releases/download",
+      "description": "Release download root, on GitHub."
     },
     "agentComposeVersion": {
       "type": "string",
-      "default": "2.210.0",
+      "default": "2.219.0",
       "description": "agent-compose release to install."
     },
     "agentComposeReleaseBase": {
       "type": "string",
-      "default": "https://forgejo.coilysiren.me/coilyco/agent-compose/releases/download",
-      "description": "Release download root. GitHub carries no release past v1.32.0 yet."
+      "default": "https://github.com/coilyco/agent-compose/releases/download",
+      "description": "Release download root, on GitHub."
     },
     "claudeVersion": {
       "type": "string",
