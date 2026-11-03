@@ -327,7 +327,7 @@ pre-commit-shellcheck *ARGS:
 pre-commit-shellcheck-files *ARGS:
     @pre-commit run shellcheck --files "$@"
 
-# Resolve guard, Ward, or AOS to the immutable generated tag at its production release branch, falling back to the literal `release` ref.
+# Resolve guard, umbra, or AOS to the immutable generated tag at its production release branch, exiting non-zero when none is there.
 prod-install-ref *ARGS:
     @python3 -m agentic_os.prod_install_ref "$@"
 
