@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Keep GitHub and Forgejo Actions workflow YAML orchestration-only.
+"""Keep GitHub Actions workflow YAML orchestration-only.
 
 Every Actions step ``run`` value must be a scalar written on one physical YAML
 line, must decode without embedded newlines, and must not carry a program body
@@ -23,7 +23,7 @@ from agentic_os.pre_commit.tree import is_repo_content
 
 HOOK_ID = "actions-run-one-line"
 REPO_ROOT = Path.cwd()
-WORKFLOW_DIRS = {".github", ".forgejo"}
+WORKFLOW_DIRS = {".github"}
 ACTION_FILENAMES = {"action.yml", "action.yaml"}
 YAML_SUFFIXES = {".yml", ".yaml"}
 

@@ -29,7 +29,7 @@ def workflow(run: str) -> str:
 
 def test_plain_one_line_run_passes(tmp_path: Path) -> None:
     path = write(
-        tmp_path / ".forgejo/workflows/test.yml",
+        tmp_path / ".github/workflows/test.yml",
         workflow("      - run: just test\n"),
     )
     assert check.check_file(path, tmp_path) == []
@@ -65,7 +65,7 @@ def test_block_scalar_run_fails(tmp_path: Path, indicator: str) -> None:
 
 def test_quoted_scalar_spanning_source_lines_fails(tmp_path: Path) -> None:
     path = write(
-        tmp_path / ".forgejo/workflows/test.yml",
+        tmp_path / ".github/workflows/test.yml",
         workflow(
             '      - run: "echo first\n'
             '          echo second"\n'
@@ -99,7 +99,7 @@ def run_step(command: str) -> str:
 def test_inlined_python_program_fails(tmp_path: Path) -> None:
     body = r"import os\nimport sys\nprint(os.environ, file=sys.stderr)"
     path = write(
-        tmp_path / ".forgejo/workflows/test.yml",
+        tmp_path / ".github/workflows/test.yml",
         workflow(run_step(f'python3 -c \'exec("{body}")\'')),
     )
     violations = check.check_file(path, tmp_path)
@@ -133,7 +133,7 @@ def test_long_inlined_body_fails(tmp_path: Path) -> None:
 )
 def test_short_or_file_invoking_commands_pass(tmp_path: Path, command: str) -> None:
     path = write(
-        tmp_path / ".forgejo/workflows/test.yml",
+        tmp_path / ".github/workflows/test.yml",
         workflow(run_step(command)),
     )
     assert check.check_file(path, tmp_path) == []
@@ -141,7 +141,7 @@ def test_short_or_file_invoking_commands_pass(tmp_path: Path, command: str) -> N
 
 def test_single_line_heredoc_fails(tmp_path: Path) -> None:
     path = write(
-        tmp_path / ".forgejo/workflows/test.yml",
+        tmp_path / ".github/workflows/test.yml",
         workflow(run_step("cat > /tmp/config <<EOF setting = 1 EOF")),
     )
     violations = check.check_file(path, tmp_path)
@@ -176,7 +176,7 @@ def test_nested_input_named_run_is_not_a_step_command(tmp_path: Path) -> None:
 
 def test_invalid_yaml_reports_source_location(tmp_path: Path) -> None:
     path = write(
-        tmp_path / ".forgejo/workflows/test.yml",
+        tmp_path / ".github/workflows/test.yml",
         "jobs:\n  test:\n    steps:\n      - run: [\n",
     )
     violations = check.check_file(path, tmp_path)
@@ -189,7 +189,8 @@ def test_invalid_yaml_reports_source_location(tmp_path: Path) -> None:
     ("relative_path", "expected"),
     [
         (".github/workflows/test.yml", True),
-        (".forgejo/workflows/nested/test.yaml", True),
+        (".github/workflows/nested/test.yaml", True),
+        (".forgejo/workflows/test.yml", False),
         ("actions/example/action.yml", True),
         ("action.yaml", True),
         (".pre-commit-config.yaml", False),
