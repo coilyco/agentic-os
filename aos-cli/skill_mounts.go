@@ -228,7 +228,7 @@ func skillsCommand() *cli.Command {
 					&cli.StringFlag{Name: "repo-root", Value: ".", Usage: "the consuming checkout"},
 					&cli.StringFlag{
 						Name:  "forge",
-						Value: "https://forgejo.coilysiren.me",
+						Value: "https://github.com",
 						Usage: "forge base URL the sources are cloned from",
 					},
 				},
