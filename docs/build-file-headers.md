@@ -41,7 +41,7 @@ Publish commit-scoped language payloads and the full image after release has adv
 
 Hook environments warmed into the image at build time so CI never pays the cold-cache install. Stale pins here cost speed, never correctness: pre-commit falls back to installing whatever this misses.
 
-Carries the externally-hosted pins the fleet shares. Hooks served from forgejo.coilysiren.me stay out, since that host is on the runners' NO_PROXY path and installs in seconds.
+Carries the externally-hosted pins the fleet shares.
 
 ## `AGENTS.md`, the git-workflow block
 

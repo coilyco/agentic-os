@@ -1,5 +1,5 @@
 {
-  "note": "Canonical long-Forgejo-org -> short-container-token map. Neutral JSON so Go and ward read the same committed file. Unmapped orgs fall back to the last '-' segment; see agentic_os/agent_id.py:org_shortname and docs/build-output-is-not-content.md.",
+  "note": "Canonical long-org -> short-container-token map. Neutral JSON so Go and ward read the same committed file. Unmapped orgs fall back to the last '-' segment; see agentic_os/agent_id.py:org_shortname and docs/build-output-is-not-content.md.",
   "map": {
     "coilyco-flight-deck": "flight",
     "coilyco-gaming": "gaming",

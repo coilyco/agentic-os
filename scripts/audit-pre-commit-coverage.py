@@ -93,10 +93,8 @@ def read_remote_config(repo: str) -> str | None:
 def _is_agentic_os_repo(repo_url: str) -> bool:
     """Match the agentic-os upstream-ref entry regardless of host or owner.
 
-    The managed block points at the Forgejo mirror
-    (forgejo.coilysiren.me/coilyco/agentic-os) while the GitHub
-    mirror uses github.com/coilysiren/agentic-os. Match on the trailing
-    `/agentic-os` path component so either lands.
+    Consumer configs have named the repo under several hosts and owners over time.
+    Match on the trailing `/agentic-os` path component so any of them lands.
     """
     return repo_url.rstrip("/").endswith("/agentic-os")
 

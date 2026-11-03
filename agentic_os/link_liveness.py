@@ -27,7 +27,7 @@ from agentic_os.pre_commit.check_outbound_links import (
     iter_files,
 )
 
-USER_AGENT = "aos-link-liveness (+https://forgejo.coilysiren.me/coilyco/agentic-os)"
+USER_AGENT = "aos-link-liveness (+https://github.com/coilyco/agentic-os)"
 TOLERATED_STATUS = {401, 403, 405, 429}
 DEFAULT_TIMEOUT = 15
 

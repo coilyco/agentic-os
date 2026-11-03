@@ -41,7 +41,7 @@ def test_container_entrypoint_seeds_the_read_only_surface_env(tmp_path: Path) ->
             "HOME": str(tmp_path / "home"),
             "PATH": "/usr/bin:/bin",
             "AOS_REPO_ROOT": "",
-            "FORGEJO_WORKSPACE": str(REPO_ROOT),
+            "GITHUB_WORKSPACE": str(REPO_ROOT),
             "AOS_GIT_NAME": "deployment-bot",
             "AOS_GIT_EMAIL": "deployment-bot@example.com",
         }

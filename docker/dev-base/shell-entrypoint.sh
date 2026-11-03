@@ -11,7 +11,7 @@ set -u
 : "${AOS_GIT_NAME:?AOS_GIT_NAME is required}"
 : "${AOS_GIT_EMAIL:?AOS_GIT_EMAIL is required}"
 
-_siren_aos_root=${AOS_REPO_ROOT:-${FORGEJO_WORKSPACE:-${GITHUB_WORKSPACE:-/workspace/agentic-os}}}
+_siren_aos_root=${AOS_REPO_ROOT:-${GITHUB_WORKSPACE:-/workspace/agentic-os}}
 if ! git -C "$_siren_aos_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   for _siren_aos_root in \
     /workspace/coilyco/agentic-os \

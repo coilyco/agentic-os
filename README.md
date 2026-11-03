@@ -69,8 +69,7 @@ ln -sf "$PWD/kitty/kitty.conf" ~/.config/kitty/kitty.conf
 ```
 
 On Windows, `just apply-shell-links` manages `~/.zshrc` and the `gpg-ssm.cmd`
-shim only. It also links the Forgejo git credential helper (retired with Forgejo on 2026-11-01, cleanup COI-2931). Git Bash popup shells
-should not recreate `~/.bashrc`.
+shim only. Git Bash popup shells should not recreate `~/.bashrc`.
 
 Agent self-name and composition hooks, per-host steps, and gpg wiring: [docs/install.md](docs/install.md).
 

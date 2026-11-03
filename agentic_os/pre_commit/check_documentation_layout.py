@@ -83,7 +83,7 @@ SIZE_CAP_EXEMPT_BASENAMES = {
     "COMPOSED.md",
 }
 
-# The org landing page, whose shape belongs to Forgejo and GitHub rather than
+# The org landing page, whose shape belongs to GitHub rather than
 # to this layout. See docs/documentation-bands.md.
 ORG_PROFILE_README = Path("profile") / "README.md"
 

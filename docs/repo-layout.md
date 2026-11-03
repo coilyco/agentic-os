@@ -98,8 +98,8 @@ wrong root, or has stale dispatch wiring. Run `rg -n
 first check. `aos` is the runtime entry point.
 
 **Ops surface discovery** - what aosguard surface exists here now. Run
-`aosguard ops --help` first, then `aosguard ops <area> describe`. The forgejo area
-retired with Forgejo on 2026-11-01 (COI-2931). Prefer runtime help over guessing a verb, and update
+`aosguard ops --help` first, then `aosguard ops <area> describe`. Prefer runtime
+help over guessing a verb, and update
 [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) when the surface
 changes.
 
