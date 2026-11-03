@@ -4,27 +4,22 @@ set -euo pipefail
 
 source "${GITHUB_ACTION_PATH}/../_lib/release.sh"
 json_tool=$(release_json_tool)
-release_host_init
+release_init
 
-# An empty template means this host's clone URL.
-if [ -z "$URL_TEMPLATE" ]; then
-  case "$RELEASE_HOST" in
-    github) URL_TEMPLATE='https://github.com/{REPO}.git' ;;
-    forgejo) URL_TEMPLATE="${FORGEJO_BASE_URL}/{REPO}.git" ;;
-  esac
-fi
+# An empty template means the GitHub clone URL.
+[ -n "$URL_TEMPLATE" ] || URL_TEMPLATE='https://github.com/{REPO}.git'
 url_value="${URL_TEMPLATE//\{REPO\}/$REPO}"
 message="${MSG_TEMPLATE//\{TAG\}/$TAG}"
 
 if ! meta_code=$(release_curl_status /tmp/formula-meta.json \
   "${RELEASE_HDRS[@]}" \
   "$RELEASE_API/repos/$REPO/contents/$FORMULA_PATH?ref=$BRANCH"); then
-  echo "::error::$RELEASE_HOST contents lookup timed out or failed"
+  echo "::error::GitHub contents lookup timed out or failed"
   cat /tmp/formula-meta.json
   exit 1
 fi
 if [ "$meta_code" != "200" ]; then
-  echo "::error::$RELEASE_HOST contents lookup failed: HTTP $meta_code"
+  echo "::error::GitHub contents lookup failed: HTTP $meta_code"
   cat /tmp/formula-meta.json
   exit 1
 fi
@@ -66,12 +61,12 @@ if ! http_code=$(release_curl_status /tmp/putresp.json \
   -H "Content-Type: application/json" \
   -d "$put_payload" \
   "$RELEASE_API/repos/$REPO/contents/$FORMULA_PATH"); then
-  echo "::error::$RELEASE_HOST formula bump request timed out or failed"
+  echo "::error::GitHub formula bump request timed out or failed"
   cat /tmp/putresp.json
   exit 1
 fi
 if [ "$http_code" != "200" ] && [ "$http_code" != "201" ]; then
-  echo "::error::$RELEASE_HOST formula bump failed: HTTP $http_code"
+  echo "::error::GitHub formula bump failed: HTTP $http_code"
   cat /tmp/putresp.json
   exit 1
 fi

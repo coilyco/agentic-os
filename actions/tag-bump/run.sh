@@ -85,37 +85,26 @@ if [ -z "${new_version:-}" ]; then
 fi
 
 if [ "$create_tag" = "true" ]; then
-  release_host_init
-  case "$RELEASE_HOST" in
-    github)
-      # A lightweight tag through the refs API. GitHub answers 422 when it exists.
-      tag_url="$RELEASE_API/repos/$REPO/git/refs"
-      payload=$(printf '{"ref":"refs/tags/%s","sha":"%s"}' "$new_tag" "$RELEASE_SHA")
-      exists_code=422
-      ;;
-    forgejo)
-      tag_url="$RELEASE_API/repos/$REPO/tags"
-      payload=$(printf '{"tag_name":"%s","target":"%s"}' "$new_tag" "$RELEASE_SHA")
-      exists_code=409
-      ;;
-  esac
+  release_init
+  # A lightweight tag through the refs API. GitHub answers 422 when it exists.
+  tag_url="$RELEASE_API/repos/$REPO/git/refs"
+  payload=$(printf '{"ref":"refs/tags/%s","sha":"%s"}' "$new_tag" "$RELEASE_SHA")
   if ! http_code=$(release_curl_status /tmp/tagresp.json \
     -X POST \
     "${RELEASE_HDRS[@]}" \
     -H "Content-Type: application/json" \
     -d "$payload" \
     "$tag_url"); then
-    echo "::error::$RELEASE_HOST tag create request timed out or failed"
+    echo "::error::GitHub tag create request timed out or failed"
     cat /tmp/tagresp.json
     exit 1
   fi
   if [ "$http_code" = 201 ]; then
     :
-  elif [ "$http_code" = "$exists_code" ] &&
-    { [ "$RELEASE_HOST" = forgejo ] || grep -q 'Reference already exists' /tmp/tagresp.json; }; then
+  elif [ "$http_code" = 422 ] && grep -q 'Reference already exists' /tmp/tagresp.json; then
     echo "tag already exists for $new_tag, continuing"
   else
-    echo "::error::$RELEASE_HOST tag create failed: HTTP $http_code"
+    echo "::error::GitHub tag create failed: HTTP $http_code"
     cat /tmp/tagresp.json
     exit 1
   fi
