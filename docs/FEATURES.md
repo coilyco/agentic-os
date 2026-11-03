@@ -71,8 +71,6 @@ Major shipped capabilities, not files.
   a `documentation-layout` exclusion applies only when the repo's own config and
   agentic-os both name it, so adding one costs two pull requests, a release and
   a pin bump, while removing one costs one. An unratified pattern fails the hook by name.
-- [Issue-ref links](../scripts/issue-ref-links.sh) - a Stop hook naming the URL that resolves each
-  Forgejo hash-ref in a reply, and logging a `teable:` ref without rewriting it. Warn first.
 - [Canonical agent-id generator](build-output-is-not-content.md) - short lowercase agent IDs.
 - Skill mounts - `aos skills mount`.
 

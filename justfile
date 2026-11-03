@@ -275,10 +275,6 @@ dev-base-build *ARGS:
 dev-base-check *ARGS:
     @bash scripts/dev-base-check.sh "$@"
 
-# Fail when the agent-compose roles baked into agentic-os:release differ from the latest agent-compose release's. Run it inside that image.
-agent-compose-roster-watch *ARGS:
-    @uv run python -m agentic_os.agent_compose_roster_watch "$@"
-
 # Render the managed AGENTS.md workspace-pointer block for an org (--org) or the cwd repo. Single source of truth for the block shape.
 gen-agents-pointer *ARGS:
     @uv run python -m agentic_os.generators.generate_agents_pointer "$@"
@@ -337,7 +333,7 @@ release *ARGS:
 
 # Run the exact repository CI gate, bootstrapping the pinned umbra release before pytest and the full pre-commit suite.
 repo-test-gate *ARGS:
-    @bash scripts/ci-command.sh bash scripts/ci/repo-test-gate.sh "$@"
+    @bash scripts/ci/repo-test-gate.sh "$@"
 
 # Validate SSM parameter paths against the /<org>/<repo>/<tier>/<tail> schema. `just ssm-path /coilysiren/backend/write/ts-authkey [more...]`, or `--stdin` for one path per line. A CLI validator (paths arrive as args, not repo files), so it is ward-fenced rather than a commit-path hook. See docs/aos-cli.md.
 ssm-path *ARGS:
