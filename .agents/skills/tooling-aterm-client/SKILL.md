@@ -66,6 +66,7 @@ than editing it by hand.
 * [web-push.md](references/web-push.md) - the daemon's Web Push to a closed browser, the frames, and what the service worker builds against.
 * [terminal-split.md](references/terminal-split.md) - the Terminal tab, the split, and the side panel's default tab by role.
 * [mcp-apps-gateway.md](references/mcp-apps-gateway.md) - the daemon gateway and the `views` frames a client receives.
+* [github-token.md](references/github-token.md) - `aterm github-token` and `aterm git-credential`: a seat pushes as the coilyco-ops App, granted wide and minted narrow.
 * [deploy.md](references/deploy.md) - served by a daemon, or hosted.
 * [running.md](references/running.md) - alt-tab use and running it.
 * [slack-adapter.md](references/slack-adapter.md) - the Slack client design. Kai froze new work on this web client on 2026-10-02 (`teable:coilyco/agentic-os#8700`), so merged code stays and features go to Slack.
