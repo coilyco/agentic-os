@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -78,11 +79,20 @@ func newDaemonCommand() *cli.Command {
 				Usage:   "VAPID private key that turns on Web Push to a closed browser, empty for none",
 				Sources: cli.EnvVars(vapidKeyEnv),
 			},
+			&cli.DurationFlag{
+				Name:    "resume-window",
+				Value:   daemonResumeWindow,
+				Usage:   "how long a remote device's unlock survives a dropped connection, so a phone lock costs no new fingerprint. 0 keeps an unlock on one connection",
+				Sources: cli.EnvVars(resumeWindowEnv),
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			peerPorts, err := parsePeerPorts(cmd.StringSlice("peer-port"))
 			if err != nil {
 				return withExit(exitUsage, err)
+			}
+			if cmd.Duration("resume-window") < 0 {
+				return withExit(exitUsage, errors.New("--resume-window cannot be negative"))
 			}
 			return runDaemon(daemonOptions{
 				PeerPorts:    peerPorts,
@@ -98,6 +108,7 @@ func newDaemonCommand() *cli.Command {
 				AgentProxy:   cmd.String("agent-proxy"),
 				SentryDSN:    cmd.String("sentry-dsn"),
 				VAPIDKey:     cmd.String("vapid-key"),
+				ResumeWindow: cmd.Duration("resume-window"),
 			}, cmd.Root().ErrWriter)
 		},
 	}

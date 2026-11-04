@@ -72,7 +72,11 @@ func (d *daemon) passkey(cl *client, message frame) error {
 	// An enrollment carried user verification too, so it needs no second prompt.
 	cl.asserted = true
 	d.logf("a remote device asserted its passkey (%s)", want)
-	if err := cl.c.write(frame{Type: reply, ID: message.ID}); err != nil {
+	proof, err := d.issueResume(cl, frame{Type: reply, ID: message.ID})
+	if err != nil {
+		return err
+	}
+	if err := cl.c.write(proof); err != nil {
 		return err
 	}
 	return cl.c.write(frame{Type: "typing", Typing: d.typingStanding(cl)})
@@ -98,6 +102,7 @@ func (d *daemon) passkeyAdmin(cl *client, message frame) error {
 		if err := d.passkeys.revoke(); err != nil {
 			return err
 		}
+		d.resume.clear()
 		d.logf("every passkey was revoked")
 		return cl.c.write(frame{Type: "passkey_revoked", ID: message.ID})
 	}

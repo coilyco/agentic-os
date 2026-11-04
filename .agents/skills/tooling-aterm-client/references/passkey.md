@@ -14,7 +14,7 @@ A device on another machine types only after a passkey assertion with user verif
 
 ## Resuming after a redial
 
-The daemon holds an unlock per connection, so a redial starts locked. When the welcome lists `resume`, the asserted reply carries a one-use `resume` proof, and the client sends `resume` on the next welcome before anything else. `resumed` hands back the next proof and the daemon pushes `typing` allowed. `resume_ended` is one reason for every failure and leaves the lock, so the person sees "Your unlock ended while this device was away" above the Unlock button. The proof lives in the host object's memory, never in storage or an event. A link that dies mid-resume keeps it. Without `resume` in the welcome nothing is sent and the proof is dropped. The window length is the daemon's flag (COI-3305).
+The daemon holds an unlock per connection, so a redial starts locked. When the welcome lists `resume`, the asserted reply carries a one-use `resume` proof, and the client sends `resume` on the next welcome before anything else. `resumed` hands back the next proof and the daemon pushes `typing` allowed. `resume_ended` is one reason for every failure and leaves the lock, so the person sees "Your unlock ended while this device was away" above the Unlock button. The proof lives in the host object's memory, never in storage or an event. A link that dies mid-resume keeps it. Without `resume` in the welcome nothing is sent and the proof is dropped. The window is the daemon's flag, see [resume.md](resume.md) (COI-3305).
 
 ## Why it is shaped this way
 

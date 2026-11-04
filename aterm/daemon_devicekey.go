@@ -134,7 +134,11 @@ func (d *daemon) deviceKeyFrames(cl *client, message frame) error {
 	}
 	cl.asserted = true
 	d.logf("a remote device asserted its device key")
-	if err := cl.c.write(frame{Type: "device_asserted", ID: message.ID}); err != nil {
+	proof, err := d.issueResume(cl, frame{Type: "device_asserted", ID: message.ID})
+	if err != nil {
+		return err
+	}
+	if err := cl.c.write(proof); err != nil {
 		return err
 	}
 	return cl.c.write(frame{Type: "typing", Typing: d.typingStanding(cl)})
