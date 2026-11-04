@@ -115,6 +115,8 @@ type ptySession struct {
 	// off. One screen read cannot say a card closed, so cardReason adds a grace.
 	cardUp   bool
 	cardLost time.Time
+	// startupCard is whether a card showed before the harness's prompt mark did.
+	startupCard bool
 	// scr is the screen the output so far draws, read for the session's state.
 	scr     *screen
 	draft   int
@@ -397,6 +399,9 @@ func (s *ptySession) noteCard() {
 	up := showsCard(s.seat, strings.Join(s.scr.text(), "\n"))
 	if s.cardUp && !up {
 		s.cardLost = s.lastOutput
+	}
+	if _, marked := promptMarks[s.seat]; up && marked && s.promptSeen.IsZero() {
+		s.startupCard = true
 	}
 	s.cardUp = up
 }
@@ -751,13 +756,21 @@ var pasteSeats = map[string]bool{"codex": true, "goose": true}
 // claude drop a paste until then, though paste is on. See docs/aterm-daemon.md.
 var promptMarks = map[string][]byte{"opencode": []byte("Ask anything"), "claude": []byte(`Try "`)}
 
-const (
-	// promptSettle is the beat after the mark, so the input is mounted.
-	promptSettle = 250 * time.Millisecond
-	// promptWait is how long a seat waits for its mark before trying anyway, for
-	// a version that words it differently or a session adopted long after it.
-	promptWait = 20 * time.Second
-)
+// promptSettle is the beat after the mark, so the input is mounted.
+const promptSettle = 250 * time.Millisecond
+
+// promptWait is how long a seat waits for its mark before trying anyway, for a version
+// that words it differently or a session adopted long after it. A var, for tests.
+var promptWait = 20 * time.Second
+
+// pastStartupDialog is false after a dialog that came before the prompt, until the mark
+// shows or promptWait passes with it gone, so text never lands as it clears (COI-3343).
+func (s *ptySession) pastStartupDialog(now time.Time) bool {
+	if _, marked := promptMarks[s.seat]; !marked || !s.startupCard || !s.promptSeen.IsZero() {
+		return true
+	}
+	return !s.cardUp && !s.cardLost.IsZero() && now.Sub(s.cardLost) > promptWait
+}
 
 // ready is whether the program can take a message yet. Caller holds mu.
 func (s *ptySession) ready(now time.Time) bool {
@@ -829,7 +842,7 @@ func (s *ptySession) deliverNext(now time.Time) {
 		return
 	}
 	next := s.pending[0]
-	ready := s.ready(now)
+	ready := s.ready(now) && s.pastStartupDialog(now)
 	hold := s.holdReason(now)
 	if hold == "" {
 		hold = s.cardReason()
