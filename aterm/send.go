@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -79,10 +78,25 @@ func newDaemonCommand() *cli.Command {
 				Usage:   "VAPID private key that turns on Web Push to a closed browser, empty for none",
 				Sources: cli.EnvVars(vapidKeyEnv),
 			},
-			&cli.DurationFlag{
+			&cli.StringFlag{
+				Name:    "treehouse-broker",
+				Usage:   "wss address of the Treehouse broker this daemon dials, empty for none. Needs --treehouse-accounts and --treehouse-dir",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_BROKER"),
+			},
+			&cli.StringFlag{
+				Name:    "treehouse-accounts",
+				Usage:   "https address of Treehouse accounts, whose signed tokens this daemon trusts",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_ACCOUNTS"),
+			},
+			&cli.StringFlag{
+				Name:    "treehouse-dir",
+				Usage:   "directory holding daemon.key (mode 0600) and daemon.cert, the daemon's Treehouse identity",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_DIR"),
+			},
+			&cli.StringFlag{
 				Name:    "resume-window",
-				Value:   daemonResumeWindow,
-				Usage:   "how long a remote device's unlock survives a dropped connection, so a phone lock costs no new fingerprint. 0 keeps an unlock on one connection",
+				Value:   resumeUntilCloseWord,
+				Usage:   "how long a remote device's unlock survives a dropped connection, so a phone lock costs no new fingerprint. app lasts until the client app closes, 0 keeps an unlock on one connection, or give a duration",
 				Sources: cli.EnvVars(resumeWindowEnv),
 			},
 		},
@@ -91,24 +105,31 @@ func newDaemonCommand() *cli.Command {
 			if err != nil {
 				return withExit(exitUsage, err)
 			}
-			if cmd.Duration("resume-window") < 0 {
-				return withExit(exitUsage, errors.New("--resume-window cannot be negative"))
+			resumeWindow, resumeUntilClose, err := parseResumeWindow(cmd.String("resume-window"))
+			if err != nil {
+				return withExit(exitUsage, err)
 			}
 			return runDaemon(daemonOptions{
-				PeerPorts:    peerPorts,
-				Socket:       cmd.String("socket"),
-				Websocket:    cmd.String("websocket"),
-				TailnetPort:  cmd.String("tailnet-port"),
-				AllowTags:    cmd.StringSlice("allow-tags"),
-				AllowOwners:  cmd.StringSlice("allow-owners"),
-				AllowOrigins: cmd.StringSlice("allow-origins"),
-				ClientDir:    cmd.String("client-dir"),
-				Idle:         cmd.Duration("idle"),
-				EndSessions:  cmd.Bool("end-sessions"),
-				AgentProxy:   cmd.String("agent-proxy"),
-				SentryDSN:    cmd.String("sentry-dsn"),
-				VAPIDKey:     cmd.String("vapid-key"),
-				ResumeWindow: cmd.Duration("resume-window"),
+				PeerPorts:        peerPorts,
+				Socket:           cmd.String("socket"),
+				Websocket:        cmd.String("websocket"),
+				TailnetPort:      cmd.String("tailnet-port"),
+				AllowTags:        cmd.StringSlice("allow-tags"),
+				AllowOwners:      cmd.StringSlice("allow-owners"),
+				AllowOrigins:     cmd.StringSlice("allow-origins"),
+				ClientDir:        cmd.String("client-dir"),
+				Idle:             cmd.Duration("idle"),
+				EndSessions:      cmd.Bool("end-sessions"),
+				AgentProxy:       cmd.String("agent-proxy"),
+				SentryDSN:        cmd.String("sentry-dsn"),
+				VAPIDKey:         cmd.String("vapid-key"),
+				ResumeWindow:     resumeWindow,
+				ResumeUntilClose: resumeUntilClose,
+				Treehouse: treehouseOptions{
+					Broker:   cmd.String("treehouse-broker"),
+					Accounts: cmd.String("treehouse-accounts"),
+					Dir:      cmd.String("treehouse-dir"),
+				},
 			}, cmd.Root().ErrWriter)
 		},
 	}

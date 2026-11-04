@@ -107,7 +107,7 @@
   const kindOf = (host: Host): string => (reconnecting() && host.id === app.attachedHostId ? "reconnecting" : host.status.kind);
 
   function hostDetail(host: Host): string {
-    if (kindOf(host) === "reconnecting") return "reconnecting";
+    if (kindOf(host) === "reconnecting") return app.link.state === "resting" ? "not answering" : "reconnecting";
     const running = hostRunning(host, app.attachedHostId, app.sessions);
     if (running !== null) return host.found ? `${running} running, found on tailnet` : `${running} running`;
     if (host.status.kind === "unreachable") return host.status.layer && host.status.layer !== "network" ? "refused" : "no answer";

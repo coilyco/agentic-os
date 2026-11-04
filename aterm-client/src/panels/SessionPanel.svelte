@@ -287,7 +287,9 @@
     /* The header gives its two rows back. A degraded start still says so. */
     header { min-height: 0; padding: 0; border-bottom-width: 2px; }
     .degraded { margin: 4px 8px; font-size: 12px; }
-    .overlay { max-height: 100%; padding-bottom: 6px; }
+    /* The card leaves the seat's output a readable slice. While a text box is open the keyboard takes the rest, so it may use all of it. */
+    .overlay { max-height: 58%; padding-bottom: 6px; }
+    .overlay:has(:global([data-writing="true"])) { max-height: 100%; }
     /* The tab strip gives way to the keyboard, so typing has the whole screen but the seat's text. */
     .body[data-composing="true"] :global(.panel) { display: none; }
     .body[data-composing="true"] { --strip: 0px; }
