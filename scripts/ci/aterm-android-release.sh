@@ -35,7 +35,7 @@ changed() {
 # plan: from EVENT_NAME and DRY_RUN, decide whether to build and whether to publish.
 # Only a changed schedule day or a non-dry dispatch publishes, per android.md.
 plan() {
-  local event="${EVENT_NAME:?EVENT_NAME is required}" prev build publish
+  local event="${EVENT_NAME:?EVENT_NAME is required}" prev build publish stable=false
   prev=$(previous_tag || true)
   case "$event" in
     schedule)
@@ -47,9 +47,11 @@ plan() {
       ;;
     *) build=true publish=false ;;
   esac
-  echo "event=$event previous_tag=${prev:-none} build=$build publish=$publish"
+  # A stable run is a schedule or a dispatch, dry or not. It also builds the Play bundle.
+  case "$event" in schedule | workflow_dispatch) stable=$build ;; esac
+  echo "event=$event previous_tag=${prev:-none} build=$build publish=$publish stable=$stable"
   if [ -n "${GITHUB_OUTPUT:-}" ]; then
-    printf 'build=%s\npublish=%s\nprevious_tag=%s\n' "$build" "$publish" "$prev" >>"$GITHUB_OUTPUT"
+    printf 'build=%s\npublish=%s\nstable=%s\nprevious_tag=%s\n' "$build" "$publish" "$stable" "$prev" >>"$GITHUB_OUTPUT"
   fi
 }
 

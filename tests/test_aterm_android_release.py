@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import stat
@@ -83,7 +84,7 @@ def test_build_refuses_a_version_code_below_the_old_scheme(tmp_path: Path) -> No
 def test_a_push_builds_and_never_publishes(tmp_path: Path) -> None:
     done = _release(_repo(tmp_path), "plan", env={"EVENT_NAME": "push"})
 
-    assert "build=true publish=false" in done.stdout
+    assert "build=true publish=false stable=false" in done.stdout
 
 
 def test_a_dispatch_publishes_unless_it_is_a_dry_run(tmp_path: Path) -> None:
@@ -92,8 +93,8 @@ def test_a_dispatch_publishes_unless_it_is_a_dry_run(tmp_path: Path) -> None:
     live = _release(repo, "plan", env={"EVENT_NAME": "workflow_dispatch", "DRY_RUN": "false"})
     dry = _release(repo, "plan", env={"EVENT_NAME": "workflow_dispatch", "DRY_RUN": "true"})
 
-    assert "build=true publish=true" in live.stdout
-    assert "build=true publish=false" in dry.stdout
+    assert "build=true publish=true stable=true" in live.stdout
+    assert "build=true publish=false stable=true" in dry.stdout
 
 
 def test_the_schedule_skips_a_day_with_no_app_change(tmp_path: Path) -> None:
@@ -104,7 +105,7 @@ def test_the_schedule_skips_a_day_with_no_app_change(tmp_path: Path) -> None:
 
     done = _release(repo, "plan", env={"EVENT_NAME": "schedule"})
 
-    assert "previous_tag=aterm-android-v0.1.0 build=false publish=false" in done.stdout
+    assert "previous_tag=aterm-android-v0.1.0 build=false publish=false stable=false" in done.stdout
 
 
 def test_the_schedule_publishes_after_an_app_change(tmp_path: Path) -> None:
@@ -114,7 +115,7 @@ def test_the_schedule_publishes_after_an_app_change(tmp_path: Path) -> None:
 
     done = _release(repo, "plan", env={"EVENT_NAME": "schedule"})
 
-    assert "build=true publish=true" in done.stdout
+    assert "build=true publish=true stable=true" in done.stdout
 
 
 def test_the_previous_tag_is_the_newest_by_version_not_by_name(tmp_path: Path) -> None:
@@ -204,3 +205,68 @@ def test_publish_converges_when_both_releases_already_exist(tmp_path: Path) -> N
     calls = _publish(tmp_path, {"aterm-android-v0.2.0", "aterm-android-newest"})
 
     assert [line.split()[1] for line in calls] == ["edit", "upload", "edit", "upload"]
+
+
+PLAY = ROOT / "scripts" / "ci" / "aterm-android-play.sh"
+
+
+def _play(tmp_path: Path, *, real_upload_key: bool) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    log = tmp_path / "curl.log"
+    stub = bindir / "curl"
+    stub.write_text(
+        "#!/bin/sh\n"
+        f'echo "$@" >> "{log}"\n'
+        'case "$*" in\n'
+        '  *oauth.test*) echo \'{"access_token":"tok"}\' ;;\n'
+        '  *:commit*) echo "{}" ;;\n'
+        '  *"/bundles?"*) echo \'{"versionCode":42}\' ;;\n'
+        '  *"/tracks/"*) echo "{}" ;;\n'
+        '  *) echo \'{"id":"e1"}\' ;;\n'
+        "esac\n",
+        encoding="utf-8",
+    )
+    stub.chmod(stub.stat().st_mode | stat.S_IXUSR)
+    key = subprocess.run(["openssl", "genrsa", "2048"], capture_output=True, text=True, check=True).stdout
+    account = json.dumps({"client_email": "svc@example.test", "private_key": key})
+    aab, notes = tmp_path / "aterm.aab", tmp_path / "notes.md"
+    aab.write_bytes(b"aab")
+    notes.write_text("one line of notes", encoding="utf-8")
+    env = {
+        "PATH": f"{bindir}{os.pathsep}{os.environ['PATH']}",
+        "PLAY_SERVICE_ACCOUNT_JSON": account,
+        "PLAY_API": "http://play.test",
+        "PLAY_TOKEN_URL": "http://oauth.test/token",
+    }
+    if real_upload_key:
+        env["ATERM_ANDROID_UPLOAD_KEYSTORE_B64"] = "x"
+    done = subprocess.run(
+        ["bash", str(PLAY), "upload", str(aab), "29897091", str(notes)],
+        env=os.environ | env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return done, log.read_text(encoding="utf-8").splitlines() if log.exists() else []
+
+
+def test_play_upload_runs_one_edit_that_ends_in_a_commit(tmp_path: Path) -> None:
+    done, calls = _play(tmp_path, real_upload_key=True)
+
+    assert done.returncode == 0, done.stderr
+    assert "uploaded version code 29897091 to the internal track as draft" in done.stdout
+    assert "oauth.test/token" in calls[0] and "assertion=" in calls[0]
+    assert "applications/dev.coilyco.treehouse/edits " in calls[1] + " "
+    assert "edits/e1/bundles?uploadType=media" in calls[2]
+    assert "-X PUT" in calls[3] and "edits/e1/tracks/internal" in calls[3]
+    assert '"status":"draft"' in calls[3] and '"versionCodes":["29897091"]' in calls[3]
+    assert calls[4].endswith("edits/e1:commit")
+
+
+def test_play_upload_refuses_a_throwaway_signed_bundle_before_any_request(tmp_path: Path) -> None:
+    done, calls = _play(tmp_path, real_upload_key=False)
+
+    assert done.returncode == 1
+    assert "throwaway-signed" in done.stderr
+    assert calls == []
