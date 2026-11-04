@@ -8,6 +8,8 @@ export interface CardMemo {
   picked: number[];
   /** The text box had the keyboard, so a rebuilt card gives it back. */
   focused: boolean;
+  /** A person folded the card to a bar to read the output behind it. Phones only. */
+  collapsed: boolean;
 }
 
 const memos = new Map<string, CardMemo>();
@@ -24,7 +26,7 @@ export function memoKey(scope: string, options: readonly ChoiceOption[]): string
 export function cardMemo(key: string, picked: number[]): CardMemo {
   const found = memos.get(key);
   if (found) return found;
-  const fresh = $state<CardMemo>({ writing: -1, text: "", picked, focused: false });
+  const fresh = $state<CardMemo>({ writing: -1, text: "", picked, focused: false, collapsed: false });
   memos.set(key, fresh);
   return fresh;
 }
