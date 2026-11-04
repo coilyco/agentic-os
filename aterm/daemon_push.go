@@ -190,6 +190,8 @@ type waitEvent struct {
 	Session  string
 	Role     string
 	Identity string
+	// Question is an ask's text. Only the broker event reads it, and only by a setting.
+	Question string
 }
 
 type watchedSeat struct {

@@ -174,6 +174,11 @@ func (s *brokerSession) renewLoop(ctx context.Context) {
 // broker's reachable push covers the return.
 func (l *brokerLink) emit(e waitEvent) {
 	msg := brokerMsg{Type: "treehouse.reg.event.v1", Kind: e.Kind, SessionName: e.Session, Role: e.Role, Identity: e.Identity}
+	// The question leaves the daemon only for an ask, and only when the owner turned it on.
+	// The setting is read here, per event, so a change applies to the next one.
+	if e.Kind == "ask" && l.settings != nil && l.settings.Bool(l.identity.Owner, settingPushQuestionText, false) {
+		msg.Question = firstChars(e.Question, questionChars)
+	}
 	if l.sendEvent != nil {
 		l.sendEvent(msg)
 		return

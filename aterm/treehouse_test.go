@@ -221,11 +221,13 @@ type fakeBroker struct {
 	writeMu  sync.Mutex
 	events   chan brokerMsg
 	certs    chan brokerMsg
+	// rawEvents are the bytes of each reg.event, for a test that asserts the exact payload.
+	rawEvents chan []byte
 }
 
 func newFakeBroker(t *testing.T, a *fakeAccounts, identity daemonIdentity) *fakeBroker {
 	b := &fakeBroker{t: t, accounts: a, identity: identity, up: make(chan *websocket.Conn, 4), inbox: map[string]chan brokerMsg{}, rejected: make(chan string, 8),
-		events: make(chan brokerMsg, 16), certs: make(chan brokerMsg, 16)}
+		events: make(chan brokerMsg, 16), certs: make(chan brokerMsg, 16), rawEvents: make(chan []byte, 16)}
 	b.server = httptest.NewServer(http.HandlerFunc(b.handle))
 	t.Cleanup(b.server.Close)
 	return b
@@ -299,6 +301,7 @@ func (b *fakeBroker) handle(w http.ResponseWriter, r *http.Request) {
 			b.channel(m.Channel) <- m
 		case m.Type == "treehouse.reg.event.v1":
 			b.events <- m
+			b.rawEvents <- append([]byte(nil), data...)
 		case m.Type == "treehouse.reg.cert.v1":
 			b.certs <- m
 			_ = b.write(ws, brokerMsg{Type: "treehouse.reg.ready.v1", DaemonID: b.identity.ID, HeartbeatS: 5, CertExpires: time.Now().Add(time.Hour).Unix()})
@@ -443,6 +446,8 @@ type brokeredRig struct {
 	cancel   context.CancelFunc
 	dir      string
 	ctx      context.Context
+	// configDir is the snapshot directory the daemon reads, empty until a test publishes.
+	configDir string
 }
 
 const (
@@ -462,7 +467,7 @@ func newBrokeredRigLife(t *testing.T, life time.Duration) *brokeredRig {
 
 // start dials the broker. A test sets up its fakes between prepare and start.
 func (r *brokeredRig) start() {
-	r.d.startTreehouse(r.ctx, treehouseOptions{Broker: r.b.address(), Accounts: r.a.server.URL, Dir: r.dir})
+	r.d.startTreehouse(r.ctx, treehouseOptions{Broker: r.b.address(), Accounts: r.a.server.URL, Dir: r.dir, ConfigDir: r.configDir})
 }
 
 func prepareBrokeredRig(t *testing.T, life time.Duration) *brokeredRig {
@@ -495,7 +500,7 @@ func prepareBrokeredRig(t *testing.T, life time.Duration) *brokeredRig {
 	t.Cleanup(func() { brokerBackoff = prev })
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	return &brokeredRig{d: d, b: b, a: a, identity: identity, logs: logs, cancel: cancel, dir: dir, ctx: ctx}
+	return &brokeredRig{d: d, b: b, a: a, identity: identity, logs: logs, cancel: cancel, dir: dir, ctx: ctx, configDir: t.TempDir()}
 }
 
 // openLocked attaches a channel, reads its welcome and returns both.
