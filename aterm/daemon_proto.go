@@ -145,10 +145,14 @@ type frame struct {
 	EnrollCode string `json:"enroll_code,omitempty"`
 	// Resume is the bearer proof an unlock reply issues and a resume frame presents,
 	// ExpiresIn the seconds it outlives a dropped connection. See daemon_resume.go.
-	Resume     string          `json:"resume,omitempty"`
-	ExpiresIn  int             `json:"expires_in,omitempty"`
-	Options    json.RawMessage `json:"options,omitempty"`
-	Credential json.RawMessage `json:"credential,omitempty"`
+	Resume    string `json:"resume,omitempty"`
+	ExpiresIn int    `json:"expires_in,omitempty"`
+	// Unlock rides the welcome of a brokered channel only, and UnlockToken is the accounts
+	// token an unlock frame presents. Token stays a seat's session token.
+	Unlock      *unlockOffer    `json:"unlock,omitempty"`
+	UnlockToken string          `json:"unlock_token,omitempty"`
+	Options     json.RawMessage `json:"options,omitempty"`
+	Credential  json.RawMessage `json:"credential,omitempty"`
 	// Device key ceremonies. The binary fields are base64url, no padding, and
 	// Attestation is an array of DER certificates, leaf first.
 	Challenge   string          `json:"challenge,omitempty"`

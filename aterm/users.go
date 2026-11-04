@@ -1,6 +1,9 @@
 package main
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 // userManagement is the one seam to everything that says who a person is (COI-3358).
 // The typing gate stays in the core and judges only Unlocked, so a swap cannot widen it.
@@ -17,7 +20,10 @@ type userManagement interface {
 	Unlocked(cl *client) bool
 	// Standing is whether a passkey and a device key are enrolled, for the
 	// welcome and the typing frame.
-	Standing() (passkey, deviceKey string)
+	Standing(cl *client) (passkey, deviceKey string)
+	// Challenge is the unlock offer a brokered channel's welcome carries, nil for any
+	// other connection.
+	Challenge(cl *client) *unlockOffer
 	// Handles is true for the frames this seam answers, and Frame answers one.
 	Handles(frameType string) bool
 	Frame(cl *client, message frame) error
@@ -68,6 +74,8 @@ type localUsers struct {
 	push      pushState
 	admission admissionConfig
 	proxied   accessPolicy
+	// brokered judges unlock tokens on channels the Treehouse broker opens, nil when off.
+	brokered *brokeredGate
 }
 
 // newLocalUsers is the unconfigured state a daemon starts in: no stored
@@ -115,7 +123,10 @@ func (u *localUsers) Admits(node tailnetNode) string {
 
 func (u *localUsers) Unlocked(cl *client) bool { return cl.asserted }
 
-func (u *localUsers) Standing() (passkey, deviceKey string) {
+func (u *localUsers) Standing(cl *client) (passkey, deviceKey string) {
+	if cl.brokered {
+		return "", ""
+	}
 	passkey, deviceKey = "unenrolled", "unenrolled"
 	if u.passkeys.enrolled() {
 		passkey = "enrolled"
@@ -126,7 +137,17 @@ func (u *localUsers) Standing() (passkey, deviceKey string) {
 	return passkey, deviceKey
 }
 
+func (u *localUsers) Challenge(cl *client) *unlockOffer {
+	if !cl.brokered || u.brokered == nil {
+		return nil
+	}
+	return u.brokered.challenge(cl)
+}
+
 func (u *localUsers) Handles(frameType string) bool {
+	if frameType == "unlock" {
+		return true
+	}
 	switch frameType {
 	case "passkey_mint", "passkey_revoke", "passkey_enroll_begin", "passkey_enroll_finish", "passkey_assert_begin", "passkey_assert_finish",
 		"device_enroll_begin", "device_enroll_finish", "device_assert_begin", "device_assert_finish",
@@ -137,6 +158,12 @@ func (u *localUsers) Handles(frameType string) bool {
 }
 
 func (u *localUsers) Frame(cl *client, message frame) error {
+	if message.Type == "unlock" {
+		return u.brokered.unlockFrame(cl, message)
+	}
+	if cl.brokered {
+		return withExit(exitUsage, errors.New("a brokered channel unlocks with an accounts token, not "+message.Type))
+	}
 	switch message.Type {
 	case "device_enroll_begin", "device_enroll_finish", "device_assert_begin", "device_assert_finish":
 		return u.deviceKeyFrames(cl, message)
