@@ -98,6 +98,12 @@ func main() {
 		// Before the parser: gh's own flags, --repo included, are not aterm's.
 		os.Exit(runGhExec(os.Args[2:], os.Stdout, os.Stderr))
 	}
+	if len(os.Args) > 1 && os.Args[1] == gitCredentialCommand {
+		// Before the parser: git appends get, store or erase and pipes attributes in.
+		os.Exit(runGitCredential(os.Args[2:], os.Stdin, os.Stdout, os.Stderr, func(repo string) (string, error) {
+			return requestGithubToken(repo, true)
+		}))
+	}
 	if len(os.Args) > 1 && os.Args[1] == holdCommand {
 		os.Exit(runHoldVerb(os.Args[2:]))
 	}
