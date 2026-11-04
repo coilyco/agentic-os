@@ -321,9 +321,31 @@
   ondragleave={dragLeave}
   ondrop={dropped}
 >
+  {#if uploading || imageNote || chips.length}
+    <div class="attachments">
+      {#if uploading}
+        <p class="image-note" role="status">Uploading image {uploading.done + 1} of {uploading.total}. Nothing is sent until they are all up.</p>
+      {:else if imageNote}
+        <p class="image-note warn" role="alert">{imageNote}</p>
+      {/if}
+      {#if chips.length}
+        <ul class="chips" aria-label="Images to send">
+          {#each chips as chip, index (chip.id)}
+            <li class="chip">
+              <img src={chip.url} alt="" />
+              <span class="chip-label">{chipLabel(index, chip.file.size)}</span>
+              <button class="chip-remove" type="button" aria-label={`Remove image ${index + 1}`} disabled={uploading !== null} onclick={() => removeChip(chip.id)}>
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+  {/if}
   {#if connection.images}
     <!-- The button is the way a phone adds an image, and the way to one with no clipboard image. -->
-    <input bind:this={picker} class="visually-hidden" type="file" accept={IMAGE_TYPES.join(",")} multiple tabindex="-1" aria-hidden="true" onchange={picked} />
+    <input bind:this={picker} hidden type="file" accept={IMAGE_TYPES.join(",")} multiple onchange={picked} />
     <button class="add-image" type="button" aria-label="Add image" title="Add image" disabled={uploading !== null || offline} onclick={() => picker?.click()}>
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8" /><circle cx="9" cy="10" r="1.6" fill="currentColor" /><path d="M4.5 17.5l4.5-4.5 3.5 3.5 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg>
     </button>
@@ -345,24 +367,6 @@
             <span class="who">{match.identity}</span>
             <span class="role">{match.role}</span>
             <code class="name">{match.id}</code>
-          </li>
-        {/each}
-      </ul>
-    {/if}
-    {#if uploading}
-      <p class="image-note" role="status">Uploading image {uploading.done + 1} of {uploading.total}. Nothing is sent until they are all up.</p>
-    {:else if imageNote}
-      <p class="image-note warn" role="alert">{imageNote}</p>
-    {/if}
-    {#if chips.length}
-      <ul class="chips" aria-label="Images to send">
-        {#each chips as chip, index (chip.id)}
-          <li class="chip">
-            <img src={chip.url} alt="" />
-            <span class="chip-label">{chipLabel(index, chip.file.size)}</span>
-            <button class="chip-remove" type="button" aria-label={`Remove image ${index + 1}`} disabled={uploading !== null} onclick={() => removeChip(chip.id)}>
-              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
-            </button>
           </li>
         {/each}
       </ul>
@@ -419,7 +423,7 @@
 {/if}
 
 <style>
-  .composer { display: flex; gap: 10px; align-items: flex-end; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--ground); }
+  .composer { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--ground); }
   /* Above the terminal, which overflows its row when the layout is squeezed. */
   .composer.locked { display: block; position: relative; z-index: 1; }
   .locked p { margin: 0; color: var(--text-soft); }
@@ -431,9 +435,10 @@
   .add-image { flex: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--control-line); border-radius: 10px; background: var(--terminal); color: var(--text-soft); cursor: pointer; }
   .add-image:hover:not(:disabled) { color: var(--text); border-color: var(--brand); }
   .add-image:focus-visible, .chip-remove:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .attachments { flex: 0 0 100%; min-width: 0; }
   .image-note { margin: 0 0 8px; font-size: 14px; line-height: 1.4; color: var(--text-soft); }
   .image-note.warn { color: var(--warn-text); }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; padding: 0; list-style: none; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
   .chip { display: flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 4px 4px 4px; border: 1px solid var(--control-line); border-radius: 10px; background: var(--surface); }
   .chip img { flex: none; width: 44px; height: 44px; object-fit: cover; border-radius: 6px; background: var(--terminal); }
   .chip-label { font-size: 13px; color: var(--text-soft); white-space: nowrap; }
@@ -466,6 +471,13 @@
   /* A phone gives the seat's text the screen. Four lines is the most this field takes. */
   @media (max-width: 720px) {
     .composer { gap: 8px; padding: 6px 8px; }
+    /* Thumbnails only, so four images cost one row. The label stays for a screen reader. */
+    .chips { gap: 12px; padding-top: 6px; }
+    .chip { position: relative; padding: 0; border: 0; background: none; }
+    .chip img { width: 56px; height: 56px; }
+    .chip-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .chip-remove { position: absolute; top: -6px; right: -6px; width: 28px; height: 28px; border: 1px solid var(--control-line); border-radius: 50%; background: var(--surface); color: var(--text); }
+    .chip-remove::after { content: ""; position: absolute; inset: -8px; }
     textarea { padding: 9px 12px; max-height: 112px; }
   }
 </style>
