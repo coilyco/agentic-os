@@ -15,21 +15,37 @@
   import { sessionCode } from "../lib/sessions";
   import { needsPasskey } from "../lib/typing";
   import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
-  import { loadSide, storeSide } from "../lib/split";
+  import { loadSide, loadSideOpen, storeSide, storeSideOpen } from "../lib/split";
   import { wantsFind } from "../lib/terminal-extras";
 
   let { role, session }: { role: Role; session: Session } = $props();
   // On a phone the switcher bar names the seat, so the header keeps only a heading for screen readers.
   let phone = $state(typeof matchMedia === "function" && matchMedia("(max-width: 720px)").matches);
+  // Above 1000px the side panel sits beside the seat, and a person opens it. Below, it is a sheet that starts put away.
+  let split = $state(typeof matchMedia === "function" && matchMedia("(min-width: 1001px)").matches);
+  let sideOpen = $state(loadSideOpen());
+  function toggleSide(): void {
+    sideOpen = !sideOpen;
+    storeSideOpen(sideOpen);
+  }
   onMount(() => {
     const query = matchMedia("(max-width: 720px)");
-    const read = () => (phone = query.matches);
+    const wide = matchMedia("(min-width: 1001px)");
+    const read = () => {
+      phone = query.matches;
+      split = wide.matches;
+    };
     read();
     query.addEventListener("change", read);
-    return () => query.removeEventListener("change", read);
+    wide.addEventListener("change", read);
+    return () => {
+      query.removeEventListener("change", read);
+      wide.removeEventListener("change", read);
+    };
   });
   const messages = $derived(messagesFor(session));
   let seatTerminal = $state<{ openFind: () => void }>();
+  const findChord = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "Cmd+F" : "Ctrl+Shift+F";
   // Cmd+F from the composer or the card finds in the seat's output, as it does from the terminal.
   function findKey(event: KeyboardEvent): void {
     if (event.defaultPrevented || !wantsFind(event)) return;
@@ -132,11 +148,19 @@
       {/if}
       <span class="state mono">{session.state}</span>
     {/if}
+    {#if !phone}
+      <button type="button" class="head-button" aria-label="Find in output" title={`Find in output (${findChord})`} onclick={() => seatTerminal?.openFind()}>Find</button>
+    {/if}
+    {#if split}
+      <button type="button" class="head-button" aria-expanded={sideOpen} aria-controls="side-panel" onclick={toggleSide}>
+        Side panel{#if messages.length}<span class="count">{messages.length}</span>{/if}
+      </button>
+    {/if}
     {#if session.degraded.length}
       <p class="degraded">Started without {session.degraded.join(", ")}. agent-compose skipped these steps at launch, so this seat may be missing what they set up.</p>
     {/if}
   </header>
-  <div class="body" class:wide data-composing={app.composing} style:--side={sideWidth ? `${sideWidth}px` : undefined}>
+  <div class="body" class:wide class:away={split && !sideOpen} data-composing={app.composing} style:--side={sideWidth ? `${sideWidth}px` : undefined}>
     <div class="work">
       {#if app.connection}
         {#key session.id}
@@ -198,8 +222,10 @@
         {/key}
       {/if}
     </div>
-    <SplitHandle onchange={resize} onreset={() => resize(null)} />
-    <SidePanel {session} {messages} selfRole={role.slug} {colorOf} accent={role.color} bind:tab={side} bind:open={raised} onpick={(tab) => storeOverride(role.slug, tab)} />
+    {#if !split || sideOpen}
+      <SplitHandle onchange={resize} onreset={() => resize(null)} />
+      <SidePanel {session} {messages} selfRole={role.slug} {colorOf} accent={role.color} bind:tab={side} bind:open={raised} onpick={(tab) => storeOverride(role.slug, tab)} />
+    {/if}
   </div>
 </section>
 
@@ -209,6 +235,11 @@
   h1 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 22px; }
   .role { font-size: 14px; color: color-mix(in srgb, var(--accent) 55%, white); }
   .degraded { flex-basis: 100%; margin: 0; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--warn); background: var(--warn-fill); color: var(--warn-text); font-size: 13px; }
+  .head-button { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 13px var(--font-body); }
+  .head-button[aria-expanded="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--ground)); }
+  .head-button:hover { border-color: var(--accent); }
+  .head-button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .count { min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: var(--accent); color: var(--ground); font: 700 12px/20px var(--font-body); text-align: center; }
   .state { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--accent); }
   .context { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
   .context + .state { margin-left: 0; }
@@ -223,6 +254,7 @@
   .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
   .body { --side: 360px; --strip: calc(44px + env(safe-area-inset-bottom)); flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--side); min-height: 0; }
   .body.wide { --side: minmax(360px, 50%); }
+  .body.away { grid-template-columns: minmax(0, 1fr); }
   .body :global(.panel) { border-left: none; }
   /* A phone: the seat's name and state on one row, its role and context on the next, so the header does not cost the terminal a third of the screen. */
   @media (max-width: 720px) {
