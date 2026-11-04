@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/urfave/cli/v3"
 )
@@ -26,6 +27,8 @@ type replyView struct {
 	Complete bool `json:"complete"`
 	// Source is the transcript path or session read, or "screen" for the visible rows.
 	Source string `json:"source"`
+	// At is when the turn ended, from the transcript. Zero when the harness records none.
+	At time.Time `json:"at,omitempty"`
 }
 
 // errNoTranscript is a seat whose transcript is missing or unreadable, which the
@@ -36,6 +39,7 @@ var errNoTranscript = errors.New("no transcript")
 // format is claude's and unversioned, so a field not named here is never read.
 type transcriptLine struct {
 	Type        string `json:"type"`
+	Timestamp   string `json:"timestamp"`
 	IsSidechain bool   `json:"isSidechain"`
 	Message     struct {
 		Content    json.RawMessage `json:"content"`
@@ -51,17 +55,27 @@ type contentBlock struct {
 // lastReply is the text claude wrote since the last user line, and whether the turn
 // ended. A tool result is a user line, so narration before a tool call is dropped.
 func lastReply(r io.Reader) (string, bool, error) {
+	text, complete, _, err := lastReplyAt(r)
+	return text, complete, err
+}
+
+// lastReplyAt is lastReply and when its last line was written, zero when unstamped.
+func lastReplyAt(r io.Reader) (string, bool, time.Time, error) {
 	reader := bufio.NewReaderSize(r, 1<<20)
 	var parts []string
 	complete := false
+	var at time.Time
 	for {
 		raw, err := reader.ReadBytes('\n')
 		var line transcriptLine
 		if len(bytes.TrimSpace(raw)) > 0 && json.Unmarshal(raw, &line) == nil && !line.IsSidechain {
 			switch line.Type {
 			case "user":
-				parts, complete = nil, false
+				parts, complete, at = nil, false, time.Time{}
 			case "assistant":
+				if stamp, err := time.Parse(time.RFC3339Nano, line.Timestamp); err == nil {
+					at = stamp
+				}
 				var blocks []contentBlock
 				_ = json.Unmarshal(line.Message.Content, &blocks)
 				for _, block := range blocks {
@@ -73,10 +87,10 @@ func lastReply(r io.Reader) (string, bool, error) {
 			}
 		}
 		if err == io.EOF {
-			return strings.Join(parts, "\n\n"), complete, nil
+			return strings.Join(parts, "\n\n"), complete, at, nil
 		}
 		if err != nil {
-			return "", false, err
+			return "", false, time.Time{}, err
 		}
 	}
 }
@@ -239,11 +253,11 @@ func claudeReply(entry ledgerEntry) (replyView, error) {
 		return replyView{}, err
 	}
 	defer file.Close()
-	text, complete, err := lastReply(file)
+	text, complete, at, err := lastReplyAt(file)
 	if err != nil {
 		return replyView{}, err
 	}
-	return replyView{Session: entry.Name, Text: text, Complete: complete, Source: path}, nil
+	return replyView{Session: entry.Name, Text: text, Complete: complete, Source: path, At: at}, nil
 }
 
 // screenReply is the fallback: the rows the session shows now, from the daemon.
@@ -335,8 +349,8 @@ func firstReplyLine(text string) string {
 	return ""
 }
 
-// refreshReply keeps the first line of a seat's latest finished reply, reading the
-// transcript only when it moved. A running turn keeps the earlier line (COI-2678).
+// refreshReply keeps a seat's latest finished reply, reading the transcript only when it
+// moved. A running turn keeps the earlier one (COI-2678, COI-3303).
 func (s *ptySession) refreshReply(entry ledgerEntry, all []ledgerEntry) bool {
 	s.mu.Lock()
 	path, seen := s.contextFile.path, s.replySig
@@ -352,13 +366,63 @@ func (s *ptySession) refreshReply(entry ledgerEntry, all []ledgerEntry) bool {
 	if err != nil {
 		return false
 	}
+	return s.keepReply(reply, sig)
+}
+
+// keepReply stores a read reply, and says whether it changed what clients see.
+func (s *ptySession) keepReply(reply replyView, sig fileSig) bool {
 	line := firstReplyLine(reply.Text)
+	text, cut := boundReply(reply.Text)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.replySig = sig
-	if !reply.Complete || line == "" || line == s.lastReply {
+	if !reply.Complete || line == "" {
 		return false
 	}
-	s.lastReply = line
+	changed := text != s.lastReplyText
+	moved := !reply.At.IsZero() && !reply.At.Equal(s.lastReplyAt)
+	if !changed && !moved {
+		return false
+	}
+	at := reply.At
+	if at.IsZero() {
+		at = sig.mod
+	}
+	s.lastReply, s.lastReplyText, s.lastReplyCut, s.lastReplyAt = line, text, cut, at
 	return true
+}
+
+// maxLastReplyBytes bounds the reply a client can fetch, since a pin shows the start of a
+// long one and a sessions frame must stay small.
+const maxLastReplyBytes = 8 << 10
+
+// boundReply cuts a reply to maxLastReplyBytes on a rune boundary, saying if it cut.
+func boundReply(text string) (string, bool) {
+	if len(text) <= maxLastReplyBytes {
+		return text, false
+	}
+	cut := maxLastReplyBytes
+	for cut > 0 && !utf8.RuneStart(text[cut]) {
+		cut--
+	}
+	return strings.TrimRight(text[:cut], " \n"), true
+}
+
+// lastReplyView is what a last_reply request answers: the reply as a pin shows it.
+type lastReplyView struct {
+	Session   string     `json:"session"`
+	Text      string     `json:"text"`
+	Truncated bool       `json:"truncated,omitempty"`
+	At        *time.Time `json:"at,omitempty"`
+}
+
+func (s *ptySession) lastReplyView() lastReplyView {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	view := lastReplyView{Session: s.name, Text: s.lastReplyText, Truncated: s.lastReplyCut}
+	if !s.lastReplyAt.IsZero() {
+		at := s.lastReplyAt.UTC()
+		view.At = &at
+	}
+	return view
 }

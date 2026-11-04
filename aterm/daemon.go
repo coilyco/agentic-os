@@ -427,7 +427,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -571,6 +571,13 @@ func (d *daemon) handle(cl *client, message frame) error {
 		}
 		status := s.status(message.Lines)
 		return cl.c.write(frame{Type: "status", ID: message.ID, Session: s.name, Status: &status})
+	case "last_reply":
+		s, err := d.oneTarget(message.Target)
+		if err != nil {
+			return err
+		}
+		view := s.lastReplyView()
+		return cl.c.write(frame{Type: "last_reply", ID: message.ID, Session: s.name, Reply: &view})
 	case "clear":
 		return d.clearSession(cl, message)
 	case "inbox":
