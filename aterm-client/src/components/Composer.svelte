@@ -7,6 +7,7 @@
   import Unlock from "./Unlock.svelte";
   import type { Place } from "../lib/build";
   import { typingNotice, type Typing } from "../lib/typing";
+  import { IMAGE_TYPES, chipLabel, pastedImages, screenImages, withImagePaths } from "../lib/images";
 
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
   // `offline` is the host not answering: the draft stays editable and Send waits, since a frame typed into a dead link is lost.
@@ -32,6 +33,16 @@
   $effect(() => ondraft?.(text));
   // Input has no reply, so a lock that follows a send moments later is that send refused, and its text comes back.
   let lastSent: { body: string; at: number } | null = null;
+  // A refused send takes its images back with its text, since a screenshot may not be one to take twice.
+  let lastImages: File[] = [];
+  // Chips hold the files until Send. Nothing goes to the host for an image that is never sent.
+  let chips = $state<{ id: number; file: File; url: string }[]>([]);
+  let nextChip = 0;
+  // The reason an image was left out or an upload failed. It stays on screen, since a refused paste is otherwise silent.
+  let imageNote = $state("");
+  let uploading = $state<{ done: number; total: number } | null>(null);
+  let dropping = $state(false);
+  let picker = $state<HTMLInputElement>();
   let kept = $state(false);
   let sentFlash = $state(false);
   let flashTimer: ReturnType<typeof setTimeout> | undefined;
@@ -52,7 +63,9 @@
       if (back.restored) {
         text = back.draft;
         kept = true;
+        if (lastImages.length) untrack(() => take(lastImages));
       }
+      lastImages = [];
       lastSent = null;
     } else if (wasLocked) {
       kept = false;
@@ -71,6 +84,7 @@
     return () => {
       query.removeEventListener("change", read);
       onfocuschange?.(false);
+      for (const chip of chips) URL.revokeObjectURL(chip.url);
     };
   });
   const PASTE_OPEN = "\x1b[200~";
@@ -84,32 +98,128 @@
     open ? `${matches.length} live ${matches.length === 1 ? "session matches" : "sessions match"}. Up and down choose, Tab or Enter inserts, Escape closes.` : status,
   );
 
+  function take(files: File[]): void {
+    for (const file of files) chips.push({ id: nextChip++, file, url: URL.createObjectURL(file) });
+  }
+
+  function addFiles(files: File[]): void {
+    if (files.length === 0) return;
+    if (uploading) {
+      imageNote = "An upload is out. Add more once it finishes.";
+      return;
+    }
+    const screened = screenImages(files, chips.length, connection.images);
+    imageNote = screened.refusal ?? "";
+    take(screened.accepted);
+    if (screened.accepted.length) status = `Added ${screened.accepted.length === 1 ? "an image" : `${screened.accepted.length} images`}. ${chips.length} waiting.`;
+  }
+
+  function removeChip(id: number): void {
+    if (uploading) return;
+    const gone = chips.find((chip) => chip.id === id);
+    if (gone) URL.revokeObjectURL(gone.url);
+    chips = chips.filter((chip) => chip.id !== id);
+    imageNote = "";
+    status = `Removed an image. ${chips.length} waiting.`;
+    void tick().then(() => field?.focus());
+  }
+
+  function pasted(event: ClipboardEvent): void {
+    const images = pastedImages(event.clipboardData);
+    if (images.length === 0) return;
+    event.preventDefault();
+    addFiles(images);
+  }
+
+  function carriesFiles(event: DragEvent): boolean {
+    return Array.from(event.dataTransfer?.types ?? []).includes("Files");
+  }
+
+  function dragOver(event: DragEvent): void {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    dropping = true;
+  }
+
+  function dragLeave(event: DragEvent): void {
+    // Moving over a child fires a leave on the form too, so only leaving the form ends the cue.
+    if (!(event.currentTarget as Node).contains(event.relatedTarget as Node | null)) dropping = false;
+  }
+
+  function dropped(event: DragEvent): void {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    dropping = false;
+    addFiles(Array.from(event.dataTransfer?.files ?? []));
+  }
+
+  function picked(): void {
+    addFiles(Array.from(picker?.files ?? []));
+    if (picker) picker.value = "";
+  }
+
   // A program in bracketed-paste mode takes the text as one paste, then the
   // Enter a beat later so it submits instead of landing as a newline.
-  function send(): void {
-    const body = text.trim();
-    if (!body) return;
+  // Images upload first, one after another, and only then does anything reach the seat: a failed upload sends nothing and keeps the draft.
+  async function send(): Promise<void> {
+    const typed = text.trim();
+    if (!typed && chips.length === 0) return;
+    if (uploading) return;
     if (offline) {
       status = "Not sent. The host is reconnecting, and your message stays here.";
       return;
     }
-    if (session.paste) {
-      connection.input(session.id, `${PASTE_OPEN}${body}${PASTE_CLOSE}`);
-      setTimeout(() => connection.input(session.id, "\r"), 300);
-    } else {
-      connection.input(session.id, `${body.replace(/\r?\n/g, " ")}\r`);
+    // The seat on screen may change while an upload is out, and this message still belongs to the one it was written for.
+    const target = session;
+    const sending = chips;
+    let body = typed;
+    if (sending.length > 0) {
+      const channel = connection.images;
+      if (!channel) {
+        imageNote = "Not sent. This host cannot take images. Remove them to send the text.";
+        return;
+      }
+      const paths: string[] = [];
+      imageNote = "";
+      try {
+        for (const [index, chip] of sending.entries()) {
+          uploading = { done: index, total: sending.length };
+          paths.push(await channel.upload(target.id, chip.file));
+        }
+      } catch (error) {
+        imageNote = `Not sent. ${error instanceof Error && error.message ? error.message : "The upload failed."} Your message and images stay here.`;
+        return;
+      } finally {
+        uploading = null;
+      }
+      if (offline) {
+        status = "Not sent. The host is reconnecting, and your message stays here.";
+        return;
+      }
+      body = withImagePaths(typed, paths);
     }
-    lastSent = { body, at: Date.now() };
+    if (!body) return;
+    if (target.paste) {
+      connection.input(target.id, `${PASTE_OPEN}${body}${PASTE_CLOSE}`);
+      setTimeout(() => connection.input(target.id, "\r"), 300);
+    } else {
+      connection.input(target.id, `${body.replace(/\r?\n/g, " ")}\r`);
+    }
+    lastSent = { body: typed, at: Date.now() };
+    lastImages = sending.map((chip) => chip.file);
+    for (const chip of sending) URL.revokeObjectURL(chip.url);
+    chips = [];
+    imageNote = "";
     text = "";
     caret = 0;
-    status = `Sent to ${session.identity}.`;
+    status = `Sent to ${target.identity}.`;
     sentFlash = true;
     clearTimeout(flashTimer);
     flashTimer = setTimeout(() => (sentFlash = false), 1500);
     onsent?.();
   }
 
-  const stopping = $derived(showStop({ working, hasText: text.trim() !== "", justSent: sentFlash, offline }));
+  const stopping = $derived(showStop({ working, hasText: text.trim() !== "" || chips.length > 0, justSent: sentFlash, offline }));
   let holdTimer: ReturnType<typeof setTimeout> | undefined;
   let held = false;
 
@@ -187,7 +297,7 @@
     }
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
-      send();
+      void send();
     }
   }
 </script>
@@ -203,7 +313,43 @@
     <Unlock />
   </div>
 {:else}
-<form class="composer" onsubmit={(event) => { event.preventDefault(); send(); }}>
+<form
+  class="composer"
+  class:dropping
+  onsubmit={(event) => { event.preventDefault(); void send(); }}
+  ondragover={dragOver}
+  ondragleave={dragLeave}
+  ondrop={dropped}
+>
+  {#if uploading || imageNote || chips.length}
+    <div class="attachments">
+      {#if uploading}
+        <p class="image-note" role="status">Uploading image {uploading.done + 1} of {uploading.total}. Nothing is sent until they are all up.</p>
+      {:else if imageNote}
+        <p class="image-note warn" role="alert">{imageNote}</p>
+      {/if}
+      {#if chips.length}
+        <ul class="chips" aria-label="Images to send">
+          {#each chips as chip, index (chip.id)}
+            <li class="chip">
+              <img src={chip.url} alt="" />
+              <span class="chip-label">{chipLabel(index, chip.file.size)}</span>
+              <button class="chip-remove" type="button" aria-label={`Remove image ${index + 1}`} disabled={uploading !== null} onclick={() => removeChip(chip.id)}>
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+              </button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+  {/if}
+  {#if connection.images}
+    <!-- The button is the way a phone adds an image, and the way to one with no clipboard image. -->
+    <input bind:this={picker} hidden type="file" accept={IMAGE_TYPES.join(",")} multiple onchange={picked} />
+    <button class="add-image" type="button" aria-label="Add image" title="Add image" disabled={uploading !== null || offline} onclick={() => picker?.click()}>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8" /><circle cx="9" cy="10" r="1.6" fill="currentColor" /><path d="M4.5 17.5l4.5-4.5 3.5 3.5 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg>
+    </button>
+  {/if}
   <div class="field">
     {#if open}
       <ul class="mentions" id="composer-mentions" role="listbox" aria-label="Live sessions">
@@ -233,6 +379,8 @@
       onkeydown={keydown}
       oninput={typed}
       onkeyup={syncCaret}
+      onpaste={pasted}
+      readonly={uploading !== null}
       onclick={syncCaret}
       onfocus={() => {
         syncCaret();
@@ -246,7 +394,7 @@
       aria-controls="composer-mentions"
       aria-activedescendant={open ? `mention-${current}` : undefined}
       rows="1"
-      placeholder={narrow ? `Message ${session.identity}` : `Type or dictate to ${session.identity}. Enter sends, Shift+Enter for a new line, @ names a session.`}
+      placeholder={narrow ? `Message ${session.identity}` : `Type or dictate to ${session.identity}. Enter sends, Shift+Enter for a new line, @ names a session.${connection.images ? " Paste or drop an image to attach it." : ""}`}
       autocomplete="off"
       spellcheck="true"
     ></textarea>
@@ -268,21 +416,34 @@
       onkeydown={stopKey}
     >Stop</button>
   {:else}
-    <button class="button primary" type="submit" disabled={!text.trim() || offline}>{offline ? "Waits for host" : sentFlash && !text.trim() ? "Sent" : "Send"}</button>
+    <button class="button primary" type="submit" disabled={(!text.trim() && chips.length === 0) || offline || uploading !== null}>{offline ? "Waits for host" : uploading ? "Uploading" : sentFlash && !text.trim() && chips.length === 0 ? "Sent" : "Send"}</button>
   {/if}
   <p class="visually-hidden" role="status">{note}</p>
 </form>
 {/if}
 
 <style>
-  .composer { display: flex; gap: 10px; align-items: flex-end; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--ground); }
+  .composer { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--ground); }
   /* Above the terminal, which overflows its row when the layout is squeezed. */
   .composer.locked { display: block; position: relative; z-index: 1; }
   .locked p { margin: 0; color: var(--text-soft); }
   .locked p + p { margin-top: 8px; }
   .kept { color: var(--warn-text); }
   .draft { margin: 8px 0 0; padding: 8px 10px; max-height: 6.5em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--control-line); border-radius: 8px; background: var(--terminal); color: var(--text-soft); font: 14px/1.4 var(--font-body); }
-  .field { position: relative; flex: 1; min-width: 0; display: flex; }
+  .field { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .composer.dropping { outline: 2px dashed var(--brand); outline-offset: -4px; }
+  .add-image { flex: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--control-line); border-radius: 10px; background: var(--terminal); color: var(--text-soft); cursor: pointer; }
+  .add-image:hover:not(:disabled) { color: var(--text); border-color: var(--brand); }
+  .add-image:focus-visible, .chip-remove:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .attachments { flex: 0 0 100%; min-width: 0; }
+  .image-note { margin: 0 0 8px; font-size: 14px; line-height: 1.4; color: var(--text-soft); }
+  .image-note.warn { color: var(--warn-text); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+  .chip { display: flex; align-items: center; gap: 8px; max-width: 100%; padding: 4px 4px 4px 4px; border: 1px solid var(--control-line); border-radius: 10px; background: var(--surface); }
+  .chip img { flex: none; width: 44px; height: 44px; object-fit: cover; border-radius: 6px; background: var(--terminal); }
+  .chip-label { font-size: 13px; color: var(--text-soft); white-space: nowrap; }
+  .chip-remove { flex: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--text-soft); cursor: pointer; }
+  .chip-remove:hover:not(:disabled) { color: var(--text); }
   textarea {
     flex: 1; min-width: 0; min-height: 44px; max-height: 40vh; field-sizing: content; resize: none;
     padding: 11px 14px; border-radius: 10px; border: 1px solid var(--control-line);
@@ -310,6 +471,13 @@
   /* A phone gives the seat's text the screen. Four lines is the most this field takes. */
   @media (max-width: 720px) {
     .composer { gap: 8px; padding: 6px 8px; }
+    /* Thumbnails only, so four images cost one row. The label stays for a screen reader. */
+    .chips { gap: 12px; padding-top: 6px; }
+    .chip { position: relative; padding: 0; border: 0; background: none; }
+    .chip img { width: 56px; height: 56px; }
+    .chip-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    .chip-remove { position: absolute; top: -6px; right: -6px; width: 28px; height: 28px; border: 1px solid var(--control-line); border-radius: 50%; background: var(--surface); color: var(--text); }
+    .chip-remove::after { content: ""; position: absolute; inset: -8px; }
     textarea { padding: 9px 12px; max-height: 112px; }
   }
 </style>
