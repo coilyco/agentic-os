@@ -14,7 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var mcpToolNames = []string{"ask_choice", "clear_session", "close_session", "list_agents", "read_messages", "send_message", "session_status"}
+var mcpToolNames = []string{"ask_choice", "clear_session", "close_session", "list_agents", "read_messages", "send_message", "send_user_question", "session_status"}
 
 func fakeBackend() mcpBackend {
 	return mcpBackend{
@@ -53,7 +53,11 @@ func fakeBackend() mcpBackend {
 			if ask.Question == "cancel" {
 				return choiceAnswer{State: "cancelled", Reason: "a client dismissed it"}, nil
 			}
-			return choiceAnswer{State: "answered", Picks: []int{0}, Labels: []string{ask.Options[0].Label}}, nil
+			seat := ""
+			if ask.Relay {
+				seat = "prod-director-griffin-goose"
+			}
+			return choiceAnswer{State: "answered", Picks: []int{0}, Labels: []string{ask.Options[0].Label}, CardSeat: seat}, nil
 		},
 	}
 }
@@ -93,7 +97,7 @@ func callTool(t *testing.T, session *mcp.ClientSession, name string, arguments a
 	return text.String(), result.IsError
 }
 
-func TestMCPListsTheSevenToolsWithTypedSchemas(t *testing.T) {
+func TestMCPListsTheEightToolsWithTypedSchemas(t *testing.T) {
 	listed, err := mcpClient(t, fakeBackend()).ListTools(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("list: %v", err)
@@ -115,10 +119,10 @@ func TestMCPListsTheSevenToolsWithTypedSchemas(t *testing.T) {
 			t.Fatalf("%s schema: %v", tool.Name, err)
 		}
 		required[tool.Name] = decoded.Required
-		if tool.Name == "ask_choice" {
+		if tool.Name == "ask_choice" || tool.Name == "send_user_question" {
 			for _, field := range []string{"question", "questions", "options", "header", "allow_other", "multi"} {
 				if _, ok := decoded.Properties[field]; !ok {
-					t.Errorf("ask_choice schema lacks %q: %s", field, schema)
+					t.Errorf("%s schema lacks %q: %s", tool.Name, field, schema)
 				}
 			}
 		}
@@ -132,7 +136,7 @@ func TestMCPListsTheSevenToolsWithTypedSchemas(t *testing.T) {
 	}
 }
 
-func TestMCPCallsAllSevenTools(t *testing.T) {
+func TestMCPCallsAllEightTools(t *testing.T) {
 	session := mcpClient(t, fakeBackend())
 	cases := []struct {
 		tool      string
@@ -147,6 +151,8 @@ func TestMCPCallsAllSevenTools(t *testing.T) {
 		{"close_session", map[string]any{"to": "ox", "force": true}, "closed ox (exit 0)"},
 		{"ask_choice", map[string]any{"question": "Ship?", "options": []map[string]any{{"label": "yes"}}},
 			`{"labels":["yes"],"picks":[0],"text":""}`},
+		{"send_user_question", map[string]any{"question": "Ship?", "options": []map[string]any{{"label": "yes"}}},
+			`"shown_on":"prod-director-griffin-goose"`},
 	}
 	for _, c := range cases {
 		out, failed := callTool(t, session, c.tool, c.arguments)

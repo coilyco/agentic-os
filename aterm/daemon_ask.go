@@ -31,6 +31,10 @@ type choiceAsk struct {
 	AllowOther bool           `json:"allow_other,omitempty"`
 	Multi      bool           `json:"multi,omitempty"`
 	Asked      time.Time      `json:"asked"`
+	// Relay is set by send_user_question. CardSeat, the session whose pane shows the card,
+	// is stamped by the daemon and never taken from a caller. Session stays the asker.
+	Relay    bool   `json:"relay,omitempty"`
+	CardSeat string `json:"card_seat,omitempty"`
 }
 
 // choiceAnswer is how an ask ended: answered, cancelled, or timed_out.
@@ -42,6 +46,8 @@ type choiceAnswer struct {
 	Reason string   `json:"reason,omitempty"`
 	// GrantID is the record an approved grant ask minted. See grant.go.
 	GrantID string `json:"grant_id,omitempty"`
+	// CardSeat is where a relayed ask's card was shown, empty when it was not relayed.
+	CardSeat string `json:"card_seat,omitempty"`
 }
 
 type pendingAsk struct {
@@ -114,6 +120,11 @@ func (d *daemon) register(cl *client, message frame, ask choiceAsk, spec *grantS
 	ask.Session = asker.name
 	ask.From = asker.role + " " + asker.identity
 	ask.Asked = time.Now().UTC()
+	ask.CardSeat = ""
+	ask.Relay = ask.Relay && spec == nil
+	if ask.Relay {
+		ask.CardSeat = d.directorFor(asker)
+	}
 	pending := &pendingAsk{ask: ask, done: make(chan choiceAnswer, 1), grant: spec}
 	d.mu.Lock()
 	d.asks[ask.ID] = pending
@@ -142,16 +153,20 @@ func (d *daemon) answer(cl *client, message frame) error {
 	}
 	d.mu.Lock()
 	pending := d.asks[message.AskID]
+	var shown choiceAsk
+	if pending != nil {
+		shown = pending.ask
+	}
 	d.mu.Unlock()
 	if pending == nil {
 		return withExit(exitOffRoster, fmt.Errorf("no pending ask %q", message.AskID))
 	}
-	if err := validateAnswer(pending.ask, message.Picks, message.Text); err != nil {
+	if err := validateAnswer(shown, message.Picks, message.Text); err != nil {
 		return withExit(exitUsage, err)
 	}
 	labels := make([]string, 0, len(message.Picks))
 	for _, pick := range message.Picks {
-		labels = append(labels, pending.ask.Options[pick].Label)
+		labels = append(labels, shown.Options[pick].Label)
 	}
 	answer := choiceAnswer{State: "answered", Picks: message.Picks, Labels: labels, Text: message.Text}
 	// The grant is minted here, past the typing guard above, and before the settle
@@ -175,10 +190,15 @@ func (d *daemon) settle(id string, answer choiceAnswer) bool {
 	d.mu.Lock()
 	pending := d.asks[id]
 	delete(d.asks, id)
+	var shown choiceAsk
+	if pending != nil {
+		shown = pending.ask
+	}
 	d.mu.Unlock()
 	if pending == nil {
 		return false
 	}
+	answer.CardSeat = shown.CardSeat
 	settled := false
 	pending.once.Do(func() {
 		pending.done <- answer
@@ -186,6 +206,7 @@ func (d *daemon) settle(id string, answer choiceAnswer) bool {
 	})
 	if settled {
 		d.broadcast(frame{Type: "asked", AskID: id, State: answer.State})
+		d.tellDirector(shown, answer)
 	}
 	return settled
 }
