@@ -14,8 +14,8 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"], ["html", { outputFolder: "testbed/out/report", open: "never" }]],
   expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.002, animations: "disabled", caret: "hide" } },
-  // First run writes the baselines. Later runs compare and diff.
-  updateSnapshots: "missing",
+  // Locally the first run writes baselines. In CI a missing baseline fails.
+  updateSnapshots: process.env.CI ? "none" : "missing",
   use: { ...common, trace: "retain-on-failure", screenshot: "only-on-failure" },
   projects: [
     { name: "desktop-1440", metadata: { kind: "desktop" }, use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } },

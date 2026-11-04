@@ -207,6 +207,10 @@ aterm-client-testbed *ARGS:
     @just aterm-client-build
     @cd aterm-client && {{pnpm}} run testbed "$@"
 
+# Install the test bed's browsers with the OS libraries they need, on a CI runner. Needs apt, so not for a Mac.
+aterm-client-testbed-deps:
+    @cd aterm-client && {{pnpm}} exec playwright install --with-deps chromium webkit
+
 # Accept what the aterm client test bed shows now as the new baselines. Review `git diff --stat aterm-client/testbed/baselines` first.
 aterm-client-testbed-update *ARGS:
     @just aterm-client-build
