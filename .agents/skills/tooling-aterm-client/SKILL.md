@@ -36,7 +36,11 @@ Every command is a root `just` verb: `aterm-client-install`, `-dev`, `-check`,
 
 Run `just aterm-client-gate` and `pre-commit run --all-files` before committing. A
 layout change is not done until it has been rendered at 320px wide and walked by
-keyboard.
+keyboard. `just aterm-client-drive` does that with no human: it drives the real client
+against the Demo host in a headless browser at 1280px and 320px, on its own port, and
+asserts what is on screen. Check a UI change there and never hand Kai a click to test.
+Add a case when a bug appears, and teach the Demo host the screen that reproduces it
+(`src/lib/demo-harness.ts`).
 
 ## Contracts
 

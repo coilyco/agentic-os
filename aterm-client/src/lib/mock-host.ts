@@ -4,6 +4,7 @@ import rosterJson from "./fixtures/roster.json";
 import { envelope } from "./messages";
 import type { Ask, ContextReading, HostConnection, HostEvent, PeerMessage, Session, TerminalChannel } from "./protocol";
 import { parseRoster } from "./roster";
+import { CLAUDE_BOX, CLAUDE_DIALOG, drawHarness, type Frame } from "./demo-harness";
 import { runShellLine, SHELL_PROMPT, type ShellStep } from "./demo-shell";
 import type { ListedTerminal } from "./terminals";
 
@@ -64,9 +65,23 @@ export class MockHost implements HostConnection {
     private readonly terminalMode: TerminalMode = "ok",
   ) {
     if (terminalMode !== "off") this.terminals = { open: (label) => this.openShell(label), close: (id) => this.endShell(id, null) };
-    for (const each of this.sessions) this.buffers.set(each.id, (scripts[each.role] ?? []).join("\r\n") + PROMPT);
+    for (const each of this.sessions) this.buffers.set(each.id, this.drawn(each.id) ?? (scripts[each.role] ?? []).join("\r\n") + PROMPT);
     this.timers.push(setTimeout(() => this.deliverScriptedMessage(), delayMs));
     this.timers.push(setTimeout(() => this.scriptedAsks(), delayMs * 2));
+  }
+
+  /** Two Claude seats draw as Claude Code does: one at rest, one on a permission menu. */
+  private frameFor(each: Pick<Session, "id" | "role">): { transcript: readonly string[]; frame: Frame } | null {
+    const transcript = scripts[each.role] ?? [];
+    if (each.id === "frontend-eng-imp-dragonfly-dj99") return { transcript, frame: CLAUDE_BOX };
+    if (each.id === "eng-platform-beetle-ox-eb64") return { transcript, frame: CLAUDE_DIALOG };
+    return null;
+  }
+
+  private drawn(sessionId: string, rows = 0, cols = 70): string | null {
+    const target = this.sessions.find((each) => each.id === sessionId);
+    const shape = target && this.frameFor(target);
+    return shape ? drawHarness(shape.transcript, shape.frame, rows, cols) : null;
   }
 
   answer(askId: string, picks: number[], text?: string): void {
@@ -144,6 +159,11 @@ export class MockHost implements HostConnection {
 
   input(sessionId: string, data: string): void {
     if (this.shells.has(sessionId)) return this.typeIntoShell(sessionId, data);
+    // A harness redraws its box in place, so a turn only grows the context.
+    if (this.drawn(sessionId) !== null) {
+      if (data === "\r") this.addTurn(sessionId);
+      return;
+    }
     this.write(sessionId, data === "\r" ? PROMPT : data);
     if (data === "\r") this.addTurn(sessionId);
   }
@@ -157,7 +177,12 @@ export class MockHost implements HostConnection {
     this.emit({ type: "sessions", sessions: this.sessions });
   }
 
-  resize(): void {}
+  resize(sessionId: string, rows: number, cols: number): void {
+    const redraw = this.drawn(sessionId, rows, cols);
+    if (redraw === null) return;
+    this.buffers.set(sessionId, redraw);
+    if (this.attached.has(sessionId)) this.emit({ type: "output", sessionId, data: redraw });
+  }
 
   launch(role: string, seat: string): void {
     const identity = this.roles.find((candidate) => candidate.slug === role)?.identity ?? role;
