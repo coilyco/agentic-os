@@ -66,6 +66,7 @@ than editing it by hand.
 * [device-key.md](references/device-key.md) - the Android app's unlock with the phone's own key, as a person sees it.
 * [device-key-daemon.md](references/device-key-daemon.md) - the daemon half: the frames, the attestation checks, and the app origin.
 * [resume.md](references/resume.md) - the unlock that survives a phone lock: the resume proof, the window setting, the gate it leaves closed, and the Pixel procedure.
+* [treehouse-broker.md](references/treehouse-broker.md) - the brokered path: the three settings, how a brokered channel unlocks with an accounts token, and what is not built yet.
 * [views-and-browser.md](references/views-and-browser.md) - MCP Apps views and the shared browser.
 * [browser.md](references/browser.md) - the daemon's streamed Chromium and its `browser_*` frames.
 * [web-push.md](references/web-push.md) - the daemon's Web Push to a closed browser, the frames, and what the service worker builds against.
