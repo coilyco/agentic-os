@@ -15,7 +15,7 @@ import (
 func newMCPCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "mcp",
-		Usage: "serve list_agents, send_message, read_messages, session_status, clear_session, close_session and ask_choice over MCP stdio",
+		Usage: "serve list_agents, send_message, read_messages, session_status, clear_session, close_session, stage_command and ask_choice over MCP stdio",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return serveMCP(ctx, os.Stdin, cmd.Root().Writer)
 		},
@@ -30,6 +30,7 @@ type mcpBackend struct {
 	status     func(target string, lines int) (sessionStatus, error)
 	clear      func(target string, force bool) (string, string, error)
 	close      func(target string, force bool) (string, int, error)
+	stage      func(command, note string) (stageResult, error)
 	ask        func(choiceAsk) (choiceAnswer, error)
 	inbox      func(all bool) ([]inboxMessage, error)
 }
@@ -40,6 +41,7 @@ var liveBackend = mcpBackend{
 	status:     sessionStatusOf,
 	clear:      clearTarget,
 	close:      closeSession,
+	stage:      stageCommand,
 	ask:        askChoice,
 	inbox:      readInbox,
 }
@@ -90,6 +92,11 @@ type clearSessionInput struct {
 type closeSessionInput struct {
 	To    string `json:"to" jsonschema:"session name from list_agents, or role, identity, or harness"`
 	Force bool   `json:"force,omitempty" jsonschema:"close even while it holds a draft or undelivered messages"`
+}
+
+type stageCommandInput struct {
+	Command string `json:"command" jsonschema:"one shell command line, with no newline, carriage return or other control character"`
+	Note    string `json:"note,omitempty" jsonschema:"one line shown beside the terminal for Kai, never typed into the shell"`
 }
 
 // textResult is a tool's answer as one text block. failed sets isError, which
@@ -214,6 +221,23 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 			return nil, nil, err
 		}
 		return textResult(fmt.Sprintf("closed %s (exit %d)", name, code), false)
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "stage_command",
+		Description: "Type a command into the plain terminal beside your session, on Kai's host shell, " +
+			"without running it. Kai reads the line and presses Enter. The terminal opens when none exists. " +
+			"It is never submitted and no argument can submit it: a command with a newline, carriage " +
+			"return or any other control character is refused, and the terminal is always your own, " +
+			"found from your session. `note` is one line the client shows beside it. Returns staged, " +
+			"refused with the reason, or no client attached. Use it to hand Kai a command to run " +
+			"instead of pasting it into chat.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, input stageCommandInput) (*mcp.CallToolResult, any, error) {
+		result, err := backend.stage(input.Command, input.Note)
+		if err != nil {
+			return nil, nil, err
+		}
+		return textResult(describeStage(result), result.State != stageStaged)
 	})
 
 	return server

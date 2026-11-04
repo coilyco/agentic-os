@@ -27,3 +27,11 @@ pipe and the ioctl raises `ENOTTY`, which fails as an empty measurement rather
 than an error. That belongs to whatever draws into the pane, and the recipe
 stays in the `tooling-aterm-splitscreen` skill until a caller needs it as code.
 Tracked as agentic-os#1434, which carries the interface question that kept it out.
+
+## `aterm stage`
+
+**A seat puts a command on the input line of the plain terminal beside it, and Kai presses Enter.** `aterm stage --note "<one line>" -- <command>` or MCP `stage_command` sends a `stage` frame. The daemon finds the terminal whose `label` is the caller's session name from its token, opens one if none exists, and types the command with no Enter. The frame names no target, and one that does is refused.
+
+**Control bytes are refused, because that shell is Kai's, outside the seat's sandbox.** A newline, carriage return, Ctrl-C, escape, tab, or a format or line-separator character is refused in the command or the note (`checkStagedText`).
+
+**The note is a `staged` frame to subscribers, never typed.** A terminal holding an unsent line refuses a second stage. The answers are `staged`, `refused` with the reason (exit 2), and `no_client` with nothing opened (exit 8).
