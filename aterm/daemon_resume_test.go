@@ -383,3 +383,28 @@ func TestParseResumeWindow(t *testing.T) {
 		}
 	}
 }
+
+// An until-close proof has no clock, so a revoke is the only way to end a gone device's.
+// Guarded here because this mode is the default.
+func TestPasskeyRevokeEndsAnUntilCloseProofAfterAnyGap(t *testing.T) {
+	d, clock := resumeDaemon(t, 0)
+	d.local().resume.untilClose = true
+	first, _, done := unlock(t, d, newSoftKey(t))
+	dropAndWait(t, d, first)
+	clock.advance(1000 * time.Hour)
+
+	terminal := pipeClient(t, d, peerStanding{pids: []int{os.Getpid()}})
+	nextFrame(t, terminal, "welcome")
+	if reply, err := terminal.request(frame{Type: "passkey_revoke"}); err != nil || reply.Type != "passkey_revoked" {
+		t.Fatalf("revoke: %+v, %v", reply, err)
+	}
+
+	back, standing := redial(t, d)
+	if standing.Allowed {
+		t.Fatalf("a redial starts locked: %+v", standing)
+	}
+	if reply, err := back.request(frame{Type: "resume", Resume: done.Resume}); err == nil || reply.Reason != reasonResumeEnded {
+		t.Fatalf("a revoke must end an until-close proof: %+v, %v", reply, err)
+	}
+	stillLocked(t, back)
+}
