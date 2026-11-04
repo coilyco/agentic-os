@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { onMount, tick } from "svelte";
   import type { CardMemo } from "../lib/card-memo.svelte";
   import { advanceIndex, nextRowIndex, type Choice } from "../lib/choices";
 
@@ -24,6 +24,15 @@
   } = $props();
 
   let card: HTMLElement;
+  // On a phone the card can fold to a bar, so the output behind it can be read.
+  let narrow = $state(typeof matchMedia === "function" && matchMedia("(max-width: 720px)").matches);
+  onMount(() => {
+    const query = matchMedia("(max-width: 720px)");
+    const read = () => (narrow = query.matches);
+    query.addEventListener("change", read);
+    return () => query.removeEventListener("change", read);
+  });
+  const folded = $derived(memo.collapsed && narrow);
   let lastFocus = 0;
   $effect(() => {
     if (focusToken && focusToken !== lastFocus) {
@@ -35,7 +44,12 @@
   // The field replaces the button that was just clicked, or opens under it, and the page's focus does not follow by itself.
   $effect(() => {
     if (memo.writing === -1 || !memo.focused) return;
-    void tick().then(() => card?.querySelector<HTMLInputElement>("#choice-text")?.focus());
+    void tick().then(() => {
+      const field = card?.querySelector<HTMLInputElement>("#choice-text");
+      field?.focus();
+      // The card scrolls inside itself, and the box it just opened must not sit below the fold.
+      field?.scrollIntoView({ block: "nearest" });
+    });
   });
   const freeIndex = $derived(choice.options.findIndex((option) => option.freeText));
   // A harness's own Next row rides in the pinned footer, so a long list never scrolls it away.
@@ -61,6 +75,9 @@
     }
     onanswer([index]);
   }
+
+  // The box beside Answer is about 150px on a phone, so its hint has to be short there.
+  const placeholder = $derived(narrow ? "Your own answer" : "Type or dictate your own answer");
 
   // A field taken out of the page fires no blur worth believing, so only a field still there was left on purpose.
   function leave(event: FocusEvent): void {
@@ -101,10 +118,14 @@
   }
 </script>
 
-<section class="card" aria-labelledby="choice-question" bind:this={card}>
+<section class="card" class:folded aria-labelledby="choice-question" data-writing={memo.writing !== -1} bind:this={card}>
   <div class="body">
-    <p class="asker">{identity} is asking{#if choice.header}<span class="chip">{choice.header}</span>{/if}{#if locked}<span class="chip">{lockedLabel}</span>{/if}</p>
-  <h2 id="choice-question">{choice.question || "Pick one"}</h2>
+    <p class="asker">
+      <span>{identity} is asking{#if choice.header}<span class="chip">{choice.header}</span>{/if}{#if locked}<span class="chip">{lockedLabel}</span>{/if}</span>
+      {#if narrow}<button type="button" class="fold" aria-expanded={!folded} onclick={() => (memo.collapsed = !memo.collapsed)}>{folded ? "Show question" : "Hide question"}</button>{/if}
+    </p>
+  <h2 id="choice-question" class:peek={folded}>{choice.question || "Pick one"}</h2>
+  {#if !folded}
   {#if choice.multi}<p class="hint">Pick any, then {next === -1 ? "submit" : nextLabel.toLowerCase()}.</p>{/if}
   <ol>
     {#each choice.options as option, index (index)}
@@ -114,7 +135,7 @@
           <form class="write" onsubmit={submitText}>
             <label for="choice-text" class="visually-hidden">Your own answer</label>
             <!-- svelte-ignore a11y_autofocus -->
-            <input id="choice-text" bind:value={memo.text} placeholder="Type or dictate your own answer" autocomplete="off" onfocus={() => (memo.focused = true)} onblur={leave} autofocus />
+            <input id="choice-text" bind:value={memo.text} placeholder={placeholder} autocomplete="off" onfocus={() => (memo.focused = true)} onblur={leave} autofocus />
             <button class="button primary" type="submit" disabled={!memo.text.trim()}>Answer</button>
           </form>
         {:else}
@@ -128,7 +149,7 @@
           {#if choice.multi && memo.writing === index}
             <label for="choice-text" class="visually-hidden">Your own answer</label>
             <!-- svelte-ignore a11y_autofocus -->
-            <input id="choice-text" class="multi-text" bind:value={memo.text} placeholder="Type or dictate your own answer" autocomplete="off" onfocus={() => (memo.focused = true)} onblur={leave} autofocus />
+            <input id="choice-text" class="multi-text" bind:value={memo.text} placeholder={placeholder} autocomplete="off" onfocus={() => (memo.focused = true)} onblur={leave} autofocus />
           {/if}
         {/if}
       </li>
@@ -138,7 +159,9 @@
   <p class="keys" aria-hidden="true">
     {choice.multi ? `1 to ${rows.length} to pick // Enter to ${next === -1 ? "submit" : nextLabel.toLowerCase()}` : `1 to ${choice.options.length} to answer`}{choice.cancellable ? " // Esc to cancel" : ""}
   </p>
+  {/if}
   </div>
+  {#if !folded}
   <div class="actions">
     {#if advance !== -1}
       <button class="button primary advance" disabled={locked} onclick={() => pick(advance)} onkeydown={keys}>{choice.options[advance]?.label}</button>
@@ -152,6 +175,7 @@
       <button class="button" disabled={cancelLocked} onclick={oncancel} onkeydown={keys}>Cancel</button>
     {/if}
   </div>
+  {/if}
 </section>
 
 <style>
@@ -166,7 +190,11 @@
       radial-gradient(farthest-side at 50% 0, rgb(0 0 0 / 0.55), transparent) top / 100% 10px scroll no-repeat,
       radial-gradient(farthest-side at 50% 100%, rgb(0 0 0 / 0.55), transparent) bottom / 100% 10px scroll no-repeat;
   }
-  .asker { margin: 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand); }
+  .asker { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand); }
+  .fold { flex: none; min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 13px var(--font-body); letter-spacing: 0; text-transform: none; }
+  .fold:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .card.folded .body { padding: 6px 12px 10px; gap: 2px; overflow: hidden; background: none; }
+  .peek { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
   .chip { margin-left: 10px; padding: 2px 8px; border-radius: 999px; border: 1px solid #3a3350; color: var(--text-soft); text-transform: none; letter-spacing: 0; }
   h2 { margin: 0; font-size: 15px; font-weight: 500; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
   .hint { margin: 0; font-size: 13px; color: var(--muted); }

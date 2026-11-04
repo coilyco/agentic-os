@@ -30,6 +30,14 @@ describe("cardMemo", () => {
     forgetCardMemos("seat-c");
   });
 
+  it("keeps a folded card folded across a rebuild, and starts open", () => {
+    const key = memoKey("seat-e", options("Yes", "No"));
+    expect(cardMemo(key, []).collapsed).toBe(false);
+    cardMemo(key, []).collapsed = true;
+    expect(cardMemo(key, []).collapsed).toBe(true);
+    forgetCardMemos("seat-e");
+  });
+
   it("starts with the rows already ticked on screen", () => {
     expect(cardMemo(memoKey("seat-d", options("A", "B")), [1]).picked).toEqual([1]);
     forgetCardMemos("seat-d");
