@@ -90,6 +90,10 @@ type ptySession struct {
 	imageMu      sync.Mutex
 	imagesClosed bool
 
+	// fileRoots are the directories the launch named besides its cwd, where a seat
+	// may register an artifact source from.
+	fileRoots []string
+
 	// openMu guards opened, the times this seat asked to open an address.
 	openMu sync.Mutex
 	opened []time.Time
@@ -193,6 +197,7 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 	if err != nil {
 		return nil, fmt.Errorf("attach to the holder of %s: %w", name, err)
 	}
+	s.fileRoots = envDirs(message.Env, "AOS_NATIVE_SESSION_ROOT", "TMPDIR")
 	return s, nil
 }
 
