@@ -78,6 +78,18 @@ export interface Mock {
   addSession(spec: SessionSpec): void;
   /** Close the websocket from the daemon's side, as a daemon restart does. */
   dropClients(): void;
+  /** Open sockets go silent without closing, as a slept phone's link does.
+   * Later dials are unaffected. */
+  silenceClients(): void;
+  /** `refuse` fails a new dial at once, `hang` never answers it, `ok` serves it.
+   * Open sockets are left alone. */
+  dials(mode: "ok" | "refuse" | "hang"): void;
+  /** Refuses the next `count` dials, then `dials` rules: a cold start that fails once. */
+  refuseNext(count: number): void;
+  /** Dials that reached the daemon, answered or not, since the mock started. */
+  dialCount(): number;
+  /** Frame types the daemon received, in order, to see that a probe went out. */
+  heard: string[];
   /** Every proof the client presented in a `resume` frame, in order. */
   resumes: string[];
   /** The resume window passes: every proof the daemon issued stops holding. */
@@ -107,6 +119,12 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
   const live = new Map<string, Live>();
   const typedBy = new Map<string, string[]>();
   const clients = new Set<WebSocket>();
+  // Sockets that went silent: they stay open but speak and hear nothing.
+  const silent = new WeakSet<WebSocket>();
+  let dialMode: "ok" | "refuse" | "hang" = "ok";
+  let dials = 0;
+  let refusals = 0;
+  const heard: string[] = [];
   let lastFrameAt = Date.now();
   const lastBox = new Map<string, { rows: number; cols: number }>();
   const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], browserCalls: [] as Mock["browserCalls"], resumes: [] as string[] };
@@ -137,7 +155,7 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
   for (const spec of options.sessions ?? loadSessions()) add(spec);
 
   const send = (socket: WebSocket, frame: Record<string, unknown>): void => {
-    if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(frame));
+    if (socket.readyState === socket.OPEN && !silent.has(socket)) socket.send(JSON.stringify(frame));
   };
   const broadcast = (frame: Record<string, unknown>): void => {
     for (const socket of clients) send(socket, frame);
@@ -155,6 +173,7 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
     for (const socket of seat.boxes.keys()) draw(seat, socket);
   };
 
+  const hung = new Set<import("node:stream").Duplex>();
   const wss = new WebSocketServer({ noServer: true });
   wss.on("connection", (socket) => {
     clients.add(socket);
@@ -164,8 +183,10 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
       for (const seat of live.values()) seat.boxes.delete(socket);
     });
     socket.on("message", (raw) => {
+      if (silent.has(socket)) return;
       lastFrameAt = Date.now();
       const frame = JSON.parse(String(raw)) as Record<string, unknown> & { type: string; id?: string; session?: string };
+      heard.push(frame.type);
       const seat = frame.session ? live.get(frame.session) : undefined;
       switch (frame.type) {
         case "hello":
@@ -288,7 +309,19 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
   });
 
   const server: Server = createServer((request, response) => serve(request, response));
-  server.on("upgrade", (request, socket, head) => wss.handleUpgrade(request, socket, head, (ws) => wss.emit("connection", ws, request)));
+  server.on("upgrade", (request, socket, head) => {
+    dials += 1;
+    // A stopped daemon refuses at once. A dead path takes the SYN and answers nothing.
+    if (dialMode === "refuse" || refusals > 0) {
+      refusals = Math.max(0, refusals - 1);
+      return void socket.destroy();
+    }
+    if (dialMode === "hang") {
+      hung.add(socket);
+      return;
+    }
+    wss.handleUpgrade(request, socket, head, (ws) => wss.emit("connection", ws, request));
+  });
   await new Promise<void>((resolve) => server.listen(options.port ?? 0, "127.0.0.1", resolve));
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
@@ -316,10 +349,22 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
     dropClients() {
       for (const socket of clients) socket.close();
     },
+    silenceClients() {
+      for (const socket of clients) silent.add(socket);
+    },
+    dials(mode) {
+      dialMode = mode;
+    },
+    refuseNext(count) {
+      refusals = count;
+    },
+    dialCount: () => dials,
+    heard,
     resumes: mock.resumes,
     endResumeWindow: () => proofs.clear(),
     async stop() {
       for (const socket of clients) socket.terminate();
+      for (const socket of hung) socket.destroy();
       wss.close();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
