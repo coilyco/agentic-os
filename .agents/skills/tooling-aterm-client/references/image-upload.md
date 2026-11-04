@@ -15,3 +15,16 @@ A browser, possibly on a phone, cannot put a file where a seat on the host can r
 **It takes the typing guard.** A tailnet device needs a passkey first (`passkey_required`), and a caller inside a session is refused (`session_descendant`), the same as `input`. The session must be a seat this connection is attached to, else `session_unknown`, and a plain terminal is not a seat.
 
 **No bytes reach a log or Sentry.** The daemon logs the session, the type and the size.
+
+## What each harness does with the path
+
+Observed on 2026-11-04 against a private daemon on this build. Each seat started in a directory outside `images/`, was handed one 11.9 KB PNG reading `ZEBRA 4417`, and was asked what it said. The path was sent twice, as plain `input` keystrokes and as a bracketed paste (`ESC[200~` path `ESC[201~`).
+
+* **claude** - a paste becomes an `[Image #1]` attachment and the model answered `4417` with no tool call. Typed keystrokes stay text, and the model opened the file with its Read tool and answered correctly.
+* **codex** - a paste becomes `[Image #1]` and the model answered `4417`. Typed keystrokes stay text, and the model still answered `ZEBRA`. The screen does not show how it read the file.
+* **opencode** - a paste becomes an `[Image 1]` attachment with a `File` row. The configured model (DeepSeek V4 Pro) answered that it does not take image input, so the attachment arrived and the picture did not. A vision model is needed to describe it.
+* **goose** - a paste stays path text, with no attachment. Its model (an Ollama model) opened the file through a tool and printed it as ASCII art, then answered `3`, which is wrong. The file was readable, the picture was not seen.
+
+**So a client should paste the path, not type it, when the seat has bracketed paste on** (`bracketed_paste` on the `sessions` entry). The daemon passes both through `input` unchanged. A seat that was handed a path it cannot attach, goose and any non-vision model, reads the file as text at best.
+
+**Every seat read a file outside its working directory.** The seats ran as the same user in the same `/tmp`, so the directory beside the socket was reachable. A harness that sandboxes reads to its working directory (not observed, claude ran with bypass permissions) would need the file moved there.
