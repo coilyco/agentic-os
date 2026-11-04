@@ -103,6 +103,8 @@ export type HostEvent =
   | { type: "output"; sessionId: string; data: string | Uint8Array }
   | { type: "message"; message: PeerMessage }
   | { type: "notice"; text: string }
+  // A seat asked to open a page. Its name is the label, and the daemon names no pane.
+  | { type: "open_url"; session: string; url: string }
   // Typed input not taken for a reason the lock does not show, or lost to a dead socket.
   | { type: "input_refused"; text: string }
   | { type: "ask"; ask: Ask }

@@ -75,6 +75,13 @@
   $effect(() => {
     if (ask || choice) raised = false;
   });
+  // A click on a page card puts this seat's browser pane on screen, and the pane loads the page (COI-3258).
+  $effect(() => {
+    if (app.pageToShow?.sessionId !== session.id) return;
+    side = "browser";
+    sideOpen = true;
+    raised = true;
+  });
   const page = $derived(app.browsers[session.id]);
   // The browser needs room to be read, so a page takes half the width. Its empty states do not.
   const wide = $derived(side === "browser" && page !== undefined && page.state !== "none");
