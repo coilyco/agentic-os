@@ -16,6 +16,8 @@ type stageHarness struct {
 	token  string
 	name   string
 	events *conn
+	// typists are the connections press types through, by terminal.
+	typists map[string]*testClient
 }
 
 func newStageHarness(t *testing.T) *stageHarness {
@@ -75,15 +77,22 @@ func (h *stageHarness) terminals() []terminalView {
 	return dialTest(h.t).list().Terminals
 }
 
-// press types into a terminal the way Kai's client does.
+// press types into a terminal the way Kai's client does. One connection per
+// terminal keeps successive presses in order, and the caller waits on an effect.
 func (h *stageHarness) press(terminal, keys string) {
 	h.t.Helper()
-	typist := dialTest(h.t)
-	if _, err := typist.c.request(frame{Type: "attach", Session: terminal, Rows: 24, Cols: 120}); err != nil {
-		h.t.Fatalf("attach %s: %v", terminal, err)
+	typist := h.typists[terminal]
+	if typist == nil {
+		typist = dialTest(h.t)
+		if _, err := typist.c.request(frame{Type: "attach", Session: terminal, Rows: 24, Cols: 120}); err != nil {
+			h.t.Fatalf("attach %s: %v", terminal, err)
+		}
+		if h.typists == nil {
+			h.typists = map[string]*testClient{}
+		}
+		h.typists[terminal] = typist
 	}
 	typist.type_(terminal, keys)
-	time.Sleep(300 * time.Millisecond)
 }
 
 func TestStageTypesTheCommandBesideTheSeatAndNeverRunsIt(t *testing.T) {
@@ -251,13 +260,18 @@ func TestStageRefusesToRunTogetherWithAnUnsentLine(t *testing.T) {
 	}
 	// Kai clearing the line, as Ctrl-U or Enter does, lets the next one through.
 	h.press(first.Session, "\x15")
-	third := h.stage(h.token, frame{Body: "echo third"})
-	if third.State != stageStaged || third.Session != first.Session {
+	var third frame
+	waitFor(t, "a cleared line to take the next stage", 10*time.Second, func() bool {
+		third = h.stage(h.token, frame{Body: "echo third"})
+		return third.State == stageStaged
+	})
+	if third.Session != first.Session {
 		t.Fatalf("a cleared line takes the next stage in the same shell: %+v", third)
 	}
 	// Kai's own half-typed line holds a stage off the same way.
 	h.press(first.Session, "\x15")
 	h.press(first.Session, "ls ")
+	waitFor(t, "Kai's draft on the line", 10*time.Second, func() bool { return strings.Contains(h.shown(first.Session), "ls ") })
 	if held := h.stage(h.token, frame{Body: "echo fourth"}); held.State != stageRefused {
 		t.Fatalf("Kai's draft holds a stage off: %+v", held)
 	}
