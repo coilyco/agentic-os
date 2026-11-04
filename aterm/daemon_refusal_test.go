@@ -16,13 +16,13 @@ import (
 )
 
 func TestAdmitPeerOnATaggedNodeMatchesNoUntaggedDevice(t *testing.T) {
-	// A tagged node has no owner, so the empty owner must match nothing.
+	// A tagged node has no owner, so no owner must match nothing.
 	for _, peer := range []tailnetPeer{peerWith("kai@example.com"), peerWith("")} {
-		if err := admitPeer(peer, "", []string{"tag:physical"}); err == nil {
+		if err := admitPeer(peer, nil, []string{"tag:physical"}); err == nil {
 			t.Fatalf("a tagged node admitted the untagged device %+v", peer)
 		}
 	}
-	if err := admitPeer(peerWith("tagged-devices", "tag:physical"), "", []string{"tag:physical"}); err != nil {
+	if err := admitPeer(peerWith("tagged-devices", "tag:physical"), nil, []string{"tag:physical"}); err != nil {
 		t.Fatalf("a physical tower was refused: %v", err)
 	}
 }

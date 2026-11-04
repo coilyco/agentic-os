@@ -65,9 +65,11 @@ type frame struct {
 	Replay bool `json:"replay,omitempty"`
 	Scales bool `json:"scales,omitempty"`
 
-	// input and output
+	// input and output, and the image bytes of an image_upload
 	Data   []byte `json:"data,omitempty"`
 	Offset int64  `json:"offset,omitempty"`
+	// Path is the absolute file an image_uploaded names.
+	Path string `json:"path,omitempty"`
 
 	// send
 	Token  string `json:"token,omitempty"`
@@ -94,6 +96,7 @@ type frame struct {
 	// github_token: Repo names the OWNER/REPO asked for, GithubToken and Expires
 	// answer it. The token is a credential, so it rides only the reply frame.
 	Repo        string        `json:"repo,omitempty"`
+	Workflows   bool          `json:"workflows,omitempty"`
 	GithubToken string        `json:"github_token,omitempty"`
 	Expires     string        `json:"expires,omitempty"`
 	Sessions    []sessionView `json:"sessions,omitempty"`

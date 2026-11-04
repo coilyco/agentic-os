@@ -66,7 +66,9 @@ func loopbackPolicy() accessPolicy {
 	}
 }
 
-func (d *daemon) websocketHandler() http.Handler { return d.handler(loopbackPolicy()) }
+func (d *daemon) websocketHandler() http.Handler {
+	return d.handler(loopbackOrForwarded(d.forwardedPolicy))
+}
 
 // handler serves the client's files, and upgrades a websocket to the same
 // frames as the unix socket. A browser on this host is judged by its socket's owner.
@@ -112,6 +114,11 @@ func (d *daemon) handler(policy accessPolicy) http.Handler {
 // webPeer stands for an upgraded request's other end. A browser on this host is
 // named by the socket table and walked like a unix peer. An unnamed one counts as under.
 func (d *daemon) webPeer(r *http.Request) peerStanding {
+	// A proxy's socket is loopback and its pid is the proxy, so the walk below
+	// would call every device behind it a browser on this host.
+	if forwarded(r) {
+		return peerStanding{web: true, remote: true}
+	}
 	remote, err := net.ResolveTCPAddr("tcp", r.RemoteAddr)
 	if err != nil {
 		return peerStanding{web: true}
@@ -173,7 +180,7 @@ func (d *daemon) listenWebsocket(address string) (*http.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	server := &http.Server{Handler: d.handler(loopbackPolicy())}
+	server := &http.Server{Handler: d.websocketHandler()}
 	d.mu.Lock()
 	d.loopbackAddr = listener.Addr().String()
 	d.mu.Unlock()

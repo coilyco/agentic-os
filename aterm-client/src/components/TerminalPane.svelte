@@ -112,5 +112,5 @@
   .empty { padding: 20px 16px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
   .empty h2 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 17px; }
   .empty p { margin: 0 0 8px; color: var(--muted); font-size: 13px; max-width: 46ch; }
-  .pane :global(.term-host) { min-height: 200px; }
+  .pane :global(.term-frame) { min-height: 200px; }
 </style>

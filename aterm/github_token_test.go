@@ -113,7 +113,7 @@ func TestBrokerMintsOneRepoWithTheNarrowPermissions(t *testing.T) {
 	fake := &fakeGithub{t: t, pub: &key.PublicKey, expires: now.Add(time.Hour)}
 	broker := testBroker(t, fake, key, &now)
 
-	token, expires, err := broker.token(t.Context(), "coilyco/bluesky-mcp")
+	token, expires, err := broker.token(t.Context(), "coilyco/bluesky-mcp", false)
 	if err != nil {
 		t.Fatalf("mint: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestBrokerRefusesAnotherOwnerAndMalformedSpecsBeforeAnyCall(t *testing.T) {
 		return githubCredentials{}, nil
 	}
 	for _, spec := range []string{"", "bluesky-mcp", "coilysiren/website", "other/x", "coilyco/", "coilyco/a/b", "coilyco/a b"} {
-		if _, _, err := broker.token(t.Context(), spec); err == nil {
+		if _, _, err := broker.token(t.Context(), spec, false); err == nil {
 			t.Fatalf("spec %q minted", spec)
 		}
 	}
@@ -153,7 +153,7 @@ func TestBrokerReusesATokenUntilNearExpiryThenMintsAgain(t *testing.T) {
 	broker := testBroker(t, fake, key, &now)
 
 	for range 3 {
-		if _, _, err := broker.token(t.Context(), "coilyco/bluesky-mcp"); err != nil {
+		if _, _, err := broker.token(t.Context(), "coilyco/bluesky-mcp", false); err != nil {
 			t.Fatalf("mint: %v", err)
 		}
 	}
@@ -161,7 +161,7 @@ func TestBrokerReusesATokenUntilNearExpiryThenMintsAgain(t *testing.T) {
 		t.Fatalf("mints = %d, want the cache to serve the repeats", fake.mints)
 	}
 	now = now.Add(56 * time.Minute)
-	if _, _, err := broker.token(t.Context(), "coilyco/bluesky-mcp"); err != nil {
+	if _, _, err := broker.token(t.Context(), "coilyco/bluesky-mcp", false); err != nil {
 		t.Fatalf("remint: %v", err)
 	}
 	if fake.mints != 2 {
@@ -175,7 +175,7 @@ func TestBrokerReportsGithubsRefusalWithoutAToken(t *testing.T) {
 	fake := &fakeGithub{t: t, pub: &key.PublicKey, expires: now.Add(time.Hour), refuse: true}
 	broker := testBroker(t, fake, key, &now)
 
-	_, _, err := broker.token(t.Context(), "coilyco/bluesky-mcp")
+	_, _, err := broker.token(t.Context(), "coilyco/bluesky-mcp", false)
 	if err == nil || !strings.Contains(err.Error(), "404") || !strings.Contains(err.Error(), "installation") {
 		t.Fatalf("err = %v, want the 404 on the installation lookup", err)
 	}
@@ -210,20 +210,29 @@ func TestADaemonSeatGetsATokenAndNothingElseDoes(t *testing.T) {
 	seatToken := seat.token()
 
 	t.Setenv(sessionTokenEnv, seatToken)
-	token, err := requestGithubToken("coilyco/bluesky-mcp")
+	token, err := requestGithubToken("coilyco/bluesky-mcp", false)
 	if err != nil || token != "ghs_fake" {
 		t.Fatalf("seat token = %q, %v", token, err)
 	}
-	if _, err := requestGithubToken("coilysiren/website"); err == nil || !strings.Contains(err.Error(), "mints only for") {
+	if token, err := requestGithubToken("coilyco/bluesky-mcp", true); err != nil || token != "ghs_fake" {
+		t.Fatalf("workflows token = %q, %v", token, err)
+	}
+	fake.mu.Lock()
+	perms, _ := fake.lastBody["permissions"].(map[string]any)
+	fake.mu.Unlock()
+	if perms["workflows"] != "write" {
+		t.Fatalf("the workflows flag did not reach the broker through the daemon frame: %v", perms)
+	}
+	if _, err := requestGithubToken("coilysiren/website", false); err == nil || !strings.Contains(err.Error(), "mints only for") {
 		t.Fatalf("another owner should refuse: %v", err)
 	}
 
 	t.Setenv(sessionTokenEnv, "")
-	if _, err := requestGithubToken("coilyco/bluesky-mcp"); err == nil || !strings.Contains(err.Error(), "is unset") {
+	if _, err := requestGithubToken("coilyco/bluesky-mcp", false); err == nil || !strings.Contains(err.Error(), "is unset") {
 		t.Fatalf("no token should say so: %v", err)
 	}
 	t.Setenv(sessionTokenEnv, "not-a-token")
-	if _, err := requestGithubToken("coilyco/bluesky-mcp"); err == nil || !strings.Contains(err.Error(), "names no live session") {
+	if _, err := requestGithubToken("coilyco/bluesky-mcp", false); err == nil || !strings.Contains(err.Error(), "names no live session") {
 		t.Fatalf("a token naming nothing should refuse: %v", err)
 	}
 }

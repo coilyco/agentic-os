@@ -182,6 +182,10 @@ aterm-client-check *ARGS:
 aterm-client-test *ARGS:
     @cd aterm-client && {{pnpm}} run test "$@"
 
+# Drive the real aterm client against the Demo host in a headless browser at 1280px and 320px, and assert what is on screen. Screenshots land in aterm-client/drive-*.png.
+aterm-client-drive:
+    @uv run aterm-client/scripts/drive.py
+
 # Build the aterm web client's production bundle into aterm-client/dist/.
 aterm-client-build *ARGS:
     @cd aterm-client && {{pnpm}} run build "$@"
