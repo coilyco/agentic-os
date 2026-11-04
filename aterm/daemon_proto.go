@@ -239,6 +239,10 @@ type sessionView struct {
 	LastReply string `json:"last_reply,omitempty"`
 	// LastReplyAt is when that reply finished. The whole text is fetched with last_reply.
 	LastReplyAt *time.Time `json:"last_reply_at,omitempty"`
+	// Activity is the seat's own "what I'm doing" line, at most 57 characters, and
+	// ActivityAt when it was set. Absent until set. See references/seat-state.md.
+	Activity   string     `json:"activity,omitempty"`
+	ActivityAt *time.Time `json:"activity_at,omitempty"`
 }
 
 // terminalView is one plain terminal as a client sees it. Cwd is where the shell
