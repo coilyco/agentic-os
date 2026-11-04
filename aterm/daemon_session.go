@@ -85,6 +85,11 @@ type ptySession struct {
 	// interleaves with a person's keystrokes.
 	writeMu sync.Mutex
 
+	// imageMu serializes uploads and the cleanup, and imagesClosed is set once the
+	// directory is gone so a late upload cannot recreate it. See daemon_image.go.
+	imageMu      sync.Mutex
+	imagesClosed bool
+
 	mu      sync.Mutex
 	clients map[*conn]bool
 	// size is what each client can show and the PTY size chosen from it.
