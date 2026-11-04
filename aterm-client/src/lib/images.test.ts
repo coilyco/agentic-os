@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_IMAGES, chipLabel, formatSize, pastedImages, screenImages, typedPath, withImagePaths } from "./images";
+import { IMAGE_UPLOAD_MAX_BYTES, MAX_IMAGES, attachNote, chipLabel, fitAttempts, formatSize, imageRefusal, pastedImages, pasteSteps, screenImages, typedPath, withImagePaths } from "./images";
 
 function file(name: string, type: string, size = 100): File {
   return new File([new Uint8Array(size)], name, { type });
@@ -11,8 +11,9 @@ describe("formatSize", () => {
   it("reads in the unit a person weighs a screenshot in", () => {
     expect(formatSize(0)).toBe("0 B");
     expect(formatSize(900)).toBe("900 B");
-    expect(formatSize(240 * 1024)).toBe("240 KB");
-    expect(formatSize(1.5 * 1024 * 1024)).toBe("1.5 MB");
+    expect(formatSize(240_000)).toBe("240 KB");
+    expect(formatSize(1_500_000)).toBe("1.5 MB");
+    expect(formatSize(3_000_000)).toBe("3 MB");
   });
 
   it("never rounds a small file down to 0 KB", () => {
@@ -22,7 +23,7 @@ describe("formatSize", () => {
 
 describe("chipLabel", () => {
   it("counts from one and carries the size, which is what a screen reader hears", () => {
-    expect(chipLabel(0, 240 * 1024)).toBe("Image 1, 240 KB");
+    expect(chipLabel(0, 240_000)).toBe("Image 1, 240 KB");
     expect(chipLabel(2, 900)).toBe("Image 3, 900 B");
   });
 });
@@ -75,10 +76,15 @@ describe("screenImages", () => {
     expect(screenImages([file("a.svg", "image/svg+xml")], 0, channel).accepted).toEqual([]);
   });
 
-  it("names the size and the limit for an image over the host's limit", () => {
-    const out = screenImages([file("big.png", "image/png", 2 * 1024 * 1024)], 0, channel);
+  it("takes a still image over the limit, to be shrunk, since a retina screenshot often is", () => {
+    const big = file("big.png", "image/png", 2 * 1024 * 1024);
+    expect(screenImages([big], 0, channel)).toEqual({ accepted: [big], refusal: null });
+  });
+
+  it("refuses a GIF over the limit by name, since shrinking it would flatten its motion", () => {
+    const out = screenImages([file("loop.gif", "image/gif", 2 * 1024 * 1024)], 0, channel);
     expect(out.accepted).toEqual([]);
-    expect(out.refusal).toBe("big.png is 2.0 MB, over the 1.0 MB this host takes.");
+    expect(out.refusal).toBe("loop.gif is 2.1 MB, over the 1 MB this host takes, and a GIF cannot be shrunk without losing its motion.");
   });
 
   it("stops at the most one message carries, counting chips already waiting", () => {
@@ -123,5 +129,68 @@ describe("withImagePaths", () => {
 
   it("changes nothing for a text-only message", () => {
     expect(withImagePaths("hello", [])).toBe("hello");
+  });
+});
+
+describe("imageRefusal", () => {
+  it("puts each reason the daemon names in words", () => {
+    expect(imageRefusal("not_an_image")).toBe("The host did not read that as a PNG, JPEG, GIF or WebP image.");
+    expect(imageRefusal("too_large")).toBe("The host took that as over 3 MB.");
+    expect(imageRefusal("too_many")).toMatch(/16 images/);
+    expect(imageRefusal("session_unknown")).toMatch(/not attached to this seat/);
+  });
+
+  it("leaves every other reason to the lock and the generic error", () => {
+    expect(imageRefusal("passkey_required")).toBeNull();
+    expect(imageRefusal("session_descendant")).toBeNull();
+    expect(imageRefusal(undefined)).toBeNull();
+  });
+
+  it("states the limit the frame sets", () => {
+    expect(IMAGE_UPLOAD_MAX_BYTES).toBe(3_000_000);
+  });
+});
+
+describe("pasteSteps", () => {
+  const open = "<";
+  const close = ">";
+
+  it("pastes each path on its own, then the words, since a lone path is what attaches", () => {
+    expect(pasteSteps(["/t/a.png", "/t/b.png"], "what is this", open, close)).toEqual(["</t/a.png>", "</t/b.png>", "<what is this>"]);
+  });
+
+  it("pastes only the path for an image sent with no words", () => {
+    expect(pasteSteps(["/t/a.png"], "", open, close)).toEqual(["</t/a.png>"]);
+  });
+
+  it("is one paste for a text-only message, as before", () => {
+    expect(pasteSteps([], "hello", open, close)).toEqual(["<hello>"]);
+  });
+});
+
+describe("fitAttempts", () => {
+  it("shrinks a PNG as a smaller PNG first, then as a JPEG", () => {
+    expect(fitAttempts("image/png")).toEqual([
+      { scale: 0.75, type: "image/png" },
+      { scale: 0.5, type: "image/png" },
+      { scale: 1, type: "image/jpeg" },
+      { scale: 0.75, type: "image/jpeg" },
+      { scale: 0.5, type: "image/jpeg" },
+    ]);
+  });
+
+  it("goes straight to JPEG for a photograph", () => {
+    expect(fitAttempts("image/jpeg").every((attempt) => attempt.type === "image/jpeg")).toBe(true);
+    expect(fitAttempts("image/webp")[0]).toEqual({ scale: 1, type: "image/jpeg" });
+  });
+});
+
+describe("attachNote", () => {
+  it("tells the person when a harness reads the path as text", () => {
+    expect(attachNote("goose")).toBe("goose does not attach images, so it got the file's path to open instead.");
+  });
+
+  it("says nothing for a harness that attaches", () => {
+    for (const harness of ["claude", "codex", "opencode"]) expect(attachNote(harness)).toBeNull();
   });
 });

@@ -4,7 +4,8 @@ import { backoffDelay, differentBuild } from "./backoff";
 import { safely } from "./pane-watch";
 import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, MessageState, PasskeyChannel, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
+import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, ImageChannel, MessageState, PasskeyChannel, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
 import { bridge, DeviceKeyError, type Invoke, enrollKey, keyStatus, KEY_CODE_SPENT, mayEnroll, signChallenge, biometricNotice } from "./device-key";
@@ -112,6 +113,8 @@ interface Frame {
   version?: string;
   session?: string;
   data?: string;
+  /** The absolute file an `image_uploaded` names. */
+  path?: string;
   sessions?: SessionView[];
   message?: MessageView;
   roster?: unknown;
@@ -163,6 +166,9 @@ export const BROWSER_FEATURE = "browser";
 
 /** The daemon keeps a `label` on a terminal spawn and lists it back. */
 const TERMINAL_LABEL_FEATURE = "terminal-label";
+
+/** `welcome.features` names this when the daemon answers `image_upload` (COI-3239). */
+const IMAGE_UPLOAD_FEATURE = "image-upload";
 
 /** CDP's ScreencastFrameMetadata as the daemon sends it, in snake_case. */
 export function toFrameMetadata(raw: Record<string, number> | undefined): FrameMetadata {
@@ -262,6 +268,13 @@ function encode(text: string): string {
   const bytes = new TextEncoder().encode(text);
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function encodeBytes(bytes: Uint8Array): string {
+  // Chunked, since spreading megabytes into one call overflows the stack.
+  let binary = "";
+  for (let at = 0; at < bytes.length; at += 0x8000) binary += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
   return btoa(binary);
 }
 
@@ -425,6 +438,21 @@ export class DaemonHost implements HostConnection {
   get ptySize(): boolean {
     return this.features.has(PTY_SIZE_FEATURE);
   }
+
+  /** Only a welcome listing `image-upload` takes an image for a seat. */
+  get images(): ImageChannel | undefined {
+    return this.features.has(IMAGE_UPLOAD_FEATURE) ? this.imageChannel : undefined;
+  }
+
+  private imageChannel: ImageChannel = {
+    maxBytes: IMAGE_UPLOAD_MAX_BYTES,
+    upload: async (sessionId, image) => {
+      const data = encodeBytes(new Uint8Array(await image.arrayBuffer()));
+      const reply = await this.exchange({ type: "image_upload", session: sessionId, data });
+      if (!reply.path) throw new Error("The host took the image but named no file for it.");
+      return reply.path;
+    },
+  };
 
   /** Only a welcome listing `passkey` has a ceremony. The page decides if it can run. */
   get passkey(): PasskeyChannel | undefined {
@@ -754,6 +782,7 @@ export class DaemonHost implements HostConnection {
         if (frame.view_id) this.emit({ type: "view_closed", id: frame.view_id });
         return;
       case "view_result":
+      case "image_uploaded":
       case "passkey_enroll_options":
       case "passkey_enrolled":
       case "passkey_assert_options":
@@ -818,7 +847,9 @@ export class DaemonHost implements HostConnection {
         const call = frame.id ? this.calls.get(frame.id) : undefined;
         if (call && frame.id) {
           this.calls.delete(frame.id);
+          const imageWords = refused ? null : imageRefusal(frame.reason);
           if (frame.reason === KEY_UNKNOWN_REASON) call.reject(new DeviceKeyError(KEY_UNKNOWN, KEY_UNKNOWN_REASON));
+          else if (imageWords) call.reject(new Error(imageWords));
           else call.reject(new Error(refused ? typingNotice(refused) : (frame.error ?? "The daemon refused the view call.")));
           return;
         }

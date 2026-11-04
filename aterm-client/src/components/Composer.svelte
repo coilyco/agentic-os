@@ -7,7 +7,7 @@
   import Unlock from "./Unlock.svelte";
   import type { Place } from "../lib/build";
   import { typingNotice, type Typing } from "../lib/typing";
-  import { IMAGE_TYPES, chipLabel, pastedImages, screenImages, withImagePaths } from "../lib/images";
+  import { IMAGE_TYPES, attachNote, chipLabel, fitImage, formatSize, pastedImages, pasteSteps, screenImages, withImagePaths } from "../lib/images";
 
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
   // `offline` is the host not answering: the draft stays editable and Send waits, since a frame typed into a dead link is lost.
@@ -40,6 +40,9 @@
   let nextChip = 0;
   // The reason an image was left out or an upload failed. It stays on screen, since a refused paste is otherwise silent.
   let imageNote = $state("");
+  // Said, not refused: an image was shrunk to fit, or the seat's harness will not attach one.
+  let imageInfo = $state("");
+  let resizing = $state(false);
   let uploading = $state<{ done: number; total: number } | null>(null);
   let dropping = $state(false);
   let picker = $state<HTMLInputElement>();
@@ -89,6 +92,7 @@
   });
   const PASTE_OPEN = "\x1b[200~";
   const PASTE_CLOSE = "\x1b[201~";
+  const STEP_MS = 200;
 
   const mention = $derived(findMention(text, caret));
   const matches = $derived(mention ? mentionMatches(sessions, mention.query) : []);
@@ -102,16 +106,39 @@
     for (const file of files) chips.push({ id: nextChip++, file, url: URL.createObjectURL(file) });
   }
 
-  function addFiles(files: File[]): void {
+  async function addFiles(files: File[]): Promise<void> {
     if (files.length === 0) return;
-    if (uploading) {
-      imageNote = "An upload is out. Add more once it finishes.";
+    if (uploading || resizing) {
+      imageNote = "Wait for the image in progress, then add more.";
       return;
     }
+    const limit = connection.images?.maxBytes ?? 0;
     const screened = screenImages(files, chips.length, connection.images);
     imageNote = screened.refusal ?? "";
-    take(screened.accepted);
-    if (screened.accepted.length) status = `Added ${screened.accepted.length === 1 ? "an image" : `${screened.accepted.length} images`}. ${chips.length} waiting.`;
+    imageInfo = "";
+    const ready: File[] = [];
+    const shrunk: string[] = [];
+    resizing = screened.accepted.some((file) => file.size > limit);
+    try {
+      for (const file of screened.accepted) {
+        if (file.size <= limit) {
+          ready.push(file);
+          continue;
+        }
+        const fitted = await fitImage(file, limit);
+        if (fitted) {
+          ready.push(fitted);
+          shrunk.push(`${file.name || "An image"} went from ${formatSize(file.size)} to ${formatSize(fitted.size)}`);
+        } else {
+          imageNote ||= `${file.name || "That image"} is ${formatSize(file.size)} and could not be shrunk under ${formatSize(limit)}.`;
+        }
+      }
+    } finally {
+      resizing = false;
+    }
+    take(ready);
+    if (shrunk.length) imageInfo = `Shrunk to fit the ${formatSize(limit)} limit. ${shrunk.join(". ")}.`;
+    if (ready.length) status = `Added ${ready.length === 1 ? "an image" : `${ready.length} images`}. ${chips.length} waiting.`;
   }
 
   function removeChip(id: number): void {
@@ -120,6 +147,7 @@
     if (gone) URL.revokeObjectURL(gone.url);
     chips = chips.filter((chip) => chip.id !== id);
     imageNote = "";
+    imageInfo = "";
     status = `Removed an image. ${chips.length} waiting.`;
     void tick().then(() => field?.focus());
   }
@@ -128,7 +156,7 @@
     const images = pastedImages(event.clipboardData);
     if (images.length === 0) return;
     event.preventDefault();
-    addFiles(images);
+    void addFiles(images);
   }
 
   function carriesFiles(event: DragEvent): boolean {
@@ -150,11 +178,11 @@
     if (!carriesFiles(event)) return;
     event.preventDefault();
     dropping = false;
-    addFiles(Array.from(event.dataTransfer?.files ?? []));
+    void addFiles(Array.from(event.dataTransfer?.files ?? []));
   }
 
   function picked(): void {
-    addFiles(Array.from(picker?.files ?? []));
+    void addFiles(Array.from(picker?.files ?? []));
     if (picker) picker.value = "";
   }
 
@@ -164,7 +192,7 @@
   async function send(): Promise<void> {
     const typed = text.trim();
     if (!typed && chips.length === 0) return;
-    if (uploading) return;
+    if (uploading || resizing) return;
     if (offline) {
       status = "Not sent. The host is reconnecting, and your message stays here.";
       return;
@@ -172,15 +200,15 @@
     // The seat on screen may change while an upload is out, and this message still belongs to the one it was written for.
     const target = session;
     const sending = chips;
-    let body = typed;
+    const paths: string[] = [];
     if (sending.length > 0) {
       const channel = connection.images;
       if (!channel) {
         imageNote = "Not sent. This host cannot take images. Remove them to send the text.";
         return;
       }
-      const paths: string[] = [];
       imageNote = "";
+      imageInfo = "";
       try {
         for (const [index, chip] of sending.entries()) {
           uploading = { done: index, total: sending.length };
@@ -196,20 +224,26 @@
         status = "Not sent. The host is reconnecting, and your message stays here.";
         return;
       }
-      body = withImagePaths(typed, paths);
     }
-    if (!body) return;
+    if (!typed && paths.length === 0) return;
     if (target.paste) {
-      connection.input(target.id, `${PASTE_OPEN}${body}${PASTE_CLOSE}`);
-      setTimeout(() => connection.input(target.id, "\r"), 300);
+      // Each path is its own paste, which is what a harness reads as an attachment (references/image-upload.md).
+      const steps = pasteSteps(paths, typed, PASTE_OPEN, PASTE_CLOSE);
+      for (const [index, step] of steps.entries()) {
+        if (index === 0) connection.input(target.id, step);
+        else setTimeout(() => connection.input(target.id, step), index * STEP_MS);
+      }
+      setTimeout(() => connection.input(target.id, "\r"), (steps.length - 1) * STEP_MS + 300);
     } else {
-      connection.input(target.id, `${body.replace(/\r?\n/g, " ")}\r`);
+      // No bracketed paste, so a path is only text. The harness may still open the file.
+      connection.input(target.id, `${withImagePaths(typed, paths).replace(/\r?\n/g, " ")}\r`);
     }
     lastSent = { body: typed, at: Date.now() };
     lastImages = sending.map((chip) => chip.file);
     for (const chip of sending) URL.revokeObjectURL(chip.url);
     chips = [];
     imageNote = "";
+    imageInfo = (paths.length && attachNote(target.seat)) || "";
     text = "";
     caret = 0;
     status = `Sent to ${target.identity}.`;
@@ -321,12 +355,16 @@
   ondragleave={dragLeave}
   ondrop={dropped}
 >
-  {#if uploading || imageNote || chips.length}
+  {#if uploading || resizing || imageNote || imageInfo || chips.length}
     <div class="attachments">
       {#if uploading}
         <p class="image-note" role="status">Uploading image {uploading.done + 1} of {uploading.total}. Nothing is sent until they are all up.</p>
+      {:else if resizing}
+        <p class="image-note" role="status">Shrinking the image to fit the host's {formatSize(connection.images?.maxBytes ?? 0)} limit.</p>
       {:else if imageNote}
         <p class="image-note warn" role="alert">{imageNote}</p>
+      {:else if imageInfo}
+        <p class="image-note" role="status">{imageInfo}</p>
       {/if}
       {#if chips.length}
         <ul class="chips" aria-label="Images to send">
@@ -346,7 +384,7 @@
   {#if connection.images}
     <!-- The button is the way a phone adds an image, and the way to one with no clipboard image. -->
     <input bind:this={picker} hidden type="file" accept={IMAGE_TYPES.join(",")} multiple onchange={picked} />
-    <button class="add-image" type="button" aria-label="Add image" title="Add image" disabled={uploading !== null || offline} onclick={() => picker?.click()}>
+    <button class="add-image" type="button" aria-label="Add image" title="Add image" disabled={uploading !== null || resizing || offline} onclick={() => picker?.click()}>
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8" /><circle cx="9" cy="10" r="1.6" fill="currentColor" /><path d="M4.5 17.5l4.5-4.5 3.5 3.5 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg>
     </button>
   {/if}
@@ -415,7 +453,7 @@
       onkeydown={stopKey}
     >Stop</button>
   {:else}
-    <button class="button primary" type="submit" disabled={(!text.trim() && chips.length === 0) || offline || uploading !== null}>{offline ? "Waits for host" : uploading ? "Uploading" : sentFlash && !text.trim() && chips.length === 0 ? "Sent" : "Send"}</button>
+    <button class="button primary" type="submit" disabled={(!text.trim() && chips.length === 0) || offline || uploading !== null || resizing}>{offline ? "Waits for host" : uploading ? "Uploading" : sentFlash && !text.trim() && chips.length === 0 ? "Sent" : "Send"}</button>
   {/if}
   <p class="visually-hidden" role="status">{note}</p>
 </form>
