@@ -101,3 +101,18 @@ test("a card that flickers away and back returns with its text box and draft", q
   await expect(field(bed), "the text box did not come back").toBeFocused();
   await expect(field(bed), "the draft did not come back").toHaveValue("kept across a redraw");
 });
+
+test("a daemon card's text box and draft survive a seat that keeps printing for a while", quirk("COI-3314"), async ({ bed }) => {
+  await bed.openSeat(SEATS.imp);
+  bed.mock.push(ask("mine", SEATS.imp.id));
+  await card(bed.page).getByRole("button", { name: /Something else/ }).click();
+  await bed.page.keyboard.type("still here", { delay: 20 });
+  // Longer than the client waits before it forgets a screen-read dialog that is gone.
+  for (let beat = 0; beat < 14; beat++) {
+    pushOutput(bed.mock, SEATS.imp.id, `\r\nstill working ${beat}\r\n`);
+    await bed.page.waitForTimeout(500);
+  }
+  await expect(field(bed), "the text box closed").toBeVisible();
+  await expect(field(bed), "the draft was lost").toHaveValue("still here");
+  await expect(field(bed)).toBeFocused();
+});
