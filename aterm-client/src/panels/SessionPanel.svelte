@@ -16,6 +16,7 @@
   import { needsPasskey } from "../lib/typing";
   import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
   import { loadSide, storeSide } from "../lib/split";
+  import { wantsFind } from "../lib/terminal-extras";
 
   let { role, session }: { role: Role; session: Session } = $props();
   // On a phone the switcher bar names the seat, so the header keeps only a heading for screen readers.
@@ -28,6 +29,14 @@
     return () => query.removeEventListener("change", read);
   });
   const messages = $derived(messagesFor(session));
+  let seatTerminal = $state<{ openFind: () => void }>();
+  // Cmd+F from the composer or the card finds in the seat's output, as it does from the terminal.
+  function findKey(event: KeyboardEvent): void {
+    if (event.defaultPrevented || !wantsFind(event)) return;
+    if (!(event.target instanceof Element) || !event.target.closest(".work")) return;
+    event.preventDefault();
+    seatTerminal?.openFind();
+  }
   // A structured ask beats a menu read off the screen: it is the seat's own words.
   const ask = $derived(asksFor(session.id)[0]);
   // Opens on what the role looks at beside its seat, unless Kai picked another tab for it before.
@@ -106,6 +115,8 @@
   }
 </script>
 
+<svelte:window onkeydown={findKey} />
+
 <section class="session" style:--accent={role.color}>
   <header>
     {#if !phone}<Creature role={role.slug} color={role.color} size={40} />{/if}
@@ -131,7 +142,7 @@
         {#key session.id}
           <!-- The card overlays the terminal so it never resizes it, which would make the harness redraw its menu. -->
           <div class="screen" data-link={app.link.state}>
-            <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice)} locked={!app.typing.allowed || reconnecting()} />
+            <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice)} locked={!app.typing.allowed || reconnecting()} />
             {#if session.starting && blank}
               <p class="starting" role="status">Starting {session.identity} on {session.seat}. Its first screen shows here as soon as {session.seat} has opened.</p>
             {/if}
