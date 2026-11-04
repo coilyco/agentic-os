@@ -5,7 +5,7 @@
   ┃  it asks for permission, leave the prompt unanswered.
   ┃
 
-     ▣  Build · DeepSeek V4 Pro
+     ▣  Build · GLM 5.3
 
                   Update Complete                                      esc
 
@@ -25,6 +25,6 @@
   ┃
   ┃
   ┃
-  ┃  Build · DeepSeek V4 Pro Agent Proxy
+  ┃  Build · GLM 5.3         Agent Proxy
   ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
    ⬝⬝⬝⬝⬝⬝⬝⬝  esc interrupt                                     tab agents  ctrl+p commands
