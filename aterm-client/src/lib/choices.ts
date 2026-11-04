@@ -121,6 +121,15 @@ function questionAbove(lines: readonly string[], top: number): string {
     .trim();
 }
 
+// A counter in the dialog's text, such as an away-timer, must not remake the card.
+const counted = (text: string): string => text.replace(/\d+/g, "#");
+
+/** What makes two readings of the screen one card. The cursor and counters do not. */
+export function choiceKey(choice: Choice): string {
+  const rows = choice.options.map((option) => [counted(option.label), counted(option.description), option.freeText, option.checked ?? null]);
+  return JSON.stringify([choice.header, counted(choice.question), rows]);
+}
+
 const ADVANCE = /^(next|submit( answers)?|done)$/i;
 
 /** The row that moves a multi-step menu on, or -1. The card pins it. */

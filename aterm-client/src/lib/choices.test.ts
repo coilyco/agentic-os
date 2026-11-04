@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advanceIndex, askAnswer, choiceFromAsk, detectChoice, keysFor, keysForPicks, nextRowIndex } from "./choices";
+import { advanceIndex, askAnswer, choiceFromAsk, choiceKey, detectChoice, keysFor, keysForPicks, nextRowIndex } from "./choices";
 
 // Captured from Claude Code's workspace trust prompt in an aterm daemon session.
 const trust = [
@@ -341,5 +341,29 @@ describe("a very narrow terminal", () => {
     expect(choice.cancellable).toBe(true);
     expect(choice.cursor).toBe(2);
     expect(choice.options[0]?.description).toBe("Routes requests to the Qwen model family, which is strong at multilingual and coding tasks.");
+  });
+});
+
+describe("choiceKey", () => {
+  const menu = (question: string, labels = ["Purple", "Teal"]) => ({
+    header: "Accent",
+    question,
+    options: labels.map((label) => ({ label, description: "", freeText: false })),
+    cursor: 0,
+    cancellable: true,
+    multi: false,
+  });
+
+  it("is the same while only a counter in the dialog's text ticks", () => {
+    expect(choiceKey(menu("Which accent? (continuing in 59s)"))).toBe(choiceKey(menu("Which accent? (continuing in 58s)")));
+  });
+
+  it("changes for a different question, and for different options", () => {
+    expect(choiceKey(menu("Which accent?"))).not.toBe(choiceKey(menu("Which route?")));
+    expect(choiceKey(menu("Which accent?"))).not.toBe(choiceKey(menu("Which accent?", ["Purple", "Gold"])));
+  });
+
+  it("ignores where the cursor is", () => {
+    expect(choiceKey({ ...menu("Which accent?"), cursor: 1 })).toBe(choiceKey(menu("Which accent?")));
   });
 });
