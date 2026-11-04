@@ -1,12 +1,16 @@
 <script lang="ts">
   import { FitAddon } from "@xterm/addon-fit";
+  import { SearchAddon } from "@xterm/addon-search";
+  import { WebLinksAddon } from "@xterm/addon-web-links";
   import { Terminal, type IDisposable } from "@xterm/xterm";
   import "@xterm/xterm/css/xterm.css";
   import { onMount } from "svelte";
+  import FindBar from "./FindBar.svelte";
   import { AT_END, jumpLabel, linesAbove, scrolled, wrote, type Follow } from "../lib/follow";
   import { envelopeRows } from "../lib/messages";
   import { harnessInputRows } from "../lib/harness";
   import { boxToReport } from "../lib/pty-size";
+  import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
   import { isBlank, screenRows } from "../lib/screen";
   import { afterQueued, safely, watchDelay } from "../lib/pane-watch";
   import type { HostConnection, PeerMessage } from "../lib/protocol";
@@ -49,6 +53,12 @@
   // Said in the pane while it has drawn nothing and the host is being asked again. Empty otherwise.
   let waiting = $state("");
   const HIDE_SETTLE_MS = 350;
+  // Rows must touch, or box-drawing characters break into dashes.
+  const LINE_HEIGHT = 1;
+  const SCROLLBACK = 10000;
+  let finding = $state(false);
+  let findSeed = $state("");
+  let search = $state<SearchAddon>();
   let decorations: IDisposable[] = [];
   const marked = new Set<number>();
 
@@ -134,7 +144,8 @@
       cursorBlink: true,
       fontFamily: '"JetBrains Mono", ui-monospace, monospace',
       fontSize: 14,
-      lineHeight: phone.matches ? 1.15 : 1.3,
+      lineHeight: LINE_HEIGHT,
+      scrollback: SCROLLBACK,
       allowProposedApi: true,
       theme: { background: "#101216", foreground: "#d4d8e0", cursor: accent, selectionBackground: `${accent}55` },
     });
@@ -148,6 +159,20 @@
     for (const color of [10, 11, 12]) terminal.parser.registerOscHandler(color, (data) => data.includes("?"));
     const fit = new FitAddon();
     terminal.loadAddon(fit);
+    const searching = new SearchAddon();
+    terminal.loadAddon(searching);
+    search = searching;
+    const touch = matchMedia("(pointer: coarse)");
+    const verb = /Mac|iPhone|iPad/.test(navigator.platform) ? "Cmd-click" : "Ctrl-click";
+    terminal.loadAddon(
+      new WebLinksAddon(
+        (click, uri) => {
+          const href = linkTarget(uri);
+          if (href && opensLink(click, touch.matches)) window.open(href, "_blank", "noopener,noreferrer");
+        },
+        { hover: () => (host.title = touch.matches ? "" : `${verb} to open`), leave: () => (host.title = "") },
+      ),
+    );
     terminal.open(host);
     // Above the end when xterm's own view or the pan box is scrolled away from the newest row.
     const above = () => linesAbove(terminal.buffer.active) + (panning && !atBottom() ? 1 : 0);
@@ -211,7 +236,6 @@
     // A soft keyboard would only be a second input, so a tap on the terminal does not raise one.
     const shapeForPhone = () => {
       terminal.textarea?.setAttribute("inputmode", cropping() ? "none" : "text");
-      terminal.options.lineHeight = phone.matches ? 1.15 : 1.3;
       if (!cropping()) hidden = 0;
       layout();
       anchor(true);
@@ -219,7 +243,14 @@
     phone.addEventListener("change", shapeForPhone);
     terminal.textarea?.setAttribute("inputmode", cropping() ? "none" : "text");
     // A terminal that types nothing has no use for Tab, so it leaves instead of trapping focus.
-    terminal.attachCustomKeyEventHandler((event) => !(locked && event.key === "Tab"));
+    terminal.attachCustomKeyEventHandler((event) => {
+      if (event.type === "keydown" && wantsFind(event)) {
+        event.preventDefault();
+        openFind();
+        return false;
+      }
+      return !(locked && event.key === "Tab");
+    });
     // The replay is the only thing an idle seat sends, so a pane that is still empty asks again.
     let asked = 0;
     let watching: ReturnType<typeof setTimeout> | undefined;
@@ -327,6 +358,18 @@
     markEnvelopes();
   });
 
+  /** Opens find over the terminal, seeded with a one-line selection. The composer asks for it too. */
+  export function openFind(): void {
+    const picked = term?.getSelection() ?? "";
+    findSeed = picked.includes("\n") ? "" : picked;
+    finding = true;
+  }
+
+  function closeFind(): void {
+    finding = false;
+    term?.focus();
+  }
+
   function jump(): void {
     term?.scrollToBottom();
     anchor(true);
@@ -340,6 +383,9 @@
   <div class="term-host" class:panning role="region" aria-label={`Terminal for ${label}`} bind:this={host}>
     <p class="waiting" role="status">{waiting}</p>
   </div>
+  {#if finding && search}
+    <FindBar {search} initial={findSeed} onclose={closeFind} />
+  {/if}
   {#if latest.away && !covered}
     <button type="button" class="jump" aria-label={jumpWords.spoken} onclick={jump}>
       <span aria-hidden="true">↓</span>
