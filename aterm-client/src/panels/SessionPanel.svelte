@@ -131,7 +131,7 @@
         {#key session.id}
           <!-- The card overlays the terminal so it never resizes it, which would make the harness redraw its menu. -->
           <div class="screen" data-link={app.link.state}>
-            <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness locked={!app.typing.allowed || reconnecting()} />
+            <Terminal connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice)} locked={!app.typing.allowed || reconnecting()} />
             {#if session.starting && blank}
               <p class="starting" role="status">Starting {session.identity} on {session.seat}. Its first screen shows here as soon as {session.seat} has opened.</p>
             {/if}
