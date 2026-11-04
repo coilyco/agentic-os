@@ -196,6 +196,27 @@ aterm-client-gate:
     @just aterm-client-test
     @just aterm-client-build
 
+# The aterm client test bed: build the client, then drive every journey at desktop and phone sizes against a mock daemon. Writes baselines on a first run, diffs on later ones. Pass Playwright args, e.g. `--project=iphone`. See the aterm-client skill's testbed reference.
+aterm-client-testbed *ARGS:
+    @just aterm-client-install
+    @cd aterm-client && {{pnpm}} exec playwright install chromium webkit
+    @just aterm-client-build
+    @cd aterm-client && {{pnpm}} run testbed "$@"
+
+# Accept what the aterm client test bed shows now as the new baselines. Review `git diff --stat aterm-client/testbed/baselines` first.
+aterm-client-testbed-update *ARGS:
+    @just aterm-client-build
+    @cd aterm-client && {{pnpm}} run testbed --update-snapshots "$@"
+
+# Open the last test bed run's report, with each failing step's baseline, new screenshot and diff.
+aterm-client-testbed-report:
+    @cd aterm-client && {{pnpm}} exec playwright show-report testbed/out/report
+
+# Serve the built client from the mock daemon on a port, to look at a journey's screen by hand.
+aterm-client-testbed-serve *ARGS:
+    @just aterm-client-build
+    @cd aterm-client && {{pnpm}} run testbed:serve "$@"
+
 # Build the aterm web client and copy it into aterm/clientdist/, where the next `go build` of aterm embeds it. A release does this before the Go build. See docs/aterm-daemon.md.
 aterm-client-embed:
     @just aterm-client-install
