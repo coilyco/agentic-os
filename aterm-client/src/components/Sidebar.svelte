@@ -4,7 +4,7 @@
   import Creature from "./Creature.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
-  import { app, askLineFor, asksShownOn, colorOf, glowSeats, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
+  import { app, askLineFor, asksShownOn, colorOf, glowSeats, layout, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
   import { stateWithAge } from "../lib/age";
@@ -18,6 +18,8 @@
   const current = $derived(sessionById(app.selectedSession));
   const currentRole = $derived(current ? roleFor(current, app.roles) : app.roles.find((role) => role.slug === app.selectedRole));
   const waitingElsewhere = $derived(waitingSeats().filter((seat) => seat.sessionId !== app.selectedSession).length);
+  // A phone on its side reads one seat edge to edge. The list and bar fold into a rail, and the lists open beside it.
+  const reading = $derived(layout.reading && onScreen);
   // The host tab that holds the tab stop, even while a seat is on screen.
   const hereHost = $derived(app.selectedHostId ?? app.hosts[0]?.id);
 
@@ -254,8 +256,8 @@
 
 <!-- Escape is heard here only because the keys it answers come from controls inside the menu. -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<nav class="sidebar" aria-label="Hosts and sessions" data-link={app.link.state} onkeydown={escape}>
-  {#if narrow}
+<nav class="sidebar" aria-label="Hosts and sessions" data-link={app.link.state} data-mode={reading ? "reading" : narrow ? "narrow" : "wide"} onkeydown={escape}>
+  {#if narrow || reading}
     {#if onScreen || app.attachedHostId}
       <div class="bar" class:on-seat={onScreen}>
         {#if onScreen}
@@ -272,7 +274,7 @@
             {#if currentRole}<Creature role={currentRole.slug} color={currentRole.color} size={28} />{/if}
             <span class="who">{current?.identity ?? `Start ${currentRole?.displayName ?? "a seat"}`}</span>
             {#if current}<span class="state mono" data-state={current.state}>{current.state}</span>{/if}
-            {#if waitingElsewhere}<span class="elsewhere" aria-hidden="true">{waitingElsewhere} waiting</span>{/if}
+            {#if waitingElsewhere}<span class="elsewhere" aria-hidden="true">{waitingElsewhere}<span class="word"> waiting</span></span>{/if}
             <svg class="chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </button>
           <FeedbackEntry compact />
@@ -413,4 +415,14 @@
     .menu[data-flow="page"] .tab { width: auto; flex: none; }
     .menu[data-flow="page"] .waiting { display: none; }
   }
+
+  /* Reading view, a phone on its side: the bar becomes a rail, so the seat keeps the full height. Chosen in script, since the width is past the phone breakpoint. */
+  .sidebar[data-mode="reading"] { width: 52px; flex: none; position: relative; z-index: 7; padding: 0; gap: 0; overflow: visible; border-right: 1px solid var(--line); border-bottom: none; }
+  .sidebar[data-mode="reading"] .bar { flex-direction: column; align-items: center; min-height: 0; height: 100%; padding: 4px; }
+  .sidebar[data-mode="reading"] .switcher { flex: none; width: 44px; min-height: 44px; padding: 0; justify-content: center; position: relative; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; }
+  .sidebar[data-mode="reading"] .switcher[aria-expanded="true"] { border-color: var(--accent, var(--brand)); background: #1d1729; }
+  .sidebar[data-mode="reading"] :is(.who, .state, .chevron, .elsewhere .word) { display: none; }
+  .sidebar[data-mode="reading"] .elsewhere { position: absolute; top: -4px; right: -4px; min-width: 18px; padding: 0 4px; font-size: 11px; line-height: 18px; text-align: center; border-radius: 9px; background: var(--brand); color: var(--brand-ink); }
+  .sidebar[data-mode="reading"] .scrim { position: fixed; inset: 0; z-index: -1; background: rgb(0 0 0 / 0.55); }
+  .sidebar[data-mode="reading"] .menu[data-flow="sheet"] { position: fixed; top: 0; bottom: 0; left: calc(env(safe-area-inset-left) + 52px); right: auto; width: min(340px, 70vw); max-height: none; overflow-y: auto; padding: 0 8px calc(12px + env(safe-area-inset-bottom)); background: var(--ground); border-right: 1px solid var(--line); border-bottom: none; box-shadow: 8px 0 16px rgb(0 0 0 / 0.4); }
 </style>
