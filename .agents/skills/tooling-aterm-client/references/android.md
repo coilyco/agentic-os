@@ -1,8 +1,10 @@
 # aterm as an Android app
 
-The [aterm web client](../../../../aterm-client/README.md) wrapped as an Android app with Tauri 2 (COI-2623). The APK bundles the built client, so it never loads through the hosted page's sign-in gate, and it dials a daemon over the tailnet like any other client. It is sideloaded, never on the Play Store.
+The [aterm web client](../../../../aterm-client/README.md) wrapped as an Android app with Tauri 2 (COI-2623). The APK bundles the built client, so it never loads through the hosted page's sign-in gate, and it dials a daemon over the tailnet like any other client. It is sideloaded through the stable channel below. A Play bundle comes with COI-3312.
 
 **The project is `aterm-android/`, outside `aterm-client/` on purpose.** `aos-cli-release.yml` fires on any `aterm-client/**` path because the daemon embeds that tree, so a Tauri CLI bump inside it would cut an aos CLI release. `aterm-android/` holds the Tauri CLI as its own pnpm package and `src-tauri/` with the Rust shell. `tauri android init` writes the Gradle project at build time from the pinned CLI, so nothing generated is committed.
+
+**The application id is `dev.coilyco.treehouse`, and the device key's Keystore alias and plugin package are `dev.coilyco.treehouse.devicekey` (COI-3338).** An id is permanent once an app is on Play, so it changed before any store upload. Android treats the new id as a new app: the first install is a reinstall beside the old `dev.coilyco.aterm`, which can be uninstalled, and the device key is generated again under the new alias, so the phone enrols its key again with the daemon. The signing key did not change. `scripts/ci/aterm-android.sh` (`APP_ID`) and `tauri.conf.json` hold the id, and the plugin holds the alias.
 
 **The app origin is `https://tauri.localhost`.** `useHttpsScheme` makes the webview serve the bundle from there, and the daemon's origin check refuses any non-https origin, so `https://tauri.localhost` goes in `ATERM_DAEMON_ALLOW_ORIGINS` on every host the phone dials.
 
@@ -11,10 +13,19 @@ The [aterm web client](../../../../aterm-client/README.md) wrapped as an Android
 ## Build
 
 * **`just aterm-android-toolchain`** installs JDK 17, the Android command-line tools (pinned by SHA-256), platform 37.0, build-tools 36.0.0, NDK 28.2.13676358, which links at 16 KiB pages by default and the `aarch64-linux-android` Rust target. It runs as root, as the CI container does.
-* **`just aterm-android-build VERSION OUT`** builds the client with `VITE_ATERM_APP=1`, runs `tauri android init`, then `tauri android build --apk --target aarch64`. Only arm64 is built, which is every current Pixel. Tauri derives the Android versionCode from VERSION as major*1000000 + minor*1000 + patch, so a larger version always installs over a smaller one.
+* **`just aterm-android-build VERSION OUT`** builds the client with `VITE_ATERM_APP=1`, runs `tauri android init`, then `tauri android build --apk --target aarch64`. Only arm64 is built, which is every current Pixel. The versionName is VERSION and the versionCode is the clock code below.
 * **`just aterm-android-sign IN OUT`** signs with apksigner from `ATERM_ANDROID_KEYSTORE_B64` and `ATERM_ANDROID_KEYSTORE_PASSWORD`, and with a throwaway key when they are unset, then runs verify. Verify checks the v2 or v3 signature, the package name, arm64-only native code, 16 KiB page alignment of the native library, and the signer certificate against `ATERM_ANDROID_CERT_SHA256` when that is set, because an update signed with another key does not install over the last one.
 
 The scripted steps are [`scripts/ci/aterm-android.sh`](../../../../scripts/ci/aterm-android.sh). Every Android pin is manual and lives at its top.
+
+## Stable channel
+
+**A push to main builds and uploads a workflow artifact, never a release (COI-3307).** [`aterm-android.yml`](../../../../.github/workflows/aterm-android.yml) publishes at 09:23 UTC daily when an app path changed since the last stable build, and on `workflow_dispatch` (`dry_run` builds and verifies without publishing). [`aterm-android-release.sh`](../../../../scripts/ci/aterm-android-release.sh) holds the plan, the notes and the publish.
+
+* **Obtainium** - add `https://github.com/coilyco/agentic-os` and set the release title filter to the regular expression `^aterm Android stable$`. Every stable release carries exactly that title, tagged `aterm-android-vX.Y.0`. Leave the pre-release option off. The older per-push releases carry other titles and drop out.
+* **Fixed link** - `https://github.com/coilyco/agentic-os/releases/download/aterm-android-newest/aterm.apk` always serves the newest stable APK, and a tester can bookmark it. It is a pre-release titled `aterm Android newest (fixed link)`, so it never takes the repo's latest flag from the aos CLI and Obtainium's filter skips it. Its tag stays on the commit that first created it, so the release notes name the build.
+* **Version code** - minutes since the Unix epoch (`aterm-android.sh version-code`), about 29.9 million now. It only rises and sits above every code the old major*1000000 + minor*1000 + patch scheme made while the major is 0, so installs over v0.22.0 and later keep working. `build` refuses a code under 1,000,000 or over Android's 2,100,000,000 cap. Decode an installed one with `date -u -r $((code*60))`.
+* **Notes** - one line per commit that touched an app path since the last stable tag, with the commit type dropped.
 
 ## Pins
 

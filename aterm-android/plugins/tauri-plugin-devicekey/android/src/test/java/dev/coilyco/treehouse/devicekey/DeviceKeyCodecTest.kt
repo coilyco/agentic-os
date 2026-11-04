@@ -1,4 +1,4 @@
-package dev.coilyco.aterm.devicekey
+package dev.coilyco.treehouse.devicekey
 
 import java.security.KeyPairGenerator
 import java.security.Signature

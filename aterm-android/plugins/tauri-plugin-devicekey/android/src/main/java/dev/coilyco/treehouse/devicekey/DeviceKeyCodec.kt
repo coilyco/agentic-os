@@ -1,4 +1,4 @@
-package dev.coilyco.aterm.devicekey
+package dev.coilyco.treehouse.devicekey
 
 import java.security.MessageDigest
 import java.util.Base64
