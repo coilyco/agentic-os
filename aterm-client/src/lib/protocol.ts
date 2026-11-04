@@ -60,6 +60,8 @@ export interface Session {
   context?: ContextReading;
   /** First line of its last finished reply. Absent until read or from an old daemon. */
   lastReply?: string;
+  /** When it last wrote, in ms. Absent from a daemon that predates `quiet_seconds`. */
+  quietSince?: number;
   /** Not yet ready for input, so its terminal may have nothing to draw. */
   starting?: boolean;
   failure?: string;
