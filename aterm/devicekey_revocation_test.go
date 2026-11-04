@@ -117,14 +117,14 @@ func TestEnrollmentRefusesAChainTheListRevokesAndStoresNothing(t *testing.T) {
 	}
 	challenge, _ := rawURL.DecodeString(begin.Challenge)
 	p := newPhone(t, attest{challenge: challenge})
-	d.passkeys.roots = p.roots
+	d.local().passkeys.roots = p.roots
 	// The test phone's intermediate has serial 2.
-	d.passkeys.revocations = staticRevocations{"2": {Status: "REVOKED", Reason: "KEY_COMPROMISE"}}
+	d.local().passkeys.revocations = staticRevocations{"2": {Status: "REVOKED", Reason: "KEY_COMPROMISE"}}
 	_, err = device.request(frame{Type: "device_enroll_finish", PublicKey: rawURL.EncodeToString(p.spki), Attestation: jsonOf(p.chain)})
 	if err == nil || !strings.Contains(err.Error(), "REVOKED (KEY_COMPROMISE)") {
 		t.Fatalf("a revoked intermediate read as %v", err)
 	}
-	if d.passkeys.deviceKeyEnrolled() {
+	if d.local().passkeys.deviceKeyEnrolled() {
 		t.Fatal("a refused enrollment stored a key")
 	}
 }

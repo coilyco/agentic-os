@@ -140,7 +140,7 @@ type pushState struct {
 func (p *pushState) enabled() bool { return p.key != nil && p.store != nil }
 
 // setupPush turns Web Push on from an encoded VAPID key. An empty key leaves it off.
-func (d *daemon) setupPush(encoded string, store *pushStore) error {
+func (u *localUsers) setupPush(encoded string, store *pushStore) error {
 	if strings.TrimSpace(encoded) == "" {
 		return nil
 	}
@@ -148,19 +148,19 @@ func (d *daemon) setupPush(encoded string, store *pushStore) error {
 	if err != nil {
 		return err
 	}
-	d.push = pushState{key: key, store: store, send: sendPush}
+	u.push = pushState{key: key, store: store, send: sendPush}
 	return nil
 }
 
 // pushFrame answers the push_* frames. The key is public, but subscribing aims
 // alerts at a device, so a remote one needs its passkey (remoteLocked).
-func (d *daemon) pushFrame(cl *client, message frame) error {
-	if !d.push.enabled() {
+func (u *localUsers) pushFrame(cl *client, message frame) error {
+	if !u.push.enabled() {
 		return withExit(exitUsage, errors.New("this daemon has no VAPID key, so it sends no push"))
 	}
 	switch message.Type {
 	case "push_key":
-		return cl.c.write(frame{Type: "push_key", ID: message.ID, Key: d.push.key.publicKey()})
+		return cl.c.write(frame{Type: "push_key", ID: message.ID, Key: u.push.key.publicKey()})
 	case "push_subscribe":
 		if message.Push == nil {
 			return withExit(exitUsage, errors.New("push_subscribe carries a subscription"))
@@ -168,16 +168,16 @@ func (d *daemon) pushFrame(cl *client, message frame) error {
 		if err := message.Push.validate(); err != nil {
 			return withExit(exitUsage, err)
 		}
-		if err := d.push.store.add(*message.Push); err != nil {
+		if err := u.push.store.add(*message.Push); err != nil {
 			return err
 		}
-		d.logf("a browser subscribed to push")
+		u.host.logf("a browser subscribed to push")
 		return cl.c.write(frame{Type: "push_subscribed", ID: message.ID})
 	default:
 		if message.Push == nil {
 			return withExit(exitUsage, errors.New("push_unsubscribe carries the subscription to drop"))
 		}
-		if err := d.push.store.remove(message.Push.Endpoint); err != nil {
+		if err := u.push.store.remove(message.Push.Endpoint); err != nil {
 			return err
 		}
 		return cl.c.write(frame{Type: "push_unsubscribed", ID: message.ID})
@@ -270,8 +270,8 @@ func waitPayload(event waitEvent, question string) pushPayload {
 }
 
 // watchWaiting reads the roster on a timer until done closes.
-func (d *daemon) watchWaiting(done <-chan struct{}, every time.Duration) {
-	defer d.guard("push watcher")
+func (u *localUsers) watchWaiting(done <-chan struct{}, every time.Duration) {
+	defer u.host.guard("push watcher")
 	ticker := time.NewTicker(every)
 	defer ticker.Stop()
 	for {
@@ -279,23 +279,23 @@ func (d *daemon) watchWaiting(done <-chan struct{}, every time.Duration) {
 		case <-done:
 			return
 		case now := <-ticker.C:
-			for _, event := range d.push.tracker.observe(d.views(), now) {
-				d.pushWaiting(waitPayload(event, ""))
+			for _, event := range u.push.tracker.observe(u.host.views(), now) {
+				u.pushWaiting(waitPayload(event, ""))
 			}
 		}
 	}
 }
 
 // pushAsk tells the subscribed devices that a seat called ask_choice.
-func (d *daemon) pushAsk(ask choiceAsk) {
-	if !d.push.enabled() {
+func (u *localUsers) pushAsk(ask choiceAsk) {
+	if !u.push.enabled() {
 		return
 	}
 	question := ask.Question
 	if runes := []rune(question); len(runes) > 140 {
 		question = string(runes[:139]) + "…"
 	}
-	d.pushWaiting(waitPayload(waitEvent{Kind: "ask", Session: ask.Session, Identity: askerName(ask)}, question))
+	u.pushWaiting(waitPayload(waitEvent{Kind: "ask", Session: ask.Session, Identity: askerName(ask)}, question))
 }
 
 // askerName is the identity half of "<role> <identity>".
@@ -308,11 +308,11 @@ func askerName(ask choiceAsk) string {
 
 // pushWaiting sends to every subscription without blocking, page open or not,
 // since a sleeping phone's socket looks live. docs/aterm-daemon.md
-func (d *daemon) pushWaiting(payload pushPayload) {
-	if !d.push.enabled() {
+func (u *localUsers) pushWaiting(payload pushPayload) {
+	if !u.push.enabled() {
 		return
 	}
-	subs := d.push.store.list()
+	subs := u.push.store.list()
 	if len(subs) == 0 {
 		return
 	}
@@ -321,7 +321,7 @@ func (d *daemon) pushWaiting(payload pushPayload) {
 		return
 	}
 	go func() {
-		defer d.guard("push send")
+		defer u.host.guard("push send")
 		ctx, cancel := context.WithTimeout(context.Background(), pushSendTimeout)
 		defer cancel()
 		var wg sync.WaitGroup
@@ -329,16 +329,16 @@ func (d *daemon) pushWaiting(payload pushPayload) {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				defer d.guard("push send")
-				status, err := d.push.send(ctx, d.push.key, sub, raw)
+				defer u.host.guard("push send")
+				status, err := u.push.send(ctx, u.push.key, sub, raw)
 				switch {
 				case err != nil:
-					d.logf("push to a browser failed: %v", err)
+					u.host.logf("push to a browser failed: %v", err)
 				case status == http.StatusNotFound || status == http.StatusGone:
-					d.logf("a browser dropped its push subscription, so it is forgotten")
-					_ = d.push.store.remove(sub.Endpoint)
+					u.host.logf("a browser dropped its push subscription, so it is forgotten")
+					_ = u.push.store.remove(sub.Endpoint)
 				case status < 200 || status > 299:
-					d.logf("a push service answered %d", status)
+					u.host.logf("a push service answered %d", status)
 				}
 			}()
 		}

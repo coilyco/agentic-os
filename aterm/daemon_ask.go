@@ -131,7 +131,7 @@ func (d *daemon) register(cl *client, message frame, ask choiceAsk, spec *grantS
 	d.mu.Unlock()
 	cl.asks = append(cl.asks, ask.ID)
 	d.broadcast(frame{Type: "ask", Ask: &pending.ask})
-	d.pushAsk(pending.ask)
+	d.users.NotifyAsk(pending.ask)
 	go func() {
 		defer d.guard("ask")
 		var answer choiceAnswer

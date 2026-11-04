@@ -67,7 +67,7 @@ func loopbackPolicy() accessPolicy {
 }
 
 func (d *daemon) websocketHandler() http.Handler {
-	return d.handler(loopbackOrForwarded(d.forwardedPolicy))
+	return d.handler(loopbackOrForwarded(d.users.ProxiedPolicy()))
 }
 
 // handler serves the client's files, and upgrades a websocket to the same

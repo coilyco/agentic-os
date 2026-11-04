@@ -89,22 +89,22 @@ func (s *passkeyStore) addDeviceKey(key deviceKey) error {
 
 // deviceKeyFrames answers the device key ceremonies. Enrollment spends the same
 // one-time code a passkey does, minted from Kai's terminal.
-func (d *daemon) deviceKeyFrames(cl *client, message frame) error {
+func (u *localUsers) deviceKeyFrames(cl *client, message frame) error {
 	if !cl.web {
 		return withExit(exitUsage, errors.New("a device key is enrolled and asserted from the aterm app"))
 	}
-	store := d.passkeys
+	store := u.passkeys
 	switch message.Type {
 	case "device_enroll_begin":
 		if err := store.spendCode(message.EnrollCode); err != nil {
 			return withExit(exitUsage, err)
 		}
-		return d.openDeviceCeremony(cl, message, "enroll", "", "device_enroll_challenge")
+		return u.openDeviceCeremony(cl, message, "enroll", "", "device_enroll_challenge")
 	case "device_assert_begin":
 		if _, ok := store.findDeviceKey(message.KeyID); !ok {
 			return withReason(reasonDeviceKeyGone, errors.New("this phone's key is not enrolled here, run `aterm passkey enroll` for a new code"))
 		}
-		return d.openDeviceCeremony(cl, message, "assert", message.KeyID, "device_assert_challenge")
+		return u.openDeviceCeremony(cl, message, "assert", message.KeyID, "device_assert_challenge")
 	}
 	ceremony := cl.deviceCeremony
 	cl.deviceCeremony = nil
@@ -119,7 +119,7 @@ func (d *daemon) deviceKeyFrames(cl *client, message frame) error {
 		return withExit(exitUsage, errors.New("the challenge expired, start again"))
 	}
 	if want == "enroll" {
-		keyID, err := d.finishDeviceEnroll(store, ceremony, message)
+		keyID, err := u.finishDeviceEnroll(store, ceremony, message)
 		if err != nil {
 			return withExit(exitUsage, err)
 		}
@@ -127,34 +127,34 @@ func (d *daemon) deviceKeyFrames(cl *client, message frame) error {
 			return err
 		}
 		// Enrolling proves no fingerprint, so the client asserts next.
-		return cl.c.write(frame{Type: "typing", Typing: d.typingStanding(cl)})
+		return cl.c.write(frame{Type: "typing", Typing: u.host.typingStanding(cl)})
 	}
 	if err := finishDeviceAssert(store, ceremony, message); err != nil {
 		return withExit(exitUsage, err)
 	}
 	cl.asserted = true
-	d.logf("a remote device asserted its device key")
-	proof, err := d.issueResume(cl, frame{Type: "device_asserted", ID: message.ID})
+	u.host.logf("a remote device asserted its device key")
+	proof, err := u.issueResume(cl, frame{Type: "device_asserted", ID: message.ID})
 	if err != nil {
 		return err
 	}
 	if err := cl.c.write(proof); err != nil {
 		return err
 	}
-	return cl.c.write(frame{Type: "typing", Typing: d.typingStanding(cl)})
+	return cl.c.write(frame{Type: "typing", Typing: u.host.typingStanding(cl)})
 }
 
-func (d *daemon) openDeviceCeremony(cl *client, message frame, kind, keyID, reply string) error {
+func (u *localUsers) openDeviceCeremony(cl *client, message frame, kind, keyID, reply string) error {
 	challenge := make([]byte, 32)
 	if _, err := rand.Read(challenge); err != nil {
 		return err
 	}
-	cl.deviceCeremony = &deviceCeremony{kind: kind, keyID: keyID, challenge: challenge, expires: d.passkeys.now().Add(deviceChallengeTTL)}
+	cl.deviceCeremony = &deviceCeremony{kind: kind, keyID: keyID, challenge: challenge, expires: u.passkeys.now().Add(deviceChallengeTTL)}
 	return cl.c.write(frame{Type: reply, ID: message.ID, Challenge: rawURL.EncodeToString(challenge)})
 }
 
 // finishDeviceEnroll verifies the attestation and stores the key.
-func (d *daemon) finishDeviceEnroll(store *passkeyStore, ceremony *deviceCeremony, message frame) (string, error) {
+func (u *localUsers) finishDeviceEnroll(store *passkeyStore, ceremony *deviceCeremony, message frame) (string, error) {
 	spki, err := rawURL.DecodeString(message.PublicKey)
 	if err != nil {
 		return "", errors.New("public_key is not base64url")
@@ -181,7 +181,7 @@ func (d *daemon) finishDeviceEnroll(store *passkeyStore, ceremony *deviceCeremon
 	if err := store.addDeviceKey(deviceKey{KeyID: keyID, PublicKey: spki, Level: level, Enrolled: store.now().UTC()}); err != nil {
 		return "", err
 	}
-	d.logf("a remote device enrolled a device key (%s)", level)
+	u.host.logf("a remote device enrolled a device key (%s)", level)
 	return keyID, nil
 }
 

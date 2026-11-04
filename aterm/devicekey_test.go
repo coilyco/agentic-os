@@ -256,11 +256,11 @@ func deviceDaemon(t *testing.T, p *phone) (*daemon, string) {
 	d, _ := wsDaemon(t)
 	path := filepath.Join(t.TempDir(), "passkeys.json")
 	var err error
-	if d.passkeys, err = newPasskeyStore(path, passkeyRPID, []string{passkeyOrigin}); err != nil {
+	if d.local().passkeys, err = newPasskeyStore(path, passkeyRPID, []string{passkeyOrigin}); err != nil {
 		t.Fatal(err)
 	}
-	d.passkeys.roots = p.roots
-	d.passkeys.revocations = staticRevocations{}
+	d.local().passkeys.roots = p.roots
+	d.local().passkeys.revocations = staticRevocations{}
 	return d, path
 }
 
@@ -278,7 +278,7 @@ func enroll(t *testing.T, d *daemon, device *conn, a attest) (*phone, string) {
 	}
 	a.challenge = challenge
 	p := newPhone(t, a)
-	d.passkeys.roots = p.roots
+	d.local().passkeys.roots = p.roots
 	done, err := device.request(frame{Type: "device_enroll_finish", PublicKey: rawURL.EncodeToString(p.spki), Attestation: jsonOf(p.chain)})
 	if err != nil {
 		t.Fatalf("enroll finish: %v", err)
@@ -324,7 +324,7 @@ func TestDeviceKeyEnrollsAssertsAndUnlocksTypingOnlyOnAssertion(t *testing.T) {
 	if reply, err := terminal.request(frame{Type: "passkey_revoke"}); err != nil || reply.Type != "passkey_revoked" {
 		t.Fatalf("revoke: %+v, %v", reply, err)
 	}
-	if d.passkeys.deviceKeyEnrolled() {
+	if d.local().passkeys.deviceKeyEnrolled() {
 		t.Fatal("revoke left a device key")
 	}
 	again := pipeClient(t, d, peerStanding{web: true, remote: true})
@@ -377,11 +377,11 @@ func TestDeviceKeyChallengesAreSingleUseBoundAndExpire(t *testing.T) {
 	begin, _ = device.request(frame{Type: "device_assert_begin", KeyID: keyID})
 	challenge, _ = rawURL.DecodeString(begin.Challenge)
 	later := time.Now().Add(deviceChallengeTTL + time.Second)
-	d.passkeys.now = func() time.Time { return later }
+	d.local().passkeys.now = func() time.Time { return later }
 	if _, err := device.request(frame{Type: "device_assert_finish", KeyID: keyID, Signature: p.signAssertion(t, challenge)}); err == nil || !strings.Contains(err.Error(), "expired") {
 		t.Fatalf("an expired challenge read as %v", err)
 	}
-	d.passkeys.now = time.Now
+	d.local().passkeys.now = time.Now
 	if err := assertWith(p.signAssertion2(t)); err != nil {
 		t.Fatalf("a good assertion after all that failed: %v", err)
 	}
@@ -406,11 +406,11 @@ func TestEnrollmentNeedsTheTerminalCodeAndAGoodAttestation(t *testing.T) {
 	}
 	challenge, _ := rawURL.DecodeString(begin.Challenge)
 	soft := newPhone(t, attest{challenge: challenge, software: true})
-	d.passkeys.roots = soft.roots
+	d.local().passkeys.roots = soft.roots
 	if _, err = device.request(frame{Type: "device_enroll_finish", PublicKey: rawURL.EncodeToString(soft.spki), Attestation: jsonOf(soft.chain)}); err == nil || !strings.Contains(err.Error(), "secure hardware") {
 		t.Fatalf("a software attestation read as %v", err)
 	}
-	if d.passkeys.deviceKeyEnrolled() {
+	if d.local().passkeys.deviceKeyEnrolled() {
 		t.Fatal("a refused enrollment stored a key")
 	}
 	// The code was spent by the begin, so it cannot start a second enrollment.
