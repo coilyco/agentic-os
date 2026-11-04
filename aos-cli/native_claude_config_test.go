@@ -86,7 +86,7 @@ func TestSeedNativeClaudeTrustAcceptsSessionPathsAndPreservesState(t *testing.T)
 		t.Fatal(err)
 	}
 
-	if err := seedNativeClaudeTrust(nativeClaudeConfigPath(home), []string{session}); err != nil {
+	if err := seedNativeClaudeTrust(nativeClaudeConfigPath(home), []string{session}, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -130,7 +130,7 @@ func TestSeedNativeClaudeTrustWritesThroughShadowSymlink(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := seedNativeClaudeTrust(nativeClaudeSessionConfigPath(sessionHome), []string{session}); err != nil {
+	if err := seedNativeClaudeTrust(nativeClaudeSessionConfigPath(sessionHome), []string{session}, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -164,7 +164,7 @@ func TestSeedNativeClaudeTrustCreatesStandaloneSessionConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := seedNativeClaudeTrust(nativeClaudeSessionConfigPath(sessionHome), []string{session}); err != nil {
+	if err := seedNativeClaudeTrust(nativeClaudeSessionConfigPath(sessionHome), []string{session}, true); err != nil {
 		t.Fatal(err)
 	}
 
