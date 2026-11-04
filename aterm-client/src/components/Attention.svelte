@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { app, cueSeats, glowSeats, openSeat, playCue } from "../lib/app.svelte";
+  import { app, cueSeats, openSeat, playCue } from "../lib/app.svelte";
   import { detectCue, SETTLE_MS } from "../lib/attention";
   import { unlock } from "../lib/chime";
 
@@ -43,26 +43,4 @@
       window.removeEventListener("keydown", touch);
     };
   });
-
-  const glow = $derived(app.alerts.visual ? glowSeats() : []);
-  const colors = $derived([...new Set(glow.map((seat) => seat.color))]);
-  const gradient = $derived(`conic-gradient(${[...colors, colors[0]].join(", ")})`);
 </script>
-
-{#if colors.length}
-  <div class="glow" aria-hidden="true" style:background={gradient}></div>
-{/if}
-
-<style>
-  /* Opaque at the page edge, clear toward the middle, so it reads from the corner of the eye and covers nothing. */
-  .glow {
-    position: fixed; inset: 0; z-index: 50; pointer-events: none; opacity: 0.65;
-    -webkit-mask-image: radial-gradient(ellipse farthest-side at center, transparent 86%, #000 100%);
-    mask-image: radial-gradient(ellipse farthest-side at center, transparent 86%, #000 100%);
-    animation: breathe 2.4s ease-in-out infinite;
-  }
-  @keyframes breathe { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.85; } }
-  @media (prefers-reduced-motion: reduce) {
-    .glow { animation: none; opacity: 0.65; }
-  }
-</style>
