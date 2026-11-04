@@ -3,10 +3,11 @@
   import Creature from "../components/Creature.svelte";
   import ChoiceCard from "../components/ChoiceCard.svelte";
   import Composer from "../components/Composer.svelte";
+  import RelayNotice from "../components/RelayNotice.svelte";
   import SidePanel from "../components/SidePanel.svelte";
   import SplitHandle from "../components/SplitHandle.svelte";
   import Terminal from "../components/Terminal.svelte";
-  import { app, asksFor, colorOf, messagesFor, placeNow, reconnecting } from "../lib/app.svelte";
+  import { app, asksShownOn, colorOf, messagesFor, placeNow, reconnecting, relayedTo } from "../lib/app.svelte";
   import { askAnswer, CANCEL, choiceFromAsk, detectChoice, keysFor, keysForPicks, type Choice } from "../lib/choices";
   import { contextPercent, contextText } from "../lib/context";
   import { isBlank } from "../lib/screen";
@@ -54,7 +55,10 @@
     seatTerminal?.openFind();
   }
   // A structured ask beats a menu read off the screen: it is the seat's own words.
-  const ask = $derived(asksFor(session.id)[0]);
+  const ask = $derived(asksShownOn(session.id)[0]);
+  // A relayed card is the worker's question, so the card names the worker and not this seat.
+  const asker = $derived((ask && app.sessions.find((each) => each.id === ask.session)?.identity) || session.identity);
+  const relayed = $derived(relayedTo(session.id));
   // Opens on what the role looks at beside its seat, unless Kai picked another tab for it before.
   // The panel is keyed by session, so the role it starts with is the role it keeps.
   // svelte-ignore state_referenced_locally
@@ -175,7 +179,7 @@
                 <div class="overlay">
                   <ChoiceCard
                     choice={choiceFromAsk(ask)}
-                    identity={session.identity}
+                    identity={asker}
                     focusToken={app.focusAsk === session.id ? app.focusCard : 0}
                     onfocused={() => (app.focusAsk = null)}
                     locked={!app.typing.allowed || reconnecting()}
@@ -200,6 +204,7 @@
               {/key}
             {/if}
           </div>
+          {#if relayed}<RelayNotice seat={relayed} />{/if}
           {#if app.inputNotice}
             <p class="input-notice" role="alert">
               <span>{app.inputNotice}</span>
