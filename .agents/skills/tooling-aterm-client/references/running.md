@@ -23,6 +23,7 @@ just aterm-client-install
 just aterm-client-dev    # http://localhost:5173
 just aterm-client-gate   # check, test, build
 just aterm-client-drive  # headless browser against the Demo host, 1280px and 320px
+just aterm-client-drive-hops  # a mock daemon that breaks each hop, and the connection check
 ```
 
 In dev, "this Mac" needs `aterm daemon` running (any `aterm` launch starts it), and `VITE_ATERM_DAEMON_WS` points the client at another port. A build dials the origin that served it, so a daemon serving `dist/` needs no configuration, and the host tab names that machine. The Demo host is scripted and needs nothing. See [architecture.md](architecture.md).
