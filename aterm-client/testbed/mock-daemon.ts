@@ -14,7 +14,7 @@ const HERE = fileURLToPath(new URL(".", import.meta.url));
 const DIST = process.env.ATERM_TESTBED_DIST ?? join(HERE, "..", "dist");
 const ROSTER = join(HERE, "..", "src", "lib", "fixtures", "roster.json");
 /** What the real daemon offers on a loopback page, so the client takes its real paths. */
-const FEATURES = ["pty-size", "terminals", "terminal-label"];
+const FEATURES = ["pty-size", "terminals", "terminal-label", "browser", "open-url"];
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -64,6 +64,8 @@ export interface Mock {
   /** Every `answer` and `cancel_ask` the client sent. */
   answers: { ask_id: string; picks?: number[]; text?: string; cancelled?: boolean }[];
   launches: { role: string; seat: string }[];
+  /** Every `browser_*` frame and `subscribe` the client sent about a page, in order. */
+  browserCalls: { type: string; session?: string; take?: boolean; url?: string; channel?: string }[];
   /** The scene a seat runs, to read what a native dialog received. */
   sceneOf(session: string): Scene | undefined;
   /** Replace a seat's scene and redraw it on every client attached. */
@@ -100,7 +102,18 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
   const clients = new Set<WebSocket>();
   let lastFrameAt = Date.now();
   const lastBox = new Map<string, { rows: number; cols: number }>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], browserCalls: [] as Mock["browserCalls"] };
+  // A seat's browser: the agent drives until a screen takes control.
+  // `client` is the name each connection was given.
+  const pages = new Map<string, { holder: WebSocket | null; url: string }>();
+  const names = new WeakMap<WebSocket, string>();
+  const browserState = (session: string, socket: WebSocket, id?: unknown): Record<string, unknown> => {
+    const page = pages.get(session) ?? { holder: null, url: "about:blank" };
+    return { type: "browser_state", id, session, state: "live", driver: page.holder ? "person" : "agent", ...(page.holder ? { holder: names.get(page.holder) } : {}), url: page.url, title: "", client: names.get(socket) };
+  };
+  const tellWatchers = (session: string): void => {
+    for (const socket of clients) send(socket, browserState(session, socket));
+  };
 
   const add = (spec: SessionSpec): void => {
     live.set(spec.name, { spec, scene: sceneFor(spec.scene, spec), boxes: new Map() });
@@ -129,6 +142,7 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
   const wss = new WebSocketServer({ noServer: true });
   wss.on("connection", (socket) => {
     clients.add(socket);
+    names.set(socket, `screen-${clients.size}`);
     socket.on("close", () => {
       clients.delete(socket);
       for (const seat of live.values()) seat.boxes.delete(socket);
@@ -143,7 +157,38 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
           return;
         case "subscribe":
           if (frame.channel === "sessions") send(socket, sessionsFrame());
+          if (frame.channel === "open_url") {
+            mock.browserCalls.push({ type: "subscribe", channel: "open_url" });
+            send(socket, { type: "subscribed", id: frame.id, channel: "open_url" });
+          }
           return;
+        case "browser_watch":
+          mock.browserCalls.push({ type: "browser_watch", session: String(frame.session) });
+          if (!pages.has(String(frame.session))) pages.set(String(frame.session), { holder: null, url: "about:blank" });
+          send(socket, browserState(String(frame.session), socket, frame.id));
+          return;
+        case "browser_unwatch":
+          mock.browserCalls.push({ type: "browser_unwatch", session: String(frame.session) });
+          return;
+        case "browser_control": {
+          const session = String(frame.session);
+          mock.browserCalls.push({ type: "browser_control", session, take: frame.take === true });
+          const page = pages.get(session);
+          if (page) page.holder = frame.take === true ? socket : null;
+          tellWatchers(session);
+          return;
+        }
+        case "browser_navigate": {
+          const session = String(frame.session);
+          mock.browserCalls.push({ type: "browser_navigate", session, url: String(frame.url) });
+          const page = pages.get(session);
+          // The daemon refuses a drive from a screen that does not hold control.
+          if (page?.holder === socket) {
+            page.url = String(frame.url);
+            tellWatchers(session);
+          }
+          return;
+        }
         case "list":
           send(socket, { ...sessionsFrame(), id: frame.id });
           return;
@@ -217,6 +262,7 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
     idleMs: () => Date.now() - lastFrameAt,
     answers: mock.answers,
     launches: mock.launches,
+    browserCalls: mock.browserCalls,
     sceneOf: (session) => live.get(session)?.scene,
     setScene(session, scene) {
       const seat = live.get(session);

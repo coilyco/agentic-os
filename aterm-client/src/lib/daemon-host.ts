@@ -167,6 +167,9 @@ export const BROWSER_FEATURE = "browser";
 /** The daemon keeps a `label` on a terminal spawn and lists it back. */
 const TERMINAL_LABEL_FEATURE = "terminal-label";
 
+/** `welcome.features` names this when the daemon sends a seat's `open_url` (COI-3258). */
+const OPEN_URL_FEATURE = "open-url";
+
 /** `welcome.features` names this when the daemon answers `image_upload` (COI-3239). */
 const IMAGE_UPLOAD_FEATURE = "image-upload";
 
@@ -741,6 +744,9 @@ export class DaemonHost implements HostConnection {
         this.request({ type: "subscribe", channel: "sessions" });
         this.request({ type: "roster" });
         if (this.features.has("mcp-apps")) this.request({ type: "subscribe", channel: "views" });
+        // Subscribers are the clients that can show a page. With no browser, stay out,
+        // and the host opens its own.
+        if (this.features.has(OPEN_URL_FEATURE) && this.features.has(BROWSER_FEATURE)) this.request({ type: "subscribe", channel: "open_url" });
         for (const line of this.outbox.splice(0)) this.socket.send(this.ptySize ? withScales(line) : line);
         return;
       }
@@ -798,6 +804,9 @@ export class DaemonHost implements HostConnection {
         }
         return;
       }
+      case "open_url":
+        if (frame.session && frame.url) this.emit({ type: "open_url", session: frame.session, url: frame.url });
+        return;
       case "typing":
         this.setTyping(parseTyping(frame.typing));
         return;
