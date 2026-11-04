@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { advanceIndex, askAnswer, choiceFromAsk, detectChoice, keysFor } from "./choices";
+import { advanceIndex, askAnswer, choiceFromAsk, detectChoice, keysFor, keysForPicks, nextRowIndex } from "./choices";
 
 // Captured from Claude Code's workspace trust prompt in an aterm daemon session.
 const trust = [
@@ -172,5 +172,174 @@ describe("advanceIndex", () => {
     expect(advanceIndex(menu(["Purple", "Teal"]))).toBe(-1);
     expect(advanceIndex(menu(["Next step", "Done later"]))).toBe(-1);
     expect(advanceIndex(menu(["Teal", "Next"], true))).toBe(-1);
+  });
+});
+
+// Captured from Claude Code v2.1.318: a three-question dialog at 72 columns.
+const RULE = "────────────────────────────────────────────────────────────────────────";
+const tabs = "←  ☐ Accent  ☒ Routes  ☐ Name  ✔ Submit  →";
+const multi = (cursorRow: "first" | "next", box = "[ ]") => [
+  RULE,
+  tabs,
+  "",
+  "Which routes do you want enabled?",
+  "",
+  `${cursorRow === "first" ? "❯" : " "} 1. ${box} Qwen`,
+  "         Route requests to the Qwen model family.",
+  "  2. [ ] Llama",
+  "         Route requests to the Llama model family.",
+  "  3. [ ] Frontier",
+  "         Route requests to frontier Claude models.",
+  "  4. [ ] Type something",
+  cursorRow === "next" ? "❯    Next" : "     Next",
+  RULE,
+  "  5. Chat about this",
+  "",
+  "Enter to select · Tab/Arrow keys to navigate · Esc to cancel",
+];
+const review = [
+  RULE,
+  "←  ☒ Accent  ☒ Routes  ☒ Name  ✔ Submit  →",
+  "",
+  "Review your answers",
+  "",
+  " ● Which accent color do you want?",
+  "   → Teal",
+  " ● Which routes do you want enabled?",
+  "   → Qwen",
+  "",
+  "Ready to submit your answers?",
+  "",
+  "❯ 1. Submit answers",
+  "  2. Cancel",
+];
+
+describe("a multi-question dialog", () => {
+  it("keeps the tab bar out of the question", () => {
+    const choice = detectChoice(multi("first"));
+    expect(choice?.question).toBe("Which routes do you want enabled?");
+    expect(choice?.header).toBe("");
+  });
+
+  it("reads Next as a row of its own, not as the description of the row above", () => {
+    const choice = detectChoice(multi("first"))!;
+    expect(choice.options.map((option) => [option.label, option.description])).toEqual([
+      ["Qwen", "Route requests to the Qwen model family."],
+      ["Llama", "Route requests to the Llama model family."],
+      ["Frontier", "Route requests to frontier Claude models."],
+      ["Type something", ""],
+      ["Next", ""],
+      ["Chat about this", ""],
+    ]);
+    expect(nextRowIndex(choice)).toBe(4);
+  });
+
+  it("reads the checkboxes, so a multi-select is one", () => {
+    const choice = detectChoice(multi("first", "[✔]"))!;
+    expect(choice.multi).toBe(true);
+    expect(choice.options.map((option) => option.checked)).toEqual([true, false, false, false, undefined, undefined]);
+  });
+
+  it("treats a checkbox Type something row as the typed one", () => {
+    const choice = detectChoice(multi("first"))!;
+    expect(choice.options.map((option) => option.freeText)).toEqual([false, false, false, true, false, false]);
+  });
+
+  it("still sees the menu while the cursor is on Next", () => {
+    const choice = detectChoice(multi("next"))!;
+    expect(choice.cursor).toBe(4);
+    expect(choice.options).toHaveLength(6);
+  });
+
+  it("reads the review screen, which has no footer", () => {
+    const choice = detectChoice(review)!;
+    expect(choice.options.map((option) => option.label)).toEqual(["Submit answers", "Cancel"]);
+    expect(choice.question).toContain("Ready to submit your answers?");
+    expect(advanceIndex(choice)).toBe(0);
+  });
+});
+
+describe("keysForPicks", () => {
+  const frame = () => detectChoice(multi("first", "[✔]"))!;
+
+  it("toggles only what differs, then moves on to Next", () => {
+    // Qwen stays checked, Llama is added, then the cursor walks down to Next.
+    expect(keysFor_(frame(), [0, 1])).toEqual(["\x1b[B", "\r", "\x1b[B\x1b[B\x1b[B", "\r"]);
+  });
+
+  it("unchecks a row the person put down", () => {
+    expect(keysFor_(frame(), [])).toEqual(["\r", "\x1b[B\x1b[B\x1b[B\x1b[B", "\r"]);
+  });
+
+  it("types into the Type something row and leaves it, since Enter would uncheck it", () => {
+    expect(keysFor_(frame(), [0, 3], "Mistral")).toEqual(["\x1b[B\x1b[B\x1b[B", "Mistral", "\x1b[B", "\r"]);
+  });
+});
+
+function keysFor_(choice: Parameters<typeof keysForPicks>[0], picks: number[], text = ""): string[] {
+  return keysForPicks(choice, picks, text);
+}
+
+describe("a narrow terminal", () => {
+  // Captured from Claude Code v2.1.318 at 44 columns: the footer wraps.
+  const narrow = [
+    "────────────────────────────────────────────",
+    "←  ☒ Accent  ☐ Routes  ☐ Name  ✔ Submit  →",
+    "",
+    "Which routes do you want enabled?",
+    "",
+    "❯ 1. [ ] Qwen",
+    "         Qwen model family",
+    "  2. [ ] Llama",
+    "         Llama model family",
+    "  3. [ ] Type something",
+    "     Next",
+    "────────────────────────────────────────────",
+    "  4. Chat about this",
+    "",
+    "Enter to select · Tab/Arrow keys to navigate",
+    "· Esc to cancel",
+  ];
+
+  it("reads Esc to cancel from the wrapped footer, so Cancel stays", () => {
+    expect(detectChoice(narrow)?.cancellable).toBe(true);
+  });
+});
+
+describe("the review screen's summary", () => {
+  it("keeps each answer on its own line", () => {
+    const choice = detectChoice(review)!;
+    expect(choice.question).toContain("● Which accent color do you want?\n→ Teal\n● Which routes do you want enabled?\n→ Qwen");
+  });
+});
+
+describe("a very narrow terminal", () => {
+  // Captured from v2.1.318 at 34 columns, cursor on Submit: a four-row footer.
+  const veryNarrow = [
+    "──────────────────────────────────",
+    "←  ☒ Accent  ☐ Routes  ✔ Submit  →",
+    "",
+    "Which routes do you want enabled?",
+    "",
+    "  1. [ ] Qwen",
+    "         Routes requests to the",
+    "         Qwen model family, which",
+    "         is strong at multilingual",
+    "         and coding tasks.",
+    "  2. [ ] Type something",
+    "❯    Submit",
+    "──────────────────────────────────",
+    "  3. Chat about this",
+    "",
+    "Enter to select · Tab/Arrow keys",
+    "to navigate · ctrl+g to edit in VS",
+    "Code · Esc to cancel",
+  ];
+
+  it("still reads Esc to cancel, and the wrapped descriptions stay with their rows", () => {
+    const choice = detectChoice(veryNarrow)!;
+    expect(choice.cancellable).toBe(true);
+    expect(choice.cursor).toBe(2);
+    expect(choice.options[0]?.description).toBe("Routes requests to the Qwen model family, which is strong at multilingual and coding tasks.");
   });
 });
