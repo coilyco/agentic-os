@@ -35,17 +35,17 @@ receives its own config inside `.claude` instead of a view of the host file.
 
 ## Folder trust
 
-Trust is keyed by absolute project path, and every session mints a fresh
-workspace path, so an accepted dialog never carries forward on its own. The
-launcher pre-accepts the paths it just created before the harness starts.
+Trust is keyed by absolute project path and every session mints a fresh one, so
+the launcher pre-accepts the paths it just created before the harness starts.
 
-Each path is seeded in both its raw and its symlink-resolved spelling, because
-macOS resolves `/var` to `/private/var` and the harness records whichever form
-it was launched with. Writers resolve the link before an atomic rename, so the
-session keeps a symlink to the host file rather than a divergent copy.
+Each path is seeded raw and symlink-resolved, as macOS resolves `/var` to
+`/private/var` and the harness records either. Writers resolve the link before
+an atomic rename, so the session keeps its link, not a copy.
 
-Seeding failure is reported and never blocks a launch. Trust is a convenience,
-and a session that prompts is still a working session.
+Every live claude rewrites the shared config, and a write that straddles the
+seed erases it, so the seed is read back and repaired within 1.5s. The
+external-imports approval needs the readable imports to be exactly the two
+approved base files (COI-3343). A failed seed never blocks a launch.
 
 ## Credentials
 
