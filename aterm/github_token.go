@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"os/exec"
@@ -30,6 +31,10 @@ import (
 // githubTokenFeature is how a client knows the daemon answers a github_token
 // frame. The broker is parked with `gh-exec` (COI-3072), see github_exec.go.
 const githubTokenFeature = "github-token"
+
+// githubWorkflowsFeature marks a daemon that honors a frame's workflows flag.
+// An older one ignores it and mints a token a workflow push then fails on.
+const githubWorkflowsFeature = "github-token-workflows"
 
 const (
 	githubAPI = "https://api.github.com"
@@ -212,17 +217,23 @@ func appJWT(creds githubCredentials, now time.Time) (string, error) {
 	return signing + "." + base64.RawURLEncoding.EncodeToString(signature), nil
 }
 
-// token returns a single-repo installation token, reusing one until it is near
-// expiry. The returned time is when GitHub will stop honoring it.
-func (b *githubBroker) token(ctx context.Context, spec string) (string, time.Time, error) {
+// token returns a one-repo installation token and its expiry, cached until near expiry.
+// workflows adds workflows=write, opt-in because it lets a token edit CI.
+func (b *githubBroker) token(ctx context.Context, spec string, workflows bool) (string, time.Time, error) {
 	owner, name, err := parseGithubRepo(spec)
 	if err != nil {
 		return "", time.Time{}, err
 	}
 	repo := owner + "/" + name
+	perms, cacheKey := b.perms, repo
+	if workflows {
+		perms = maps.Clone(b.perms)
+		perms["workflows"] = "write"
+		cacheKey += "+workflows"
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if hit, ok := b.cache[repo]; ok && b.now().Add(tokenReuse).Before(hit.expires) {
+	if hit, ok := b.cache[cacheKey]; ok && b.now().Add(tokenReuse).Before(hit.expires) {
 		return hit.token, hit.expires, nil
 	}
 	creds, err := b.creds(ctx)
@@ -243,7 +254,7 @@ func (b *githubBroker) token(ctx context.Context, spec string) (string, time.Tim
 		Token     string    `json:"token"`
 		ExpiresAt time.Time `json:"expires_at"`
 	}
-	body := map[string]any{"repositories": []string{name}, "permissions": b.perms}
+	body := map[string]any{"repositories": []string{name}, "permissions": perms}
 	path := fmt.Sprintf("/app/installations/%d/access_tokens", installation.ID)
 	if err := b.call(ctx, http.MethodPost, path, jwt, body, &minted); err != nil {
 		return "", time.Time{}, fmt.Errorf("mint a token for %s: %w", repo, err)
@@ -251,7 +262,7 @@ func (b *githubBroker) token(ctx context.Context, spec string) (string, time.Tim
 	if minted.Token == "" {
 		return "", time.Time{}, fmt.Errorf("mint a token for %s: GitHub returned none", repo)
 	}
-	b.cache[repo] = cachedGithubToken{token: minted.Token, expires: minted.ExpiresAt}
+	b.cache[cacheKey] = cachedGithubToken{token: minted.Token, expires: minted.ExpiresAt}
 	return minted.Token, minted.ExpiresAt, nil
 }
 
@@ -304,7 +315,7 @@ func (d *daemon) githubToken(cl *client, message frame) error {
 	}
 	broker := d.github
 	d.mu.Unlock()
-	token, expires, err := broker.token(context.Background(), message.Repo)
+	token, expires, err := broker.token(context.Background(), message.Repo, message.Workflows)
 	if err != nil {
 		return err
 	}
@@ -313,7 +324,7 @@ func (d *daemon) githubToken(cl *client, message frame) error {
 
 // requestGithubToken is the client side: the session token names the caller, so
 // a seat can ask only as itself.
-func requestGithubToken(repo string) (string, error) {
+func requestGithubToken(repo string, workflows bool) (string, error) {
 	token := strings.TrimSpace(os.Getenv(sessionTokenEnv))
 	if token == "" {
 		return "", withExit(exitUsage, fmt.Errorf(
@@ -328,7 +339,11 @@ func requestGithubToken(repo string) (string, error) {
 		return "", errors.New("the running aterm daemon predates the GitHub broker. " +
 			"It restarts on the upgraded binary after five idle minutes")
 	}
-	reply, err := c.request(frame{Type: "github_token", Token: token, Repo: repo})
+	if workflows && !slices.Contains(c.features, githubWorkflowsFeature) {
+		return "", errors.New("the running aterm daemon predates the workflows permission. " +
+			"It restarts on the upgraded binary after five idle minutes")
+	}
+	reply, err := c.request(frame{Type: "github_token", Token: token, Repo: repo, Workflows: workflows})
 	if err != nil {
 		if reply.Code != 0 {
 			return "", withExit(reply.Code, err)
@@ -342,9 +357,12 @@ func newGithubTokenCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "github-token",
 		Usage: "print a short-lived GitHub App token for one repo, minted by the daemon",
-		Flags: []cli.Flag{&cli.StringFlag{Name: "repo", Required: true, Usage: "OWNER/REPO the token is scoped to"}},
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "repo", Required: true, Usage: "OWNER/REPO the token is scoped to"},
+			&cli.BoolFlag{Name: "workflows", Usage: "also ask for workflows=write, which pushing .github/workflows needs"},
+		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
-			token, err := requestGithubToken(cmd.String("repo"))
+			token, err := requestGithubToken(cmd.String("repo"), cmd.Bool("workflows"))
 			if err != nil {
 				return err
 			}

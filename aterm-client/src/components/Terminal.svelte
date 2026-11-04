@@ -7,7 +7,7 @@
   import { harnessInputRows } from "../lib/harness";
   import { boxToReport } from "../lib/pty-size";
   import { isBlank, screenRows } from "../lib/screen";
-  import { safely, watchDelay } from "../lib/pane-watch";
+  import { afterQueued, safely, watchDelay } from "../lib/pane-watch";
   import type { HostConnection, PeerMessage } from "../lib/protocol";
 
   let {
@@ -231,8 +231,10 @@
         asked += 1;
         waiting = "Waiting for this seat's screen. Asking the host again.";
         // The replay is the whole history, so the half-drawn screen goes before it.
-        terminal.reset();
-        remark();
+        afterQueued(terminal, "clearing for the replay", () => {
+          terminal.reset();
+          remark();
+        });
         connection.replay(sessionId);
         watch();
       }, wait);
@@ -255,13 +257,18 @@
       if (event.type === "output" && event.sessionId === sessionId) terminal.write(event.data, afterWrite);
       // The host attaches this seat again with replay right after, so the old screen would print twice.
       else if (event.type === "size" && event.sessionId === sessionId) {
-        const follow = atBottom();
-        terminal.resize(event.cols, event.rows);
-        remark();
-        anchor(follow);
+        // Behind the bytes already queued, which the harness drew for the size before this one.
+        afterQueued(terminal, "sizing to the host", () => {
+          const follow = atBottom();
+          terminal.resize(event.cols, event.rows);
+          remark();
+          anchor(follow);
+        });
       } else if (event.type === "reconnected") {
-        terminal.reset();
-        remark();
+        afterQueued(terminal, "clearing after reconnect", () => {
+          terminal.reset();
+          remark();
+        });
         asked = 0;
         watch();
       }
