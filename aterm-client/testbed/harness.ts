@@ -49,7 +49,7 @@ export const test = base.extend<{ bed: Bed; mock: Mock }>({
       page,
       async openSeat(seat) {
         await page.goto("/");
-        await page.evaluate(() => document.fonts.ready);
+        await loadFonts(page);
         await page.getByRole("tab", { name: /this Mac/ }).click();
         await page.getByRole("tab", { name: new RegExp(seat.name) }).first().click();
         await expect(page.locator(".xterm-rows")).toBeVisible();
@@ -63,7 +63,9 @@ export const test = base.extend<{ bed: Bed; mock: Mock }>({
       async step(name, options) {
         count += 1;
         const file = `${String(count).padStart(2, "0")}-${name}.png`;
-        await page.evaluate(() => document.fonts.ready);
+        await loadFonts(page);
+        // A pointer left over an option paints its hover style on a timer. Park it.
+        await page.mouse.move(0, 0);
         // Resizes return from the mock as redraws. Look once the client is quiet.
         await expect.poll(() => mock.idleMs(), { timeout: 10000 }).toBeGreaterThan(500);
         await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
@@ -79,6 +81,14 @@ export const test = base.extend<{ bed: Bed; mock: Mock }>({
     await use(bed);
   },
 });
+
+/** Load every Latin font face, since a face the page has not drawn yet loads late. */
+const loadFonts = (page: Page) =>
+  page.evaluate(async () => {
+    const faces = [...document.fonts].filter((face) => face.unicodeRange.includes("U+0000"));
+    await Promise.all(faces.map((face) => face.load().catch(() => face)));
+    await document.fonts.ready;
+  });
 
 /** Marks a journey a reported quirk: red until its fix lands. See the walkthrough. */
 export const quirk = (ref: string) => ({ tag: "@quirk", annotation: { type: "quirk", description: ref } });

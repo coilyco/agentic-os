@@ -8,7 +8,7 @@ export default defineConfig({
   testDir: "testbed/journeys",
   outputDir: "testbed/out/results",
   // Baselines are per platform: a font rasterises differently on macOS and Linux.
-  snapshotPathTemplate: "testbed/baselines/{platform}/{projectName}/{testFileName}/{arg}{ext}",
+  snapshotPathTemplate: "testbed/baselines/{platform}/{projectName}/{testFileName}/{testName}/{arg}{ext}",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,

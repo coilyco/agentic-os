@@ -15,3 +15,13 @@ A terminal shorter than the dialog scrolls the top options out of view, and then
 ## The durable path
 
 Screen reading is per harness and breaks when a harness redraws its menu differently. Kai chose `ask_choice`: a tool on the daemon's MCP server that any seat can call. The daemon broadcasts an `ask` frame, the client answers with the picked indexes and any typed text, and an `asked` frame closes the card everywhere. An ask outranks a screen menu in the same seat, and because it is a daemon event it can flag a seat you are not viewing. The frame shape in `daemon-host.ts` is the one proposed to eng-platform, and the daemon's version wins.
+
+## A worker's question on the director's card
+
+A worker that needs Kai calls `send_user_question`, shaped like `ask_choice`, instead of messaging the director (COI-3241). The daemon sends the same `ask` frame with `relay` and `card_seat` added. `session` and `from` still name the asking worker, so its row stays marked as asking. `card_seat` names the session whose pane shows the card. The daemon stamps it, and a caller cannot set it.
+
+* **Where it lands.** The live `prod-director` session other than the asker. With several, the one a client has open, then the one typed into last, then the oldest. With none up, `card_seat` is empty and the card shows on the asker, as an `ask_choice` card does.
+* **Busy or closed.** A card is a client frame, so a busy director shows it at once. If the director ends while the question is pending, the daemon sends the same `ask` again with the next director, or an empty `card_seat`.
+* **The answer.** `answered` goes back to the asking worker with `card_seat` on it (MCP `shown_on`), and the director gets one `[from aterm daemon]` line with the answer. A cancelled or timed-out question reaches the director the same way.
+* **Not built.** The director cannot edit or add context before the card reaches Kai.
+* **The client.** Show the card on `card_seat` when it is set and name the asker on it. Keep the asker's row marked until `asked`, and treat a repeated `ask` with a known id as a move. A daemon without feature `ask-relay` never sets it, and the tool refuses to run against one.

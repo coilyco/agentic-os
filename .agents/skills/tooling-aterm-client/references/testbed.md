@@ -31,13 +31,12 @@ Every step also saves its screenshot, pass or fail, under `aterm-client/testbed/
 
 A journey tagged `@quirk` is a reported quirk. It fails now and goes green when the fix lands, so `just aterm-client-testbed` ends red while any quirk stands. Run it before pushing a fix. A fix also changes screenshots, so run the update verb, read the diff, and commit the new baselines with the fix.
 
-* **COI-3243 bug 1** - `dialog-input-hold`. The client half reproduces. The daemon half, typing into an open dialog, cannot be tested on a mock that would only assert itself.
-* **COI-3243 bugs 2 and 3** - `native-choice`, `native-choice-captured`. No Next button, and the card drops on the Next row and on the review screen.
-* **COI-3243 bug 4** - `native-choice`. Type something in a multi-select opens no text box.
-* **COI-3238 item 1** - `terminal-text`. Box drawing gaps, no links, no find, 1000 lines of history.
-* **COI-3238 item 2** - `side-panel`. 92 columns at 1440, no control to put the panel away.
-* **COI-3238 item 3** - `seat-rows`. A row shows no time in state.
-* **Tabs as text** - `native-choice`. The dialog's tab bar is not buttons.
+State on main at PR 193 and 199, with each fix confirmed by the bed rather than assumed:
+
+* **Green** - COI-3243 bugs 2, 3 and 4 (`native-choice`, `native-choice-captured`) and the box drawing gap of COI-3238 item 1 (`terminal-text`).
+* **Red, client half only** - COI-3243 bug 1 (`dialog-input-hold`). A composer message sent while a dialog is open goes into the dialog. The daemon half cannot be tested on a mock that would only assert itself.
+* **Red** - COI-3238 item 2 (`side-panel`), item 3 (`seat-rows`), a find control (`terminal-text`), the dialog's tab bar as buttons (`native-choice`), and a short conversation growing the PTY without limit (`pty-size`).
+* **Fixme, bed cannot judge yet** - link hover and history depth in `terminal-text`. Its hover does not raise xterm's link cursor and its wheel does not reach the top of history, so a red there would be the bed's fault.
 
 Journeys that hold today: `read-output`, `switch-seats`, `ask-card`, `native-choice` (one question), `start-seat`, `composer-keyboard`, `stream-under-load`.
 

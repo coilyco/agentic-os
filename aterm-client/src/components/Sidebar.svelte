@@ -6,6 +6,7 @@
   import { app, asksFor, colorOf, glowSeats, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
+  import { stateWithAge } from "../lib/age";
   import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel, splitSessions } from "../lib/sessions";
   import { tablistKeys } from "../lib/tabs";
 
@@ -100,14 +101,22 @@
     return "checking";
   }
 
+  // Quiet times count up on their own, so the rows are redrawn every ten seconds.
+  let now = $state(Date.now());
+  $effect(() => {
+    const timer = setInterval(() => (now = Date.now()), 10_000);
+    return () => clearInterval(timer);
+  });
+
   function stateText(session: Session): string {
     if (reconnecting()) return `${session.state}, last known`;
     if (session.state === "failed") return "launch failed";
     if (asksFor(session.id).length) return "asking you";
-    if (app.unseen[session.id]) return "done, your turn";
+    if (app.unseen[session.id]) return stateWithAge("done, your turn", session.quietSince, now);
     if (session.drafting) return "you're typing";
     if (session.pending) return `${session.pending} ${session.pending === 1 ? "message" : "messages"} waiting`;
-    return session.state;
+    // A seat still starting has written nothing yet, so there is no quiet time to count.
+    return stateWithAge(session.state, session.starting ? undefined : session.quietSince, now);
   }
 
   function activity(session: Session): string {

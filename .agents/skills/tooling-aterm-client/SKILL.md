@@ -55,7 +55,7 @@ than editing it by hand.
 * [context-meter.md](references/context-meter.md) - the per-seat context-token count, where each harness's reading comes from, and Kai's freeze exception.
 * [architecture.md](references/architecture.md) - the host seam, envelopes, activity, the composer.
 * [discovery.md](references/discovery.md) - the `hosts` frame and how the host list merges the daemons it finds.
-* [choices.md](references/choices.md) - native choice cards and `ask_choice`.
+* [choices.md](references/choices.md) - native choice cards, `ask_choice` and `send_user_question`.
 * [grants.md](references/grants.md) - approval grants: one Kai decision carried to the executing seats, and the daemon's refusals.
 * [passkey.md](references/passkey.md) - the passkey unlock a remote device needs before it types.
 * [tailnet-access.md](references/tailnet-access.md) - which tailnet devices attach, owner logins on a tagged node, and why a Tailscale Serve front is never loopback.
