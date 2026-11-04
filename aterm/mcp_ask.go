@@ -46,13 +46,21 @@ func askFromArguments(arguments json.RawMessage, ask func(choiceAsk) (choiceAnsw
 			}
 			return withProgress(reason, answers), true
 		}
-		answers = append(answers, map[string]any{
+		each := map[string]any{
 			"question": one.Question, "header": one.Header,
 			"picks": answer.Picks, "labels": answer.Labels, "text": answer.Text,
-		})
+		}
+		if answer.CardSeat != "" {
+			each["shown_on"] = answer.CardSeat
+		}
+		answers = append(answers, each)
 	}
 	if len(params.Questions) == 0 {
-		encoded, _ := json.Marshal(map[string]any{"picks": answers[0]["picks"], "labels": answers[0]["labels"], "text": answers[0]["text"]})
+		single := map[string]any{"picks": answers[0]["picks"], "labels": answers[0]["labels"], "text": answers[0]["text"]}
+		if seat, ok := answers[0]["shown_on"]; ok {
+			single["shown_on"] = seat
+		}
+		encoded, _ := json.Marshal(single)
 		return string(encoded), false
 	}
 	encoded, _ := json.Marshal(map[string]any{"answers": answers})

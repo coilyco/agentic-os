@@ -15,7 +15,7 @@ import (
 func newMCPCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "mcp",
-		Usage: "serve list_agents, send_message, read_messages, session_status, clear_session, close_session and ask_choice over MCP stdio",
+		Usage: "serve list_agents, send_message, read_messages, session_status, clear_session, close_session, ask_choice and send_user_question over MCP stdio",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return serveMCP(ctx, os.Stdin, cmd.Root().Writer)
 		},
@@ -106,6 +106,18 @@ func jsonResult(value any) (*mcp.CallToolResult, any, error) {
 	return textResult(string(encoded), false)
 }
 
+// askHandler runs ask_choice and send_user_question, which differ only in who they ask.
+// askFromArguments owns the one-or-many rules and takes the raw arguments as JSON.
+func askHandler(ask func(choiceAsk) (choiceAnswer, error)) func(context.Context, *mcp.CallToolRequest, askChoiceInput) (*mcp.CallToolResult, any, error) {
+	return func(_ context.Context, _ *mcp.CallToolRequest, input askChoiceInput) (*mcp.CallToolResult, any, error) {
+		arguments, err := json.Marshal(input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return textResult(askFromArguments(arguments, ask))
+	}
+}
+
 // newMCPServer builds the tool server with no transport, for COI-2534 to connect.
 // A handler error is an isError result, only a *jsonrpc.Error a protocol error.
 func newMCPServer(backend mcpBackend) *mcp.Server {
@@ -117,15 +129,20 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 			"aterm stamps your seat on it. Returns the picked labels and any free text. A cancelled " +
 			"or timed-out ask returns an error saying which. Give one question, or `questions` for up " +
 			"to four, which Kai answers one card at a time and which return an answer each.",
-	}, func(_ context.Context, _ *mcp.CallToolRequest, input askChoiceInput) (*mcp.CallToolResult, any, error) {
-		// askFromArguments owns the one-or-many rules and their wording, and
-		// takes the raw arguments, so the typed input is handed back as JSON.
-		arguments, err := json.Marshal(input)
-		if err != nil {
-			return nil, nil, err
-		}
-		return textResult(askFromArguments(arguments, backend.ask))
-	})
+	}, askHandler(backend.ask))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "send_user_question",
+		Description: "Put a multiple-choice question for Kai on the director seat's card in her aterm " +
+			"client, and wait for the pick. Use it as a worker seat that needs Kai, instead of messaging " +
+			"the director. aterm stamps your seat on it, your own row stays marked as asking, and the " +
+			"director gets a line with her answer. With no director up the card shows on your own seat. " +
+			"Shaped like ask_choice, plus `shown_on`, the director seat the card appeared on, absent " +
+			"when it showed on yours.",
+	}, askHandler(func(ask choiceAsk) (choiceAnswer, error) {
+		ask.Relay = true
+		return backend.ask(ask)
+	}))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "list_agents",

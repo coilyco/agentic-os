@@ -264,6 +264,10 @@ const sendWaitFeature = "send-wait"
 // sendIdleFeature is how a client knows the daemon reads `notify_idle` on a send.
 const sendIdleFeature = "send-idle"
 
+// askRelayFeature is how a client knows the daemon reads `relay` on an ask and stamps
+// `card_seat`. A daemon predating it would show the card on the asker, unrelayed.
+const askRelayFeature = "ask-relay"
+
 // closeFeature is how a client knows the daemon answers a close frame.
 const closeFeature = "close"
 

@@ -10,7 +10,8 @@
     "pending": 0,
     "context": { "tokens": 84200, "window": 200000, "source": "claude" },
     "last_reply": "The gate is green. Changes: choices.ts reads a wrapped Next label as one row.",
-    "scene": "claude-working"
+    "scene": "claude-working",
+    "quiet_seconds": 190
   },
   {
     "name": "eng-platform-beetle-ox",
