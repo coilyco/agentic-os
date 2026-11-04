@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // What a real claude showed in an untrusted directory, read off a PTY on 2026-10-02.
@@ -52,6 +53,52 @@ func TestAMessageWaitsBehindACardAndLandsWhenItClears(t *testing.T) {
 	}
 	// The card clears at about 5s, and the message lands after.
 	target.until("[from eng-platform Beetle-Ox] ping")
+}
+
+// A repaint erases a dialog before drawing it again. A message queued in that gap was
+// typed into the dialog's free-text row, so Kai's answer was a notice (COI-3243).
+func TestAMessageStaysHeldThroughACardRepaintGap(t *testing.T) {
+	card := func(row string) string {
+		return `printf 'Do you want to proceed?\r\n` + row + `\r\nEsc to cancel\r\n'`
+	}
+	erase := `printf '\033[3A\033[J'`
+	script := `printf 'READY\033[?2004h\n'; ` + card("1. Yes") + `; sleep 3; ` + erase + `; sleep 0.8; ` +
+		card("2. Again") + `; sleep 4; ` + erase + `; exec cat`
+	token, _, target := spawnPair(t, script)
+	target.until("1. Yes")
+	if state := sendAs(t, token, "scientist", "ping"); state.State != "held" {
+		t.Fatalf("state = %+v, want held behind the card", state)
+	}
+	target.until("2. Again")
+	if strings.Contains(target.output.String(), "[from eng-platform") {
+		t.Fatalf("the message was typed while the card was being repainted:\n%q", target.output.String())
+	}
+	target.until("[from eng-platform Beetle-Ox] ping")
+}
+
+// A delivery receipt is typed into the sender, and it is the sender that may have asked
+// Kai a question. The receipt waits behind that card like any message (COI-3243).
+func TestADeliveryReceiptWaitsBehindTheSendersOwnCard(t *testing.T) {
+	token, sender, target := spawnPair(t, pasteCat)
+	time.Sleep(1600 * time.Millisecond)
+	kaiTypes(t, target, "half a thou")
+	target.until("half a thou")
+	state := sendAs(t, token, "scientist", "ping")
+	if state.State != "held" {
+		t.Fatalf("state = %+v, want held behind Kai's draft", state)
+	}
+	// The sender's own screen now shows a card, which its pty echoes back.
+	card := "Do you want to proceed?\r\n1. Yes\r\nEsc to cancel\r\n"
+	if err := sender.c.write(frame{Type: "input", Session: "eng-platform-beetle-ox", Data: []byte(card)}); err != nil {
+		t.Fatalf("type: %v", err)
+	}
+	sender.until("Esc to cancel")
+	kaiTypes(t, target, "\r") // the held message lands, and its receipt is owed to the sender
+	target.until("[from eng-platform Beetle-Ox] ping")
+	sender.drain(3 * time.Second)
+	if strings.Contains(sender.output.String(), "[from aterm daemon]") {
+		t.Fatalf("the receipt was typed into the sender's open card:\n%q", sender.output.String())
+	}
 }
 
 // Claude Code 2.1.293 screens read off a PTY on 2026-10-08, one per AskUserQuestion page,
