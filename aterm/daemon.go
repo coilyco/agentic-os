@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -25,6 +26,9 @@ const (
 	// A daemon with nothing to serve exits, so an upgraded binary takes over
 	// at the next launch rather than an old one serving forever.
 	daemonIdle = 5 * time.Minute
+	// How long a remote device's unlock outlives a dropped connection. An interim
+	// ruling pending Kai's answer (COI-3305), so it stays a setting, 0 for off.
+	daemonResumeWindow = 60 * time.Minute
 	// A launch-and-deliver message waits this long for its target to open.
 	launchWait = 3 * time.Minute
 	// A client that cannot take output this long is dropped, not waited on.
@@ -81,6 +85,8 @@ type daemon struct {
 	lastActive  time.Time
 	processes   func() ([]processEntry, error)
 	passkeys    *passkeyStore
+	// resume carries an unlock across a reconnect, off until a window is set.
+	resume *resumeStore
 	// peerLookup names the processes holding a local TCP peer's end.
 	peerLookup func(remote, local net.Addr) ([]int, error)
 	roster     func(context.Context) (listedRoster, error)
@@ -125,6 +131,7 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		processes:   func() ([]processEntry, error) { return processLister() },
 		peerLookup:  tcpPeerPIDs,
 		passkeys:    defaultPasskeys(),
+		resume:      newResumeStore(),
 		roster:      launchableRoster,
 		launch:      launchRole,
 		discovery:   newHostDiscovery(),
@@ -180,6 +187,9 @@ type daemonOptions struct {
 	AgentProxy string
 	// VAPIDKey turns on Web Push, empty for none. Never logged.
 	VAPIDKey string
+	// ResumeWindow is how long a remote device's unlock outlives its dropped
+	// connection. Zero keeps an unlock on one connection.
+	ResumeWindow time.Duration
 	// Stop ends the daemon when closed, as a signal does. A test's handle.
 	Stop <-chan struct{}
 	// tailnetListen replaces the tailnet bind, so a test needs no Tailscale.
@@ -227,6 +237,10 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	if d.passkeys, err = newPasskeyStore(passkeyStatePath(), passkeyRPID, []string{passkeyOrigin}); err != nil {
 		logf("no stored passkeys, so no remote device can type: %v", err)
 		d.passkeys = defaultPasskeys()
+	}
+	d.resume.window = options.ResumeWindow
+	if d.resume.enabled() {
+		logf("a remote device's unlock survives a reconnect for %s", d.resume.window)
 	}
 	d.holdDir = filepath.Join(dir, "hold")
 	// Beside the socket, the one directory every seat that reaches the daemon shares.
@@ -406,6 +420,9 @@ type client struct {
 	asserted       bool
 	ceremony       *passkeyCeremony
 	deviceCeremony *deviceCeremony
+	// resumeKey is the hash of the proof this connection holds, if resumeHeld.
+	resumeKey  [sha256.Size]byte
+	resumeHeld bool
 }
 
 func (d *daemon) serve(raw net.Conn) {
@@ -435,6 +452,9 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	if d.imageRoot != "" {
 		welcome.Features = append(welcome.Features, imageUploadFeature)
 	}
+	if d.resume.enabled() {
+		welcome.Features = append(welcome.Features, resumeFeature)
+	}
 	if peer.web {
 		welcome.Typing = d.typingStanding(cl)
 	}
@@ -446,6 +466,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	d.lastActive = time.Now()
 	d.mu.Unlock()
 	defer func() {
+		d.resume.drop(cl)
 		for _, s := range cl.attached {
 			s.detach(c)
 		}
@@ -601,6 +622,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return d.passkey(cl, message)
 	case "device_enroll_begin", "device_enroll_finish", "device_assert_begin", "device_assert_finish":
 		return d.deviceKeyFrames(cl, message)
+	case "resume":
+		return d.resumeFrame(cl, message)
 	case "roster":
 		roster, err := d.roster(context.Background())
 		if err != nil {

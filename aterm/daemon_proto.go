@@ -127,7 +127,10 @@ type frame struct {
 	Error   string        `json:"error,omitempty"`
 	// Passkey ceremonies: EnrollCode is the one-time code, Options and Credential
 	// are WebAuthn JSON. See docs/aterm-daemon.md.
-	EnrollCode string          `json:"enroll_code,omitempty"`
+	EnrollCode string `json:"enroll_code,omitempty"`
+	// Resume is the bearer proof an unlock reply issues and a resume frame presents,
+	// ExpiresIn the seconds it outlives a dropped connection. See daemon_resume.go.
+	Resume     string          `json:"resume,omitempty"`
 	ExpiresIn  int             `json:"expires_in,omitempty"`
 	Options    json.RawMessage `json:"options,omitempty"`
 	Credential json.RawMessage `json:"credential,omitempty"`
