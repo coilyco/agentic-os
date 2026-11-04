@@ -31,19 +31,24 @@ type mcpBackend struct {
 	clear      func(target string, force bool) (string, string, error)
 	close      func(target string, force bool) (string, int, error)
 	stage      func(command, note string) (stageResult, error)
-	ask        func(choiceAsk) (choiceAnswer, error)
-	inbox      func(all bool) ([]inboxMessage, error)
+	// artifactAdd registers a page, and artifact changes or removes one by request.
+	artifactAdd func(address, title, source string, waiting, standing bool) (frame, error)
+	artifact    func(frame) (frame, error)
+	ask         func(choiceAsk) (choiceAnswer, error)
+	inbox       func(all bool) ([]inboxMessage, error)
 }
 
 var liveBackend = mcpBackend{
-	listAgents: listAgents,
-	send:       sendMessage,
-	status:     sessionStatusOf,
-	clear:      clearTarget,
-	close:      closeSession,
-	stage:      stageCommand,
-	ask:        askChoice,
-	inbox:      readInbox,
+	listAgents:  listAgents,
+	send:        sendMessage,
+	status:      sessionStatusOf,
+	clear:       clearTarget,
+	close:       closeSession,
+	stage:       stageCommand,
+	artifactAdd: addArtifact,
+	artifact:    artifactCall,
+	ask:         askChoice,
+	inbox:       readInbox,
 }
 
 type askOptionInput struct {
@@ -92,6 +97,23 @@ type clearSessionInput struct {
 type closeSessionInput struct {
 	To    string `json:"to" jsonschema:"session name from list_agents, or role, identity, or harness"`
 	Force bool   `json:"force,omitempty" jsonschema:"close even while it holds a draft or undelivered messages"`
+}
+
+type addArtifactInput struct {
+	URL      string `json:"url" jsonschema:"exactly https://claude.ai/artifact/<id>"`
+	Title    string `json:"title" jsonschema:"the name shown above the page, one line"`
+	Source   string `json:"source" jsonschema:"the artifact's HTML source file, under your working directory or scratchpad, at most 2 MiB"`
+	Waiting  bool   `json:"waiting,omitempty" jsonschema:"mark it as waiting on Kai"`
+	Standing bool   `json:"standing,omitempty" jsonschema:"keep it after your session ends and across a daemon restart"`
+}
+
+type artifactRefInput struct {
+	Artifact string `json:"artifact" jsonschema:"the artifact's address or its id"`
+}
+
+type artifactWaitingInput struct {
+	artifactRefInput
+	Waiting bool `json:"waiting" jsonschema:"true while the page waits on Kai, false once it does not"`
 }
 
 type stageCommandInput struct {
@@ -255,6 +277,43 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 			return nil, nil, err
 		}
 		return textResult(describeStage(result), result.State != stageStaged)
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "add_artifact",
+		Description: "Show a claude.ai artifact's source in Kai's aterm client, labeled with your session, so she can " +
+			"read it there. claude.ai refuses to be framed, so the client shows your own source file and links out to " +
+			"the page. The daemon reads `source` itself, only from your working directory or scratchpad, at most 2 MiB, " +
+			"and `url` must be exactly https://claude.ai/artifact/<id>. Adding the same url again replaces the page. " +
+			"Returns the artifact id and how many clients show it.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, input addArtifactInput) (*mcp.CallToolResult, any, error) {
+		reply, err := backend.artifactAdd(input.URL, input.Title, input.Source, input.Waiting, input.Standing)
+		if err != nil {
+			return nil, nil, err
+		}
+		return textResult(fmt.Sprintf("added %s, shown to %d clients", reply.ArtifactID, reply.Delivered), false)
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "set_artifact_waiting",
+		Description: "Mark an artifact you added as waiting on Kai, or not. The client shows a waiting page the way it " +
+			"shows a waiting seat.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, input artifactWaitingInput) (*mcp.CallToolResult, any, error) {
+		waiting := input.Waiting
+		if _, err := backend.artifact(frame{Type: "artifact_waiting", ArtifactID: input.Artifact, Waiting: &waiting}); err != nil {
+			return nil, nil, err
+		}
+		return textResult(fmt.Sprintf("waiting %t", waiting), false)
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "remove_artifact",
+		Description: "Close an artifact you added in Kai's client. A standing page whose seat has ended may be removed by any seat.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, input artifactRefInput) (*mcp.CallToolResult, any, error) {
+		if _, err := backend.artifact(frame{Type: "artifact_remove", ArtifactID: input.Artifact}); err != nil {
+			return nil, nil, err
+		}
+		return textResult("removed", false)
 	})
 
 	return server
