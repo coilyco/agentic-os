@@ -1020,6 +1020,7 @@ func (s *ptySession) view() sessionView {
 		Context:      s.context,
 		LastReply:    s.lastReply,
 		LastReplyAt:  repliedAt,
+		Ref:          sessionRef(s.name, s.started),
 	}
 }
 

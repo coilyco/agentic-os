@@ -239,6 +239,9 @@ type sessionView struct {
 	LastReply string `json:"last_reply,omitempty"`
 	// LastReplyAt is when that reply finished. The whole text is fetched with last_reply.
 	LastReplyAt *time.Time `json:"last_reply_at,omitempty"`
+	// Ref names this session and not its name, which is reused. close and clear take
+	// `name@ref`. See daemon_names.go.
+	Ref string `json:"ref,omitempty"`
 }
 
 // terminalView is one plain terminal as a client sees it. Cwd is where the shell
