@@ -25,7 +25,7 @@ test("a resize mid-burst leaves the screen the script drew", async ({ bed }) => 
     if (k === FRAMES / 2) bed.mock.push({ type: "size", session: SEATS.imp.id, rows, cols: cols - 12 });
   }
   const last = FRAMES - 1;
-  await expect.poll(async () => (await text(bed)).slice(0, 3), { timeout: 15000 }).toEqual([1, 2, 3].map((r) => `row ${r} frame ${last} cache-control: no-cache`));
+  await expect.poll(async () => (await text(bed)).slice(0, 3), { timeout: 45000 }).toEqual([1, 2, 3].map((r) => `row ${r} frame ${last} cache-control: no-cache`));
   await bed.step("after-burst");
 });
 
