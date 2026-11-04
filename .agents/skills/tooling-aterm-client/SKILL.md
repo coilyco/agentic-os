@@ -57,6 +57,7 @@ than editing it by hand.
 * [choices.md](references/choices.md) - native choice cards and `ask_choice`.
 * [grants.md](references/grants.md) - approval grants: one Kai decision carried to the executing seats, and the daemon's refusals.
 * [passkey.md](references/passkey.md) - the passkey unlock a remote device needs before it types.
+* [tailnet-access.md](references/tailnet-access.md) - which tailnet devices attach, owner logins on a tagged node, and why a Tailscale Serve front is never loopback.
 * [reach.md](references/reach.md) - why a device cannot reach the daemon, the layers the client names, what the daemon logs, and the six-hop connection check with what a page can and cannot see.
 * [sizing.md](references/sizing.md) - how a session's PTY is sized when clients of different sizes attach, the `size` frame, and `pty-size`.
 * [device-key.md](references/device-key.md) - the Android app's unlock with the phone's own key, as a person sees it.
@@ -64,6 +65,7 @@ than editing it by hand.
 * [views-and-browser.md](references/views-and-browser.md) - MCP Apps views and the shared browser.
 * [browser.md](references/browser.md) - the daemon's streamed Chromium and its `browser_*` frames.
 * [web-push.md](references/web-push.md) - the daemon's Web Push to a closed browser, the frames, and what the service worker builds against.
+* [image-upload.md](references/image-upload.md) - the `image_upload` frame: a pasted image becomes a file on the host, where it lives, the cap, and the guards.
 * [terminal-split.md](references/terminal-split.md) - the Terminal tab, the split, and the side panel's default tab by role.
 * [mcp-apps-gateway.md](references/mcp-apps-gateway.md) - the daemon gateway and the `views` frames a client receives.
 * [github-token.md](references/github-token.md) - `aterm github-token` and `aterm git-credential`: a seat pushes as the coilyco-ops App, granted wide and minted narrow.

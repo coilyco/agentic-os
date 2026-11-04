@@ -48,7 +48,10 @@ type daemon struct {
 	// holdDir is where each session's holder keeps its socket. A restarted
 	// daemon adopts what it finds there.
 	holdDir string
-	tailnet tailnetState
+	// imageRoot holds each seat's uploaded images. Empty means this daemon takes
+	// none and does not offer image-upload.
+	imageRoot string
+	tailnet   tailnetState
 	// loopbackAddr is where the loopback listener bound, empty while it is not
 	// serving. A session's Playwright reaches its browser there.
 	loopbackAddr string
@@ -80,6 +83,9 @@ type daemon struct {
 	launch     func(role, seat string) error
 	// proxyFetch reads Agent Proxy's session usage. Nil when no proxy is configured.
 	proxyFetch proxyFetcher
+	// forwardedPolicy judges a proxied request on the loopback listener. Zero
+	// refuses every one.
+	forwardedPolicy accessPolicy
 	// browsers holds a session's streamed Chromium. browserLaunch replaces the
 	// real one in tests.
 	browsers      browserHub
@@ -154,6 +160,9 @@ type daemonOptions struct {
 	// PeerPorts maps a peer name to the port its daemon listens on, for host discovery.
 	PeerPorts map[string]string
 	AllowTags []string
+	// AllowOwners are tailnet logins whose untagged devices attach, besides this
+	// node's own owner, which a tagged node has none of.
+	AllowOwners []string
 	// AllowOrigins are hosted client pages, like https://coilyco.dev.
 	AllowOrigins []string
 	ClientDir    string
@@ -216,6 +225,8 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		d.passkeys = defaultPasskeys()
 	}
 	d.holdDir = filepath.Join(dir, "hold")
+	// Beside the socket, the one directory every seat that reaches the daemon shares.
+	d.imageRoot = filepath.Join(dir, "images")
 	d.ledgerDir = ledgerDir()
 	pruneLedger(d.ledgerDir, time.Now())
 	logf("serving %s as pid %d, build %s", socket, os.Getpid(), version)
@@ -246,8 +257,10 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		go d.watchWaiting(contextDone, pushWatchEvery)
 	}
 	d.adoptHolders()
+	d.sweepImages()
 	d.clientDir = options.ClientDir
 	d.discovery.port = func() string { return options.TailnetPort }
+	d.forwardedPolicy = forwardedPolicy(&nodeReader{read: readTailnetNode}, options.AllowTags, options.AllowOwners, options.AllowOrigins, tailscaleWhois)
 	d.discovery.peerPorts = options.PeerPorts
 	if options.Websocket != "" {
 		server, err := d.listenWebsocket(options.Websocket)
@@ -269,7 +282,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		listen := options.tailnetListen
 		if listen == nil {
 			listen = func() (*tailnetServing, error) {
-				return d.listenTailnet(options.TailnetPort, options.AllowTags, options.AllowOrigins, filepath.Join(dir, "tailnet"))
+				return d.listenTailnet(options.TailnetPort, options.AllowTags, options.AllowOwners, options.AllowOrigins, filepath.Join(dir, "tailnet"))
 			}
 		}
 		go d.serveTailnetWhenUp(done, listen)
@@ -414,6 +427,9 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	if d.push.enabled() {
 		welcome.Features = append(welcome.Features, pushFeature)
 	}
+	if d.imageRoot != "" {
+		welcome.Features = append(welcome.Features, imageUploadFeature)
+	}
 	if peer.web {
 		welcome.Typing = d.typingStanding(cl)
 	}
@@ -525,6 +541,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 			}
 		}
 		return s.typeInput(message.Data)
+	case "image_upload":
+		return d.uploadImage(cl, message)
 	case "resize":
 		if s := cl.attached[message.Session]; s != nil {
 			s.report(cl.c, message.Rows, message.Cols, nil)
@@ -834,6 +852,7 @@ func (d *daemon) forget(s *ptySession) {
 	d.settleWhere(func(ask choiceAsk) bool { return ask.Session == s.name }, s.name+" ended")
 	d.browsers.end(s.name)
 	d.dropApps(s.name)
+	s.dropImages(d.imageRoot)
 	d.pushSessions()
 }
 

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { advanceIndex, type Choice } from "../lib/choices";
+  import { tick } from "svelte";
+  import { advanceIndex, nextRowIndex, type Choice } from "../lib/choices";
 
   let { choice, identity, onanswer, oncancel, focusToken = 0, onfocused, locked = false, cancelLocked = locked, lockedLabel = "Read only" }: {
     choice: Choice;
@@ -30,10 +31,23 @@
     }
   });
   let text = $state("");
-  let picked = $state<number[]>([]);
+  // The field replaces the button that was just clicked, or opens under it, and the page's focus does not follow by itself.
+  $effect(() => {
+    if (writing === -1) return;
+    void tick().then(() => card?.querySelector<HTMLInputElement>("#choice-text")?.focus());
+  });
+  // The card is keyed by its menu, so a menu that is already part-checked on screen starts that way.
+  // svelte-ignore state_referenced_locally
+  let picked = $state<number[]>(choice.options.flatMap((option, index) => (option.checked ? [index] : [])));
   const freeIndex = $derived(choice.options.findIndex((option) => option.freeText));
   // A harness's own Next row rides in the pinned footer, so a long list never scrolls it away.
   const advance = $derived(advanceIndex(choice));
+  // A multi-select's Next applies the picks first, so it is the card's one submit and the list has no row for it.
+  const next = $derived(nextRowIndex(choice));
+  const nextLabel = $derived(next === -1 ? "" : (choice.options[next]?.label ?? ""));
+  // Claude Code draws that row without a number, so the rows after it count one fewer than their place in the list.
+  const shown = (index: number): number => index + 1 - (next !== -1 && next < index ? 1 : 0);
+  const rows = $derived(choice.options.flatMap((_, index) => (index === next ? [] : [index])));
 
   function pick(index: number): void {
     if (choice.multi) {
@@ -64,14 +78,14 @@
     const buttons = [...(card?.querySelectorAll<HTMLButtonElement>("button.option, button.advance") ?? [])];
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
     const digit = Number(event.key);
-    if (Number.isInteger(digit) && digit >= 1 && digit <= choice.options.length) {
+    if (Number.isInteger(digit) && digit >= 1 && digit <= rows.length) {
       event.preventDefault();
-      pick(digit - 1);
+      pick(rows[digit - 1]!);
     } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       const next = at === -1 ? 0 : (at + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
       buttons[next]?.focus();
-    } else if (choice.multi && event.key === "Enter" && picked.length) {
+    } else if (choice.multi && event.key === "Enter" && (picked.length || next !== -1)) {
       // Space toggles an option, Enter submits, as checkboxes do.
       event.preventDefault();
       submitMulti();
@@ -86,10 +100,10 @@
   <div class="body">
     <p class="asker">{identity} is asking{#if choice.header}<span class="chip">{choice.header}</span>{/if}{#if locked}<span class="chip">{lockedLabel}</span>{/if}</p>
   <h2 id="choice-question">{choice.question || "Pick one"}</h2>
-  {#if choice.multi}<p class="hint">Pick any, then submit.</p>{/if}
+  {#if choice.multi}<p class="hint">Pick any, then {next === -1 ? "submit" : nextLabel.toLowerCase()}.</p>{/if}
   <ol>
     {#each choice.options as option, index (index)}
-      {#if index !== advance}
+      {#if index !== advance && index !== next}
       <li>
         {#if writing === index && !choice.multi}
           <form class="write" onsubmit={submitText}>
@@ -100,7 +114,7 @@
           </form>
         {:else}
           <button class="option" disabled={locked} aria-pressed={choice.multi ? picked.includes(index) : undefined} onclick={() => pick(index)} onkeydown={keys}>
-            <span class="number" aria-hidden="true">{choice.multi && picked.includes(index) ? "✓" : index + 1}</span>
+            <span class="number" aria-hidden="true">{choice.multi && picked.includes(index) ? "✓" : shown(index)}</span>
             <span class="text">
               <span class="label">{option.freeText ? "Something else…" : option.label}</span>
               {#if option.description}<span class="description">{option.description}</span>{/if}
@@ -117,14 +131,16 @@
     {/each}
   </ol>
   <p class="keys" aria-hidden="true">
-    {choice.multi ? `1 to ${choice.options.length} to pick // Enter to submit` : `1 to ${choice.options.length} to answer`}{choice.cancellable ? " // Esc to cancel" : ""}
+    {choice.multi ? `1 to ${rows.length} to pick // Enter to ${next === -1 ? "submit" : nextLabel.toLowerCase()}` : `1 to ${choice.options.length} to answer`}{choice.cancellable ? " // Esc to cancel" : ""}
   </p>
   </div>
   <div class="actions">
     {#if advance !== -1}
       <button class="button primary advance" disabled={locked} onclick={() => pick(advance)} onkeydown={keys}>{choice.options[advance]?.label}</button>
     {/if}
-    {#if choice.multi}
+    {#if choice.multi && next !== -1}
+      <button class="button primary advance" onclick={submitMulti} disabled={locked}>{nextLabel}</button>
+    {:else if choice.multi}
       <button class="button primary" onclick={submitMulti} disabled={locked || picked.length === 0}>Submit {picked.length || ""}</button>
     {/if}
     {#if choice.cancellable}

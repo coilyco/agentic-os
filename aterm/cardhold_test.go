@@ -54,6 +54,27 @@ func TestAMessageWaitsBehindACardAndLandsWhenItClears(t *testing.T) {
 	target.until("[from eng-platform Beetle-Ox] ping")
 }
 
+// A repaint erases a dialog before drawing it again. A message queued in that gap was
+// typed into the dialog's free-text row, so Kai's answer was a notice (COI-3243).
+func TestAMessageStaysHeldThroughACardRepaintGap(t *testing.T) {
+	card := func(row string) string {
+		return `printf 'Do you want to proceed?\r\n` + row + `\r\nEsc to cancel\r\n'`
+	}
+	erase := `printf '\033[3A\033[J'`
+	script := `printf 'READY\033[?2004h\n'; ` + card("1. Yes") + `; sleep 3; ` + erase + `; sleep 0.8; ` +
+		card("2. Again") + `; sleep 4; ` + erase + `; exec cat`
+	token, _, target := spawnPair(t, script)
+	target.until("1. Yes")
+	if state := sendAs(t, token, "scientist", "ping"); state.State != "held" {
+		t.Fatalf("state = %+v, want held behind the card", state)
+	}
+	target.until("2. Again")
+	if strings.Contains(target.output.String(), "[from eng-platform") {
+		t.Fatalf("the message was typed while the card was being repainted:\n%q", target.output.String())
+	}
+	target.until("[from eng-platform Beetle-Ox] ping")
+}
+
 // Claude Code 2.1.293 screens read off a PTY on 2026-10-08, one per AskUserQuestion page,
 // plus an idle control (idle-*). Recapture after a Claude Code upgrade.
 const claudeScreens = "testdata/claude-screens"

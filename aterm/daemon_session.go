@@ -27,6 +27,10 @@ const (
 	draftHold = time.Minute
 )
 
+// cardGrace is how long a card that left the screen still holds messages, since a
+// repaint erases a dialog before it draws it again (COI-3243).
+var cardGrace = 1500 * time.Millisecond
+
 // terminalQuery matches output a terminal answers: status, attribute, version,
 // mode, window, color, setting, capability, and kitty graphics queries.
 var terminalQuery = regexp.MustCompile("\x1b\\[(?:\\??[0-9;]*n|[>=]?[0-9;]*c|>[0-9;]*q|\\?u|\\??[0-9;]*\\$p|(?:1[13-689]|2[01])t)" +
@@ -81,6 +85,11 @@ type ptySession struct {
 	// interleaves with a person's keystrokes.
 	writeMu sync.Mutex
 
+	// imageMu serializes uploads and the cleanup, and imagesClosed is set once the
+	// directory is gone so a late upload cannot recreate it. See daemon_image.go.
+	imageMu      sync.Mutex
+	imagesClosed bool
+
 	mu      sync.Mutex
 	clients map[*conn]bool
 	// size is what each client can show and the PTY size chosen from it.
@@ -94,6 +103,10 @@ type ptySession struct {
 	// keeps a mark split across two chunks.
 	promptSeen time.Time
 	promptTail []byte
+	// cardUp is whether the last chunk left a card up, cardLost when a chunk last took one
+	// off. One screen read cannot say a card closed, so cardReason adds a grace.
+	cardUp   bool
+	cardLost time.Time
 	// scr is the screen the output so far draws, read for the session's state.
 	scr     *screen
 	draft   int
@@ -345,6 +358,7 @@ func (s *ptySession) output(chunk []byte) {
 	s.scrollback = append(s.scrollback, chunk...)
 	if s.scr != nil {
 		s.scr.write(chunk)
+		s.noteCard()
 	}
 	if over := len(s.scrollback) - scrollbackLimit; over > 0 {
 		s.scrollback = append([]byte(nil), s.scrollback[over:]...)
@@ -363,6 +377,19 @@ func (s *ptySession) output(chunk []byte) {
 	if pasteChanged || degradedChanged {
 		s.d.pushSessions()
 	}
+}
+
+// noteCard follows whether a card is on the screen, chunk by chunk, so the moment one
+// leaves is known even when nothing asks during it. Caller holds mu.
+func (s *ptySession) noteCard() {
+	if len(promptScreens[s.seat]) == 0 {
+		return
+	}
+	up := showsCard(s.seat, strings.Join(s.scr.text(), "\n"))
+	if s.cardUp && !up {
+		s.cardLost = s.lastOutput
+	}
+	s.cardUp = up
 }
 
 func (s *ptySession) scanModes(chunk []byte) { s.modeTracker.scan(chunk) }
@@ -751,7 +778,12 @@ func (s *ptySession) holdReason(now time.Time) string {
 // cardReason is why a message waits behind a permission or choice card, since the Enter
 // that submits it would answer the card. Caller holds mu.
 func (s *ptySession) cardReason() string {
-	if s.scr != nil && showsCard(s.seat, strings.Join(s.scr.text(), "\n")) {
+	if s.scr == nil {
+		return ""
+	}
+	// A card that left less than cardGrace ago may be mid-repaint, not closed.
+	recent := !s.cardLost.IsZero() && time.Since(s.cardLost) < cardGrace
+	if s.cardUp || recent || showsCard(s.seat, strings.Join(s.scr.text(), "\n")) {
 		return s.name + " is held at a prompt card"
 	}
 	return ""

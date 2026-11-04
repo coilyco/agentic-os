@@ -148,6 +148,14 @@ export interface TerminalChannel {
   close(id: string): void;
 }
 
+/** Images for a seat (COI-3240). No daemon has one yet (COI-3239). */
+export interface ImageChannel {
+  /** The host's own limit in bytes, so the client never guesses one. */
+  maxBytes: number;
+  /** Puts the image on the seat's host and resolves its path. Rejects in words. */
+  upload(sessionId: string, image: Blob): Promise<string>;
+}
+
 /** A remote device's passkey. Only a daemon that lists `passkey` has one. */
 export interface PasskeyChannel {
   /** Spends the one-time code, makes a passkey, and unlocks. Rejects in words. */
@@ -173,6 +181,7 @@ export interface HostConnection {
   readonly views?: ViewChannel;
   readonly browser?: BrowserChannel;
   readonly terminals?: TerminalChannel;
+  readonly images?: ImageChannel;
   subscribe(listener: (event: HostEvent) => void): () => void;
   /** Dial now, skipping the backoff. Only a connection that redials has it. */
   retry?(): void;

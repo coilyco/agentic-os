@@ -29,6 +29,6 @@ How the client and daemon name the layer that kept a browser out (COI-2597). The
 
 **Measured, not assumed.** `just aterm-client-drive-hops` points the real client at `scripts/hop_daemon.py`, a mock daemon that breaks one hop per scenario on real sockets. It compares the panel's verdict with the `net::ERR_*` code the browser reports to the test runner, which a page never reads. It disproved an idea: Chromium 147 leaves a Resource Timing record for an `https` request whose name did not resolve, so a missing record cannot stand for DNS. Only Chromium has run (COI-3266 covers WebKit, Firefox and a real phone).
 
-**The daemon serves HTTPS itself on the tailnet address, with a `tailscale cert` certificate. It is not Tailscale Serve.** So "nothing is serving HTTPS" means the tailnet listener is unbound or its handshake fails, which the daemon logs.
+**The daemon serves HTTPS on the tailnet address itself, with a `tailscale cert` certificate, and a Tailscale Serve front on 443 is a second way in** ([tailnet-access.md](tailnet-access.md)). So "nothing is serving HTTPS" means the listener the page dialled is unbound or failing its handshake, which the daemon logs, or no Serve front exists. A daemon whose binary an upgrade replaced resets every handshake while it looks bound, which is the "connection was reset" a page sees.
 
 **Where a daemon would help, not built.** A daemon the page can reach could dial the silent one and report Go's own error per hop (COI-3265).

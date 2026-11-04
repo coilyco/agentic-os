@@ -171,7 +171,7 @@ function fromReach(hops: Hop[], reach: Reach, timeoutMs: number): boolean {
       const seen = `The request failed in ${reach.ms} ms with no reason a page can read.`;
       set(hops, "resolve", "maybe", "inferred", seen, "The name may not resolve, so Tailscale may be off on this device or Private DNS may be bypassing MagicDNS.");
       set(hops, "route", "maybe", "inferred", "Same failure as hop 1.", "The connection may have been refused or reset, so the daemon or Tailscale on the host may be down.");
-      set(hops, "tls", "maybe", "inferred", "Same failure as hop 1.", "The handshake or the certificate may be what failed, as when a listener accepts the connection and then drops it.");
+      set(hops, "tls", "maybe", "inferred", "Same failure as hop 1.", "The handshake or the certificate may have failed, as when a daemon started from a since-replaced binary resets every handshake.");
       return false;
     }
   }

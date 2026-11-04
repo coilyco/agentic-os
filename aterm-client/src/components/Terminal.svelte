@@ -3,11 +3,12 @@
   import { Terminal, type IDisposable } from "@xterm/xterm";
   import "@xterm/xterm/css/xterm.css";
   import { onMount } from "svelte";
+  import { AT_END, jumpLabel, linesAbove, scrolled, wrote, type Follow } from "../lib/follow";
   import { envelopeRows } from "../lib/messages";
   import { harnessInputRows } from "../lib/harness";
   import { boxToReport } from "../lib/pty-size";
   import { isBlank, screenRows } from "../lib/screen";
-  import { safely, watchDelay } from "../lib/pane-watch";
+  import { afterQueued, safely, watchDelay } from "../lib/pane-watch";
   import type { HostConnection, PeerMessage } from "../lib/protocol";
 
   let {
@@ -20,6 +21,7 @@
     onscreen,
     locked = false,
     cropHarness = false,
+    covered = false,
   }: {
     connection: HostConnection;
     sessionId: string;
@@ -33,12 +35,17 @@
     locked?: boolean;
     /** The composer is the one input at every width, so the harness's own input box is scrolled out of view. */
     cropHarness?: boolean;
+    /** A card sits over the foot of the terminal, so the way back to the latest output waits. */
+    covered?: boolean;
   } = $props();
 
   let host: HTMLDivElement;
   let term: Terminal | undefined;
   // The box scrolls when the terminal is bigger than it: a PTY sized to a larger client, or a cropped harness box.
   let panning = $state(false);
+  // Whether the view sits above the newest output, and how many lines came in while it did.
+  let latest = $state<Follow>(AT_END);
+  let trackView = () => {};
   // Said in the pane while it has drawn nothing and the host is being asked again. Empty otherwise.
   let waiting = $state("");
   const HIDE_SETTLE_MS = 350;
@@ -142,6 +149,11 @@
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(host);
+    // Above the end when xterm's own view or the pan box is scrolled away from the newest row.
+    const above = () => linesAbove(terminal.buffer.active) + (panning && !atBottom() ? 1 : 0);
+    trackView = () => (latest = scrolled(latest, above()));
+    terminal.onScroll(trackView);
+    host.addEventListener("scroll", trackView);
     const cropping = () => cropHarness;
     let hidden = 0;
     const extra = () => (cropping() ? hidden : 0);
@@ -231,8 +243,11 @@
         asked += 1;
         waiting = "Waiting for this seat's screen. Asking the host again.";
         // The replay is the whole history, so the half-drawn screen goes before it.
-        terminal.reset();
-        remark();
+        afterQueued(terminal, "clearing for the replay", () => {
+          terminal.reset();
+          remark();
+          trackView();
+        });
         connection.replay(sessionId);
         watch();
       }, wait);
@@ -252,16 +267,29 @@
       if (!locked) connection.input(sessionId, data);
     });
     const unsubscribe = connection.subscribe((event) => {
-      if (event.type === "output" && event.sessionId === sessionId) terminal.write(event.data, afterWrite);
+      if (event.type === "output" && event.sessionId === sessionId) {
+        const before = above();
+        terminal.write(event.data, () => {
+          afterWrite();
+          latest = wrote(latest, before, above());
+          trackView();
+        });
+      }
       // The host attaches this seat again with replay right after, so the old screen would print twice.
       else if (event.type === "size" && event.sessionId === sessionId) {
-        const follow = atBottom();
-        terminal.resize(event.cols, event.rows);
-        remark();
-        anchor(follow);
+        // Behind the bytes already queued, which the harness drew for the size before this one.
+        afterQueued(terminal, "sizing to the host", () => {
+          const follow = atBottom();
+          terminal.resize(event.cols, event.rows);
+          remark();
+          anchor(follow);
+        });
       } else if (event.type === "reconnected") {
-        terminal.reset();
-        remark();
+        afterQueued(terminal, "clearing after reconnect", () => {
+          terminal.reset();
+          remark();
+          trackView();
+        });
         asked = 0;
         watch();
       }
@@ -280,6 +308,7 @@
       unsubscribe();
       connection.detach(sessionId);
       input.dispose();
+      host.removeEventListener("scroll", trackView);
       observer.disconnect();
       terminal.dispose();
     };
@@ -297,15 +326,39 @@
     void messages.length;
     markEnvelopes();
   });
+
+  function jump(): void {
+    term?.scrollToBottom();
+    anchor(true);
+    trackView();
+    term?.focus();
+  }
+  const jumpWords = $derived(jumpLabel(latest.unseen));
 </script>
 
-<div class="term-host" class:panning role="region" aria-label={`Terminal for ${label}`} bind:this={host}>
-  <p class="waiting" role="status">{waiting}</p>
+<div class="term-frame">
+  <div class="term-host" class:panning role="region" aria-label={`Terminal for ${label}`} bind:this={host}>
+    <p class="waiting" role="status">{waiting}</p>
+  </div>
+  {#if latest.away && !covered}
+    <button type="button" class="jump" aria-label={jumpWords.spoken} onclick={jump}>
+      <span aria-hidden="true">↓</span>
+      <span aria-hidden="true">Jump to latest</span>
+      {#if jumpWords.count}<span class="count" aria-hidden="true">{jumpWords.count}</span>{/if}
+    </button>
+  {/if}
 </div>
 
 <style>
-  .term-host { position: relative; flex: 1 1 auto; min-height: 240px; padding: 12px 0 12px 16px; background: var(--terminal); overflow: hidden; }
+  .term-frame { position: relative; flex: 1 1 auto; min-height: 240px; min-width: 0; display: flex; flex-direction: column; }
+  .term-host { position: relative; flex: 1 1 auto; min-height: 0; padding: 12px 0 12px 16px; background: var(--terminal); overflow: hidden; }
   .waiting { position: absolute; z-index: 1; top: 12px; left: 16px; right: 16px; margin: 0; color: var(--muted); font-size: 13px; pointer-events: none; }
   .term-host.panning { overflow: auto; }
   .term-host.panning :global(.xterm) { width: max-content; }
+  .jump { position: absolute; z-index: 3; right: 28px; bottom: 16px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px #000a; }
+  .count { min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: var(--brand-ink); font: 700 12px/22px var(--font-body); text-align: center; }
+  .jump:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  @media (max-width: 720px) {
+    .jump { right: 12px; bottom: 12px; }
+  }
 </style>

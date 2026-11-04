@@ -11,8 +11,8 @@ const maxSendWait = 2 * time.Minute
 // finalState is whether a message has nothing left to report.
 func finalState(state string) bool { return state == "delivered" || state == "failed" }
 
-// armReceipt asks for a receipt typed into the sender once this message is final,
-// for one that was not when the sender was answered. See docs/aterm-daemon.md.
+// armReceipt asks for a receipt in the sender's inbox once this message is final, for
+// one that was not when the sender was answered. See docs/aterm-daemon.md.
 func (p *pendingSend) armReceipt() {
 	p.mu.Lock()
 	p.armed = true
@@ -36,10 +36,18 @@ func (p *pendingSend) sendReceipt() {
 	deliverReceipt(sender, snapshot)
 }
 
-// deliverReceipt queues a daemon-stamped line in the sender's session, behind Kai's
-// draft like any message. Its own state is neither reported nor receipted.
+// deliverReceipt files a daemon-stamped receipt in the sender's inbox, for read_messages.
+// It is never typed into the session, where it landed in dialogs and drafts (COI-3243).
 func deliverReceipt(sender *ptySession, message peerMessage) {
-	tellSender(sender, receiptText(message))
+	select {
+	case <-sender.done:
+		return
+	default:
+	}
+	sender.inbox.add(inboxMessage{
+		ID: randomID(6), From: "aterm daemon", Received: time.Now().UTC(),
+		Text: envelope("aterm", "daemon", receiptText(message)),
+	})
 }
 
 // tellSender queues one daemon-stamped line in the sender's session, unless it ended.

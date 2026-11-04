@@ -50,6 +50,11 @@ func newDaemonCommand() *cli.Command {
 				Sources: cli.EnvVars(daemonAllowTagsEnv),
 			},
 			&cli.StringSliceFlag{
+				Name:    "allow-owners",
+				Usage:   "tailnet logins whose untagged devices may attach, since a tagged node has no owner of its own",
+				Sources: cli.EnvVars(daemonAllowOwnersEnv),
+			},
+			&cli.StringSliceFlag{
 				Name:    "allow-origins",
 				Value:   defaultAllowOrigins,
 				Usage:   "hosted client pages that may open a session socket on the tailnet",
@@ -85,6 +90,7 @@ func newDaemonCommand() *cli.Command {
 				Websocket:    cmd.String("websocket"),
 				TailnetPort:  cmd.String("tailnet-port"),
 				AllowTags:    cmd.StringSlice("allow-tags"),
+				AllowOwners:  cmd.StringSlice("allow-owners"),
 				AllowOrigins: cmd.StringSlice("allow-origins"),
 				ClientDir:    cmd.String("client-dir"),
 				Idle:         cmd.Duration("idle"),

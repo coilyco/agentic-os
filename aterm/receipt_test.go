@@ -80,7 +80,30 @@ func TestSendWaitHoldsTheAnswerForTheFinalState(t *testing.T) {
 	}
 }
 
-func TestAHeldMessageEarnsTheSenderAReceiptWhenItLands(t *testing.T) {
+// receiptIn polls the sender's inbox until a daemon receipt holds want.
+func receiptIn(t *testing.T, token, want string) inboxMessage {
+	t.Helper()
+	t.Setenv(sessionTokenEnv, token)
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		messages, err := readInbox(true)
+		if err != nil {
+			t.Fatalf("read inbox: %v", err)
+		}
+		for _, message := range messages {
+			if message.From == "aterm daemon" && strings.Contains(message.Text, want) {
+				return message
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("no receipt holding %q reached the sender's inbox", want)
+	return inboxMessage{}
+}
+
+// A receipt is read with read_messages and never typed into the sender, where it landed
+// in dialogs and drafts (COI-3243).
+func TestAHeldMessageEarnsTheSenderAReceiptInItsInboxWhenItLands(t *testing.T) {
 	token, sender, target := spawnPair(t, pasteCat)
 	time.Sleep(1600 * time.Millisecond)
 	kaiTypes(t, target, "half a thou")
@@ -90,10 +113,13 @@ func TestAHeldMessageEarnsTheSenderAReceiptWhenItLands(t *testing.T) {
 		t.Fatalf("state = %+v, want held behind Kai's draft", state)
 	}
 	kaiTypes(t, target, "\r")
-	// The receipt is typed into the sender, stamped by the daemon.
-	sender.until("[from aterm daemon] message " + state.ID + " to scientist-evie: delivered")
-	if strings.Contains(sender.output.String(), "secret body") {
-		t.Fatalf("a receipt must never carry the body:\n%q", sender.output.String())
+	receipt := receiptIn(t, token, "message "+state.ID+" to scientist-evie: delivered")
+	if strings.Contains(receipt.Text, "secret body") {
+		t.Fatalf("a receipt must never carry the body: %q", receipt.Text)
+	}
+	sender.drain(2 * time.Second)
+	if strings.Contains(sender.output.String(), "[from aterm daemon]") {
+		t.Fatalf("a receipt was typed into the sender's session:\n%q", sender.output.String())
 	}
 }
 
@@ -105,20 +131,22 @@ func TestAMessageDeliveredAtOnceEarnsNoReceipt(t *testing.T) {
 	}
 	target.until("[from eng-platform Beetle-Ox] ping")
 	sender.drain(2500 * time.Millisecond)
-	if strings.Contains(sender.output.String(), "[from aterm daemon]") {
-		t.Fatalf("a message already final when answered owes no receipt:\n%q", sender.output.String())
+	t.Setenv(sessionTokenEnv, token)
+	messages, err := readInbox(true)
+	if err != nil || len(messages) != 0 || strings.Contains(sender.output.String(), "[from aterm daemon]") {
+		t.Fatalf("a message already final when answered owes no receipt: %+v, %v\n%q", messages, err, sender.output.String())
 	}
 }
 
 func TestATargetThatEndsBeforeDeliveryEarnsAFailedReceipt(t *testing.T) {
-	token, sender, target := spawnPair(t, `printf 'READY\033[?2004h\n'; read -r _`)
+	token, _, target := spawnPair(t, `printf 'READY\033[?2004h\n'; read -r _`)
 	kaiTypes(t, target, "x")
 	state := sendAs(t, token, "scientist", "ping")
 	if finalState(state.State) {
 		t.Fatalf("state = %+v, want it still waiting when answered", state)
 	}
 	kaiTypes(t, target, "\r") // ends the target's read, and so the target
-	sender.until("[from aterm daemon] message " + state.ID + " to scientist-evie: failed: scientist-evie ended before it was delivered")
+	receiptIn(t, token, "message "+state.ID+" to scientist-evie: failed: scientist-evie ended before it was delivered")
 }
 
 func TestReceiptTextNamesTheMessageAndNeverItsBody(t *testing.T) {
