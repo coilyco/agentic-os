@@ -6,6 +6,6 @@
                                            ┃
                                            ┃  Ask anything… "Fix broken tests"
                                            ┃
-                                           ┃  Build · DeepSeek V4 Pro Agent Proxy
+                                           ┃  Build · GLM 5.3         Agent Proxy
                                            ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
                                                                                            tab agents  ctrl+p commands

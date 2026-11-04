@@ -20,6 +20,7 @@ const filesWith = (needle: RegExp) => files.filter((file) => needle.test(file.te
 describe("seat selection", () => {
   it("is done only by the store and by components that run it from a click or tap", () => {
     expect(filesWith(/\b(selectSession|openByPerson)\(/)).toEqual([
+      "components/RelayNotice.svelte",
       "components/SeatToast.svelte",
       "components/Sidebar.svelte",
       "lib/app.svelte.ts",

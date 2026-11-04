@@ -12,6 +12,7 @@ const (
 	exitSpawn     = 5
 	exitNested    = 6
 	exitDrift     = 7
+	exitNoClient  = 8
 )
 
 type exitError struct {

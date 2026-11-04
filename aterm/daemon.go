@@ -41,7 +41,9 @@ type daemon struct {
 	sessions map[string]*ptySession
 	// terminals are plain login shells. They sit in their own map so every walk
 	// of sessions (send targets, roster, counts) skips them without a filter.
-	terminals  map[string]*ptySession
+	terminals map[string]*ptySession
+	// stageMu serializes finding or opening the terminal a stage types into.
+	stageMu    sync.Mutex
 	tokens     map[string]*ptySession
 	orphans    []*pendingSend
 	asks       map[string]*pendingAsk
@@ -442,7 +444,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -581,6 +583,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return d.send(cl.c, message)
 	case "close":
 		return d.closeSession(cl, message)
+	case "stage":
+		return d.stage(cl, message)
 	case "status":
 		s, err := d.oneTarget(message.Target)
 		if err != nil {

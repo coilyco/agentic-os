@@ -6,6 +6,7 @@ import { chime, isBlocked, unlock, watchBlocked } from "./chime";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
 import { discover, listedAddresses, newFoundHosts, staleFoundHosts } from "./discovery";
 import { upsertMessage } from "./messages";
+import { askerLine, cardSeatOf } from "./relay";
 import { MockHost, terminalModeFrom } from "./mock-host";
 import { diagnose } from "./reach";
 import type { View } from "./mcp-apps";
@@ -396,6 +397,35 @@ export function asksFor(sessionId: string): Ask[] {
   return Object.values(app.asks).filter((ask) => ask.session === sessionId);
 }
 
+function liveIds(): Set<string> {
+  return new Set(app.sessions.map((session) => session.id));
+}
+
+/** Asks whose card shows on this seat's pane: its own, and a worker's relayed to it. */
+export function asksShownOn(sessionId: string): Ask[] {
+  const live = liveIds();
+  return Object.values(app.asks).filter((ask) => cardSeatOf(ask, live) === sessionId);
+}
+
+/** The seat showing the card for a question this seat asked, if another seat. */
+export function relayedTo(sessionId: string): Session | undefined {
+  const live = liveIds();
+  for (const ask of Object.values(app.asks)) {
+    if (ask.session !== sessionId) continue;
+    const seat = cardSeatOf(ask, live);
+    if (seat !== sessionId) return app.sessions.find((session) => session.id === seat);
+  }
+  return undefined;
+}
+
+/** What a row says about an ask that concerns its seat, or null when none does. */
+export function askLineFor(sessionId: string): string | null {
+  const live = liveIds();
+  const nameOf = (id: string) => app.sessions.find((session) => session.id === id)?.identity ?? id;
+  const ask = Object.values(app.asks).find((each) => each.session === sessionId || cardSeatOf(each, live) === sessionId);
+  return ask ? askerLine(ask, sessionId, live, nameOf) : null;
+}
+
 export interface Waiting {
   sessionId: string;
   role: string;
@@ -406,8 +436,9 @@ export interface Waiting {
 /** Seats that need you, asks before finished turns, in the order they arrived. */
 export function waitingSeats(): Waiting[] {
   const bySession = new Map(app.sessions.map((session) => [session.id, session]));
+  const live = liveIds();
   const asking = Object.values(app.asks)
-    .map((ask) => bySession.get(ask.session))
+    .map((ask) => bySession.get(cardSeatOf(ask, live)))
     .filter((session): session is Session => session !== undefined);
   const done = Object.keys(app.unseen)
     .map((id) => bySession.get(id))
@@ -425,7 +456,7 @@ export function waitingSeats(): Waiting[] {
 // A pending ask takes the keyboard, as it does for anyone who opens its seat.
 export function openByPerson(id: string): void {
   selectSession(id);
-  if (asksFor(id).length) {
+  if (asksShownOn(id).length) {
     app.focusAsk = id;
     app.focusCard++;
   }
@@ -438,8 +469,8 @@ export function openSeat(): string | null {
 
 /** Who is waiting, for cues. A read-only browser cannot answer, so its asks sit out. */
 export function cueSeats(): string[] {
-  const live = new Set(app.sessions.map((session) => session.id));
-  const asking = app.typing.allowed ? Object.values(app.asks).map((ask) => ask.session) : [];
+  const live = liveIds();
+  const asking = app.typing.allowed ? Object.values(app.asks).map((ask) => cardSeatOf(ask, live)) : [];
   return [...new Set([...Object.keys(app.attention), ...asking])].filter((id) => live.has(id));
 }
 
