@@ -6,6 +6,6 @@
                                            ┃
                                            ┃  Ask anything… "Fix broken tests"
                                            ┃
-                                           ┃  Build · GLM 5.3         Agent Proxy
+                                           ┃  Build · MiniMax M3      Agent Proxy
                                            ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
                                                                                            tab agents  ctrl+p commands
