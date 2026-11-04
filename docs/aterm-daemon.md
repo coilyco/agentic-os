@@ -4,17 +4,17 @@
 
 ## What the daemon owns
 
-**`_session` hands the harness to the daemon instead of running it.** It sends a `spawn` with argv, environment, directory and window size, then attaches. The argv reaches the harness untouched.
+**`_session` hands the harness to the daemon instead of running it.** It sends a `spawn` with argv, environment, directory and window size, then attaches, the argv untouched.
 
-**A session is named `<role>-<identity>`, and a live name refuses a spawn.** A concurrent instance takes the next pool name (`--identity` picks one), and only a full pool adds `-2`, `-3`. A `claim` grants each launch the first free name for two minutes.
+**A session is named `<role>-<identity>`, and a live name refuses a spawn.** A concurrent instance takes the next pool name (`--identity` picks one), and only a full pool adds `-2`, `-3`.
 
-**`list` reads each session's screen.** It rebuilds each screen from output and reports `state`: `starting`, `prompt` (a card is up), `busy` (recent output or the interrupt hint), else `idle`.
+**`list` reads each session's screen** and reports `state`: `starting`, `prompt` (a card is up), `busy` (recent output or the interrupt hint), else `idle`.
 
 **`aterm clear` types the harness's clear command, unstamped.** Only Kai's client and the `prod-director` role may, never on the caller's own session, a prompt, or a seat with no known command (claude only). Without `--force` it refuses a busy session, a draft, or queued messages.
 
 **A terminal is a login shell, not a seat.** `spawn` with `kind: "terminal"` and optional `cwd` runs `$SHELL -l` under a holder, named `terminal-<hex>`, with no token, and refuses every seat field, `argv` and `env`. It is absent from `sessions`, `aterm agents`, seat counts and every `send`, `status` and `clear` target. `list` and the `sessions` push carry `terminals` (`name`, `pid`, `started`, `clients`, `cwd`, `label`). A spawn `label` (feature `terminal-label`, up to 256 bytes) is opaque and kept by a restart. A seat refuses it. `attach`, `input`, `resize` and `close` take its name, an exiting shell ends it, a restart adopts it. A remote device gets `remote_terminal`, passkey or not.
 
-**A session outlives its window.** `aterm close` types the harness's exit at an idle prompt, then SIGTERM after 10s and SIGKILL 3s later.
+**A session outlives its window.** `aterm close` types the harness's exit at an idle prompt, then SIGTERM after 10s, SIGKILL 3s on.
 
 **A holder owns each session's terminal, so a daemon crash leaves sessions running.** See [holders, launch, Sentry](aterm-bundles.md#daemon-internals-launch-holders-and-sentry).
 
@@ -24,7 +24,7 @@
 
 **The sender is stamped by the daemon, never declared.** Each spawn gets a fresh `ATERM_SESSION_TOKEN`, `send` presents it, and the daemon types `[from <role> <identity>] <body>`.
 
-**A body cannot forge a second envelope.** A body line opening with `[from ` gets a leading `\`.
+**A body cannot forge a second envelope**: a line opening with `[from ` gets a leading `\`.
 
 **Targets resolve in tiers**: session name, role slug, identity, then harness. The first tier with a match wins, several in it refuse, named, and none exits 3. `--launch` on a role slug opens the role and holds the message up to three minutes. `--new` opens another instance.
 
@@ -32,7 +32,7 @@
 
 **A bracketed-paste program gets one paste, then Enter 300ms later**, since an Enter inside reads as a newline. codex and goose turn it on at their prompt, so **ready means paste is on**. claude and opencode drop a paste before the prompt, so **ready means `Try "` or `Ask anything` showed**, or 20s passed. **`delivered` means opencode took Enter and claude's transcript shows the message**. Unseen for 90s is `failed`, and a mid-turn seat that took no Enter is [parked](../.agents/skills/tooling-aterm-client/references/parked.md).
 
-**A process inside a session cannot type into one.** It walks the connecting pid's parents. Such a process may send, stamped, but type only into a session it spawned.
+**A process inside a session cannot type into one.** It walks the connecting pid's parents. It may send, stamped, but type only into a session it spawned.
 
 **A websocket on this host gets the same walk**, its source port mapped to the pids holding it, so a browser a session started, or one the daemon cannot name, cannot type, answer, launch or clear. A browser outside every session types, an agent driving Kai's own Chrome included.
 
@@ -44,8 +44,8 @@
 
 * `spawn`, `attach`, `detach`, `input` and `output` (base64 `data`), `resize`, `exit` with `code`.
 * `send` answers `sent` with the message state, waiting 3 seconds, or `wait` up to 120, for delivery unless `launching`. One not yet final earns the sender an inbox receipt `message <id> to <session>: <state>`, not typed, no body. `notify_idle` types `<session> is idle`, `is held at a prompt` or `ended`.
-* `status` (with `lines`), `clear` and `close` (with optional `force`), each with a `target`, answer `status`, `cleared` and `closed` with the exit `code`. `claim` with a `session` base answers `claimed` with a free pool name, and `peek` holds none.
-* `image_upload` (feature `image-upload`) [image to file](../.agents/skills/tooling-aterm-client/references/image-upload.md).
+* `status` (with `lines`), `clear` and `close` (with optional `force`), each with a `target`, answer `status`, `cleared` and `closed` with the exit `code`. `claim` with a `session` base answers `claimed` with a free pool name held two minutes, and `peek` holds none.
+* `image_upload` (`image-upload`) saves an [image as a file](../.agents/skills/tooling-aterm-client/references/image-upload.md) for a seat. `open_url` (`open-url`) [opens a seat's page](../.agents/skills/tooling-aterm-client/references/open-url.md) in a client.
 * `inbox` (feature `inbox`) returns the caller's own messages by `token`, recorded at `enqueue` and marked read on return, `all` adding the read. Capped at 200, emptied by a restart.
 * `list` answers `sessions`, each with `state`, `quiet_seconds`, `last_reply` and `context` ([the meter](../.agents/skills/tooling-aterm-client/references/context-meter.md)). `subscribe` to `sessions` pushes the roster on every change, and `message` events carry each state change, never the body. A stalled subscriber drops after 5s.
 * `welcome` to a websocket adds `typing-guard`, `passkey` and `typing` `{allowed, reason, passkey}`, `passkey` `enrolled` or `unenrolled`. A refusal's `error` carries `reason`: `session_descendant`, `peer_unread` or `passkey_required`.
