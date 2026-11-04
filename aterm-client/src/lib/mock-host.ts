@@ -2,7 +2,8 @@
 // the surface with no daemon running. Nothing here reaches a real PTY.
 import rosterJson from "./fixtures/roster.json";
 import { envelope } from "./messages";
-import type { Ask, ContextReading, HostConnection, HostEvent, PeerMessage, Session, TerminalChannel } from "./protocol";
+import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
+import type { Ask, ContextReading, HostConnection, HostEvent, ImageChannel, PeerMessage, Session, TerminalChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import { CLAUDE_BOX, CLAUDE_DIALOG, drawHarness, type Frame } from "./demo-harness";
 import { runShellLine, SHELL_PROMPT, type ShellStep } from "./demo-shell";
@@ -38,9 +39,28 @@ export function terminalModeFrom(search: string): TerminalMode {
   return TERMINAL_MODES.find((mode) => mode === asked) ?? "ok";
 }
 
+function isImage(head: Uint8Array): boolean {
+  const starts = (...bytes: number[]) => bytes.every((byte, at) => head[at] === byte);
+  return starts(0x89, 0x50, 0x4e, 0x47) || starts(0xff, 0xd8, 0xff) || starts(0x47, 0x49, 0x46, 0x38) || (starts(0x52, 0x49, 0x46, 0x46) && head[8] === 0x57 && head[9] === 0x45);
+}
+
 export class MockHost implements HostConnection {
   readonly canLaunch = true;
   readonly terminals?: TerminalChannel;
+  // The daemon's rules (references/image-upload.md): bytes set the type, 3 MB, 16 a seat.
+  readonly images: ImageChannel = {
+    maxBytes: IMAGE_UPLOAD_MAX_BYTES,
+    upload: async (sessionId, image) => {
+      const head = new Uint8Array(await image.slice(0, 12).arrayBuffer());
+      const refused = !isImage(head) ? "not_an_image" : image.size > IMAGE_UPLOAD_MAX_BYTES ? "too_large" : (this.uploads.get(sessionId) ?? 0) >= 16 ? "too_many" : null;
+      if (refused) throw new Error(imageRefusal(refused) ?? "The host refused the image.");
+      const held = (this.uploads.get(sessionId) ?? 0) + 1;
+      this.uploads.set(sessionId, held);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return `/tmp/aterm-demo/images/${sessionId}-1/${String(held).padStart(4, "0")}.png`;
+    },
+  };
+  private uploads = new Map<string, number>();
   private shells = new Map<string, { label: string; line: string }>();
   private nextShell = 0;
   private listeners = new Set<(event: HostEvent) => void>();

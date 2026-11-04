@@ -1041,3 +1041,84 @@ describe("a pane that never drew", () => {
     host.close();
   });
 });
+
+describe("the image channel", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const png = (bytes = 7) => new Blob([new Uint8Array(bytes).fill(1)], { type: "image/png" });
+  const sentUpload = async (socket: StubSocket) => {
+    await vi.waitFor(() => expect(socket.sent.some((line) => JSON.parse(line).type === "image_upload")).toBe(true));
+    return JSON.parse(socket.sent.find((line) => JSON.parse(line).type === "image_upload") ?? "{}");
+  };
+
+  it("offers no channel until the welcome lists the feature, and then the frame's own limit", () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["send-new"] });
+    expect(host.images).toBeUndefined();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload"] });
+    expect(host.images?.maxBytes).toBe(3_000_000);
+    host.close();
+  });
+
+  it("sends the seat and the bytes as base64, with no type, and resolves the path the host names", async () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload"] });
+    const path = host.images?.upload("seat-a", png(3));
+    const frame = await sentUpload(socket);
+    expect(frame).toMatchObject({ type: "image_upload", session: "seat-a", data: btoa("\x01\x01\x01") });
+    expect(frame).not.toHaveProperty("mime");
+    socket.receive({ type: "image_uploaded", id: frame.id, session: "seat-a", path: "/tmp/aterm/images/seat-a-1/x.png" });
+    await expect(path).resolves.toBe("/tmp/aterm/images/seat-a-1/x.png");
+    host.close();
+  });
+
+  it("encodes the most one frame carries without overflowing the stack", async () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload"] });
+    void host.images?.upload("seat-a", png(3_000_000)).catch(() => {});
+    const frame = await sentUpload(socket);
+    expect(frame.data).toHaveLength(4_000_000);
+    host.close();
+  });
+
+  it("rejects each refusal the daemon names in words a person can act on", async () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload"] });
+    for (const [reason, words] of [
+      ["not_an_image", /did not read that as a PNG/],
+      ["too_large", /over 3 MB/],
+      ["too_many", /16 images/],
+      ["session_unknown", /not attached to this seat/],
+    ] as const) {
+      const before = socket.sent.length;
+      const attempt = host.images?.upload("seat-a", png());
+      await vi.waitFor(() => expect(socket.sent.length).toBeGreaterThan(before));
+      socket.receive({ type: "error", id: JSON.parse(socket.sent.at(-1) ?? "{}").id, code: 3, error: "daemon words", reason });
+      await expect(attempt).rejects.toThrow(words);
+    }
+    host.close();
+  });
+
+  it("reads a refusal by the typing guard as read-only, the same as typed input", async () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload"], typing: { allowed: true } });
+    const attempt = host.images?.upload("seat-a", png());
+    const frame = await sentUpload(socket);
+    socket.receive({ type: "error", id: frame.id, code: 6, error: "refused", reason: "passkey_required" });
+    await expect(attempt).rejects.toThrow();
+    expect(typings(events).at(-1)).toMatchObject({ typing: { allowed: false, reason: "passkey_required" } });
+    host.close();
+  });
+
+  it("fails an upload the connection dropped under, instead of waiting for a reply that cannot come", async () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload"] });
+    const attempt = host.images?.upload("seat-a", png());
+    await sentUpload(socket);
+    socket.drop();
+    await expect(attempt).rejects.toThrow(/closed the connection/);
+    host.close();
+  });
+});
