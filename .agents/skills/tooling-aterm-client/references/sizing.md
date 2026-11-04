@@ -6,7 +6,7 @@ A PTY has one size, and the harness draws for it with absolute cursor moves. Sev
 
 **A client's size is its capacity, not an order.** `attach` and `resize` carry `rows` and `cols` from `fit.proposeDimensions()` of the visible box. A client that pans a larger PTY says `scales: true` on `attach`. One that omits it is raw, like the kitty window, and would mis-wrap a wider PTY. The size is held to the smallest raw client's columns and rows. With only web clients it is plain largest.
 
-**The daemon sends `{type:"size", session, rows, cols}`** to a client right after its attach, even when it is the only one and even when unchanged, and to every attached client whenever the size changes, which includes the survivors when the largest client leaves. The client sets xterm to exactly that size. The feature `pty-size` in `welcome` says the daemon does this. Without it a client keeps fitting and sending.
+**The daemon sends `{type:"size", session, rows, cols}`** to a client right after its attach, even when it is the only one and even when unchanged, and to every attached client whenever the size changes, which includes the survivors when the largest client leaves. The client sets xterm to exactly that size, behind the bytes already queued (`afterQueued`), because xterm resizes at once but parses a write later and heavy output would otherwise draw old-size bytes at the new size. The feature `pty-size` in `welcome` says the daemon does this. Without it a client keeps fitting and sending.
 
 **A phone pans, anchored bottom-left**, showing the bottom rows when the PTY is taller than its box, since the input and the newest text are there. Scaling 200 columns into a phone is about 2px a column. This is COI-2608's layout.
 

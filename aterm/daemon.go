@@ -83,6 +83,9 @@ type daemon struct {
 	launch     func(role, seat string) error
 	// proxyFetch reads Agent Proxy's session usage. Nil when no proxy is configured.
 	proxyFetch proxyFetcher
+	// forwardedPolicy judges a proxied request on the loopback listener. Zero
+	// refuses every one.
+	forwardedPolicy accessPolicy
 	// browsers holds a session's streamed Chromium. browserLaunch replaces the
 	// real one in tests.
 	browsers      browserHub
@@ -157,6 +160,9 @@ type daemonOptions struct {
 	// PeerPorts maps a peer name to the port its daemon listens on, for host discovery.
 	PeerPorts map[string]string
 	AllowTags []string
+	// AllowOwners are tailnet logins whose untagged devices attach, besides this
+	// node's own owner, which a tagged node has none of.
+	AllowOwners []string
 	// AllowOrigins are hosted client pages, like https://coilyco.dev.
 	AllowOrigins []string
 	ClientDir    string
@@ -254,6 +260,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	d.sweepImages()
 	d.clientDir = options.ClientDir
 	d.discovery.port = func() string { return options.TailnetPort }
+	d.forwardedPolicy = forwardedPolicy(&nodeReader{read: readTailnetNode}, options.AllowTags, options.AllowOwners, options.AllowOrigins, tailscaleWhois)
 	d.discovery.peerPorts = options.PeerPorts
 	if options.Websocket != "" {
 		server, err := d.listenWebsocket(options.Websocket)
@@ -275,7 +282,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		listen := options.tailnetListen
 		if listen == nil {
 			listen = func() (*tailnetServing, error) {
-				return d.listenTailnet(options.TailnetPort, options.AllowTags, options.AllowOrigins, filepath.Join(dir, "tailnet"))
+				return d.listenTailnet(options.TailnetPort, options.AllowTags, options.AllowOwners, options.AllowOrigins, filepath.Join(dir, "tailnet"))
 			}
 		}
 		go d.serveTailnetWhenUp(done, listen)
@@ -413,7 +420,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}

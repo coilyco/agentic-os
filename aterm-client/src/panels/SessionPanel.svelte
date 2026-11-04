@@ -7,7 +7,7 @@
   import SplitHandle from "../components/SplitHandle.svelte";
   import Terminal from "../components/Terminal.svelte";
   import { app, asksFor, colorOf, messagesFor, placeNow, reconnecting } from "../lib/app.svelte";
-  import { askAnswer, CANCEL, choiceFromAsk, detectChoice, keysFor, type Choice } from "../lib/choices";
+  import { askAnswer, CANCEL, choiceFromAsk, detectChoice, keysFor, keysForPicks, type Choice } from "../lib/choices";
   import { contextPercent, contextText } from "../lib/context";
   import { isBlank } from "../lib/screen";
   import type { Session } from "../lib/protocol";
@@ -79,6 +79,8 @@
     hideTimer = undefined;
     const key = keyOf(found);
     if (key === answered) return;
+    // Our own keys redraw the same question while they land: a checkbox ticks, a typed row fills. That is not a new menu.
+    if (performance.now() < holdUntil && found.question === heldQuestion) return;
     if (key !== shownKey) {
       shownKey = key;
       choice = found;
@@ -89,9 +91,15 @@
 
   const KEY_GAP_MS = 150;
 
+  const HOLD_AFTER_KEYS_MS = 700;
+  let holdUntil = 0;
+  let heldQuestion = "";
+
   function answer(chunks: string[]): void {
     if (!choice) return;
     answered = shownKey;
+    heldQuestion = choice.question;
+    holdUntil = performance.now() + chunks.length * KEY_GAP_MS + HOLD_AFTER_KEYS_MS;
     chunks.forEach((chunk, index) => setTimeout(() => app.connection?.input(session.id, chunk), index * KEY_GAP_MS));
     choice = null;
     shownKey = "";
@@ -152,7 +160,7 @@
               {@const current = choice}
               {#key shownKey}
                 <div class="overlay">
-                  <ChoiceCard choice={current} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
+                  <ChoiceCard choice={current} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(current.multi ? keysForPicks(current, picks, text) : keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
                 </div>
               {/key}
             {/if}

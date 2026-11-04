@@ -123,7 +123,7 @@ func runGhExec(args []string, stdout, stderr io.Writer) int {
 	}
 	token := ""
 	if owner, _, _ := strings.Cut(repo, "/"); owner == githubOwner {
-		minted, err := requestGithubToken(repo)
+		minted, err := requestGithubToken(repo, false)
 		if err != nil {
 			fmt.Fprintf(stderr, "aterm gh-exec: cannot mint a token for %s: %v\naterm gh-exec: refusing, and not falling back to the host login\n", repo, err)
 			return exitCodeFor(err)
