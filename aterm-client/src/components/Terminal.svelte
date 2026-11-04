@@ -31,7 +31,7 @@
     onscreen?: (rows: string[]) => void;
     /** The daemon refuses this connection's typing, so keys go nowhere. */
     locked?: boolean;
-    /** On a phone the composer is the one input, so the harness's own input box is scrolled out of view. */
+    /** The composer is the one input at every width, so the harness's own input box is scrolled out of view. */
     cropHarness?: boolean;
   } = $props();
 
@@ -142,7 +142,7 @@
     const fit = new FitAddon();
     terminal.loadAddon(fit);
     terminal.open(host);
-    const cropping = () => cropHarness && phone.matches;
+    const cropping = () => cropHarness;
     let hidden = 0;
     const extra = () => (cropping() ? hidden : 0);
     const cell = () => (host.querySelector<HTMLElement>(".xterm-screen")?.clientHeight ?? 0) / Math.max(terminal.rows, 1);
