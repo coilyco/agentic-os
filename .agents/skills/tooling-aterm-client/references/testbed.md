@@ -45,8 +45,13 @@ Journeys that hold today: `unlock-resume` (a locked device redials inside and af
 * **Not a real phone** - WebKit emulation is not iOS. The keyboard journey shrinks the viewport by a keyboard's height, which a real iOS keyboard does not match. A Simulator run is the follow-up if Kai sees something here misses.
 * **Authored screens** - only the dialog screens are captured. The working screen and the answered screen are authored.
 * **`stream-under-load` is a guard, not proof** - it passes on main without the COI-3246 fix, because its burst repaints with absolute cursor moves. A proof needs a burst with relative moves around a resize.
-* **Baselines are per platform** - they sit under `baselines/darwin/`. A Linux run writes its own.
-* **No CI job yet** - GitHub Actions is blocked on COI-3227. Run the bed locally.
+* **Baselines are per platform** - they sit under `baselines/darwin/` for a Mac and `baselines/linux/` for CI. A font rasterises differently on each.
+
+## In CI
+
+The `testbed` job in `.github/workflows/aterm-client.yml` runs on a GitHub-hosted Ubuntu runner whenever `aterm-client/**` changes. It gates on `--grep-invert @quirk`, so reported quirks do not fail a pull request, and it runs the `@quirk` set as a report that cannot fail the job. A missing baseline fails in CI. The report, results and diffs upload as the `testbed` artifact.
+
+To write or refresh the Linux baselines, run the workflow by hand with `update` on, download the `testbed` artifact, and commit `baselines/linux/`. Do the same after a change that moves pixels.
 
 ## Beside the drive
 
