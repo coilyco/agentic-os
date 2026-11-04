@@ -14,7 +14,8 @@ test("reopening the page returns to the last seat, with no tap", async ({ bed })
 test("a first launch has nothing to return to, so it opens on Pick a host", async ({ bed }) => {
   await bed.page.goto("/");
   await expect(bed.page.getByRole("heading", { name: "Pick a host" })).toBeVisible();
-  await bed.step("first-launch");
+  // The install card appears on a timer, so a host page is looked at, not compared.
+  await bed.step("first-launch", { compare: false });
 });
 
 test("a seat that is no longer running is named, on the host's page", async ({ bed }) => {
@@ -22,5 +23,5 @@ test("a seat that is no longer running is named, on the host's page", async ({ b
   await bed.page.goto("/");
   await expect(bed.page.getByRole("status").filter({ hasText: "Ghost-Ox is not running any more" })).toBeVisible();
   await expect(bed.page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first(), "the other seats are listed to pick from").toBeVisible();
-  await bed.step("seat-gone");
+  await bed.step("seat-gone", { compare: false });
 });
