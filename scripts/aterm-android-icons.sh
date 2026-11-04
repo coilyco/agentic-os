@@ -58,6 +58,7 @@ cat >"$icons/android/values/ic_launcher_background.xml" <<EOF
 </resources>
 EOF
 
-# The 512px source the Tauri bundle config names. It is the avatar as published.
-png "$icons/icon.png" "$avatar" -filter Lanczos -resize 512x512
+# The 512px source the Tauri bundle names, the avatar as published. Tauri refuses a PNG
+# that is not RGBA, so PNG32 keeps an opaque alpha channel.
+png "PNG32:$icons/icon.png" "$avatar" -filter Lanczos -resize 512x512
 echo "icons written under $icons"
