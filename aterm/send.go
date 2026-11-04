@@ -403,6 +403,10 @@ func askChoice(ask choiceAsk) (choiceAnswer, error) {
 		return choiceAnswer{}, withExit(exitMissing, err)
 	}
 	defer c.Close()
+	if ask.Relay && !slices.Contains(c.features, askRelayFeature) {
+		return choiceAnswer{}, withExit(exitUsage, fmt.Errorf(
+			"this aterm daemon predates send_user_question, so the card would not reach the director. Use ask_choice, or restart the daemon on a newer aterm"))
+	}
 	reply, err := c.request(frame{Type: "ask", Token: token, Ask: &ask})
 	if err != nil {
 		if reply.Code != 0 {

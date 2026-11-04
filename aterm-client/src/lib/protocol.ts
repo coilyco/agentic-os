@@ -60,6 +60,8 @@ export interface Session {
   context?: ContextReading;
   /** First line of its last finished reply. Absent until read or from an old daemon. */
   lastReply?: string;
+  /** When it last wrote, in ms. Absent from a daemon that predates `quiet_seconds`. */
+  quietSince?: number;
   /** Not yet ready for input, so its terminal may have nothing to draw. */
   starting?: boolean;
   failure?: string;
@@ -87,6 +89,10 @@ export interface Ask {
   options: { label: string; description: string }[];
   allowOther: boolean;
   multi: boolean;
+  /** A worker's question relayed to a director, so `session` is the asker (COI-3241). */
+  relay?: boolean;
+  /** The session whose pane shows the card. Absent when no director was up. */
+  cardSeat?: string;
 }
 
 export type AskOutcome = "answered" | "cancelled" | "timed_out";

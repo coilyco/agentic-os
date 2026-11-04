@@ -3,9 +3,10 @@
   import AttentionSwitches from "./AttentionSwitches.svelte";
   import Creature from "./Creature.svelte";
   import SeatPreview from "./SeatPreview.svelte";
-  import { app, asksFor, colorOf, glowSeats, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
+  import { app, askLineFor, asksShownOn, colorOf, glowSeats, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
+  import { stateWithAge } from "../lib/age";
   import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel, splitSessions } from "../lib/sessions";
   import { tablistKeys } from "../lib/tabs";
 
@@ -82,7 +83,13 @@
   }
   const hidePreview = () => (hover = null);
   const previewing = $derived(hover ? waitingSeats().find((seat) => seat.sessionId === hover!.id) : undefined);
-  const preview = $derived(previewing ? previewFor(previewing, asksFor(previewing.sessionId)[0], sessionById(previewing.sessionId)?.lastReply) : null);
+  // A relayed question names the worker who asked, not the director whose pane shows it.
+  const previewAsk = $derived(previewing ? asksShownOn(previewing.sessionId)[0] : undefined);
+  const preview = $derived(
+    previewing
+      ? previewFor({ ...previewing, identity: (previewAsk && sessionById(previewAsk.session)?.identity) || previewing.identity }, previewAsk, sessionById(previewing.sessionId)?.lastReply)
+      : null,
+  );
 
   function openRole(slug: string): void {
     selectRole(slug);
@@ -100,19 +107,28 @@
     return "checking";
   }
 
+  // Quiet times count up on their own, so the rows are redrawn every ten seconds.
+  let now = $state(Date.now());
+  $effect(() => {
+    const timer = setInterval(() => (now = Date.now()), 10_000);
+    return () => clearInterval(timer);
+  });
+
   function stateText(session: Session): string {
     if (reconnecting()) return `${session.state}, last known`;
     if (session.state === "failed") return "launch failed";
-    if (asksFor(session.id).length) return "asking you";
-    if (app.unseen[session.id]) return "done, your turn";
+    const asking = askLineFor(session.id);
+    if (asking) return asking;
+    if (app.unseen[session.id]) return stateWithAge("done, your turn", session.quietSince, now);
     if (session.drafting) return "you're typing";
     if (session.pending) return `${session.pending} ${session.pending === 1 ? "message" : "messages"} waiting`;
-    return session.state;
+    // A seat still starting has written nothing yet, so there is no quiet time to count.
+    return stateWithAge(session.state, session.starting ? undefined : session.quietSince, now);
   }
 
   function activity(session: Session): string {
     if (session.state === "failed") return "failed";
-    if (asksFor(session.id).length) return "asking";
+    if (askLineFor(session.id)) return "asking";
     if (app.unseen[session.id]) return "unseen";
     return session.state;
   }

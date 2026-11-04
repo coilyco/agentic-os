@@ -15,7 +15,7 @@ import (
 func newMCPCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "mcp",
-		Usage: "serve list_agents, send_message, read_messages, session_status, clear_session, close_session and ask_choice over MCP stdio",
+		Usage: "serve list_agents, send_message, read_messages, session_status, clear_session, close_session, stage_command, ask_choice and send_user_question over MCP stdio",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return serveMCP(ctx, os.Stdin, cmd.Root().Writer)
 		},
@@ -30,6 +30,7 @@ type mcpBackend struct {
 	status     func(target string, lines int) (sessionStatus, error)
 	clear      func(target string, force bool) (string, string, error)
 	close      func(target string, force bool) (string, int, error)
+	stage      func(command, note string) (stageResult, error)
 	ask        func(choiceAsk) (choiceAnswer, error)
 	inbox      func(all bool) ([]inboxMessage, error)
 }
@@ -40,6 +41,7 @@ var liveBackend = mcpBackend{
 	status:     sessionStatusOf,
 	clear:      clearTarget,
 	close:      closeSession,
+	stage:      stageCommand,
 	ask:        askChoice,
 	inbox:      readInbox,
 }
@@ -92,6 +94,11 @@ type closeSessionInput struct {
 	Force bool   `json:"force,omitempty" jsonschema:"close even while it holds a draft or undelivered messages"`
 }
 
+type stageCommandInput struct {
+	Command string `json:"command" jsonschema:"one shell command line, with no newline, carriage return or other control character"`
+	Note    string `json:"note,omitempty" jsonschema:"one line shown beside the terminal for Kai, never typed into the shell"`
+}
+
 // textResult is a tool's answer as one text block. failed sets isError, which
 // is how a refusal reaches the agent as something to read and act on.
 func textResult(text string, failed bool) (*mcp.CallToolResult, any, error) {
@@ -106,6 +113,18 @@ func jsonResult(value any) (*mcp.CallToolResult, any, error) {
 	return textResult(string(encoded), false)
 }
 
+// askHandler runs ask_choice and send_user_question, which differ only in who they ask.
+// askFromArguments owns the one-or-many rules and takes the raw arguments as JSON.
+func askHandler(ask func(choiceAsk) (choiceAnswer, error)) func(context.Context, *mcp.CallToolRequest, askChoiceInput) (*mcp.CallToolResult, any, error) {
+	return func(_ context.Context, _ *mcp.CallToolRequest, input askChoiceInput) (*mcp.CallToolResult, any, error) {
+		arguments, err := json.Marshal(input)
+		if err != nil {
+			return nil, nil, err
+		}
+		return textResult(askFromArguments(arguments, ask))
+	}
+}
+
 // newMCPServer builds the tool server with no transport, for COI-2534 to connect.
 // A handler error is an isError result, only a *jsonrpc.Error a protocol error.
 func newMCPServer(backend mcpBackend) *mcp.Server {
@@ -117,15 +136,20 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 			"aterm stamps your seat on it. Returns the picked labels and any free text. A cancelled " +
 			"or timed-out ask returns an error saying which. Give one question, or `questions` for up " +
 			"to four, which Kai answers one card at a time and which return an answer each.",
-	}, func(_ context.Context, _ *mcp.CallToolRequest, input askChoiceInput) (*mcp.CallToolResult, any, error) {
-		// askFromArguments owns the one-or-many rules and their wording, and
-		// takes the raw arguments, so the typed input is handed back as JSON.
-		arguments, err := json.Marshal(input)
-		if err != nil {
-			return nil, nil, err
-		}
-		return textResult(askFromArguments(arguments, backend.ask))
-	})
+	}, askHandler(backend.ask))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "send_user_question",
+		Description: "Put a multiple-choice question for Kai on the director seat's card in her aterm " +
+			"client, and wait for the pick. Use it as a worker seat that needs Kai, instead of messaging " +
+			"the director. aterm stamps your seat on it, your own row stays marked as asking, and the " +
+			"director gets a line with her answer. With no director up the card shows on your own seat. " +
+			"Shaped like ask_choice, plus `shown_on`, the director seat the card appeared on, absent " +
+			"when it showed on yours.",
+	}, askHandler(func(ask choiceAsk) (choiceAnswer, error) {
+		ask.Relay = true
+		return backend.ask(ask)
+	}))
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "list_agents",
@@ -214,6 +238,23 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 			return nil, nil, err
 		}
 		return textResult(fmt.Sprintf("closed %s (exit %d)", name, code), false)
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "stage_command",
+		Description: "Type a command into the plain terminal beside your session, on Kai's host shell, " +
+			"without running it. Kai reads the line and presses Enter. The terminal opens when none exists. " +
+			"It is never submitted and no argument can submit it: a command with a newline, carriage " +
+			"return or any other control character is refused, and the terminal is always your own, " +
+			"found from your session. `note` is one line the client shows beside it. Returns staged, " +
+			"refused with the reason, or no client attached. Use it to hand Kai a command to run " +
+			"instead of pasting it into chat.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, input stageCommandInput) (*mcp.CallToolResult, any, error) {
+		result, err := backend.stage(input.Command, input.Note)
+		if err != nil {
+			return nil, nil, err
+		}
+		return textResult(describeStage(result), result.State != stageStaged)
 	})
 
 	return server

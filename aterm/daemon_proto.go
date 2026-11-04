@@ -103,6 +103,11 @@ type frame struct {
 	Expires     string        `json:"expires,omitempty"`
 	Sessions    []sessionView `json:"sessions,omitempty"`
 
+	// stage: Body is the command and Text the note. The reply carries State,
+	// Opened and Viewers. See docs/aterm-pane.md.
+	Opened  bool `json:"opened,omitempty"`
+	Viewers int  `json:"viewers,omitempty"`
+
 	// Terminals rides beside Sessions and never inside it, so a consumer that
 	// counts or targets seats cannot meet a shell.
 	Terminals []terminalView `json:"terminals,omitempty"`
@@ -263,6 +268,10 @@ const sendWaitFeature = "send-wait"
 
 // sendIdleFeature is how a client knows the daemon reads `notify_idle` on a send.
 const sendIdleFeature = "send-idle"
+
+// askRelayFeature is how a client knows the daemon reads `relay` on an ask and stamps
+// `card_seat`. A daemon predating it would show the card on the asker, unrelayed.
+const askRelayFeature = "ask-relay"
 
 // closeFeature is how a client knows the daemon answers a close frame.
 const closeFeature = "close"

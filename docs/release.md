@@ -3,7 +3,10 @@
 `.github/workflows/promote.yml` gates every `main` push through `ci.yml` and fast-forwards `release` with a coilyco-ops App token. Two artifact workflows filter on that diff. `aos-cli-release.yml` cuts the versioned CLI bundle and `aos-precommit-release.yml` cuts the hook package. Manual dispatch overrides the path filter and runs only against `release`, the last-known-good branch. The dev-base train (`dev-base-publish.yml` and `release.yml`, publishing draft images under `draft-${sha}` only when the promoted diff changes `docker/`) publishes to `ghcr.io/coilyco/agentic-os` from `.github/workflows` on `ubuntu-latest` (COI-3096).
 
 Promotion only gates and advances the branch. Non-artifact merges produce no
-package tag or draft image.
+package tag or draft image. One gate runs at a time and a merge waits behind it,
+keeping only the newest waiting merge, so `release` moves at the gate's pace
+(about 6 minutes) however fast merges arrive. Every merge still ships, since a
+promoted commit carries the ones before it.
 `release.yml` runs as a reusable workflow after the full draft is verified and
 as the manual retry path. Its retag job promotes only that full manifest.
 Dispatches can override `sha`, `tag`, and `source-tag` to resume or repair a

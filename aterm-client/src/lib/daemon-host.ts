@@ -1,5 +1,6 @@
 // aterm.daemon.v1 over the daemon's loopback websocket. The frame reference is
 // the Wire contract section of the aterm daemon page in coilyco/agentic-os.
+import { quietSince } from "./age";
 import { backoffDelay, differentBuild } from "./backoff";
 import { safely } from "./pane-watch";
 import { parseFrom } from "./messages";
@@ -63,6 +64,8 @@ interface SessionView {
   degraded?: string[];
   context?: { tokens: number; window?: number; source: string };
   last_reply?: string;
+  /** Seconds since the seat last wrote, as of the frame. */
+  quiet_seconds?: number;
 }
 
 // A plain shell as the daemon lists it (COI-2498). `label` is whatever the opener sent
@@ -91,6 +94,8 @@ interface AskView {
   options: { label: string; description?: string }[];
   allow_other?: boolean;
   multi?: boolean;
+  relay?: boolean;
+  card_seat?: string;
 }
 
 export function toAsk(view: AskView): Ask {
@@ -102,6 +107,8 @@ export function toAsk(view: AskView): Ask {
     options: view.options.map((option) => ({ label: option.label, description: option.description ?? "" })),
     allowOther: view.allow_other ?? false,
     multi: view.multi ?? false,
+    ...(view.relay ? { relay: true } : {}),
+    ...(view.card_seat ? { cardSeat: view.card_seat } : {}),
   };
 }
 
@@ -234,8 +241,10 @@ export function toView(session: string, view: ViewFrame): View {
 export const BUSY_WINDOW_MS = 1500;
 /** Echo, replay, and redraw this client caused are not the agent working. */
 const SELF_WINDOW_MS = 800;
+/** How often the seats are listed again while the page shows, to refresh quiet times. */
+const REFRESH_MS = 20_000;
 
-export function toSession(view: SessionView, busy = false): Session {
+export function toSession(view: SessionView, busy = false, quiet?: number): Session {
   return {
     id: view.name,
     role: view.role,
@@ -249,6 +258,7 @@ export function toSession(view: SessionView, busy = false): Session {
     ...(view.ready ? {} : { starting: true }),
     ...(view.context ? { context: toContext(view.context) } : {}),
     ...(view.last_reply ? { lastReply: view.last_reply } : {}),
+    ...(quiet === undefined ? {} : { quietSince: quiet }),
   };
 }
 
@@ -345,7 +355,10 @@ export class DaemonHost implements HostConnection {
   // What arrived since a seat's last attach, so an ask-again can place a lost replay.
   private arrived = new Map<string, { since: number; frames: number; bytes: number }>();
   private busy = new Set<string>();
+  // When the latest `sessions` frame arrived. Its `quiet_seconds` count back from here.
+  private viewsAt = 0;
   private ticker: ReturnType<typeof setInterval>;
+  private refresher: ReturnType<typeof setInterval>;
   private browsers = new Map<string, SharedBrowser>();
   /** Set once the welcome lists `browser`, so an older daemon keeps the empty state. */
   browser?: BrowserChannel;
@@ -353,6 +366,8 @@ export class DaemonHost implements HostConnection {
   constructor(private url = DEFAULT_DAEMON_URL) {
     this.connect();
     this.ticker = setInterval(() => this.settle(), 500);
+    // The daemon pushes sessions on change, not on a clock, so quiet times are asked for.
+    this.refresher = setInterval(() => this.refreshViews(), REFRESH_MS);
     // A backgrounded tab throttles its timers, so a phone left open would redial late.
     if (typeof window !== "undefined") {
       window.addEventListener("online", this.nudge);
@@ -608,6 +623,7 @@ export class DaemonHost implements HostConnection {
   close(): void {
     this.halted = true;
     clearInterval(this.ticker);
+    clearInterval(this.refresher);
     clearTimeout(this.redial);
     clearTimeout(this.dialTimer);
     if (typeof window !== "undefined") {
@@ -651,6 +667,11 @@ export class DaemonHost implements HostConnection {
     }
   }
 
+  private refreshViews(): void {
+    if (!this.open || (typeof document !== "undefined" && document.visibilityState !== "visible")) return;
+    this.request({ type: "list" });
+  }
+
   private settle(): void {
     const now = Date.now();
     let changed = false;
@@ -683,7 +704,7 @@ export class DaemonHost implements HostConnection {
   }
 
   private publishSessions(): void {
-    this.last.sessions = this.sessionViews.map((view) => toSession(view, this.busy.has(view.name)));
+    this.last.sessions = this.sessionViews.map((view) => toSession(view, this.busy.has(view.name), quietSince(view.quiet_seconds, this.viewsAt, this.lastOutput.get(view.name))));
     this.emit({ type: "sessions", sessions: this.last.sessions });
   }
 
@@ -758,6 +779,7 @@ export class DaemonHost implements HostConnection {
         return;
       case "sessions":
         this.sessionViews = frame.sessions ?? [];
+        this.viewsAt = Date.now();
         for (const { name } of frame.terminals ?? []) this.terminalNames.add(name);
         if (this.resync) this.reattach();
         this.monitor();

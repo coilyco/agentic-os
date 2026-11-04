@@ -624,6 +624,10 @@ func (s *ptySession) typeInput(data []byte) error {
 	defer s.writeMu.Unlock()
 	err := s.writePTY(data)
 	if s.kind == kindTerminal {
+		// Only the unsent-line count, which a stage reads (daemon_stage.go).
+		s.mu.Lock()
+		s.trackDraft(data)
+		s.mu.Unlock()
 		return err
 	}
 	s.mu.Lock()

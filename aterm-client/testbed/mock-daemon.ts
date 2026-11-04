@@ -41,6 +41,8 @@ export interface SessionSpec {
   degraded?: string[];
   context?: { tokens: number; window?: number; source: string };
   last_reply?: string;
+  /** Seconds since the seat last wrote, as the daemon's session view carries it. */
+  quiet_seconds?: number;
   /** Which scene draws it: a name from scenes.ts. */
   scene: string;
 }
