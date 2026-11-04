@@ -85,8 +85,11 @@ func openLocalUsers(host userHost, options daemonOptions) *localUsers {
 		host.logf("no stored passkeys, so no remote device can type: %v", err)
 		u.passkeys = defaultPasskeys()
 	}
-	u.resume.window = options.ResumeWindow
-	if u.resume.enabled() {
+	u.resume.window, u.resume.untilClose = options.ResumeWindow, options.ResumeUntilClose
+	switch {
+	case u.resume.untilClose:
+		host.logf("a remote device's unlock survives a reconnect until its app closes")
+	case u.resume.enabled():
 		host.logf("a remote device's unlock survives a reconnect for %s", u.resume.window)
 	}
 	if store, err := loadPushStore(pushStatePath()); err != nil {

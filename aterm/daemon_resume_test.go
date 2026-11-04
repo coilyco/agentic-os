@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-const testResumeWindow = daemonResumeWindow
+const testResumeWindow = 60 * time.Minute
 
 // resumeClock is the resume store's clock, so a window passes without waiting.
 type resumeClock struct {
@@ -296,5 +296,90 @@ func TestDeviceKeyAssertionIssuesAProofToo(t *testing.T) {
 	}
 	if reply, err := back.request(frame{Type: "resume", Resume: asserted.Resume}); err != nil || reply.Type != "resumed" {
 		t.Fatalf("the device key's proof resumes: %+v, %v", reply, err)
+	}
+}
+
+func TestResumeUntilTheAppClosesOutlivesAnyGapAndStaysSingleUse(t *testing.T) {
+	d, clock := resumeDaemon(t, 0)
+	d.local().resume.untilClose = true
+	first, welcome, done := unlock(t, d, newSoftKey(t))
+	if !slices.Contains(welcome.Features, resumeFeature) || done.Resume == "" || done.ExpiresIn != 0 {
+		t.Fatalf("an until-close daemon offers resume and reports no window: %v, %+v", welcome.Features, done)
+	}
+	dropAndWait(t, d, first)
+	clock.advance(1000 * time.Hour)
+
+	back, standing := redial(t, d)
+	if standing.Allowed {
+		t.Fatalf("a redial starts locked until it presents a proof: %+v", standing)
+	}
+	resumed, err := back.request(frame{Type: "resume", Resume: done.Resume})
+	if err != nil || resumed.Type != "resumed" || resumed.Resume == "" || resumed.ExpiresIn != 0 {
+		t.Fatalf("a proof outlives a 1000 hour gap and is replaced: %+v, %v", resumed, err)
+	}
+	if standing := nextFrame(t, back, "typing").Typing; !standing.Allowed {
+		t.Fatalf("resuming should unlock typing: %+v", standing)
+	}
+	again := pipeClient(t, d, remotePhone)
+	nextFrame(t, again, "welcome")
+	if reply, err := again.request(frame{Type: "resume", Resume: done.Resume}); err == nil || reply.Reason != reasonResumeEnded {
+		t.Fatalf("a spent proof reads as %+v, %v, want %s", reply, err, reasonResumeEnded)
+	}
+	stillLocked(t, again)
+}
+
+func TestResumeKeepsAtMostTheCapOfClosedProofsAndNeverDropsAnOpenOne(t *testing.T) {
+	r := newResumeStore()
+	r.untilClose = true
+	at := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
+	r.now = func() time.Time { return at }
+	open := &client{}
+	if _, err := r.issue(open); err != nil {
+		t.Fatal(err)
+	}
+	var first, last *client
+	for i := 0; i < resumeMaxGrants+6; i++ {
+		cl := &client{}
+		if _, err := r.issue(cl); err != nil {
+			t.Fatal(err)
+		}
+		at = at.Add(time.Second)
+		r.drop(cl)
+		if first == nil {
+			first = cl
+		}
+		last = cl
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.pruneLocked()
+	if len(r.grants) != resumeMaxGrants {
+		t.Fatalf("%d proofs kept, want %d", len(r.grants), resumeMaxGrants)
+	}
+	if _, kept := r.grants[open.resumeKey]; !kept {
+		t.Fatal("a proof held by a live connection was dropped")
+	}
+	if _, kept := r.grants[first.resumeKey]; kept {
+		t.Fatal("the oldest closed proof should go first")
+	}
+	if _, kept := r.grants[last.resumeKey]; !kept {
+		t.Fatal("the newest closed proof should stay")
+	}
+}
+
+func TestParseResumeWindow(t *testing.T) {
+	for _, tc := range []struct {
+		in    string
+		want  time.Duration
+		until bool
+		bad   bool
+	}{
+		{in: "app", until: true}, {in: " APP ", until: true}, {in: "0"}, {in: "90m", want: 90 * time.Minute},
+		{in: "-1m", bad: true}, {in: "banana", bad: true}, {in: "", bad: true},
+	} {
+		window, until, err := parseResumeWindow(tc.in)
+		if (err != nil) != tc.bad || window != tc.want || until != tc.until {
+			t.Fatalf("%q gave %v, %v, %v", tc.in, window, until, err)
+		}
 	}
 }

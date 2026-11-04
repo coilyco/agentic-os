@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -79,10 +78,10 @@ func newDaemonCommand() *cli.Command {
 				Usage:   "VAPID private key that turns on Web Push to a closed browser, empty for none",
 				Sources: cli.EnvVars(vapidKeyEnv),
 			},
-			&cli.DurationFlag{
+			&cli.StringFlag{
 				Name:    "resume-window",
-				Value:   daemonResumeWindow,
-				Usage:   "how long a remote device's unlock survives a dropped connection, so a phone lock costs no new fingerprint. 0 keeps an unlock on one connection",
+				Value:   resumeUntilCloseWord,
+				Usage:   "how long a remote device's unlock survives a dropped connection, so a phone lock costs no new fingerprint. app lasts until the client app closes, 0 keeps an unlock on one connection, or give a duration",
 				Sources: cli.EnvVars(resumeWindowEnv),
 			},
 		},
@@ -91,24 +90,26 @@ func newDaemonCommand() *cli.Command {
 			if err != nil {
 				return withExit(exitUsage, err)
 			}
-			if cmd.Duration("resume-window") < 0 {
-				return withExit(exitUsage, errors.New("--resume-window cannot be negative"))
+			resumeWindow, resumeUntilClose, err := parseResumeWindow(cmd.String("resume-window"))
+			if err != nil {
+				return withExit(exitUsage, err)
 			}
 			return runDaemon(daemonOptions{
-				PeerPorts:    peerPorts,
-				Socket:       cmd.String("socket"),
-				Websocket:    cmd.String("websocket"),
-				TailnetPort:  cmd.String("tailnet-port"),
-				AllowTags:    cmd.StringSlice("allow-tags"),
-				AllowOwners:  cmd.StringSlice("allow-owners"),
-				AllowOrigins: cmd.StringSlice("allow-origins"),
-				ClientDir:    cmd.String("client-dir"),
-				Idle:         cmd.Duration("idle"),
-				EndSessions:  cmd.Bool("end-sessions"),
-				AgentProxy:   cmd.String("agent-proxy"),
-				SentryDSN:    cmd.String("sentry-dsn"),
-				VAPIDKey:     cmd.String("vapid-key"),
-				ResumeWindow: cmd.Duration("resume-window"),
+				PeerPorts:        peerPorts,
+				Socket:           cmd.String("socket"),
+				Websocket:        cmd.String("websocket"),
+				TailnetPort:      cmd.String("tailnet-port"),
+				AllowTags:        cmd.StringSlice("allow-tags"),
+				AllowOwners:      cmd.StringSlice("allow-owners"),
+				AllowOrigins:     cmd.StringSlice("allow-origins"),
+				ClientDir:        cmd.String("client-dir"),
+				Idle:             cmd.Duration("idle"),
+				EndSessions:      cmd.Bool("end-sessions"),
+				AgentProxy:       cmd.String("agent-proxy"),
+				SentryDSN:        cmd.String("sentry-dsn"),
+				VAPIDKey:         cmd.String("vapid-key"),
+				ResumeWindow:     resumeWindow,
+				ResumeUntilClose: resumeUntilClose,
 			}, cmd.Root().ErrWriter)
 		},
 	}
