@@ -145,6 +145,15 @@ type ptySession struct {
 	// lastReply is kept across rounds, and replySig is the transcript it was read at.
 	lastReply string
 	replySig  fileSig
+	// lastReplyText is the reply cut to maxLastReplyBytes, lastReplyCut whether it was
+	// cut, and lastReplyAt when it finished. See refreshReply.
+	lastReplyText string
+	lastReplyCut  bool
+	lastReplyAt   time.Time
+	// stateNow is the state last seen and stateSince when it began. A state's start
+	// before the daemon first saw it is unknown, so a restart counts from the restart.
+	stateNow   string
+	stateSince time.Time
 }
 
 // keyState carries a partly read escape sequence across input chunks.
@@ -740,6 +749,40 @@ func (s *ptySession) deliverLoop() {
 		case <-ticker.C:
 		}
 		s.deliverNext(time.Now())
+		s.sampleState(time.Now())
+	}
+}
+
+// currentState is classify plus the card hold, and keeps the state's start. A held card
+// keeps the seat at prompt through a repaint. Caller holds mu.
+func (s *ptySession) currentState(now time.Time, lines []string, ready bool, quiet time.Duration) string {
+	state := classify(s.seat, lines, ready, quiet)
+	if ready && state != statePrompt && s.cardReason() != "" {
+		state = statePrompt
+	}
+	if s.stateNow != state {
+		s.stateNow, s.stateSince = state, now
+		if state == stateStarting && !s.started.IsZero() {
+			s.stateSince = s.started
+		}
+	}
+	return state
+}
+
+// sampleState follows the state between views, so a flip is known when it happens and
+// is pushed to clients that would otherwise poll for it.
+func (s *ptySession) sampleState(now time.Time) {
+	s.mu.Lock()
+	if s.scr == nil {
+		s.mu.Unlock()
+		return
+	}
+	before := s.stateNow
+	s.currentState(now, s.scr.text(), s.ready(now), now.Sub(s.lastOutput))
+	flipped := before != "" && s.stateNow != before
+	s.mu.Unlock()
+	if flipped && s.d != nil {
+		s.d.pushSessions()
 	}
 }
 
@@ -921,7 +964,7 @@ func (s *ptySession) status(lines int) sessionStatus {
 		input = int(now.Sub(s.lastInput) / time.Second)
 	}
 	return sessionStatus{
-		Name: s.name, State: classify(s.seat, text, ready, quiet), Ready: ready,
+		Name: s.name, State: s.currentState(now, text, ready, quiet), Ready: ready,
 		QuietSeconds: int(quiet / time.Second), InputSeconds: input,
 		Drafted: s.draft > 0, Pending: len(s.pending), Clients: len(s.clients),
 		Rows: rows, Cols: cols, Prompt: promptLines(s.seat, text), Screen: tailLines(text, lines),
@@ -938,8 +981,16 @@ func (s *ptySession) view() sessionView {
 	if s.scr != nil {
 		lines = s.scr.text()
 	}
+	state := s.currentState(now, lines, ready, quiet)
+	inState := int(now.Sub(s.stateSince) / time.Second)
+	var repliedAt *time.Time
+	if !s.lastReplyAt.IsZero() {
+		at := s.lastReplyAt.UTC()
+		repliedAt = &at
+	}
 	return sessionView{
-		State:        classify(s.seat, lines, ready, quiet),
+		State:        state,
+		StateSeconds: &inState,
 		QuietSeconds: int(quiet / time.Second),
 		Name:         s.name,
 		Role:         s.role,
@@ -955,6 +1006,7 @@ func (s *ptySession) view() sessionView {
 		Degraded:     append([]string(nil), s.degraded...),
 		Context:      s.context,
 		LastReply:    s.lastReply,
+		LastReplyAt:  repliedAt,
 	}
 }
 

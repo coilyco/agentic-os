@@ -123,6 +123,8 @@ type frame struct {
 	// Lines is how many screen rows a status asks for, and Status is its answer.
 	Lines  int            `json:"lines,omitempty"`
 	Status *sessionStatus `json:"status,omitempty"`
+	// Reply answers a last_reply request, which carries a target.
+	Reply *lastReplyView `json:"reply,omitempty"`
 	// ask_choice
 	Ask    *choiceAsk    `json:"ask,omitempty"`
 	AskID  string        `json:"ask_id,omitempty"`
@@ -220,6 +222,9 @@ type sessionView struct {
 	// are absent from a daemon that predates them. See docs/aterm-daemon.md.
 	State        string `json:"state,omitempty"`
 	QuietSeconds int    `json:"quiet_seconds"`
+	// StateSeconds is how long State has lasted since the daemon first saw it, so a restart
+	// counts from the restart. A pointer, so 0 is a reading and absence is an old daemon.
+	StateSeconds *int `json:"state_seconds,omitempty"`
 	// Degraded names the startup steps agent-compose launched without.
 	Degraded []string `json:"degraded,omitempty"`
 	// Context is how full the seat's context is. Absent until a source has read
@@ -228,6 +233,8 @@ type sessionView struct {
 	// LastReply is the first line of the seat's last finished reply. Absent until a
 	// transcript has shown one, and from a daemon that predates the field.
 	LastReply string `json:"last_reply,omitempty"`
+	// LastReplyAt is when that reply finished. The whole text is fetched with last_reply.
+	LastReplyAt *time.Time `json:"last_reply_at,omitempty"`
 }
 
 // terminalView is one plain terminal as a client sees it. Cwd is where the shell
@@ -283,6 +290,14 @@ const sendIdleFeature = "send-idle"
 // askRelayFeature is how a client knows the daemon reads `relay` on an ask and stamps
 // `card_seat`. A daemon predating it would show the card on the asker, unrelayed.
 const askRelayFeature = "ask-relay"
+
+// stateAgeFeature is how a client knows a view carries `state_seconds` and a `sessions`
+// frame is pushed when a state flips. See references/seat-state.md.
+const stateAgeFeature = "state-age"
+
+// lastReplyFeature is how a client knows the daemon answers last_reply and stamps
+// `last_reply_at` on a session view.
+const lastReplyFeature = "last-reply"
 
 // closeFeature is how a client knows the daemon answers a close frame.
 const closeFeature = "close"

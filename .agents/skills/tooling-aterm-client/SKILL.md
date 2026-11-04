@@ -57,6 +57,7 @@ than editing it by hand.
 * [discovery.md](references/discovery.md) - the `hosts` frame and how the host list merges the daemons it finds.
 * [feedback.md](references/feedback.md) - the Feedback sheet: a note and screenshots sent from the screen, and what waits on COI-3345.
 * [choices.md](references/choices.md) - native choice cards, `ask_choice` and `send_user_question`.
+* [seat-state.md](references/seat-state.md) - how long a seat has been in its state, and its last reply.
 * [grants.md](references/grants.md) - approval grants: one Kai decision carried to the executing seats, and the daemon's refusals.
 * [passkey.md](references/passkey.md) - the passkey unlock a remote device needs before it types.
 * [tailnet-access.md](references/tailnet-access.md) - which tailnet devices attach, owner logins on a tagged node, and why a Tailscale Serve front is never loopback.
