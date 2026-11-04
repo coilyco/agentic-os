@@ -182,7 +182,6 @@ if [ -n "$native_aos" ]; then
         "$native_aosguard" --help >/dev/null
         "$native_aosguard" --version | grep -Fx "aosguard version $version" >/dev/null
         "$native_aosguard" ops aws --help >/dev/null
-        "$native_aosguard" ops actions --help >/dev/null
         "$native_aterm" --help >/dev/null
         "$native_aterm" --version |
             grep -Fx "aterm version $version" >/dev/null

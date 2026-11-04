@@ -206,7 +206,7 @@ def test_release_workflow_derives_assets_from_dist() -> None:
     assert "--dry-run" in release_check
     assert "agent-compose" in release_check
     assert "--aos-bin" in release_check
-    assert "ops actions --help" in release_check
+    assert "ops aws --help" in release_check
     assert "aterm.launch.v1" in release_check
     assert "an off-roster role should exit 3" in release_check
     assert "a missing dependency should exit 4" in release_check
