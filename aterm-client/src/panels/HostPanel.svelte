@@ -47,7 +47,7 @@
     {#each silent as quiet (quiet.id)}
       <div class="alert" role="alert">
         {#if quiet.answered}
-          <p><strong>{quiet.label} stopped answering.</strong> It answered earlier on this page, so it is probably restarting. Retry asks it again.</p>
+          <p><strong>{quiet.label} stopped answering.</strong> It answered earlier on this page, so it is probably restarting. This page asks again on its own, and Retry asks now.</p>
         {:else}
           <p><strong>{quiet.label} is not answering.</strong> Pick it to run the connection check, which shows how far the connection got.</p>
         {/if}
@@ -74,11 +74,11 @@
     <h1>{host.label} {host.answered ? "stopped answering" : "is not answering"}</h1>
     <div class="alert" role="alert">
       {#if host.answered}
-        <p>{host.status.reason} It answered earlier on this page, so it is probably restarting. Retry asks it again.</p>
+        <p>{host.status.reason} It answered earlier on this page, so it is probably restarting. This page asks again on its own, and Retry asks now.</p>
       {:else if host.status.layer && host.status.layer !== "network"}
         <p>{host.status.reason}</p>
       {:else}
-        <p>Nothing answered. The connection check below shows how far the connection got, and one button sends the report to prod-director.</p>
+        <p>Nothing answered. The connection check below shows how far the connection got, and one button sends the report to prod-director. This page keeps asking for an hour, and asks again when you come back to it.</p>
       {/if}
       <button class="button" onclick={() => retry(host)}>Retry</button>
     </div>
@@ -91,9 +91,9 @@
     <h1>{host.label}</h1>
     {#if reconnecting() && host.id === app.attachedHostId}
       {#if running === 0}
-        <p class="lede">Reconnecting. Nothing was running when it stopped answering.</p>
+        <p class="lede">{app.link.state === "resting" ? "Not answering." : "Reconnecting."} Nothing was running when it stopped answering.</p>
       {:else}
-        <p class="lede">Reconnecting. {running} {running === 1 ? "seat was" : "seats were"} running when it stopped answering, and they show as they were.</p>
+        <p class="lede">{app.link.state === "resting" ? "Not answering." : "Reconnecting."} {running} {running === 1 ? "seat was" : "seats were"} running when it stopped answering, and they show as they were.</p>
       {/if}
     {:else}
       <p class="lede">{running} {running === 1 ? "seat" : "seats"} running. Pick a seat from the list to open its terminal.</p>

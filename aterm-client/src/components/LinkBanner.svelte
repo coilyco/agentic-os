@@ -26,6 +26,9 @@
     {#if link.state === "reconnecting"}
       <strong>{label} is reconnecting.</strong>
       <span class="extra">It stopped answering, and your seats stay as they were until it is back.{#if link.attempt >= STILL_SILENT} Still no answer. The connection check says which hop broke.{/if}</span>
+    {:else if link.state === "resting"}
+      <strong>{label} stopped answering.</strong>
+      <span class="extra">This page tried for an hour and has stopped. It tries again as soon as you open it, or press Retry now.</span>
     {:else if link.state === "restored"}
       <strong>{label} is back.</strong> <span class="extra">Your seats are live again.</span>
     {/if}
@@ -33,6 +36,10 @@
       A newer aterm is ready. <span class="extra">Reload to use it.</span>
     {/if}
   </p>
+  {#if link.state === "resting"}
+    <button class="button" type="button" onclick={retryNow}>Retry now</button>
+    <button class="button" type="button" onclick={showHost}>Check connection</button>
+  {/if}
   {#if link.state === "reconnecting"}
     <span class="count mono" aria-hidden="true">{wait === null ? "Trying now" : `Next try in ${wait} s`}</span>
     <button class="button" type="button" onclick={retryNow} disabled={wait === null}>Retry now</button>
@@ -46,9 +53,9 @@
 <style>
   .link { flex: none; display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; }
   .link.shown { padding: 10px clamp(16px, 4vw, 48px); border-bottom: 1px solid var(--line); background: var(--surface); }
-  .link[data-state="reconnecting"] { border-bottom-color: var(--warn); background: var(--warn-fill); }
+  .link[data-state="reconnecting"], .link[data-state="resting"] { border-bottom-color: var(--warn); background: var(--warn-fill); }
   .line { margin: 0; flex: 1 1 260px; font-size: 15px; }
-  .link[data-state="reconnecting"] strong { color: var(--warn-text); }
+  .link[data-state="reconnecting"] strong, .link[data-state="resting"] strong { color: var(--warn-text); }
   .count { font-size: 13px; color: var(--muted); }
   .button { min-height: 44px; }
   .button:disabled { opacity: 0.5; cursor: default; }

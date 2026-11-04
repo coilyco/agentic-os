@@ -9,6 +9,7 @@ import { upsertMessage } from "./messages";
 import { askerLine, cardSeatOf } from "./relay";
 import { MockHost, terminalModeFrom } from "./mock-host";
 import { diagnose } from "./reach";
+import { Recheck } from "./recheck";
 import type { View } from "./mcp-apps";
 import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
@@ -111,9 +112,10 @@ const dismissed = new Set<string>();
 const RESTORED_MS = 5000;
 let restoredTimer: ReturnType<typeof setTimeout> | undefined;
 
-/** True while the attached host is silent and the screen is its last known state. */
+/** True while the attached host is silent and the screen is its last known state. That
+ * holds in the hour of tries and after it, when only a return to the page dials again. */
 export function reconnecting(): boolean {
-  return app.link.state === "reconnecting";
+  return app.link.state === "reconnecting" || app.link.state === "resting";
 }
 
 /** Brings the attached host's own panel forward, where its connection check is. */
@@ -183,11 +185,56 @@ export async function checkHost(host: Host): Promise<void> {
     // The socket failure says nothing, so ask over HTTPS which layer stopped it.
     const { layer, message } = await diagnose(host.address);
     host.status = { kind: "unreachable", reason: message, layer };
+    watchHost(host);
     return;
   }
+  stopWatching(host);
   // Picked while the probe was still out, so attach now that it answered.
   if (app.selectedHostId === host.id && app.attachedHostId !== host.id) selectHost(host);
   if (!host.found) void refreshFound();
+}
+
+// Hosts that are not answering are asked again on the backoff and on every return to
+// the page, so they never wait for a tap (COI-3352). Keyed by address: ids change.
+const rechecks = new Map<string, Recheck>();
+
+function watchHost(host: Host): void {
+  if (host.kind !== "daemon") return;
+  let recheck = rechecks.get(host.address);
+  if (!recheck) {
+    recheck = new Recheck(() => recheckHost(host));
+    rechecks.set(host.address, recheck);
+  }
+  recheck.start();
+}
+
+function stopWatching(host: Host): void {
+  rechecks.get(host.address)?.stop();
+  rechecks.delete(host.address);
+}
+
+/** The checkHost probe without its Checking screen, so the page does not flicker.
+ * Attaches the host if it was the one picked. */
+async function recheckHost(host: Host): Promise<boolean> {
+  try {
+    host.status = { kind: "online", sessionCount: await probe(host.address) };
+  } catch {
+    return false;
+  }
+  host.answered = true;
+  stopWatching(host);
+  if (app.selectedHostId === host.id && app.attachedHostId !== host.id) selectHost(host);
+  if (!host.found) void refreshFound();
+  return true;
+}
+
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  const wake = () => {
+    if (document.visibilityState === "visible") for (const recheck of rechecks.values()) recheck.wake();
+  };
+  window.addEventListener("online", wake);
+  window.addEventListener("focus", wake);
+  document.addEventListener("visibilitychange", wake);
 }
 
 const FOUND_REFRESH_MS = 60_000;
@@ -256,6 +303,8 @@ export function removeHost(id: string): void {
     app.connection = null;
     app.attachedHostId = null;
   }
+  const removed = app.hosts.find((host) => host.id === id);
+  if (removed) stopWatching(removed);
   app.hosts = app.hosts.filter((host) => host.id !== id);
   if (app.selectedHostId === id) app.selectedHostId = null;
   persist();
@@ -383,6 +432,7 @@ export function selectHost(host: Host): void {
     }
     else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
     else if (event.type === "reconnecting") app.link = { state: "reconnecting", attempt: event.attempt, retryAt: event.retryAt };
+    else if (event.type === "resting") app.link = { state: "resting" };
     else if (event.type === "reconnected") {
       app.resume = null;
       // The new connection re-sends pending asks. The old ones belong to a dead daemon.
@@ -399,6 +449,7 @@ export function selectHost(host: Host): void {
       clearTimeout(restoredTimer);
       app.link = { state: "live" };
       host.status = { kind: "unreachable", reason: event.reason };
+      watchHost(host);
       app.attachedHostId = null;
       app.connection = null;
       app.selectedSession = null;

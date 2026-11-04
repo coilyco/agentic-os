@@ -109,6 +109,10 @@ repos:
     band: small
   treehouse-servers:
     band: large # the Treehouse Servers record, about 85,000 characters over three source tabs, one page per section (COI-2836)
+    excludes: # agent-compose engine inputs the Go loader reads by exact name (SKILL.md, INVARIANT.md) and the fixtures its tests parse, which are data rather than docs (COI-3367). Placement only, size caps still apply.
+    - agent-compose/seed/roster/data/**
+    - agent-compose/testdata/contracts/**
+    - agent-compose/testdata/handmade-bundle/**
   umbra:
     band: large
     guides: true
