@@ -90,6 +90,10 @@ export interface Ask {
   options: { label: string; description: string }[];
   allowOther: boolean;
   multi: boolean;
+  /** A worker's question relayed to a director, so `session` is the asker (COI-3241). */
+  relay?: boolean;
+  /** The session whose pane shows the card. Absent when no director was up. */
+  cardSeat?: string;
 }
 
 export type AskOutcome = "answered" | "cancelled" | "timed_out";

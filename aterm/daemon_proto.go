@@ -103,6 +103,11 @@ type frame struct {
 	Expires     string        `json:"expires,omitempty"`
 	Sessions    []sessionView `json:"sessions,omitempty"`
 
+	// stage: Body is the command and Text the note. The reply carries State,
+	// Opened and Viewers. See docs/aterm-pane.md.
+	Opened  bool `json:"opened,omitempty"`
+	Viewers int  `json:"viewers,omitempty"`
+
 	// Terminals rides beside Sessions and never inside it, so a consumer that
 	// counts or targets seats cannot meet a shell.
 	Terminals []terminalView `json:"terminals,omitempty"`
