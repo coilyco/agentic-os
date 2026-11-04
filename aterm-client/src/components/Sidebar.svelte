@@ -304,8 +304,8 @@
   .tab:hover { background: #171a21; }
   .tab[aria-selected="true"] { background: #1d1729; box-shadow: inset 0 0 0 1px #3a3350; }
   .seat[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--ground)); box-shadow: inset 0 0 0 1px var(--accent); }
-  .seat[data-glow="true"][data-activity="asking"] { box-shadow: inset 7px 0 0 var(--accent); }
-  .seat[data-glow="true"] { background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 45%, var(--ground)), color-mix(in srgb, var(--accent) 8%, var(--ground)) 85%); box-shadow: inset 4px 0 0 var(--accent); }
+  /* A waiting seat is a faint tint and a thin rail. The "?" or dot on the avatar and the brand-coloured name do the telling. */
+  .seat[data-glow="true"] { background: color-mix(in srgb, var(--accent) 9%, var(--ground)); box-shadow: inset 2px 0 0 var(--accent); }
   .dot { width: 10px; height: 10px; border-radius: 5px; background: var(--ok); flex: none; }
   [data-kind="unreachable"] .dot { background: none; border: 2px solid var(--danger); }
   [data-kind="checking"] .dot { background: none; border: 2px solid var(--muted); }

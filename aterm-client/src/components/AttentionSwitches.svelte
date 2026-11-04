@@ -16,11 +16,11 @@
     <label class="switch">
       <input type="checkbox" role="switch" checked={app.alerts.visual} aria-describedby="alerts-visual-hint" onchange={(event) => setAlert("visual", event.currentTarget.checked)} />
       <span class="track" aria-hidden="true"></span>
-      <span class="name">Strong visual</span>
+      <span class="name">Highlight</span>
     </label>
   </div>
   <p id="alerts-sound-hint" class="hint">One short tone when a seat starts waiting on you.</p>
-  <p id="alerts-visual-hint" class="hint">A glow at the page edge and on the seat's tab, until you open it.</p>
+  <p id="alerts-visual-hint" class="hint">A soft tint on the seat's tab, until you open it.</p>
   {#if app.alerts.soundBlocked}
     <p class="blocked" role="status">Sound is on, but the browser is holding audio back. Click anywhere on the page, or switch Sound off and on again.</p>
   {/if}
