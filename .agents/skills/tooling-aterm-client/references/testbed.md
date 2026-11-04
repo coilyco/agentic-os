@@ -31,12 +31,12 @@ Every step also saves its screenshot, pass or fail, under `aterm-client/testbed/
 
 A journey tagged `@quirk` is a reported quirk. It fails now and goes green when the fix lands, so `just aterm-client-testbed` ends red while any quirk stands. Run it before pushing a fix. A fix also changes screenshots, so run the update verb, read the diff, and commit the new baselines with the fix.
 
-State on main at PR 193 and 199, with each fix confirmed by the bed rather than assumed:
+State on main after PRs 193, 199, 203 and the find control, as the bed shows it, not as assumed:
 
-* **Green** - COI-3243 bugs 2, 3 and 4 (`native-choice`, `native-choice-captured`) and the box drawing gap of COI-3238 item 1 (`terminal-text`).
+* **Green** - COI-3243 bugs 2, 3 and 4 (`native-choice`, `native-choice-captured`), COI-3238 item 1's box drawing gap and find control (`terminal-text`), and COI-3238 item 2 (`side-panel`).
 * **Red, client half only** - COI-3243 bug 1 (`dialog-input-hold`). A composer message sent while a dialog is open goes into the dialog. The daemon half cannot be tested on a mock that would only assert itself.
-* **Red** - COI-3238 item 2 (`side-panel`), item 3 (`seat-rows`), a find control (`terminal-text`), the dialog's tab bar as buttons (`native-choice`), and a short conversation growing the PTY without limit (`pty-size`).
-* **Fixme, bed cannot judge yet** - link hover and history depth in `terminal-text`. Its hover does not raise xterm's link cursor and its wheel does not reach the top of history, so a red there would be the bed's fault.
+* **Red** - COI-3238 item 3 (`seat-rows`), the dialog's tab bar as buttons (`native-choice`), and a short conversation growing the PTY without limit (`pty-size`, COI-3291).
+* **Fixme, bed cannot judge yet** - link hover and history depth in `terminal-text` (COI-3293).
 
 Journeys that hold today: `read-output`, `switch-seats`, `ask-card`, `native-choice` (one question), `start-seat`, `composer-keyboard`, `stream-under-load`.
 
