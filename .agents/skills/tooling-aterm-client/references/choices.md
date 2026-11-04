@@ -14,6 +14,8 @@ A terminal shorter than the dialog scrolls the top options out of view, and then
 
 A card is the same card while only digits in the dialog's text change (an away-timer, a counter), and its question updates in place. Its text box, draft and ticked rows live in `card-memo.svelte.ts`, keyed by seat and options, so a card rebuilt for any reason comes back with them and the keyboard. They are dropped when the card is answered or cancelled, or 5 seconds after the dialog stays gone (COI-3314).
 
+On a phone (720px and under) the card takes at most 58% of the terminal area, so the output behind it stays readable, and its options scroll inside it. While a text box is open it may use all of it, since the keyboard takes the rest. A Hide question button folds the card to a one-line bar, and Show question brings it back. The folded state is kept like the draft (COI-3320).
+
 ## The durable path
 
 Screen reading is per harness and breaks when a harness redraws its menu differently. Kai chose `ask_choice`: a tool on the daemon's MCP server that any seat can call. The daemon broadcasts an `ask` frame, the client answers with the picked indexes and any typed text, and an `asked` frame closes the card everywhere. An ask outranks a screen menu in the same seat, and because it is a daemon event it can flag a seat you are not viewing. The frame shape in `daemon-host.ts` is the one proposed to eng-platform, and the daemon's version wins.
