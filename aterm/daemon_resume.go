@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -16,13 +18,36 @@ const (
 	reasonResumeEnded = "resume_ended"
 )
 
-// resumeStore carries one unlock across a reconnect. Zero window is off. In memory only,
-// so a restart re-locks everything. Design: references/resume.md in tooling-aterm-client.
+// resumeUntilCloseWord is the --resume-window default, which never expires a proof.
+const resumeUntilCloseWord = "app"
+
+// parseResumeWindow reads --resume-window: app, 0 or a positive duration.
+func parseResumeWindow(value string) (window time.Duration, untilClose bool, err error) {
+	if strings.EqualFold(strings.TrimSpace(value), resumeUntilCloseWord) {
+		return 0, true, nil
+	}
+	if window, err = time.ParseDuration(strings.TrimSpace(value)); err != nil {
+		return 0, false, fmt.Errorf("--resume-window is %s, 0 or a duration: %w", resumeUntilCloseWord, err)
+	}
+	if window < 0 {
+		return 0, false, errors.New("--resume-window cannot be negative")
+	}
+	return window, false, nil
+}
+
+// resumeMaxGrants bounds the proofs kept when none expires, oldest closed first.
+const resumeMaxGrants = 64
+
+// resumeStore carries one unlock across a reconnect. No window and no untilClose is off.
+// In memory only. Design: references/resume.md in tooling-aterm-client.
 type resumeStore struct {
 	mu     sync.Mutex
 	window time.Duration
-	now    func() time.Time
-	grants map[[sha256.Size]byte]*resumeGrant
+	// untilClose keeps a proof until it is spent, revoked or the daemon restarts, since the
+	// client holds it in page memory and closing the app drops it (Kai, COI-3305).
+	untilClose bool
+	now        func() time.Time
+	grants     map[[sha256.Size]byte]*resumeGrant
 }
 
 // resumeGrant is held by hash, so the daemon never keeps a usable token.
@@ -35,15 +60,36 @@ func newResumeStore() *resumeStore {
 	return &resumeStore{now: time.Now, grants: map[[sha256.Size]byte]*resumeGrant{}}
 }
 
-func (r *resumeStore) enabled() bool { return r.window > 0 }
+func (r *resumeStore) enabled() bool { return r.untilClose || r.window > 0 }
+
+// expiresIn is the window a reply reports, zero (omitted) when proofs do not expire.
+func (r *resumeStore) expiresIn() int {
+	if r.untilClose {
+		return 0
+	}
+	return int(r.window.Seconds())
+}
 
 // pruneLocked forgets grants whose window has ended. The caller holds mu.
 func (r *resumeStore) pruneLocked() {
 	now := r.now()
 	for key, grant := range r.grants {
-		if !grant.open && !now.Before(grant.dropped.Add(r.window)) {
+		if !r.untilClose && !grant.open && !now.Before(grant.dropped.Add(r.window)) {
 			delete(r.grants, key)
 		}
+	}
+	for len(r.grants) > resumeMaxGrants {
+		var oldest [sha256.Size]byte
+		found := false
+		for key, grant := range r.grants {
+			if !grant.open && (!found || grant.dropped.Before(r.grants[oldest].dropped)) {
+				oldest, found = key, true
+			}
+		}
+		if !found {
+			return
+		}
+		delete(r.grants, oldest)
 	}
 }
 
@@ -114,7 +160,7 @@ func (u *localUsers) issueResume(cl *client, reply frame) (frame, error) {
 		return reply, err
 	}
 	if token != "" {
-		reply.Resume, reply.ExpiresIn = token, int(u.resume.window.Seconds())
+		reply.Resume, reply.ExpiresIn = token, u.resume.expiresIn()
 	}
 	return reply, nil
 }
@@ -134,7 +180,7 @@ func (u *localUsers) resumeFrame(cl *client, message frame) error {
 	}
 	cl.asserted = true
 	u.host.logf("a remote device resumed its unlock")
-	if err := cl.c.write(frame{Type: "resumed", ID: message.ID, Resume: token, ExpiresIn: int(u.resume.window.Seconds())}); err != nil {
+	if err := cl.c.write(frame{Type: "resumed", ID: message.ID, Resume: token, ExpiresIn: u.resume.expiresIn()}); err != nil {
 		return err
 	}
 	return cl.c.write(frame{Type: "typing", Typing: u.host.typingStanding(cl)})

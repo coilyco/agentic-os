@@ -26,9 +26,6 @@ const (
 	// A daemon with nothing to serve exits, so an upgraded binary takes over
 	// at the next launch rather than an old one serving forever.
 	daemonIdle = 5 * time.Minute
-	// How long a remote device's unlock outlives a dropped connection. An interim
-	// ruling pending Kai's answer (COI-3305), so it stays a setting, 0 for off.
-	daemonResumeWindow = 60 * time.Minute
 	// A launch-and-deliver message waits this long for its target to open.
 	launchWait = 3 * time.Minute
 	// A client that cannot take output this long is dropped, not waited on.
@@ -185,8 +182,9 @@ type daemonOptions struct {
 	// VAPIDKey turns on Web Push, empty for none. Never logged.
 	VAPIDKey string
 	// ResumeWindow is how long a remote device's unlock outlives its dropped
-	// connection. Zero keeps an unlock on one connection.
-	ResumeWindow time.Duration
+	// connection, and ResumeUntilClose lifts the limit. Neither keeps it on one connection.
+	ResumeWindow     time.Duration
+	ResumeUntilClose bool
 	// Stop ends the daemon when closed, as a signal does. A test's handle.
 	Stop <-chan struct{}
 	// tailnetListen replaces the tailnet bind, so a test needs no Tailscale.
