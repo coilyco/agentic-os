@@ -1,0 +1,35 @@
+ ▐▛███▛█   Claude Code v2.1.318
+▝▜██████▀  Haiku 5.5 · Claude Max
+ ▝▝   ▝▝   /…/scratchpad/cc-fixture
+
+▎ Auto mode is now Claude Code's default permission mode.
+▎ Auto mode lets Claude handle permission prompts automatically. Claude
+▎ checks each tool call for risky actions and prompt injection before
+▎ executing, runs the ones it assesses as lower-risk, and blocks the
+▎ rest.
+▎ https://code.claude.com/docs/en/permission-modes
+
+❯ Use the AskUserQuestion tool exactly once with three questions and
+  nothing else. Q1 header Accent, single-select, options Purple, Teal,
+  Black, Gold, each with a short description. Q2 header Routes,
+  multiSelect true, options Qwen, Llama, Frontier, each with a short
+  description. Q3 header Name, single-select, options Fern, Moss, Pine,
+  Birch, each with a short description. After the answers, reply only
+  done.
+────────────────────────────────────────────────────────────────────────
+←  ☒ Accent  ☐ Routes  ☐ Name  ✔ Submit  →
+
+Which routes do you want enabled?
+
+❯ 1. [ ] Qwen
+         Route requests to the Qwen model family.
+  2. [ ] Llama
+         Route requests to the Llama model family.
+  3. [ ] Frontier
+         Route requests to frontier Claude models.
+  4. [ ] Type something
+     Next
+────────────────────────────────────────────────────────────────────────
+  5. Chat about this
+
+Enter to select · Tab/Arrow keys to navigate · Esc to cancel

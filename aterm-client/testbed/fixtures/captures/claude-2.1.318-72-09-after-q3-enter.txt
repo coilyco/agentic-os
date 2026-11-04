@@ -1,0 +1,16 @@
+────────────────────────────────────────────────────────────────────────
+←  ☒ Accent  ☒ Routes  ☒ Name  ✔ Submit  →
+
+Review your answers
+
+ ● Which accent color do you want?
+   → Teal
+ ● Which routes do you want enabled?
+   → Qwen
+ ● Which name do you want?
+   → Cedar
+
+Ready to submit your answers?
+
+❯ 1. Submit answers
+  2. Cancel
