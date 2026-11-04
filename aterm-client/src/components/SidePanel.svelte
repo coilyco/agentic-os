@@ -144,8 +144,11 @@
     [role="tab"] { padding: 0 5px; font-size: 13px; }
   }
   /* A bottom sheet over the seat's terminal. Its tab strip always shows, and SessionPanel keeps that strip's height clear of the composer.
-     Fixed to the window, since the shell's own sidebar and header can leave the page body too short to read a sheet in. */
+     Fixed to the window, since the shell's own sidebar and header can leave the page body too short to read a sheet in.
+     The strip stays even with nothing to show: it is the only way to reach Messages, Views, Browser and Terminal. Its tabs are the full 44px strip, so the touch target is the strip. */
   @media (max-width: 1000px) {
+    .tabs { padding: 0; }
+    [role="tab"] { min-height: 44px; }
     .panel { position: fixed; left: env(safe-area-inset-left); right: env(safe-area-inset-right); bottom: 0; z-index: 5; height: var(--strip); border-left: none; border-top: 1px solid var(--line); background: var(--ground); }
     .head { height: calc(var(--strip) - env(safe-area-inset-bottom)); flex: none; }
     .panel[data-open="false"] .content { display: none; }

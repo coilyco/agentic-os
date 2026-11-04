@@ -65,7 +65,8 @@
   // Opens on what the role looks at beside its seat, unless Kai picked another tab for it before.
   // The panel is keyed by session, so the role it starts with is the role it keeps.
   // svelte-ignore state_referenced_locally
-  let side = $state<SideTab>(sideTabFor(role.slug, loadOverrides()));
+  // A browser nobody has opened a page in is an empty state, so it is not what a seat opens on.
+  let side = $state<SideTab>(sideTabFor(role.slug, loadOverrides(), { browser: !!app.connection?.browser && (app.browsers[session.id]?.state ?? "none") !== "none" }));
   // Null is the panel's own width, which the browser widens to half.
   let sideWidth = $state<number | null>(loadSide());
   function resize(width: number | null): void {

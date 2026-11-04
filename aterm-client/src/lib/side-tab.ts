@@ -13,9 +13,17 @@ const ROLE_DEFAULTS: readonly { match: string; tab: SideTab }[] = [
 
 const FALLBACK: SideTab = "messages";
 
-export function defaultSideTab(role: string): SideTab {
+/** What a seat has to show right now, for the tabs that can be empty. */
+export interface TabFacts {
+  /** The host streams a browser and this seat has a page open in it. */
+  browser: boolean;
+}
+
+/** A tab that would open on an empty state is never the default, whatever the role. */
+export function defaultSideTab(role: string, facts: TabFacts = { browser: true }): SideTab {
   const rule = ROLE_DEFAULTS.find(({ match }) => (match.endsWith("-") ? role.startsWith(match) : role === match));
-  return rule?.tab ?? FALLBACK;
+  const tab = rule?.tab ?? FALLBACK;
+  return tab === "browser" && !facts.browser ? FALLBACK : tab;
 }
 
 export function isSideTab(value: unknown): value is SideTab {
@@ -25,8 +33,9 @@ export function isSideTab(value: unknown): value is SideTab {
 /** What Kai picked, by role, since the instances of a role are peers. */
 export type SideTabOverrides = Record<string, SideTab>;
 
-export function sideTabFor(role: string, overrides: SideTabOverrides): SideTab {
-  return overrides[role] ?? defaultSideTab(role);
+/** A pick of Kai's stands even when the tab is empty, since she chose it. */
+export function sideTabFor(role: string, overrides: SideTabOverrides, facts?: TabFacts): SideTab {
+  return overrides[role] ?? defaultSideTab(role, facts);
 }
 
 const KEY = "aterm.side-tab.v1";
