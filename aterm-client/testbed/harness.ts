@@ -71,7 +71,8 @@ export const test = base.extend<{ bed: Bed; mock: Mock }>({
         await page.waitForTimeout(700);
         // Every run keeps its own pictures, pass or fail, for a person to look at.
         await page.screenshot({ path: info.outputPath(file) });
-        if (options?.compare === false) return;
+        // ATERM_TESTBED_COMPARE=0 judges a fix's behavior and ignores how it now looks.
+        if (options?.compare === false || process.env.ATERM_TESTBED_COMPARE === "0") return;
         await expect(page).toHaveScreenshot(file, { mask: options?.mask ?? [] });
       },
     };

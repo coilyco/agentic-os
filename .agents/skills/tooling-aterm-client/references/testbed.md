@@ -18,7 +18,7 @@ Every step also saves its screenshot, pass or fail, under `aterm-client/testbed/
 * **Scenes** - `scenes.ts` draws a seat's screen at whatever size the client asks for, as a harness redraws on resize. Claude Code's AskUserQuestion dialog is emulated from real captures, so a click on a card walks the dialog.
 * **Captures** - `fixtures/captures/` holds real Claude Code 2.1.318 screens, replayed verbatim at their own width on desktop. Add one by dropping a plain-text screen in that folder.
 * **Roster** - the mock serves `src/lib/fixtures/roster.json`, so one fixture has one owner.
-* **Another build** - `ATERM_TESTBED_DIST=<dir>` points the bed at any built client, to try a fix before it lands.
+* **Another build** - `ATERM_TESTBED_DIST=<dir>` points the bed at any built client, to try a fix before it lands. Add `ATERM_TESTBED_COMPARE=0` to judge its behavior and ignore how it now looks, since a fix changes pixels. Run the update verb afterward to take the new baselines.
 
 ## Projects
 

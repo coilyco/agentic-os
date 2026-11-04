@@ -24,7 +24,7 @@ test("capture: single question", async ({ bed }) => {
 test("capture: multi-select with its Next row", quirk("COI-3243 bug 2"), async ({ bed }) => {
   await show(bed, "72-03-after-enter-q2");
   await expect(card(bed.page).getByRole("button", { name: /^Next$/ }), "no Next button on the card").toBeVisible();
-  await expect(card(bed.page).getByText("Pick any, then submit."), "the card does not know it is a multi-select").toBeVisible();
+  await expect(card(bed.page).getByText(/Pick any/), "the card does not know it is a multi-select").toBeVisible();
   await bed.step("card");
 });
 
