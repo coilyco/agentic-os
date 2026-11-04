@@ -53,7 +53,7 @@
 * `push_*` serves [Web Push](../.agents/skills/tooling-aterm-client/references/web-push.md).
 * `hosts` lists tailnet daemons that answered ([discovery](../.agents/skills/tooling-aterm-client/references/discovery.md)).
 * `whoami` resolves a token to its session. `roster` answers `aterm.roster.v1`, the launchable roles `aterm --list --json` prints. `launch` with a `role` and optional `seat` opens it headless.
-* `ask` takes a `question`, `options`, `header`, `allow_other`, `multi`. MCP `ask_choice` takes up to four `questions`, one card each. The daemon stamps the asker and pushes `ask` to subscribers. `answer` (`ask_id`, `picks`, `text`) or `cancel_ask` settles it, and `asked` tells every client to drop the card. An asker leaving cancels its asks, and an answer takes the typing guard as Kai's input.
+* `ask` takes a `question`, `options`, `header`, `allow_other`, `multi`, `relay`. MCP `ask_choice` takes up to four `questions`, one card each. The daemon stamps the asker and pushes `ask` to subscribers. `answer` (`ask_id`, `picks`, `text`) or `cancel_ask` settles it, and `asked` tells every client to drop the card. An asker leaving cancels its asks, and an answer takes the typing guard as Kai's input.
 
 **Browsers get the embedded client at `/`, and a websocket there.** Loopback is `127.0.0.1:7419`, the tailnet HTTPS on this node's name, port 7419. `tailscale whois` admits a peer, never the request. [Tailnet access](../.agents/skills/tooling-aterm-client/references/tailnet-access.md) says who, and which pages open a socket.
 
