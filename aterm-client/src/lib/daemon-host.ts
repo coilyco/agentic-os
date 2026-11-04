@@ -94,6 +94,8 @@ interface AskView {
   options: { label: string; description?: string }[];
   allow_other?: boolean;
   multi?: boolean;
+  relay?: boolean;
+  card_seat?: string;
 }
 
 export function toAsk(view: AskView): Ask {
@@ -105,6 +107,8 @@ export function toAsk(view: AskView): Ask {
     options: view.options.map((option) => ({ label: option.label, description: option.description ?? "" })),
     allowOther: view.allow_other ?? false,
     multi: view.multi ?? false,
+    ...(view.relay ? { relay: true } : {}),
+    ...(view.card_seat ? { cardSeat: view.card_seat } : {}),
   };
 }
 
