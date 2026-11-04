@@ -11,7 +11,7 @@ roles:
     agent: opencode
     harnesses:
       opencode:
-        model: agent-proxy/chat/glm-5-3
+        model: agent-proxy/chat/default
   sysadmin-senior:
     agent: claude
     harnesses:

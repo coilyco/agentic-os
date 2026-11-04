@@ -1245,3 +1245,45 @@ describe("resuming an unlock after a redial", () => {
     host.close();
   });
 });
+
+describe("a seat's open_url", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const subscribedTo = (socket: StubSocket, channel: string) => socket.sent.some((line) => JSON.parse(line).type === "subscribe" && JSON.parse(line).channel === channel);
+
+  it("subscribes only when the host can show a page, so the host's own browser still opens otherwise", () => {
+    const withBoth = connect();
+    withBoth.socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["open-url", "browser"] });
+    expect(subscribedTo(withBoth.socket, "open_url")).toBe(true);
+    withBoth.host.close();
+
+    const noBrowser = connect();
+    noBrowser.socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["open-url"] });
+    expect(subscribedTo(noBrowser.socket, "open_url")).toBe(false);
+    noBrowser.host.close();
+
+    const oldDaemon = connect();
+    oldDaemon.socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["browser"] });
+    expect(subscribedTo(oldDaemon.socket, "open_url")).toBe(false);
+    oldDaemon.host.close();
+  });
+
+  it("turns the push into an event naming the seat and the address", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["open-url", "browser"] });
+    socket.receive({ type: "open_url", session: "eng-platform-beetle-ox-gd85", url: "https://example.com/login" });
+    expect(events.filter((event) => event.type === "open_url")).toEqual([{ type: "open_url", session: "eng-platform-beetle-ox-gd85", url: "https://example.com/login" }]);
+    host.close();
+  });
+
+  it("ignores a push missing its seat or its address", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["open-url", "browser"] });
+    socket.receive({ type: "open_url", url: "https://example.com/" });
+    socket.receive({ type: "open_url", session: "s" });
+    expect(events.filter((event) => event.type === "open_url")).toEqual([]);
+    host.close();
+  });
+});

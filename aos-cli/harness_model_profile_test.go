@@ -503,7 +503,7 @@ roles:
     agent: opencode
     harnesses:
       opencode:
-        model: agent-proxy/chat/glm-5-3
+        model: agent-proxy/chat/default
 `
 
 func TestCodexAndOpencodePinsReachTheirHarness(t *testing.T) {
@@ -521,7 +521,7 @@ func TestCodexAndOpencodePinsReachTheirHarness(t *testing.T) {
 		"codex inline config": {"operator", "codex", []string{"--config=model=o3"}, nil},
 		"codex prompt text":   {"operator", "codex", []string{"exec", "model=o3"}, []string{"-c", `model="gpt-6-sol"`}},
 		"codex other -c":      {"operator", "codex", []string{"-c", "sandbox_mode=x"}, []string{"-c", `model="gpt-6-sol"`}},
-		"opencode pin":        {"junior", "opencode", nil, []string{"--model", "agent-proxy/chat/glm-5-3"}},
+		"opencode pin":        {"junior", "opencode", nil, []string{"--model", "agent-proxy/chat/default"}},
 		"opencode typed -m":   {"junior", "opencode", []string{"-m", "a/b"}, nil},
 		"wrong harness":       {"junior", "codex", nil, nil},
 	} {
@@ -551,11 +551,11 @@ func TestPinnedCodexAndOpencodeModelsFallBack(t *testing.T) {
 		},
 		"opencode absent": {
 			[]string{"opencode"}, "junior", listedModels("agent-proxy/chat/minimax-m3"),
-			[]string{"opencode"}, "role junior pins opencode model agent-proxy/chat/glm-5-3",
+			[]string{"opencode"}, "role junior pins opencode model agent-proxy/chat/default",
 		},
 		"opencode unknown": {
 			[]string{"opencode"}, "junior", unreachableModels,
-			[]string{"opencode", "--model", "agent-proxy/chat/glm-5-3"}, "unchecked",
+			[]string{"opencode", "--model", "agent-proxy/chat/default"}, "unchecked",
 		},
 	} {
 		var stderr strings.Builder
