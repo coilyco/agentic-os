@@ -372,6 +372,7 @@
       </ul>
     {/if}
     <label for="composer-input" class="visually-hidden">Message {session.identity}</label>
+    <!-- No combobox role: a dictation tool wants a plain text area (COI-3254). The list is aria-controls and activedescendant. -->
     <textarea
       id="composer-input"
       bind:this={field}
@@ -388,10 +389,8 @@
       }}
       onblur={() => onfocuschange?.(false)}
       enterkeyhint="send"
-      role="combobox"
       aria-autocomplete="list"
-      aria-expanded={open}
-      aria-controls="composer-mentions"
+      aria-controls={open ? "composer-mentions" : undefined}
       aria-activedescendant={open ? `mention-${current}` : undefined}
       rows="1"
       placeholder={narrow ? `Message ${session.identity}` : `Type or dictate to ${session.identity}. Enter sends, Shift+Enter for a new line, @ names a session.${connection.images ? " Paste or drop an image to attach it." : ""}`}
