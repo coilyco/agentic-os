@@ -14,7 +14,7 @@ Every step also saves its screenshot, pass or fail, under `aterm-client/testbed/
 
 ## How it works
 
-* **Mock daemon** - `mock-daemon.ts` serves `aterm-client/dist` at `/` and speaks `aterm.daemon.v1` on a websocket at the same origin, as the real daemon does, so the client needs no configuration. It scripts only frames the daemon has: `welcome`, `sessions`, `roster`, `attach` replay, `size`, `output`, `ask`, `asked`, `launch`. A frame it does not model answers with an `error`. It records every `input`, `answer` and `launch` for assertions.
+* **Mock daemon** - `mock-daemon.ts` serves `aterm-client/dist` at `/` and speaks `aterm.daemon.v1` on a websocket at the same origin, as the real daemon does, so the client needs no configuration. It scripts only frames the daemon has: `welcome`, `sessions`, `roster`, `attach` replay, `size`, `output`, `ask`, `asked`, `launch`, `subscribe` to `open_url`, and a seat's browser (`browser_watch`, `browser_control`, `browser_navigate`, `browser_state`, no frames). A frame it does not model answers with an `error`. It records every `input`, `answer` and `launch` for assertions.
 * **Scenes** - `scenes.ts` draws a seat's screen at whatever size the client asks for, as a harness redraws on resize. Claude Code's AskUserQuestion dialog is emulated from real captures, so a click on a card walks the dialog.
 * **Captures** - `fixtures/captures/` holds real Claude Code 2.1.318 screens, replayed verbatim at their own width on desktop. Add one by dropping a plain-text screen in that folder.
 * **Roster** - the mock serves `src/lib/fixtures/roster.json`, so one fixture has one owner.
@@ -26,6 +26,7 @@ Every step also saves its screenshot, pass or fail, under `aterm-client/testbed/
 * `iphone` - iPhone 15 emulation on WebKit, Safari's engine.
 * `android` - Pixel 7 emulation on Chromium.
 * `phone-320` - the narrowest phone, Chromium.
+* `iphone-landscape` (844x390, WebKit) and `android-landscape` (740x360, Chromium) - run only `landscape.spec.ts`, which counts the rows of seat output a person can read.
 
 ## Quirks go green
 
@@ -38,15 +39,20 @@ State on main after PRs 193, 199, 203 and the find control, as the bed shows it,
 * **Red** - COI-3238 item 3 (`seat-rows`), the dialog's tab bar as buttons (`native-choice`), and a short conversation growing the PTY without limit (`pty-size`, COI-3291).
 * **Fixme, bed cannot judge yet** - link hover and history depth in `terminal-text` (COI-3293).
 
-Journeys that hold today: `read-output`, `switch-seats`, `ask-card`, `native-choice` (one question), `start-seat`, `composer-keyboard`, `stream-under-load`.
+Journeys that hold today: `unlock-resume` (a locked device redials inside and after the resume window, COI-3305), `read-output`, `switch-seats`, `ask-card`, `native-choice` (one question), `start-seat`, `composer-keyboard`, `stream-under-load`, `open-url`.
 
 ## What it cannot tell you
 
 * **Not a real phone** - WebKit emulation is not iOS. The keyboard journey shrinks the viewport by a keyboard's height, which a real iOS keyboard does not match. A Simulator run is the follow-up if Kai sees something here misses.
 * **Authored screens** - only the dialog screens are captured. The working screen and the answered screen are authored.
 * **`stream-under-load` is a guard, not proof** - it passes on main without the COI-3246 fix, because its burst repaints with absolute cursor moves. A proof needs a burst with relative moves around a resize.
-* **Baselines are per platform** - they sit under `baselines/darwin/`. A Linux run writes its own.
-* **No CI job yet** - GitHub Actions is blocked on COI-3227. Run the bed locally.
+* **Baselines are per platform** - they sit under `baselines/darwin/` for a Mac and `baselines/linux/` for CI. A font rasterises differently on each.
+
+## In CI
+
+The `testbed` job in `.github/workflows/aterm-client.yml` runs on a GitHub-hosted Ubuntu runner whenever `aterm-client/**` changes. It gates on `--grep-invert @quirk`, so reported quirks do not fail a pull request, and it runs the `@quirk` set as a report that cannot fail the job. A missing baseline fails in CI. The report, results and diffs upload as the `testbed` artifact.
+
+To write or refresh the Linux baselines, run the workflow by hand with `update` on, download the `testbed` artifact, and commit `baselines/linux/`. Do the same after a change that moves pixels.
 
 ## Beside the drive
 

@@ -8,7 +8,8 @@
   import SplitHandle from "../components/SplitHandle.svelte";
   import Terminal from "../components/Terminal.svelte";
   import { app, asksShownOn, colorOf, messagesFor, placeNow, reconnecting, relayedTo } from "../lib/app.svelte";
-  import { askAnswer, CANCEL, choiceFromAsk, detectChoice, keysFor, keysForPicks, type Choice } from "../lib/choices";
+  import { cardMemo, forgetCardMemos, memoKey, tickedRows } from "../lib/card-memo.svelte";
+  import { askAnswer, CANCEL, choiceFromAsk, choiceKey, detectChoice, keysFor, keysForPicks, type Choice } from "../lib/choices";
   import { contextPercent, contextText } from "../lib/context";
   import { isBlank } from "../lib/screen";
   import type { Session } from "../lib/protocol";
@@ -75,6 +76,13 @@
   $effect(() => {
     if (ask || choice) raised = false;
   });
+  // A click on a page card puts this seat's browser pane on screen, and the pane loads the page (COI-3258).
+  $effect(() => {
+    if (app.pageToShow?.sessionId !== session.id) return;
+    side = "browser";
+    sideOpen = true;
+    raised = true;
+  });
   const page = $derived(app.browsers[session.id]);
   // The browser needs room to be read, so a page takes half the width. Its empty states do not.
   const wide = $derived(side === "browser" && page !== undefined && page.state !== "none");
@@ -87,10 +95,10 @@
   // A redraw arrives in pieces, so one frame without the menu is not it closing.
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
   const HIDE_AFTER_MS = 400;
+  const FORGET_AFTER_MS = 5000;
+  let forgetTimer: ReturnType<typeof setTimeout> | undefined;
 
-  function keyOf(found: Choice): string {
-    return JSON.stringify([found.header, found.question, found.options]);
-  }
+  const keyOf = choiceKey;
 
   function readScreen(rows: string[]): void {
     blank = isBlank(rows);
@@ -101,9 +109,12 @@
         shownKey = "";
         answered = "";
         hideTimer = undefined;
+        // A dialog that flickers away keeps its draft for a while. One that stays gone does not.
+        forgetTimer = setTimeout(() => forgetCardMemos(session.id), FORGET_AFTER_MS);
       }, HIDE_AFTER_MS);
       return;
     }
+    clearTimeout(forgetTimer);
     clearTimeout(hideTimer);
     hideTimer = undefined;
     const key = keyOf(found);
@@ -113,8 +124,10 @@
     if (key !== shownKey) {
       shownKey = key;
       choice = found;
-    } else if (choice && choice.cursor !== found.cursor) {
-      choice.cursor = found.cursor;
+    } else if (choice) {
+      if (choice.cursor !== found.cursor) choice.cursor = found.cursor;
+      // A counter in the question ticks in place, without making a new card.
+      if (choice.question !== found.question) choice.question = found.question;
     }
   }
 
@@ -127,6 +140,7 @@
   function answer(chunks: string[]): void {
     if (!choice) return;
     answered = shownKey;
+    forgetCardMemos(session.id);
     heldQuestion = choice.question;
     holdUntil = performance.now() + chunks.length * KEY_GAP_MS + HOLD_AFTER_KEYS_MS;
     chunks.forEach((chunk, index) => setTimeout(() => app.connection?.input(session.id, chunk), index * KEY_GAP_MS));
@@ -175,10 +189,12 @@
               <p class="starting" role="status">Starting {session.identity} on {session.seat}. Its first screen shows here as soon as {session.seat} has opened.</p>
             {/if}
             {#if ask}
+              {@const asked = choiceFromAsk(ask)}
               {#key ask.id}
                 <div class="overlay">
                   <ChoiceCard
-                    choice={choiceFromAsk(ask)}
+                    choice={asked}
+                    memo={cardMemo(memoKey(session.id, asked.options), [])}
                     identity={asker}
                     focusToken={app.focusAsk === session.id ? app.focusCard : 0}
                     onfocused={() => (app.focusAsk = null)}
@@ -187,9 +203,11 @@
                     cancelLocked={needsPasskey(app.typing) || reconnecting()}
                     onanswer={(picks, text) => {
                       const reply = askAnswer(ask, picks, text);
+                      forgetCardMemos(session.id);
                       app.connection?.answer(ask.id, reply.picks, reply.text);
                     }}
                     oncancel={() => {
+                      forgetCardMemos(session.id);
                       app.connection?.cancelAsk(ask.id);
                     }}
                   />
@@ -199,7 +217,7 @@
               {@const current = choice}
               {#key shownKey}
                 <div class="overlay">
-                  <ChoiceCard choice={current} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(current.multi ? keysForPicks(current, picks, text) : keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
+                  <ChoiceCard choice={current} memo={cardMemo(memoKey(session.id, current.options), tickedRows(current.options))} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(current.multi ? keysForPicks(current, picks, text) : keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
                 </div>
               {/key}
             {/if}

@@ -36,7 +36,7 @@
 
 **A websocket on this host gets the same walk**, its source port mapped to the pids holding it, so a browser a session started, or one the daemon cannot name, cannot type, answer, launch or clear. A browser outside every session types, an agent driving Kai's own Chrome included.
 
-**A device on the tailnet types only after a passkey.** Its `input`, `answer`, `launch`, `clear`, `spawn`, `close`, `send`, `claim`, `ask`, `cancel_ask`, `gateway_add`, `view_call` and `view_close` refuse until an assertion with user verification succeeds on that connection, then `typing` pushes `allowed`. Only `https://coilyco.dev` may assert. `aterm passkey enroll` prints a one-time code and `revoke` forgets every passkey, neither from a session. A chain on Google's status list, or an unreadable list, refuses (`attestation_revoked`).
+**A device on the tailnet types only after a passkey.** Its `input`, `answer`, `launch`, `clear`, `spawn`, `close`, `send`, `claim`, `ask`, `cancel_ask`, `gateway_add`, `view_call` and `view_close` refuse until an assertion with user verification succeeds on that connection, then `typing` pushes `allowed`. Only `https://coilyco.dev` may assert. A chain on Google's status list, or an unreadable list, refuses (`attestation_revoked`).
 
 ## Wire contract
 
@@ -49,7 +49,7 @@
 * `inbox` (feature `inbox`) returns the caller's own messages by `token`, recorded at `enqueue` and marked read on return, `all` adding the read. Capped at 200, emptied by a restart.
 * `list` answers `sessions`, each with `state`, `quiet_seconds`, `last_reply` and `context` ([the meter](../.agents/skills/tooling-aterm-client/references/context-meter.md)). `subscribe` to `sessions` pushes the roster on every change, and `message` events carry each state change, never the body. A stalled subscriber drops after 5s.
 * `welcome` to a websocket adds `typing-guard`, `passkey` and `typing` `{allowed, reason, passkey}`, `passkey` `enrolled` or `unenrolled`. A refusal's `error` carries `reason`: `session_descendant`, `peer_unread` or `passkey_required`.
-* Passkey: `passkey_enroll_begin` (`enroll_code`) answers `passkey_enroll_options`, and `passkey_enroll_finish` (`credential`) answers `passkey_enrolled`. `passkey_assert_begin` answers `passkey_assert_options`, and `passkey_assert_finish` answers `passkey_asserted`. `options` and `credential` are WebAuthn JSON.
+* Passkey: `passkey_enroll_begin` (`enroll_code`) answers `passkey_enroll_options`, and `passkey_enroll_finish` (`credential`) answers `passkey_enrolled`. `passkey_assert_begin` answers `passkey_assert_options`, and `passkey_assert_finish` answers `passkey_asserted`.* `resume` (feature of the same name) carries an unlock across a redial: [frames and window](../.agents/skills/tooling-aterm-client/references/resume.md).
 * `push_*` serves [Web Push](../.agents/skills/tooling-aterm-client/references/web-push.md).
 * `hosts` lists tailnet daemons that answered ([discovery](../.agents/skills/tooling-aterm-client/references/discovery.md)).
 * `whoami` resolves a token to its session. `roster` answers `aterm.roster.v1`, the launchable roles `aterm --list --json` prints. `launch` with a `role` and optional `seat` opens it headless.

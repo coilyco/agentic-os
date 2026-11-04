@@ -2,6 +2,7 @@
 // and `MockHost` scripts it for the demo. Why: the architecture reference.
 import type { KeyStatus } from "./device-key";
 import type { ToolResult, View } from "./mcp-apps";
+import type { ResumeState } from "./resume";
 import type { Role } from "./roster";
 import type { Layer } from "./reach";
 import type { InputKind, SharedBrowser } from "./screencast";
@@ -103,6 +104,8 @@ export type HostEvent =
   | { type: "output"; sessionId: string; data: string | Uint8Array }
   | { type: "message"; message: PeerMessage }
   | { type: "notice"; text: string }
+  // A seat asked to open a page. Its name is the label, and the daemon names no pane.
+  | { type: "open_url"; session: string; url: string }
   // Typed input not taken for a reason the lock does not show, or lost to a dead socket.
   | { type: "input_refused"; text: string }
   | { type: "ask"; ask: Ask }
@@ -114,6 +117,8 @@ export type HostEvent =
   | { type: "reconnecting"; attempt: number; retryAt: number | null }
   // It answered again. `newerBuild` means it is not the build that served this page.
   | { type: "reconnected"; newerBuild: boolean }
+  // A held unlock proof is out (`resuming`), the daemon said it ended, or neither (null).
+  | { type: "resume"; state: ResumeState | null }
   | { type: "view"; view: View }
   | { type: "view_update"; id: string; toolResult?: ToolResult; cancelled?: string }
   | { type: "view_closed"; id: string }

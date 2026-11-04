@@ -17,7 +17,7 @@ Every binary value is base64url without padding. A rejection is `{code, message}
 
 ## What the key is
 
-The key is non-exportable and bound to the user for every signature, with no grace window: `setUserAuthenticationRequired(true)`, timeout 0, `BIOMETRIC_STRONG` or device credential. The framework `BiometricPrompt` takes it through a `CryptoObject`, so the plugin adds no androidx dependency. minSdk is 30, the first release where that combination works. The daemon checks the attestation chain instead of trusting the claim.
+The key is non-exportable and bound to the user for every signature, with no grace window (left alone on purpose, the daemon's [resume proof](resume.md) carries a reconnect instead): `setUserAuthenticationRequired(true)`, timeout 0, `BIOMETRIC_STRONG` or device credential. The framework `BiometricPrompt` takes it through a `CryptoObject`, so the plugin adds no androidx dependency. minSdk is 30, the first release where that combination works. The daemon checks the attestation chain instead of trusting the claim.
 
 ## Wiring in the app
 

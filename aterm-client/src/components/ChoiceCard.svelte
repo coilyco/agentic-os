@@ -1,10 +1,13 @@
 <script lang="ts">
   import { tick } from "svelte";
+  import type { CardMemo } from "../lib/card-memo.svelte";
   import { advanceIndex, nextRowIndex, type Choice } from "../lib/choices";
 
-  let { choice, identity, onanswer, oncancel, focusToken = 0, onfocused, locked = false, cancelLocked = locked, lockedLabel = "Read only" }: {
+  let { choice, identity, memo, onanswer, oncancel, focusToken = 0, onfocused, locked = false, cancelLocked = locked, lockedLabel = "Read only" }: {
     choice: Choice;
     identity: string;
+    /** The card's working state, held by its parent so a rebuilt card keeps its text box and draft. */
+    memo: CardMemo;
     /** Each change asks the card to take the keyboard, as when you alt-tab in. */
     focusToken?: number;
     /** Said once the card has taken the keyboard, so the request is spent and a later card does not repeat it. */
@@ -21,7 +24,6 @@
   } = $props();
 
   let card: HTMLElement;
-  let writing = $state(-1);
   let lastFocus = 0;
   $effect(() => {
     if (focusToken && focusToken !== lastFocus) {
@@ -30,15 +32,11 @@
       onfocused?.();
     }
   });
-  let text = $state("");
   // The field replaces the button that was just clicked, or opens under it, and the page's focus does not follow by itself.
   $effect(() => {
-    if (writing === -1) return;
+    if (memo.writing === -1 || !memo.focused) return;
     void tick().then(() => card?.querySelector<HTMLInputElement>("#choice-text")?.focus());
   });
-  // The card is keyed by its menu, so a menu that is already part-checked on screen starts that way.
-  // svelte-ignore state_referenced_locally
-  let picked = $state<number[]>(choice.options.flatMap((option, index) => (option.checked ? [index] : [])));
   const freeIndex = $derived(choice.options.findIndex((option) => option.freeText));
   // A harness's own Next row rides in the pinned footer, so a long list never scrolls it away.
   const advance = $derived(advanceIndex(choice));
@@ -51,25 +49,32 @@
 
   function pick(index: number): void {
     if (choice.multi) {
-      picked = picked.includes(index) ? picked.filter((each) => each !== index) : [...picked, index];
-      if (choice.options[index]?.freeText) writing = picked.includes(index) ? index : -1;
+      memo.picked = memo.picked.includes(index) ? memo.picked.filter((each) => each !== index) : [...memo.picked, index];
+      memo.writing = choice.options[index]?.freeText && memo.picked.includes(index) ? index : choice.options[index]?.freeText ? -1 : memo.writing;
+      if (memo.writing !== -1) memo.focused = true;
       return;
     }
     if (choice.options[index]?.freeText) {
-      writing = index;
+      memo.writing = index;
+      memo.focused = true;
       return;
     }
     onanswer([index]);
   }
 
+  // A field taken out of the page fires no blur worth believing, so only a field still there was left on purpose.
+  function leave(event: FocusEvent): void {
+    if ((event.currentTarget as HTMLElement).isConnected) memo.focused = false;
+  }
+
   function submitText(event: SubmitEvent): void {
     event.preventDefault();
-    if (text.trim()) onanswer([writing], text.trim());
+    if (memo.text.trim()) onanswer([memo.writing], memo.text.trim());
   }
 
   function submitMulti(): void {
-    const typed = freeIndex !== -1 && picked.includes(freeIndex) ? text.trim() : undefined;
-    onanswer([...picked].sort((a, b) => a - b), typed);
+    const typed = freeIndex !== -1 && memo.picked.includes(freeIndex) ? memo.text.trim() : undefined;
+    onanswer([...memo.picked].sort((a, b) => a - b), typed);
   }
 
   function keys(event: KeyboardEvent): void {
@@ -85,7 +90,7 @@
       event.preventDefault();
       const next = at === -1 ? 0 : (at + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
       buttons[next]?.focus();
-    } else if (choice.multi && event.key === "Enter" && (picked.length || next !== -1)) {
+    } else if (choice.multi && event.key === "Enter" && (memo.picked.length || next !== -1)) {
       // Space toggles an option, Enter submits, as checkboxes do.
       event.preventDefault();
       submitMulti();
@@ -105,25 +110,25 @@
     {#each choice.options as option, index (index)}
       {#if index !== advance && index !== next}
       <li>
-        {#if writing === index && !choice.multi}
+        {#if memo.writing === index && !choice.multi}
           <form class="write" onsubmit={submitText}>
             <label for="choice-text" class="visually-hidden">Your own answer</label>
             <!-- svelte-ignore a11y_autofocus -->
-            <input id="choice-text" bind:value={text} placeholder="Type or dictate your own answer" autocomplete="off" autofocus />
-            <button class="button primary" type="submit" disabled={!text.trim()}>Answer</button>
+            <input id="choice-text" bind:value={memo.text} placeholder="Type or dictate your own answer" autocomplete="off" onfocus={() => (memo.focused = true)} onblur={leave} autofocus />
+            <button class="button primary" type="submit" disabled={!memo.text.trim()}>Answer</button>
           </form>
         {:else}
-          <button class="option" disabled={locked} aria-pressed={choice.multi ? picked.includes(index) : undefined} onclick={() => pick(index)} onkeydown={keys}>
-            <span class="number" aria-hidden="true">{choice.multi && picked.includes(index) ? "✓" : shown(index)}</span>
+          <button class="option" disabled={locked} aria-pressed={choice.multi ? memo.picked.includes(index) : undefined} onclick={() => pick(index)} onkeydown={keys}>
+            <span class="number" aria-hidden="true">{choice.multi && memo.picked.includes(index) ? "✓" : shown(index)}</span>
             <span class="text">
               <span class="label">{option.freeText ? "Something else…" : option.label}</span>
               {#if option.description}<span class="description">{option.description}</span>{/if}
             </span>
           </button>
-          {#if choice.multi && writing === index}
+          {#if choice.multi && memo.writing === index}
             <label for="choice-text" class="visually-hidden">Your own answer</label>
             <!-- svelte-ignore a11y_autofocus -->
-            <input id="choice-text" class="multi-text" bind:value={text} placeholder="Type or dictate your own answer" autocomplete="off" autofocus />
+            <input id="choice-text" class="multi-text" bind:value={memo.text} placeholder="Type or dictate your own answer" autocomplete="off" onfocus={() => (memo.focused = true)} onblur={leave} autofocus />
           {/if}
         {/if}
       </li>
@@ -141,7 +146,7 @@
     {#if choice.multi && next !== -1}
       <button class="button primary advance" onclick={submitMulti} disabled={locked}>{nextLabel}</button>
     {:else if choice.multi}
-      <button class="button primary" onclick={submitMulti} disabled={locked || picked.length === 0}>Submit {picked.length || ""}</button>
+      <button class="button primary" onclick={submitMulti} disabled={locked || memo.picked.length === 0}>Submit {memo.picked.length || ""}</button>
     {/if}
     {#if choice.cancellable}
       <button class="button" disabled={cancelLocked} onclick={oncancel} onkeydown={keys}>Cancel</button>
