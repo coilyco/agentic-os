@@ -79,6 +79,21 @@ func newDaemonCommand() *cli.Command {
 				Sources: cli.EnvVars(vapidKeyEnv),
 			},
 			&cli.StringFlag{
+				Name:    "treehouse-broker",
+				Usage:   "wss address of the Treehouse broker this daemon dials, empty for none. Needs --treehouse-accounts and --treehouse-dir",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_BROKER"),
+			},
+			&cli.StringFlag{
+				Name:    "treehouse-accounts",
+				Usage:   "https address of Treehouse accounts, whose signed tokens this daemon trusts",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_ACCOUNTS"),
+			},
+			&cli.StringFlag{
+				Name:    "treehouse-dir",
+				Usage:   "directory holding daemon.key (mode 0600) and daemon.cert, the daemon's Treehouse identity",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_DIR"),
+			},
+			&cli.StringFlag{
 				Name:    "resume-window",
 				Value:   resumeUntilCloseWord,
 				Usage:   "how long a remote device's unlock survives a dropped connection, so a phone lock costs no new fingerprint. app lasts until the client app closes, 0 keeps an unlock on one connection, or give a duration",
@@ -110,6 +125,11 @@ func newDaemonCommand() *cli.Command {
 				VAPIDKey:         cmd.String("vapid-key"),
 				ResumeWindow:     resumeWindow,
 				ResumeUntilClose: resumeUntilClose,
+				Treehouse: treehouseOptions{
+					Broker:   cmd.String("treehouse-broker"),
+					Accounts: cmd.String("treehouse-accounts"),
+					Dir:      cmd.String("treehouse-dir"),
+				},
 			}, cmd.Root().ErrWriter)
 		},
 	}
