@@ -5,7 +5,7 @@ import { startMock, type Mock } from "./mock-daemon.ts";
 
 export { expect };
 
-export type Kind = "desktop" | "phone";
+export type Kind = "desktop" | "phone" | "landscape";
 
 export const kindOf = (info: TestInfo): Kind => info.project.metadata.kind as Kind;
 
@@ -43,7 +43,7 @@ export const test = base.extend<{ bed: Bed; mock: Mock }>({
   },
   bed: async ({ page, mock }, use, info) => {
     let count = 0;
-    const phone = kindOf(info) === "phone";
+    const phone = kindOf(info) !== "desktop";
     const bed: Bed = {
       mock,
       page,
