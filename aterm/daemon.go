@@ -185,6 +185,8 @@ type daemonOptions struct {
 	// connection, and ResumeUntilClose lifts the limit. Neither keeps it on one connection.
 	ResumeWindow     time.Duration
 	ResumeUntilClose bool
+	// Treehouse turns on the brokered path. See treehouse_broker.go.
+	Treehouse treehouseOptions
 	// Stop ends the daemon when closed, as a signal does. A test's handle.
 	Stop <-chan struct{}
 	// tailnetListen replaces the tailnet bind, so a test needs no Tailscale.
@@ -268,6 +270,9 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	d.clientDir = options.ClientDir
 	d.discovery.port = func() string { return options.TailnetPort }
 	d.discovery.peerPorts = options.PeerPorts
+	treehouseCtx, stopTreehouse := context.WithCancel(context.Background())
+	defer stopTreehouse()
+	d.startTreehouse(treehouseCtx, options.Treehouse)
 	if options.Websocket != "" {
 		server, err := d.listenWebsocket(options.Websocket)
 		if err != nil {
@@ -392,7 +397,9 @@ func (d *daemon) endAll() {
 // or this host, and the pids holding it. A remote device has none to walk.
 type peerStanding struct {
 	web, remote bool
-	pids        []int
+	// brokered is a channel the Treehouse broker opened. Only the broker link sets it.
+	brokered bool
+	pids     []int
 }
 
 // client is one connection's standing: which sessions it spawned, which it is
@@ -404,7 +411,11 @@ type client struct {
 	attached map[string]*ptySession
 	asks     []string
 	// asserted is a passkey assertion on this connection, which a remote device needs.
-	asserted       bool
+	asserted bool
+	// unlockNonce is the one a brokered channel's unlock token must carry, and
+	// unlockFails counts the tokens refused on it.
+	unlockNonce    string
+	unlockFails    int
 	ceremony       *passkeyCeremony
 	deviceCeremony *deviceCeremony
 	// resumeKey is the hash of the proof this connection holds, if resumeHeld.
@@ -441,6 +452,9 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	}
 	if d.users.ResumeEnabled() {
 		welcome.Features = append(welcome.Features, resumeFeature)
+	}
+	if offer := d.users.Challenge(cl); offer != nil {
+		welcome.Features, welcome.Unlock = append(welcome.Features, unlockTokenFeature), offer
 	}
 	if peer.web {
 		welcome.Typing = d.typingStanding(cl)
@@ -1229,7 +1243,7 @@ func (d *daemon) typingStanding(cl *client) *typingStanding {
 		standing = &typingStanding{Reason: reasonFor(err)}
 	}
 	if cl.remote {
-		standing.Passkey, standing.DeviceKey = d.users.Standing()
+		standing.Passkey, standing.DeviceKey = d.users.Standing(cl)
 	}
 	return standing
 }
