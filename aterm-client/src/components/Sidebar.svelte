@@ -2,6 +2,7 @@
   import { onMount, tick } from "svelte";
   import AttentionSwitches from "./AttentionSwitches.svelte";
   import Creature from "./Creature.svelte";
+  import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
   import { app, askLineFor, asksShownOn, colorOf, glowSeats, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
@@ -274,6 +275,7 @@
             {#if waitingElsewhere}<span class="elsewhere" aria-hidden="true">{waitingElsewhere} waiting</span>{/if}
             <svg class="chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </button>
+          <FeedbackEntry compact />
         {:else if app.attachedHostId}
           <div class="seats">{@render runningGroup()}{@render failedGroup()}</div>
         {/if}
@@ -293,6 +295,7 @@
         {#if app.attachedHostId}{@render startGroup()}{/if}
         {#if onScreen}{@render hostsGroup()}{/if}
         {#if !onScreen}<AttentionSwitches compact />{/if}
+        <div class="feedback"><FeedbackEntry onopen={closeMenu} /></div>
       </div>
     {/if}
   {:else}
@@ -304,6 +307,7 @@
       {@render startGroup()}
     {/if}
     <AttentionSwitches />
+    <div class="feedback"><FeedbackEntry /></div>
   {/if}
 </nav>
 {#if hover && preview}
@@ -313,6 +317,7 @@
 
 <style>
   .sidebar { width: 280px; flex: none; border-right: 1px solid var(--line); padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+  .feedback { margin-top: 14px; padding: 0 2px; }
   .mark { font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: 0.08em; color: var(--brand); padding: 4px 10px 12px; }
   h2 { margin: 14px 10px 4px; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
   [role="tablist"] { display: flex; flex-direction: column; gap: 2px; }

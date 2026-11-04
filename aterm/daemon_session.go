@@ -90,6 +90,10 @@ type ptySession struct {
 	imageMu      sync.Mutex
 	imagesClosed bool
 
+	// fileRoots are the directories the launch named besides its cwd, where a seat
+	// may register an artifact source from.
+	fileRoots []string
+
 	// openMu guards opened, the times this seat asked to open an address.
 	openMu sync.Mutex
 	opened []time.Time
@@ -111,6 +115,8 @@ type ptySession struct {
 	// off. One screen read cannot say a card closed, so cardReason adds a grace.
 	cardUp   bool
 	cardLost time.Time
+	// startupCard is whether a card showed before the harness's prompt mark did.
+	startupCard bool
 	// scr is the screen the output so far draws, read for the session's state.
 	scr     *screen
 	draft   int
@@ -141,6 +147,15 @@ type ptySession struct {
 	// lastReply is kept across rounds, and replySig is the transcript it was read at.
 	lastReply string
 	replySig  fileSig
+	// lastReplyText is the reply cut to maxLastReplyBytes, lastReplyCut whether it was
+	// cut, and lastReplyAt when it finished. See refreshReply.
+	lastReplyText string
+	lastReplyCut  bool
+	lastReplyAt   time.Time
+	// stateNow is the state last seen and stateSince when it began. A state's start
+	// before the daemon first saw it is unknown, so a restart counts from the restart.
+	stateNow   string
+	stateSince time.Time
 }
 
 // keyState carries a partly read escape sequence across input chunks.
@@ -193,6 +208,7 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 	if err != nil {
 		return nil, fmt.Errorf("attach to the holder of %s: %w", name, err)
 	}
+	s.fileRoots = envDirs(message.Env, "AOS_NATIVE_SESSION_ROOT", "TMPDIR")
 	return s, nil
 }
 
@@ -392,6 +408,9 @@ func (s *ptySession) noteCard() {
 	up := showsCard(s.seat, strings.Join(s.scr.text(), "\n"))
 	if s.cardUp && !up {
 		s.cardLost = s.lastOutput
+	}
+	if _, marked := promptMarks[s.seat]; up && marked && s.promptSeen.IsZero() {
+		s.startupCard = true
 	}
 	s.cardUp = up
 }
@@ -735,6 +754,40 @@ func (s *ptySession) deliverLoop() {
 		case <-ticker.C:
 		}
 		s.deliverNext(time.Now())
+		s.sampleState(time.Now())
+	}
+}
+
+// currentState is classify plus the card hold, and keeps the state's start. A held card
+// keeps the seat at prompt through a repaint. Caller holds mu.
+func (s *ptySession) currentState(now time.Time, lines []string, ready bool, quiet time.Duration) string {
+	state := classify(s.seat, lines, ready, quiet)
+	if ready && state != statePrompt && s.cardReason() != "" {
+		state = statePrompt
+	}
+	if s.stateNow != state {
+		s.stateNow, s.stateSince = state, now
+		if state == stateStarting && !s.started.IsZero() {
+			s.stateSince = s.started
+		}
+	}
+	return state
+}
+
+// sampleState follows the state between views, so a flip is known when it happens and
+// is pushed to clients that would otherwise poll for it.
+func (s *ptySession) sampleState(now time.Time) {
+	s.mu.Lock()
+	if s.scr == nil {
+		s.mu.Unlock()
+		return
+	}
+	before := s.stateNow
+	s.currentState(now, s.scr.text(), s.ready(now), now.Sub(s.lastOutput))
+	flipped := before != "" && s.stateNow != before
+	s.mu.Unlock()
+	if flipped && s.d != nil {
+		s.d.pushSessions()
 	}
 }
 
@@ -746,13 +799,21 @@ var pasteSeats = map[string]bool{"codex": true, "goose": true}
 // claude drop a paste until then, though paste is on. See docs/aterm-daemon.md.
 var promptMarks = map[string][]byte{"opencode": []byte("Ask anything"), "claude": []byte(`Try "`)}
 
-const (
-	// promptSettle is the beat after the mark, so the input is mounted.
-	promptSettle = 250 * time.Millisecond
-	// promptWait is how long a seat waits for its mark before trying anyway, for
-	// a version that words it differently or a session adopted long after it.
-	promptWait = 20 * time.Second
-)
+// promptSettle is the beat after the mark, so the input is mounted.
+const promptSettle = 250 * time.Millisecond
+
+// promptWait is how long a seat waits for its mark before trying anyway, for a version
+// that words it differently or a session adopted long after it. A var, for tests.
+var promptWait = 20 * time.Second
+
+// pastStartupDialog is false after a dialog that came before the prompt, until the mark
+// shows or promptWait passes with it gone, so text never lands as it clears (COI-3343).
+func (s *ptySession) pastStartupDialog(now time.Time) bool {
+	if _, marked := promptMarks[s.seat]; !marked || !s.startupCard || !s.promptSeen.IsZero() {
+		return true
+	}
+	return !s.cardUp && !s.cardLost.IsZero() && now.Sub(s.cardLost) > promptWait
+}
 
 // ready is whether the program can take a message yet. Caller holds mu.
 func (s *ptySession) ready(now time.Time) bool {
@@ -824,7 +885,7 @@ func (s *ptySession) deliverNext(now time.Time) {
 		return
 	}
 	next := s.pending[0]
-	ready := s.ready(now)
+	ready := s.ready(now) && s.pastStartupDialog(now)
 	hold := s.holdReason(now)
 	if hold == "" {
 		hold = s.cardReason()
@@ -916,7 +977,7 @@ func (s *ptySession) status(lines int) sessionStatus {
 		input = int(now.Sub(s.lastInput) / time.Second)
 	}
 	return sessionStatus{
-		Name: s.name, State: classify(s.seat, text, ready, quiet), Ready: ready,
+		Name: s.name, State: s.currentState(now, text, ready, quiet), Ready: ready,
 		QuietSeconds: int(quiet / time.Second), InputSeconds: input,
 		Drafted: s.draft > 0, Pending: len(s.pending), Clients: len(s.clients),
 		Rows: rows, Cols: cols, Prompt: promptLines(s.seat, text), Screen: tailLines(text, lines),
@@ -933,8 +994,16 @@ func (s *ptySession) view() sessionView {
 	if s.scr != nil {
 		lines = s.scr.text()
 	}
+	state := s.currentState(now, lines, ready, quiet)
+	inState := int(now.Sub(s.stateSince) / time.Second)
+	var repliedAt *time.Time
+	if !s.lastReplyAt.IsZero() {
+		at := s.lastReplyAt.UTC()
+		repliedAt = &at
+	}
 	return sessionView{
-		State:        classify(s.seat, lines, ready, quiet),
+		State:        state,
+		StateSeconds: &inState,
 		QuietSeconds: int(quiet / time.Second),
 		Name:         s.name,
 		Role:         s.role,
@@ -950,6 +1019,7 @@ func (s *ptySession) view() sessionView {
 		Degraded:     append([]string(nil), s.degraded...),
 		Context:      s.context,
 		LastReply:    s.lastReply,
+		LastReplyAt:  repliedAt,
 	}
 }
 

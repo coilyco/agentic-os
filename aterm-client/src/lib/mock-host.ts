@@ -2,8 +2,9 @@
 // the surface with no daemon running. Nothing here reaches a real PTY.
 import rosterJson from "./fixtures/roster.json";
 import { envelope } from "./messages";
+import { FEEDBACK_TEXT_MAX, feedbackRefusal } from "./feedback";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
-import type { Ask, ContextReading, HostConnection, HostEvent, ImageChannel, PeerMessage, Session, TerminalChannel } from "./protocol";
+import type { Ask, ContextReading, HostConnection, FeedbackChannel, HostEvent, ImageChannel, PeerMessage, Session, TerminalChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import { CLAUDE_BOX, CLAUDE_DIALOG, drawHarness, type Frame } from "./demo-harness";
 import { runShellLine, SHELL_PROMPT, type ShellStep } from "./demo-shell";
@@ -60,6 +61,25 @@ export class MockHost implements HostConnection {
       return `/tmp/aterm-demo/images/${sessionId}-1/${String(held).padStart(4, "0")}.png`;
     },
   };
+  // COI-3345's frames, scripted before the daemon has them, under the image rules above.
+  readonly feedback: FeedbackChannel = {
+    maxBytes: IMAGE_UPLOAD_MAX_BYTES,
+    send: async (report, progress) => {
+      if (report.text.length > FEEDBACK_TEXT_MAX) throw new Error(feedbackRefusal("text_too_long") ?? "The host refused the note.");
+      for (const [done, image] of report.images.entries()) {
+        const head = new Uint8Array(await image.slice(0, 12).arrayBuffer());
+        const refused = !isImage(head) ? "not_an_image" : image.size > IMAGE_UPLOAD_MAX_BYTES ? "too_large" : null;
+        if (refused) throw new Error(imageRefusal(refused) ?? "The host refused the screenshot.");
+        progress?.(done, report.images.length);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      progress?.(report.images.length, report.images.length);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      this.reports += 1;
+      return `fb-demo-${String(this.reports).padStart(4, "0")}`;
+    },
+  };
+  private reports = 0;
   private uploads = new Map<string, number>();
   private shells = new Map<string, { label: string; line: string }>();
   private nextShell = 0;

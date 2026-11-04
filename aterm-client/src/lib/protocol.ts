@@ -171,6 +171,31 @@ export interface ImageChannel {
   upload(sessionId: string, image: Blob): Promise<string>;
 }
 
+/** The screen as the client saw it. Display text, never trusted. */
+export interface FeedbackContext {
+  view: string;
+  host: string;
+  viewport: { width: number; height: number; ratio: number };
+  build: string;
+  /** The Android app, not a browser. */
+  app: boolean;
+  at: string;
+}
+
+export interface FeedbackReport {
+  text: string;
+  context: FeedbackContext;
+  images: Blob[];
+}
+
+/** A note and screenshots kept as a host record. Needs `feedback` (COI-3345). */
+export interface FeedbackChannel {
+  /** The host's limit per screenshot in bytes. */
+  maxBytes: number;
+  /** Uploads each image, then the note. Resolves the record's id. Rejects in words. */
+  send(report: FeedbackReport, progress?: (done: number, total: number) => void): Promise<string>;
+}
+
 /** A remote device's passkey. Only a daemon that lists `passkey` has one. */
 export interface PasskeyChannel {
   /** Spends the one-time code, makes a passkey, and unlocks. Rejects in words. */
@@ -197,6 +222,7 @@ export interface HostConnection {
   readonly browser?: BrowserChannel;
   readonly terminals?: TerminalChannel;
   readonly images?: ImageChannel;
+  readonly feedback?: FeedbackChannel;
   subscribe(listener: (event: HostEvent) => void): () => void;
   /** Dial now, skipping the backoff. Only a connection that redials has it. */
   retry?(): void;

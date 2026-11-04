@@ -246,7 +246,7 @@ func mintCode(t *testing.T, d *daemon) string {
 
 func TestRemoteDeviceTypesOnlyAfterAPasskeyAssertion(t *testing.T) {
 	d, _ := wsDaemon(t)
-	d.passkeys, _ = newPasskeyStore(filepath.Join(t.TempDir(), "passkeys.json"), passkeyRPID, []string{passkeyOrigin})
+	d.local().passkeys, _ = newPasskeyStore(filepath.Join(t.TempDir(), "passkeys.json"), passkeyRPID, []string{passkeyOrigin})
 	wsSession(t, d, false)
 	remote := peerStanding{web: true, remote: true}
 	key := newSoftKey(t)
@@ -358,7 +358,7 @@ func TestMintAndRevokeRefuseFromInsideASession(t *testing.T) {
 
 func TestLockedRemoteDeviceCannotSpawnCloseSendClaimOrAsk(t *testing.T) {
 	d, _ := wsDaemon(t)
-	d.passkeys, _ = newPasskeyStore("", passkeyRPID, []string{passkeyOrigin})
+	d.local().passkeys, _ = newPasskeyStore("", passkeyRPID, []string{passkeyOrigin})
 	wsSession(t, d, false)
 	device := pipeClient(t, d, peerStanding{web: true, remote: true})
 	nextFrame(t, device, "welcome")

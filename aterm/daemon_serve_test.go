@@ -33,7 +33,7 @@ func serveDaemon(t *testing.T, read func() (tailnetNode, error), whois func(stri
 	if err := os.WriteFile(filepath.Join(d.clientDir, "index.html"), []byte("aterm client"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	d.forwardedPolicy = forwardedPolicy(&nodeReader{read: read}, []string{"tag:physical"}, []string{ownerLogin}, []string{"https://coilyco.dev"}, whois)
+	d.local().proxied = forwardedPolicy(&nodeReader{read: read}, []string{"tag:physical"}, []string{ownerLogin}, []string{"https://coilyco.dev"}, whois)
 	server := httptest.NewServer(d.websocketHandler())
 	t.Cleanup(server.Close)
 	return d, server

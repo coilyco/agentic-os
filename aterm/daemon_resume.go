@@ -108,34 +108,34 @@ func (r *resumeStore) clear() {
 
 // issueResume stamps the token onto an unlock reply, which carries it only when
 // the daemon runs with a window.
-func (d *daemon) issueResume(cl *client, reply frame) (frame, error) {
-	token, err := d.resume.issue(cl)
+func (u *localUsers) issueResume(cl *client, reply frame) (frame, error) {
+	token, err := u.resume.issue(cl)
 	if err != nil {
 		return reply, err
 	}
 	if token != "" {
-		reply.Resume, reply.ExpiresIn = token, int(d.resume.window.Seconds())
+		reply.Resume, reply.ExpiresIn = token, int(u.resume.window.Seconds())
 	}
 	return reply, nil
 }
 
 // resumeFrame answers a redialed phone's proof. A refusal leaves the connection
 // as locked as it arrived, so the typing and locked-frame gate is untouched.
-func (d *daemon) resumeFrame(cl *client, message frame) error {
+func (u *localUsers) resumeFrame(cl *client, message frame) error {
 	if !cl.web || !cl.remote {
 		return withExit(exitUsage, errors.New("a resume proof belongs to a remote device"))
 	}
 	if cl.asserted {
 		return withExit(exitUsage, errors.New("this connection is already unlocked"))
 	}
-	token, err := d.resume.redeem(cl, message.Resume)
+	token, err := u.resume.redeem(cl, message.Resume)
 	if err != nil {
 		return withReason(reasonResumeEnded, errors.New("the unlock window ended, unlock this device again"))
 	}
 	cl.asserted = true
-	d.logf("a remote device resumed its unlock")
-	if err := cl.c.write(frame{Type: "resumed", ID: message.ID, Resume: token, ExpiresIn: int(d.resume.window.Seconds())}); err != nil {
+	u.host.logf("a remote device resumed its unlock")
+	if err := cl.c.write(frame{Type: "resumed", ID: message.ID, Resume: token, ExpiresIn: int(u.resume.window.Seconds())}); err != nil {
 		return err
 	}
-	return cl.c.write(frame{Type: "typing", Typing: d.typingStanding(cl)})
+	return cl.c.write(frame{Type: "typing", Typing: u.host.typingStanding(cl)})
 }

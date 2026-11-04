@@ -1,4 +1,4 @@
-package dev.coilyco.aterm.devicekey
+package dev.coilyco.treehouse.devicekey
 
 import android.app.Activity
 import app.tauri.annotation.Command
