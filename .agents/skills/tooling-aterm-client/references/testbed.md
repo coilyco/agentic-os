@@ -38,7 +38,7 @@ State on main after PRs 193, 199, 203 and the find control, as the bed shows it,
 * **Red** - COI-3238 item 3 (`seat-rows`), the dialog's tab bar as buttons (`native-choice`), and a short conversation growing the PTY without limit (`pty-size`, COI-3291).
 * **Fixme, bed cannot judge yet** - link hover and history depth in `terminal-text` (COI-3293).
 
-Journeys that hold today: `read-output`, `switch-seats`, `ask-card`, `native-choice` (one question), `start-seat`, `composer-keyboard`, `stream-under-load`, `open-url`.
+Journeys that hold today: `unlock-resume` (a locked device redials inside and after the resume window, COI-3305), `read-output`, `switch-seats`, `ask-card`, `native-choice` (one question), `start-seat`, `composer-keyboard`, `stream-under-load`, `open-url`.
 
 ## What it cannot tell you
 

@@ -1123,6 +1123,129 @@ describe("the image channel", () => {
   });
 });
 
+// COI-3305: the daemon holds an unlock per connection, so a locked phone redials locked.
+// A held proof asks the daemon to restore it before a button shows.
+describe("resuming an unlock after a redial", () => {
+  const LOCKED = { allowed: false, reason: "passkey_required", device_key: "enrolled" };
+  const OPEN = { allowed: true };
+  const WITH = { ...WELCOME, features: ["typing-guard", "device-key", "resume"], typing: LOCKED };
+  const lastSent = (socket: StubSocket) => sentFrames(socket).at(-1)!;
+  const resumes = (socket: StubSocket) => sentFrames(socket).filter((frame) => frame.type === "resume");
+  const states = (events: HostEvent[]) => events.filter((event) => event.type === "resume").map((event) => (event.type === "resume" ? event.state : undefined));
+
+  // Unlocks with the phone's key, the daemon answering with `proof` when it has a window.
+  async function unlocked(proof: string | null = "T1", welcome: Record<string, unknown> = WITH) {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    StubSocket.all = [];
+    vi.stubGlobal("__TAURI__", {
+      core: {
+        invoke: vi.fn(async (command: string) => (command.endsWith("status") ? { enrolled: true, key_id: "k1", biometric: "ready" } : { key_id: "k1", signature: "SIG" })),
+      },
+    });
+    const dialed = connect();
+    dialed.socket.receive(welcome);
+    const done = dialed.host.deviceKey!.assert();
+    await vi.waitFor(() => expect(lastSent(dialed.socket).type).toBe("device_assert_begin"));
+    dialed.socket.receive({ type: "device_assert_challenge", id: lastSent(dialed.socket).id, challenge: "CHAL" });
+    await vi.waitFor(() => expect(lastSent(dialed.socket).type).toBe("device_assert_finish"));
+    dialed.socket.receive({ type: "device_asserted", id: lastSent(dialed.socket).id, ...(proof ? { resume: proof, expires_in: 600 } : {}) });
+    await done;
+    return dialed;
+  }
+
+  function redial(socket: StubSocket, welcome: Record<string, unknown> = WITH): StubSocket {
+    socket.drop();
+    vi.advanceTimersByTime(1000);
+    StubSocket.last.receive(welcome);
+    return StubSocket.last;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("presents the proof before any other frame, and says it is resuming until the daemon answers", async () => {
+    const { host, events, socket } = await unlocked();
+    const next = redial(socket);
+    expect(states(events)).toEqual(["resuming"]);
+    expect(sentFrames(next).map((frame) => frame.type)).toEqual(["resume", "subscribe", "roster"]);
+    expect(resumes(next)[0]).toMatchObject({ resume: "T1" });
+    next.receive({ type: "resumed", id: resumes(next)[0]!.id, resume: "T2", expires_in: 600 });
+    await vi.waitFor(() => expect(states(events)).toEqual(["resuming", null]));
+    next.receive({ type: "typing", typing: OPEN });
+    expect(typings(events).at(-1)).toEqual({ type: "typing", typing: OPEN });
+    host.close();
+  });
+
+  it("replaces the proof with the one the daemon returned, because each is good once", async () => {
+    const { host, socket } = await unlocked();
+    const first = redial(socket);
+    first.receive({ type: "resumed", id: resumes(first)[0]!.id, resume: "T2", expires_in: 600 });
+    await vi.waitFor(() => expect(host).toBeDefined());
+    const second = redial(first);
+    expect(resumes(second)[0]).toMatchObject({ resume: "T2" });
+    host.close();
+  });
+
+  it("goes back to the Unlock button and forgets the proof when the daemon says the window ended", async () => {
+    const { host, events, socket } = await unlocked();
+    const next = redial(socket);
+    next.receive({ type: "error", id: resumes(next)[0]!.id, code: 6, error: "the unlock ended", reason: "resume_ended" });
+    await vi.waitFor(() => expect(states(events)).toEqual(["resuming", "ended"]));
+    // The refusal leaves the connection locked, so no typing push says otherwise.
+    expect(typings(events).at(-1)).toMatchObject({ typing: { allowed: false, reason: "passkey_required" } });
+    expect(resumes(redial(next))).toEqual([]);
+    host.close();
+  });
+
+  it("keeps the proof when the link dies before the daemon answered, since it may not have been spent", async () => {
+    const { host, events, socket } = await unlocked();
+    const next = redial(socket);
+    next.drop();
+    await vi.waitFor(() => expect(states(events)).toEqual(["resuming", null]));
+    vi.advanceTimersByTime(2000);
+    expect(resumes(StubSocket.last)).toHaveLength(0);
+    StubSocket.last.receive(WITH);
+    expect(resumes(StubSocket.last)[0]).toMatchObject({ resume: "T1" });
+    host.close();
+  });
+
+  it("sends nothing when the welcome does not list resume, and forgets the proof for good", async () => {
+    const { host, events, socket } = await unlocked();
+    const bare = { ...WITH, features: ["typing-guard", "device-key"] };
+    const next = redial(socket, bare);
+    expect(resumes(next)).toEqual([]);
+    expect(states(events)).toEqual([]);
+    expect(resumes(redial(next))).toEqual([]);
+    host.close();
+  });
+
+  it("sends nothing when the connection is already allowed to type", async () => {
+    const { host, socket } = await unlocked();
+    expect(resumes(redial(socket, { ...WITH, typing: OPEN }))).toEqual([]);
+    host.close();
+  });
+
+  it("holds no proof when the daemon names none, so a plain unlock redials as before", async () => {
+    const { host, events, socket } = await unlocked(null);
+    expect(resumes(redial(socket))).toEqual([]);
+    expect(states(events)).toEqual([]);
+    host.close();
+  });
+
+  it("never lets the proof out in an event", async () => {
+    const { host, events, socket } = await unlocked("SECRET-PROOF");
+    const next = redial(socket);
+    next.receive({ type: "resumed", id: resumes(next)[0]!.id, resume: "SECRET-NEXT", expires_in: 600 });
+    await vi.waitFor(() => expect(states(events)).toEqual(["resuming", null]));
+    expect(JSON.stringify(events)).not.toMatch(/SECRET/);
+    host.close();
+  });
+});
+
 describe("a seat's open_url", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

@@ -13,6 +13,7 @@ import type { View } from "./mcp-apps";
 import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
 import type { Ask, Host, HostConnection, LaunchState, Link, PeerMessage, Session } from "./protocol";
+import type { ResumeState } from "./resume";
 import type { Role } from "./roster";
 import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
 import { TYPING_OPEN, type Typing } from "./typing";
@@ -41,6 +42,8 @@ export const app = $state({
   typing: TYPING_OPEN as Typing,
   /** The host lists device-key and this page has the app's plugin. */
   deviceKeyAvailable: false,
+  /** A held unlock proof is out, or the daemon said it ended. Null otherwise. */
+  resume: null as ResumeState | null,
   /** The welcome lists passkey. Reactive, which the connection's feature list is not. */
   passkeyAvailable: false,
   roles: [] as Role[],
@@ -273,6 +276,7 @@ export function selectHost(host: Host): void {
   app.typing = TYPING_OPEN;
   app.passkeyAvailable = false;
   app.deviceKeyAvailable = false;
+  app.resume = null;
   app.inputNotice = "";
   app.drafts = {};
   app.roles = [];
@@ -298,7 +302,11 @@ export function selectHost(host: Host): void {
       app.sessions = event.sessions;
     }
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
-    else if (event.type === "typing") app.typing = event.typing;
+    else if (event.type === "typing") {
+      app.typing = event.typing;
+      if (event.typing.allowed) app.resume = null;
+    }
+    else if (event.type === "resume") app.resume = event.state;
     else if (event.type === "notice") app.notice = event.text;
     else if (event.type === "open_url") offerPage(event.session, event.url);
     else if (event.type === "input_refused") app.inputNotice = event.text;
@@ -334,6 +342,7 @@ export function selectHost(host: Host): void {
     else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
     else if (event.type === "reconnecting") app.link = { state: "reconnecting", attempt: event.attempt, retryAt: event.retryAt };
     else if (event.type === "reconnected") {
+      app.resume = null;
       // The new connection re-sends pending asks. The old ones belong to a dead daemon.
       app.asks = {};
       app.link = { state: "restored" };

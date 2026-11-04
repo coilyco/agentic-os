@@ -2,6 +2,7 @@
 // and `MockHost` scripts it for the demo. Why: the architecture reference.
 import type { KeyStatus } from "./device-key";
 import type { ToolResult, View } from "./mcp-apps";
+import type { ResumeState } from "./resume";
 import type { Role } from "./roster";
 import type { Layer } from "./reach";
 import type { InputKind, SharedBrowser } from "./screencast";
@@ -116,6 +117,8 @@ export type HostEvent =
   | { type: "reconnecting"; attempt: number; retryAt: number | null }
   // It answered again. `newerBuild` means it is not the build that served this page.
   | { type: "reconnected"; newerBuild: boolean }
+  // A held unlock proof is out (`resuming`), the daemon said it ended, or neither (null).
+  | { type: "resume"; state: ResumeState | null }
   | { type: "view"; view: View }
   | { type: "view_update"; id: string; toolResult?: ToolResult; cancelled?: string }
   | { type: "view_closed"; id: string }

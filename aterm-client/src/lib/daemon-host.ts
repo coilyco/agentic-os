@@ -11,6 +11,7 @@ import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
 import { bridge, DeviceKeyError, type Invoke, enrollKey, keyStatus, KEY_CODE_SPENT, mayEnroll, signChallenge, biometricNotice } from "./device-key";
 import { CODE_SPENT, createCredential, getCredential, passkeySupport, PasskeyError } from "./passkey";
+import { RESUME_ENDED_REASON, RESUME_FEATURE, ResumeEndedError, resumeProof } from "./resume";
 import { keepStanding, parseTyping, refusalOf, typingNotice, type Typing } from "./typing";
 
 export const FORMAT = "aterm.daemon.v1";
@@ -155,6 +156,8 @@ interface Frame {
   cancelled?: string;
   result?: unknown;
   options?: unknown;
+  resume?: string;
+  expires_in?: number;
 }
 
 interface ViewFrame {
@@ -170,6 +173,9 @@ interface ViewFrame {
 
 /** `welcome.features` names this when the daemon streams a session's browser. */
 export const BROWSER_FEATURE = "browser";
+
+/** Replies that unlock a connection. Each names the next resume proof (COI-3305). */
+const UNLOCKED_REPLIES = new Set(["passkey_enrolled", "passkey_asserted", "device_asserted", "resumed"]);
 
 /** The daemon keeps a `label` on a terminal spawn and lists it back. */
 const TERMINAL_LABEL_FEATURE = "terminal-label";
@@ -349,6 +355,8 @@ export class DaemonHost implements HostConnection {
   private inputIds = new Set<string>();
   private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; passkey?: HostEvent; deviceKey?: HostEvent; terminals?: HostEvent } = {};
   private sessionViews: SessionView[] = [];
+  // The daemon's one-use unlock proof. Memory only, replaced on every use.
+  private resumeToken: string | undefined;
   private refs = new Map<string, number>();
   private lastOutput = new Map<string, number>();
   private lastPoke = new Map<string, number>();
@@ -756,6 +764,7 @@ export class DaemonHost implements HostConnection {
         this.browser = frame.features?.includes(BROWSER_FEATURE) ? this.browserChannel() : undefined;
         this.setTyping(parseTyping(frame.typing));
         this.features = new Set(frame.features ?? []);
+        this.resumeUnlock(parseTyping(frame.typing));
         this.last.passkey = { type: "passkey", available: this.features.has("passkey") };
         this.emit(this.last.passkey);
         this.last.deviceKey = { type: "device_key", available: this.features.has("device-key") };
@@ -818,7 +827,10 @@ export class DaemonHost implements HostConnection {
       case "device_enroll_challenge":
       case "device_enrolled":
       case "device_assert_challenge":
-      case "device_asserted": {
+      case "device_asserted":
+      case "resumed": {
+        // Only unlock replies carry a proof. Absent means no resume window.
+        if (UNLOCKED_REPLIES.has(frame.type)) this.resumeToken = resumeProof(frame);
         const call = frame.id ? this.calls.get(frame.id) : undefined;
         if (call && frame.id) {
           this.calls.delete(frame.id);
@@ -879,7 +891,8 @@ export class DaemonHost implements HostConnection {
         if (call && frame.id) {
           this.calls.delete(frame.id);
           const imageWords = refused ? null : imageRefusal(frame.reason);
-          if (frame.reason === KEY_UNKNOWN_REASON) call.reject(new DeviceKeyError(KEY_UNKNOWN, KEY_UNKNOWN_REASON));
+          if (frame.reason === RESUME_ENDED_REASON) call.reject(new ResumeEndedError());
+          else if (frame.reason === KEY_UNKNOWN_REASON) call.reject(new DeviceKeyError(KEY_UNKNOWN, KEY_UNKNOWN_REASON));
           else if (imageWords) call.reject(new Error(imageWords));
           else call.reject(new Error(refused ? typingNotice(refused) : (frame.error ?? "The daemon refused the view call.")));
           return;
@@ -899,6 +912,28 @@ export class DaemonHost implements HostConnection {
         return;
       }
     }
+  }
+
+  // A redial starts locked. A held proof asks the daemon to restore the unlock before
+  // a button shows. Sent ahead of every other frame, which the daemon takes in order.
+  private resumeUnlock(typing: Typing | null): void {
+    if (!this.resumeToken) return;
+    if (!this.features.has(RESUME_FEATURE)) {
+      this.resumeToken = undefined;
+      return;
+    }
+    if (!typing || typing.allowed || typing.reason !== "passkey_required") return;
+    const token = this.resumeToken;
+    this.emit({ type: "resume", state: "resuming" });
+    this.exchange({ type: "resume", resume: token }).then(
+      // The reply names the next proof, which the receive path already holds.
+      () => this.emit({ type: "resume", state: null }),
+      (error: unknown) => {
+        const ended = error instanceof ResumeEndedError;
+        if (ended) this.resumeToken = undefined;
+        this.emit({ type: "resume", state: ended ? "ended" : null });
+      },
+    );
   }
 
   private setTyping(typing: Typing | null): void {
