@@ -51,7 +51,11 @@ type daemon struct {
 	// imageRoot holds each seat's uploaded images. Empty means this daemon takes
 	// none and does not offer image-upload.
 	imageRoot string
-	tailnet   tailnetState
+	// shimDir holds the `open` shims a seat's PATH leads with, empty for none.
+	shimDir string
+	// openers are the clients subscribed to open_url, guarded by mu.
+	openers map[*conn]bool
+	tailnet tailnetState
 	// loopbackAddr is where the loopback listener bound, empty while it is not
 	// serving. A session's Playwright reaches its browser there.
 	loopbackAddr string
@@ -227,6 +231,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	d.holdDir = filepath.Join(dir, "hold")
 	// Beside the socket, the one directory every seat that reaches the daemon shares.
 	d.imageRoot = filepath.Join(dir, "images")
+	d.installShims(filepath.Join(dir, shimDirName))
 	d.ledgerDir = ledgerDir()
 	pruneLedger(d.ledgerDir, time.Now())
 	logf("serving %s as pid %d, build %s", socket, os.Getpid(), version)
@@ -420,7 +425,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -451,6 +456,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		d.conns--
 		d.lastActive = time.Now()
 		delete(d.subscribers, c)
+		delete(d.openers, c)
 		d.mu.Unlock()
 		d.unwatchViews(c)
 		d.pushSessions()
@@ -543,6 +549,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return s.typeInput(message.Data)
 	case "image_upload":
 		return d.uploadImage(cl, message)
+	case "open_url":
+		return d.openURL(cl, message)
 	case "resize":
 		if s := cl.attached[message.Session]; s != nil {
 			s.report(cl.c, message.Rows, message.Cols, nil)
@@ -614,6 +622,9 @@ func (d *daemon) handle(cl *client, message frame) error {
 	case "subscribe":
 		if message.Channel == "views" {
 			return d.watchViews(cl, message)
+		}
+		if message.Channel == "open_url" {
+			return d.watchOpens(cl, message)
 		}
 		if message.Channel != "sessions" {
 			return fmt.Errorf("no channel named %q", message.Channel)

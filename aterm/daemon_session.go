@@ -90,6 +90,10 @@ type ptySession struct {
 	imageMu      sync.Mutex
 	imagesClosed bool
 
+	// openMu guards opened, the times this seat asked to open an address.
+	openMu sync.Mutex
+	opened []time.Time
+
 	mu      sync.Mutex
 	clients map[*conn]bool
 	// size is what each client can show and the PTY size chosen from it.
@@ -172,7 +176,7 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 		suffix = randomID(3)
 	} else {
 		token = randomID(24)
-		env, suffix = d.withCDPEndpoint(sessionEnv(message.Env, name, token), token), token[:6]
+		env, suffix = d.withOpenShims(d.withCDPEndpoint(sessionEnv(message.Env, name, token), token)), token[:6]
 	}
 	spec := frame{
 		Type: "spawn", Session: name, Role: message.Role, Identity: message.Identity, Seat: message.Seat,

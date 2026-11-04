@@ -70,6 +70,8 @@ type frame struct {
 	Offset int64  `json:"offset,omitempty"`
 	// Path is the absolute file an image_uploaded names.
 	Path string `json:"path,omitempty"`
+	// Delivered is how many clients an opened reply says took the address.
+	Delivered int `json:"delivered,omitempty"`
 
 	// send
 	Token  string `json:"token,omitempty"`
