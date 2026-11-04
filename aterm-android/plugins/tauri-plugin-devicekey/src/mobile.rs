@@ -6,7 +6,7 @@ use tauri::{
 use crate::error::Result;
 use crate::models::{EnrollArgs, Enrolled, SignArgs, Signed, Status};
 
-const ANDROID_PACKAGE: &str = "dev.coilyco.aterm.devicekey";
+const ANDROID_PACKAGE: &str = "dev.coilyco.treehouse.devicekey";
 
 pub fn init<R: Runtime, C: serde::de::DeserializeOwned>(
   _app: &AppHandle<R>,
