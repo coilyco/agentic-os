@@ -76,6 +76,10 @@ export interface Mock {
   addSession(spec: SessionSpec): void;
   /** Close the websocket from the daemon's side, as a daemon restart does. */
   dropClients(): void;
+  /** Every proof the client presented in a `resume` frame, in order. */
+  resumes: string[];
+  /** The resume window passes: every proof the daemon issued stops holding. */
+  endResumeWindow(): void;
   stop(): Promise<void>;
 }
 
@@ -92,7 +96,8 @@ export function loadSessions(): SessionSpec[] {
   return JSON.parse(readFileSync(new URL("./fixtures/sessions.json", import.meta.url), "utf8")) as SessionSpec[];
 }
 
-export async function startMock(options: { sessions?: SessionSpec[]; port?: number } = {}): Promise<Mock> {
+/** `lock`: a remote device kept read only until a device key unlocks it (COI-3305). */
+export async function startMock(options: { sessions?: SessionSpec[]; port?: number; lock?: boolean } = {}): Promise<Mock> {
   if (!existsSync(join(DIST, "index.html"))) {
     throw new Error("The mock daemon serves aterm-client/dist, which is not built. Run `just aterm-client-testbed`, which builds it first.");
   }
@@ -102,7 +107,16 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
   const clients = new Set<WebSocket>();
   let lastFrameAt = Date.now();
   const lastBox = new Map<string, { rows: number; cols: number }>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], resumes: [] as string[] };
+  // Proofs the locked daemon honours. One use each, as the contract says.
+  const proofs = new Set<string>();
+  let proofCount = 0;
+  const mintProof = (): string => {
+    const proof = `proof-${++proofCount}`;
+    proofs.add(proof);
+    return proof;
+  };
+  const unlockedFeatures = ["device-key", "resume"];
 
   const add = (spec: SessionSpec): void => {
     live.set(spec.name, { spec, scene: sceneFor(spec.scene, spec), boxes: new Map() });
@@ -141,8 +155,30 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
       const seat = frame.session ? live.get(frame.session) : undefined;
       switch (frame.type) {
         case "hello":
-          send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: FEATURES, typing: { allowed: true } });
+          if (options.lock) {
+            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...unlockedFeatures], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
+          } else {
+            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: FEATURES, typing: { allowed: true } });
+          }
           return;
+        case "device_assert_begin":
+          send(socket, { type: "device_assert_challenge", id: frame.id, challenge: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" });
+          return;
+        case "device_assert_finish":
+          send(socket, { type: "device_asserted", id: frame.id, resume: mintProof(), expires_in: 600 });
+          send(socket, { type: "typing", typing: { allowed: true } });
+          return;
+        case "resume": {
+          const presented = String(frame.resume);
+          mock.resumes.push(presented);
+          if (!proofs.delete(presented)) {
+            send(socket, { type: "error", id: frame.id, code: 6, error: "the unlock ended", reason: "resume_ended" });
+            return;
+          }
+          send(socket, { type: "resumed", id: frame.id, resume: mintProof(), expires_in: 600 });
+          send(socket, { type: "typing", typing: { allowed: true } });
+          return;
+        }
         case "subscribe":
           if (frame.channel === "sessions") send(socket, sessionsFrame());
           return;
@@ -234,6 +270,8 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
     dropClients() {
       for (const socket of clients) socket.close();
     },
+    resumes: mock.resumes,
+    endResumeWindow: () => proofs.clear(),
     async stop() {
       for (const socket of clients) socket.terminate();
       wss.close();

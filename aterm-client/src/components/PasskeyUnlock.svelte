@@ -1,6 +1,7 @@
 <script lang="ts">
   import { app } from "../lib/app.svelte";
   import { CAN_PASSKEY } from "../lib/build";
+  import { resumeNotice } from "../lib/resume";
   import { passkeyOffer } from "../lib/typing";
 
   // `always` is the host page, where enrollment stays reachable when nothing is locked.
@@ -51,7 +52,10 @@
 
 {#if offer}
   <div class="unlock">
-    {#if offer.unlock}
+    {#if app.resume}
+      <p class="steps" role="status">{resumeNotice(app.resume)}</p>
+    {/if}
+    {#if offer.unlock && app.resume !== "resuming"}
       <button class="button primary" type="button" disabled={busy} onclick={() => run(() => channel!.assert())}>
         {busy ? "Waiting for your device" : "Unlock with passkey"}
       </button>

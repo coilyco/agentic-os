@@ -38,7 +38,7 @@ State on main at PR 193 and 199, with each fix confirmed by the bed rather than 
 * **Red** - COI-3238 item 2 (`side-panel`), item 3 (`seat-rows`), a find control (`terminal-text`), the dialog's tab bar as buttons (`native-choice`), and a short conversation growing the PTY without limit (`pty-size`).
 * **Fixme, bed cannot judge yet** - link hover and history depth in `terminal-text`. Its hover does not raise xterm's link cursor and its wheel does not reach the top of history, so a red there would be the bed's fault.
 
-Journeys that hold today: `read-output`, `switch-seats`, `ask-card`, `native-choice` (one question), `start-seat`, `composer-keyboard`, `stream-under-load`.
+Journeys that hold today: `unlock-resume` (a locked device redials inside and after the resume window, COI-3305), `read-output`, `switch-seats`, `ask-card`, `native-choice` (one question), `start-seat`, `composer-keyboard`, `stream-under-load`.
 
 ## What it cannot tell you
 

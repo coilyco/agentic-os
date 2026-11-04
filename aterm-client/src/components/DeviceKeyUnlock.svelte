@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { app } from "../lib/app.svelte";
   import { DeviceKeyError, keyOffer, type KeyStatus } from "../lib/device-key";
+  import { resumeNotice } from "../lib/resume";
   import { needsPasskey } from "../lib/typing";
 
   // `always` is the host page, where enrollment stays reachable when nothing is locked.
@@ -54,7 +55,10 @@
 {#if offer}
   <div class="unlock">
     {#if offer.blocked}<p class="steps">{offer.blocked}</p>{/if}
-    {#if offer.unlock}
+    {#if app.resume}
+      <p class="steps" role="status">{resumeNotice(app.resume)}</p>
+    {/if}
+    {#if offer.unlock && app.resume !== "resuming"}
       <button class="button primary" type="button" disabled={busy} onclick={() => run(() => channel!.assert())}>
         {busy ? "Waiting for your fingerprint" : "Unlock with fingerprint"}
       </button>
