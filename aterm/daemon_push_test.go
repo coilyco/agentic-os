@@ -146,7 +146,7 @@ func TestPushStoreRefusesPastItsCap(t *testing.T) {
 func TestPushWaitingDropsASubscriptionThePushServiceForgot(t *testing.T) {
 	d := newDaemon(func(string, ...any) {})
 	store, _ := loadPushStore("")
-	if err := d.setupPush(mustKey(t), store); err != nil {
+	if err := d.local().setupPush(mustKey(t), store); err != nil {
 		t.Fatal(err)
 	}
 	gone, _, _ := testSubscription(t, "https://fcm.googleapis.com/fcm/send/gone")
@@ -156,7 +156,7 @@ func TestPushWaitingDropsASubscriptionThePushServiceForgot(t *testing.T) {
 	var mu sync.Mutex
 	sent := map[string]int{}
 	done := make(chan struct{}, 2)
-	d.push.send = func(_ context.Context, _ *vapidKey, sub pushSubscription, _ []byte) (int, error) {
+	d.local().push.send = func(_ context.Context, _ *vapidKey, sub pushSubscription, _ []byte) (int, error) {
 		mu.Lock()
 		sent[sub.Endpoint]++
 		mu.Unlock()
@@ -166,7 +166,7 @@ func TestPushWaitingDropsASubscriptionThePushServiceForgot(t *testing.T) {
 		}
 		return http.StatusCreated, nil
 	}
-	d.pushWaiting(waitPayload(waitEvent{Kind: "done", Session: "a", Identity: "Beetle-Ox"}, ""))
+	d.local().pushWaiting(waitPayload(waitEvent{Kind: "done", Session: "a", Identity: "Beetle-Ox"}, ""))
 	<-done
 	<-done
 	for range 100 {
@@ -182,20 +182,20 @@ func TestPushWaitingDropsASubscriptionThePushServiceForgot(t *testing.T) {
 
 func TestPushIsOffWithoutAKey(t *testing.T) {
 	d := newDaemon(func(string, ...any) {})
-	if err := d.setupPush("", nil); err != nil || d.push.enabled() {
+	if err := d.local().setupPush("", nil); err != nil || d.local().push.enabled() {
 		t.Fatalf("no key means no push: %v", err)
 	}
 	called := false
-	d.push.send = func(_ context.Context, _ *vapidKey, _ pushSubscription, _ []byte) (int, error) {
+	d.local().push.send = func(_ context.Context, _ *vapidKey, _ pushSubscription, _ []byte) (int, error) {
 		called = true
 		return 201, nil
 	}
-	d.pushWaiting(pushPayload{})
-	d.pushAsk(choiceAsk{Question: "q"})
+	d.local().pushWaiting(pushPayload{})
+	d.local().pushAsk(choiceAsk{Question: "q"})
 	if called {
 		t.Fatal("a daemon without a VAPID key should send nothing")
 	}
-	if err := d.setupPush("not a key", nil); err == nil {
+	if err := d.local().setupPush("not a key", nil); err == nil {
 		t.Fatal("a malformed key should be reported, not silently turn push off")
 	}
 }
@@ -360,24 +360,24 @@ func mustKey(t *testing.T) string {
 func TestWatchWaitingPushesWhenALiveSeatEndsItsTurn(t *testing.T) {
 	d := newDaemon(func(string, ...any) {})
 	store, _ := loadPushStore("")
-	if err := d.setupPush(mustKey(t), store); err != nil {
+	if err := d.local().setupPush(mustKey(t), store); err != nil {
 		t.Fatal(err)
 	}
 	sub, _, _ := testSubscription(t, "https://fcm.googleapis.com/fcm/send/phone")
 	_ = store.add(sub)
 	sent := make(chan []byte, 4)
-	d.push.send = func(_ context.Context, _ *vapidKey, _ pushSubscription, payload []byte) (int, error) {
+	d.local().push.send = func(_ context.Context, _ *vapidKey, _ pushSubscription, payload []byte) (int, error) {
 		sent <- payload
 		return http.StatusCreated, nil
 	}
-	d.push.tracker.settle = 20 * time.Millisecond
+	d.local().push.tracker.settle = 20 * time.Millisecond
 	long := time.Now().Add(-time.Hour)
 	seat := &ptySession{d: d, name: "eng-platform-beetle-ox", role: "eng-platform", identity: "Beetle-Ox", seat: "claude", started: long, promptSeen: long, lastOutput: time.Now()}
 	d.sessions[seat.name] = seat
 
 	done := make(chan struct{})
 	t.Cleanup(func() { close(done) })
-	go d.watchWaiting(done, 10*time.Millisecond)
+	go d.local().watchWaiting(done, 10*time.Millisecond)
 	time.Sleep(60 * time.Millisecond)
 	select {
 	case payload := <-sent:

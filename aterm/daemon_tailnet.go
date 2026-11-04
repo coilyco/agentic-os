@@ -270,6 +270,15 @@ func tailnetPolicy(node tailnetNode, allowTags, allowOwners, allowOrigins []stri
 	}
 }
 
+// admitsSummary names who tailnetPolicy lets in, for the listener's log line.
+func admitsSummary(node tailnetNode, allowTags, allowOwners []string) string {
+	who := fmt.Sprintf("untagged devices of %d owner logins", len(admittedOwners(node, allowOwners)))
+	if node.Owner == "" && len(allowOwners) == 0 {
+		who = "no untagged device, since this node is tagged and has no owner"
+	}
+	return strings.Join(allowTags, ", ") + " and " + who
+}
+
 // tailnetState is what the Sentry check-in reads: whether a tailnet listener is
 // wanted, the one now bound, or why there is none.
 type tailnetState struct {
@@ -447,7 +456,7 @@ func (d *daemon) stopForReplacement() {
 
 // listenTailnet serves HTTPS on this node's tailnet address, certified by
 // tailscaled. A failure costs remote clients, never the daemon.
-func (d *daemon) listenTailnet(port string, allowTags, allowOwners, allowOrigins []string, certDir string) (*tailnetServing, error) {
+func (d *daemon) listenTailnet(port, certDir string) (*tailnetServing, error) {
 	node, err := readTailnetNode()
 	if err != nil {
 		return nil, err
@@ -472,16 +481,12 @@ func (d *daemon) listenTailnet(port string, allowTags, allowOwners, allowOrigins
 		return nil, err
 	}
 	server := &http.Server{
-		Handler:   d.handler(tailnetPolicy(node, allowTags, allowOwners, allowOrigins, tailscaleWhois)),
+		Handler:   d.handler(d.users.TailnetPolicy(node)),
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12},
 	}
 	ended := make(chan error, 1)
 	go func() { ended <- server.ServeTLS(listener, "", "") }()
-	who := fmt.Sprintf("untagged devices of %d owner logins", len(admittedOwners(node, allowOwners)))
-	if node.Owner == "" && len(allowOwners) == 0 {
-		who = "no untagged device, since this node is tagged and has no owner"
-	}
-	d.logf("serving https on this node's tailnet name, port %s, for %s and %s", port, strings.Join(allowTags, ", "), who)
+	d.logf("serving https on this node's tailnet name, port %s, for %s", port, d.users.Admits(node))
 	address, config := net.JoinHostPort(node.IPv4, port), &tls.Config{ServerName: node.FQDN, MinVersion: tls.VersionTLS12}
 	return &tailnetServing{
 		server: server,

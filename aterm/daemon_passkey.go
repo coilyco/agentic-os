@@ -25,15 +25,15 @@ type passkeyCeremony struct {
 
 // passkey answers the frames that mint, revoke, enroll and assert a passkey. Mint and
 // revoke are Kai's terminal, outside every session. The ceremonies are the browser's.
-func (d *daemon) passkey(cl *client, message frame) error {
+func (u *localUsers) passkey(cl *client, message frame) error {
 	switch message.Type {
 	case "passkey_mint", "passkey_revoke":
-		return d.passkeyAdmin(cl, message)
+		return u.passkeyAdmin(cl, message)
 	}
 	if !cl.web {
 		return withExit(exitUsage, errors.New("a passkey is enrolled and asserted from a browser"))
 	}
-	store := d.passkeys
+	store := u.passkeys
 	switch message.Type {
 	case "passkey_enroll_begin":
 		if err := store.spendCode(message.EnrollCode); err != nil {
@@ -43,13 +43,13 @@ func (d *daemon) passkey(cl *client, message frame) error {
 		if err != nil {
 			return err
 		}
-		return d.openCeremony(cl, message, "enroll", "passkey_enroll_options", creation, session)
+		return u.openCeremony(cl, message, "enroll", "passkey_enroll_options", creation, session)
 	case "passkey_assert_begin":
 		assertion, session, err := store.beginAssert()
 		if err != nil {
 			return withExit(exitUsage, err)
 		}
-		return d.openCeremony(cl, message, "assert", "passkey_assert_options", assertion, session)
+		return u.openCeremony(cl, message, "assert", "passkey_assert_options", assertion, session)
 	}
 	ceremony := cl.ceremony
 	cl.ceremony = nil
@@ -71,18 +71,18 @@ func (d *daemon) passkey(cl *client, message frame) error {
 	}
 	// An enrollment carried user verification too, so it needs no second prompt.
 	cl.asserted = true
-	d.logf("a remote device asserted its passkey (%s)", want)
-	proof, err := d.issueResume(cl, frame{Type: reply, ID: message.ID})
+	u.host.logf("a remote device asserted its passkey (%s)", want)
+	proof, err := u.issueResume(cl, frame{Type: reply, ID: message.ID})
 	if err != nil {
 		return err
 	}
 	if err := cl.c.write(proof); err != nil {
 		return err
 	}
-	return cl.c.write(frame{Type: "typing", Typing: d.typingStanding(cl)})
+	return cl.c.write(frame{Type: "typing", Typing: u.host.typingStanding(cl)})
 }
 
-func (d *daemon) openCeremony(cl *client, message frame, kind, reply string, options any, session *webauthn.SessionData) error {
+func (u *localUsers) openCeremony(cl *client, message frame, kind, reply string, options any, session *webauthn.SessionData) error {
 	encoded, err := json.Marshal(options)
 	if err != nil {
 		return err
@@ -91,25 +91,25 @@ func (d *daemon) openCeremony(cl *client, message frame, kind, reply string, opt
 	return cl.c.write(frame{Type: reply, ID: message.ID, Options: encoded})
 }
 
-func (d *daemon) passkeyAdmin(cl *client, message frame) error {
+func (u *localUsers) passkeyAdmin(cl *client, message frame) error {
 	if cl.web {
 		return withExit(exitUsage, errors.New("a passkey is minted and revoked from a terminal, not a browser"))
 	}
-	if err := d.typingRefusal(cl, "a process inside an aterm session cannot mint or revoke a passkey, use a terminal of your own"); err != nil {
+	if err := u.host.typingRefusal(cl, "a process inside an aterm session cannot mint or revoke a passkey, use a terminal of your own"); err != nil {
 		return err
 	}
 	if message.Type == "passkey_revoke" {
-		if err := d.passkeys.revoke(); err != nil {
+		if err := u.passkeys.revoke(); err != nil {
 			return err
 		}
-		d.resume.clear()
-		d.logf("every passkey was revoked")
+		u.resume.clear()
+		u.host.logf("every passkey was revoked")
 		return cl.c.write(frame{Type: "passkey_revoked", ID: message.ID})
 	}
-	code, ttl, err := d.passkeys.mintCode()
+	code, ttl, err := u.passkeys.mintCode()
 	if err != nil {
 		return err
 	}
-	d.logf("an enrollment code was issued")
+	u.host.logf("an enrollment code was issued")
 	return cl.c.write(frame{Type: "passkey_minted", ID: message.ID, EnrollCode: code[:4] + "-" + code[4:], ExpiresIn: int(ttl.Seconds())})
 }

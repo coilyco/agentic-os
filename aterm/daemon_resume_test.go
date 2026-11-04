@@ -36,11 +36,11 @@ func resumeDaemon(t *testing.T, window time.Duration) (*daemon, *resumeClock) {
 	t.Helper()
 	d, _ := wsDaemon(t)
 	var err error
-	if d.passkeys, err = newPasskeyStore(filepath.Join(t.TempDir(), "passkeys.json"), passkeyRPID, []string{passkeyOrigin}); err != nil {
+	if d.local().passkeys, err = newPasskeyStore(filepath.Join(t.TempDir(), "passkeys.json"), passkeyRPID, []string{passkeyOrigin}); err != nil {
 		t.Fatal(err)
 	}
 	clock := &resumeClock{at: time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)}
-	d.resume.window, d.resume.now = window, clock.now
+	d.local().resume.window, d.local().resume.now = window, clock.now
 	wsSession(t, d, false)
 	return d, clock
 }
@@ -73,14 +73,14 @@ func dropAndWait(t *testing.T, d *daemon, device *conn) {
 	t.Helper()
 	_ = device.Close()
 	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
-		d.resume.mu.Lock()
+		d.local().resume.mu.Lock()
 		open := 0
-		for _, grant := range d.resume.grants {
+		for _, grant := range d.local().resume.grants {
 			if grant.open {
 				open++
 			}
 		}
-		d.resume.mu.Unlock()
+		d.local().resume.mu.Unlock()
 		if open == 0 {
 			return
 		}
@@ -273,7 +273,7 @@ func TestOnlyARemoteDeviceCanResume(t *testing.T) {
 
 func TestDeviceKeyAssertionIssuesAProofToo(t *testing.T) {
 	d, _ := deviceDaemon(t, newPhone(t, attest{}))
-	d.resume.window = testResumeWindow
+	d.local().resume.window = testResumeWindow
 	device := pipeClient(t, d, remotePhone)
 	nextFrame(t, device, "welcome")
 	p, keyID := enroll(t, d, device, attest{})

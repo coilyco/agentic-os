@@ -88,18 +88,14 @@ type daemon struct {
 	conns       int
 	lastActive  time.Time
 	processes   func() ([]processEntry, error)
-	passkeys    *passkeyStore
-	// resume carries an unlock across a reconnect, off until a window is set.
-	resume *resumeStore
+	// users is every question of who a person is. See users.go.
+	users userManagement
 	// peerLookup names the processes holding a local TCP peer's end.
 	peerLookup func(remote, local net.Addr) ([]int, error)
 	roster     func(context.Context) (listedRoster, error)
 	launch     func(role, seat string) error
 	// proxyFetch reads Agent Proxy's session usage. Nil when no proxy is configured.
 	proxyFetch proxyFetcher
-	// forwardedPolicy judges a proxied request on the loopback listener. Zero
-	// refuses every one.
-	forwardedPolicy accessPolicy
 	// browsers holds a session's streamed Chromium. browserLaunch replaces the
 	// real one in tests.
 	browsers      browserHub
@@ -110,9 +106,6 @@ type daemon struct {
 	// apps is the per-session MCP Apps gateway and the views it captured.
 	apps appsState
 
-	// push sends Web Push to a browser that is not connected. See daemon_push.go.
-	push pushState
-
 	// replaced is set when the daemon stops because its binary was removed.
 	replaced atomic.Bool
 	// stopServing closes the main listener, which is how a signal stops the daemon.
@@ -120,7 +113,7 @@ type daemon struct {
 }
 
 func newDaemon(logf func(string, ...any)) *daemon {
-	return &daemon{
+	d := &daemon{
 		sessions:    map[string]*ptySession{},
 		terminals:   map[string]*ptySession{},
 		tokens:      map[string]*ptySession{},
@@ -134,13 +127,13 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		clientFS:    embeddedClient(),
 		processes:   func() ([]processEntry, error) { return processLister() },
 		peerLookup:  tcpPeerPIDs,
-		passkeys:    defaultPasskeys(),
-		resume:      newResumeStore(),
 		roster:      launchableRoster,
 		launch:      launchRole,
 		discovery:   newHostDiscovery(),
 		logf:        logf,
 	}
+	d.users = newLocalUsers(d.userHost())
+	return d
 }
 
 // launchableRoster is `aterm --list --json` for a client that cannot shell
@@ -238,14 +231,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 			defer d.guard("daemon")
 		}
 	}
-	if d.passkeys, err = newPasskeyStore(passkeyStatePath(), passkeyRPID, []string{passkeyOrigin}); err != nil {
-		logf("no stored passkeys, so no remote device can type: %v", err)
-		d.passkeys = defaultPasskeys()
-	}
-	d.resume.window = options.ResumeWindow
-	if d.resume.enabled() {
-		logf("a remote device's unlock survives a reconnect for %s", d.resume.window)
-	}
+	d.users = openLocalUsers(d.userHost(), options)
 	d.holdDir = filepath.Join(dir, "hold")
 	// Beside the socket, the one directory every seat that reaches the daemon shares.
 	d.imageRoot = filepath.Join(dir, "images")
@@ -272,12 +258,8 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	contextDone := make(chan struct{})
 	defer close(contextDone)
 	go d.watchContext(contextDone, contextEvery)
-	if store, err := loadPushStore(pushStatePath()); err != nil {
-		logf("no stored push subscriptions, so no browser is notified while closed: %v", err)
-	} else if err := d.setupPush(options.VAPIDKey, store); err != nil {
-		logf("no Web Push: %v", err)
-	} else if d.push.enabled() {
-		go d.watchWaiting(contextDone, pushWatchEvery)
+	if d.users.PushEnabled() {
+		go d.users.WatchWaiting(contextDone, pushWatchEvery)
 	}
 	d.adoptHolders()
 	d.sweepImages()
@@ -287,7 +269,6 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	d.restoreArtifacts()
 	d.clientDir = options.ClientDir
 	d.discovery.port = func() string { return options.TailnetPort }
-	d.forwardedPolicy = forwardedPolicy(&nodeReader{read: readTailnetNode}, options.AllowTags, options.AllowOwners, options.AllowOrigins, tailscaleWhois)
 	d.discovery.peerPorts = options.PeerPorts
 	if options.Websocket != "" {
 		server, err := d.listenWebsocket(options.Websocket)
@@ -309,7 +290,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		listen := options.tailnetListen
 		if listen == nil {
 			listen = func() (*tailnetServing, error) {
-				return d.listenTailnet(options.TailnetPort, options.AllowTags, options.AllowOwners, options.AllowOrigins, filepath.Join(dir, "tailnet"))
+				return d.listenTailnet(options.TailnetPort, filepath.Join(dir, "tailnet"))
 			}
 		}
 		go d.serveTailnetWhenUp(done, listen)
@@ -454,13 +435,13 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
-	if d.push.enabled() {
+	if d.users.PushEnabled() {
 		welcome.Features = append(welcome.Features, pushFeature)
 	}
 	if d.imageRoot != "" {
 		welcome.Features = append(welcome.Features, imageUploadFeature)
 	}
-	if d.resume.enabled() {
+	if d.users.ResumeEnabled() {
 		welcome.Features = append(welcome.Features, resumeFeature)
 	}
 	if peer.web {
@@ -474,7 +455,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	d.lastActive = time.Now()
 	d.mu.Unlock()
 	defer func() {
-		d.resume.drop(cl)
+		d.users.Disconnected(cl)
 		for _, s := range cl.attached {
 			s.detach(c)
 		}
@@ -502,8 +483,11 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 }
 
 func (d *daemon) handle(cl *client, message frame) error {
-	if cl.remote && !cl.asserted && remoteLocked[message.Type] {
+	if cl.remote && !d.users.Unlocked(cl) && remoteLocked[message.Type] {
 		return d.typingRefusal(cl, "")
+	}
+	if d.users.Handles(message.Type) {
+		return d.users.Frame(cl, message)
 	}
 	switch message.Type {
 	case "spawn":
@@ -632,12 +616,6 @@ func (d *daemon) handle(cl *client, message frame) error {
 			return withExit(exitSpawn, err)
 		}
 		return cl.c.write(frame{Type: "launched", ID: message.ID, Role: message.Role, Seat: message.Seat})
-	case "passkey_mint", "passkey_revoke", "passkey_enroll_begin", "passkey_enroll_finish", "passkey_assert_begin", "passkey_assert_finish":
-		return d.passkey(cl, message)
-	case "device_enroll_begin", "device_enroll_finish", "device_assert_begin", "device_assert_finish":
-		return d.deviceKeyFrames(cl, message)
-	case "resume":
-		return d.resumeFrame(cl, message)
 	case "roster":
 		roster, err := d.roster(context.Background())
 		if err != nil {
@@ -646,8 +624,6 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return cl.c.write(frame{Type: "roster", ID: message.ID, Roster: &roster})
 	case "hosts":
 		return d.hosts(cl.c, message)
-	case "push_key", "push_subscribe", "push_unsubscribe":
-		return d.pushFrame(cl, message)
 	case "github_token":
 		return d.githubToken(cl, message)
 	case "whoami":
@@ -1226,7 +1202,7 @@ func (d *daemon) clientDescendsFrom(cl *client, roots map[int]bool) bool {
 // client can show: nil when the peer may, otherwise message with a reason.
 func (d *daemon) typingRefusal(cl *client, message string) error {
 	if cl.remote {
-		if cl.asserted {
+		if d.users.Unlocked(cl) {
 			return nil
 		}
 		return withReason(reasonPasskeyRequired, errors.New("unlock this device with its passkey or device key before it types"))
@@ -1248,13 +1224,7 @@ func (d *daemon) typingStanding(cl *client) *typingStanding {
 		standing = &typingStanding{Reason: reasonFor(err)}
 	}
 	if cl.remote {
-		standing.Passkey, standing.DeviceKey = "unenrolled", "unenrolled"
-		if d.passkeys.enrolled() {
-			standing.Passkey = "enrolled"
-		}
-		if d.passkeys.deviceKeyEnrolled() {
-			standing.DeviceKey = "enrolled"
-		}
+		standing.Passkey, standing.DeviceKey = d.users.Standing()
 	}
 	return standing
 }
