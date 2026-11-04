@@ -186,15 +186,15 @@ describe("the hour of tries", () => {
       if (!fresh.closed && fresh !== FakeSocket.all[0]) fresh.fire("close");
     }
     expect(events.some((event) => event.type === "resting")).toBe(true);
-    // Twelve tries, the last failing, then the rest.
-    expect(FakeSocket.all).toHaveLength(13);
+    // Twenty tries, the last failing, then the rest.
+    expect(FakeSocket.all).toHaveLength(21);
     expect(elapsed).toBeGreaterThanOrEqual(RETRY_SPAN_MS * 0.99);
     expect(elapsed).toBeLessThanOrEqual(RETRY_SPAN_MS * 1.01 + 15_000);
   });
 
   it("dials again on the next return, and on Retry, with nothing scheduled in between", () => {
     answered().fire("close");
-    for (let n = 0; n < 12; n++) {
+    for (let n = 0; n < 20; n++) {
       vi.advanceTimersByTime(RETRY_SPAN_MS);
       last().fire("close");
     }

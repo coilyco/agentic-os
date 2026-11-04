@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RETRY_SPAN_MS, RETRY_WAITS_MS, backoffDelay, differentBuild, secondsUntil } from "./backoff";
+import { MAX_WAIT_MS, RETRY_SPAN_MS, RETRY_WAITS_MS, backoffDelay, differentBuild, secondsUntil } from "./backoff";
 
 const middle = () => 0.5;
 
@@ -12,16 +12,24 @@ describe("backoffDelay", () => {
     const waits: number[] = [];
     for (let attempt = 0; backoffDelay(attempt, middle) !== null; attempt++) waits.push(backoffDelay(attempt, middle)!);
     expect(waits.reduce((total, wait) => total + wait, 0)).toBe(RETRY_SPAN_MS);
-    // 1 s doubling to about 17 minutes, then one trimmed wait that ends on the hour.
-    expect(waits).toHaveLength(12);
-    expect(waits.at(-2)).toBe(1_024_000);
-    expect(waits.at(-1)).toBe(1_553_000);
+    // Doubling to 256 s, ten waits at the cap, then one trimmed to end on the hour.
+    expect(waits.slice(0, 9)).toEqual([1, 2, 4, 8, 16, 32, 64, 128, 256].map((seconds) => seconds * 1000));
+    expect(waits.slice(9, 19)).toEqual(Array(10).fill(MAX_WAIT_MS));
+    expect(waits).toHaveLength(20);
+    expect(waits.at(-1)).toBe(89_000);
+  });
+
+  it("never makes a person wait more than the cap after the daemon is back", () => {
+    expect(Math.max(...RETRY_WAITS_MS)).toBe(MAX_WAIT_MS);
+    expect(backoffDelay(12, () => 1)).toBe(MAX_WAIT_MS);
   });
 
   it("keeps the last try within the jitter of the hour", () => {
     const sum = (random: () => number) => RETRY_WAITS_MS.reduce((total, _wait, attempt) => total + backoffDelay(attempt, random)!, 0);
     expect(sum(() => 0)).toBeCloseTo(RETRY_SPAN_MS * 0.8, -3);
-    expect(sum(() => 1)).toBeCloseTo(RETRY_SPAN_MS * 1.2, -3);
+    // The cap holds the long waits at five minutes, so the high end sits below +20%.
+    expect(sum(() => 1)).toBeGreaterThan(RETRY_SPAN_MS);
+    expect(sum(() => 1)).toBeLessThan(RETRY_SPAN_MS * 1.2);
   });
 
   it("spreads each wait by 20% either way", () => {

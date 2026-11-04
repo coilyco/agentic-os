@@ -2,12 +2,14 @@
 // exists to stay attached, so an hour of tries is the job, not overkill (COI-3352).
 export const RETRY_SPAN_MS = 3_600_000;
 const FIRST_WAIT_MS = 1000;
+// A restart of a few minutes must not cost a long wait after the daemon is back.
+export const MAX_WAIT_MS = 300_000;
 
-/** The waits between tries: 1 s doubling, the last trimmed so they sum to the span. */
+/** The waits between tries: 1 s doubling to the cap, the last trimmed to end the span. */
 export const RETRY_WAITS_MS: readonly number[] = (() => {
   const waits: number[] = [];
   let spent = 0;
-  for (let wait = FIRST_WAIT_MS; spent + wait < RETRY_SPAN_MS; wait *= 2) {
+  for (let wait = FIRST_WAIT_MS; spent + wait < RETRY_SPAN_MS; wait = Math.min(MAX_WAIT_MS, wait * 2)) {
     waits.push(wait);
     spent += wait;
   }
@@ -16,10 +18,10 @@ export const RETRY_WAITS_MS: readonly number[] = (() => {
 })();
 
 /** Wait before redial `attempt`, or null once the hour is spent. Each wait is spread 20%
- * either way so tabs that lost one daemon together do not redial in step. */
+ * either way, never past the cap, so tabs that lost one daemon do not redial in step. */
 export function backoffDelay(attempt: number, random: () => number = Math.random): number | null {
   const base = RETRY_WAITS_MS[attempt];
-  return base === undefined ? null : Math.round(base * (0.8 + 0.4 * random()));
+  return base === undefined ? null : Math.min(MAX_WAIT_MS, Math.round(base * (0.8 + 0.4 * random())));
 }
 
 /** Whole seconds left until `at`, never below zero, for the countdown on screen. */
