@@ -36,3 +36,7 @@ The scripted steps are [`scripts/ci/aterm-android.sh`](../../../../scripts/ci/at
 * An APK installed and opened on a phone.
 * Whether Android System WebView honours `interactive-widget=resizes-content` for the keyboard.
 * Gradle and Maven dependencies are not hash-verified. Tauri's generated project pulls the Android Gradle plugin and AndroidX from Google Maven and Maven Central with no dependency verification metadata.
+
+## Launcher icon
+
+**The launcher icon is the colour coilyco mark, the purple-to-orange coil on the ink ground (COI-3308).** `just aterm-android-icons BRAND_DIR` regenerates every file under `aterm-android/src-tauri/icons/` from `coilyco-mark-colour-dark.png` and `coilyco-avatar-dark.png` in the website repo's `src/images/brand/`, which `scripts/build-brand-marks.mjs` there builds. It never redraws the mark. The adaptive foreground is the transparent coil at 58% of the 108dp canvas by height, so every ink pixel sits inside the 66dp safe circle at all five densities. The background is the ink `#080711` from the avatar SVG. `icon.png` is the avatar as published. The web client's own `icon-192.png` and `icon-512.png` are the PWA manifest icons, which the launcher does not read, so they are unchanged.

@@ -260,6 +260,10 @@ aterm-android-build VERSION OUT:
 aterm-android-sign IN OUT:
     @bash scripts/ci/aterm-android.sh sign "{{IN}}" "{{OUT}}"
 
+# Regenerate the aterm Android launcher icons from the website brand kit directory BRAND_DIR (coilyco/website src/images/brand).
+aterm-android-icons BRAND_DIR:
+    @bash scripts/aterm-android-icons.sh "{{BRAND_DIR}}"
+
 # Build the aterm web client for a hosted deployment: ATERM_CLIENT_BASE sets the base path, hosts are added per device and none are baked in.
 aterm-client-build-hosted:
     @cd aterm-client && ATERM_CLIENT_BASE="${ATERM_CLIENT_BASE:?set ATERM_CLIENT_BASE to the base path of the deployment, e.g. /aterm/}" VITE_ATERM_HOSTED=1 {{pnpm}} run build
