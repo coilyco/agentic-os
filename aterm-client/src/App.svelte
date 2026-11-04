@@ -3,6 +3,7 @@
   import LinkBanner from "./components/LinkBanner.svelte";
   import Sidebar from "./components/Sidebar.svelte";
   import SeatToast from "./components/SeatToast.svelte";
+  import OpenedPageCard from "./components/OpenedPageCard.svelte";
   import { app, sessionById, waitingSeats } from "./lib/app.svelte";
   import { roleFor } from "./lib/sessions";
   import HostPanel from "./panels/HostPanel.svelte";
@@ -28,6 +29,7 @@
 
 <Attention />
 <SeatToast />
+<OpenedPageCard />
 <div class="shell">
   <Sidebar />
   <main>

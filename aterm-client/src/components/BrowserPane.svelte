@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
   import { app } from "../lib/app.svelte";
+  import { pageLabel, SHOW_WAIT_MS } from "../lib/pages";
   import type { Session } from "../lib/protocol";
   import type { SharedBrowser } from "../lib/screencast";
   import { driverLabel, isDriving, isStalled, keyParams, mouseParams, paneSize, tabLabel, toPagePoint, wheelParams } from "../lib/screencast";
@@ -115,6 +116,33 @@
     address = browser?.url ?? "";
   });
 
+  // A click on a page card (COI-3258): hold control, then load the page the seat asked to open.
+  const toShow = $derived(app.pageToShow?.sessionId === session.id ? app.pageToShow : null);
+  let tookFor = 0;
+  $effect(() => {
+    const want = toShow;
+    // The watch above starts the browser, and the page waits for it to be live.
+    if (!want || !channel || browser?.state !== "live") return;
+    if (driving) {
+      channel.navigate(session.id, want.url);
+      app.pageToShow = null;
+    } else if (!heldElsewhere && tookFor !== want.since) {
+      tookFor = want.since;
+      channel.control(session.id, true);
+    }
+  });
+  // A page that never loads says so, and names the way to do it by hand.
+  $effect(() => {
+    const want = toShow;
+    if (!want) return;
+    const timer = setTimeout(() => {
+      if (app.pageToShow?.since !== want.since) return;
+      app.pageToShow = null;
+      app.notice = `${pageLabel(want.url)} did not load here. Take control in the Browser tab and enter it.`;
+    }, Math.max(SHOW_WAIT_MS - (Date.now() - want.since), 0));
+    return () => clearTimeout(timer);
+  });
+
   // The daemon follows the newest page, so the pane moves tab on its own. Say so,
   // since a screen reader would otherwise hear nothing while the page changes.
   $effect(() => {
@@ -177,6 +205,9 @@
 </script>
 
 <div class="browser" bind:this={root}>
+  {#if toShow}
+    <p class="opening" role="status">Opening {pageLabel(toShow.url)} here. This takes control of {session.identity}'s browser until you hand it back.</p>
+  {/if}
   {#if !channel}
     <p class="empty">This host doesn't stream a browser yet. Once its daemon does, you'll see the page {session.identity} is working in here, and you can take control of it.</p>
   {:else if restartBar}
@@ -241,6 +272,7 @@
 </div>
 
 <style>
+  .opening { margin: 0 0 8px; padding: 8px 12px; border: 1px solid var(--brand); border-radius: 8px; font-size: 14px; line-height: 1.4; color: var(--text); }
   .browser { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; }
   .empty { margin: 0; color: var(--muted); font-size: 13px; }
   .bar { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }

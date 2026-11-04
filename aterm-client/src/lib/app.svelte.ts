@@ -13,9 +13,11 @@ import type { View } from "./mcp-apps";
 import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
 import type { Ask, Host, HostConnection, LaunchState, Link, PeerMessage, Session } from "./protocol";
+import type { ResumeState } from "./resume";
 import type { Role } from "./roster";
 import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
 import { TYPING_OPEN, type Typing } from "./typing";
+import { offer, pageLabel, type OpenedPage } from "./pages";
 
 /** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
 
@@ -40,6 +42,8 @@ export const app = $state({
   typing: TYPING_OPEN as Typing,
   /** The host lists device-key and this page has the app's plugin. */
   deviceKeyAvailable: false,
+  /** A held unlock proof is out, or the daemon said it ended. Null otherwise. */
+  resume: null as ResumeState | null,
   /** The welcome lists passkey. Reactive, which the connection's feature list is not. */
   passkeyAvailable: false,
   roles: [] as Role[],
@@ -50,6 +54,10 @@ export const app = $state({
   /** A role picked to start, when no session is on screen. */
   selectedRole: null as string | null,
   notice: "",
+  /** Pages seats asked to open. A card offers each, and nothing moves until a click. */
+  openedPages: [] as OpenedPage[],
+  /** The page a click is loading into a seat's pane, until it holds control and loads. */
+  pageToShow: null as { sessionId: string; url: string; since: number } | null,
   launches: {} as Record<string, { state: LaunchState; text: string }>,
   /** Sessions that finished a turn while you were looking at another one. */
   unseen: {} as Record<string, boolean>,
@@ -258,6 +266,8 @@ export function selectHost(host: Host): void {
   app.selectedSession = null;
   app.selectedRole = null;
   app.notice = "";
+  app.openedPages = [];
+  app.pageToShow = null;
   if (host.status.kind !== "online" || app.attachedHostId === host.id) return;
   app.connection?.close();
   clearTimeout(restoredTimer);
@@ -266,6 +276,7 @@ export function selectHost(host: Host): void {
   app.typing = TYPING_OPEN;
   app.passkeyAvailable = false;
   app.deviceKeyAvailable = false;
+  app.resume = null;
   app.inputNotice = "";
   app.drafts = {};
   app.roles = [];
@@ -291,8 +302,13 @@ export function selectHost(host: Host): void {
       app.sessions = event.sessions;
     }
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
-    else if (event.type === "typing") app.typing = event.typing;
+    else if (event.type === "typing") {
+      app.typing = event.typing;
+      if (event.typing.allowed) app.resume = null;
+    }
+    else if (event.type === "resume") app.resume = event.state;
     else if (event.type === "notice") app.notice = event.text;
+    else if (event.type === "open_url") offerPage(event.session, event.url);
     else if (event.type === "input_refused") app.inputNotice = event.text;
     else if (event.type === "ask") app.asks[event.ask.id] = event.ask;
     else if (event.type === "asked") delete app.asks[event.id];
@@ -326,6 +342,7 @@ export function selectHost(host: Host): void {
     else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
     else if (event.type === "reconnecting") app.link = { state: "reconnecting", attempt: event.attempt, retryAt: event.retryAt };
     else if (event.type === "reconnected") {
+      app.resume = null;
       // The new connection re-sends pending asks. The old ones belong to a dead daemon.
       app.asks = {};
       app.link = { state: "restored" };
@@ -450,6 +467,35 @@ export function waitingSeats(): Waiting[] {
   ]
     .filter(({ session }) => (seen.has(session.id) ? false : (seen.add(session.id), true)))
     .map(({ session, kind }) => ({ sessionId: session.id, role: session.role, identity: session.identity, kind }));
+}
+
+let nextPage = 0;
+
+/** A seat asked to open a page. It becomes a card, and the screen stays where it is. */
+export function offerPage(sessionId: string, url: string): void {
+  app.openedPages = offer(app.openedPages, { sessionId, url, at: Date.now() }, ++nextPage);
+}
+
+export function dismissPage(id: number): void {
+  app.openedPages = app.openedPages.filter((page) => page.id !== id);
+}
+
+/** The click on a card: that seat on screen, its browser showing, the page loading. */
+export function showPage(id: number): void {
+  const page = app.openedPages.find((each) => each.id === id);
+  if (!page) return;
+  dismissPage(id);
+  const seat = sessionById(page.sessionId);
+  if (!seat) {
+    app.notice = `That seat has ended, so ${pageLabel(page.url)} was not opened.`;
+    return;
+  }
+  if (!app.connection?.browser) {
+    app.notice = `This host does not stream a browser, so ${pageLabel(page.url)} was not opened here.`;
+    return;
+  }
+  openByPerson(seat.id);
+  app.pageToShow = { sessionId: seat.id, url: page.url, since: Date.now() };
 }
 
 // A person opened this seat by click or tap, the only way one is selected.

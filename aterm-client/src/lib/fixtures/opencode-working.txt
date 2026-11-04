@@ -5,7 +5,7 @@
   ┃  it asks for permission, leave the prompt unanswered.
   ┃
 
-     ▣  Build · GLM 5.3
+     ▣  Build · MiniMax M3
 
                   Update Complete                                      esc
 
@@ -25,6 +25,6 @@
   ┃
   ┃
   ┃
-  ┃  Build · GLM 5.3         Agent Proxy
+  ┃  Build · MiniMax M3      Agent Proxy
   ╹▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀
    ⬝⬝⬝⬝⬝⬝⬝⬝  esc interrupt                                     tab agents  ctrl+p commands
