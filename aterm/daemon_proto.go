@@ -65,9 +65,11 @@ type frame struct {
 	Replay bool `json:"replay,omitempty"`
 	Scales bool `json:"scales,omitempty"`
 
-	// input and output
+	// input and output, and the image bytes of an image_upload
 	Data   []byte `json:"data,omitempty"`
 	Offset int64  `json:"offset,omitempty"`
+	// Path is the absolute file an image_uploaded names.
+	Path string `json:"path,omitempty"`
 
 	// send
 	Token  string `json:"token,omitempty"`
