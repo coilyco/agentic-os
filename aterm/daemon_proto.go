@@ -73,6 +73,14 @@ type frame struct {
 	// Delivered is how many clients an opened reply says took the address.
 	Delivered int `json:"delivered,omitempty"`
 
+	// Artifacts: Artifact is a whole page pushed to the views channel, ArtifactID names
+	// one, and Waiting and SeatEnded are set only when they changed. See daemon_artifact.go.
+	Artifact   *artifactView `json:"artifact,omitempty"`
+	ArtifactID string        `json:"artifact_id,omitempty"`
+	Waiting    *bool         `json:"waiting,omitempty"`
+	SeatEnded  *bool         `json:"seat_ended,omitempty"`
+	Standing   bool          `json:"standing,omitempty"`
+
 	// send
 	Token  string `json:"token,omitempty"`
 	Target string `json:"target,omitempty"`

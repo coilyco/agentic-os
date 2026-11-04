@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cardMemo, forgetCardMemos, memoKey } from "./card-memo.svelte";
+import { askScope, cardMemo, forgetCardMemos, memoKey, screenScope } from "./card-memo.svelte";
 
 const options = (...labels: string[]) => labels.map((label) => ({ label, description: "", freeText: false }));
 
@@ -33,5 +33,19 @@ describe("cardMemo", () => {
   it("starts with the rows already ticked on screen", () => {
     expect(cardMemo(memoKey("seat-d", options("A", "B")), [1]).picked).toEqual([1]);
     forgetCardMemos("seat-d");
+  });
+});
+
+describe("scopes", () => {
+  it("forgetting a gone screen dialog leaves a daemon card's state alone", () => {
+    const ask = cardMemo(memoKey(askScope("ask-1"), options("Yes", "No")), []);
+    ask.text = "still typing";
+    ask.writing = 2;
+    cardMemo(memoKey(screenScope("seat-f"), options("Yes", "No")), []).text = "from the screen";
+    forgetCardMemos(screenScope("seat-f"));
+    expect(cardMemo(memoKey(askScope("ask-1"), options("Yes", "No")), [])).toMatchObject({ text: "still typing", writing: 2 });
+    expect(cardMemo(memoKey(screenScope("seat-f"), options("Yes", "No")), []).text).toBe("");
+    forgetCardMemos(askScope("ask-1"));
+    forgetCardMemos(screenScope("seat-f"));
   });
 });
