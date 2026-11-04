@@ -94,6 +94,7 @@ type frame struct {
 	// github_token: Repo names the OWNER/REPO asked for, GithubToken and Expires
 	// answer it. The token is a credential, so it rides only the reply frame.
 	Repo        string        `json:"repo,omitempty"`
+	Workflows   bool          `json:"workflows,omitempty"`
 	GithubToken string        `json:"github_token,omitempty"`
 	Expires     string        `json:"expires,omitempty"`
 	Sessions    []sessionView `json:"sessions,omitempty"`
