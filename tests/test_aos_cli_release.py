@@ -410,3 +410,57 @@ def test_a_bump_without_a_token_fails_instead_of_skipping(tmp_path: Path) -> Non
 
     assert done.returncode != 0
     assert "RELEASE_GIT_TOKEN" in done.stderr
+
+
+def test_every_release_secret_is_synced_from_ssm() -> None:
+    """A secret the release reads but nothing syncs is a signing step that fails mid-release (COI-50).
+
+    The names come from the workflow and the sync script's own mapping, so
+    neither is restated here.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "sync_actions_secrets", ROOT / "scripts" / "sync-actions-secrets.py"
+    )
+    assert spec and spec.loader
+    sync = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sync)
+
+    workflow = (ROOT / ".github" / "workflows" / "aos-cli-release.yml").read_text(
+        encoding="utf-8"
+    )
+    used = set(re.findall(r"secrets\.([A-Z0-9_]+)", workflow)) - {"GITHUB_TOKEN"}
+    assert "TREEHOUSE_CODESIGN_CERT_PEM" in used, "the release must pass the signing pair"
+    synced = set(sync.MAPPING[sync.slug("agentic-os")])
+    assert used <= synced, f"read by the release, synced from nowhere: {sorted(used - synced)}"
+
+
+def test_the_signing_step_fails_closed_without_the_certificate(tmp_path: Path) -> None:
+    """An unsigned bundle ships looking fine and re-prompts on every release."""
+    binary = tmp_path / "aterm-darwin-arm64"
+    binary.write_bytes(b"not a real binary")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TREEHOUSE_CODESIGN")}
+    env.pop("AOS_RELEASE_UNSIGNED", None)
+    done = subprocess.run(
+        ["sh", str(ROOT / "scripts" / "aterm-sign-darwin.sh"), str(binary), str(tmp_path / "out.tar.gz")],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert done.returncode != 0
+    assert "TREEHOUSE_CODESIGN_CERT_PEM" in done.stderr
+    assert not (tmp_path / "out.tar.gz").exists()
+
+
+def test_the_release_signs_darwin_and_checks_the_signature() -> None:
+    builder = (ROOT / "scripts" / "aos-release-build.sh").read_text(encoding="utf-8")
+    assert "aterm-sign-darwin.sh" in builder
+    release_check = (ROOT / "scripts" / "check-aos-release.sh").read_text(encoding="utf-8")
+    assert "dev.coilyco.treehouse" in release_check
+    assert "aterm_app_count" in release_check
+    # The sign script reads its output back, because rcodesign exits 0 on a
+    # bundle whose executable it never found.
+    signer = (ROOT / "scripts" / "aterm-sign-darwin.sh").read_text(encoding="utf-8")
+    assert "print-signature-info" in signer
