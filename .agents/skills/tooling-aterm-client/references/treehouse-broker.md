@@ -14,6 +14,12 @@ The daemon can dial the Treehouse broker and serve each client the broker attach
 * **Refuse** - every failure answers reason `unlock_refused`, logs the failed check without the token, and five refusals end the channel's nonce. Passkey, device key, resume and push frames are refused on a brokered channel.
 * **Fail closed** - with no accounts key set younger than a day, every token is refused.
 
+## Enrolling, renewing, and telling the broker
+
+* **Enroll** - `aterm treehouse enroll <code> --treehouse-accounts <https> --treehouse-dir <dir>`. The code comes from a signed-in, user-verified session at accounts. The key is made on this host, and nothing is written until the certificate verifies against the accounts key set and binds that key (`cnf.jkt`). A directory that already holds an identity needs `--replace`.
+* **Renew** - the daemon renews 10 minutes before the certificate expires, replaces `daemon.cert` atomically, and sends `reg.cert` on the link. A certificate already lapsed at start is renewed before the first dial, since accounts takes a lapsed one when the proof holds. A failed renewal is logged and retried every 30 seconds.
+* **Seat events** - a seat that finishes a turn or waits on a prompt, and each `ask`, goes to the broker as `reg.event` with the seat's name, role and identity. The ask's question is never sent (F4 default). With no link up an event is dropped, and the broker's reachable push covers the return. The daemon's own Web Push for the local path is unchanged.
+
 ## Not built yet
 
-Enrollment (`aterm enroll`), certificate renewal, and sending `reg.event` for the broker's push are not in the daemon yet. Nothing ran against the real broker or accounts.
+Nothing ran against the real broker or accounts. Device-key unlock is not offered by accounts yet, so a brokered channel unlocks by passkey or session.
