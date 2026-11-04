@@ -14,7 +14,7 @@ Every step also saves its screenshot, pass or fail, under `aterm-client/testbed/
 
 ## How it works
 
-* **Mock daemon** - `mock-daemon.ts` serves `aterm-client/dist` at `/` and speaks `aterm.daemon.v1` on a websocket at the same origin, as the real daemon does, so the client needs no configuration. It scripts only frames the daemon has: `welcome`, `sessions`, `roster`, `attach` replay, `size`, `output`, `ask`, `asked`, `launch`, `subscribe` to `open_url`, and a seat's browser (`browser_watch`, `browser_control`, `browser_navigate`, `browser_state`, no frames). A frame it does not model answers with an `error`. It records every `input`, `answer` and `launch` for assertions.
+* **Mock daemon** - `mock-daemon.ts` serves `aterm-client/dist` at `/` and speaks `aterm.daemon.v1` on a websocket at the same origin, as the real daemon does, so the client needs no configuration. It scripts only frames the daemon has: `welcome`, `sessions`, `roster`, `attach` replay, `size`, `output`, `ask`, `asked`, `launch`, `subscribe` to `open_url`, and a seat's browser (`browser_watch`, `browser_control`, `browser_navigate`, `browser_state`, no frames). A frame it does not model answers with an `error`. It records every `input`, `answer` and `launch` for assertions. It can also fail on purpose: `silenceClients` leaves a socket open and mute, `dials('refuse'|'hang'|'ok')` and `refuseNext(n)` shape the next dials, and `dropClients` closes from its side.
 * **Scenes** - `scenes.ts` draws a seat's screen at whatever size the client asks for, as a harness redraws on resize. Claude Code's AskUserQuestion dialog is emulated from real captures, so a click on a card walks the dialog.
 * **Captures** - `fixtures/captures/` holds real Claude Code 2.1.318 screens, replayed verbatim at their own width on desktop. Add one by dropping a plain-text screen in that folder.
 * **Roster** - the mock serves `src/lib/fixtures/roster.json`, so one fixture has one owner.
@@ -39,7 +39,7 @@ State on main after PRs 193, 199, 203 and the find control, as the bed shows it,
 * **Red** - COI-3238 item 3 (`seat-rows`), the dialog's tab bar as buttons (`native-choice`), and a short conversation growing the PTY without limit (`pty-size`, COI-3291).
 * **Fixme, bed cannot judge yet** - link hover and history depth in `terminal-text` (COI-3293).
 
-Journeys that hold today: `unlock-resume` (a locked device redials inside and after the resume window, COI-3305), `read-output`, `switch-seats`, `ask-card`, `native-choice` (one question), `start-seat`, `composer-keyboard`, `stream-under-load`, `open-url`.
+Journeys that hold today: `reconnect` (COI-3352: a restart ridden out, a silent socket, a page returning after hours, a hung dial, a host unreachable at page load, a cold start whose first or attach dial fails, and an hour of tries that ends in a rest, each reconnecting with no tap, on a faked clock), `unlock-resume` (a locked device redials inside and after the resume window, COI-3305), `read-output`, `switch-seats`, `ask-card`, `native-choice` (one question), `start-seat`, `composer-keyboard`, `stream-under-load`, `open-url`.
 
 ## What it cannot tell you
 

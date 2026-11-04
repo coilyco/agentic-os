@@ -32,6 +32,8 @@ export interface Host {
 export type Link =
   | { state: "live" }
   | { state: "reconnecting"; attempt: number; retryAt: number | null }
+  // The hour of automatic tries is spent. A return to the page, or Retry, dials again.
+  | { state: "resting" }
   | { state: "restored" };
 
 export type SessionState = "idle" | "working" | "failed";
@@ -115,6 +117,8 @@ export type HostEvent =
   | { type: "closed"; reason: string }
   // The daemon stopped. `retryAt` is the next dial's time, null while one is out.
   | { type: "reconnecting"; attempt: number; retryAt: number | null }
+  // The hour of tries ended with no answer. Nothing is scheduled until a wake or Retry.
+  | { type: "resting" }
   // It answered again. `newerBuild` means it is not the build that served this page.
   | { type: "reconnected"; newerBuild: boolean }
   // A held unlock proof is out (`resuming`), the daemon said it ended, or neither (null).
