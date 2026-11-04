@@ -100,6 +100,13 @@ export function reconnecting(): boolean {
   return app.link.state === "reconnecting";
 }
 
+/** Brings the attached host's own panel forward, where its connection check is. */
+export function showHost(): void {
+  app.selectedSession = null;
+  app.selectedRole = null;
+  if (app.attachedHostId) app.selectedHostId = app.attachedHostId;
+}
+
 /** Asks the connection to dial now. A host that does not redial has nothing to hurry. */
 export function retryNow(): void {
   app.connection?.retry?.();

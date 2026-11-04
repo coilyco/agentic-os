@@ -6,6 +6,7 @@
   import { typingNotice } from "../lib/typing";
   import { splitSessions } from "../lib/sessions";
   import InstallCard from "../components/InstallCard.svelte";
+  import ConnectionCheck from "../components/ConnectionCheck.svelte";
 
   const host = $derived(selectedHost());
   const silent = $derived(app.hosts.filter((candidate) => candidate.status.kind === "unreachable"));
@@ -48,7 +49,7 @@
         {#if quiet.answered}
           <p><strong>{quiet.label} stopped answering.</strong> It answered earlier on this page, so it is probably restarting. Retry asks it again.</p>
         {:else}
-          <p><strong>{quiet.label} is not answering.</strong> Its daemon may be stopped, or running with a tailnet listener that fails TLS. On that machine, run <code>aterm doctor</code>, which says which, then retry.</p>
+          <p><strong>{quiet.label} is not answering.</strong> Pick it to run the connection check, which shows how far the connection got.</p>
         {/if}
         <button class="button" onclick={() => retry(quiet)}>Retry {quiet.label}</button>
       </div>
@@ -77,7 +78,7 @@
       {:else if host.status.layer && host.status.layer !== "network"}
         <p>{host.status.reason}</p>
       {:else}
-        <p>{host.status.reason} On that machine, <code>aterm doctor</code> says which. A stopped daemon starts with <code>aterm daemon</code>, or by launching any seat with <code>aterm</code>. Then retry.</p>
+        <p>Nothing answered. The connection check below shows how far the connection got, and one button sends the report to prod-director.</p>
       {/if}
       <button class="button" onclick={() => retry(host)}>Retry</button>
     </div>
@@ -101,6 +102,12 @@
       <p class="lede">A daemon on your tailnet listed this host. It stays only while a daemon lists it, unless you save it.</p>
       <button class="button remove" onclick={() => keep(host)}>Save {host.label} to this device</button>
     {/if}
+  {/if}
+  {#if host && host.kind === "daemon" && host.status.kind !== "checking"}
+    <!-- Keyed so a host that goes silent again checks again, and one that is only being looked at waits to be asked. -->
+    {#key `${host.id} ${host.status.kind} ${reconnecting()}`}
+      <ConnectionCheck {host} auto={host.status.kind === "unreachable" || (reconnecting() && host.id === app.attachedHostId)} />
+    {/key}
   {/if}
   {#if host?.id === app.attachedHostId}
     <!-- The passkey section is here whatever the lock says, so enrollment never depends on a lock that failed to show. -->
