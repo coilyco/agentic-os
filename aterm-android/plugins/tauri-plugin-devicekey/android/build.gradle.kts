@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.coilyco.aterm.devicekey"
+    namespace = "dev.coilyco.treehouse.devicekey"
     compileSdk = 36
 
     defaultConfig {

@@ -15,8 +15,12 @@ ANDROID_PLATFORM=android-37.0
 BUILD_TOOLS=36.0.0
 NDK_VERSION=28.2.13676358
 RUST_TARGET=aarch64-linux-android
-APP_ID=dev.coilyco.aterm
+APP_ID=dev.coilyco.treehouse
 KEY_ALIAS=aterm
+# Every code shipped before the clock scheme is below this: major*1000000+minor*1000+patch
+# stays under it while the major is 0. A code under it could not install over those.
+VERSION_CODE_FLOOR=1000000
+VERSION_CODE_MAX=2100000000
 
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/android-sdk}"
 export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
@@ -74,11 +78,21 @@ find_unsigned() {
   printf '%s\n' "$found"
 }
 
-# build VERSION OUT: the app's client bundle, then the unsigned APK at OUT. Tauri derives
-# versionCode from VERSION as major*1000000+minor*1000+patch, so a larger one updates.
+# version-code [EPOCH_SECONDS]: minutes since the Unix epoch. Why that scheme is in
+# tooling-aterm-client references/android.md.
+version_code() {
+  echo $((${1:-$(date -u +%s)} / 60))
+}
+
+# build VERSION OUT: the client bundle, then the unsigned APK at OUT. versionName is
+# VERSION, versionCode is ATERM_ANDROID_VERSION_CODE or else the clock code.
 build() {
   local version="${1:?usage: build VERSION OUT}" out="${2:?usage: build VERSION OUT}"
+  local code="${ATERM_ANDROID_VERSION_CODE:-$(version_code)}"
   [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "version must be major.minor.patch, got $version"
+  [[ "$code" =~ ^[0-9]+$ ]] && [ "$code" -ge "$VERSION_CODE_FLOOR" ] && [ "$code" -le "$VERSION_CODE_MAX" ] \
+    || fail "version code must be $VERSION_CODE_FLOOR to $VERSION_CODE_MAX, got $code"
+  echo "building $version with version code $code"
   use_java
   cd "$repo_root"
   just aterm-client-install
@@ -88,7 +102,7 @@ build() {
     --manifest-path "$android_dir/src-tauri/Cargo.toml" >/dev/null || fail "Cargo.lock is missing or stale, run just aterm-android-lock"
   rm -rf "$android_dir/src-tauri/gen/android"
   just aterm-android-tauri android init --ci
-  just aterm-android-tauri android build --apk --target aarch64 --ci --config "{\"version\":\"$version\"}"
+  just aterm-android-tauri android build --apk --target aarch64 --ci --config "{\"version\":\"$version\",\"bundle\":{\"android\":{\"versionCode\":$code}}}"
   if [ -e "$repo_root/.git" ] && ! git -C "$repo_root" diff --quiet -- aterm-android/src-tauri/Cargo.lock; then
     fail "the build changed Cargo.lock, commit the lock it resolved"
   fi
@@ -158,5 +172,6 @@ cmd="${1:-}"
 [ $# -gt 0 ] && shift
 case "$cmd" in
   toolchain | build | sign | verify) "$cmd" "$@" ;;
-  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | sign IN OUT | verify APK" ;;
+  version-code) version_code "$@" ;;
+  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | sign IN OUT | verify APK | version-code [EPOCH]" ;;
 esac
