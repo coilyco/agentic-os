@@ -1,5 +1,6 @@
 <script lang="ts">
   import Attention from "./components/Attention.svelte";
+  import FeedbackSheet from "./components/FeedbackSheet.svelte";
   import LinkBanner from "./components/LinkBanner.svelte";
   import Sidebar from "./components/Sidebar.svelte";
   import SeatToast from "./components/SeatToast.svelte";
@@ -30,6 +31,7 @@
 <Attention />
 <SeatToast />
 <OpenedPageCard />
+<FeedbackSheet />
 <div class="shell">
   <Sidebar />
   <main>

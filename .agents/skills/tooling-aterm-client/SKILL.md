@@ -55,6 +55,7 @@ than editing it by hand.
 * [context-meter.md](references/context-meter.md) - the per-seat context-token count, where each harness's reading comes from, and Kai's freeze exception.
 * [architecture.md](references/architecture.md) - the host seam, envelopes, activity, the composer.
 * [discovery.md](references/discovery.md) - the `hosts` frame and how the host list merges the daemons it finds.
+* [feedback.md](references/feedback.md) - the Feedback sheet: a note and screenshots sent from the screen, and what waits on COI-3345.
 * [choices.md](references/choices.md) - native choice cards, `ask_choice` and `send_user_question`.
 * [grants.md](references/grants.md) - approval grants: one Kai decision carried to the executing seats, and the daemon's refusals.
 * [passkey.md](references/passkey.md) - the passkey unlock a remote device needs before it types.
