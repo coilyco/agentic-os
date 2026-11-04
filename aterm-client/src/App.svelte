@@ -60,6 +60,6 @@
   @media (max-width: 720px) {
     .shell { flex-direction: column; }
     /* A phone on its side keeps the row, with the sidebar as a rail. */
-    .shell:has(.sidebar[data-mode="reading"]) { flex-direction: row; }
+    .shell:has(:global(.sidebar[data-mode="reading"])) { flex-direction: row; }
   }
 </style>

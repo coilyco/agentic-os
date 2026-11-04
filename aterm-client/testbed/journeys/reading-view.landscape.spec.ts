@@ -39,3 +39,14 @@ test("rotating keeps the seat and restores each layout", async ({ bed }) => {
   await expect(bed.screen()).toContainText("Churning");
   await bed.step("landscape-again");
 });
+
+test.describe("a phone under 720px wide on its side", () => {
+  test.use({ viewport: { width: 667, height: 375 } });
+  test("keeps the rail beside the seat, not above it", async ({ bed }) => {
+    await bed.openSeat(SEATS.imp);
+    const rail = await bed.page.locator(".sidebar").boundingBox();
+    const main = await bed.page.locator("main").boundingBox();
+    expect(rail?.width, "the rail is a column").toBeLessThanOrEqual(52);
+    expect(main?.y, "the seat starts at the top, not under a bar").toBe(0);
+  });
+});
