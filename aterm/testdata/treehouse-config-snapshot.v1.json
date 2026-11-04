@@ -1,0 +1,25 @@
+{
+  "format": "treehouse.config.snapshot.v1",
+  "sha256": "71d7ba9a63bd9e81b9a5654f34dee56205782ebf853d4f3139e8a0064c168053",
+  "config": {
+    "revision": 3,
+    "creatures": [],
+    "personalities": [],
+    "roles": [],
+    "settings": {
+      "*": {
+        "push.question_text": false
+      },
+      "acct_01HZX3K9Q7M2": {
+        "push.question_text": true
+      },
+      "acct_ODD\u0026\u003cname\u003e00000": {
+        "push.question_text": true,
+        "terminal.e2e_frames": true
+      },
+      "acct_OFF00000000A": {
+        "push.question_text": false
+      }
+    }
+  }
+}

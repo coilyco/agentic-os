@@ -185,7 +185,7 @@ func (u *localUsers) PushEnabled() bool { return u.push.enabled() }
 
 func (u *localUsers) NotifyAsk(ask choiceAsk) {
 	if u.brokerEvent != nil {
-		u.brokerEvent(waitEvent{Kind: "ask", Session: ask.Session, Identity: askerName(ask)})
+		u.brokerEvent(waitEvent{Kind: "ask", Session: ask.Session, Identity: askerName(ask), Question: ask.Question})
 	}
 	u.pushAsk(ask)
 }

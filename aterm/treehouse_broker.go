@@ -53,6 +53,7 @@ type brokerMsg struct {
 	SessionName string          `json:"session,omitempty"`
 	Role        string          `json:"role,omitempty"`
 	Identity    string          `json:"identity,omitempty"`
+	Question    string          `json:"question,omitempty"`
 	Channel     string          `json:"channel,omitempty"`
 	Account     string          `json:"account,omitempty"`
 	SID         string          `json:"sid,omitempty"`
@@ -81,6 +82,8 @@ type brokerLink struct {
 	// settle and sendEvent replace the wait tracker's delay and the send, for a test.
 	settle    time.Duration
 	sendEvent func(brokerMsg)
+	// settings answers the per-user settings, nil reads every setting as off.
+	settings *settingsReader
 }
 
 func dialBroker(ctx context.Context, url string) (*websocket.Conn, error) {
@@ -429,6 +432,8 @@ func fetchJWKS(ctx context.Context, address string) ([]byte, error) {
 // treehouseOptions turn the brokered path on. All three empty leaves it off.
 type treehouseOptions struct {
 	Broker, Accounts, Dir string
+	// ConfigDir holds the configuration snapshot, empty for the default place.
+	ConfigDir string
 }
 
 func (o treehouseOptions) on() bool { return o.Broker != "" || o.Accounts != "" || o.Dir != "" }
@@ -470,6 +475,9 @@ func (d *daemon) startTreehouse(ctx context.Context, o treehouseOptions) {
 	users.brokered = &brokeredGate{verifier: newUnlockVerifier(keys, o.Accounts, identity), host: users.host}
 	link := &brokerLink{url: o.Broker, cert: strings.TrimSpace(string(cert)), key: key, identity: identity, d: d, build: version, dial: dialBroker,
 		accounts: o.Accounts, keys: keys, certPath: o.Dir + "/daemon.cert", post: accountsPoster(o.Accounts), views: d.views}
+	if dir := configDir(o.ConfigDir); dir != "" {
+		link.settings = newSettingsReader(dir)
+	}
 	users.brokerEvent = link.emit
 	d.logf("dialing the Treehouse broker as %s", identity.ID)
 	go link.run(ctx)
