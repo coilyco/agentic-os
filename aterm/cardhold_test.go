@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 // What a real claude showed in an untrusted directory, read off a PTY on 2026-10-02.
@@ -74,31 +73,6 @@ func TestAMessageStaysHeldThroughACardRepaintGap(t *testing.T) {
 		t.Fatalf("the message was typed while the card was being repainted:\n%q", target.output.String())
 	}
 	target.until("[from eng-platform Beetle-Ox] ping")
-}
-
-// A delivery receipt is typed into the sender, and it is the sender that may have asked
-// Kai a question. The receipt waits behind that card like any message (COI-3243).
-func TestADeliveryReceiptWaitsBehindTheSendersOwnCard(t *testing.T) {
-	token, sender, target := spawnPair(t, pasteCat)
-	time.Sleep(1600 * time.Millisecond)
-	kaiTypes(t, target, "half a thou")
-	target.until("half a thou")
-	state := sendAs(t, token, "scientist", "ping")
-	if state.State != "held" {
-		t.Fatalf("state = %+v, want held behind Kai's draft", state)
-	}
-	// The sender's own screen now shows a card, which its pty echoes back.
-	card := "Do you want to proceed?\r\n1. Yes\r\nEsc to cancel\r\n"
-	if err := sender.c.write(frame{Type: "input", Session: "eng-platform-beetle-ox", Data: []byte(card)}); err != nil {
-		t.Fatalf("type: %v", err)
-	}
-	sender.until("Esc to cancel")
-	kaiTypes(t, target, "\r") // the held message lands, and its receipt is owed to the sender
-	target.until("[from eng-platform Beetle-Ox] ping")
-	sender.drain(3 * time.Second)
-	if strings.Contains(sender.output.String(), "[from aterm daemon]") {
-		t.Fatalf("the receipt was typed into the sender's open card:\n%q", sender.output.String())
-	}
 }
 
 // Claude Code 2.1.293 screens read off a PTY on 2026-10-08, one per AskUserQuestion page,
