@@ -40,7 +40,7 @@ keyboard. `just aterm-client-drive` does that with no human: it drives the real 
 against the Demo host in a headless browser at 1280px and 320px, on its own port, and
 asserts what is on screen. Check a UI change there and never hand Kai a click to test.
 Add a case when a bug appears, and teach the Demo host the screen that reproduces it
-(`src/lib/demo-harness.ts`).
+(`src/lib/demo-harness.ts`). `just aterm-client-drive-hops` does the same for a connection that fails: it breaks one hop per scenario in a mock daemon (`scripts/hop_daemon.py`) and checks the connection check names it.
 
 ## Contracts
 
@@ -57,7 +57,7 @@ than editing it by hand.
 * [choices.md](references/choices.md) - native choice cards and `ask_choice`.
 * [grants.md](references/grants.md) - approval grants: one Kai decision carried to the executing seats, and the daemon's refusals.
 * [passkey.md](references/passkey.md) - the passkey unlock a remote device needs before it types.
-* [reach.md](references/reach.md) - why a device cannot reach the daemon, the layers the client names, and what the daemon logs.
+* [reach.md](references/reach.md) - why a device cannot reach the daemon, the layers the client names, what the daemon logs, and the six-hop connection check with what a page can and cannot see.
 * [sizing.md](references/sizing.md) - how a session's PTY is sized when clients of different sizes attach, the `size` frame, and `pty-size`.
 * [device-key.md](references/device-key.md) - the Android app's unlock with the phone's own key, as a person sees it.
 * [device-key-daemon.md](references/device-key-daemon.md) - the daemon half: the frames, the attestation checks, and the app origin.

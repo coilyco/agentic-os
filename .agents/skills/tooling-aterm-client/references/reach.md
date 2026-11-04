@@ -17,3 +17,18 @@ How the client and daemon name the layer that kept a browser out (COI-2597). The
 **A refusal is remembered for 2 seconds, an admission for a minute.** A page load makes several requests and each uncached one runs `tailscale whois`, so a refusal is kept just long enough for one load. A phone tagged a moment ago is admitted on its next load. With a minute for both, Kai needed about six reloads (COI-2597).
 
 **A tagged node has no owner.** Tailscale lends it a login named after the node, so the owner rule matches no person and only `tag:physical` devices attach. An untagged phone is refused as `ownership` until it carries that tag. The startup line then says "no untagged device" in place of "its own owner".
+
+## The connection check, hop by hop (COI-3256)
+
+**The host panel checks six hops in order and says which broke**, from `src/lib/hops.ts`. It runs by itself for a host that does not answer or a link that stays down, on demand for any daemon host, and from the banner's Check connection. One button copies the report as a message to prod-director, and a page that may not write the clipboard shows it selected instead. Each hop says whether the page **saw** it or **inferred** it.
+
+* 1 name resolves, 2 tailnet route, 3 TLS - **a page cannot tell these apart.** Refused, reset, a bad certificate and a name that did not resolve all reach `fetch` as one `TypeError`, so the panel says "hop 1, 2 or 3". A request that hangs is an `AbortError`, which it reads as the route. Chrome's own error page, in a tab, names the exact failure.
+* 4 HTTP - seen, with the status, when the daemon lets the page read the reach answer. Otherwise only that something answered.
+* 5 websocket upgrade - a refused upgrade shows close code 1006 and no status or body.
+* 6 daemon admits this device - the refusal layer on the reach answer, or the `welcome` frame and its error. A passkey or device-key lock only makes typing read only, so it is not a connection failure.
+
+**Measured, not assumed.** `just aterm-client-drive-hops` points the real client at `scripts/hop_daemon.py`, a mock daemon that breaks one hop per scenario on real sockets. It compares the panel's verdict with the `net::ERR_*` code the browser reports to the test runner, which a page never reads. It disproved an idea: Chromium 147 leaves a Resource Timing record for an `https` request whose name did not resolve, so a missing record cannot stand for DNS. Only Chromium has run (COI-3266 covers WebKit, Firefox and a real phone).
+
+**The daemon serves HTTPS itself on the tailnet address, with a `tailscale cert` certificate. It is not Tailscale Serve.** So "nothing is serving HTTPS" means the tailnet listener is unbound or its handshake fails, which the daemon logs.
+
+**Where a daemon would help, not built.** A daemon the page can reach could dial the silent one and report Go's own error per hop (COI-3265).

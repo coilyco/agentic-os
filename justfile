@@ -186,6 +186,10 @@ aterm-client-test *ARGS:
 aterm-client-drive:
     @uv run aterm-client/scripts/drive.py
 
+# Point the real aterm client at a mock daemon that breaks one hop per scenario, on real sockets, and check the connection check names that hop. Screenshots land in aterm-client/drive-hops/.
+aterm-client-drive-hops:
+    @uv run aterm-client/scripts/hops_drive.py
+
 # Build the aterm web client's production bundle into aterm-client/dist/.
 aterm-client-build *ARGS:
     @cd aterm-client && {{pnpm}} run build "$@"

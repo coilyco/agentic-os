@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { app, reconnecting, retryNow } from "../lib/app.svelte";
+  import { app, reconnecting, retryNow, showHost } from "../lib/app.svelte";
   import { secondsUntil } from "../lib/backoff";
 
   const link = $derived(app.link);
@@ -7,6 +7,8 @@
   const shown = $derived(link.state !== "live" || app.newerBuild);
   // Five lost dials is about half a minute, long enough that launchd is not simply reviving it.
   const STILL_SILENT = 5;
+  // Two lost dials is a restart that is taking its time, so the check is offered from there.
+  const WHY_AFTER = 2;
 
   let now = $state(Date.now());
   $effect(() => {
@@ -23,7 +25,7 @@
   <p class="line" role="status">
     {#if link.state === "reconnecting"}
       <strong>{label} is reconnecting.</strong>
-      <span class="extra">It stopped answering, and your seats stay as they were until it is back.{#if link.attempt >= STILL_SILENT} Still no answer. On that machine, <code>aterm doctor</code> says why.{/if}</span>
+      <span class="extra">It stopped answering, and your seats stay as they were until it is back.{#if link.attempt >= STILL_SILENT} Still no answer. The connection check says which hop broke.{/if}</span>
     {:else if link.state === "restored"}
       <strong>{label} is back.</strong> <span class="extra">Your seats are live again.</span>
     {/if}
@@ -34,6 +36,7 @@
   {#if link.state === "reconnecting"}
     <span class="count mono" aria-hidden="true">{wait === null ? "Trying now" : `Next try in ${wait} s`}</span>
     <button class="button" type="button" onclick={retryNow} disabled={wait === null}>Retry now</button>
+    {#if link.attempt >= WHY_AFTER}<button class="button" type="button" onclick={showHost}>Check connection</button>{/if}
   {/if}
   {#if app.newerBuild}
     <button class="button primary" type="button" onclick={() => location.reload()}>Reload</button>
@@ -46,7 +49,6 @@
   .link[data-state="reconnecting"] { border-bottom-color: var(--warn); background: var(--warn-fill); }
   .line { margin: 0; flex: 1 1 260px; font-size: 15px; }
   .link[data-state="reconnecting"] strong { color: var(--warn-text); }
-  code { font-family: var(--font-mono); font-size: 0.92em; color: var(--text-soft); }
   .count { font-size: 13px; color: var(--muted); }
   .button { min-height: 44px; }
   .button:disabled { opacity: 0.5; cursor: default; }
