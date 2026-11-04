@@ -7,7 +7,7 @@
   import SidePanel from "../components/SidePanel.svelte";
   import SplitHandle from "../components/SplitHandle.svelte";
   import Terminal from "../components/Terminal.svelte";
-  import { app, asksShownOn, colorOf, messagesFor, placeNow, reconnecting, relayedTo } from "../lib/app.svelte";
+  import { app, asksShownOn, colorOf, layout, messagesFor, placeNow, reconnecting, relayedTo } from "../lib/app.svelte";
   import { cardMemo, forgetCardMemos, memoKey, tickedRows } from "../lib/card-memo.svelte";
   import { askAnswer, CANCEL, choiceFromAsk, choiceKey, detectChoice, keysFor, keysForPicks, type Choice } from "../lib/choices";
   import { contextPercent, contextText } from "../lib/context";
@@ -22,7 +22,9 @@
 
   let { role, session }: { role: Role; session: Session } = $props();
   // On a phone the switcher bar names the seat, so the header keeps only a heading for screen readers.
-  let phone = $state(typeof matchMedia === "function" && matchMedia("(max-width: 720px)").matches);
+  let narrow = $state(typeof matchMedia === "function" && matchMedia("(max-width: 720px)").matches);
+  // A phone on its side folds the header too: the rail names the seat, and the height goes to the terminal.
+  const phone = $derived(narrow || layout.reading);
   // Above 1000px the side panel sits beside the seat, and a person opens it. Below, it is a sheet that starts put away.
   let split = $state(typeof matchMedia === "function" && matchMedia("(min-width: 1001px)").matches);
   let sideOpen = $state(loadSideOpen());
@@ -34,7 +36,7 @@
     const query = matchMedia("(max-width: 720px)");
     const wide = matchMedia("(min-width: 1001px)");
     const read = () => {
-      phone = query.matches;
+      narrow = query.matches;
       split = wide.matches;
     };
     read();
@@ -152,7 +154,7 @@
 <svelte:window onkeydown={findKey} />
 
 <section class="session" style:--accent={role.color}>
-  <header>
+  <header class:folded={phone}>
     {#if !phone}<Creature role={role.slug} color={role.color} size={40} />{/if}
     <h1 class:visually-hidden={phone}>{session.identity}</h1>
     {#if !phone}
@@ -279,6 +281,7 @@
   .body.wide { --side: minmax(360px, 50%); }
   .body.away { grid-template-columns: minmax(0, 1fr); }
   .body :global(.panel) { border-left: none; }
+  header.folded { min-height: 0; padding: 0; border-bottom-width: 2px; }
   /* A phone: the seat's name and state on one row, its role and context on the next, so the header does not cost the terminal a third of the screen. */
   @media (max-width: 720px) {
     /* The header gives its two rows back. A degraded start still says so. */

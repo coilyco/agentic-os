@@ -25,6 +25,12 @@ function savedHost(saved: { label: string; address: string }): Host {
   return { id: `saved:${saved.address}`, label: saved.label, address: saved.address, kind: "daemon", status: { kind: "checking" } };
 }
 
+/** A phone on its side: too short to read the desktop layout in.
+ *  A short desktop window has a fine pointer, so it keeps its layout. */
+const READING = "(orientation: landscape) and (max-height: 500px) and (pointer: coarse)";
+export const layout = $state({ reading: typeof matchMedia === "function" && matchMedia(READING).matches });
+if (typeof matchMedia === "function") matchMedia(READING).addEventListener("change", (event) => (layout.reading = event.matches));
+
 export const app = $state({
   hosts: [
     ...(EXTERNAL ? [] : [{ id: "local", label: hostLabel(location, import.meta.env.DEV), address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } } as Host]),
