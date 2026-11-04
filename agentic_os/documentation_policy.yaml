@@ -107,6 +107,8 @@ repos:
     band: small # one demo appliance: an emoji MCP server, a kiosk display, and its deploy kit (COI-2872)
   tally:
     band: small
+  treehouse-servers:
+    band: large # the Treehouse Servers record, about 85,000 characters over three source tabs, one page per section (COI-2836)
   umbra:
     band: large
     guides: true

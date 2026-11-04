@@ -8,7 +8,7 @@
   import SplitHandle from "../components/SplitHandle.svelte";
   import Terminal from "../components/Terminal.svelte";
   import { app, asksShownOn, colorOf, layout, messagesFor, placeNow, reconnecting, relayedTo } from "../lib/app.svelte";
-  import { cardMemo, forgetCardMemos, memoKey, tickedRows } from "../lib/card-memo.svelte";
+  import { askScope, cardMemo, forgetCardMemos, memoKey, screenScope, tickedRows } from "../lib/card-memo.svelte";
   import { askAnswer, CANCEL, choiceFromAsk, choiceKey, detectChoice, keysFor, keysForPicks, type Choice } from "../lib/choices";
   import { contextPercent, contextText } from "../lib/context";
   import { isBlank } from "../lib/screen";
@@ -112,7 +112,7 @@
         answered = "";
         hideTimer = undefined;
         // A dialog that flickers away keeps its draft for a while. One that stays gone does not.
-        forgetTimer = setTimeout(() => forgetCardMemos(session.id), FORGET_AFTER_MS);
+        forgetTimer = setTimeout(() => forgetCardMemos(screenScope(session.id)), FORGET_AFTER_MS);
       }, HIDE_AFTER_MS);
       return;
     }
@@ -142,7 +142,7 @@
   function answer(chunks: string[]): void {
     if (!choice) return;
     answered = shownKey;
-    forgetCardMemos(session.id);
+    forgetCardMemos(screenScope(session.id));
     heldQuestion = choice.question;
     holdUntil = performance.now() + chunks.length * KEY_GAP_MS + HOLD_AFTER_KEYS_MS;
     chunks.forEach((chunk, index) => setTimeout(() => app.connection?.input(session.id, chunk), index * KEY_GAP_MS));
@@ -196,7 +196,7 @@
                 <div class="overlay">
                   <ChoiceCard
                     choice={asked}
-                    memo={cardMemo(memoKey(session.id, asked.options), [])}
+                    memo={cardMemo(memoKey(askScope(ask.id), asked.options), [])}
                     identity={asker}
                     focusToken={app.focusAsk === session.id ? app.focusCard : 0}
                     onfocused={() => (app.focusAsk = null)}
@@ -205,11 +205,11 @@
                     cancelLocked={needsPasskey(app.typing) || reconnecting()}
                     onanswer={(picks, text) => {
                       const reply = askAnswer(ask, picks, text);
-                      forgetCardMemos(session.id);
+                      forgetCardMemos(askScope(ask.id));
                       app.connection?.answer(ask.id, reply.picks, reply.text);
                     }}
                     oncancel={() => {
-                      forgetCardMemos(session.id);
+                      forgetCardMemos(askScope(ask.id));
                       app.connection?.cancelAsk(ask.id);
                     }}
                   />
@@ -219,7 +219,7 @@
               {@const current = choice}
               {#key shownKey}
                 <div class="overlay">
-                  <ChoiceCard choice={current} memo={cardMemo(memoKey(session.id, current.options), tickedRows(current.options))} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(current.multi ? keysForPicks(current, picks, text) : keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
+                  <ChoiceCard choice={current} memo={cardMemo(memoKey(screenScope(session.id), current.options), tickedRows(current.options))} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(current.multi ? keysForPicks(current, picks, text) : keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
                 </div>
               {/key}
             {/if}

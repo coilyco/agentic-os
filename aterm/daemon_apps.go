@@ -67,6 +67,8 @@ type appsState struct {
 	servers  map[string]map[string]*gatewayServer // session, then server name
 	views    []*liveView                          // oldest first
 	watchers map[*conn]bool
+	// artifacts are the pages seats registered, by artifact id. See daemon_artifact.go.
+	artifacts map[string]*artifactEntry
 }
 
 func (a *appsState) emit(message frame) {
@@ -254,6 +256,9 @@ func (d *daemon) watchViews(cl *client, message frame) error {
 				return err
 			}
 		}
+	}
+	if err := d.replayArtifacts(cl.c); err != nil {
+		return err
 	}
 	d.apps.watchers[cl.c] = true
 	return nil

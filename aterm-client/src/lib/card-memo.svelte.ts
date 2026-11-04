@@ -12,9 +12,13 @@ export interface CardMemo {
 
 const memos = new Map<string, CardMemo>();
 
-/** One seat's cards are told apart by their options, so a new question starts clean. */
-export function memoKey(seat: string, options: readonly ChoiceOption[]): string {
-  return `${seat}|${options.map((option) => `${option.label}\u0001${option.freeText}`).join("\u0002")}`;
+/** A scope: `screen:<seat>` for a screen-read dialog, `ask:<id>` for a daemon ask. */
+export const screenScope = (seat: string): string => `screen:${seat}`;
+export const askScope = (askId: string): string => `ask:${askId}`;
+
+/** Cards in one scope are told apart by their options, so a new question starts clean. */
+export function memoKey(scope: string, options: readonly ChoiceOption[]): string {
+  return `${scope}|${options.map((option) => `${option.label}\u0001${option.freeText}`).join("\u0002")}`;
 }
 
 export function cardMemo(key: string, picked: number[]): CardMemo {
@@ -25,9 +29,9 @@ export function cardMemo(key: string, picked: number[]): CardMemo {
   return fresh;
 }
 
-/** A card was answered or went away, so none of it comes back with a later one. */
-export function forgetCardMemos(seat: string): void {
-  for (const key of [...memos.keys()]) if (key.startsWith(`${seat}|`)) memos.delete(key);
+/** A card was answered or went away, so none of it comes back. Other scopes stay. */
+export function forgetCardMemos(scope: string): void {
+  for (const key of [...memos.keys()]) if (key.startsWith(`${scope}|`)) memos.delete(key);
 }
 
 /** The rows a multi-select already shows ticked, which a card starts with. */

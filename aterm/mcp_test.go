@@ -14,7 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var mcpToolNames = []string{"ask_choice", "clear_session", "close_session", "list_agents", "read_messages", "send_message", "send_user_question", "session_status", "stage_command"}
+var mcpToolNames = []string{"add_artifact", "ask_choice", "clear_session", "close_session", "list_agents", "read_messages", "remove_artifact", "send_message", "send_user_question", "session_status", "set_artifact_waiting", "stage_command"}
 
 func fakeBackend() mcpBackend {
 	return mcpBackend{
@@ -48,6 +48,18 @@ func fakeBackend() mcpBackend {
 				return stageResult{State: stageRefused, Reason: "the command may not carry U+000A"}, nil
 			}
 			return stageResult{State: stageStaged, Session: "terminal-abc", Reason: note}, nil
+		},
+		artifactAdd: func(address, title, source string, waiting, standing bool) (frame, error) {
+			if !strings.HasPrefix(address, "https://claude.ai/artifact/") {
+				return frame{}, errors.New("an artifact address is exactly https://claude.ai/artifact/<id>")
+			}
+			return frame{ArtifactID: "abc", Delivered: 2}, nil
+		},
+		artifact: func(request frame) (frame, error) {
+			if request.ArtifactID == "missing" {
+				return frame{}, errors.New("no artifact \"missing\"")
+			}
+			return frame{}, nil
 		},
 		inbox: func(all bool) ([]inboxMessage, error) {
 			if all {
@@ -156,6 +168,9 @@ func TestMCPCallsEveryTool(t *testing.T) {
 		{"clear_session", map[string]any{"to": "ox"}, "typed /clear into ox"},
 		{"close_session", map[string]any{"to": "ox", "force": true}, "closed ox (exit 0)"},
 		{"stage_command", map[string]any{"command": "ls", "note": "check"}, "staged in terminal-abc. Nothing ran"},
+		{"add_artifact", map[string]any{"url": "https://claude.ai/artifact/abc", "title": "T", "source": "/x/y.html"}, "added abc, shown to 2 clients"},
+		{"set_artifact_waiting", map[string]any{"artifact": "abc", "waiting": true}, "waiting true"},
+		{"remove_artifact", map[string]any{"artifact": "abc"}, "removed"},
 		{"ask_choice", map[string]any{"question": "Ship?", "options": []map[string]any{{"label": "yes"}}},
 			`{"labels":["yes"],"picks":[0],"text":""}`},
 		{"send_user_question", map[string]any{"question": "Ship?", "options": []map[string]any{{"label": "yes"}}},
@@ -186,6 +201,8 @@ func TestMCPReportsToolFailuresAsOutputNotProtocolErrors(t *testing.T) {
 		{"both ask shapes", "ask_choice", map[string]any{"question": "x", "options": []map[string]any{{"label": "a"}},
 			"questions": []map[string]any{{"question": "y", "options": []map[string]any{{"label": "b"}}}}},
 			"give either question or questions, not both"},
+		{"bad artifact address", "add_artifact", map[string]any{"url": "https://example.com/x", "title": "T", "source": "/x"}, "an artifact address is exactly"},
+		{"unknown artifact", "remove_artifact", map[string]any{"artifact": "missing"}, `no artifact "missing"`},
 		{"refused stage", "stage_command", map[string]any{"command": "ls\nrm x"}, "refused: the command may not carry U+000A"},
 		{"missing required field", "send_message", map[string]any{"message": "hi"}, "to"},
 		{"wrong type", "session_status", map[string]any{"to": "ox", "lines": "many"}, "lines"},
