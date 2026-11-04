@@ -10,7 +10,7 @@
 * **Settling is read off the screen.** The daemon presses Enter again every 10 seconds while the box holds the text and no card is up. The message is `delivered` once the text has left the box and shows above it on two reads running.
 * **It ends.** After 30 minutes, or at once when a person types into the box, the message is `failed` and the reason names the unsent text. A session that exits fails it too.
 
-The senders' `--wait` returns the `held` state when its time runs out, and the receipt typed into the sender's session reports the final state.
+The senders' `--wait` returns the `held` state when its time runs out, and the receipt in the sender's inbox (`read_messages`) reports the final state.
 
 ## Not explained
 

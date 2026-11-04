@@ -44,7 +44,7 @@ attached to it.
 `aterm.daemon.v1` is one JSON object per line over the socket, and one per text message over the websocket. Both sides open with `hello` and `welcome`, and a mismatched format refuses. A request's `id` is echoed on its reply or `error`.
 
 * `spawn`, `attach`, `detach`, `input` and `output` (base64 `data`), `resize`, `exit` with `code`.
-* `send` answers `sent` with the message state, waiting 3 seconds, or `wait` up to 120, for delivery unless `launching`. One not yet final earns the sender `[from aterm daemon] message <id> to <session>: <state>`, never the body. `notify_idle` adds `<session> is idle`, `is held at a prompt` or `ended`.
+* `send` answers `sent` with the message state, waiting 3 seconds, or `wait` up to 120, for delivery unless `launching`. One not yet final earns the sender an inbox receipt `message <id> to <session>: <state>`, not typed, no body. `notify_idle` types `<session> is idle`, `is held at a prompt` or `ended`.
 * `status` (with `lines`), `clear` and `close` (with optional `force`), each with a `target`, answer `status`, `cleared` and `closed` with the exit `code`. `claim` with a `session` base answers `claimed` with a free pool name, and `peek` holds none.
 * `inbox` (feature `inbox`) returns the caller's own messages by `token`, recorded at `enqueue` and marked read on return, `all` adding the read. Capped at 200, emptied by a restart.
 * `list` answers `sessions`, each with `state`, `quiet_seconds`, `last_reply` and `context` ([the meter](../.agents/skills/tooling-aterm-client/references/context-meter.md)). `subscribe` to `sessions` pushes the roster on every change, and `message` events carry each state change, never the body. A stalled subscriber drops after 5 seconds.

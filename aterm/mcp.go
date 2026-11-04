@@ -145,9 +145,10 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 			"`[from <your role> <your identity>]`, which aterm stamps and you cannot change. " +
 			"Address it by role slug, identity, harness, or session name from list_agents. Returns " +
 			"queued, held (with the reason), delivered, or failed. A message still queued or held when " +
-			"this returns is followed by a `[from aterm daemon]` receipt typed into your own session " +
-			"when it lands or fails, so do not poll. `notify_when_idle` adds one `[from aterm daemon]` line " +
-			"when the recipient next goes idle, is held at a permission or question card, or ends.",
+			"this returns earns a receipt in your inbox when it lands or fails, which read_messages " +
+			"returns. It is never typed into your session. `notify_when_idle` adds one `[from aterm daemon]` " +
+			"line typed into your session when the recipient next goes idle, is held at a permission " +
+			"or question card, or ends.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, input sendMessageInput) (*mcp.CallToolResult, any, error) {
 		state, err := backend.send(input.To, input.Message, sendOptions{Launch: input.Launch, Fresh: input.New,
 			NotifyIdle: input.Idle, Wait: time.Duration(input.Wait) * time.Second})
@@ -159,9 +160,10 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "read_messages",
-		Description: "Read the messages other sessions sent you with send_message or `aterm send`. Each carries " +
-			"its id, `from` (`<role> <identity>`, stamped by aterm), `text` (the stamped line, which is also " +
-			"typed into your session), and when it was received. Returns the unread ones, oldest first, and " +
+		Description: "Read the messages other sessions sent you with send_message or `aterm send`, and the " +
+			"delivery receipts from `aterm daemon` for yours. Each carries its id, `from` (`<role> <identity>`, " +
+			"stamped by aterm), `text` (the stamped line, typed into your session too unless it is a receipt), " +
+			"and when it was received. Returns the unread ones, oldest first, and " +
 			"marks them read, so a second call returns only what arrived since. `all` also returns the ones " +
 			"already read. It holds the last 200 and empties when the aterm daemon restarts.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, input readMessagesInput) (*mcp.CallToolResult, any, error) {
