@@ -1,4 +1,4 @@
-package dev.coilyco.aterm.devicekey
+package dev.coilyco.treehouse.devicekey
 
 import android.content.Context
 import android.hardware.biometrics.BiometricManager
@@ -20,7 +20,7 @@ data class EnrolledKey(val keyId: String, val publicKey: String, val attestation
 /** The one P-256 key in the AndroidKeyStore. The private half never leaves it. */
 class DeviceKeyStore(private val context: Context) {
     companion object {
-        const val ALIAS = "dev.coilyco.aterm.devicekey"
+        const val ALIAS = "dev.coilyco.treehouse.devicekey"
         const val AUTHENTICATORS =
             BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
         private const val PROVIDER = "AndroidKeyStore"

@@ -2071,7 +2071,14 @@ func createNativeSession(
 			config = filepath.Join(nativeClaudeSeatsDir(runtime.Home), ".claude.json")
 			trusted = append(trusted, seat)
 		}
-		if err := seedNativeClaudeTrust(config, trusted); err != nil {
+		external := nativeClaudeImportsApproved(runtime.Home, []string{sessionRoot},
+			filepath.Join(runtime.Home, ".claude", "CLAUDE.md"),
+			filepath.Join(sessionHome, ".claude", "CLAUDE.md"),
+			filepath.Join(seat, ".claude", "CLAUDE.md"))
+		if !external {
+			fmt.Fprintf(runtime.Stderr, "aos: native session external imports not pre-approved, a CLAUDE.md imports a file beyond the approved two\n")
+		}
+		if err := ensureNativeClaudeTrust(config, trusted, external); err != nil {
 			fmt.Fprintf(runtime.Stderr, "aos: native session trust not seeded: %v\n", err)
 		}
 	}

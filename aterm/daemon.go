@@ -57,6 +57,8 @@ type daemon struct {
 	// imageRoot holds each seat's uploaded images. Empty means this daemon takes
 	// none and does not offer image-upload.
 	imageRoot string
+	// artifactDir keeps standing artifacts across a restart, empty for none.
+	artifactDir string
 	// shimDir holds the `open` shims a seat's PATH leads with, empty for none.
 	shimDir string
 	// openers are the clients subscribed to open_url, guarded by mu.
@@ -261,6 +263,10 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	}
 	d.adoptHolders()
 	d.sweepImages()
+	if d.ledgerDir != "" {
+		d.artifactDir = filepath.Join(filepath.Dir(d.ledgerDir), "artifacts")
+	}
+	d.restoreArtifacts()
 	d.clientDir = options.ClientDir
 	d.discovery.port = func() string { return options.TailnetPort }
 	d.discovery.peerPorts = options.PeerPorts
@@ -425,7 +431,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -558,6 +564,10 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return d.uploadImage(cl, message)
 	case "open_url":
 		return d.openURL(cl, message)
+	case "artifact_add":
+		return d.artifactAdd(cl, message)
+	case "artifact_waiting", "artifact_remove":
+		return d.artifactChange(cl, message)
 	case "resize":
 		if s := cl.attached[message.Session]; s != nil {
 			s.report(cl.c, message.Rows, message.Cols, nil)
@@ -868,6 +878,7 @@ func (d *daemon) forget(s *ptySession) {
 	d.browsers.end(s.name)
 	d.dropApps(s.name)
 	s.dropImages(d.imageRoot)
+	d.endArtifacts(s)
 	d.pushSessions()
 }
 

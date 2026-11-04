@@ -26,6 +26,7 @@ Every step also saves its screenshot, pass or fail, under `aterm-client/testbed/
 * `iphone` - iPhone 15 emulation on WebKit, Safari's engine.
 * `android` - Pixel 7 emulation on Chromium.
 * `phone-320` - the narrowest phone, Chromium.
+* `iphone-landscape` (844x390, WebKit) and `android-landscape` (740x360, Chromium) - run only `landscape.spec.ts`, which counts the rows of seat output a person can read.
 
 ## Quirks go green
 

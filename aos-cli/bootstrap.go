@@ -524,7 +524,7 @@ func stageClaudeDefaults(home, workspace string) error {
 	if err := setNativeClaudeFlag(config, "hasCompletedOnboarding"); err != nil {
 		return fmt.Errorf("seed claude onboarding: %w", err)
 	}
-	if err := seedNativeClaudeTrust(config, []string{workspace}); err != nil {
+	if err := seedNativeClaudeTrust(config, []string{workspace}, true); err != nil {
 		return fmt.Errorf("seed claude workspace trust: %w", err)
 	}
 	return nil
