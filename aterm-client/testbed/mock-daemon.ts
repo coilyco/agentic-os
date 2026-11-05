@@ -117,8 +117,10 @@ export function loadSessions(): SessionSpec[] {
   return JSON.parse(readFileSync(new URL("./fixtures/sessions.json", import.meta.url), "utf8")) as SessionSpec[];
 }
 
-/** `lock`: a remote device kept read only until a device key unlocks it (COI-3305). */
-export async function startMock(options: { sessions?: SessionSpec[]; port?: number; lock?: boolean } = {}): Promise<Mock> {
+/** `lock`: a device kept read only until a key unlocks it (COI-3305).
+ * `images`: a host that takes an image, so the composer shows Add image. */
+export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean };
+export async function startMock(options: MockOptions = {}): Promise<Mock> {
   if (!existsSync(join(DIST, "index.html"))) {
     throw new Error("The mock daemon serves aterm-client/dist, which is not built. Run `just aterm-client-testbed`, which builds it first.");
   }
@@ -202,7 +204,7 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
           if (options.lock) {
             send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...unlockedFeatures], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
           } else {
-            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: FEATURES, typing: { allowed: true } });
+            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: options.images ? [...FEATURES, "image-upload"] : FEATURES, typing: { allowed: true } });
           }
           return;
         case "device_assert_begin":

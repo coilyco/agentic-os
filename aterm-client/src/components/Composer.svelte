@@ -475,7 +475,7 @@
 {/if}
 
 <style>
-  .composer { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--ground); }
+  .composer { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--ground); }
   /* Above the terminal, which overflows its row when the layout is squeezed. */
   .composer.locked { display: block; position: relative; z-index: 1; }
   .locked p { margin: 0; color: var(--text-soft); }

@@ -1,7 +1,7 @@
 // What every journey shares: a mock daemon per test, the client pointed at it,
 // and a step helper that saves a screenshot and compares it to its baseline.
 import { test as base, expect, type Locator, type Page, type TestInfo } from "@playwright/test";
-import { startMock, type Mock } from "./mock-daemon.ts";
+import { startMock, type Mock, type MockOptions } from "./mock-daemon.ts";
 
 export { expect };
 
@@ -32,9 +32,11 @@ export interface Bed {
   cols(seat: Seat): number;
 }
 
-export const test = base.extend<{ bed: Bed; mock: Mock }>({
-  mock: async ({}, use) => {
-    const mock = await startMock();
+export const test = base.extend<{ bed: Bed; mock: Mock; mockOptions: MockOptions }>({
+  // A journey sets it with test.use({ mockOptions: { images: true } }).
+  mockOptions: [{}, { option: true }],
+  mock: async ({ mockOptions }, use) => {
+    const mock = await startMock(mockOptions);
     await use(mock);
     await mock.stop();
   },
