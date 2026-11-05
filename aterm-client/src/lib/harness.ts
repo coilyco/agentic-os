@@ -29,6 +29,15 @@ export function harnessInputRows(screen: readonly string[]): number {
   return ruledBoxRows(screen) || railBoxRows(screen) || codexBoxRows(screen) || gooseBoxRows(screen);
 }
 
+/** The box's top row and own height, without the blank rows under it (COI-3291). */
+export function harnessBox(screen: readonly string[]): { top: number; height: number } | null {
+  const rows = harnessInputRows(screen);
+  if (rows === 0) return null;
+  let blanks = 0;
+  while (blanks < screen.length && screen[screen.length - 1 - blanks]!.trim() === "") blanks++;
+  return { top: screen.length - rows, height: Math.max(1, rows - blanks) };
+}
+
 function ruledBoxRows(screen: readonly string[]): number {
   // Blank rows under the box belong to it.
   let end = screen.length;

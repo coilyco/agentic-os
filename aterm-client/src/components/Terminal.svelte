@@ -8,7 +8,7 @@
   import FindBar from "./FindBar.svelte";
   import { AT_END, jumpLabel, linesAbove, scrolled, wrote, type Follow } from "../lib/follow";
   import { envelopeRows } from "../lib/messages";
-  import { harnessInputRows } from "../lib/harness";
+  import { harnessBox } from "../lib/harness";
   import { boxToReport } from "../lib/pty-size";
   import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
   import { isBlank, screenRows, tabBarReading, type TabBarCells } from "../lib/screen";
@@ -200,7 +200,10 @@
     host.addEventListener("scroll", edges);
     const cropping = () => cropHarness;
     let hidden = 0;
+    // Blank rows under a floating box hide with it, but only its height is asked of the PTY.
+    let boxRows = 0;
     const extra = () => (cropping() ? hidden : 0);
+    const asking = () => (cropping() ? boxRows : 0);
     const cell = () => (host.querySelector<HTMLElement>(".xterm-screen")?.clientHeight ?? 0) / Math.max(terminal.rows, 1);
     // The window ends at the last shown row, not at the padding below it, which would show a sliver of the box.
     hiddenPx = () => (extra() > 0 ? extra() * cell() + parseFloat(getComputedStyle(host).paddingBottom) : 0);
@@ -210,10 +213,11 @@
     // Rows the box cannot show are asked for anyway, so the harness draws its input below the fold.
     function layout(): void {
       const more = extra();
+      const ask = asking();
       if (connection.ptySize === true) {
         panning = true;
         const box = boxToReport(fit.proposeDimensions(), true, own());
-        const asked = box && { rows: box.rows + more, cols: box.cols };
+        const asked = box && { rows: box.rows + ask, cols: box.cols };
         if (asked && (asked.rows !== reported?.rows || asked.cols !== reported?.cols)) {
           reported = asked;
           connection.resize(sessionId, asked.rows, asked.cols);
@@ -221,7 +225,7 @@
       } else {
         panning = more > 0;
         fit.fit();
-        if (more > 0) terminal.resize(terminal.cols, terminal.rows + more);
+        if (more > 0) terminal.resize(terminal.cols, terminal.rows + ask);
         connection.resize(sessionId, terminal.rows, terminal.cols);
       }
       remark();
@@ -245,9 +249,12 @@
       if (!cropping()) return;
       clearTimeout(settle);
       settle = setTimeout(() => {
-        const next = harnessInputRows(screenRows(terminal.buffer.active, terminal.rows));
-        if (next === hidden) return;
+        const rows = screenRows(terminal.buffer.active, terminal.rows);
+        const found = harnessBox(rows);
+        const next = found ? rows.length - found.top : 0;
+        if (next === hidden && (found?.height ?? 0) === boxRows) return;
         hidden = next;
+        boxRows = found?.height ?? 0;
         layout();
         anchor(true);
       }, HIDE_SETTLE_MS);
@@ -255,7 +262,7 @@
     // A soft keyboard would only be a second input, so a tap on the terminal does not raise one.
     const shapeForPhone = () => {
       terminal.textarea?.setAttribute("inputmode", cropping() ? "none" : "text");
-      if (!cropping()) hidden = 0;
+      if (!cropping()) hidden = boxRows = 0;
       layout();
       anchor(true);
     };
