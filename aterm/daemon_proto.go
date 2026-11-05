@@ -70,6 +70,12 @@ type frame struct {
 	Offset int64  `json:"offset,omitempty"`
 	// Path is the absolute file an image_uploaded names.
 	Path string `json:"path,omitempty"`
+	// feedback: Image and Images are screenshot tokens, Screen the client's display text
+	// (not "context", which a seat's meter owns), Record the report's id.
+	Image  string          `json:"image,omitempty"`
+	Images []string        `json:"images,omitempty"`
+	Screen *feedbackScreen `json:"screen,omitempty"`
+	Record string          `json:"record,omitempty"`
 	// Delivered is how many clients an opened reply says took the address.
 	Delivered int `json:"delivered,omitempty"`
 
