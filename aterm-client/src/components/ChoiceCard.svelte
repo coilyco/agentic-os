@@ -4,7 +4,7 @@
   import { progressText, type TabReading } from "../lib/dialog-tabs";
   import { advanceIndex, nextRowIndex, type Choice } from "../lib/choices";
 
-  let { choice, identity, memo, tabs = null, ontab, onanswer, oncancel, focusToken = 0, onfocused, locked = false, cancelLocked = locked, lockedLabel = "Read only" }: {
+  let { choice, identity, memo, tabs = null, ontab, onmove, onanswer, oncancel, focusToken = 0, onfocused, locked = false, cancelLocked = locked, lockedLabel = "Read only" }: {
     choice: Choice;
     identity: string;
     /** The card's working state, held by its parent so a rebuilt card keeps its text box and draft. */
@@ -13,6 +13,8 @@
     tabs?: TabReading | null;
     /** Asked to move to a tab. The pane presses the arrows. */
     ontab?: (index: number) => void;
+    /** Asked to move the seat's highlight down one row. The pane types the arrow. */
+    onmove?: () => void;
     /** Each change asks the card to take the keyboard, as when you alt-tab in. */
     focusToken?: number;
     /** Said once the card has taken the keyboard, so the request is spent and a later card does not repeat it. */
@@ -57,6 +59,12 @@
       field?.scrollIntoView({ block: "nearest" });
     });
   });
+  // A screen too short for the dialog scrolls its top away for good (COI-3259).
+  const hidden = $derived(choice.hidden ?? 0);
+  const lost = $derived(choice.cursor === -1);
+  // Nothing on screen says where the highlight is in a multi-select, so no tap can be placed until it shows.
+  const stuck = $derived(lost && choice.multi);
+  const notice = $derived(hidden === 1 ? "The first option is off the top of this screen." : `The first ${hidden} options are off the top of this screen.`);
   const freeIndex = $derived(choice.options.findIndex((option) => option.freeText));
   // A harness's own Next row rides in the pinned footer, so a long list never scrolls it away.
   const advance = $derived(advanceIndex(choice));
@@ -64,7 +72,7 @@
   const next = $derived(nextRowIndex(choice));
   const nextLabel = $derived(next === -1 ? "" : (choice.options[next]?.label ?? ""));
   // Claude Code draws that row without a number, so the rows after it count one fewer than their place in the list.
-  const shown = (index: number): number => index + 1 - (next !== -1 && next < index ? 1 : 0);
+  const shown = (index: number): number => choice.options[index]?.number ?? index + 1 - (next !== -1 && next < index ? 1 : 0);
   const rows = $derived(choice.options.flatMap((_, index) => (index === next ? [] : [index])));
 
   function pick(index: number): void {
@@ -106,7 +114,7 @@
     const buttons = [...(card?.querySelectorAll<HTMLButtonElement>("button.option, button.advance") ?? [])];
     const at = buttons.indexOf(document.activeElement as HTMLButtonElement);
     const digit = Number(event.key);
-    if (Number.isInteger(digit) && digit >= 1 && digit <= rows.length) {
+    if (hidden === 0 && Number.isInteger(digit) && digit >= 1 && digit <= rows.length) {
       event.preventDefault();
       pick(rows[digit - 1]!);
     } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -130,8 +138,9 @@
       <span>{identity} is asking{#if choice.header}<span class="chip">{choice.header}</span>{/if}{#if locked}<span class="chip">{lockedLabel}</span>{/if}</span>
       {#if narrow}<button type="button" class="fold" aria-expanded={!folded} onclick={() => (memo.collapsed = !memo.collapsed)}>{folded ? "Show question" : "Hide question"}</button>{/if}
     </p>
-  <h2 id="choice-question" class:peek={folded}>{choice.question || "Pick one"}</h2>
+  <h2 id="choice-question" class:peek={folded}>{choice.question || (hidden ? "The question is off the top of this screen" : "Pick one")}</h2>
   {#if !folded}
+  {#if hidden}<p class="notice" role="note">{notice}{stuck ? " The highlight is up there too." : ""}</p>{/if}
   {#if tabs}
     <div class="tabs">
       {#if progress}<p class="progress">{progress}</p>{/if}
@@ -144,8 +153,8 @@
       </div>
     </div>
   {/if}
-  {#if choice.multi}<p class="hint">Pick any, then {next === -1 ? "submit" : nextLabel.toLowerCase()}.</p>{/if}
-  <ol>
+  {#if choice.multi && !stuck}<p class="hint">Pick any, then {next === -1 ? "submit" : nextLabel.toLowerCase()}.</p>{/if}
+  <ol hidden={stuck}>
     {#each choice.options as option, index (index)}
       {#if index !== advance && index !== next}
       <li>
@@ -157,11 +166,11 @@
             <button class="button primary" type="submit" disabled={!memo.text.trim()}>Answer</button>
           </form>
         {:else}
-          <button class="option" disabled={locked} aria-pressed={choice.multi ? memo.picked.includes(index) : undefined} onclick={() => pick(index)} onkeydown={keys}>
+          <button class="option" disabled={locked || (lost && option.freeText)} aria-pressed={choice.multi ? memo.picked.includes(index) : undefined} onclick={() => pick(index)} onkeydown={keys}>
             <span class="number" aria-hidden="true">{choice.multi && memo.picked.includes(index) ? "✓" : shown(index)}</span>
             <span class="text">
               <span class="label">{option.freeText ? "Something else…" : option.label}</span>
-              {#if option.description}<span class="description">{option.description}</span>{/if}
+              {#if option.description}<span class="description">{option.description}</span>{:else if lost && option.freeText}<span class="description">Move the highlight onto this row to type.</span>{/if}
             </span>
           </button>
           {#if choice.multi && memo.writing === index}
@@ -174,17 +183,19 @@
       {/if}
     {/each}
   </ol>
-  <p class="keys" aria-hidden="true">
+  <p class="keys" aria-hidden="true" hidden={stuck || hidden > 0}>
     {choice.multi ? `1 to ${rows.length} to pick // Enter to ${next === -1 ? "submit" : nextLabel.toLowerCase()}` : `1 to ${choice.options.length} to answer`}{choice.cancellable ? " // Esc to cancel" : ""}
   </p>
   {/if}
   </div>
   {#if !folded}
   <div class="actions">
-    {#if advance !== -1}
+    {#if advance !== -1 && !stuck}
       <button class="button primary advance" disabled={locked} onclick={() => pick(advance)} onkeydown={keys}>{choice.options[advance]?.label}</button>
     {/if}
-    {#if choice.multi && next !== -1}
+    {#if stuck}
+      <button class="button primary" disabled={locked} onclick={() => onmove?.()}>Move highlight down</button>
+    {:else if choice.multi && next !== -1}
       <button class="button primary advance" onclick={submitMulti} disabled={locked}>{nextLabel}</button>
     {:else if choice.multi}
       <button class="button primary" onclick={submitMulti} disabled={locked || memo.picked.length === 0}>Submit {memo.picked.length || ""}</button>
@@ -224,6 +235,8 @@
   .chip { margin-left: 10px; padding: 2px 8px; border-radius: 999px; border: 1px solid #3a3350; color: var(--text-soft); text-transform: none; letter-spacing: 0; }
   h2 { margin: 0; font-size: 15px; font-weight: 500; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
   .hint { margin: 0; font-size: 13px; color: var(--muted); }
+  .notice { margin: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid #3a3350; font-size: 13px; color: var(--text-soft); }
+  ol[hidden], .keys[hidden] { display: none; }
   ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   .option { width: 100%; min-height: 44px; display: flex; gap: 12px; align-items: flex-start; text-align: left; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--control-line); background: var(--surface); color: var(--text); }
   .option:hover, .option[aria-pressed="true"] { border-color: var(--brand); background: #1d1729; }

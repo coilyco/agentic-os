@@ -1,0 +1,20 @@
+         Meta's open-weight Llama
+         models provide flexible
+         self-hosting,
+         fine-tuning, and broad
+         community tooling
+         support.
+❯ 3. [ ] Frontier
+         Frontier proprietary
+         models deliver the
+         highest capability for
+         complex reasoning,
+         coding, and long-context
+         tasks.
+  4. [ ] Type something
+     Submit
+──────────────────────────────────
+  5. Chat about this
+
+Enter to select · ↑/↓ to navigate
+· Esc to cancel

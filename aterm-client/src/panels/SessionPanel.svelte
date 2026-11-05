@@ -234,7 +234,7 @@
               {@const current = choice}
               {#key shownKey}
                 <div class="overlay">
-                  <ChoiceCard choice={current} tabs={dialogTabs} ontab={goToTab} memo={cardMemo(memoKey(screenScope(session.id), current.options), tickedRows(current.options))} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(current.multi ? keysForPicks(current, picks, text) : keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
+                  <ChoiceCard choice={current} tabs={dialogTabs} ontab={goToTab} onmove={() => app.connection?.input(session.id, "\x1b[B")} memo={cardMemo(memoKey(screenScope(session.id), current.options), tickedRows(current.options))} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(current.multi ? keysForPicks(current, picks, text) : keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
                 </div>
               {/key}
             {/if}
