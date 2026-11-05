@@ -8,6 +8,7 @@
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
   import { stateWithAge } from "../lib/age";
+  import { activityFlag, activityWords } from "../lib/seat-activity";
   import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel, splitSessions } from "../lib/sessions";
   import { tablistKeys } from "../lib/tabs";
 
@@ -156,7 +157,7 @@
     id={`tab-session-${session.id}`}
     aria-selected={selected}
     aria-controls="main-panel"
-    aria-label={sessionLabel(session, role, stateText(session))}
+    aria-label={sessionLabel(session, role, [stateText(session), activityWords(session.activity, now)].filter(Boolean).join(", "))}
     tabindex={stop ? 0 : -1}
     class="tab seat"
     data-state={session.state}
@@ -183,6 +184,13 @@
       </span>
       <span class="detail">{code ? `${role.displayName} // ${code}` : role.displayName}</span>
       <span class="detail state-text">{stateText(session)}</span>
+      {#if session.activity}
+        {@const flag = activityFlag(session.activity, now)}
+        <span class="activity" data-stale={flag !== ""}>
+          <span class="line">{session.activity.text}</span>
+          {#if flag}<span class="age">{flag}</span>{/if}
+        </span>
+      {/if}
       {#if session.degraded.length}
         <span class="degraded">started without {session.degraded.join(", ")}</span>
       {/if}
@@ -382,6 +390,11 @@
   .state-text { color: var(--text-soft); }
   [data-activity="unseen"] .state-text, [data-activity="asking"] .state-text { color: var(--brand); }
   .count { font-family: var(--font-body); letter-spacing: 0; color: var(--text-soft); }
+  /* One line, cut with an ellipsis. Past a few minutes the text mutes and the age stays whole. */
+  .activity { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 12px; color: var(--text-soft); }
+  .activity .line { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .activity .age { flex: none; color: var(--muted); }
+  .activity[data-stale="true"] .line { color: var(--muted); }
   .degraded { font-size: 12px; color: var(--warn-text); }
   .degraded::before { content: "! "; font-weight: 700; color: var(--warn); }
   .warn-badge {
@@ -415,6 +428,8 @@
     .seats .tab { width: auto; flex: none; }
     .seats .waiting { margin: 0 4px; }
     .seats .detail, .seats .degraded { display: none; }
+    /* A chip grows to carry the line, and no further, so the next chip still shows at the edge. */
+    .seats .activity { max-width: 190px; }
     /* Name over harness and code, so a chip is narrow enough to leave the next one showing at its edge. */
     .seats .name-row { display: grid; grid-template-columns: auto auto 1fr; column-gap: 6px; align-items: baseline; }
     .seats .name { grid-column: 1 / -1; font-size: 14px; line-height: 1.2; }
@@ -436,7 +451,8 @@
   .menu[data-flow="sheet"] .seat .state-text { order: 1; }
   .menu[data-flow="sheet"] .seat .text > .detail:not(.state-text) { order: 2; }
   .menu[data-flow="sheet"] .seat .text > .detail:not(.state-text)::before { content: "// "; }
-  .menu[data-flow="sheet"] .seat .degraded { order: 3; flex-basis: 100%; }
+  .menu[data-flow="sheet"] .seat .activity { order: 3; flex-basis: 100%; }
+  .menu[data-flow="sheet"] .seat .degraded { order: 4; flex-basis: 100%; }
   .menu[data-flow="sheet"] .chips { flex-direction: row; gap: 8px; overflow-x: auto; padding: 2px 10px 8px; scrollbar-width: none; }
   .menu[data-flow="sheet"] .chips .tab { flex: none; width: 92px; min-height: 76px; flex-direction: column; justify-content: center; gap: 4px; padding: 6px 4px; text-align: center; border: 1px solid var(--line); }
   .menu[data-flow="sheet"] .chips .tab[aria-selected="true"] { border-color: var(--accent); }

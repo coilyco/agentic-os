@@ -5,6 +5,7 @@ import type { ToolResult, View } from "./mcp-apps";
 import type { ResumeState } from "./resume";
 import type { Role } from "./roster";
 import type { Layer } from "./reach";
+import type { Activity } from "./seat-activity";
 import type { InputKind, SharedBrowser } from "./screencast";
 import type { ListedTerminal } from "./terminals";
 import type { Typing } from "./typing";
@@ -65,6 +66,8 @@ export interface Session {
   lastReply?: string;
   /** When it last wrote, in ms. Absent from a daemon that predates `quiet_seconds`. */
   quietSince?: number;
+  /** What the seat says it is doing, and when it set that. Absent until it sets one. */
+  activity?: Activity;
   /** Not yet ready for input, so its terminal may have nothing to draw. */
   starting?: boolean;
   failure?: string;
