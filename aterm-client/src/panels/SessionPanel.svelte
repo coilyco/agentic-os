@@ -8,6 +8,8 @@
   import SplitHandle from "../components/SplitHandle.svelte";
   import Terminal from "../components/Terminal.svelte";
   import { app, asksShownOn, colorOf, layout, messagesFor, placeNow, reconnecting, relayedTo } from "../lib/app.svelte";
+  import { readTabs, tabKeys, type TabReading } from "../lib/dialog-tabs";
+  import type { TabBarCells } from "../lib/screen";
   import { askScope, cardMemo, forgetCardMemos, memoKey, screenScope, tickedRows } from "../lib/card-memo.svelte";
   import { askAnswer, CANCEL, choiceFromAsk, choiceKey, detectChoice, keysFor, keysForPicks, type Choice } from "../lib/choices";
   import { contextPercent, contextText } from "../lib/context";
@@ -102,9 +104,19 @@
 
   const keyOf = choiceKey;
 
-  function readScreen(rows: string[]): void {
+  // The tabs of a multi-question dialog, and which is current, as the screen shows them.
+  let dialogTabs = $state<TabReading | null>(null);
+
+  function goToTab(index: number): void {
+    if (!dialogTabs) return;
+    const chunks = tabKeys(dialogTabs.current, index, dialogTabs.tabs.length);
+    chunks.forEach((chunk, at) => setTimeout(() => app.connection?.input(session.id, chunk), at * KEY_GAP_MS));
+  }
+
+  function readScreen(rows: string[], tabBar: TabBarCells | null): void {
     blank = isBlank(rows);
     const found = detectChoice(rows);
+    dialogTabs = found && tabBar ? readTabs(tabBar.text, new Set(tabBar.highlighted)) : null;
     if (!found) {
       hideTimer ??= setTimeout(() => {
         choice = null;
@@ -219,7 +231,7 @@
               {@const current = choice}
               {#key shownKey}
                 <div class="overlay">
-                  <ChoiceCard choice={current} memo={cardMemo(memoKey(screenScope(session.id), current.options), tickedRows(current.options))} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(current.multi ? keysForPicks(current, picks, text) : keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
+                  <ChoiceCard choice={current} tabs={dialogTabs} ontab={goToTab} memo={cardMemo(memoKey(screenScope(session.id), current.options), tickedRows(current.options))} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(current.multi ? keysForPicks(current, picks, text) : keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
                 </div>
               {/key}
             {/if}

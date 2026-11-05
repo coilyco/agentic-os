@@ -137,9 +137,28 @@ export class ClaudeAsk implements Scene {
     return rows;
   }
 
+  // The current tab's cells carry a background, 256-colour 153, as the captures show.
   private tabBar(): string {
     const tabs = this.questions.map((each, index) => `${this.answers[index] || index < this.step ? "☒" : "☐"} ${each.header}`);
-    return `←  ${tabs.join("  ")}  ✔ Submit  →`;
+    tabs.push("✔ Submit");
+    const current = this.phase === "review" ? this.questions.length : this.step;
+    const drawn = tabs.map((tab, index) => (index === current ? `\x1b[38;5;16m\x1b[48;5;153m ${tab} \x1b[39m\x1b[49m` : ` ${tab} `));
+    return `← ${drawn.join("")} →`;
+  }
+
+  /** Left and Right move between tabs and stop at the ends. Past the last is Submit. */
+  private moveTab(by: 1 | -1): boolean {
+    if (this.questions.length < 2) return false;
+    if (this.phase === "review") {
+      if (by > 0) return false;
+      this.phase = "asking";
+      this.step = this.questions.length - 1;
+    } else if (by > 0 && this.last) this.phase = "review";
+    else if (by > 0) this.step += 1;
+    else if (this.step > 0) this.step -= 1;
+    else return false;
+    this.cursor = 0;
+    return true;
   }
 
   render(cols: number, rows: number): string[] {
@@ -199,6 +218,8 @@ export class ClaudeAsk implements Scene {
       this.phase = "cancelled";
       return true;
     }
+    if (key === "\x1b[C") return this.moveTab(1);
+    if (key === "\x1b[D") return this.moveTab(-1);
     if (this.phase === "review") {
       if (key === "\x1b[A") this.cursor = 0;
       else if (key === "\x1b[B") this.cursor = 1;

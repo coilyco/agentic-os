@@ -48,6 +48,12 @@ type brokerMsg struct {
 	MaxChannels int             `json:"max_channels,omitempty"`
 	DaemonID    string          `json:"daemon_id,omitempty"`
 	HeartbeatS  int             `json:"heartbeat_s,omitempty"`
+	CertExpires int64           `json:"cert_expires,omitempty"`
+	Kind        string          `json:"kind,omitempty"`
+	SessionName string          `json:"session,omitempty"`
+	Role        string          `json:"role,omitempty"`
+	Identity    string          `json:"identity,omitempty"`
+	Question    string          `json:"question,omitempty"`
 	Channel     string          `json:"channel,omitempty"`
 	Account     string          `json:"account,omitempty"`
 	SID         string          `json:"sid,omitempty"`
@@ -58,12 +64,26 @@ type brokerMsg struct {
 // brokerLink is the daemon's standing connection to the broker.
 type brokerLink struct {
 	url      string
-	cert     string
 	key      *ecdsa.PrivateKey
 	identity daemonIdentity
 	d        *daemon
 	build    string
 	dial     func(ctx context.Context, url string) (*websocket.Conn, error)
+	// accounts, keys and certPath renew the certificate: the issuer address, its key set,
+	// and the file the new certificate replaces.
+	accounts string
+	keys     *accountsKeys
+	certPath string
+	post     func(ctx context.Context, path string, body, out any) error
+	views    func() []sessionView
+	mu       sync.Mutex
+	cert     string
+	cur      *brokerSession
+	// settle and sendEvent replace the wait tracker's delay and the send, for a test.
+	settle    time.Duration
+	sendEvent func(brokerMsg)
+	// settings answers the per-user settings, nil reads every setting as off.
+	settings *settingsReader
 }
 
 func dialBroker(ctx context.Context, url string) (*websocket.Conn, error) {
@@ -75,6 +95,11 @@ func dialBroker(ctx context.Context, url string) (*websocket.Conn, error) {
 func (l *brokerLink) run(ctx context.Context) {
 	delay := brokerBackoff.first
 	for ctx.Err() == nil {
+		if time.Until(l.certExpiry()) < renewBefore {
+			if err := l.renew(ctx); err != nil {
+				l.d.logf("could not renew the Treehouse daemon certificate: %v", err)
+			}
+		}
 		ready, err := l.session(ctx)
 		if ctx.Err() != nil {
 			return
@@ -112,11 +137,11 @@ func (l *brokerLink) session(ctx context.Context) (ready bool, err error) {
 	if err != nil || challenge.Type != "treehouse.reg.challenge.v1" || challenge.Nonce == "" {
 		return false, fmt.Errorf("no challenge from the broker: %v", err)
 	}
-	proof, err := signDaemonProof(l.key, challenge.Nonce, time.Now())
+	proof, err := signDaemonProof(l.key, "treehouse-broker", challenge.Nonce, time.Now())
 	if err != nil {
 		return false, err
 	}
-	hello := brokerMsg{Type: "treehouse.reg.hello.v1", Cert: l.cert, Proof: proof, Build: l.build, Protocol: daemonFormat, Features: []string{}, MaxChannels: brokerMaxChan}
+	hello := brokerMsg{Type: "treehouse.reg.hello.v1", Cert: l.currentCert(), Proof: proof, Build: l.build, Protocol: daemonFormat, Features: []string{}, MaxChannels: brokerMaxChan}
 	if err := session.send(hctx, hello); err != nil {
 		return false, err
 	}
@@ -126,9 +151,20 @@ func (l *brokerLink) session(ctx context.Context) (ready bool, err error) {
 	}
 	cancel()
 	l.d.logf("registered with the Treehouse broker as %s", l.identity.ID)
+	sctx, end := context.WithCancel(ctx)
+	defer end()
+	l.mu.Lock()
+	l.cur = session
+	l.mu.Unlock()
+	defer func() {
+		l.mu.Lock()
+		l.cur = nil
+		l.mu.Unlock()
+	}()
 	beat := time.Duration(max(ok.HeartbeatS, 5)) * time.Second
-	go session.heartbeat(ctx, beat)
-	return true, session.serve(ctx)
+	go session.heartbeat(sctx, beat)
+	go session.renewLoop(sctx)
+	return true, session.serve(sctx)
 }
 
 // brokerSession is one dialed connection and the channels riding it.
@@ -305,9 +341,9 @@ func (s *brokerSession) closeAll() {
 	}
 }
 
-// signDaemonProof is the proof in treehouse.reg.hello.v1: a JWS over aud, the broker's
-// nonce, iat and a fresh jti, carrying the public key in its header.
-func signDaemonProof(key *ecdsa.PrivateKey, nonce string, now time.Time) (string, error) {
+// signDaemonProof is the proof in reg.hello and in a renewal: a JWS over aud, a nonce
+// when the broker gave one, iat and a fresh jti, with the public key in its header.
+func signDaemonProof(key *ecdsa.PrivateKey, aud, nonce string, now time.Time) (string, error) {
 	jti := make([]byte, 12)
 	if _, err := rand.Read(jti); err != nil {
 		return "", err
@@ -317,7 +353,10 @@ func signDaemonProof(key *ecdsa.PrivateKey, nonce string, now time.Time) (string
 		"x": rawURL.EncodeToString(key.X.FillBytes(make([]byte, 32))),
 		"y": rawURL.EncodeToString(key.Y.FillBytes(make([]byte, 32))),
 	}}
-	claims := map[string]any{"aud": "treehouse-broker", "nonce": nonce, "iat": now.Unix(), "jti": rawURL.EncodeToString(jti)}
+	claims := map[string]any{"aud": aud, "iat": now.Unix(), "jti": rawURL.EncodeToString(jti)}
+	if nonce != "" {
+		claims["nonce"] = nonce
+	}
 	h, err := json.Marshal(header)
 	if err != nil {
 		return "", err
@@ -393,6 +432,8 @@ func fetchJWKS(ctx context.Context, address string) ([]byte, error) {
 // treehouseOptions turn the brokered path on. All three empty leaves it off.
 type treehouseOptions struct {
 	Broker, Accounts, Dir string
+	// ConfigDir holds the configuration snapshot, empty for the default place.
+	ConfigDir string
 }
 
 func (o treehouseOptions) on() bool { return o.Broker != "" || o.Accounts != "" || o.Dir != "" }
@@ -426,13 +467,19 @@ func (d *daemon) startTreehouse(ctx context.Context, o treehouseOptions) {
 		return
 	}
 	keys := newAccountsKeys(strings.TrimRight(o.Accounts, "/")+"/.well-known/jwks.json", fetchJWKS)
-	identity, err := loadDaemonIdentity(ctx, keys, o.Accounts, string(cert), time.Now())
+	identity, err := loadDaemonIdentity(ctx, keys, o.Accounts, string(cert), time.Now(), true)
 	if err != nil {
 		d.logf("no Treehouse broker path: %v", err)
 		return
 	}
 	users.brokered = &brokeredGate{verifier: newUnlockVerifier(keys, o.Accounts, identity), host: users.host}
-	link := &brokerLink{url: o.Broker, cert: strings.TrimSpace(string(cert)), key: key, identity: identity, d: d, build: version, dial: dialBroker}
+	link := &brokerLink{url: o.Broker, cert: strings.TrimSpace(string(cert)), key: key, identity: identity, d: d, build: version, dial: dialBroker,
+		accounts: o.Accounts, keys: keys, certPath: o.Dir + "/daemon.cert", post: accountsPoster(o.Accounts), views: d.views}
+	if dir := configDir(o.ConfigDir); dir != "" {
+		link.settings = newSettingsReader(dir)
+	}
+	users.brokerEvent = link.emit
 	d.logf("dialing the Treehouse broker as %s", identity.ID)
 	go link.run(ctx)
+	go link.watchSeats(ctx, pushWatchEvery)
 }

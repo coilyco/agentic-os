@@ -10,6 +10,7 @@ A phone lock drops the websocket, and the redial is a new connection that starts
 * **Refuse** - an error with reason `resume_ended`. The connection stays exactly as locked as it arrived. Expired, spent, unknown, never issued, a daemon restart, and a `passkey revoke` all read the same, so a probe learns nothing.
 * **The window** - by default there is none: a proof lasts until it is spent, revoked or the daemon restarts, and the client drops it with the page memory when the app closes (Kai's ruling on COI-3305, 2026-11-04). With a duration set, it runs from the moment the holding connection drops, and a connection still open never expires. A resume starts a fresh window, so it is an idle window and a chain of short gaps never asks for a fingerprint again.
 * **In memory only** - a daemon restart re-locks every device. The client keeps the proof in page memory, never storage or logs.
+* **When the client is gone** - in `app` mode the daemon cannot tell a closed app from a locked phone, since both are a dropped socket, so a dropped socket ends nothing and no absolute lifetime exists. A proof ends only by use (a replacement follows), `aterm passkey revoke` (the one way to remove a device key, which clears every proof), a daemon restart, or eviction as one of the 64 oldest closed. A proof copied off a live page is single use, so whichever copy redeems first wins and the other reads `resume_ended`. A bounded daemon takes `--resume-window <duration>`.
 
 ## What it leaves closed
 
