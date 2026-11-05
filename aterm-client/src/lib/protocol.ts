@@ -83,6 +83,8 @@ export interface PeerMessage {
   reason: string | null;
   /** What the sender wrote. Absent from a daemon that does not send it (COI-3362). */
   text?: string | null;
+  /** The host sent only the head of a longer message. */
+  textCut?: boolean;
 }
 
 /** A seat's `ask_choice` call, waiting on a person. */

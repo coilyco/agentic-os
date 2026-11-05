@@ -43,6 +43,7 @@ func (s *ptySession) confirmClaude(text string, before int) error {
 			clean = 0
 			if !seen && now.Sub(start) > boxGrace {
 				// A layout this cannot read is unknown, and costs a send no more than the grace.
+				s.d.logf("delivery to %s: box unreadable for %s, counted as delivered", s.name, boxGrace)
 				return nil
 			}
 		case holds:
@@ -56,6 +57,7 @@ func (s *ptySession) confirmClaude(text string, before int) error {
 					return s.unsent(before)
 				}
 				retries++
+				s.d.logf("delivery to %s: text still in the box, Enter %d", s.name, retries)
 				if err := s.writePTY([]byte("\r")); err != nil {
 					return err
 				}

@@ -37,8 +37,9 @@
               <!-- Focusable so a long message scrolls by keyboard. -->
               <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
               <pre class="text" role="region" tabindex="0" aria-label={`Full text from ${outgoing ? "this seat" : message.from.identity}`}>{message.text}</pre>
+              {#if message.textCut}<p class="hint">The host sent only the first 32 KiB of this message.</p>{/if}
             {:else}
-              <p class="hint">This host did not send the text of this message, so only its delivery shows here. It needs a newer aterm daemon.</p>
+              <p class="hint">This host did not send the text of this message, so only its delivery shows here.</p>
             {/if}
           </div>
         </li>

@@ -78,3 +78,12 @@ test("a host that sends no text says so instead of showing an empty row", async 
   await row.click();
   await expect(bed.page.getByText(/did not send the text of this message/)).toBeVisible();
 });
+
+test("a message the host cut says so under its text", async ({ bed }, info) => {
+  await bed.openSeat(SEATS.imp);
+  const frame = message("cut-1", "The first part of a very long message.");
+  bed.mock.push({ type: "message", message: { ...frame.message, text_cut: true } });
+  await openMessages(bed, kindOf(info) === "desktop");
+  await bed.page.getByRole("button", { name: /Beetle-Ox/ }).click();
+  await expect(bed.page.getByText(/sent only the first 32 KiB/)).toBeVisible();
+});

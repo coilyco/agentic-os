@@ -19,7 +19,8 @@ func newCloseCommand() *cli.Command {
 		Description: "Targets resolve as `aterm send`'s do, and one that matches several sessions\n" +
 			"refuses. An idle claude gets its own /exit first, then SIGTERM, then SIGKILL after\n" +
 			"a grace period. A session holding Kai's unsent draft or undelivered messages\n" +
-			"stays open unless --force.",
+			"stays open unless --force. A seat closes a name only after listing it, since names are reused.\n" +
+			"Use `name@ref`, the ref from `aterm agents`, to name one session exactly.",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "force", Usage: "close even a session holding a draft or undelivered messages"},
 		},

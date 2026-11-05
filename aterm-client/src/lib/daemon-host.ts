@@ -90,6 +90,7 @@ interface MessageView {
   state: MessageState;
   reason?: string;
   text?: string;
+  text_cut?: boolean;
 }
 
 // ask_choice as the daemon sends it (coilyco/agentic-os#1724).
@@ -288,6 +289,7 @@ export function toMessage(view: MessageView): PeerMessage {
     state: view.state,
     reason: view.reason ?? null,
     text: view.text ?? null,
+    textCut: view.text_cut === true,
   };
 }
 
