@@ -7,8 +7,8 @@
   import MessagesPanel from "./MessagesPanel.svelte";
   import TerminalPane from "./TerminalPane.svelte";
   import ViewsPanel from "./ViewsPanel.svelte";
-  import { onMount } from "svelte";
-  import { app, viewsFor } from "../lib/app.svelte";
+  import { onMount, tick } from "svelte";
+  import { app, layout, viewsFor } from "../lib/app.svelte";
   import type { PeerMessage, Session } from "../lib/protocol";
   import { escapeHides, openAfterPick } from "../lib/sheet";
   import type { SideTab } from "../lib/side-tab";
@@ -53,9 +53,17 @@
     onpick?.(id);
   }
 
+  // A phone on its side has no strip: the panel is out of sight until one small button raises it.
+  const reading = $derived(layout.reading && narrow);
+
   function hide(): void {
     open = false;
-    document.getElementById(`side-tab-${tab}`)?.focus();
+    void tick().then(() => document.getElementById(reading ? "side-reveal" : `side-tab-${tab}`)?.focus());
+  }
+
+  function reveal(): void {
+    open = true;
+    void tick().then(() => document.getElementById(`side-tab-${tab}`)?.focus());
   }
 
   function escape(event: KeyboardEvent): void {
@@ -81,9 +89,15 @@
 <aside
   class="panel"
   data-open={open}
+  data-reading={reading}
   aria-label={`${session.identity}'s messages, views, browser, and terminal`}
   onkeydown={escape}
 >
+  {#if reading && !open}
+    <button type="button" id="side-reveal" class="reveal" aria-label={`Open the side panel, ${messages.length} messages`} aria-controls="side-panel" aria-expanded="false" onclick={reveal}>
+      <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><rect x="2" y="3" width="12" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5" /><path d="M10 3v10" stroke="currentColor" stroke-width="1.5" /></svg>
+    </button>
+  {/if}
   <div class="head">
     <div class="tabs" role="tablist" aria-orientation="horizontal" tabindex="-1" onkeydown={tablistKeys}>
       {#each tabs as each (each.id)}
@@ -153,5 +167,13 @@
     .head { height: calc(var(--strip) - env(safe-area-inset-bottom)); flex: none; }
     .panel[data-open="false"] .content { display: none; }
     .panel[data-open="true"] { height: min(80dvh, calc(100dvh - 72px)); box-shadow: 0 -8px 16px rgb(0 0 0 / 0.35); }
+    /* Reading mode, a phone on its side: no strip. One 44px button, inside the safe-area insets, raises the panel over the terminal beside the 52px rail, and it covers the terminal only while open. */
+    .panel[data-reading="true"] { left: auto; right: 0; top: 0; bottom: 0; height: auto; width: calc(100vw - 52px - env(safe-area-inset-left)); max-width: 520px; padding-right: env(safe-area-inset-right); border-top: none; background: transparent; }
+    .panel[data-reading="true"][data-open="false"] { width: 0; padding: 0; }
+    .panel[data-reading="true"][data-open="false"] .head { display: none; }
+    .panel[data-reading="true"][data-open="true"] { height: auto; border-left: 1px solid var(--line); background: var(--ground); box-shadow: -8px 0 16px rgb(0 0 0 / 0.4); }
+    .panel[data-reading="true"][data-open="true"] .head { height: 44px; }
+    .panel[data-reading="true"] .reveal { position: fixed; display: grid; place-items: center; top: max(4px, env(safe-area-inset-top)); right: max(4px, env(safe-area-inset-right)); width: 44px; height: 44px; padding: 0; border-radius: 8px; border: 1px solid var(--control-line); background: color-mix(in srgb, var(--ground) 82%, transparent); color: var(--text); }
+    .reveal:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   }
 </style>
