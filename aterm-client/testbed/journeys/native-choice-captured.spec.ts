@@ -44,6 +44,6 @@ test("capture: last multi-select at 134 columns reads Submit", quirk("COI-3243 b
   // Only the 1920 window gives the terminal the 134 columns this capture was taken at.
   test.skip(info.project.name !== "desktop-1920", "needs a 134 column terminal");
   await show(bed, "134-01-q2");
-  await expect(card(bed.page).getByRole("button", { name: /^Submit$/ }), "no Submit button on the card").toBeVisible();
+  await expect(card(bed.page).locator(".actions").getByRole("button", { name: /^Submit$/ }), "no Submit button on the card").toBeVisible();
   await bed.step("card");
 });

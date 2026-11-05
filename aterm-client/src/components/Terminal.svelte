@@ -11,7 +11,7 @@
   import { harnessInputRows } from "../lib/harness";
   import { boxToReport } from "../lib/pty-size";
   import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
-  import { isBlank, screenRows } from "../lib/screen";
+  import { isBlank, screenRows, tabBarReading, type TabBarCells } from "../lib/screen";
   import { afterQueued, safely, watchDelay } from "../lib/pane-watch";
   import type { HostConnection, PeerMessage } from "../lib/protocol";
 
@@ -34,7 +34,7 @@
     messages: PeerMessage[];
     colorOf: (role: string) => string;
     /** The visible rows after each write, for readers such as the choice detector. */
-    onscreen?: (rows: string[]) => void;
+    onscreen?: (rows: string[], tabBar: TabBarCells | null) => void;
     /** The daemon refuses this connection's typing, so keys go nowhere. */
     locked?: boolean;
     /** The composer is the one input at every width, so the harness's own input box is scrolled out of view. */
@@ -108,7 +108,7 @@
 
   function reportScreen(): void {
     if (!term || !onscreen) return;
-    onscreen(screenRows(term.buffer.active, term.rows));
+    onscreen(screenRows(term.buffer.active, term.rows), tabBarReading(term.buffer.active, term.rows));
   }
 
   let watchHarness = () => {};
