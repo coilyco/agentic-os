@@ -57,22 +57,23 @@ test("a line wider than the phone scrolls sideways to its last character", async
 });
 
 test("a swipe sideways moves the text, and new output does not snap it back", async ({ bed, browserName }) => {
-  test.skip(browserName !== "chromium", "touch gestures are synthesized through Chromium only");
+  test.skip(browserName !== "chromium", "touch events are sent through Chromium only");
   await bed.openSeat(SEATS.imp);
   bed.mock.holdWide(SEATS.imp.id, WIDE);
   bed.mock.setScene(SEATS.imp.id, wideScene);
   await expect(bed.screen()).toContainText(TAIL);
+  await expect.poll(async () => (await reach(bed.page)).overflow, "the wide PTY has laid out").toBeGreaterThan(100);
+  await bed.page.waitForTimeout(1000);
   const client = await bed.page.context().newCDPSession(bed.page);
   const box = (await bed.page.locator(".term-host").boundingBox())!;
-  await client.send("Input.synthesizeScrollGesture", {
-    x: box.x + box.width * 0.8,
-    y: box.y + box.height * 0.5,
-    xDistance: -300,
-    // A thumb never travels dead level.
-    yDistance: 36,
-    gestureSourceType: "touch",
-    speed: 800,
-  });
+  // A finger, as touch events: it lands, drifts left and a little down, and lifts.
+  const at = (step: number) => [{ x: box.x + box.width * 0.8 - step * 30, y: box.y + box.height * 0.5 + step * 3, id: 1 }];
+  await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: at(0) });
+  for (let step = 1; step <= 12; step++) {
+    await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: at(step) });
+    await bed.page.waitForTimeout(16);
+  }
+  await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await bed.page.waitForTimeout(500);
   const swiped = await reach(bed.page);
   expect(swiped.left, "a sideways swipe over the text moves it").toBeGreaterThan(100);
