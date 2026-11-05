@@ -107,6 +107,8 @@ type daemon struct {
 	browserLaunch browserLauncher
 	logf          func(string, ...any)
 	refused       refusalLog
+	// finishShadow collects an ended session's native shadow. Nil in tests.
+	finishShadow func(pid int)
 
 	// apps is the per-session MCP Apps gateway and the views it captured.
 	apps appsState
@@ -247,6 +249,9 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	d.imageRoot = filepath.Join(dir, "images")
 	d.installShims(filepath.Join(dir, shimDirName))
 	d.ledgerDir = ledgerDir()
+	if ledgerGuard == nil {
+		d.finishShadow = shadowReleaser(logf)
+	}
 	d.loadRetired(time.Now())
 	pruneLedger(d.ledgerDir, time.Now())
 	logf("serving %s as pid %d, build %s", socket, os.Getpid(), version)
@@ -934,6 +939,9 @@ func (d *daemon) forget(s *ptySession) {
 	d.dropApps(s.name)
 	s.dropImages(d.imageRoot)
 	d.endArtifacts(s)
+	if d.finishShadow != nil && s.pid > 0 {
+		d.finishShadow(s.pid)
+	}
 	d.pushSessions()
 }
 

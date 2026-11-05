@@ -281,6 +281,65 @@ func releaseNativeShadow(runtime nativeRuntime, id string) error {
 	return nil
 }
 
+// finishNativeShadows releases every dead lease pick accepts, skipping the crash grace,
+// and collects them unless dryRun. Unpushed or dirty worktrees stay (COI-3427).
+func finishNativeShadows(runtime nativeRuntime, pick func(nativeLease) bool, dryRun bool) error {
+	leaseDir := nativeStatePath(runtime, "leases")
+	entries, err := os.ReadDir(leaseDir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read native leases: %w", err)
+	}
+	type found struct {
+		path  string
+		lease nativeLease
+	}
+	var all []found
+	var pids []int
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
+			continue
+		}
+		path := filepath.Join(leaseDir, entry.Name())
+		var lease nativeLease
+		if readNativeJSON(path, &lease) != nil || !pick(lease) {
+			continue
+		}
+		all = append(all, found{path, lease})
+		pids = append(pids, lease.PID)
+	}
+	probe := probeNativeProcesses(pids)
+	ids := map[string]bool{}
+	for _, item := range all {
+		if probe.leaseIsLive(item.lease) {
+			continue
+		}
+		ids[item.lease.ID] = true
+		if item.lease.Released != nil || dryRun {
+			continue
+		}
+		released := runtime.Now
+		item.lease.Released = &released
+		if err := writeNativeJSON(item.path, item.lease); err != nil {
+			return fmt.Errorf("record the release of session %s: %w", item.lease.ID, err)
+		}
+	}
+	verb := "released"
+	if dryRun {
+		verb = "would be released"
+	}
+	fmt.Fprintf(os.Stdout, "%d dead session(s) %s, grace skipped\n", len(ids), verb)
+	if dryRun || len(ids) == 0 {
+		return nil
+	}
+	return withNativeStartupLock(runtime, func() error {
+		_, err := cleanNativeSessionsWhere(runtime, func(lease nativeLease) bool { return ids[lease.ID] })
+		return err
+	})
+}
+
 // reapNativeShadows runs the sweep an operator would otherwise have to trigger
 // by launching another session.
 func reapNativeShadows(runtime nativeRuntime, dryRun bool) error {
@@ -344,9 +403,19 @@ func nativeShadowLifecycleVerb(cmd *cli.Command) (func(nativeRuntime) error, boo
 			Paths: strings.Split(cmd.String("trust-paths"), "\n"),
 		}
 		return func(runtime nativeRuntime) error { return runNativeTrustGuard(runtime, plan) }, true
-	case cmd.Bool("reap"):
-		dryRun := cmd.Bool("dry-run")
+	case cmd.Int("finished") > 0:
+		pid := int(cmd.Int("finished"))
 		return func(runtime nativeRuntime) error {
+			return finishNativeShadows(runtime, func(lease nativeLease) bool { return lease.PID == pid }, false)
+		}, true
+	case cmd.Bool("reap"):
+		dryRun, releaseDead := cmd.Bool("dry-run"), cmd.Bool("release-dead")
+		return func(runtime nativeRuntime) error {
+			if releaseDead {
+				if err := finishNativeShadows(runtime, func(nativeLease) bool { return true }, dryRun); err != nil {
+					return err
+				}
+			}
 			return reapNativeShadows(runtime, dryRun)
 		}, true
 	case cmd.Bool("credential"):
