@@ -83,7 +83,7 @@
 
   // Stamp every envelope the harness has echoed so far with its sender's colour.
   function markEnvelopes(): void {
-    if (!term) return;
+    if (!term || messages.length === 0) return;
     const buffer = term.buffer.active;
     const lines = logicalLines(term);
     for (const [index, message] of envelopeRows(lines.map((line) => line.text), messages)) {
@@ -145,9 +145,19 @@
     });
   }
 
+  // The scan reads the whole buffer, so a stream of writes asks for it a few times a second.
+  let marking: ReturnType<typeof setTimeout> | undefined;
+  function markSoon(): void {
+    if (marking) return;
+    marking = setTimeout(() => {
+      marking = undefined;
+      safely("marking envelopes", markEnvelopes);
+    }, 200);
+  }
+
   // A step that throws here would stop xterm taking any more writes, so each runs on its own.
   function afterWrite(): void {
-    safely("marking envelopes", markEnvelopes);
+    markSoon();
     safely("reading the screen", reportScreen);
     safely("watching the harness", () => watchHarness());
     safely("noting the screen drew", () => noteDrawn());
@@ -202,7 +212,15 @@
     terminal.open(host);
     // Above the end when xterm's own view or the pan box is scrolled away from the newest row.
     const above = () => linesAbove(terminal.buffer.active) + (panning && !atBottom() ? 1 : 0);
-    trackView = () => (latest = scrolled(latest, above()));
+    // One layout read per frame: a replay scrolls xterm thousands of times (COI-3422).
+    let tracking = 0;
+    trackView = () => {
+      if (tracking) return;
+      tracking = requestAnimationFrame(() => {
+        tracking = 0;
+        latest = scrolled(latest, above());
+      });
+    };
     terminal.onScroll(trackView);
     host.addEventListener("scroll", trackView);
     host.addEventListener("scroll", edges);
@@ -349,10 +367,12 @@
     });
     const unsubscribe = connection.subscribe((event) => {
       if (event.type === "output" && event.sessionId === sessionId) {
-        const before = above();
+        // New lines are counted from xterm's own rows, which cost no layout read.
+        const counting = latest.away;
+        const before = linesAbove(terminal.buffer.active);
         terminal.write(event.data, () => {
           afterWrite();
-          latest = wrote(latest, before, above());
+          if (counting && latest.away) latest = wrote(latest, before, linesAbove(terminal.buffer.active));
           trackView();
         });
       }
@@ -392,6 +412,8 @@
       connection.detach(sessionId);
       input.dispose();
       host.removeEventListener("scroll", trackView);
+      cancelAnimationFrame(tracking);
+      clearTimeout(marking);
       host.removeEventListener("scroll", edges);
       observer.disconnect();
       terminal.dispose();

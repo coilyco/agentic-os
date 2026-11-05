@@ -83,7 +83,7 @@ export const test = base.extend<{ bed: Bed; mock: Mock }>({
 });
 
 /** Load every Latin font face, since a face the page has not drawn yet loads late. */
-const loadFonts = (page: Page) =>
+export const loadFonts = (page: Page) =>
   page.evaluate(async () => {
     const faces = [...document.fonts].filter((face) => face.unicodeRange.includes("U+0000"));
     await Promise.all(faces.map((face) => face.load().catch(() => face)));
