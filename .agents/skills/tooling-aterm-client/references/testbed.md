@@ -36,10 +36,10 @@ State on main after PRs 193, 199, 203 and the find control, as the bed shows it,
 
 * **Green** - COI-3243 bugs 2, 3 and 4 (`native-choice`, `native-choice-captured`), COI-3238 item 1's box drawing gap and find control (`terminal-text`), and COI-3238 item 2 (`side-panel`).
 * **Red, client half only** - COI-3243 bug 1 (`dialog-input-hold`). A composer message sent while a dialog is open goes into the dialog. The daemon half cannot be tested on a mock that would only assert itself.
-* **Red** - COI-3238 item 3 (`seat-rows`), the dialog's tab bar as buttons (`native-choice`), and a short conversation growing the PTY without limit (`pty-size`, COI-3291).
+* **Red** - the dialog's tab bar as buttons (`native-choice`), and a short conversation growing the PTY without limit (`pty-size`, COI-3291).
 * **Fixme, bed cannot judge yet** - link hover and history depth in `terminal-text` (COI-3293).
 
-Journeys that hold today: `reconnect` (COI-3352: a restart ridden out, a silent socket, a page returning after hours, a hung dial, a host unreachable at page load, a cold start whose first or attach dial fails, and an hour of tries that ends in a rest, each reconnecting with no tap, on a faked clock), `unlock-resume` (a locked device redials inside and after the resume window, COI-3305), `read-output`, `switch-seats`, `ask-card`, `native-choice` (one question), `start-seat`, `composer-keyboard`, `stream-under-load`, `open-url`, `message-expand` (COI-3362: a long and a short message open and close in the Messages tab, by keyboard too, and the waiting question stays).
+Journeys that hold today: `reconnect` (COI-3352: a restart ridden out, a silent socket, a page returning after hours, a hung dial, a host unreachable at page load, a cold start whose first or attach dial fails, and an hour of tries that ends in a rest, each reconnecting with no tap, on a faked clock), `unlock-resume` (a locked device redials inside and after the resume window, COI-3305), `read-output`, `switch-seats`, `ask-card`, `native-choice` (one question), `start-seat`, `seat-rows`, `seat-sheet` (phones), `composer-keyboard`, `stream-under-load`, `open-url`, `message-expand` (COI-3362: a long and a short message open and close in the Messages tab, by keyboard too, and the waiting question stays).
 
 ## What it cannot tell you
 

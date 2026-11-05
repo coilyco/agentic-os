@@ -156,6 +156,10 @@ type ptySession struct {
 	// before the daemon first saw it is unknown, so a restart counts from the restart.
 	stateNow   string
 	stateSince time.Time
+	// activity is the line a seat set with `aterm activity`, and activityAt when.
+	// Only that frame writes it, never the screen. See daemon_activity.go.
+	activity   string
+	activityAt time.Time
 }
 
 // keyState carries a partly read escape sequence across input chunks.
@@ -462,6 +466,7 @@ func (s *ptySession) finish(code int) {
 			s.parked = nil
 		}
 		s.mu.Unlock()
+		s.activity, s.activityAt = "", time.Time{}
 		close(s.done)
 		_ = s.holder.write(frame{Type: "release"})
 		_ = s.holder.Close()
@@ -1001,6 +1006,11 @@ func (s *ptySession) view() sessionView {
 		at := s.lastReplyAt.UTC()
 		repliedAt = &at
 	}
+	var activityAt *time.Time
+	if s.activity != "" {
+		at := s.activityAt.UTC()
+		activityAt = &at
+	}
 	return sessionView{
 		State:        state,
 		StateSeconds: &inState,
@@ -1020,6 +1030,8 @@ func (s *ptySession) view() sessionView {
 		Context:      s.context,
 		LastReply:    s.lastReply,
 		LastReplyAt:  repliedAt,
+		Activity:     s.activity,
+		ActivityAt:   activityAt,
 	}
 }
 
