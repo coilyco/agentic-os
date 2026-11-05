@@ -60,6 +60,10 @@ type daemon struct {
 	imageRoot string
 	// artifactDir keeps standing artifacts across a restart, empty for none.
 	artifactDir string
+	// feedbackDir keeps each feedback report. It sits in the state directory and not
+	// beside the socket, since /tmp is cleared daily. Empty means none is taken.
+	feedbackDir string
+	feedback    feedbackState
 	// shimDir holds the `open` shims a seat's PATH leads with, empty for none.
 	shimDir string
 	// openers are the clients subscribed to open_url, guarded by mu.
@@ -272,6 +276,9 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	d.sweepImages()
 	if d.ledgerDir != "" {
 		d.artifactDir = filepath.Join(filepath.Dir(d.ledgerDir), "artifacts")
+		d.feedbackDir = filepath.Join(filepath.Dir(d.ledgerDir), "feedback")
+		d.sweepFeedback()
+		d.handWaitingFeedback()
 	}
 	d.restoreArtifacts()
 	d.clientDir = options.ClientDir
@@ -447,7 +454,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature, activityFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -456,6 +463,9 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	}
 	if d.imageRoot != "" {
 		welcome.Features = append(welcome.Features, imageUploadFeature)
+	}
+	if d.feedbackDir != "" {
+		welcome.Features = append(welcome.Features, feedbackFeature)
 	}
 	if d.users.ResumeEnabled() {
 		welcome.Features = append(welcome.Features, resumeFeature)
@@ -481,6 +491,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		asked := cl.asks
 		d.settleWhere(func(ask choiceAsk) bool { return slices.Contains(asked, ask.ID) }, "the asking call ended")
 		d.browsers.leave(c)
+		d.feedback.dropOwner(cl)
 		d.mu.Lock()
 		d.conns--
 		d.lastActive = time.Now()
@@ -581,6 +592,10 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return s.typeInput(message.Data)
 	case "image_upload":
 		return d.uploadImage(cl, message)
+	case "feedback_image":
+		return d.feedbackImage(cl, message)
+	case "feedback":
+		return d.saveFeedback(cl, message)
 	case "open_url":
 		return d.openURL(cl, message)
 	case "artifact_add":
@@ -614,6 +629,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return cl.c.write(frame{Type: "last_reply", ID: message.ID, Session: s.name, Reply: &view})
 	case "clear":
 		return d.clearSession(cl, message)
+	case "activity":
+		return d.activity(cl, message)
 	case "inbox":
 		// Only the token names whose inbox it is, never a target.
 		s := d.byToken(message.Token)
@@ -785,6 +802,12 @@ func (d *daemon) spawn(message frame) (*ptySession, error) {
 		d.noteSeenOne(orphan.sender, s)
 		s.enqueue(orphan)
 	}
+	if s.role == feedbackRole {
+		go func() {
+			defer d.guard("feedback hand-off")
+			d.handWaitingFeedback()
+		}()
+	}
 	d.logf("spawned %s as pid %d: %s", name, s.pid, strings.Join(message.Argv, " "))
 	d.recordSession(s, message)
 	return s, nil
@@ -812,7 +835,8 @@ func (d *daemon) claimName(base string, peek bool) (string, error) {
 		_, live := d.sessions[candidate]
 		_, shell := d.terminals[candidate]
 		_, held := d.claims[candidate]
-		return live || shell || held || d.retiredName(candidate, now)
+		// The bare name is the role's stable name and stays reusable. Pool slots retire.
+		return live || shell || held || (candidate != base && d.retiredName(candidate, now))
 	})
 	if !peek {
 		d.claims[name] = now.Add(claimHold)

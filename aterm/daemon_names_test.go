@@ -85,20 +85,28 @@ func TestACloseOfAReassignedNameIsRefusedUntilItNamesTheNewSessionByRef(t *testi
 	}
 }
 
-func TestAnEndedNameStaysOutOfThePoolForADay(t *testing.T) {
+func TestAnEndedPoolSlotStaysOutOfThePoolForADayButTheBareNameDoesNot(t *testing.T) {
 	d := newDaemon(func(string, ...any) {})
 	now := time.Now()
 	d.mu.Lock()
-	d.retire("beetle-ox", now.Add(-time.Hour))
+	d.sessions["beetle-ox"] = &ptySession{name: "beetle-ox"}
+	d.retire("beetle-ox-2", now.Add(-time.Hour))
 	d.mu.Unlock()
-	if name, _ := d.claimName("beetle-ox", true); name != "beetle-ox-2" {
-		t.Fatalf("a name that ended an hour ago should be skipped, got %q", name)
+	if name, _ := d.claimName("beetle-ox", true); name != "beetle-ox-3" {
+		t.Fatalf("a slot that ended an hour ago should be skipped, got %q", name)
 	}
 	d.mu.Lock()
-	d.retired["beetle-ox"] = now.Add(-nameRetire - time.Minute)
+	d.retired["beetle-ox-2"] = now.Add(-nameRetire - time.Minute)
+	d.mu.Unlock()
+	if name, _ := d.claimName("beetle-ox", true); name != "beetle-ox-2" {
+		t.Fatalf("a slot that ended over a day ago is free again, got %q", name)
+	}
+	d.mu.Lock()
+	delete(d.sessions, "beetle-ox")
+	d.retire("beetle-ox", now.Add(-time.Hour))
 	d.mu.Unlock()
 	if name, _ := d.claimName("beetle-ox", true); name != "beetle-ox" {
-		t.Fatalf("a name that ended over a day ago is free again, got %q", name)
+		t.Fatalf("the role's bare name is stable and reusable at once, got %q", name)
 	}
 }
 
