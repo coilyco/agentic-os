@@ -15,6 +15,7 @@ permissions:
 jobs:
   gate:
     uses: ./.github/workflows/ci.yml
+    secrets: inherit
 
   promote-release:
     needs: [gate]

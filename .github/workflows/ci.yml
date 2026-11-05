@@ -31,7 +31,20 @@ jobs:
       - uses: ./actions/setup-ci
         with:
           tools: just
+      - name: Name the pinned agent-compose release
+        id: acompose
+        run: echo "tag=$(bash scripts/ci/install-agent-compose.sh tag)" >> "$GITHUB_OUTPUT"
+      - name: Fetch the private agent-compose release
+        uses: coilyco/.github/actions/fetch-release@f45ce248324c000f311419e5d39d96b16c57c266
+        with:
+          app_id: ${{ secrets.COILYCO_TREEHOUSE_READ_APP_ID }}
+          private_key_base64: ${{ secrets.COILYCO_TREEHOUSE_READ_APP_PRIVATE_KEY_BASE64 }}
+          tag: ${{ steps.acompose.outputs.tag }}
+          assets: agent-compose-linux-amd64 agent-compose-roster.tar.gz
+          dest: ${{ runner.temp }}/agent-compose-release
       - name: Install the pinned agent-compose for the roster guard
+        env:
+          AGENT_COMPOSE_BASE: ${{ runner.temp }}/agent-compose-release
         run: bash scripts/ci/install-agent-compose.sh
       - name: Test the AOS CLI
         run: just aos-test

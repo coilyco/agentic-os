@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
-# Install the pinned agent-compose and its roster on a hosted runner, for the
-# guards that read the roster. See docs/dev-container.md.
+# Install the pinned agent-compose release from fetched assets, for the
+# guards that read the roster. The release is private. See docs/dev-container.md.
 
 set -euo pipefail
 
-version=2.218.0
-binary_sha256=1d820c56dd26107c49725ec13bc930d4eafc4e8ada9edd7c21d906ca170fd6fc
-roster_sha256=e5dbd908bcd97f51d172431f511c0e4217a1301d21a5ad7f72d8470495b71723
-base=${AGENT_COMPOSE_BASE:-https://github.com/coilyco/agent-compose/releases/download/v${version}}
+version=2.220.0
+binary_sha256=b084826ba3a1fe27b342b66b01f68ef49b4977902f21a9164c74ff30542c670f
+roster_sha256=f9c7bc0f593939b81829e42e407f2f2d54f1a617ab10770ebd95fc993d4d55d2
+tag=agent-compose-v${version}
+if [ "${1:-}" = tag ]; then
+  echo "$tag"
+  exit 0
+fi
+base=${AGENT_COMPOSE_BASE:?set AGENT_COMPOSE_BASE to the directory fetch-release wrote, see docs/dev-container.md}
 dest=${AGENT_COMPOSE_DEST:-${RUNNER_TEMP:?RUNNER_TEMP is not set}/agent-compose}
 
 case "$(uname -m)" in
@@ -22,7 +27,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
 fetch() {
-  curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL "$base/$1" -o "$work/$1"
+  cp "${base#file://}/$1" "$work/$1"
   echo "$2  $work/$1" | sha256sum -c - >/dev/null || {
     echo "$1 does not match the pinned checksum" >&2
     exit 1
