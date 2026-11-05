@@ -322,6 +322,8 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 					&cli.BoolFlag{Name: "credential"},
 					&cli.BoolFlag{Name: "dry-run"},
 					&cli.StringFlag{Name: "release"},
+					&cli.IntFlag{Name: "finished"},
+					&cli.BoolFlag{Name: "release-dead"},
 				},
 				Action: runNativeShadow,
 			},

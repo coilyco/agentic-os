@@ -870,6 +870,12 @@ type nativeHeldLease struct {
 }
 
 func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error) {
+	return cleanNativeSessionsWhere(runtime, nil)
+}
+
+// cleanNativeSessionsWhere is cleanDeadNativeSessions over the leases pick accepts, every
+// lease when it is nil. Leases it skips are untouched and absent from the live set.
+func cleanNativeSessionsWhere(runtime nativeRuntime, pick func(nativeLease) bool) (nativeLiveWorktrees, error) {
 	leaseDir := nativeStatePath(runtime, "leases")
 	entries, err := os.ReadDir(leaseDir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -893,6 +899,9 @@ func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error)
 		if err := readNativeJSON(path, &lease); err != nil {
 			live.uncertain = true
 			fmt.Fprintf(runtime.Stderr, "aos: preserving unreadable native lease %s\n", path)
+			continue
+		}
+		if pick != nil && !pick(lease) {
 			continue
 		}
 		held = append(held, nativeHeldLease{path: path, lease: lease})

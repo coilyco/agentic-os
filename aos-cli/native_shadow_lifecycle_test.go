@@ -142,3 +142,61 @@ func TestReleaseMarksTheLeaseAndSkipsTheGrace(t *testing.T) {
 		t.Fatal("releasing an unknown session should refuse")
 	}
 }
+
+// COI-3427: a closed seat's shadow stayed for the 24-hour grace, because nothing
+// declared it finished. Finishing collects it now and still keeps unpushed work.
+func TestFinishingCollectsADeadShadowKeepsUnpushedWorkAndSparesALiveOne(t *testing.T) {
+	root := t.TempDir()
+	repository, _ := createNativeTestRepository(t, root, "owner", "one")
+	runtime := nativeTestRuntime(t, root)
+	leases := nativeStatePath(runtime, "leases")
+	if err := os.MkdirAll(leases, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	const deadPID = 2147000
+	sessionRoot := func(id string) string {
+		path := filepath.Join(root, "sessions", id)
+		if err := os.MkdirAll(filepath.Join(path, "home"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	write := func(lease nativeLease) {
+		lease.Harness = "claude"
+		if err := writeNativeJSON(filepath.Join(leases, lease.ID+".json"), lease); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(nativeLease{ID: "gg11", PID: deadPID, ProcessStart: "gone", SessionRoot: sessionRoot("gg11")})
+	write(nativeLease{ID: "jj44", PID: os.Getpid(), ProcessStart: runtime.ProcessStart, SessionRoot: sessionRoot("jj44")})
+	keptRoot := sessionRoot("hh22")
+	worktree := filepath.Join(keptRoot, "one")
+	testGit(t, repository, "worktree", "add", "-b", "aos/claude/hh22", worktree)
+	commitFile(t, worktree, "local.txt", "local")
+	write(nativeLease{
+		ID: "hh22", PID: deadPID, ProcessStart: "gone", SessionRoot: keptRoot,
+		Artifacts: []nativeArtifact{{Repository: repository, Worktree: worktree, Branch: "aos/claude/hh22"}},
+	})
+
+	everything := func(nativeLease) bool { return true }
+	if err := finishNativeShadows(runtime, everything, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(sessionRoot("gg11")); err != nil {
+		t.Fatalf("a dry run must remove nothing: %v", err)
+	}
+	if err := finishNativeShadows(runtime, everything, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "sessions", "gg11")); !os.IsNotExist(err) {
+		t.Fatalf("a dead, clean shadow should be gone at once, stat err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(leases, "gg11.json")); !os.IsNotExist(err) {
+		t.Fatalf("its lease should go with it, stat err = %v", err)
+	}
+	for _, kept := range []string{filepath.Join(worktree, "local.txt"), filepath.Join(root, "sessions", "jj44"), filepath.Join(leases, "hh22.json")} {
+		if _, err := os.Stat(kept); err != nil {
+			t.Fatalf("%s must survive: unpushed work and live sessions are kept: %v", kept, err)
+		}
+	}
+}
