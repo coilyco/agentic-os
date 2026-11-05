@@ -13,15 +13,14 @@ test("type to a seat with the keyboard up", async ({ bed }, info) => {
   await bed.page.setViewportSize({ width: size.width, height: size.height - keyboard });
   // The terminal refits to the smaller viewport and the mock redraws. Wait for that.
   await expect.poll(() => bed.mock.boxOf(SEATS.imp.id)!.rows).not.toBe(before);
+  // A late font or a slow frame can resize once more, so the shot waits for a long quiet.
+  await expect.poll(() => bed.mock.idleMs(), { timeout: 15000 }).toBeGreaterThan(1500);
   // With focus in the composer the tab strip goes away, so the seat has room.
   await composer.focus();
   await expect(bed.page.getByRole("tab", { name: "Messages" }), "the tab strip stays under the keyboard").toBeHidden();
-  // The terminal lays out differently from run to run once the keyboard is up, on both
-  // engines. Screenshots are saved to look at, not compared, until that is understood.
-  const compare = false;
-  await bed.step("keyboard-up", { compare });
+  await bed.step("keyboard-up");
   await composer.fill("run the gate again and tell me what changed");
-  await bed.step("typed", { compare });
+  await bed.step("typed");
   const box = (await composer.boundingBox())!;
   expect(box.y + box.height, "the composer sits below the keyboard's edge").toBeLessThanOrEqual(size.height - keyboard);
   const terminal = (await bed.screen().boundingBox())!;

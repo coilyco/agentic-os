@@ -115,11 +115,18 @@
   // The input and the newest text sit at the bottom left, so that corner stays in view
   // unless the person has panned away. Cropped rows lie below it.
   let hiddenPx = () => 0;
-  const atBottom = () => host.scrollHeight - host.clientHeight - host.scrollTop - hiddenPx() < 2;
+  // From the drawn screen, not scrollHeight, which a phone's xterm inflates past the rows it shows.
+  const contentPx = () => {
+    const style = getComputedStyle(host);
+    const screen = host.querySelector<HTMLElement>(".xterm-screen")?.clientHeight ?? 0;
+    return parseFloat(style.paddingTop) + screen + parseFloat(style.paddingBottom);
+  };
+  const lastTop = () => Math.max(0, contentPx() - host.clientHeight - hiddenPx());
+  const atBottom = () => lastTop() - host.scrollTop < 2;
   // Sideways is left alone: a phone resizes with its address bar and keyboard, and a
   // reset here would send a person who panned to a long line back to column 0.
   function anchor(follow: boolean): void {
-    if (follow) host.scrollTop = Math.max(0, host.scrollHeight - host.clientHeight - hiddenPx());
+    if (follow) host.scrollTop = lastTop();
     edges();
   }
 
@@ -148,6 +155,7 @@
   }
 
   let noteDrawn = () => {};
+  let afterSize = (_follow: boolean) => {};
 
   function remark(): void {
     decorations.forEach((decoration) => decoration.dispose());
@@ -237,10 +245,26 @@
     }
     panning = connection.ptySize === true;
     if (!panning) fit.fit();
+    // xterm measured a cell with the fallback face before this font arrived. Setting the
+    // option again measures the real one, so the grid is the same on every load.
+    let alive = true;
+    const remeasure = () => {
+      if (!alive) return;
+      const family = terminal.options.fontFamily;
+      terminal.options.fontFamily = `${family}, monospace`;
+      terminal.options.fontFamily = family;
+      layout();
+      anchor(true);
+    };
+    void document.fonts?.load(`${terminal.options.fontSize}px "JetBrains Mono"`).then(remeasure, () => {});
+    // xterm draws a new height a frame later, so the anchor runs again once it has.
+    const reanchor = (follow: boolean) => requestAnimationFrame(() => anchor(follow));
+    afterSize = reanchor;
     const observer = new ResizeObserver(() => {
       const follow = atBottom();
       layout();
       anchor(follow);
+      reanchor(follow);
     });
     observer.observe(host);
     // A pause lets a redraw finish, so a half-drawn box does not count as a box that left.
@@ -340,6 +364,7 @@
           terminal.resize(event.cols, event.rows);
           remark();
           anchor(follow);
+          afterSize(follow);
         });
       } else if (event.type === "reconnected") {
         afterQueued(terminal, "clearing after reconnect", () => {
@@ -357,6 +382,7 @@
     if (panning) reported = box;
     watch();
     return () => {
+      alive = false;
       document.removeEventListener("visibilitychange", wake);
       window.removeEventListener("focus", wake);
       clearTimeout(watching);
