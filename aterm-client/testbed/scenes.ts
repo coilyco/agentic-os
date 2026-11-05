@@ -7,6 +7,8 @@ export interface Scene {
   render(cols: number, rows: number): string[];
   /** Typed bytes from the client. True when the screen changed and must be redrawn. */
   input?(data: string): boolean;
+  /** The replay ring on attach: one frame of history, then the screen. */
+  history?(cols: number, rows: number): string;
 }
 
 /** Word-wrap to `width`, later rows indented by `hang`. Leading spaces stay. */
@@ -339,4 +341,46 @@ export function sceneFor(name: string, _spec: SessionSpec): Scene {
     default:
       throw new Error(`no scene named ${name}`);
   }
+}
+
+const SAMPLE = [
+  "I read the composer and the card side by side before changing either one.",
+  "The gate passes on all five projects, and the quirk journeys stay red until the fix lands.",
+  "Nothing is typed into the seat while the dialog is open, so her answers are kept.",
+];
+
+/** A seat that has run long: `bytes` of colored output behind a Claude screen. */
+export function longSeat(bytes: number, label = "long-seat", style: "text" | "redraw" = "text"): Scene {
+  const screen = claudeSession({ working: false, label });
+  return {
+    render: screen.render,
+    history(cols, rows) {
+      const out: string[] = [];
+      let size = 0;
+      for (let n = 0; size < bytes; n++) {
+        // A harness repaints its live block in place, and commits one now and then.
+        const redraw = style === "redraw" && n % 5 !== 0;
+        if (redraw) {
+          const live = [`\x1b[38;5;215m✻\x1b[0m Churning… (${n}s · esc to interrupt)`, ...wrap(`⏺ ${SAMPLE[n % SAMPLE.length]}`, cols, 2), `\x1b[2m${"─".repeat(cols)}\x1b[0m`, "❯ "];
+          const text = `${"\x1b[2K\x1b[1A".repeat(live.length)}\r${live.map((l) => `\x1b[2K${l}`).join("\r\n")}`;
+          out.push(text);
+          size += text.length;
+          continue;
+        }
+        const block = [
+          `\x1b[1m⏺\x1b[0m Update(src/lib/file${n}.ts)`,
+          `  ⎿  Updated src/lib/file${n}.ts with ${(n % 9) + 1} additions and 2 removals`,
+          `\x1b[48;5;22m\x1b[38;5;120m+ export const value${n} = compute(${n}, ${n * 7});\x1b[0m`,
+          `\x1b[48;5;52m\x1b[38;5;217m- export const value${n} = old(${n});\x1b[0m`,
+          ...wrap(`⏺ ${SAMPLE[n % SAMPLE.length]} Step ${n}.`, cols, 2),
+          "",
+        ];
+        for (const line of block) {
+          out.push(line);
+          size += line.length + 2;
+        }
+      }
+      return `${out.join("\r\n")}\r\n\x1b[2J\x1b[H${screen.render(cols, rows).join("\r\n")}`;
+    },
+  };
 }

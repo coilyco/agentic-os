@@ -170,12 +170,13 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
   const sessionsFrame = (): Record<string, unknown> => ({ type: "sessions", sessions: [...live.values()].map(({ spec }) => withoutScene(spec)), terminals: [] });
 
   /** Draw a seat at the size its client asked for. A client of this one's size only. */
-  const draw = (seat: Live, socket: WebSocket): void => {
+  const draw = (seat: Live, socket: WebSocket, attach = false): void => {
     const own = seat.boxes.get(socket);
     if (!own) return;
     const box = { rows: own.rows, cols: Math.max(own.cols, seat.wideCols ?? 0) };
     send(socket, { type: "size", session: seat.spec.name, rows: box.rows, cols: box.cols });
-    send(socket, { type: "output", session: seat.spec.name, data: encode(paint(seat.scene.render(box.cols, box.rows))) });
+    const text = attach && seat.scene.history ? seat.scene.history(box.cols, box.rows) : paint(seat.scene.render(box.cols, box.rows));
+    send(socket, { type: "output", session: seat.spec.name, data: encode(text) });
   };
   const redraw = (seat: Live): void => {
     for (const socket of seat.boxes.keys()) draw(seat, socket);
@@ -269,7 +270,7 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
             lastBox.set(seat.spec.name, { rows: frame.rows, cols: frame.cols });
           }
           // A watch without a box (the activity monitor) takes no replay.
-          if (frame.replay) draw(seat, socket);
+          if (frame.replay) draw(seat, socket, true);
           return;
         case "detach":
           seat?.boxes.delete(socket);
