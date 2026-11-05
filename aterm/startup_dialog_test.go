@@ -98,6 +98,9 @@ func TestADialogThatStaysUpIsReportedAndNothingIsTyped(t *testing.T) {
 	}
 	if len(s.pending) != 1 {
 		t.Fatal("the held message must stay queued, not be dropped")
+	}
+}
+
 // COI-3404: a seat whose message sat in the box unsubmitted has to explain itself from
 // the daemon log, so the trace names each belief the daemon typed on.
 func TestTheDeliveryTraceNamesWhatTheDaemonBelievedWhenItTyped(t *testing.T) {
