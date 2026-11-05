@@ -66,6 +66,8 @@ def test_packaging_covers_every_release_binary(tmp_path: Path) -> None:
         for target in targets_for(program):
             name = artifact_name(target, program)
             (tmp_path / name).write_bytes(f"{program}:{target}".encode())
+            if program == "aterm" and target.startswith("darwin/"):
+                (tmp_path / f"{name}.app.tar.gz").write_bytes(f"app:{target}".encode())
 
     version = "aos-v1.2.3"
     env = os.environ | {
@@ -84,9 +86,15 @@ def test_packaging_covers_every_release_binary(tmp_path: Path) -> None:
     rendered = formula + json.dumps(manifest)
     for program in RELEASE_BINARIES:
         for target in targets_for(program):
-            digest = hashlib.sha256(
-                (tmp_path / artifact_name(target, program)).read_bytes()
-            ).hexdigest()
+            name = artifact_name(target, program)
+            # The Mac formula installs the signed bundle, never the bare binary (COI-50).
+            if program == "aterm" and target.startswith("darwin/"):
+                name = f"{name}.app.tar.gz"
+                bare = hashlib.sha256(
+                    (tmp_path / artifact_name(target, program)).read_bytes()
+                ).hexdigest()
+                assert bare not in rendered
+            digest = hashlib.sha256((tmp_path / name).read_bytes()).hexdigest()
             assert digest in rendered
 
     assert manifest["version"] == version.removeprefix("aos-v")
@@ -102,6 +110,7 @@ def test_packaging_covers_every_release_binary(tmp_path: Path) -> None:
     assert not [entry for entry in bins if entry[1] == "aterm"]
     assert "aterm" not in json.dumps(manifest["pre_install"])
     assert 'bin.install_symlink bin/"aoscompose" => "aoscomposed"' in formula
+    assert 'bin.install_symlink prefix/"Treehouse.app/Contents/MacOS/aterm"' in formula
     # Homebrew reads the formula as every macOS arch, and a block that names only
     # arm leaves Intel with no URL, which fails `brew tap` outright.
     macos = formula.split("on_macos do", 1)[1].split("on_linux do", 1)[0]
