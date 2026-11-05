@@ -61,3 +61,7 @@ The Forgejo-era PATs (`CI_RELEASE_TOKEN`, `TAP_WRITE_TOKEN`, `SCOOP_WRITE_TOKEN`
 ## Local validation
 
 `just aos-release-build` creates the binaries and `SHA256SUMS`. With `AOS_RELEASE_VERSION` set, `aos-release-package` renders local metadata and `aos-release-check` verifies checksums, versions, `--help`, an `aterm --dry-run` against roster and overlay fixtures, and that `aterm` refuses an off-roster role. The ordinary Go tests and pre-commit verbs remain the release gate.
+
+## Signed macOS aterm
+
+**The macOS `aterm` ships as a signed `Treehouse.app`, so its privacy grants survive an upgrade (COI-50).** macOS keys a bare executable's grant by path, and the Homebrew path carries the version. A bundle is keyed by identifier (`dev.coilyco.treehouse`), and a certificate signature stores identifier plus certificate where ad-hoc pins the build. `scripts/aterm-sign-darwin.sh` signs on the Linux release job with the pinned `rcodesign` (`scripts/ci/install-rcodesign.sh`), using `TREEHOUSE_CODESIGN_CERT_PEM` and `_KEY_PEM` synced from SSM `/coilysiren/codesign/aterm-cert` and `aterm-key`, and fails closed without them. The formula installs `aterm-darwin-arm64.app.tar.gz` and links `bin/aterm` into it. The release check reads the archive back, since `rcodesign` exits 0 for a bundle whose executable it never found. Rotating the certificate expires every grant. After two releases `codesign -d -r-` shows the same requirement with different `CDHash` values.
