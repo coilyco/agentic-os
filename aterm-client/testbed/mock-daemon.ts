@@ -43,6 +43,9 @@ export interface SessionSpec {
   last_reply?: string;
   /** Seconds since the seat last wrote, as the daemon's session view carries it. */
   quiet_seconds?: number;
+  /** The seat's "what I'm doing" line and how long ago it set it, in seconds. */
+  activity?: string;
+  activity_age_seconds?: number;
   /** Which scene draws it: a name from scenes.ts. */
   scene: string;
 }
@@ -382,9 +385,9 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
   };
 }
 
-function withoutScene(spec: SessionSpec): Omit<SessionSpec, "scene"> {
-  const { scene: _scene, ...view } = spec;
-  return view;
+function withoutScene(spec: SessionSpec): Omit<SessionSpec, "scene" | "activity_age_seconds"> & { activity_at?: string } {
+  const { scene: _scene, activity_age_seconds: age, ...view } = spec;
+  return { ...view, ...(spec.activity && age !== undefined ? { activity_at: new Date(Date.now() - age * 1000).toISOString() } : {}) };
 }
 
 function serve(request: IncomingMessage, response: ServerResponse): void {
