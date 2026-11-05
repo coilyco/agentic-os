@@ -70,6 +70,12 @@ type frame struct {
 	Offset int64  `json:"offset,omitempty"`
 	// Path is the absolute file an image_uploaded names.
 	Path string `json:"path,omitempty"`
+	// feedback: Image and Images are screenshot tokens, Screen the client's display text
+	// (not "context", which a seat's meter owns), Record the report's id.
+	Image  string          `json:"image,omitempty"`
+	Images []string        `json:"images,omitempty"`
+	Screen *feedbackScreen `json:"screen,omitempty"`
+	Record string          `json:"record,omitempty"`
 	// Delivered is how many clients an opened reply says took the address.
 	Delivered int `json:"delivered,omitempty"`
 
@@ -239,6 +245,10 @@ type sessionView struct {
 	LastReply string `json:"last_reply,omitempty"`
 	// LastReplyAt is when that reply finished. The whole text is fetched with last_reply.
 	LastReplyAt *time.Time `json:"last_reply_at,omitempty"`
+	// Activity is the seat's own "what I'm doing" line, at most 57 characters, and
+	// ActivityAt when it was set. Absent until set. See references/seat-state.md.
+	Activity   string     `json:"activity,omitempty"`
+	ActivityAt *time.Time `json:"activity_at,omitempty"`
 }
 
 // terminalView is one plain terminal as a client sees it. Cwd is where the shell

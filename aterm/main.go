@@ -240,6 +240,7 @@ func newCommand(deps commandDeps) *cli.Command {
 			newStatusCommand(),
 			newReplyCommand(),
 			newClearCommand(),
+			newActivityCommand(),
 			newOpenCommand(),
 			newArtifactCommand(),
 			newPasskeyCommand(),

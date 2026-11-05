@@ -1,13 +1,18 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import type { CardMemo } from "../lib/card-memo.svelte";
+  import { progressText, type TabReading } from "../lib/dialog-tabs";
   import { advanceIndex, nextRowIndex, type Choice } from "../lib/choices";
 
-  let { choice, identity, memo, onanswer, oncancel, focusToken = 0, onfocused, locked = false, cancelLocked = locked, lockedLabel = "Read only" }: {
+  let { choice, identity, memo, tabs = null, ontab, onanswer, oncancel, focusToken = 0, onfocused, locked = false, cancelLocked = locked, lockedLabel = "Read only" }: {
     choice: Choice;
     identity: string;
     /** The card's working state, held by its parent so a rebuilt card keeps its text box and draft. */
     memo: CardMemo;
+    /** A multi-question dialog's tabs and the current one, read off its screen. */
+    tabs?: TabReading | null;
+    /** Asked to move to a tab. The pane presses the arrows. */
+    ontab?: (index: number) => void;
     /** Each change asks the card to take the keyboard, as when you alt-tab in. */
     focusToken?: number;
     /** Said once the card has taken the keyboard, so the request is spent and a later card does not repeat it. */
@@ -33,6 +38,7 @@
     return () => query.removeEventListener("change", read);
   });
   const folded = $derived(memo.collapsed && narrow);
+  const progress = $derived(tabs ? progressText(tabs) : "");
   let lastFocus = 0;
   $effect(() => {
     if (focusToken && focusToken !== lastFocus) {
@@ -126,6 +132,18 @@
     </p>
   <h2 id="choice-question" class:peek={folded}>{choice.question || "Pick one"}</h2>
   {#if !folded}
+  {#if tabs}
+    <div class="tabs">
+      {#if progress}<p class="progress">{progress}</p>{/if}
+      <div class="tabrow" role="group" aria-label="Questions">
+        {#each tabs.tabs as tab, index (index)}
+          <button type="button" class="tab" class:current={index === tabs.current} aria-current={index === tabs.current ? "step" : undefined} aria-label={tab.answered ? `${tab.label}, answered` : tab.label} disabled={locked} onclick={() => ontab?.(index)}>
+            {#if tab.answered}<span class="done" aria-hidden="true">✓</span>{/if}{tab.label}
+          </button>
+        {/each}
+      </div>
+    </div>
+  {/if}
   {#if choice.multi}<p class="hint">Pick any, then {next === -1 ? "submit" : nextLabel.toLowerCase()}.</p>{/if}
   <ol>
     {#each choice.options as option, index (index)}
@@ -193,6 +211,14 @@
   .asker { margin: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--brand); }
   .fold { flex: none; min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 13px var(--font-body); letter-spacing: 0; text-transform: none; }
   .fold:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .tabs { display: flex; flex-direction: column; gap: 6px; }
+  .progress { margin: 0; font-size: 12px; color: var(--muted); }
+  .tabrow { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+  .tab { flex: none; min-height: 36px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 13px var(--font-body); }
+  .tab.current { border-color: var(--brand); background: #1d1729; }
+  .tab:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .done { color: var(--brand); }
+  @media (pointer: coarse) { .tab { min-height: 44px; } }
   .card.folded .body { padding: 6px 12px 10px; gap: 2px; overflow: hidden; background: none; }
   .peek { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
   .chip { margin-left: 10px; padding: 2px 8px; border-radius: 999px; border: 1px solid #3a3350; color: var(--text-soft); text-transform: none; letter-spacing: 0; }

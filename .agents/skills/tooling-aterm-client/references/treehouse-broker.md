@@ -18,7 +18,14 @@ The daemon can dial the Treehouse broker and serve each client the broker attach
 
 * **Enroll** - `aterm treehouse enroll <code> --treehouse-accounts <https> --treehouse-dir <dir>`. The code comes from a signed-in, user-verified session at accounts. The key is made on this host, and nothing is written until the certificate verifies against the accounts key set and binds that key (`cnf.jkt`). A directory that already holds an identity needs `--replace`.
 * **Renew** - the daemon renews 10 minutes before the certificate expires, replaces `daemon.cert` atomically, and sends `reg.cert` on the link. A certificate already lapsed at start is renewed before the first dial, since accounts takes a lapsed one when the proof holds. A failed renewal is logged and retried every 30 seconds.
-* **Seat events** - a seat that finishes a turn or waits on a prompt, and each `ask`, goes to the broker as `reg.event` with the seat's name, role and identity. The ask's question is never sent (F4 default). With no link up an event is dropped, and the broker's reachable push covers the return. The daemon's own Web Push for the local path is unchanged.
+* **Seat events** - a seat that finishes a turn or waits on a prompt, and each `ask`, goes to the broker as `reg.event` with the seat's name, role and identity. The ask's question is sent only when the owner's `push.question_text` setting is on, and then as its first 140 characters. See the next section. With no link up an event is dropped, and the broker's reachable push covers the return. The daemon's own Web Push for the local path is unchanged.
+
+## The question-text setting
+
+* **Where it comes from** - the snapshot `agent-compose` publishes (`snapshot.json` in `--treehouse-config-dir`, else `AGENT_COMPOSE_CONFIG_DIR`, else `~/.agent-compose/config`). The daemon reads the file itself, since the writer lives in a private repository. It checks the format and the sha256 of the config as compact JSON, and a snapshot that fails keeps what was loaded, else the last good one, else off.
+* **Who** - the setting for the daemon's owner account id, else the one for `*`, else off. Turn it on with `agent-compose config-source set <acct id> push.question_text true`.
+* **When** - the file is statted at each event, so a change applies to the next event with no restart. Off, or no snapshot, `question` never leaves the daemon. `done` and `prompt` events never carry one.
+* **Held to the writer** - `aterm/testdata/treehouse-config-snapshot.v1.json` was written by the real `EncodeSnapshot`, and a test reads it. If the writer's hash changes, regenerate that file.
 
 ## Not built yet
 

@@ -6,7 +6,7 @@
 
 **`_session` hands the harness to the daemon instead of running it.** It sends a `spawn` with argv, environment, directory and window size, then attaches, the argv untouched.
 
-**A session is named `<role>-<identity>`, and a live name refuses a spawn.** A concurrent instance takes the next pool name (`--identity` picks one), and only a full pool adds `-2`, `-3`.
+**A session is named `<role>-<identity>`, and a live name refuses a spawn.** A concurrent instance takes the next pool name, and only a full pool adds `-2`, `-3`.
 
 **`list` reads each session's screen** and reports `state`: `starting`, `prompt` (a card is up), `busy` (recent output or the interrupt hint), else `idle`.
 
@@ -34,9 +34,9 @@
 
 **A process inside a session cannot type into one.** It walks the connecting pid's parents. It may send, stamped, but type only into a session it spawned.
 
-**A websocket on this host gets the same walk**, its source port mapped to the pids holding it, so a browser a session started, or one the daemon cannot name, cannot type, answer, launch or clear. A browser outside every session types, an agent driving Kai's own Chrome included.
+**A websocket on this host gets the same walk**, by source port, so a browser a session started, or one the daemon cannot name, cannot type, answer, launch or clear. A browser outside every session types, an agent driving Kai's own Chrome included.
 
-**A device on the tailnet types only after a passkey.** Its `input`, `answer`, `launch`, `clear`, `spawn`, `close`, `send`, `claim`, `ask`, `cancel_ask`, `gateway_add`, `view_call` and `view_close` refuse until an assertion with user verification succeeds on that connection, then `typing` pushes `allowed`. Only `https://coilyco.dev` may assert. A chain on Google's status list, or an unreadable list, refuses (`attestation_revoked`).
+**A device on the tailnet types only after a passkey.** Its `input`, `answer`, `launch`, `clear` and each frame in `remoteLocked` (`daemon_passkey.go`) refuse until an assertion with user verification succeeds on that connection, then `typing` pushes `allowed`. Only `https://coilyco.dev` may assert. A chain on Google's status list, or an unreadable list, refuses (`attestation_revoked`).
 
 ## Wire contract
 
@@ -45,7 +45,7 @@
 * `spawn`, `attach`, `detach`, `input` and `output` (base64 `data`), `resize`, `exit` with `code`.
 * `send` answers `sent` with the message state, waiting 3 seconds, or `wait` up to 120, for delivery unless `launching`. One not yet final earns the sender an inbox receipt `message <id> to <session>: <state>` with no body. `notify_idle` types `<session> is idle`, `is held at a prompt` or `ended`.
 * `status` (with `lines`), `clear` and `close` (with optional `force`), each with a `target`, answer `status`, `cleared` and `closed` with the exit `code`. `claim` with a `session` base answers `claimed` with a free pool name held two minutes, and `peek` holds none.
-* Seat-to-client frames: `image_upload` [saves an image](../.agents/skills/tooling-aterm-client/references/image-upload.md), `open_url` [opens a page](../.agents/skills/tooling-aterm-client/references/open-url.md), `artifact_add` [shows a source file](../.agents/skills/tooling-aterm-client/references/artifacts.md).
+* Seat-to-client frames: `image_upload` [saves an image](../.agents/skills/tooling-aterm-client/references/image-upload.md), `open_url` [opens a page](../.agents/skills/tooling-aterm-client/references/open-url.md), `artifact_add` [shows a source file](../.agents/skills/tooling-aterm-client/references/artifacts.md), `feedback` [keeps a report](../.agents/skills/tooling-aterm-client/references/feedback.md).
 * `inbox` (feature `inbox`) returns the caller's own messages by `token`, marked read on return, `all` adding the read. Capped at 200, lost on restart.
 * `list` answers `sessions`, each with `state`, `quiet_seconds`, `last_reply` and `context` ([the meter](../.agents/skills/tooling-aterm-client/references/context-meter.md)). `subscribe` to `sessions` pushes the roster on every change, and `message` events carry each state change, never the body. A stalled subscriber drops after 5s.
 * `welcome` to a websocket adds `typing-guard`, `passkey` and `typing` `{allowed, reason, passkey}`, `passkey` `enrolled` or `unenrolled`. A refusal's `error` carries `reason`: `session_descendant`, `peer_unread` or `passkey_required`.
