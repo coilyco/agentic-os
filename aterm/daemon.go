@@ -40,9 +40,13 @@ type daemon struct {
 	// of sessions (send targets, roster, counts) skips them without a filter.
 	terminals map[string]*ptySession
 	// stageMu serializes finding or opening the terminal a stage types into.
-	stageMu    sync.Mutex
-	tokens     map[string]*ptySession
-	orphans    []*pendingSend
+	stageMu sync.Mutex
+	tokens  map[string]*ptySession
+	orphans []*pendingSend
+	// seen is what each seat last listed, name to ref, and retired when each ended name
+	// left the pool. See daemon_names.go.
+	seen       map[string]map[string]string
+	retired    map[string]time.Time
 	asks       map[string]*pendingAsk
 	grants     *grantStore
 	askTimeout time.Duration
@@ -119,6 +123,8 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		terminals:   map[string]*ptySession{},
 		tokens:      map[string]*ptySession{},
 		asks:        map[string]*pendingAsk{},
+		seen:        map[string]map[string]string{},
+		retired:     map[string]time.Time{},
 		grants:      newGrantStore(),
 		ended:       map[string]endedSession{},
 		claims:      map[string]time.Time{},
@@ -241,6 +247,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	d.imageRoot = filepath.Join(dir, "images")
 	d.installShims(filepath.Join(dir, shimDirName))
 	d.ledgerDir = ledgerDir()
+	d.loadRetired(time.Now())
 	pruneLedger(d.ledgerDir, time.Now())
 	logf("serving %s as pid %d, build %s", socket, os.Getpid(), version)
 	stop := make(chan os.Signal, 1)
@@ -638,7 +645,9 @@ func (d *daemon) handle(cl *client, message frame) error {
 		}
 		return cl.c.write(frame{Type: "claimed", ID: message.ID, Session: name})
 	case "list":
-		return cl.c.write(frame{Type: "sessions", ID: message.ID, Sessions: d.views(), Terminals: d.terminalViews()})
+		views := d.views()
+		d.noteSeen(d.callerSession(cl, message.Token), views)
+		return cl.c.write(frame{Type: "sessions", ID: message.ID, Sessions: views, Terminals: d.terminalViews()})
 	case "launch":
 		if cl.web {
 			if err := d.typingRefusal(cl, "a process inside an aterm session cannot launch a seat as Kai, use `aterm send --launch`"); err != nil {
@@ -790,6 +799,7 @@ func (d *daemon) spawn(message frame) (*ptySession, error) {
 	d.lastActive = time.Now()
 	d.mu.Unlock()
 	for _, orphan := range adopted {
+		d.noteSeenOne(orphan.sender, s)
 		s.enqueue(orphan)
 	}
 	if s.role == feedbackRole {
@@ -825,7 +835,8 @@ func (d *daemon) claimName(base string, peek bool) (string, error) {
 		_, live := d.sessions[candidate]
 		_, shell := d.terminals[candidate]
 		_, held := d.claims[candidate]
-		return live || shell || held
+		// The bare name is the role's stable name and stays reusable. Pool slots retire.
+		return live || shell || held || (candidate != base && d.retiredName(candidate, now))
 	})
 	if !peek {
 		d.claims[name] = now.Add(claimHold)
@@ -908,6 +919,8 @@ func (d *daemon) forget(s *ptySession) {
 	delete(d.tokens, s.token)
 	d.lastActive = time.Now()
 	d.ended[s.name] = endedSession{code: s.exitCode, at: time.Now()}
+	d.retire(s.name, time.Now())
+	delete(d.seen, s.name)
 	defer d.markEnded(s)
 	for name, earlier := range d.ended {
 		if time.Since(earlier.at) > endedMemory {
@@ -975,6 +988,7 @@ func (d *daemon) send(c *conn, message frame) error {
 		}
 		return withExit(exitUsage, fmt.Errorf("%q matches %s, name one", message.Target, strings.Join(names, ", ")))
 	case len(targets) == 1:
+		d.noteSeenOne(sender, targets[0])
 		targets[0].enqueue(pending)
 	case message.Launch && safeRoleSlug(message.Target):
 		pending.target = message.Target
@@ -1020,13 +1034,17 @@ func (d *daemon) closeSession(cl *client, message frame) error {
 	if shell := d.terminal(message.Target); shell != nil {
 		return d.closeTerminal(cl, message, shell)
 	}
-	s, err := d.oneTarget(message.Target)
+	target, ref := splitRef(message.Target)
+	s, err := d.oneTarget(target)
 	if err != nil {
 		return err
 	}
 	caller := d.byToken(message.Token)
 	if caller == s {
 		return withExit(exitUsage, fmt.Errorf("%s is this session", s.name))
+	}
+	if err := d.staleTarget(caller, ref, s); err != nil {
+		return err
 	}
 	if d.clientDescendsFrom(cl, map[int]bool{s.pid: true}) {
 		return withExit(exitUsage, fmt.Errorf("this caller runs inside %s, so closing it would end the caller too", s.name))
@@ -1076,7 +1094,8 @@ func (d *daemon) clearSession(cl *client, message frame) error {
 			return err
 		}
 	}
-	s, err := d.oneTarget(message.Target)
+	target, ref := splitRef(message.Target)
+	s, err := d.oneTarget(target)
 	if err != nil {
 		return err
 	}
@@ -1088,6 +1107,9 @@ func (d *daemon) clearSession(cl *client, message frame) error {
 		return withExit(exitUsage, errors.New("a process inside a session must present its session token to clear another"))
 	case caller == s:
 		return withExit(exitUsage, fmt.Errorf("%s is this session, and clearing it would discard the context doing the clearing", s.name))
+	}
+	if err := d.staleTarget(caller, ref, s); err != nil {
+		return err
 	}
 	command, known := clearCommands[s.seat]
 	if !known {
