@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { advanceIndex, askAnswer, choiceFromAsk, choiceKey, detectChoice, keysFor, keysForPicks, nextRowIndex } from "./choices";
+import { advanceIndex, askAnswer, choiceFromAsk, type Choice, choiceKey, detectChoice, keysFor, keysForPicks, nextRowIndex } from "./choices";
 
 // Captured from Claude Code's workspace trust prompt in an aterm daemon session.
 const trust = [
@@ -365,5 +366,57 @@ describe("choiceKey", () => {
 
   it("ignores where the cursor is", () => {
     expect(choiceKey({ ...menu("Which accent?"), cursor: 1 })).toBe(choiceKey(menu("Which accent?")));
+  });
+});
+
+// Real Claude Code 2.1.318 at 34 by 20 (COI-3259): the top of the dialog scrolls away.
+const capture = (name: string): string[] => readFileSync(new URL(`../../testbed/fixtures/captures/claude-2.1.318-34x20-${name}.txt`, import.meta.url), "utf8").replace(/\n+$/, "").split("\n");
+
+describe("a dialog taller than the screen", () => {
+  it("reads the options it can see and counts the ones above when the highlight is off screen", () => {
+    const choice = detectChoice(capture("multi-highlight-off-screen"));
+    expect(choice?.cursor).toBe(-1);
+    expect(choice?.hidden).toBe(2);
+    expect(choice?.multi).toBe(true);
+    expect(choice?.question).toBe("");
+    expect(choice?.options.map((option) => [option.number, option.label])).toEqual([
+      [3, "Frontier"],
+      [4, "Type something"],
+      [undefined, "Submit"],
+      [5, "Chat about this"],
+    ]);
+  });
+
+  it("keeps the highlight when it is on screen, and still counts the hidden options", () => {
+    const choice = detectChoice(capture("multi-top-off-screen"));
+    expect(choice?.cursor).toBe(0);
+    expect(choice?.hidden).toBe(2);
+    expect(choice?.question).toBe("");
+  });
+
+  it("walks from a highlight it can see, never from a guess", () => {
+    const choice = detectChoice(capture("multi-top-off-screen"))!;
+    expect(keysForPicks(choice, [0])).toEqual(["\r", "\x1b[B\x1b[B", "\r"]);
+  });
+
+  it("types the printed number to answer a single-select whose highlight is off screen", () => {
+    const choice: Choice = { header: "", question: "", cursor: -1, cancellable: true, multi: false, hidden: 1, options: [{ label: "Black", description: "", freeText: false, number: 3 }, { label: "Gold", description: "", freeText: false, number: 4 }] };
+    expect(keysFor(choice, 1)).toEqual(["4"]);
+  });
+
+  it("sends nothing for a pick it cannot place, and nothing for a multi-select with no highlight", () => {
+    const choice = detectChoice(capture("multi-highlight-off-screen"))!;
+    expect(keysForPicks(choice, [0])).toEqual([]);
+    expect(keysFor(choice, 1)).toEqual([]);
+  });
+
+  it("is not clipped when the harness windows its own list or numbers from 1", () => {
+    expect(detectChoice(["Which?", "", "❯ 1. Black", "  2. Gold", "", "Enter to select · Esc to cancel"])?.hidden).toBeUndefined();
+  });
+
+  it("reads past the rule above Chat about this when the highlight is on that row", () => {
+    const choice = detectChoice(["Which?", "", "  1. Black", "  2. Gold", "──────────────", "❯ 3. Chat about this", "", "Enter to select · Esc to cancel"]);
+    expect(choice?.options.map((option) => option.label)).toEqual(["Black", "Gold", "Chat about this"]);
+    expect(choice?.cursor).toBe(2);
   });
 });
