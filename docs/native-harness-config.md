@@ -43,7 +43,7 @@ Each path is seeded raw and symlink-resolved, as macOS resolves `/var` to
 an atomic rename, so the session keeps its link, not a copy.
 
 Every live claude rewrites the shared config, and a write that straddles the
-seed erases it, so the seed is read back and repaired within 1.5s. The
+seed erases it, so a guard repairs it for 20s past the exec. The
 external-imports approval needs the readable imports to be exactly the two
 approved base files (COI-3343). A failed seed never blocks a launch.
 

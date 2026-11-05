@@ -338,6 +338,12 @@ func nativeShadowLifecycleVerb(cmd *cli.Command) (func(nativeRuntime) error, boo
 		return func(runtime nativeRuntime) error {
 			return releaseNativeShadow(runtime, id)
 		}, true
+	case cmd.String("trust-guard") != "":
+		plan := nativeTrustPlan{
+			Config: cmd.String("trust-guard"), External: cmd.Bool("trust-external"),
+			Paths: strings.Split(cmd.String("trust-paths"), "\n"),
+		}
+		return func(runtime nativeRuntime) error { return runNativeTrustGuard(runtime, plan) }, true
 	case cmd.Bool("reap"):
 		dryRun := cmd.Bool("dry-run")
 		return func(runtime nativeRuntime) error {
