@@ -459,7 +459,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature, activityFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, closeSelfFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature, activityFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -1040,6 +1040,9 @@ const forgetGrace = 5 * time.Second
 // closeSession ends a live session and drops it, which closing its window does
 // not. It never ends the caller or a session the caller runs inside.
 func (d *daemon) closeSession(cl *client, message frame) error {
+	if message.Self {
+		return d.closeSelf(cl, message)
+	}
 	if shell := d.terminal(message.Target); shell != nil {
 		return d.closeTerminal(cl, message, shell)
 	}
@@ -1058,12 +1061,8 @@ func (d *daemon) closeSession(cl *client, message frame) error {
 	if d.clientDescendsFrom(cl, map[int]bool{s.pid: true}) {
 		return withExit(exitUsage, fmt.Errorf("this caller runs inside %s, so closing it would end the caller too", s.name))
 	}
-	if view := s.view(); !message.Force && (view.Drafted || view.Pending > 0) {
-		held := "Kai's unsent draft"
-		if !view.Drafted {
-			held = fmt.Sprintf("%d undelivered message(s)", view.Pending)
-		}
-		return withExit(exitUsage, fmt.Errorf("%s holds %s, so it stays open unless forced", s.name, held))
+	if err := closeHeld(s, message.Force); err != nil {
+		return err
 	}
 	by := "a client outside every session"
 	if caller != nil {
