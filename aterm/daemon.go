@@ -89,7 +89,7 @@ type daemon struct {
 	// claims holds a granted pool name until its spawn arrives or the hold lapses,
 	// so two launches at once never settle on one name.
 	claims      map[string]time.Time
-	subscribers map[*conn]bool
+	subscribers map[*conn]*client
 	conns       int
 	lastActive  time.Time
 	processes   func() ([]processEntry, error)
@@ -129,7 +129,7 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		ended:       map[string]endedSession{},
 		claims:      map[string]time.Time{},
 		askTimeout:  defaultAskTimeout,
-		subscribers: map[*conn]bool{},
+		subscribers: map[*conn]*client{},
 		lastActive:  time.Now(),
 		clientFS:    embeddedClient(),
 		processes:   func() ([]processEntry, error) { return processLister() },
@@ -688,7 +688,7 @@ func (d *daemon) handle(cl *client, message frame) error {
 			return fmt.Errorf("no channel named %q", message.Channel)
 		}
 		d.mu.Lock()
-		d.subscribers[cl.c] = true
+		d.subscribers[cl.c] = cl
 		d.mu.Unlock()
 		if err := cl.c.write(frame{Type: "sessions", ID: message.ID, Channel: "sessions", Sessions: d.views(), Terminals: d.terminalViews()}); err != nil {
 			return err
@@ -964,6 +964,7 @@ func (d *daemon) send(c *conn, message frame) error {
 		sender:     sender,
 		notifyIdle: message.NotifyIdle,
 	}
+	pending.shown, pending.cut = bodyHead(message.Body)
 	if message.New {
 		if !safeRoleSlug(message.Target) || d.session(message.Target) != nil {
 			return withExit(exitUsage, fmt.Errorf("new opens an instance of a role, and %q is not a role slug", message.Target))
@@ -1213,20 +1214,39 @@ func (d *daemon) pushSessions() {
 }
 
 func (d *daemon) broadcast(message frame) {
+	d.fanout(func(*client) frame { return message })
+}
+
+// fanout offers each subscriber the frame built for it, so a frame can differ
+// by who is reading. frameFor runs outside d.mu.
+func (d *daemon) fanout(frameFor func(*client) frame) {
 	d.mu.Lock()
-	subscribers := make([]*conn, 0, len(d.subscribers))
-	for c := range d.subscribers {
-		subscribers = append(subscribers, c)
+	subscribers := make(map[*conn]*client, len(d.subscribers))
+	for c, cl := range d.subscribers {
+		subscribers[c] = cl
 	}
 	d.mu.Unlock()
-	for _, c := range subscribers {
-		if !c.offer(message) {
+	for c, cl := range subscribers {
+		if !c.offer(frameFor(cl)) {
 			d.mu.Lock()
 			delete(d.subscribers, c)
 			d.mu.Unlock()
 			_ = c.Close()
 		}
 	}
+}
+
+// broadcastMessage pushes a message state change, with the body only for a peer
+// that may type. See .agents/skills/tooling-aterm-client/references/message-text.md.
+func (d *daemon) broadcastMessage(snapshot peerMessage, text string, cut bool) {
+	under := d.descender(d.sessionRoots())
+	d.fanout(func(cl *client) frame {
+		shown := snapshot
+		if text != "" && d.typingRefusalVia(cl, "", under) == nil {
+			shown.Text, shown.TextCut = text, cut
+		}
+		return frame{Type: "message", Message: &shown}
+	})
 }
 
 // insideSession reports whether pid runs under a session this daemon started,
@@ -1248,6 +1268,10 @@ func (d *daemon) sessionRoots() map[int]bool {
 // clientDescendsFrom is descendsFrom for a connection held by several pids.
 // A remote device never descends, and a local peer left unnamed counts as under.
 func (d *daemon) clientDescendsFrom(cl *client, roots map[int]bool) bool {
+	return clientUnder(cl, d.descender(roots))
+}
+
+func clientUnder(cl *client, under func(pid int) bool) bool {
 	if cl.remote {
 		return false
 	}
@@ -1255,7 +1279,7 @@ func (d *daemon) clientDescendsFrom(cl *client, roots map[int]bool) bool {
 		return true
 	}
 	for _, pid := range cl.pids {
-		if d.descendsFrom(pid, roots) {
+		if under(pid) {
 			return true
 		}
 	}
@@ -1265,13 +1289,19 @@ func (d *daemon) clientDescendsFrom(cl *client, roots map[int]bool) bool {
 // typingRefusal is the typing guard for what is Kai's to do, as a refusal a
 // client can show: nil when the peer may, otherwise message with a reason.
 func (d *daemon) typingRefusal(cl *client, message string) error {
+	return d.typingRefusalVia(cl, message, d.descender(d.sessionRoots()))
+}
+
+// typingRefusalVia is typingRefusal with the process walk handed in, so several
+// peers can be judged against one reading of the process table.
+func (d *daemon) typingRefusalVia(cl *client, message string, under func(pid int) bool) error {
 	if cl.remote {
 		if d.users.Unlocked(cl) {
 			return nil
 		}
 		return withReason(reasonPasskeyRequired, errors.New("unlock this device with its passkey or device key before it types"))
 	}
-	if !d.clientDescendsFrom(cl, d.sessionRoots()) {
+	if !clientUnder(cl, under) {
 		return nil
 	}
 	if len(cl.pids) == 0 {
@@ -1296,33 +1326,51 @@ func (d *daemon) typingStanding(cl *client) *typingStanding {
 // descendsFrom reports whether pid is one of roots or runs under one. An
 // unreadable pid or process table counts as under, the cautious answer.
 func (d *daemon) descendsFrom(pid int, roots map[int]bool) bool {
-	if pid <= 0 {
-		return true
-	}
-	entries, err := d.processes()
-	if err != nil {
-		return true
-	}
-	parents := map[int]int{}
-	for _, entry := range entries {
-		parents[entry.PID] = entry.PPID
-	}
-	seen := map[int]bool{}
-	for current := pid; current > 1 && !seen[current]; current = parents[current] {
-		if roots[current] {
+	return d.descender(roots)(pid)
+}
+
+// descender is descendsFrom for many pids against one reading of the process
+// table, taken on the first pid that needs it.
+func (d *daemon) descender(roots map[int]bool) func(pid int) bool {
+	var parents map[int]int
+	var read, readable bool
+	return func(pid int) bool {
+		if pid <= 0 {
 			return true
 		}
-		seen[current] = true
+		if !read {
+			read = true
+			if entries, err := d.processes(); err == nil {
+				readable, parents = true, make(map[int]int, len(entries))
+				for _, entry := range entries {
+					parents[entry.PID] = entry.PPID
+				}
+			}
+		}
+		if !readable {
+			return true
+		}
+		seen := map[int]bool{}
+		for current := pid; current > 1 && !seen[current]; current = parents[current] {
+			if roots[current] {
+				return true
+			}
+			seen[current] = true
+		}
+		return false
 	}
-	return false
 }
 
 // pendingSend is a message on its way. Its state is read by the sender's
 // reply, the sessions channel, and the delivering session, so it locks itself.
 type pendingSend struct {
-	mu     sync.Mutex
-	msg    peerMessage
-	text   string
+	mu   sync.Mutex
+	msg  peerMessage
+	text string
+	// shown is the head of the body a typing peer's `message` frame carries,
+	// and cut says the body was longer. See bodyHead.
+	shown  string
+	cut    bool
 	target string
 	fresh  bool
 	done   chan struct{}
@@ -1346,7 +1394,7 @@ func (p *pendingSend) setState(state, reason string) {
 		p.once.Do(func() { close(p.done) })
 	}
 	if changed && p.d != nil {
-		p.d.broadcast(frame{Type: "message", Message: &snapshot})
+		p.d.broadcastMessage(snapshot, p.shown, p.cut)
 	}
 	if finalState(state) {
 		p.sendReceipt()

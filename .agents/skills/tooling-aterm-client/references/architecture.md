@@ -8,7 +8,7 @@ The client is one Svelte app with no router. State lives in `src/lib/app.svelte.
 
 ## Why envelopes are matched, not reported
 
-A peer message is typed into the target harness's input, and the harness decides where it echoes it, often behind its own prompt. The daemon cannot know which screen rows hold it, and its message events carry no body. The daemon does escape envelope-shaped lines inside a body with a leading backslash, so the client marks a logical line holding an unescaped `[from <role> <identity>]` from a sender it has a message event for. Wrapped rows are joined first, so a narrow pane still marks the whole line. A seat quoting another's envelope in its own output would also be marked, which is cosmetic.
+A peer message is typed into the target harness's input, and the harness decides where it echoes it, often behind its own prompt. The daemon cannot know which screen rows hold it, and its message events carry the body (`text`) only to a client allowed to type, cut at 32 KiB, so an old or locked host sends none. The daemon does escape envelope-shaped lines inside a body with a leading backslash, so the client marks a logical line holding an unescaped `[from <role> <identity>]` from a sender it has a message event for. Wrapped rows are joined first, so a narrow pane still marks the whole line. A seat quoting another's envelope in its own output would also be marked, which is cosmetic.
 
 ## Activity is output, not a flag
 

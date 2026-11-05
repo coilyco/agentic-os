@@ -98,5 +98,15 @@ func TestADialogThatStaysUpIsReportedAndNothingIsTyped(t *testing.T) {
 	}
 	if len(s.pending) != 1 {
 		t.Fatal("the held message must stay queued, not be dropped")
+// COI-3404: a seat whose message sat in the box unsubmitted has to explain itself from
+// the daemon log, so the trace names each belief the daemon typed on.
+func TestTheDeliveryTraceNamesWhatTheDaemonBelievedWhenItTyped(t *testing.T) {
+	s := dialogSeat("claude")
+	s.startupCard, s.promptSeen = true, time.Now()
+	trace := s.deliveryTrace(time.Now())
+	for _, want := range []string{"age 1h0m0s", "prompt seen true", "startup card true", "card up false", "parked false", "pending 0"} {
+		if !strings.Contains(trace, want) {
+			t.Fatalf("trace %q lacks %q", trace, want)
+		}
 	}
 }

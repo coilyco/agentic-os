@@ -116,9 +116,26 @@
   // unless the person has panned away. Cropped rows lie below it.
   let hiddenPx = () => 0;
   const atBottom = () => host.scrollHeight - host.clientHeight - host.scrollTop - hiddenPx() < 2;
+  // Sideways is left alone: a phone resizes with its address bar and keyboard, and a
+  // reset here would send a person who panned to a long line back to column 0.
   function anchor(follow: boolean): void {
     if (follow) host.scrollTop = Math.max(0, host.scrollHeight - host.clientHeight - hiddenPx());
-    host.scrollLeft = 0;
+    edges();
+  }
+
+  // Whether text lies past either side, for the cue a phone's hidden scroll bar cannot give.
+  let past = $state({ left: false, right: false });
+  let measuring = 0;
+  // A frame later, so reading the layout never lands between a resize and its anchor.
+  function edges(): void {
+    if (measuring) return;
+    measuring = requestAnimationFrame(() => {
+      measuring = 0;
+      if (!host) return;
+      const left = host.scrollLeft > 2;
+      const right = host.scrollLeft + host.clientWidth < host.scrollWidth - 2;
+      if (left !== past.left || right !== past.right) past = { left, right };
+    });
   }
 
   // A step that throws here would stop xterm taking any more writes, so each runs on its own.
@@ -127,6 +144,7 @@
     safely("reading the screen", reportScreen);
     safely("watching the harness", () => watchHarness());
     safely("noting the screen drew", () => noteDrawn());
+    safely("noting text past the edge", edges);
   }
 
   let noteDrawn = () => {};
@@ -179,6 +197,7 @@
     trackView = () => (latest = scrolled(latest, above()));
     terminal.onScroll(trackView);
     host.addEventListener("scroll", trackView);
+    host.addEventListener("scroll", edges);
     const cropping = () => cropHarness;
     let hidden = 0;
     const extra = () => (cropping() ? hidden : 0);
@@ -340,6 +359,7 @@
       connection.detach(sessionId);
       input.dispose();
       host.removeEventListener("scroll", trackView);
+      host.removeEventListener("scroll", edges);
       observer.disconnect();
       terminal.dispose();
     };
@@ -383,6 +403,8 @@
   <div class="term-host" class:panning role="region" aria-label={`Terminal for ${label}`} bind:this={host}>
     <p class="waiting" role="status">{waiting}</p>
   </div>
+  <span class="edge left" class:on={past.left} aria-hidden="true">‹</span>
+  <span class="edge right" class:on={past.right} aria-hidden="true">›</span>
   {#if finding && search}
     <FindBar {search} initial={findSeed} onclose={closeFind} />
   {/if}
@@ -403,8 +425,13 @@
   .term-host.panning :global(.xterm) { width: max-content; }
   .jump { position: absolute; z-index: 3; right: 28px; bottom: 16px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px #000a; }
   .count { min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: var(--brand-ink); font: 700 12px/22px var(--font-body); text-align: center; }
+  .edge { display: none; position: absolute; z-index: 2; top: 0; bottom: 0; width: 28px; align-items: center; color: var(--text); font: 600 22px var(--font-body); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+  .edge.left { left: 0; justify-content: flex-start; padding-left: 4px; background: linear-gradient(to right, #101216dd, transparent); }
+  .edge.right { right: 0; justify-content: flex-end; padding-right: 4px; background: linear-gradient(to left, #101216dd, transparent); }
+  .edge.on { opacity: 1; }
   .jump:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   @media (max-width: 720px) {
     .jump { right: 12px; bottom: 12px; }
+    .edge { display: flex; }
   }
 </style>

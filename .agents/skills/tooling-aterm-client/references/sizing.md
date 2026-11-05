@@ -8,7 +8,7 @@ A PTY has one size, and the harness draws for it with absolute cursor moves. Sev
 
 **The daemon sends `{type:"size", session, rows, cols}`** to a client right after its attach, even when it is the only one and even when unchanged, and to every attached client whenever the size changes, which includes the survivors when the largest client leaves. The client sets xterm to exactly that size, behind the bytes already queued (`afterQueued`), because xterm resizes at once but parses a write later and heavy output would otherwise draw old-size bytes at the new size. The feature `pty-size` in `welcome` says the daemon does this. Without it a client keeps fitting and sending.
 
-**A phone pans, anchored bottom-left**, showing the bottom rows when the PTY is taller than its box, since the input and the newest text are there. Scaling 200 columns into a phone is about 2px a column. This is COI-2608's layout.
+**A phone pans, anchored bottom-left**, showing the bottom rows when the PTY is taller than its box, since the input and the newest text are there. Scaling 200 columns into a phone is about 2px a column. This is COI-2608's layout. The pan keeps where a person left it, since a phone resizes with its address bar and keyboard, and a chevron at the edge says text lies past it, because a phone's scroll bar hides (COI-3317).
 
 **Ship the client first.** A client that predates `size` draws a wider PTY mis-wrapped, and as a raw client it also caps everyone at its own size. A client on an older daemon gets no `size` frame and keeps today's behavior.
 
