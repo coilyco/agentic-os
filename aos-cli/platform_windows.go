@@ -71,3 +71,6 @@ func startSOCKSForwarders(_, _ int, spec execSpec) error {
 func pathOwner(os.FileInfo) (int, bool) {
 	return 0, false
 }
+
+// detachNativeProcess does nothing on Windows, where a child outlives its parent.
+func detachNativeProcess(*exec.Cmd) {}

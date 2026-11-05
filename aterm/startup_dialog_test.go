@@ -81,6 +81,26 @@ func TestAMessageWaitsForThePromptAfterAStartupDialogClears(t *testing.T) {
 	target.until("[from eng-platform Beetle-Ox] ping")
 }
 
+// A dialog nobody answers is reported to the sender and never typed into (COI-3343).
+func TestADialogThatStaysUpIsReportedAndNothingIsTyped(t *testing.T) {
+	s := dialogSeat("claude")
+	s.startupCard, s.cardUp = true, true
+	send := &pendingSend{text: "ping", done: make(chan struct{})}
+	s.pending = []*pendingSend{send}
+	s.deliverNext(s.started.Add(startupDialogReport / 2))
+	if got := send.snapshot().State; got != "queued" {
+		t.Fatalf("a dialog just shown is still starting, state = %q", got)
+	}
+	s.deliverNext(s.started.Add(2 * startupDialogReport))
+	got := send.snapshot()
+	if got.State != "held" || !strings.Contains(got.Reason, "stopped at a startup dialog") || !strings.Contains(got.Reason, "Nothing was typed") {
+		t.Fatalf("a dialog that stayed up should be named to the sender: %+v", got)
+	}
+	if len(s.pending) != 1 {
+		t.Fatal("the held message must stay queued, not be dropped")
+	}
+}
+
 // COI-3404: a seat whose message sat in the box unsubmitted has to explain itself from
 // the daemon log, so the trace names each belief the daemon typed on.
 func TestTheDeliveryTraceNamesWhatTheDaemonBelievedWhenItTyped(t *testing.T) {

@@ -811,6 +811,10 @@ const promptSettle = 250 * time.Millisecond
 // that words it differently or a session adopted long after it. A var, for tests.
 var promptWait = 20 * time.Second
 
+// startupDialogReport is how long a startup dialog may stay up before senders are told
+// it, instead of hearing the seat is still starting (COI-3343). A var, for tests.
+var startupDialogReport = 15 * time.Second
+
 // pastStartupDialog is false after a dialog that came before the prompt, until the mark
 // shows or promptWait passes with it gone, so text never lands as it clears (COI-3343).
 func (s *ptySession) pastStartupDialog(now time.Time) bool {
@@ -903,8 +907,14 @@ func (s *ptySession) deliverNext(now time.Time) {
 		hold = s.cardReason()
 	}
 	paste := s.paste
+	stuck := s.startupCard && s.cardUp && now.Sub(s.started) > startupDialogReport
 	s.mu.Unlock()
 	switch {
+	case !ready && stuck:
+		reason := s.name + " is stopped at a startup dialog. Nothing was typed. Answer it or relaunch."
+		next.setState("held", reason)
+		s.holdFollowers(reason)
+		return
 	case !ready:
 		next.setState("queued", s.name+" is still starting")
 		return

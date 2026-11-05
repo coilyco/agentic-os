@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -54,4 +55,51 @@ func recheckNativeClaudeTrust(runtime nativeRuntime, plan nativeTrustPlan) {
 	}
 	result, err := ensureNativeClaudeTrust(plan.Config, plan.Paths, plan.External, nativeTrustRecheckChecks)
 	logNativeClaudeTrust(runtime, "pre-exec", plan, result, err)
+}
+
+// The guard outlives the exec, because claude reads the seed after it starts and another
+// claude's stale write can erase it in between. A var, for tests.
+var (
+	nativeTrustGuardWindow = 20 * time.Second
+	nativeTrustGuardEvery  = 100 * time.Millisecond
+)
+
+// guardNativeClaudeTrust rewrites an erased seed until the window ends, counting repairs.
+func guardNativeClaudeTrust(plan nativeTrustPlan, window, every time.Duration) (int, error) {
+	repairs := 0
+	for deadline := time.Now().Add(window); time.Now().Before(deadline); time.Sleep(every) {
+		repaired, err := seedNativeClaudeTrustChanged(plan.Config, plan.Paths, plan.External)
+		if err != nil {
+			return repairs, err
+		}
+		if repaired {
+			repairs++
+		}
+	}
+	return repairs, nil
+}
+
+// startNativeTrustGuard detaches a guard process that survives the exec. A failure to
+// start it costs nothing the launch needed.
+func startNativeTrustGuard(plan nativeTrustPlan) {
+	self, err := os.Executable()
+	if plan.Config == "" || err != nil {
+		return
+	}
+	args := []string{"_native-shadow", "--trust-guard", plan.Config, "--trust-paths", strings.Join(plan.Paths, "\n")}
+	if plan.External {
+		args = append(args, "--trust-external")
+	}
+	guard := exec.Command(self, args...)
+	detachNativeProcess(guard)
+	if guard.Start() == nil {
+		_ = guard.Process.Release()
+	}
+}
+
+// runNativeTrustGuard is the detached guard, which leaves its record in the trust log.
+func runNativeTrustGuard(runtime nativeRuntime, plan nativeTrustPlan) error {
+	repairs, err := guardNativeClaudeTrust(plan, nativeTrustGuardWindow, nativeTrustGuardEvery)
+	logNativeClaudeTrust(runtime, "guard", plan, nativeSeedResult{Repairs: repairs, Clean: err == nil}, err)
+	return err
 }

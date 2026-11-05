@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -56,5 +58,43 @@ func TestARecheckBeforeTheHandoffWritesAgainASeedErasedSinceStaging(t *testing.T
 	recheckNativeClaudeTrust(runtime, nativeTrustPlan{})
 	if after, _ := os.ReadFile(filepath.Join(runtime.StateRoot, "claude-trust.log")); string(after) != string(raw) {
 		t.Fatal("a launch with no Claude plan should log nothing")
+	}
+}
+
+// COI-3343: one launch in six lost the seed to another claude's stale write, some of them
+// after the hand-off. The guard keeps repairing for the whole window.
+func TestTheGuardRepairsASeedErasedAgainAndAgainAfterTheHandoff(t *testing.T) {
+	config := filepath.Join(t.TempDir(), ".claude.json")
+	project := filepath.Join(t.TempDir(), "projects")
+	plan := nativeTrustPlan{Config: config, Paths: []string{project}, External: true}
+	if err := seedNativeClaudeTrust(config, plan.Paths, true); err != nil {
+		t.Fatal(err)
+	}
+	stop := make(chan struct{})
+	var erased sync.WaitGroup
+	erased.Add(1)
+	go func() {
+		defer erased.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-time.After(25 * time.Millisecond):
+				_ = writeNativeClaudeJSON(config, map[string]json.RawMessage{"projects": json.RawMessage("{}")})
+			}
+		}
+	}()
+	repairs, err := guardNativeClaudeTrust(plan, 300*time.Millisecond, 5*time.Millisecond)
+	close(stop)
+	erased.Wait()
+	if err != nil || repairs < 2 {
+		t.Fatalf("repairs = %d, err = %v, want the seed repaired after each erasure", repairs, err)
+	}
+	if _, err := guardNativeClaudeTrust(plan, 20*time.Millisecond, 5*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+	entry := projectEntry(t, config, project)
+	if string(entry["hasTrustDialogAccepted"]) != "true" || string(entry["hasClaudeMdExternalIncludesApproved"]) != "true" {
+		t.Fatalf("the seed should be in place once the erasing stops: %v", entry)
 	}
 }

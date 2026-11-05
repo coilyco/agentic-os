@@ -303,6 +303,7 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 	}
 	runtime.Progress.Ready()
 	recheckNativeClaudeTrust(runtime, workspace.Trust)
+	startNativeTrustGuard(workspace.Trust)
 	runtime.Progress.Exec(command)
 	return execNative(command)
 }
