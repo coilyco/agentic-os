@@ -863,6 +863,13 @@ func (s *ptySession) cardReason() string {
 	return ""
 }
 
+// deliveryTrace is what the daemon believed when it typed, for the log. A seat whose
+// message sat unsubmitted can then be read back (COI-3404). Caller holds mu.
+func (s *ptySession) deliveryTrace(now time.Time) string {
+	return fmt.Sprintf("age %s, prompt seen %t, startup card %t, card up %t, parked %t, pending %d",
+		now.Sub(s.started).Round(time.Second), !s.promptSeen.IsZero(), s.startupCard, s.cardUp, s.parked != nil, len(s.pending))
+}
+
 // holdFollowers gives the messages queued behind a held one the same reason, so every
 // sender hears held rather than a queue position that never moves (COI-2653).
 func (s *ptySession) holdFollowers(reason string) {
@@ -921,8 +928,11 @@ func (s *ptySession) deliverNext(now time.Time) {
 		return
 	}
 	s.sending = next
+	trace := s.deliveryTrace(now)
 	s.mu.Unlock()
+	typed := time.Now()
 	err := s.submit(next.text, paste)
+	s.d.logf("delivery to %s: %s, took %s, result %v", s.name, trace, time.Since(typed).Round(time.Millisecond), err)
 	s.mu.Lock()
 	s.sending = nil
 	if len(s.pending) > 0 && s.pending[0] == next {
@@ -1030,6 +1040,7 @@ func (s *ptySession) view() sessionView {
 		Context:      s.context,
 		LastReply:    s.lastReply,
 		LastReplyAt:  repliedAt,
+		Ref:          sessionRef(s.name, s.started),
 		Activity:     s.activity,
 		ActivityAt:   activityAt,
 	}

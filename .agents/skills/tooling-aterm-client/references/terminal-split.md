@@ -4,7 +4,7 @@ The Terminal tab sits beside Messages, Views and Browser in a seat's side panel 
 
 ## Default tab by role
 
-* **Table** - `ROLE_DEFAULTS` in `side-tab.ts` is the only place a role name picks a tab. `sysadmin-*` opens Terminal, `frontend-*` Browser, `prod-director` and every other role Messages.
+* **Table** - `ROLE_DEFAULTS` in `side-tab.ts` is the only place a role name picks a tab. `sysadmin-*` opens Terminal, `frontend-*` Browser, `prod-director` and every other role Messages. A tab that would open on an empty state is never the default: Browser yields to Messages while the host streams no browser or the seat has no page open, decided once when the seat opens (COI-3324). A stored pick is kept even then.
 * **Override** - clicking a tab remembers it per role in `aterm.side-tab.v1`, so every instance of that role opens on it. The role's default never overwrites a stored pick.
 
 ## Pane states

@@ -63,6 +63,12 @@ func (r *clearRig) settle(name string) {
 }
 
 func (r *clearRig) clear(token, target string, force bool) (frame, error) {
+	// A seat clears a name it has listed, since names are reused (COI-3403).
+	if token != "" {
+		if _, err := r.tc.c.request(frame{Type: "list", Token: token}); err != nil {
+			r.t.Fatalf("list as the caller: %v", err)
+		}
+	}
 	return r.tc.c.request(frame{Type: "clear", Token: token, Target: target, Force: force})
 }
 

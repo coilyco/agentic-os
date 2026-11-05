@@ -55,6 +55,8 @@ interface Live {
   scene: Scene;
   /** The box each attached socket asked for. The daemon sizes the PTY to it. */
   boxes: Map<WebSocket, { rows: number; cols: number }>;
+  /** Columns a wider client holds the PTY at, by the daemon's largest-client rule. */
+  wideCols?: number;
 }
 
 export interface Mock {
@@ -73,6 +75,8 @@ export interface Mock {
   browserCalls: { type: string; session?: string; take?: boolean; url?: string; channel?: string }[];
   /** The scene a seat runs, to read what a native dialog received. */
   sceneOf(session: string): Scene | undefined;
+  /** Size a seat's PTY to at least this many columns, as a wider client does. */
+  holdWide(session: string, cols: number): void;
   /** Replace a seat's scene and redraw it on every client attached. */
   setScene(session: string, scene: Scene): void;
   /** Send one daemon frame to every client, as the daemon would push it. */
@@ -167,8 +171,9 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
 
   /** Draw a seat at the size its client asked for. A client of this one's size only. */
   const draw = (seat: Live, socket: WebSocket): void => {
-    const box = seat.boxes.get(socket);
-    if (!box) return;
+    const own = seat.boxes.get(socket);
+    if (!own) return;
+    const box = { rows: own.rows, cols: Math.max(own.cols, seat.wideCols ?? 0) };
     send(socket, { type: "size", session: seat.spec.name, rows: box.rows, cols: box.cols });
     send(socket, { type: "output", session: seat.spec.name, data: encode(paint(seat.scene.render(box.cols, box.rows))) });
   };
@@ -338,6 +343,12 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
     launches: mock.launches,
     browserCalls: mock.browserCalls,
     sceneOf: (session) => live.get(session)?.scene,
+    holdWide(session, cols) {
+      const seat = live.get(session);
+      if (!seat) throw new Error(`no seat named ${session}`);
+      seat.wideCols = cols;
+      redraw(seat);
+    },
     setScene(session, scene) {
       const seat = live.get(session);
       if (!seat) throw new Error(`no seat named ${session}`);
