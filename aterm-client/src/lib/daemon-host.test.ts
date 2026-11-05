@@ -32,7 +32,12 @@ describe("aterm.daemon.v1 mapping", () => {
 
   it("splits the sender and keeps the failure reason", () => {
     const message = toMessage({ id: "a1", from: "eng-platform Beetle-Ox", target: "game-dev", state: "failed", reason: "no live session" });
-    expect(message).toEqual({ id: "a1", from: { role: "eng-platform", identity: "Beetle-Ox" }, target: "game-dev", session: null, state: "failed", reason: "no live session" });
+    expect(message).toEqual({ id: "a1", from: { role: "eng-platform", identity: "Beetle-Ox" }, target: "game-dev", session: null, state: "failed", reason: "no live session", text: null });
+  });
+
+  it("carries the text of a message when the daemon sends it", () => {
+    const message = toMessage({ id: "a2", from: "eng-platform Beetle-Ox", target: "game-dev", state: "delivered", text: "Run the gate.\nThen merge." });
+    expect(message.text).toBe("Run the gate.\nThen merge.");
   });
 });
 

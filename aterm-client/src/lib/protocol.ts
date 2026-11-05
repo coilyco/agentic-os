@@ -81,6 +81,8 @@ export interface PeerMessage {
   session: string | null;
   state: MessageState;
   reason: string | null;
+  /** What the sender wrote. Absent from a daemon that does not send it (COI-3362). */
+  text?: string | null;
 }
 
 /** A seat's `ask_choice` call, waiting on a person. */

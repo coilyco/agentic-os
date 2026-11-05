@@ -40,3 +40,8 @@ export const stateLabel: Record<MessageState, string> = {
   delivered: "typed in",
   failed: "failed",
 };
+
+/** A message's first line that says something, for the row that has not been opened. */
+export function gist(text: string | null | undefined): string {
+  return (text ?? "").split("\n").map((line) => line.trim()).find(Boolean) ?? "";
+}
