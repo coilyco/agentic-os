@@ -44,7 +44,7 @@ Journeys that hold today: `reconnect` (COI-3352: a restart ridden out, a silent 
 
 * **Not a real phone** - WebKit emulation is not iOS. The keyboard journey shrinks the viewport by a keyboard's height, which a real iOS keyboard does not match. A Simulator run is the follow-up if Kai sees something here misses.
 * **Authored screens** - only the dialog screens are captured. The working screen and the answered screen are authored.
-* **`stream-under-load` is a guard, not proof** - it passes on main without the COI-3246 fix, because its burst repaints with absolute cursor moves. A proof needs a burst with relative moves around a resize.
+* **`stream-under-load` is a guard, not proof** - it passes on main without the COI-3246 fix, because its burst repaints with absolute cursor moves. The proof is `stream-resize-queued` (COI-3292): one 20000 frame burst of relative moves with a size frame right behind it, compared with a reference xterm that drained first and then resized. Built without `afterQueued` in the size handler it fails 6 of 6, and with it passes 6 of 6 (`ATERM_TESTBED_DIST` against a build of each). Its reconnect case holds with and without the reconnect ordering, so it guards the symptom and proves nothing.
 * **Baselines are per platform** - they sit under `baselines/darwin/` for a Mac and `baselines/linux/` for CI. A font rasterises differently on each.
 
 ## In CI
