@@ -21,17 +21,16 @@ RUN set -eux; \
     apt-get update; apt-get install -y --no-install-recommends \
       ca-certificates curl git openssh-client python3 python3-yaml; \
     rm -rf /var/lib/apt/lists/*
-RUN set -eux; \
+# The aos release is private (COI-3399): the read token is a BuildKit secret, so
+# it lands in no layer. docs/dev-base-image.md has the contract.
+RUN --mount=type=bind,source=fetch-private-release.sh,target=/tmp/fetch-private-release.sh \
+    --mount=type=secret,id=aos_read_token \
+    set -eux; \
     aos_asset="aos-linux-${TARGETARCH}"; \
-    aos_base="https://github.com/coilyco/agentic-os/releases/download/aos-v${AOS_VERSION}"; \
-    curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
-      "${aos_base}/${aos_asset}" -o "/tmp/${aos_asset}"; \
-    curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
-      "${aos_base}/SHA256SUMS" -o /tmp/aos-SHA256SUMS; \
-    grep "[[:space:]]${aos_asset}$" /tmp/aos-SHA256SUMS \
-      | (cd /tmp && sha256sum -c -); \
-    install -m 0755 "/tmp/${aos_asset}" /usr/local/bin/aos; \
-    rm "/tmp/${aos_asset}" /tmp/aos-SHA256SUMS; aos --version
+    bash /tmp/fetch-private-release.sh /run/secrets/aos_read_token \
+      coilyco/agentic-os "aos-v${AOS_VERSION}" /tmp/aos-release "${aos_asset}"; \
+    install -m 0755 "/tmp/aos-release/${aos_asset}" /usr/local/bin/aos; \
+    rm -rf /tmp/aos-release; aos --version
 RUN set -eux; \
     umbra_asset="umbra-linux-${TARGETARCH}"; \
     umbra_base="https://github.com/coilyco/umbra/releases/download/v${UMBRA_VERSION}"; \
@@ -65,7 +64,7 @@ RUN set -eux; \
     rm -rf /tmp/aosguard-spec /tmp/aosguard-python; aosguard --version
 
 FROM ${BASE_IMAGE} AS dev-base-full
-ARG AGENT_COMPOSE_VERSION=2.219.0
+ARG AGENT_COMPOSE_VERSION=2.220.0
 ARG CLAUDE_VERSION=2.1.282
 ARG MCPORTER_VERSION=0.12.3
 ARG CODEX_VERSION=0.146.0
@@ -102,6 +101,8 @@ COPY --from=dev-base-lang-python-graft /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=dev-base-lang-python-graft /usr/local/bin/pipenv /usr/local/bin/pipenv
 COPY --from=dev-base-lang-python-graft /opt/uv /opt/uv
 RUN --mount=type=bind,source=install-common.sh,target=/tmp/install-common.sh \
+    --mount=type=bind,source=fetch-private-release.sh,target=/tmp/fetch-private-release.sh \
+    --mount=type=secret,id=treehouse_read_token \
     --mount=from=repo-lists,source=substrate-repos.txt,target=/tmp/substrate-repos.txt \
     bash /tmp/install-common.sh /tmp/substrate-repos.txt "${GIT_LFS_VERSION}" \
       "${GIT_LFS_SHA256_AMD64}" "${GIT_LFS_SHA256_ARM64}"
