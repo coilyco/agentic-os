@@ -266,6 +266,9 @@ type peerMessage struct {
 	State    string    `json:"state"`
 	Reason   string    `json:"reason,omitempty"`
 	Accepted time.Time `json:"accepted"`
+	// Text is set by broadcastMessage alone, never on a `sent` reply or receipt.
+	Text    string `json:"text,omitempty"`
+	TextCut bool   `json:"text_cut,omitempty"`
 }
 
 // conn is one side of a framed connection, over the unix socket or a
