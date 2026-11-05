@@ -9,6 +9,7 @@ import { upsertMessage } from "./messages";
 import { askerLine, cardSeatOf } from "./relay";
 import { MockHost, terminalModeFrom } from "./mock-host";
 import { diagnose } from "./reach";
+import { Recheck } from "./recheck";
 import type { View } from "./mcp-apps";
 import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
@@ -18,6 +19,7 @@ import type { Role } from "./roster";
 import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
 import { TYPING_OPEN, type Typing } from "./typing";
 import { offer, pageLabel, type OpenedPage } from "./pages";
+import { loadLastOpen, seatToRestore, storeLastOpen, type LastOpen } from "./last-open";
 
 /** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
 
@@ -110,13 +112,16 @@ const dismissed = new Set<string>();
 const RESTORED_MS = 5000;
 let restoredTimer: ReturnType<typeof setTimeout> | undefined;
 
-/** True while the attached host is silent and the screen is its last known state. */
+/** True while the attached host is silent and the screen is its last known state. That
+ * holds in the hour of tries and after it, when only a return to the page dials again. */
 export function reconnecting(): boolean {
-  return app.link.state === "reconnecting";
+  return app.link.state === "reconnecting" || app.link.state === "resting";
 }
 
 /** Brings the attached host's own panel forward, where its connection check is. */
 export function showHost(): void {
+  restoring = null;
+  if (app.attachedHostId) storeLastOpen({ host: app.attachedHostId });
   app.selectedSession = null;
   app.selectedRole = null;
   if (app.attachedHostId) app.selectedHostId = app.attachedHostId;
@@ -180,11 +185,56 @@ export async function checkHost(host: Host): Promise<void> {
     // The socket failure says nothing, so ask over HTTPS which layer stopped it.
     const { layer, message } = await diagnose(host.address);
     host.status = { kind: "unreachable", reason: message, layer };
+    watchHost(host);
     return;
   }
+  stopWatching(host);
   // Picked while the probe was still out, so attach now that it answered.
   if (app.selectedHostId === host.id && app.attachedHostId !== host.id) selectHost(host);
   if (!host.found) void refreshFound();
+}
+
+// Hosts that are not answering are asked again on the backoff and on every return to
+// the page, so they never wait for a tap (COI-3352). Keyed by address: ids change.
+const rechecks = new Map<string, Recheck>();
+
+function watchHost(host: Host): void {
+  if (host.kind !== "daemon") return;
+  let recheck = rechecks.get(host.address);
+  if (!recheck) {
+    recheck = new Recheck(() => recheckHost(host));
+    rechecks.set(host.address, recheck);
+  }
+  recheck.start();
+}
+
+function stopWatching(host: Host): void {
+  rechecks.get(host.address)?.stop();
+  rechecks.delete(host.address);
+}
+
+/** The checkHost probe without its Checking screen, so the page does not flicker.
+ * Attaches the host if it was the one picked. */
+async function recheckHost(host: Host): Promise<boolean> {
+  try {
+    host.status = { kind: "online", sessionCount: await probe(host.address) };
+  } catch {
+    return false;
+  }
+  host.answered = true;
+  stopWatching(host);
+  if (app.selectedHostId === host.id && app.attachedHostId !== host.id) selectHost(host);
+  if (!host.found) void refreshFound();
+  return true;
+}
+
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  const wake = () => {
+    if (document.visibilityState === "visible") for (const recheck of rechecks.values()) recheck.wake();
+  };
+  window.addEventListener("online", wake);
+  window.addEventListener("focus", wake);
+  document.addEventListener("visibilitychange", wake);
 }
 
 const FOUND_REFRESH_MS = 60_000;
@@ -253,6 +303,8 @@ export function removeHost(id: string): void {
     app.connection = null;
     app.attachedHostId = null;
   }
+  const removed = app.hosts.find((host) => host.id === id);
+  if (removed) stopWatching(removed);
   app.hosts = app.hosts.filter((host) => host.id !== id);
   if (app.selectedHostId === id) app.selectedHostId = null;
   persist();
@@ -267,7 +319,35 @@ export function selectedHost(): Host | undefined {
 }
 
 /** Selecting an online host attaches to it, so one tap reaches its seats. */
+// What this device last had open, until the restore uses it or a tap overtakes it.
+let restoring: LastOpen | null = loadLastOpen();
+let restoringNow = false;
+
+function restoreFor(host: Host): void {
+  if (restoring?.host !== host.id || app.selectedHostId || host.status.kind !== "online") return;
+  restoringNow = true;
+  try {
+    selectHost(host);
+  } finally {
+    restoringNow = false;
+  }
+}
+
+function restoreSeat(last: LastOpen, listed: readonly Session[]): void {
+  const step = seatToRestore(last, listed);
+  if (!step) return;
+  restoringNow = true;
+  try {
+    if ("open" in step) selectSession(step.open);
+    else app.notice = `${step.gone} is not running any more. Pick a seat from the list.`;
+  } finally {
+    restoringNow = false;
+  }
+}
+
 export function selectHost(host: Host): void {
+  if (!restoringNow) restoring = null;
+  storeLastOpen({ host: host.id });
   app.selectedHostId = host.id;
   app.selectedSession = null;
   app.selectedRole = null;
@@ -306,6 +386,11 @@ export function selectHost(host: Host): void {
       app.unseen = nextUnseen(app.sessions, event.sessions, viewingSession(), app.unseen);
       app.attention = nextUnseen(app.sessions, event.sessions, openSeat(), app.attention);
       app.sessions = event.sessions;
+      if (restoring?.host === host.id) {
+        const last = restoring;
+        restoring = null;
+        restoreSeat(last, event.sessions);
+      }
     }
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
     else if (event.type === "typing") {
@@ -347,6 +432,7 @@ export function selectHost(host: Host): void {
     }
     else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
     else if (event.type === "reconnecting") app.link = { state: "reconnecting", attempt: event.attempt, retryAt: event.retryAt };
+    else if (event.type === "resting") app.link = { state: "resting" };
     else if (event.type === "reconnected") {
       app.resume = null;
       // The new connection re-sends pending asks. The old ones belong to a dead daemon.
@@ -363,6 +449,7 @@ export function selectHost(host: Host): void {
       clearTimeout(restoredTimer);
       app.link = { state: "live" };
       host.status = { kind: "unreachable", reason: event.reason };
+      watchHost(host);
       app.attachedHostId = null;
       app.connection = null;
       app.selectedSession = null;
@@ -372,6 +459,9 @@ export function selectHost(host: Host): void {
 }
 
 export function selectSession(id: string): void {
+  if (!restoringNow) restoring = null;
+  const seat = sessionById(id);
+  if (seat && app.attachedHostId) storeLastOpen({ host: app.attachedHostId, seat: { id, who: seat.identity } });
   app.selectedSession = id;
   app.selectedRole = null;
   delete app.unseen[id];
@@ -380,6 +470,7 @@ export function selectSession(id: string): void {
 
 /** Opens a role's start panel. */
 export function selectRole(slug: string): void {
+  restoring = null;
   app.selectedRole = slug;
   app.selectedSession = null;
 }
@@ -409,7 +500,7 @@ export function messagesFor(session: Session): PeerMessage[] {
   return app.messages.filter((message) => message.from.role === session.role || inbound(message));
 }
 
-for (const host of app.hosts) void checkHost(host);
+for (const host of app.hosts) void checkHost(host).then(() => restoreFor(host));
 
 /** A session's views, newest first. */
 export function viewsFor(sessionId: string): View[] {
@@ -420,8 +511,13 @@ export function asksFor(sessionId: string): Ask[] {
   return Object.values(app.asks).filter((ask) => ask.session === sessionId);
 }
 
+// One Set per roster: a row building its own made a frame cost N squared (COI-3363).
+// Keyed by the array a frame replaces. A $derived recomputes when nothing watches it.
+let liveCache: { list: unknown; size: number; ids: Set<string> } | null = null;
 function liveIds(): Set<string> {
-  return new Set(app.sessions.map((session) => session.id));
+  const list = app.sessions;
+  if (liveCache?.list !== list || liveCache.size !== list.length) liveCache = { list, size: list.length, ids: new Set(list.map((session) => session.id)) };
+  return liveCache.ids;
 }
 
 /** Asks whose card shows on this seat's pane: its own, and a worker's relayed to it. */
@@ -443,6 +539,8 @@ export function relayedTo(sessionId: string): Session | undefined {
 
 /** What a row says about an ask that concerns its seat, or null when none does. */
 export function askLineFor(sessionId: string): string | null {
+  // Almost always no ask is open, so a row costs nothing and reads no seat.
+  if (Object.keys(app.asks).length === 0) return null;
   const live = liveIds();
   const nameOf = (id: string) => app.sessions.find((session) => session.id === id)?.identity ?? id;
   const ask = Object.values(app.asks).find((each) => each.session === sessionId || cardSeatOf(each, live) === sessionId);

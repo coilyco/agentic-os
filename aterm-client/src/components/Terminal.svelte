@@ -8,10 +8,10 @@
   import FindBar from "./FindBar.svelte";
   import { AT_END, jumpLabel, linesAbove, scrolled, wrote, type Follow } from "../lib/follow";
   import { envelopeRows } from "../lib/messages";
-  import { harnessInputRows } from "../lib/harness";
+  import { harnessBox } from "../lib/harness";
   import { boxToReport } from "../lib/pty-size";
   import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
-  import { isBlank, screenRows } from "../lib/screen";
+  import { isBlank, screenRows, tabBarReading, type TabBarCells } from "../lib/screen";
   import { afterQueued, safely, watchDelay } from "../lib/pane-watch";
   import type { HostConnection, PeerMessage } from "../lib/protocol";
 
@@ -34,7 +34,7 @@
     messages: PeerMessage[];
     colorOf: (role: string) => string;
     /** The visible rows after each write, for readers such as the choice detector. */
-    onscreen?: (rows: string[]) => void;
+    onscreen?: (rows: string[], tabBar: TabBarCells | null) => void;
     /** The daemon refuses this connection's typing, so keys go nowhere. */
     locked?: boolean;
     /** The composer is the one input at every width, so the harness's own input box is scrolled out of view. */
@@ -83,7 +83,7 @@
 
   // Stamp every envelope the harness has echoed so far with its sender's colour.
   function markEnvelopes(): void {
-    if (!term) return;
+    if (!term || messages.length === 0) return;
     const buffer = term.buffer.active;
     const lines = logicalLines(term);
     for (const [index, message] of envelopeRows(lines.map((line) => line.text), messages)) {
@@ -108,28 +108,64 @@
 
   function reportScreen(): void {
     if (!term || !onscreen) return;
-    onscreen(screenRows(term.buffer.active, term.rows));
+    onscreen(screenRows(term.buffer.active, term.rows), tabBarReading(term.buffer.active, term.rows));
   }
 
   let watchHarness = () => {};
   // The input and the newest text sit at the bottom left, so that corner stays in view
   // unless the person has panned away. Cropped rows lie below it.
   let hiddenPx = () => 0;
-  const atBottom = () => host.scrollHeight - host.clientHeight - host.scrollTop - hiddenPx() < 2;
+  // From the drawn screen, not scrollHeight, which a phone's xterm inflates past the rows it shows.
+  const contentPx = () => {
+    const style = getComputedStyle(host);
+    const screen = host.querySelector<HTMLElement>(".xterm-screen")?.clientHeight ?? 0;
+    return parseFloat(style.paddingTop) + screen + parseFloat(style.paddingBottom);
+  };
+  const lastTop = () => Math.max(0, contentPx() - host.clientHeight - hiddenPx());
+  const atBottom = () => lastTop() - host.scrollTop < 2;
+  // Sideways is left alone: a phone resizes with its address bar and keyboard, and a
+  // reset here would send a person who panned to a long line back to column 0.
   function anchor(follow: boolean): void {
-    if (follow) host.scrollTop = Math.max(0, host.scrollHeight - host.clientHeight - hiddenPx());
-    host.scrollLeft = 0;
+    if (follow) host.scrollTop = lastTop();
+    edges();
+  }
+
+  // Whether text lies past either side, for the cue a phone's hidden scroll bar cannot give.
+  let past = $state({ left: false, right: false });
+  let measuring = 0;
+  // A frame later, so reading the layout never lands between a resize and its anchor.
+  function edges(): void {
+    if (measuring) return;
+    measuring = requestAnimationFrame(() => {
+      measuring = 0;
+      if (!host) return;
+      const left = host.scrollLeft > 2;
+      const right = host.scrollLeft + host.clientWidth < host.scrollWidth - 2;
+      if (left !== past.left || right !== past.right) past = { left, right };
+    });
+  }
+
+  // The scan reads the whole buffer, so a stream of writes asks for it a few times a second.
+  let marking: ReturnType<typeof setTimeout> | undefined;
+  function markSoon(): void {
+    if (marking) return;
+    marking = setTimeout(() => {
+      marking = undefined;
+      safely("marking envelopes", markEnvelopes);
+    }, 200);
   }
 
   // A step that throws here would stop xterm taking any more writes, so each runs on its own.
   function afterWrite(): void {
-    safely("marking envelopes", markEnvelopes);
+    markSoon();
     safely("reading the screen", reportScreen);
     safely("watching the harness", () => watchHarness());
     safely("noting the screen drew", () => noteDrawn());
+    safely("noting text past the edge", edges);
   }
 
   let noteDrawn = () => {};
+  let afterSize = (_follow: boolean) => {};
 
   function remark(): void {
     decorations.forEach((decoration) => decoration.dispose());
@@ -176,12 +212,24 @@
     terminal.open(host);
     // Above the end when xterm's own view or the pan box is scrolled away from the newest row.
     const above = () => linesAbove(terminal.buffer.active) + (panning && !atBottom() ? 1 : 0);
-    trackView = () => (latest = scrolled(latest, above()));
+    // One layout read per frame: a replay scrolls xterm thousands of times (COI-3422).
+    let tracking = 0;
+    trackView = () => {
+      if (tracking) return;
+      tracking = requestAnimationFrame(() => {
+        tracking = 0;
+        latest = scrolled(latest, above());
+      });
+    };
     terminal.onScroll(trackView);
     host.addEventListener("scroll", trackView);
+    host.addEventListener("scroll", edges);
     const cropping = () => cropHarness;
     let hidden = 0;
+    // Blank rows under a floating box hide with it, but only its height is asked of the PTY.
+    let boxRows = 0;
     const extra = () => (cropping() ? hidden : 0);
+    const asking = () => (cropping() ? boxRows : 0);
     const cell = () => (host.querySelector<HTMLElement>(".xterm-screen")?.clientHeight ?? 0) / Math.max(terminal.rows, 1);
     // The window ends at the last shown row, not at the padding below it, which would show a sliver of the box.
     hiddenPx = () => (extra() > 0 ? extra() * cell() + parseFloat(getComputedStyle(host).paddingBottom) : 0);
@@ -191,10 +239,11 @@
     // Rows the box cannot show are asked for anyway, so the harness draws its input below the fold.
     function layout(): void {
       const more = extra();
+      const ask = asking();
       if (connection.ptySize === true) {
         panning = true;
         const box = boxToReport(fit.proposeDimensions(), true, own());
-        const asked = box && { rows: box.rows + more, cols: box.cols };
+        const asked = box && { rows: box.rows + ask, cols: box.cols };
         if (asked && (asked.rows !== reported?.rows || asked.cols !== reported?.cols)) {
           reported = asked;
           connection.resize(sessionId, asked.rows, asked.cols);
@@ -202,7 +251,7 @@
       } else {
         panning = more > 0;
         fit.fit();
-        if (more > 0) terminal.resize(terminal.cols, terminal.rows + more);
+        if (more > 0) terminal.resize(terminal.cols, terminal.rows + ask);
         connection.resize(sessionId, terminal.rows, terminal.cols);
       }
       remark();
@@ -214,10 +263,26 @@
     }
     panning = connection.ptySize === true;
     if (!panning) fit.fit();
+    // xterm measured a cell with the fallback face before this font arrived. Setting the
+    // option again measures the real one, so the grid is the same on every load.
+    let alive = true;
+    const remeasure = () => {
+      if (!alive) return;
+      const family = terminal.options.fontFamily;
+      terminal.options.fontFamily = `${family}, monospace`;
+      terminal.options.fontFamily = family;
+      layout();
+      anchor(true);
+    };
+    void document.fonts?.load(`${terminal.options.fontSize}px "JetBrains Mono"`).then(remeasure, () => {});
+    // xterm draws a new height a frame later, so the anchor runs again once it has.
+    const reanchor = (follow: boolean) => requestAnimationFrame(() => anchor(follow));
+    afterSize = reanchor;
     const observer = new ResizeObserver(() => {
       const follow = atBottom();
       layout();
       anchor(follow);
+      reanchor(follow);
     });
     observer.observe(host);
     // A pause lets a redraw finish, so a half-drawn box does not count as a box that left.
@@ -226,9 +291,12 @@
       if (!cropping()) return;
       clearTimeout(settle);
       settle = setTimeout(() => {
-        const next = harnessInputRows(screenRows(terminal.buffer.active, terminal.rows));
-        if (next === hidden) return;
+        const rows = screenRows(terminal.buffer.active, terminal.rows);
+        const found = harnessBox(rows);
+        const next = found ? rows.length - found.top : 0;
+        if (next === hidden && (found?.height ?? 0) === boxRows) return;
         hidden = next;
+        boxRows = found?.height ?? 0;
         layout();
         anchor(true);
       }, HIDE_SETTLE_MS);
@@ -236,7 +304,7 @@
     // A soft keyboard would only be a second input, so a tap on the terminal does not raise one.
     const shapeForPhone = () => {
       terminal.textarea?.setAttribute("inputmode", cropping() ? "none" : "text");
-      if (!cropping()) hidden = 0;
+      if (!cropping()) hidden = boxRows = 0;
       layout();
       anchor(true);
     };
@@ -299,10 +367,12 @@
     });
     const unsubscribe = connection.subscribe((event) => {
       if (event.type === "output" && event.sessionId === sessionId) {
-        const before = above();
+        // New lines are counted from xterm's own rows, which cost no layout read.
+        const counting = latest.away;
+        const before = linesAbove(terminal.buffer.active);
         terminal.write(event.data, () => {
           afterWrite();
-          latest = wrote(latest, before, above());
+          if (counting && latest.away) latest = wrote(latest, before, linesAbove(terminal.buffer.active));
           trackView();
         });
       }
@@ -314,6 +384,7 @@
           terminal.resize(event.cols, event.rows);
           remark();
           anchor(follow);
+          afterSize(follow);
         });
       } else if (event.type === "reconnected") {
         afterQueued(terminal, "clearing after reconnect", () => {
@@ -331,6 +402,7 @@
     if (panning) reported = box;
     watch();
     return () => {
+      alive = false;
       document.removeEventListener("visibilitychange", wake);
       window.removeEventListener("focus", wake);
       clearTimeout(watching);
@@ -340,6 +412,9 @@
       connection.detach(sessionId);
       input.dispose();
       host.removeEventListener("scroll", trackView);
+      cancelAnimationFrame(tracking);
+      clearTimeout(marking);
+      host.removeEventListener("scroll", edges);
       observer.disconnect();
       terminal.dispose();
     };
@@ -383,6 +458,8 @@
   <div class="term-host" class:panning role="region" aria-label={`Terminal for ${label}`} bind:this={host}>
     <p class="waiting" role="status">{waiting}</p>
   </div>
+  <span class="edge left" class:on={past.left} aria-hidden="true">‹</span>
+  <span class="edge right" class:on={past.right} aria-hidden="true">›</span>
   {#if finding && search}
     <FindBar {search} initial={findSeed} onclose={closeFind} />
   {/if}
@@ -403,8 +480,13 @@
   .term-host.panning :global(.xterm) { width: max-content; }
   .jump { position: absolute; z-index: 3; right: 28px; bottom: 16px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px #000a; }
   .count { min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: var(--brand-ink); font: 700 12px/22px var(--font-body); text-align: center; }
+  .edge { display: none; position: absolute; z-index: 2; top: 0; bottom: 0; width: 28px; align-items: center; color: var(--text); font: 600 22px var(--font-body); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+  .edge.left { left: 0; justify-content: flex-start; padding-left: 4px; background: linear-gradient(to right, #101216dd, transparent); }
+  .edge.right { right: 0; justify-content: flex-end; padding-right: 4px; background: linear-gradient(to left, #101216dd, transparent); }
+  .edge.on { opacity: 1; }
   .jump:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   @media (max-width: 720px) {
     .jump { right: 12px; bottom: 12px; }
+    .edge { display: flex; }
   }
 </style>

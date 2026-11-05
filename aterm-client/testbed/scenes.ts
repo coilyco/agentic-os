@@ -7,6 +7,8 @@ export interface Scene {
   render(cols: number, rows: number): string[];
   /** Typed bytes from the client. True when the screen changed and must be redrawn. */
   input?(data: string): boolean;
+  /** The replay ring on attach: one frame of history, then the screen. */
+  history?(cols: number, rows: number): string;
 }
 
 /** Word-wrap to `width`, later rows indented by `hang`. Leading spaces stay. */
@@ -137,9 +139,28 @@ export class ClaudeAsk implements Scene {
     return rows;
   }
 
+  // The current tab's cells carry a background, 256-colour 153, as the captures show.
   private tabBar(): string {
     const tabs = this.questions.map((each, index) => `${this.answers[index] || index < this.step ? "☒" : "☐"} ${each.header}`);
-    return `←  ${tabs.join("  ")}  ✔ Submit  →`;
+    tabs.push("✔ Submit");
+    const current = this.phase === "review" ? this.questions.length : this.step;
+    const drawn = tabs.map((tab, index) => (index === current ? `\x1b[38;5;16m\x1b[48;5;153m ${tab} \x1b[39m\x1b[49m` : ` ${tab} `));
+    return `← ${drawn.join("")} →`;
+  }
+
+  /** Left and Right move between tabs and stop at the ends. Past the last is Submit. */
+  private moveTab(by: 1 | -1): boolean {
+    if (this.questions.length < 2) return false;
+    if (this.phase === "review") {
+      if (by > 0) return false;
+      this.phase = "asking";
+      this.step = this.questions.length - 1;
+    } else if (by > 0 && this.last) this.phase = "review";
+    else if (by > 0) this.step += 1;
+    else if (this.step > 0) this.step -= 1;
+    else return false;
+    this.cursor = 0;
+    return true;
   }
 
   render(cols: number, rows: number): string[] {
@@ -199,6 +220,8 @@ export class ClaudeAsk implements Scene {
       this.phase = "cancelled";
       return true;
     }
+    if (key === "\x1b[C") return this.moveTab(1);
+    if (key === "\x1b[D") return this.moveTab(-1);
     if (this.phase === "review") {
       if (key === "\x1b[A") this.cursor = 0;
       else if (key === "\x1b[B") this.cursor = 1;
@@ -318,4 +341,46 @@ export function sceneFor(name: string, _spec: SessionSpec): Scene {
     default:
       throw new Error(`no scene named ${name}`);
   }
+}
+
+const SAMPLE = [
+  "I read the composer and the card side by side before changing either one.",
+  "The gate passes on all five projects, and the quirk journeys stay red until the fix lands.",
+  "Nothing is typed into the seat while the dialog is open, so her answers are kept.",
+];
+
+/** A seat that has run long: `bytes` of colored output behind a Claude screen. */
+export function longSeat(bytes: number, label = "long-seat", style: "text" | "redraw" = "text"): Scene {
+  const screen = claudeSession({ working: false, label });
+  return {
+    render: screen.render,
+    history(cols, rows) {
+      const out: string[] = [];
+      let size = 0;
+      for (let n = 0; size < bytes; n++) {
+        // A harness repaints its live block in place, and commits one now and then.
+        const redraw = style === "redraw" && n % 5 !== 0;
+        if (redraw) {
+          const live = [`\x1b[38;5;215m✻\x1b[0m Churning… (${n}s · esc to interrupt)`, ...wrap(`⏺ ${SAMPLE[n % SAMPLE.length]}`, cols, 2), `\x1b[2m${"─".repeat(cols)}\x1b[0m`, "❯ "];
+          const text = `${"\x1b[2K\x1b[1A".repeat(live.length)}\r${live.map((l) => `\x1b[2K${l}`).join("\r\n")}`;
+          out.push(text);
+          size += text.length;
+          continue;
+        }
+        const block = [
+          `\x1b[1m⏺\x1b[0m Update(src/lib/file${n}.ts)`,
+          `  ⎿  Updated src/lib/file${n}.ts with ${(n % 9) + 1} additions and 2 removals`,
+          `\x1b[48;5;22m\x1b[38;5;120m+ export const value${n} = compute(${n}, ${n * 7});\x1b[0m`,
+          `\x1b[48;5;52m\x1b[38;5;217m- export const value${n} = old(${n});\x1b[0m`,
+          ...wrap(`⏺ ${SAMPLE[n % SAMPLE.length]} Step ${n}.`, cols, 2),
+          "",
+        ];
+        for (const line of block) {
+          out.push(line);
+          size += line.length + 2;
+        }
+      }
+      return `${out.join("\r\n")}\r\n\x1b[2J\x1b[H${screen.render(cols, rows).join("\r\n")}`;
+    },
+  };
 }

@@ -94,6 +94,11 @@ func newDaemonCommand() *cli.Command {
 				Sources: cli.EnvVars("ATERM_TREEHOUSE_DIR"),
 			},
 			&cli.StringFlag{
+				Name:    "treehouse-config-dir",
+				Usage:   "directory holding the Treehouse configuration snapshot, else AGENT_COMPOSE_CONFIG_DIR, else ~/.agent-compose/config. off reads none",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_CONFIG_DIR"),
+			},
+			&cli.StringFlag{
 				Name:    "resume-window",
 				Value:   resumeUntilCloseWord,
 				Usage:   "how long a remote device's unlock survives a dropped connection, so a phone lock costs no new fingerprint. app lasts until the client app closes, 0 keeps an unlock on one connection, or give a duration",
@@ -126,9 +131,10 @@ func newDaemonCommand() *cli.Command {
 				ResumeWindow:     resumeWindow,
 				ResumeUntilClose: resumeUntilClose,
 				Treehouse: treehouseOptions{
-					Broker:   cmd.String("treehouse-broker"),
-					Accounts: cmd.String("treehouse-accounts"),
-					Dir:      cmd.String("treehouse-dir"),
+					Broker:    cmd.String("treehouse-broker"),
+					Accounts:  cmd.String("treehouse-accounts"),
+					Dir:       cmd.String("treehouse-dir"),
+					ConfigDir: cmd.String("treehouse-config-dir"),
 				},
 			}, cmd.Root().ErrWriter)
 		},
@@ -393,6 +399,9 @@ func agentState(view sessionView) string {
 		parts = append(parts, fmt.Sprintf("%d pending", view.Pending))
 	}
 	parts = append(parts, fmt.Sprintf("%d client(s), up %s", view.Clients, time.Since(view.Started).Round(time.Second)))
+	if view.Ref != "" {
+		parts = append(parts, "ref "+view.Ref)
+	}
 	return strings.Join(parts, ", ")
 }
 
@@ -415,7 +424,7 @@ func listAgents() ([]sessionView, error) {
 		return nil, nil
 	}
 	defer c.Close()
-	reply, err := c.request(frame{Type: "list"})
+	reply, err := c.request(frame{Type: "list", Token: strings.TrimSpace(os.Getenv(sessionTokenEnv))})
 	if err != nil {
 		return nil, err
 	}

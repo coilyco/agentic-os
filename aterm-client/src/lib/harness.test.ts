@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { harnessInputRows } from "./harness";
+import { harnessBox, harnessInputRows } from "./harness";
 
 /** A screen read off a live seat with aterm status, trailing blanks trimmed. */
 const captured = (name: string): string[] => readFileSync(new URL(`./fixtures/${name}.txt`, import.meta.url), "utf8").split("\n");
@@ -110,5 +110,24 @@ describe("harnessInputRows", () => {
   it("does not take a long tail of other output for a status line", () => {
     const screen = [...text(5), rule, "❯ ", rule, "a", "b", "c", "d"];
     expect(harnessInputRows(screen)).toBe(0);
+  });
+});
+
+describe("harnessBox", () => {
+  it("is the box and its status lines when they sit on the last rows", () => {
+    const screen = [...text(10), rule, "❯ ", rule, "  ⏵⏵ accept edits on (shift+tab to cycle)", "  ? for shortcuts"];
+    expect(harnessBox(screen)).toEqual({ top: 10, height: 5 });
+  });
+
+  it("keeps its height when blank rows lie under it, so asking for rows cannot grow them", () => {
+    const floating = [...text(10), rule, "❯ ", rule, ...Array(7).fill("")];
+    expect(harnessInputRows(floating)).toBe(10);
+    expect(harnessBox(floating)).toEqual({ top: 10, height: 3 });
+    // The harness redraws taller: the same box, more blank rows, the same top and height.
+    expect(harnessBox([...floating, ...Array(5).fill("")])).toEqual({ top: 10, height: 3 });
+  });
+
+  it("is null when no box is there", () => {
+    expect(harnessBox(text(10))).toBeNull();
   });
 });

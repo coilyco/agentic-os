@@ -118,6 +118,8 @@ type nativeWorktree struct {
 }
 
 type nativeLiveWorktrees struct {
+	// roots are live sessions' roots. A worktree a seat made inside one is its own.
+	roots     []string
 	paths     map[string]struct{}
 	branches  map[string]struct{}
 	uncertain bool
@@ -302,6 +304,8 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 		applyNativeLaunchCredentials(ctx, runtime.Stderr, role)
 	}
 	runtime.Progress.Ready()
+	recheckNativeClaudeTrust(runtime, workspace.Trust)
+	startNativeTrustGuard(workspace.Trust)
 	runtime.Progress.Exec(command)
 	return execNative(command)
 }
@@ -523,6 +527,8 @@ type nativeLaunchWorkspace struct {
 	// ClaudeSeat is the --add-dir carrying this seat's CLAUDE.md and skills,
 	// set only when the launch shares the seats config directory.
 	ClaudeSeat string
+	// Trust is what a Claude launch seeded, checked again before the hand-off.
+	Trust nativeTrustPlan
 }
 
 func prepareNativeLaunch(runtime nativeRuntime, harness string) (string, error) {
@@ -722,6 +728,35 @@ func (live *nativeLiveWorktrees) addArtifacts(artifacts []nativeArtifact) {
 	}
 }
 
+func (live *nativeLiveWorktrees) addRoot(root string) {
+	if root = filepath.Clean(strings.TrimSpace(root)); root != "." && root != string(os.PathSeparator) {
+		live.roots = append(live.roots, root)
+	}
+}
+
+// insideLiveSession is whether a path sits under a live session's root, or under that
+// session's claude scratchpad, whose directory name spells the root with dashes.
+func (live nativeLiveWorktrees) insideLiveSession(path string) bool {
+	forms := []string{filepath.Clean(path)}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		forms = append(forms, resolved)
+	}
+	for _, root := range live.roots {
+		marker := strings.ReplaceAll(root, string(os.PathSeparator), "-")
+		for _, form := range forms {
+			if underAny(form, []string{root}) {
+				return true
+			}
+			if at := strings.Index(form, marker); at >= 0 {
+				if rest := form[at+len(marker):]; rest == "" || rest[0] == '-' || rest[0] == os.PathSeparator {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // holdsBranch reports a branch some lease still claims, purged worktree
 // included. Uncertainty answers yes, since the cost of keeping is a stale ref.
 func (live nativeLiveWorktrees) holdsBranch(branch string) bool {
@@ -867,6 +902,12 @@ type nativeHeldLease struct {
 }
 
 func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error) {
+	return cleanNativeSessionsWhere(runtime, nil)
+}
+
+// cleanNativeSessionsWhere is cleanDeadNativeSessions over the leases pick accepts, every
+// lease when it is nil. Leases it skips are untouched and absent from the live set.
+func cleanNativeSessionsWhere(runtime nativeRuntime, pick func(nativeLease) bool) (nativeLiveWorktrees, error) {
 	leaseDir := nativeStatePath(runtime, "leases")
 	entries, err := os.ReadDir(leaseDir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -892,6 +933,9 @@ func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error)
 			fmt.Fprintf(runtime.Stderr, "aos: preserving unreadable native lease %s\n", path)
 			continue
 		}
+		if pick != nil && !pick(lease) {
+			continue
+		}
 		held = append(held, nativeHeldLease{path: path, lease: lease})
 		pids = append(pids, lease.PID)
 	}
@@ -908,6 +952,7 @@ func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error)
 				}
 			}
 			live.addArtifacts(lease.Artifacts)
+			live.addRoot(lease.SessionRoot)
 			continue
 		}
 		// A dead session's token is harvested at once rather than after the
@@ -1733,7 +1778,7 @@ func cleanUnleasedNativeWorktrees(
 	}
 	for _, worktree := range worktrees {
 		if samePath(worktree.Path, repository.Path) || live.contains(worktree.Path) ||
-			humanWorkdir(worktree.Path) {
+			live.insideLiveSession(worktree.Path) || humanWorkdir(worktree.Path) {
 			continue
 		}
 		artifact := nativeArtifact{
@@ -2054,6 +2099,7 @@ func createNativeSession(
 		}
 	}
 	seat := ""
+	var trust nativeTrustPlan
 	if harness == "claude" {
 		config := nativeClaudeConfigPath(runtime.Home)
 		if sessionHome != "" {
@@ -2078,9 +2124,12 @@ func createNativeSession(
 		if !external {
 			fmt.Fprintf(runtime.Stderr, "aos: native session external imports not pre-approved, a CLAUDE.md imports a file beyond the approved two\n")
 		}
-		if err := ensureNativeClaudeTrust(config, trusted, external); err != nil {
+		result, err := ensureNativeClaudeTrust(config, trusted, external, nativeClaudeSeedChecks)
+		if err != nil {
 			fmt.Fprintf(runtime.Stderr, "aos: native session trust not seeded: %v\n", err)
 		}
+		trust = nativeTrustPlan{Config: config, Paths: trusted, External: external}
+		logNativeClaudeTrust(runtime, "staged", trust, result, err)
 	}
 	runtime.Progress.Workspace(sessionProjects, len(artifacts))
 	return nativeLaunchWorkspace{
@@ -2088,6 +2137,7 @@ func createNativeSession(
 		SessionProjects: sessionProjects,
 		SessionHome:     sessionHome,
 		ClaudeSeat:      seat,
+		Trust:           trust,
 	}, nil
 }
 

@@ -139,7 +139,7 @@ func TestAnErasedSeedIsRepairedByTheReadBack(t *testing.T) {
 			t.Error(err)
 		}
 	}()
-	if err := ensureNativeClaudeTrust(config, []string{project}, true); err != nil {
+	if _, err := ensureNativeClaudeTrust(config, []string{project}, true, nativeClaudeSeedChecks); err != nil {
 		t.Fatal(err)
 	}
 	erased.Wait()

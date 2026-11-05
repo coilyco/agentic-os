@@ -156,6 +156,10 @@ type ptySession struct {
 	// before the daemon first saw it is unknown, so a restart counts from the restart.
 	stateNow   string
 	stateSince time.Time
+	// activity is the line a seat set with `aterm activity`, and activityAt when.
+	// Only that frame writes it, never the screen. See daemon_activity.go.
+	activity   string
+	activityAt time.Time
 }
 
 // keyState carries a partly read escape sequence across input chunks.
@@ -462,6 +466,7 @@ func (s *ptySession) finish(code int) {
 			s.parked = nil
 		}
 		s.mu.Unlock()
+		s.activity, s.activityAt = "", time.Time{}
 		close(s.done)
 		_ = s.holder.write(frame{Type: "release"})
 		_ = s.holder.Close()
@@ -806,6 +811,10 @@ const promptSettle = 250 * time.Millisecond
 // that words it differently or a session adopted long after it. A var, for tests.
 var promptWait = 20 * time.Second
 
+// startupDialogReport is how long a startup dialog may stay up before senders are told
+// it, instead of hearing the seat is still starting (COI-3343). A var, for tests.
+var startupDialogReport = 15 * time.Second
+
 // pastStartupDialog is false after a dialog that came before the prompt, until the mark
 // shows or promptWait passes with it gone, so text never lands as it clears (COI-3343).
 func (s *ptySession) pastStartupDialog(now time.Time) bool {
@@ -858,6 +867,13 @@ func (s *ptySession) cardReason() string {
 	return ""
 }
 
+// deliveryTrace is what the daemon believed when it typed, for the log. A seat whose
+// message sat unsubmitted can then be read back (COI-3404). Caller holds mu.
+func (s *ptySession) deliveryTrace(now time.Time) string {
+	return fmt.Sprintf("age %s, prompt seen %t, startup card %t, card up %t, parked %t, pending %d",
+		now.Sub(s.started).Round(time.Second), !s.promptSeen.IsZero(), s.startupCard, s.cardUp, s.parked != nil, len(s.pending))
+}
+
 // holdFollowers gives the messages queued behind a held one the same reason, so every
 // sender hears held rather than a queue position that never moves (COI-2653).
 func (s *ptySession) holdFollowers(reason string) {
@@ -891,8 +907,14 @@ func (s *ptySession) deliverNext(now time.Time) {
 		hold = s.cardReason()
 	}
 	paste := s.paste
+	stuck := s.startupCard && s.cardUp && now.Sub(s.started) > startupDialogReport
 	s.mu.Unlock()
 	switch {
+	case !ready && stuck:
+		reason := s.name + " is stopped at a startup dialog. Nothing was typed. Answer it or relaunch."
+		next.setState("held", reason)
+		s.holdFollowers(reason)
+		return
 	case !ready:
 		next.setState("queued", s.name+" is still starting")
 		return
@@ -916,8 +938,11 @@ func (s *ptySession) deliverNext(now time.Time) {
 		return
 	}
 	s.sending = next
+	trace := s.deliveryTrace(now)
 	s.mu.Unlock()
+	typed := time.Now()
 	err := s.submit(next.text, paste)
+	s.d.logf("delivery to %s: %s, took %s, result %v", s.name, trace, time.Since(typed).Round(time.Millisecond), err)
 	s.mu.Lock()
 	s.sending = nil
 	if len(s.pending) > 0 && s.pending[0] == next {
@@ -1001,6 +1026,11 @@ func (s *ptySession) view() sessionView {
 		at := s.lastReplyAt.UTC()
 		repliedAt = &at
 	}
+	var activityAt *time.Time
+	if s.activity != "" {
+		at := s.activityAt.UTC()
+		activityAt = &at
+	}
 	return sessionView{
 		State:        state,
 		StateSeconds: &inState,
@@ -1020,6 +1050,9 @@ func (s *ptySession) view() sessionView {
 		Context:      s.context,
 		LastReply:    s.lastReply,
 		LastReplyAt:  repliedAt,
+		Ref:          sessionRef(s.name, s.started),
+		Activity:     s.activity,
+		ActivityAt:   activityAt,
 	}
 }
 

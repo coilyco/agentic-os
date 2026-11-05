@@ -18,6 +18,17 @@ describe("defaultSideTab", () => {
     expect(defaultSideTab("prod-director")).toBe("messages");
   });
 
+  it("opens the frontend on messages while there is no browser page to show", () => {
+    expect(defaultSideTab("frontend-eng", { browser: false })).toBe("messages");
+    expect(defaultSideTab("frontend-eng", { browser: true })).toBe("browser");
+    expect(defaultSideTab("sysadmin-senior", { browser: false })).toBe("terminal");
+  });
+
+  it("keeps a pick of Kai's even when its tab is empty", () => {
+    expect(sideTabFor("frontend-eng", { "frontend-eng": "browser" }, { browser: false })).toBe("browser");
+    expect(sideTabFor("frontend-eng", {}, { browser: false })).toBe("messages");
+  });
+
   it("opens every other role on messages", () => {
     for (const role of ["eng-platform", "scientist", "game-dev", "", "brand-new-role"]) expect(defaultSideTab(role)).toBe("messages");
   });

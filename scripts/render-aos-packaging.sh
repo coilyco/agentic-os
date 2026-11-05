@@ -36,7 +36,7 @@ aosguard_darwin_arm64=$(sha "$dist/aosguard-darwin-arm64")
 aosguard_linux_amd64=$(sha "$dist/aosguard-linux-amd64")
 aosguard_linux_arm64=$(sha "$dist/aosguard-linux-arm64")
 aosguard_windows_amd64=$(sha "$dist/aosguard-windows-amd64.exe")
-aterm_darwin_arm64=$(sha "$dist/aterm-darwin-arm64")
+aterm_darwin_arm64=$(sha "$dist/aterm-darwin-arm64.app.tar.gz")
 aterm_linux_amd64=$(sha "$dist/aterm-linux-amd64")
 aterm_linux_arm64=$(sha "$dist/aterm-linux-arm64")
 
@@ -60,7 +60,7 @@ class Aos < Formula
       sha256 "${aosguard_darwin_arm64}"
     end
     resource "aterm" do
-      url "${base}/aterm-darwin-arm64"
+      url "${base}/aterm-darwin-arm64.app.tar.gz", using: :nounzip
       sha256 "${aterm_darwin_arm64}"
     end
   end
@@ -104,7 +104,16 @@ class Aos < Formula
     resource("aoscompose").stage { bin.install Dir["aoscompose-*"].first => "aoscompose" }
     bin.install_symlink bin/"aoscompose" => "aoscomposed"
     resource("aosguard").stage { bin.install Dir["aosguard-*"].first => "aosguard" }
-    resource("aterm").stage { bin.install Dir["aterm-*"].first => "aterm" }
+    # macOS installs the signed bundle, whole (:nounzip) because a stage would
+    # step into it, and links bin/aterm to its executable. See docs/aos-cli.md.
+    if OS.mac?
+      resource("aterm").stage do
+        system "tar", "-xzf", Dir["*.tar.gz"].first, "-C", prefix
+      end
+      bin.install_symlink prefix/"Treehouse.app/Contents/MacOS/aterm"
+    else
+      resource("aterm").stage { bin.install Dir["aterm-*"].first => "aterm" }
+    end
   end
 
   test do

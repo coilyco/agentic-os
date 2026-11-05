@@ -220,6 +220,11 @@ aterm-client-testbed-update *ARGS:
 aterm-client-testbed-report:
     @cd aterm-client && {{pnpm}} exec playwright show-report testbed/out/report
 
+# Measure the aterm client at growing seat counts, e.g. `just aterm-client-scale 25,100,200`. SCALE_RUNS repeats each, SCALE_LIVE=<daemon page> reads a real daemon. Not the gate.
+aterm-client-scale COUNTS="25,100":
+    @just aterm-client-build
+    @cd aterm-client && SCALE_COUNTS={{COUNTS}} {{pnpm}} exec playwright test -c testbed/scale/playwright.config.ts
+
 # Serve the built client from the mock daemon on a port, to look at a journey's screen by hand.
 aterm-client-testbed-serve *ARGS:
     @just aterm-client-build

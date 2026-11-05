@@ -16,7 +16,7 @@ The aterm binary embeds the client it was released with (`just aterm-client-embe
 
 ## Hosts are added per device
 
-Tailnet names are opaque identifiers, so the hosted build ships none. The first time on a device, add each host by its tailnet name, and the device remembers it in local storage. A gate failure would expose no hostnames. Kai chose this on teable:coilyco/website#8256.
+Tailnet names are opaque identifiers, so the hosted build ships none. The first time on a device, add each host by its tailnet name, and the device remembers it in local storage. A gate failure would expose no hostnames. Kai chose this on teable:coilyco/website#8256. A bare name is dialled on 443, where Tailscale Serve answers. A name with a port keeps it, and only `localhost` defaults to 7419, since the daemon's own tailnet listener on 7419 can refuse connections (COI-3437).
 
 ## Installed as an app
 

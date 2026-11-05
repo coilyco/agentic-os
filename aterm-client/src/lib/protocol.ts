@@ -5,6 +5,7 @@ import type { ToolResult, View } from "./mcp-apps";
 import type { ResumeState } from "./resume";
 import type { Role } from "./roster";
 import type { Layer } from "./reach";
+import type { Activity } from "./seat-activity";
 import type { InputKind, SharedBrowser } from "./screencast";
 import type { ListedTerminal } from "./terminals";
 import type { Typing } from "./typing";
@@ -32,6 +33,8 @@ export interface Host {
 export type Link =
   | { state: "live" }
   | { state: "reconnecting"; attempt: number; retryAt: number | null }
+  // The hour of automatic tries is spent. A return to the page, or Retry, dials again.
+  | { state: "resting" }
   | { state: "restored" };
 
 export type SessionState = "idle" | "working" | "failed";
@@ -63,6 +66,8 @@ export interface Session {
   lastReply?: string;
   /** When it last wrote, in ms. Absent from a daemon that predates `quiet_seconds`. */
   quietSince?: number;
+  /** What the seat says it is doing, and when it set that. Absent until it sets one. */
+  activity?: Activity;
   /** Not yet ready for input, so its terminal may have nothing to draw. */
   starting?: boolean;
   failure?: string;
@@ -79,6 +84,10 @@ export interface PeerMessage {
   session: string | null;
   state: MessageState;
   reason: string | null;
+  /** What the sender wrote. Absent from a daemon that does not send it (COI-3362). */
+  text?: string | null;
+  /** The host sent only the head of a longer message. */
+  textCut?: boolean;
 }
 
 /** A seat's `ask_choice` call, waiting on a person. */
@@ -115,6 +124,8 @@ export type HostEvent =
   | { type: "closed"; reason: string }
   // The daemon stopped. `retryAt` is the next dial's time, null while one is out.
   | { type: "reconnecting"; attempt: number; retryAt: number | null }
+  // The hour of tries ended with no answer. Nothing is scheduled until a wake or Retry.
+  | { type: "resting" }
   // It answered again. `newerBuild` means it is not the build that served this page.
   | { type: "reconnected"; newerBuild: boolean }
   // A held unlock proof is out (`resuming`), the daemon said it ended, or neither (null).

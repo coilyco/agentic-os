@@ -8,6 +8,8 @@
   import SplitHandle from "../components/SplitHandle.svelte";
   import Terminal from "../components/Terminal.svelte";
   import { app, asksShownOn, colorOf, layout, messagesFor, placeNow, reconnecting, relayedTo } from "../lib/app.svelte";
+  import { readTabs, tabKeys, type TabReading } from "../lib/dialog-tabs";
+  import type { TabBarCells } from "../lib/screen";
   import { askScope, cardMemo, forgetCardMemos, memoKey, screenScope, tickedRows } from "../lib/card-memo.svelte";
   import { askAnswer, CANCEL, choiceFromAsk, choiceKey, detectChoice, keysFor, keysForPicks, type Choice } from "../lib/choices";
   import { contextPercent, contextText } from "../lib/context";
@@ -65,7 +67,8 @@
   // Opens on what the role looks at beside its seat, unless Kai picked another tab for it before.
   // The panel is keyed by session, so the role it starts with is the role it keeps.
   // svelte-ignore state_referenced_locally
-  let side = $state<SideTab>(sideTabFor(role.slug, loadOverrides()));
+  // A browser nobody has opened a page in is an empty state, so it is not what a seat opens on.
+  let side = $state<SideTab>(sideTabFor(role.slug, loadOverrides(), { browser: !!app.connection?.browser && (app.browsers[session.id]?.state ?? "none") !== "none" }));
   // Null is the panel's own width, which the browser widens to half.
   let sideWidth = $state<number | null>(loadSide());
   function resize(width: number | null): void {
@@ -104,9 +107,19 @@
 
   const keyOf = choiceKey;
 
-  function readScreen(rows: string[]): void {
+  // The tabs of a multi-question dialog, and which is current, as the screen shows them.
+  let dialogTabs = $state<TabReading | null>(null);
+
+  function goToTab(index: number): void {
+    if (!dialogTabs) return;
+    const chunks = tabKeys(dialogTabs.current, index, dialogTabs.tabs.length);
+    chunks.forEach((chunk, at) => setTimeout(() => app.connection?.input(session.id, chunk), at * KEY_GAP_MS));
+  }
+
+  function readScreen(rows: string[], tabBar: TabBarCells | null): void {
     blank = isBlank(rows);
     const found = detectChoice(rows);
+    dialogTabs = found && tabBar ? readTabs(tabBar.text, new Set(tabBar.highlighted)) : null;
     if (!found) {
       hideTimer ??= setTimeout(() => {
         choice = null;
@@ -182,7 +195,7 @@
       <p class="degraded">Started without {session.degraded.join(", ")}. agent-compose skipped these steps at launch, so this seat may be missing what they set up.</p>
     {/if}
   </header>
-  <div class="body" class:wide class:away={split && !sideOpen} data-composing={app.composing && !dialogOpen} style:--side={sideWidth ? `${sideWidth}px` : undefined}>
+  <div class="body" class:wide class:away={split && !sideOpen} data-composing={app.composing && !dialogOpen} data-reading={layout.reading && !split} style:--side={sideWidth ? `${sideWidth}px` : undefined}>
     <div class="work">
       {#if app.connection}
         {#key session.id}
@@ -221,7 +234,7 @@
               {@const current = choice}
               {#key shownKey}
                 <div class="overlay">
-                  <ChoiceCard choice={current} memo={cardMemo(memoKey(screenScope(session.id), current.options), tickedRows(current.options))} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(current.multi ? keysForPicks(current, picks, text) : keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
+                  <ChoiceCard choice={current} tabs={dialogTabs} ontab={goToTab} memo={cardMemo(memoKey(screenScope(session.id), current.options), tickedRows(current.options))} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(current.multi ? keysForPicks(current, picks, text) : keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
                 </div>
               {/key}
             {/if}
@@ -300,5 +313,7 @@
   @media (max-width: 1000px) {
     /* The sheet floats over this row, so the strip's height stays clear of the composer and the terminal never resizes as it rises. */
     .body, .body.wide { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr); padding-bottom: var(--strip); min-height: calc(320px + var(--strip)); }
+    /* A phone on its side has no strip to keep clear, and its height is too scarce to reserve any. */
+    .body[data-reading="true"] { --strip: 0px; }
   }
 </style>

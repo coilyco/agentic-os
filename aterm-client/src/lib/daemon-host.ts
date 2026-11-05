@@ -1,6 +1,7 @@
 // aterm.daemon.v1 over the daemon's loopback websocket. The frame reference is
 // the Wire contract section of the aterm daemon page in coilyco/agentic-os.
 import { quietSince } from "./age";
+import { toActivity } from "./seat-activity";
 import { backoffDelay, differentBuild } from "./backoff";
 import { safely } from "./pane-watch";
 import { parseFrom } from "./messages";
@@ -18,6 +19,12 @@ export const FORMAT = "aterm.daemon.v1";
 const LOOPBACK_DAEMON = "ws://127.0.0.1:7419";
 // A sleeping tailnet path can hold a dial open for minutes. Give up on it sooner.
 const DIAL_TIMEOUT_MS = 10000;
+// A link that carries nothing back is dead, whatever the socket says: a slept phone
+// leaves a socket open that never closes (COI-3352). Any frame counts.
+const PROBE_REPLY_MS = 8000;
+// A return to the page replaces a dial that has been out this long, and spares a dial
+// that only just left, so a burst of focus events does not redial in a loop.
+const WAKE_REDIAL_AFTER_MS = 1500;
 /** Input ids kept so an error naming one can be told from any other. */
 const INPUT_IDS_KEPT = 64;
 const NOT_SENT_CLOSED = "Not sent. The connection to the host closed, and it is reconnecting.";
@@ -67,6 +74,9 @@ interface SessionView {
   last_reply?: string;
   /** Seconds since the seat last wrote, as of the frame. */
   quiet_seconds?: number;
+  /** The seat's own line about what it is doing, and when (RFC 3339). */
+  activity?: string;
+  activity_at?: string;
 }
 
 // A plain shell as the daemon lists it (COI-2498). `label` is whatever the opener sent
@@ -83,6 +93,8 @@ interface MessageView {
   session?: string;
   state: MessageState;
   reason?: string;
+  text?: string;
+  text_cut?: boolean;
 }
 
 // ask_choice as the daemon sends it (coilyco/agentic-os#1724).
@@ -251,6 +263,7 @@ const SELF_WINDOW_MS = 800;
 const REFRESH_MS = 20_000;
 
 export function toSession(view: SessionView, busy = false, quiet?: number): Session {
+  const activity = toActivity(view.activity, view.activity_at);
   return {
     id: view.name,
     role: view.role,
@@ -264,6 +277,7 @@ export function toSession(view: SessionView, busy = false, quiet?: number): Sess
     ...(view.ready ? {} : { starting: true }),
     ...(view.context ? { context: toContext(view.context) } : {}),
     ...(view.last_reply ? { lastReply: view.last_reply } : {}),
+    ...(activity ? { activity } : {}),
     ...(quiet === undefined ? {} : { quietSince: quiet }),
   };
 }
@@ -280,6 +294,8 @@ export function toMessage(view: MessageView): PeerMessage {
     session: view.session ?? null,
     state: view.state,
     reason: view.reason ?? null,
+    text: view.text ?? null,
+    textCut: view.text_cut === true,
   };
 }
 
@@ -340,6 +356,14 @@ export class DaemonHost implements HostConnection {
   private answered = false;
   // Set by close() and by a refused welcome: no more dials.
   private halted = false;
+  // The hour of automatic tries is spent. Only a return to the page or Retry dials again.
+  private resting = false;
+  // The socket that already ended, so a late close from it is not a second loss.
+  private ended?: WebSocket;
+  private dialStartedAt = 0;
+  // When a frame last arrived, and when the probe still waiting on one went out.
+  private lastHeard = 0;
+  private probeAt?: number;
   private attempt = 0;
   private redial?: ReturnType<typeof setTimeout>;
   private dialTimer?: ReturnType<typeof setTimeout>;
@@ -376,20 +400,26 @@ export class DaemonHost implements HostConnection {
     this.ticker = setInterval(() => this.settle(), 500);
     // The daemon pushes sessions on change, not on a clock, so quiet times are asked for.
     this.refresher = setInterval(() => this.refreshViews(), REFRESH_MS);
-    // A backgrounded tab throttles its timers, so a phone left open would redial late.
+    // A backgrounded tab freezes its timers, so a phone left open redials late or never.
+    // Coming back to it is the signal to look at the link at once.
     if (typeof window !== "undefined") {
-      window.addEventListener("online", this.nudge);
-      document.addEventListener("visibilitychange", this.nudge);
+      window.addEventListener("online", this.wake);
+      window.addEventListener("focus", this.wake);
+      document.addEventListener("visibilitychange", this.wake);
     }
   }
 
   private connect(): void {
     const socket = new WebSocket(this.url);
     this.socket = socket;
+    this.dialStartedAt = Date.now();
     // A socket this host has moved past must not speak for it.
     socket.addEventListener("open", () => socket.send(JSON.stringify({ type: "hello", format: FORMAT })));
     socket.addEventListener("message", (event) => {
-      if (socket === this.socket) this.receive(JSON.parse(String(event.data)) as Frame);
+      if (socket !== this.socket) return;
+      this.lastHeard = Date.now();
+      this.probeAt = undefined;
+      this.receive(JSON.parse(String(event.data)) as Frame);
     });
     socket.addEventListener("close", () => {
       if (socket === this.socket) this.lost();
@@ -400,8 +430,11 @@ export class DaemonHost implements HostConnection {
   // The socket ended. A host that answered is redialed and the page keeps its state.
   // One that never answered is reported closed.
   private lost(): void {
+    if (this.ended === this.socket) return;
+    this.ended = this.socket;
     clearTimeout(this.dialTimer);
     this.open = false;
+    this.probeAt = undefined;
     for (const call of this.calls.values()) call.reject(new Error("The daemon closed the connection."));
     this.calls.clear();
     if (this.halted) return;
@@ -414,6 +447,11 @@ export class DaemonHost implements HostConnection {
     this.launches.clear();
     this.outbox = [];
     const delay = backoffDelay(this.attempt);
+    if (delay === null) {
+      this.resting = true;
+      this.emit({ type: "resting" });
+      return;
+    }
     this.attempt += 1;
     this.emit({ type: "reconnecting", attempt: this.attempt, retryAt: Date.now() + delay });
     this.redial = setTimeout(() => this.dialAgain(), delay);
@@ -425,16 +463,45 @@ export class DaemonHost implements HostConnection {
     this.connect();
   }
 
-  /** Dials now, from the Retry button. A dial already out is left to finish. */
+  /** Dials now, from the Retry button. A dial already out is left to finish. A person
+   * asking starts the hour of tries over, since the first wait is the short one. */
   retry(): void {
-    if (this.redial === undefined) return;
+    if (this.redial === undefined && !this.resting) return;
     clearTimeout(this.redial);
+    this.resting = false;
+    this.attempt = 0;
     this.dialAgain();
   }
 
-  private nudge = (): void => {
-    if (typeof document === "undefined" || document.visibilityState === "visible") this.retry();
+  // The person came back, or the network did. Whatever the link claims, look at it now.
+  private wake = (): void => {
+    if (this.halted || (typeof document !== "undefined" && document.visibilityState !== "visible")) return;
+    if (this.redial !== undefined || this.resting) this.retry();
+    else if (this.open) this.probe();
+    else if (Date.now() - this.dialStartedAt >= WAKE_REDIAL_AFTER_MS) {
+      // A dial still out may sit on a path that is gone. Drop it for one on the path now.
+      this.ended = this.socket;
+      clearTimeout(this.dialTimer);
+      this.socket.close();
+      this.connect();
+    }
   };
+
+  // Asks for something small, so a link that carries nothing back shows within seconds.
+  // The reply, or any other frame, clears it in the message handler.
+  private probe(): void {
+    if (!this.open) return;
+    this.probeAt ??= Date.now();
+    this.request({ type: "list" });
+  }
+
+  private watchLink(now: number): void {
+    if (!this.open || this.probeAt === undefined || now - this.probeAt < PROBE_REPLY_MS) return;
+    // A half-open socket may never fire close, so the loss is declared here.
+    const socket = this.socket;
+    this.lost();
+    socket.close();
+  }
 
   subscribe(listener: (event: HostEvent) => void): () => void {
     this.listeners.add(listener);
@@ -635,8 +702,9 @@ export class DaemonHost implements HostConnection {
     clearTimeout(this.redial);
     clearTimeout(this.dialTimer);
     if (typeof window !== "undefined") {
-      window.removeEventListener("online", this.nudge);
-      document.removeEventListener("visibilitychange", this.nudge);
+      window.removeEventListener("online", this.wake);
+      window.removeEventListener("focus", this.wake);
+      document.removeEventListener("visibilitychange", this.wake);
     }
     this.listeners.clear();
     this.socket.close();
@@ -677,11 +745,12 @@ export class DaemonHost implements HostConnection {
 
   private refreshViews(): void {
     if (!this.open || (typeof document !== "undefined" && document.visibilityState !== "visible")) return;
-    this.request({ type: "list" });
+    this.probe();
   }
 
   private settle(): void {
     const now = Date.now();
+    this.watchLink(now);
     let changed = false;
     for (const name of [...this.busy]) {
       if (now - (this.lastOutput.get(name) ?? 0) > BUSY_WINDOW_MS) {

@@ -43,6 +43,9 @@ export interface SessionSpec {
   last_reply?: string;
   /** Seconds since the seat last wrote, as the daemon's session view carries it. */
   quiet_seconds?: number;
+  /** The seat's "what I'm doing" line and how long ago it set it, in seconds. */
+  activity?: string;
+  activity_age_seconds?: number;
   /** Which scene draws it: a name from scenes.ts. */
   scene: string;
 }
@@ -52,6 +55,8 @@ interface Live {
   scene: Scene;
   /** The box each attached socket asked for. The daemon sizes the PTY to it. */
   boxes: Map<WebSocket, { rows: number; cols: number }>;
+  /** Columns a wider client holds the PTY at, by the daemon's largest-client rule. */
+  wideCols?: number;
 }
 
 export interface Mock {
@@ -70,6 +75,8 @@ export interface Mock {
   browserCalls: { type: string; session?: string; take?: boolean; url?: string; channel?: string }[];
   /** The scene a seat runs, to read what a native dialog received. */
   sceneOf(session: string): Scene | undefined;
+  /** Size a seat's PTY to at least this many columns, as a wider client does. */
+  holdWide(session: string, cols: number): void;
   /** Replace a seat's scene and redraw it on every client attached. */
   setScene(session: string, scene: Scene): void;
   /** Send one daemon frame to every client, as the daemon would push it. */
@@ -78,6 +85,18 @@ export interface Mock {
   addSession(spec: SessionSpec): void;
   /** Close the websocket from the daemon's side, as a daemon restart does. */
   dropClients(): void;
+  /** Open sockets go silent without closing, as a slept phone's link does.
+   * Later dials are unaffected. */
+  silenceClients(): void;
+  /** `refuse` fails a new dial at once, `hang` never answers it, `ok` serves it.
+   * Open sockets are left alone. */
+  dials(mode: "ok" | "refuse" | "hang"): void;
+  /** Refuses the next `count` dials, then `dials` rules: a cold start that fails once. */
+  refuseNext(count: number): void;
+  /** Dials that reached the daemon, answered or not, since the mock started. */
+  dialCount(): number;
+  /** Frame types the daemon received, in order, to see that a probe went out. */
+  heard: string[];
   /** Every proof the client presented in a `resume` frame, in order. */
   resumes: string[];
   /** The resume window passes: every proof the daemon issued stops holding. */
@@ -107,6 +126,12 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
   const live = new Map<string, Live>();
   const typedBy = new Map<string, string[]>();
   const clients = new Set<WebSocket>();
+  // Sockets that went silent: they stay open but speak and hear nothing.
+  const silent = new WeakSet<WebSocket>();
+  let dialMode: "ok" | "refuse" | "hang" = "ok";
+  let dials = 0;
+  let refusals = 0;
+  const heard: string[] = [];
   let lastFrameAt = Date.now();
   const lastBox = new Map<string, { rows: number; cols: number }>();
   const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], browserCalls: [] as Mock["browserCalls"], resumes: [] as string[] };
@@ -137,7 +162,7 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
   for (const spec of options.sessions ?? loadSessions()) add(spec);
 
   const send = (socket: WebSocket, frame: Record<string, unknown>): void => {
-    if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(frame));
+    if (socket.readyState === socket.OPEN && !silent.has(socket)) socket.send(JSON.stringify(frame));
   };
   const broadcast = (frame: Record<string, unknown>): void => {
     for (const socket of clients) send(socket, frame);
@@ -145,16 +170,19 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
   const sessionsFrame = (): Record<string, unknown> => ({ type: "sessions", sessions: [...live.values()].map(({ spec }) => withoutScene(spec)), terminals: [] });
 
   /** Draw a seat at the size its client asked for. A client of this one's size only. */
-  const draw = (seat: Live, socket: WebSocket): void => {
-    const box = seat.boxes.get(socket);
-    if (!box) return;
+  const draw = (seat: Live, socket: WebSocket, attach = false): void => {
+    const own = seat.boxes.get(socket);
+    if (!own) return;
+    const box = { rows: own.rows, cols: Math.max(own.cols, seat.wideCols ?? 0) };
     send(socket, { type: "size", session: seat.spec.name, rows: box.rows, cols: box.cols });
-    send(socket, { type: "output", session: seat.spec.name, data: encode(paint(seat.scene.render(box.cols, box.rows))) });
+    const text = attach && seat.scene.history ? seat.scene.history(box.cols, box.rows) : paint(seat.scene.render(box.cols, box.rows));
+    send(socket, { type: "output", session: seat.spec.name, data: encode(text) });
   };
   const redraw = (seat: Live): void => {
     for (const socket of seat.boxes.keys()) draw(seat, socket);
   };
 
+  const hung = new Set<import("node:stream").Duplex>();
   const wss = new WebSocketServer({ noServer: true });
   wss.on("connection", (socket) => {
     clients.add(socket);
@@ -164,8 +192,10 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
       for (const seat of live.values()) seat.boxes.delete(socket);
     });
     socket.on("message", (raw) => {
+      if (silent.has(socket)) return;
       lastFrameAt = Date.now();
       const frame = JSON.parse(String(raw)) as Record<string, unknown> & { type: string; id?: string; session?: string };
+      heard.push(frame.type);
       const seat = frame.session ? live.get(frame.session) : undefined;
       switch (frame.type) {
         case "hello":
@@ -240,7 +270,7 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
             lastBox.set(seat.spec.name, { rows: frame.rows, cols: frame.cols });
           }
           // A watch without a box (the activity monitor) takes no replay.
-          if (frame.replay) draw(seat, socket);
+          if (frame.replay) draw(seat, socket, true);
           return;
         case "detach":
           seat?.boxes.delete(socket);
@@ -288,7 +318,19 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
   });
 
   const server: Server = createServer((request, response) => serve(request, response));
-  server.on("upgrade", (request, socket, head) => wss.handleUpgrade(request, socket, head, (ws) => wss.emit("connection", ws, request)));
+  server.on("upgrade", (request, socket, head) => {
+    dials += 1;
+    // A stopped daemon refuses at once. A dead path takes the SYN and answers nothing.
+    if (dialMode === "refuse" || refusals > 0) {
+      refusals = Math.max(0, refusals - 1);
+      return void socket.destroy();
+    }
+    if (dialMode === "hang") {
+      hung.add(socket);
+      return;
+    }
+    wss.handleUpgrade(request, socket, head, (ws) => wss.emit("connection", ws, request));
+  });
   await new Promise<void>((resolve) => server.listen(options.port ?? 0, "127.0.0.1", resolve));
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
@@ -302,6 +344,12 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
     launches: mock.launches,
     browserCalls: mock.browserCalls,
     sceneOf: (session) => live.get(session)?.scene,
+    holdWide(session, cols) {
+      const seat = live.get(session);
+      if (!seat) throw new Error(`no seat named ${session}`);
+      seat.wideCols = cols;
+      redraw(seat);
+    },
     setScene(session, scene) {
       const seat = live.get(session);
       if (!seat) throw new Error(`no seat named ${session}`);
@@ -316,19 +364,31 @@ export async function startMock(options: { sessions?: SessionSpec[]; port?: numb
     dropClients() {
       for (const socket of clients) socket.close();
     },
+    silenceClients() {
+      for (const socket of clients) silent.add(socket);
+    },
+    dials(mode) {
+      dialMode = mode;
+    },
+    refuseNext(count) {
+      refusals = count;
+    },
+    dialCount: () => dials,
+    heard,
     resumes: mock.resumes,
     endResumeWindow: () => proofs.clear(),
     async stop() {
       for (const socket of clients) socket.terminate();
+      for (const socket of hung) socket.destroy();
       wss.close();
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
   };
 }
 
-function withoutScene(spec: SessionSpec): Omit<SessionSpec, "scene"> {
-  const { scene: _scene, ...view } = spec;
-  return view;
+function withoutScene(spec: SessionSpec): Omit<SessionSpec, "scene" | "activity_age_seconds"> & { activity_at?: string } {
+  const { scene: _scene, activity_age_seconds: age, ...view } = spec;
+  return { ...view, ...(spec.activity && age !== undefined ? { activity_at: new Date(Date.now() - age * 1000).toISOString() } : {}) };
 }
 
 function serve(request: IncomingMessage, response: ServerResponse): void {

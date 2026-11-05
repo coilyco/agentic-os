@@ -6,7 +6,7 @@
 
 **`_session` hands the harness to the daemon instead of running it.** It sends a `spawn` with argv, environment, directory and window size, then attaches, the argv untouched.
 
-**A session is named `<role>-<identity>`, and a live name refuses a spawn.** A concurrent instance takes the next pool name (`--identity` picks one), and only a full pool adds `-2`, `-3`.
+**A session is named `<role>-<identity>`, and a live name refuses a spawn.** A concurrent instance takes the next pool name, and only a full pool adds `-2`, `-3`.
 
 **`list` reads each session's screen** and reports `state`: `starting`, `prompt` (a card is up), `busy` (recent output or the interrupt hint), else `idle`.
 
@@ -34,9 +34,9 @@
 
 **A process inside a session cannot type into one.** It walks the connecting pid's parents. It may send, stamped, but type only into a session it spawned.
 
-**A websocket on this host gets the same walk**, its source port mapped to the pids holding it, so a browser a session started, or one the daemon cannot name, cannot type, answer, launch or clear. A browser outside every session types, an agent driving Kai's own Chrome included.
+**A websocket on this host gets the same walk**, by source port, so a browser a session started, or one the daemon cannot name, cannot type, answer, launch or clear. A browser outside every session types, an agent driving Kai's own Chrome included.
 
-**A device on the tailnet types only after a passkey.** Its `input`, `answer`, `launch`, `clear`, `spawn`, `close`, `send`, `claim`, `ask`, `cancel_ask`, `gateway_add`, `view_call` and `view_close` refuse until an assertion with user verification succeeds on that connection, then `typing` pushes `allowed`. Only `https://coilyco.dev` may assert. A chain on Google's status list, or an unreadable list, refuses (`attestation_revoked`).
+**A device on the tailnet types only after a passkey.** Its `input`, `answer`, `launch`, `clear` and each frame in `remoteLocked` (`daemon_passkey.go`) refuse until an assertion with user verification succeeds on that connection, then `typing` pushes `allowed`. Only `https://coilyco.dev` may assert. A chain on Google's status list, or an unreadable list, refuses (`attestation_revoked`).
 
 ## Wire contract
 
@@ -45,15 +45,15 @@
 * `spawn`, `attach`, `detach`, `input` and `output` (base64 `data`), `resize`, `exit` with `code`.
 * `send` answers `sent` with the message state, waiting 3 seconds, or `wait` up to 120, for delivery unless `launching`. One not yet final earns the sender an inbox receipt `message <id> to <session>: <state>` with no body. `notify_idle` types `<session> is idle`, `is held at a prompt` or `ended`.
 * `status` (with `lines`), `clear` and `close` (with optional `force`), each with a `target`, answer `status`, `cleared` and `closed` with the exit `code`. `claim` with a `session` base answers `claimed` with a free pool name held two minutes, and `peek` holds none.
-* Seat-to-client frames: `image_upload` [saves an image](../.agents/skills/tooling-aterm-client/references/image-upload.md), `open_url` [opens a page](../.agents/skills/tooling-aterm-client/references/open-url.md), `artifact_add` [shows a source file](../.agents/skills/tooling-aterm-client/references/artifacts.md).
+* Seat-to-client frames: `image_upload` [saves an image](../.agents/skills/tooling-aterm-client/references/image-upload.md), `open_url` [opens a page](../.agents/skills/tooling-aterm-client/references/open-url.md), `artifact_add` [shows a source file](../.agents/skills/tooling-aterm-client/references/artifacts.md), `feedback` [keeps a report](../.agents/skills/tooling-aterm-client/references/feedback.md).
 * `inbox` (feature `inbox`) returns the caller's own messages by `token`, marked read on return, `all` adding the read. Capped at 200, lost on restart.
-* `list` answers `sessions`, each with `state`, `quiet_seconds`, `last_reply` and `context` ([the meter](../.agents/skills/tooling-aterm-client/references/context-meter.md)). `subscribe` to `sessions` pushes the roster on every change, and `message` events carry each state change, never the body. A stalled subscriber drops after 5s.
+* `list` answers `sessions`, each with `state`, `quiet_seconds`, `last_reply` and `context` ([the meter](../.agents/skills/tooling-aterm-client/references/context-meter.md)). `subscribe` to `sessions` pushes the roster on every change, and `message` events carry each state change and, to a typing client, [the body](../.agents/skills/tooling-aterm-client/references/message-text.md). A stalled subscriber drops after 5s.
 * `welcome` to a websocket adds `typing-guard`, `passkey` and `typing` `{allowed, reason, passkey}`, `passkey` `enrolled` or `unenrolled`. A refusal's `error` carries `reason`: `session_descendant`, `peer_unread` or `passkey_required`.
 * Passkey: `passkey_enroll_begin` (`enroll_code`) answers `passkey_enroll_options`, and `passkey_enroll_finish` (`credential`) answers `passkey_enrolled`. `passkey_assert_begin` answers `passkey_assert_options`, and `passkey_assert_finish` answers `passkey_asserted`.* `resume` (feature of the same name) carries an unlock across a redial: [frames and window](../.agents/skills/tooling-aterm-client/references/resume.md).
 * `push_*` serves [Web Push](../.agents/skills/tooling-aterm-client/references/web-push.md).
 * `hosts` lists tailnet daemons that answered ([discovery](../.agents/skills/tooling-aterm-client/references/discovery.md)).
-* `whoami` resolves a token to its session. `roster` answers `aterm.roster.v1`, the launchable roles `aterm --list --json` prints. `launch` with a `role` and optional `seat` opens it headless.
-* `ask` takes a `question`, `options`, `header`, `allow_other`, `multi`, `relay`. MCP `ask_choice` takes up to four `questions`, one card each. The daemon stamps the asker and pushes `ask`. `answer` (`ask_id`, `picks`, `text`) or `cancel_ask` settles it, and `asked` tells clients to drop it. An asker leaving cancels its asks, and an answer takes the typing guard as Kai's input.
+* `roster` answers `aterm.roster.v1`, the launchable roles `aterm --list --json` prints. `launch` with a `role` and `seat` opens it headless.
+* `ask` takes a `question`, `options`, `header`, `allow_other`, `multi`, `relay`. MCP `ask_choice` takes up to four `questions`, one card each. The daemon stamps the asker and pushes `ask`. `answer` (`ask_id`, `picks`, `text`) or `cancel_ask` settles it, and `asked` tells clients to drop it. An answer takes the typing guard as Kai's input.
 
 **Browsers get the embedded client at `/`, and a websocket there.** Loopback is `127.0.0.1:7419`, the tailnet HTTPS on this node's name, port 7419. `tailscale whois` admits a peer, never the request. [Tailnet access](../.agents/skills/tooling-aterm-client/references/tailnet-access.md) says who, and which pages open a socket.
 
