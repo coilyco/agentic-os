@@ -193,7 +193,7 @@
       <p class="degraded">Started without {session.degraded.join(", ")}. agent-compose skipped these steps at launch, so this seat may be missing what they set up.</p>
     {/if}
   </header>
-  <div class="body" class:wide class:away={split && !sideOpen} data-composing={app.composing} style:--side={sideWidth ? `${sideWidth}px` : undefined}>
+  <div class="body" class:wide class:away={split && !sideOpen} data-composing={app.composing} data-reading={layout.reading && !split} style:--side={sideWidth ? `${sideWidth}px` : undefined}>
     <div class="work">
       {#if app.connection}
         {#key session.id}
@@ -310,5 +310,7 @@
   @media (max-width: 1000px) {
     /* The sheet floats over this row, so the strip's height stays clear of the composer and the terminal never resizes as it rises. */
     .body, .body.wide { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr); padding-bottom: var(--strip); min-height: calc(320px + var(--strip)); }
+    /* A phone on its side has no strip to keep clear, and its height is too scarce to reserve any. */
+    .body[data-reading="true"] { --strip: 0px; }
   }
 </style>
