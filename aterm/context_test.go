@@ -314,7 +314,7 @@ func TestRefreshPushesTheRosterOnlyWhenAReadingMoved(t *testing.T) {
 	c := newContextDaemon(t)
 	var pushed atomic.Int32
 	watcher := &conn{writeLine: func([]byte) error { pushed.Add(1); return nil }, closer: func() error { return nil }}
-	c.d.subscribers[watcher] = true
+	c.d.subscribers[watcher] = &client{c: watcher}
 	// A broadcast is written from the subscriber's own goroutine, so a count is
 	// read after it has had time to land.
 	landed := func() int32 {
