@@ -16,7 +16,7 @@ Session worktrees are linked from the canonical repository, so they share its Gi
 
 The working tree has no such protection. It lives under the platform temporary root, which the operating system purges on its own schedule. macOS empties `DARWIN_USER_TEMP_DIR` through `com.apple.bsd.dirhelper`, deleting files by access time and leaving the directory skeleton behind.
 
-Committed work therefore survives a purged shadow and uncommitted work has no second copy. That asymmetry is the mechanism behind the remote-checkpoint rule.
+Committed work survives a purged shadow, uncommitted work has no second copy. That asymmetry is the mechanism behind the remote-checkpoint rule.
 
 ## Lifecycle verbs
 
@@ -25,7 +25,7 @@ Committed work therefore survives a purged shadow and uncommitted work has no se
 * `--list [--json]` - every lease, whether its process is live, whether the worktree is still on disk, how many commits sit on no remote, and one line saying what holds a session that cannot be released. `aterm.roster.v1`'s sibling contract is `agentic-os.native-shadows.v1`.
 * `--release [<id>]` - a session declaring itself finished. It marks the lease, never tears down a running process, and the worktree goes on the next sweep. Defaults to `$AOS_NATIVE_SESSION`.
 * `--session-id <code>` - the code a launcher named the shadow with, from `aos _session-id`, used unless taken. The aterm session name no longer carries it.
-* `--finished <pid>` - the aterm daemon's call when a session ends: release and collect that lease now. `--reap --release-dead` does every dead lease. Dirty or unpushed worktrees stay (COI-3427).
+* `--finished <pid>` - the aterm daemon's call when a session ends: release and collect that lease now. `--reap --release-dead` does every dead lease. Dirty or unpushed worktrees stay. A live session's shadow is never swept (COI-3427).
 * `--reap [--dry-run]` - runs the sweep an operator would otherwise have to trigger by launching another session. The dry run reports the verdict the sweep enforces, grace included.
 
 A dead lease waits out a 24-hour grace, since a crash and a clean exit look alike. `--release` says which it was, and a released lease skips the grace once its process is gone.

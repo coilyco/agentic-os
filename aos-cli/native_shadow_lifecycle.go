@@ -49,6 +49,12 @@ type nativeShadowReport struct {
 // inspectNativeShadows reads what a shadow holds without changing any of it.
 // See docs/native-shadow.md.
 func inspectNativeShadows(runtime nativeRuntime) (nativeShadowReport, error) {
+	return inspectNativeShadowsAs(runtime, false)
+}
+
+// inspectNativeShadowsAs reads as if --release-dead had already marked every dead lease,
+// so a dry run's verdicts match what the real run does.
+func inspectNativeShadowsAs(runtime nativeRuntime, releaseDead bool) (nativeShadowReport, error) {
 	report := nativeShadowReport{Format: nativeShadowReportFormat}
 	leaseDir := nativeStatePath(runtime, "leases")
 	entries, err := os.ReadDir(leaseDir)
@@ -78,6 +84,10 @@ func inspectNativeShadows(runtime nativeRuntime) (nativeShadowReport, error) {
 	}
 	probe := probeNativeProcesses(pids)
 	for _, entry := range held {
+		if releaseDead && entry.lease.Released == nil && !probe.leaseIsLive(entry.lease) {
+			released := runtime.Now
+			entry.lease.Released = &released
+		}
 		report.Sessions = append(report.Sessions, inspectNativeShadow(runtime, entry.lease, probe))
 	}
 	sort.Slice(report.Sessions, func(first, second int) bool {
@@ -326,9 +336,9 @@ func finishNativeShadows(runtime nativeRuntime, pick func(nativeLease) bool, dry
 			return fmt.Errorf("record the release of session %s: %w", item.lease.ID, err)
 		}
 	}
-	verb := "released"
+	verb := "marked released"
 	if dryRun {
-		verb = "would be released"
+		verb = "would be marked released"
 	}
 	fmt.Fprintf(os.Stdout, "%d dead session(s) %s, grace skipped\n", len(ids), verb)
 	if dryRun || len(ids) == 0 {
@@ -342,9 +352,9 @@ func finishNativeShadows(runtime nativeRuntime, pick func(nativeLease) bool, dry
 
 // reapNativeShadows runs the sweep an operator would otherwise have to trigger
 // by launching another session.
-func reapNativeShadows(runtime nativeRuntime, dryRun bool) error {
+func reapNativeShadows(runtime nativeRuntime, dryRun, releaseDead bool) error {
 	if dryRun {
-		report, err := inspectNativeShadows(runtime)
+		report, err := inspectNativeShadowsAs(runtime, releaseDead)
 		if err != nil {
 			return err
 		}
@@ -416,7 +426,7 @@ func nativeShadowLifecycleVerb(cmd *cli.Command) (func(nativeRuntime) error, boo
 					return err
 				}
 			}
-			return reapNativeShadows(runtime, dryRun)
+			return reapNativeShadows(runtime, dryRun, releaseDead)
 		}, true
 	case cmd.Bool("credential"):
 		asJSON := cmd.Bool("json")
