@@ -100,6 +100,8 @@ type frame struct {
 	NotifyIdle bool `json:"notify_idle,omitempty"`
 	// Force closes a session even while it holds a draft or undelivered messages.
 	Force bool `json:"force,omitempty"`
+	// Self closes the caller's own session, named by Token alone and never by Target.
+	Self bool `json:"self,omitempty"`
 	// Peek asks a claim which name it would grant, without holding it.
 	Peek bool `json:"peek,omitempty"`
 	// All asks an inbox for the messages already read as well as the unread.
@@ -321,6 +323,9 @@ const lastReplyFeature = "last-reply"
 
 // closeFeature is how a client knows the daemon answers a close frame.
 const closeFeature = "close"
+
+// closeSelfFeature is how a client knows a close frame may carry Self.
+const closeSelfFeature = "close-self"
 
 // statusFeature is how a client knows the daemon answers a status frame.
 const statusFeature = "status"
