@@ -150,25 +150,34 @@ func seedNativeClaudeTrustChanged(configPath string, projects []string, external
 // a live claude's write that straddles ours erases it silently (COI-3343).
 var nativeClaudeSeedChecks = []time.Duration{150 * time.Millisecond, 350 * time.Millisecond, time.Second}
 
-// ensureNativeClaudeTrust seeds, then reads back and repairs until a check is clean.
-func ensureNativeClaudeTrust(configPath string, projects []string, external bool) error {
-	if _, err := seedNativeClaudeTrustChanged(configPath, projects, external); err != nil {
-		return err
+// nativeSeedResult is whether the first write had work, how many checks found the seed
+// erased, and whether the last was clean.
+type nativeSeedResult struct {
+	Wrote   bool
+	Repairs int
+	Clean   bool
+}
+
+// ensureNativeClaudeTrust seeds, then reads back at each wait and repairs what it finds.
+func ensureNativeClaudeTrust(configPath string, projects []string, external bool, checks []time.Duration) (nativeSeedResult, error) {
+	result := nativeSeedResult{}
+	wrote, err := seedNativeClaudeTrustChanged(configPath, projects, external)
+	if err != nil {
+		return result, err
 	}
-	for _, wait := range nativeClaudeSeedChecks {
+	result.Wrote, result.Clean = wrote, true
+	for _, wait := range checks {
 		time.Sleep(wait)
 		repaired, err := seedNativeClaudeTrustChanged(configPath, projects, external)
 		if err != nil {
-			return err
+			return result, err
 		}
 		if repaired {
-			time.Sleep(wait)
-			if _, err := seedNativeClaudeTrustChanged(configPath, projects, external); err != nil {
-				return err
-			}
+			result.Repairs++
 		}
+		result.Clean = !repaired
 	}
-	return nil
+	return result, nil
 }
 
 // setNativeClaudeFlag sets one top-level boolean in a Claude JSON file and
