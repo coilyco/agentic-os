@@ -167,6 +167,10 @@ func TestClassifyStopsSeeingAnAnsweredPrompt(t *testing.T) {
 // The state a client lists is read off a real session's screen: held on a
 // prompt while it shows, and no longer once the program repaints over it.
 func TestListedStateFollowsTheScreen(t *testing.T) {
+	// A short grace keeps the busy window wide enough for a loaded machine to poll it.
+	saved := cardGrace
+	cardGrace = 100 * time.Millisecond
+	t.Cleanup(func() { cardGrace = saved })
 	testDaemon(t)
 	tc := dialTest(t)
 	script := `printf '\033[?2004h'; printf 'Do you want to proceed?\r\n1. Yes\r\nEsc to cancel\r\n'; ` +

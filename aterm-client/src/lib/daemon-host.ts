@@ -1,6 +1,7 @@
 // aterm.daemon.v1 over the daemon's loopback websocket. The frame reference is
 // the Wire contract section of the aterm daemon page in coilyco/agentic-os.
 import { quietSince } from "./age";
+import { toActivity } from "./seat-activity";
 import { backoffDelay, differentBuild } from "./backoff";
 import { safely } from "./pane-watch";
 import { parseFrom } from "./messages";
@@ -73,6 +74,9 @@ interface SessionView {
   last_reply?: string;
   /** Seconds since the seat last wrote, as of the frame. */
   quiet_seconds?: number;
+  /** The seat's own line about what it is doing, and when (RFC 3339). */
+  activity?: string;
+  activity_at?: string;
 }
 
 // A plain shell as the daemon lists it (COI-2498). `label` is whatever the opener sent
@@ -89,6 +93,8 @@ interface MessageView {
   session?: string;
   state: MessageState;
   reason?: string;
+  text?: string;
+  text_cut?: boolean;
 }
 
 // ask_choice as the daemon sends it (coilyco/agentic-os#1724).
@@ -257,6 +263,7 @@ const SELF_WINDOW_MS = 800;
 const REFRESH_MS = 20_000;
 
 export function toSession(view: SessionView, busy = false, quiet?: number): Session {
+  const activity = toActivity(view.activity, view.activity_at);
   return {
     id: view.name,
     role: view.role,
@@ -270,6 +277,7 @@ export function toSession(view: SessionView, busy = false, quiet?: number): Sess
     ...(view.ready ? {} : { starting: true }),
     ...(view.context ? { context: toContext(view.context) } : {}),
     ...(view.last_reply ? { lastReply: view.last_reply } : {}),
+    ...(activity ? { activity } : {}),
     ...(quiet === undefined ? {} : { quietSince: quiet }),
   };
 }
@@ -286,6 +294,8 @@ export function toMessage(view: MessageView): PeerMessage {
     session: view.session ?? null,
     state: view.state,
     reason: view.reason ?? null,
+    text: view.text ?? null,
+    textCut: view.text_cut === true,
   };
 }
 

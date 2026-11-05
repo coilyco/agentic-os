@@ -302,6 +302,8 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 		applyNativeLaunchCredentials(ctx, runtime.Stderr, role)
 	}
 	runtime.Progress.Ready()
+	recheckNativeClaudeTrust(runtime, workspace.Trust)
+	startNativeTrustGuard(workspace.Trust)
 	runtime.Progress.Exec(command)
 	return execNative(command)
 }
@@ -523,6 +525,8 @@ type nativeLaunchWorkspace struct {
 	// ClaudeSeat is the --add-dir carrying this seat's CLAUDE.md and skills,
 	// set only when the launch shares the seats config directory.
 	ClaudeSeat string
+	// Trust is what a Claude launch seeded, checked again before the hand-off.
+	Trust nativeTrustPlan
 }
 
 func prepareNativeLaunch(runtime nativeRuntime, harness string) (string, error) {
@@ -867,6 +871,12 @@ type nativeHeldLease struct {
 }
 
 func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error) {
+	return cleanNativeSessionsWhere(runtime, nil)
+}
+
+// cleanNativeSessionsWhere is cleanDeadNativeSessions over the leases pick accepts, every
+// lease when it is nil. Leases it skips are untouched and absent from the live set.
+func cleanNativeSessionsWhere(runtime nativeRuntime, pick func(nativeLease) bool) (nativeLiveWorktrees, error) {
 	leaseDir := nativeStatePath(runtime, "leases")
 	entries, err := os.ReadDir(leaseDir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -890,6 +900,9 @@ func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error)
 		if err := readNativeJSON(path, &lease); err != nil {
 			live.uncertain = true
 			fmt.Fprintf(runtime.Stderr, "aos: preserving unreadable native lease %s\n", path)
+			continue
+		}
+		if pick != nil && !pick(lease) {
 			continue
 		}
 		held = append(held, nativeHeldLease{path: path, lease: lease})
@@ -2054,6 +2067,7 @@ func createNativeSession(
 		}
 	}
 	seat := ""
+	var trust nativeTrustPlan
 	if harness == "claude" {
 		config := nativeClaudeConfigPath(runtime.Home)
 		if sessionHome != "" {
@@ -2078,9 +2092,12 @@ func createNativeSession(
 		if !external {
 			fmt.Fprintf(runtime.Stderr, "aos: native session external imports not pre-approved, a CLAUDE.md imports a file beyond the approved two\n")
 		}
-		if err := ensureNativeClaudeTrust(config, trusted, external); err != nil {
+		result, err := ensureNativeClaudeTrust(config, trusted, external, nativeClaudeSeedChecks)
+		if err != nil {
 			fmt.Fprintf(runtime.Stderr, "aos: native session trust not seeded: %v\n", err)
 		}
+		trust = nativeTrustPlan{Config: config, Paths: trusted, External: external}
+		logNativeClaudeTrust(runtime, "staged", trust, result, err)
 	}
 	runtime.Progress.Workspace(sessionProjects, len(artifacts))
 	return nativeLaunchWorkspace{
@@ -2088,6 +2105,7 @@ func createNativeSession(
 		SessionProjects: sessionProjects,
 		SessionHome:     sessionHome,
 		ClaudeSeat:      seat,
+		Trust:           trust,
 	}, nil
 }
 

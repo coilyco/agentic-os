@@ -14,7 +14,7 @@ A native AOS launch runs the agent inside a per-session shadow instead of the ca
 
 Session worktrees are linked from the canonical repository, so they share its Git object store. A commit is durable the moment it is written, because the objects land in the canonical repository rather than in the session directory. Branch refs likewise outlive the session.
 
-The working tree has no such protection. It lives under the platform temporary root, which the operating system purges on its own schedule. macOS empties `DARWIN_USER_TEMP_DIR` through `com.apple.bsd.dirhelper`, deleting files by access time and leaving the directory skeleton behind, which surfaces in Git as a worktree that is `prunable` with a missing gitdir.
+The working tree has no such protection. It lives under the platform temporary root, which the operating system purges on its own schedule. macOS empties `DARWIN_USER_TEMP_DIR` through `com.apple.bsd.dirhelper`, deleting files by access time and leaving the directory skeleton behind.
 
 Committed work therefore survives a purged shadow and uncommitted work has no second copy. That asymmetry is the mechanism behind the remote-checkpoint rule.
 
@@ -23,11 +23,12 @@ Committed work therefore survives a purged shadow and uncommitted work has no se
 `aos _native-shadow` reads and reclaims as well as launching.
 
 * `--list [--json]` - every lease, whether its process is live, whether the worktree is still on disk, how many commits sit on no remote, and one line saying what holds a session that cannot be released. `aterm.roster.v1`'s sibling contract is `agentic-os.native-shadows.v1`.
-* `--release [<id>]` - a session declaring itself finished. It marks the lease and never tears down a process that may still be running, so the worktree goes on the next sweep. Defaults to `$AOS_NATIVE_SESSION`.
+* `--release [<id>]` - a session declaring itself finished. It marks the lease, never tears down a running process, and the worktree goes on the next sweep. Defaults to `$AOS_NATIVE_SESSION`.
 * `--session-id <code>` - the code a launcher named the shadow with, from `aos _session-id`, used unless taken. The aterm session name no longer carries it.
-* `--reap [--dry-run]` - runs the sweep an operator would otherwise have to trigger by launching another session. The dry run reports the same verdict the sweep enforces, the grace included, rather than a larger optimistic one.
+* `--finished <pid>` - the aterm daemon's call when a session ends: release and collect that lease now. `--reap --release-dead` does every dead lease. Dirty or unpushed worktrees stay (COI-3427).
+* `--reap [--dry-run]` - runs the sweep an operator would otherwise have to trigger by launching another session. The dry run reports the verdict the sweep enforces, grace included.
 
-A dead lease waits out a 24-hour grace, because a crash and a clean exit look identical from outside. `--release` is the session saying which it was, and a released lease skips the grace once its process is gone.
+A dead lease waits out a 24-hour grace, since a crash and a clean exit look alike. `--release` says which it was, and a released lease skips the grace once its process is gone.
 
 ## Why a landed branch used to be unreapable
 
