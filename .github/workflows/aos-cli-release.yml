@@ -15,7 +15,9 @@ on:
       - "aterm/**"
       - "aterm-client/**"
       - "scripts/aos-release-build.sh"
+      - "scripts/aterm-sign-darwin.sh"
       - "scripts/check-aos-release.sh"
+      - "scripts/ci/install-rcodesign.sh"
       - "scripts/fs-shims/**"
       - "scripts/guardfile-python-modules.sh"
       - "scripts/render-aos-packaging.sh"
@@ -69,6 +71,9 @@ jobs:
       - name: Install the pinned agent-compose for the roster guard
         run: bash "$GITHUB_WORKSPACE/scripts/ci/install-agent-compose.sh"
 
+      - name: Install the pinned rcodesign to sign the macOS aterm
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/install-rcodesign.sh"
+
       - name: Validate the release commit
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aos-cli-release.sh" validate
 
@@ -92,6 +97,8 @@ jobs:
       - name: Build binaries and package metadata
         env:
           AOS_RELEASE_VERSION: ${{ steps.next.outputs.new_tag }}
+          TREEHOUSE_CODESIGN_CERT_PEM: ${{ secrets.TREEHOUSE_CODESIGN_CERT_PEM }}
+          TREEHOUSE_CODESIGN_KEY_PEM: ${{ secrets.TREEHOUSE_CODESIGN_KEY_PEM }}
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aos-cli-release.sh" build
 
       - id: tag

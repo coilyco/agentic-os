@@ -205,6 +205,11 @@ build_aterm() {
             -o "$out" .
     )
     echo "$out"
+    # The bare darwin binary stays for the release check, but the formula
+    # installs the signed bundle. See docs/aos-cli.md.
+    if [ "$goos" = "darwin" ]; then
+        sh "$repo_root/scripts/aterm-sign-darwin.sh" "$out" "$out.app.tar.gz"
+    fi
 }
 
 mkdir -p "$dist"
