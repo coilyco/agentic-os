@@ -471,8 +471,13 @@ export function asksFor(sessionId: string): Ask[] {
   return Object.values(app.asks).filter((ask) => ask.session === sessionId);
 }
 
+// One Set per roster: a row building its own made a frame cost N squared (COI-3363).
+// Keyed by the array a frame replaces. A $derived recomputes when nothing watches it.
+let liveCache: { list: unknown; size: number; ids: Set<string> } | null = null;
 function liveIds(): Set<string> {
-  return new Set(app.sessions.map((session) => session.id));
+  const list = app.sessions;
+  if (liveCache?.list !== list || liveCache.size !== list.length) liveCache = { list, size: list.length, ids: new Set(list.map((session) => session.id)) };
+  return liveCache.ids;
 }
 
 /** Asks whose card shows on this seat's pane: its own, and a worker's relayed to it. */
@@ -494,6 +499,8 @@ export function relayedTo(sessionId: string): Session | undefined {
 
 /** What a row says about an ask that concerns its seat, or null when none does. */
 export function askLineFor(sessionId: string): string | null {
+  // Almost always no ask is open, so a row costs nothing and reads no seat.
+  if (Object.keys(app.asks).length === 0) return null;
   const live = liveIds();
   const nameOf = (id: string) => app.sessions.find((session) => session.id === id)?.identity ?? id;
   const ask = Object.values(app.asks).find((each) => each.session === sessionId || cardSeatOf(each, live) === sessionId);

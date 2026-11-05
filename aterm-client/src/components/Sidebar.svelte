@@ -117,10 +117,9 @@
     return () => clearInterval(timer);
   });
 
-  function stateText(session: Session): string {
+  function stateText(session: Session, asking: string | null): string {
     if (reconnecting()) return `${session.state}, last known`;
     if (session.state === "failed") return "launch failed";
-    const asking = askLineFor(session.id);
     if (asking) return asking;
     if (app.unseen[session.id]) return stateWithAge("done, your turn", session.quietSince, now);
     if (session.drafting) return "you're typing";
@@ -129,9 +128,9 @@
     return stateWithAge(session.state, session.starting ? undefined : session.quietSince, now);
   }
 
-  function activity(session: Session): string {
+  function activity(session: Session, asking: string | null): string {
     if (session.state === "failed") return "failed";
-    if (askLineFor(session.id)) return "asking";
+    if (asking) return "asking";
     if (app.unseen[session.id]) return "unseen";
     return session.state;
   }
@@ -146,17 +145,18 @@
   {@const role = roleFor(session, app.roles)}
   {@const selected = app.selectedSession === session.id}
   {@const code = sessionCode(session)}
+  {@const asking = askLineFor(session.id)}
   {@const stop = group.some((each) => each.id === app.selectedSession) ? selected : session === group[0]}
   <button
     role="tab"
     id={`tab-session-${session.id}`}
     aria-selected={selected}
     aria-controls="main-panel"
-    aria-label={sessionLabel(session, role, stateText(session))}
+    aria-label={sessionLabel(session, role, stateText(session, asking))}
     tabindex={stop ? 0 : -1}
     class="tab seat"
     data-state={session.state}
-    data-activity={activity(session)}
+    data-activity={activity(session, asking)}
     data-degraded={session.degraded.length > 0}
     data-glow={glowing.has(session.id)}
     aria-describedby={hover?.id === session.id && preview ? "seat-preview" : undefined}
@@ -178,7 +178,7 @@
         {#if code}<span class="code-inline mono">{code}</span>{/if}
       </span>
       <span class="detail">{code ? `${role.displayName} // ${code}` : role.displayName}</span>
-      <span class="detail state-text">{stateText(session)}</span>
+      <span class="detail state-text">{stateText(session, asking)}</span>
       {#if session.degraded.length}
         <span class="degraded">started without {session.degraded.join(", ")}</span>
       {/if}
