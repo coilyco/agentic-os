@@ -118,6 +118,8 @@ type nativeWorktree struct {
 }
 
 type nativeLiveWorktrees struct {
+	// roots are live sessions' roots. A worktree a seat made inside one is its own.
+	roots     []string
 	paths     map[string]struct{}
 	branches  map[string]struct{}
 	uncertain bool
@@ -726,6 +728,35 @@ func (live *nativeLiveWorktrees) addArtifacts(artifacts []nativeArtifact) {
 	}
 }
 
+func (live *nativeLiveWorktrees) addRoot(root string) {
+	if root = filepath.Clean(strings.TrimSpace(root)); root != "." && root != string(os.PathSeparator) {
+		live.roots = append(live.roots, root)
+	}
+}
+
+// insideLiveSession is whether a path sits under a live session's root, or under that
+// session's claude scratchpad, whose directory name spells the root with dashes.
+func (live nativeLiveWorktrees) insideLiveSession(path string) bool {
+	forms := []string{filepath.Clean(path)}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		forms = append(forms, resolved)
+	}
+	for _, root := range live.roots {
+		marker := strings.ReplaceAll(root, string(os.PathSeparator), "-")
+		for _, form := range forms {
+			if underAny(form, []string{root}) {
+				return true
+			}
+			if at := strings.Index(form, marker); at >= 0 {
+				if rest := form[at+len(marker):]; rest == "" || rest[0] == '-' || rest[0] == os.PathSeparator {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // holdsBranch reports a branch some lease still claims, purged worktree
 // included. Uncertainty answers yes, since the cost of keeping is a stale ref.
 func (live nativeLiveWorktrees) holdsBranch(branch string) bool {
@@ -921,6 +952,7 @@ func cleanNativeSessionsWhere(runtime nativeRuntime, pick func(nativeLease) bool
 				}
 			}
 			live.addArtifacts(lease.Artifacts)
+			live.addRoot(lease.SessionRoot)
 			continue
 		}
 		// A dead session's token is harvested at once rather than after the
@@ -1746,7 +1778,7 @@ func cleanUnleasedNativeWorktrees(
 	}
 	for _, worktree := range worktrees {
 		if samePath(worktree.Path, repository.Path) || live.contains(worktree.Path) ||
-			humanWorkdir(worktree.Path) {
+			live.insideLiveSession(worktree.Path) || humanWorkdir(worktree.Path) {
 			continue
 		}
 		artifact := nativeArtifact{
