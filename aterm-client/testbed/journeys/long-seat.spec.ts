@@ -65,15 +65,18 @@ for (const run of RUNS) test(`a long seat opens fast and scrolls steadily (${run
   await cdp.send("Profiler.start");
   await tab.click();
   const open = (await page.evaluate(() => (window as unknown as { __open: Promise<unknown> }).__open)) as { first: number; settled: number; tasks: number[] };
-  const { profile } = await cdp.send("Profiler.stop");
-  const self = new Map<string, number>();
-  const byId = new Map(profile.nodes.map((node) => [node.id, node]));
-  profile.samples?.forEach((id, i) => {
-    const call = byId.get(id)!.callFrame;
-    const name = `${call.functionName || "(anon)"} ${call.url.split("/").pop()}:${call.lineNumber}`;
-    self.set(name, (self.get(name) ?? 0) + (profile.timeDeltas?.[i] ?? 0) / 1000);
-  });
-  const top = [...self].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([name, ms]) => `${Math.round(ms)}ms ${name}`);
+  const topOf = async () => {
+    const { profile } = await cdp.send("Profiler.stop");
+    const self = new Map<string, number>();
+    const byId = new Map(profile.nodes.map((node) => [node.id, node]));
+    profile.samples?.forEach((id, i) => {
+      const call = byId.get(id)!.callFrame;
+      const name = `${call.functionName || "(anon)"} ${call.url.split("/").pop()}:${call.lineNumber}`;
+      self.set(name, (self.get(name) ?? 0) + (profile.timeDeltas?.[i] ?? 0) / 1000);
+    });
+    return [...self].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([name, ms]) => `${Math.round(ms)}ms ${name}`);
+  };
+  const top = await topOf();
   const wire = await page.evaluate(() => (window as unknown as { __frames: { bytes: number }[] }).__frames);
   await page.waitForTimeout(1000);
   const box = (await page.locator(".xterm-rows").first().boundingBox())!;
@@ -109,13 +112,16 @@ for (const run of RUNS) test(`a long seat opens fast and scrolls steadily (${run
   // A working seat keeps printing while a person scrolls its history.
   let n = 0;
   const feed = setInterval(() => pushOutput(mock, SEATS.beetle.id, `\r\n\x1b[1m⏺\x1b[0m streaming line ${n++} of the work in progress`), 50);
+  await cdp.send("Profiler.start");
   const streaming = await scrollRun(240);
+  const topStreaming = await topOf();
   clearInterval(feed);
   const result = {
     project: info.project.name,
     style: run.style,
     cpu: run.cpu,
     topSelfTime: top,
+    topSelfTimeStreaming: topStreaming,
     wireFramesBytes: wire.map((f) => f.bytes),
     firstRowMs: Math.round(open.first),
     settledMs: Math.round(open.settled),
