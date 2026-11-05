@@ -33,6 +33,12 @@ type fakeAccounts struct {
 	server *httptest.Server
 	down   bool
 	mu     sync.Mutex
+	// codes are the enrollment codes it honors, renewFail the renewals it fails first,
+	// renewals the ones it granted, and wrongKey makes it bind a certificate to another key.
+	codes     map[string]bool
+	renewFail int
+	renewals  int
+	wrongKey  bool
 }
 
 func newFakeAccounts(t *testing.T) *fakeAccounts {
@@ -41,11 +47,19 @@ func newFakeAccounts(t *testing.T) *fakeAccounts {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := &fakeAccounts{key: key, kid: "k1"}
+	a := &fakeAccounts{key: key, kid: "k1", codes: map[string]bool{}}
 	a.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		a.mu.Lock()
 		down := a.down
 		a.mu.Unlock()
+		switch r.URL.Path {
+		case "/v1/daemons":
+			a.handleEnroll(w, r)
+			return
+		case "/v1/daemons/renew":
+			a.handleRenew(w, r)
+			return
+		}
 		if down || r.URL.Path != "/.well-known/jwks.json" {
 			http.Error(w, "down", http.StatusServiceUnavailable)
 			return
@@ -59,23 +73,123 @@ func newFakeAccounts(t *testing.T) *fakeAccounts {
 	return a
 }
 
+func decodeStrict(r *http.Request, v any) error {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	return dec.Decode(v)
+}
+
+func (a *fakeAccounts) handleEnroll(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Code      string                          `json:"code"`
+		DaemonPub struct{ Kty, Crv, X, Y string } `json:"daemon_pub"`
+		Name      string                          `json:"name"`
+		Substrate string                          `json:"substrate"`
+	}
+	if err := decodeStrict(r, &req); err != nil || req.DaemonPub.Kty != "EC" || req.Name == "" {
+		http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
+		return
+	}
+	a.mu.Lock()
+	ok := a.codes[req.Code]
+	delete(a.codes, req.Code)
+	wrong := a.wrongKey
+	a.mu.Unlock()
+	if !ok {
+		http.Error(w, `{"error":"code_invalid","message":"that code is not valid"}`, http.StatusUnauthorized)
+		return
+	}
+	pub, err := parseP256(req.DaemonPub.X, req.DaemonPub.Y)
+	if err != nil {
+		http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
+		return
+	}
+	jkt := jwkThumbprint(pub)
+	if wrong {
+		jkt = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	}
+	_ = json.NewEncoder(w).Encode(certReply{DaemonID: testDaemonID, Cert: a.daemonCert(jkt, time.Hour), ExpiresIn: 3600})
+}
+
+// handleRenew checks the proof as accounts does: signed by the key whose thumbprint the
+// certificate names, aimed at accounts, fresh, with a jti.
+func (a *fakeAccounts) handleRenew(w http.ResponseWriter, r *http.Request) {
+	var req struct{ Cert, Proof string }
+	if err := decodeStrict(r, &req); err != nil {
+		http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
+		return
+	}
+	a.mu.Lock()
+	if a.renewFail > 0 {
+		a.renewFail--
+		a.mu.Unlock()
+		http.Error(w, `{"error":"stale"}`, http.StatusServiceUnavailable)
+		return
+	}
+	a.mu.Unlock()
+	certParts, proofParts := strings.Split(req.Cert, "."), strings.Split(req.Proof, ".")
+	if len(certParts) != 3 || len(proofParts) != 3 {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	var cert struct{ Cnf struct{ Jkt string } }
+	raw, _ := rawURL.DecodeString(certParts[1])
+	_ = json.Unmarshal(raw, &cert)
+	var head struct{ JWK struct{ X, Y string } }
+	raw, _ = rawURL.DecodeString(proofParts[0])
+	_ = json.Unmarshal(raw, &head)
+	pub, err := parseP256(head.JWK.X, head.JWK.Y)
+	sig, _ := rawURL.DecodeString(proofParts[2])
+	digest := sha256.Sum256([]byte(proofParts[0] + "." + proofParts[1]))
+	var claims struct {
+		Aud, Jti string
+		Iat      int64
+	}
+	raw, _ = rawURL.DecodeString(proofParts[1])
+	_ = json.Unmarshal(raw, &claims)
+	if err != nil || jwkThumbprint(pub) != cert.Cnf.Jkt || len(sig) != 64 ||
+		!ecdsa.Verify(pub, digest[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])) ||
+		claims.Aud != "treehouse-accounts" || claims.Jti == "" || time.Since(time.Unix(claims.Iat, 0)) > time.Minute {
+		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+	a.mu.Lock()
+	a.renewals++
+	a.mu.Unlock()
+	_ = json.NewEncoder(w).Encode(certReply{DaemonID: testDaemonID, Cert: a.daemonCert(cert.Cnf.Jkt, time.Hour), ExpiresIn: 3600})
+}
+
 func (a *fakeAccounts) setDown(down bool) {
 	a.mu.Lock()
 	a.down = down
 	a.mu.Unlock()
 }
 
-func signWith(t *testing.T, key *ecdsa.PrivateKey, header, claims map[string]any) string {
-	t.Helper()
+func signRaw(key *ecdsa.PrivateKey, header, claims map[string]any) string {
 	h, _ := json.Marshal(header)
 	c, _ := json.Marshal(claims)
 	signing := rawURL.EncodeToString(h) + "." + rawURL.EncodeToString(c)
 	digest := sha256.Sum256([]byte(signing))
 	r, s, err := ecdsa.Sign(rand.Reader, key, digest[:])
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 	return signing + "." + rawURL.EncodeToString(append(r.FillBytes(make([]byte, 32)), s.FillBytes(make([]byte, 32))...))
+}
+
+func signWith(t *testing.T, key *ecdsa.PrivateKey, header, claims map[string]any) string {
+	t.Helper()
+	return signRaw(key, header, claims)
+}
+
+// daemonCert is a daemon certificate accounts would issue, bound to jkt, living for life.
+func (a *fakeAccounts) daemonCert(jkt string, life time.Duration) string {
+	now := time.Now()
+	return signRaw(a.key, map[string]any{"alg": "ES256", "typ": "treehouse.token.daemon.v1", "kid": a.kid}, map[string]any{
+		"iss": a.server.URL, "use": "daemon", "sub": testDaemonID, "aud": "treehouse-broker", "acct": testOwner,
+		"cnf": map[string]string{"jkt": jkt}, "name": "test", "substrate": "other",
+		"iat": now.Add(-time.Minute).Unix(), "exp": now.Add(life).Unix(), "jti": fmt.Sprintf("cert-%d", now.UnixNano()),
+	})
 }
 
 func (a *fakeAccounts) mint(t *testing.T, typ string, claims map[string]any) string {
@@ -105,10 +219,15 @@ type fakeBroker struct {
 	inbox    map[string]chan brokerMsg
 	rejected chan string
 	writeMu  sync.Mutex
+	events   chan brokerMsg
+	certs    chan brokerMsg
+	// rawEvents are the bytes of each reg.event, for a test that asserts the exact payload.
+	rawEvents chan []byte
 }
 
 func newFakeBroker(t *testing.T, a *fakeAccounts, identity daemonIdentity) *fakeBroker {
-	b := &fakeBroker{t: t, accounts: a, identity: identity, up: make(chan *websocket.Conn, 4), inbox: map[string]chan brokerMsg{}, rejected: make(chan string, 8)}
+	b := &fakeBroker{t: t, accounts: a, identity: identity, up: make(chan *websocket.Conn, 4), inbox: map[string]chan brokerMsg{}, rejected: make(chan string, 8),
+		events: make(chan brokerMsg, 16), certs: make(chan brokerMsg, 16), rawEvents: make(chan []byte, 16)}
 	b.server = httptest.NewServer(http.HandlerFunc(b.handle))
 	t.Cleanup(b.server.Close)
 	return b
@@ -164,7 +283,7 @@ func (b *fakeBroker) handle(w http.ResponseWriter, r *http.Request) {
 		b.reject(ws, why)
 		return
 	}
-	if b.write(ws, brokerMsg{Type: "treehouse.reg.ready.v1", DaemonID: b.identity.ID, HeartbeatS: 5}) != nil {
+	if b.write(ws, brokerMsg{Type: "treehouse.reg.ready.v1", DaemonID: b.identity.ID, HeartbeatS: 5, CertExpires: time.Now().Add(time.Hour).Unix()}) != nil {
 		return
 	}
 	b.up <- ws
@@ -174,8 +293,18 @@ func (b *fakeBroker) handle(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var m brokerMsg
-		if json.Unmarshal(data, &m) == nil && m.Channel != "" {
+		if json.Unmarshal(data, &m) != nil {
+			continue
+		}
+		switch {
+		case m.Channel != "":
 			b.channel(m.Channel) <- m
+		case m.Type == "treehouse.reg.event.v1":
+			b.events <- m
+			b.rawEvents <- append([]byte(nil), data...)
+		case m.Type == "treehouse.reg.cert.v1":
+			b.certs <- m
+			_ = b.write(ws, brokerMsg{Type: "treehouse.reg.ready.v1", DaemonID: b.identity.ID, HeartbeatS: 5, CertExpires: time.Now().Add(time.Hour).Unix()})
 		}
 	}
 }
@@ -315,6 +444,10 @@ type brokeredRig struct {
 	identity daemonIdentity
 	logs     *lockedBuffer
 	cancel   context.CancelFunc
+	dir      string
+	ctx      context.Context
+	// configDir is the snapshot directory the daemon reads, empty until a test publishes.
+	configDir string
 }
 
 const (
@@ -322,7 +455,22 @@ const (
 	testDaemonID = "dmn_01HZX3KA4B8N"
 )
 
-func newBrokeredRig(t *testing.T) *brokeredRig {
+func newBrokeredRig(t *testing.T) *brokeredRig { return newBrokeredRigLife(t, time.Hour) }
+
+// newBrokeredRigLife starts a rig whose certificate lives for life, lapsed when negative.
+func newBrokeredRigLife(t *testing.T, life time.Duration) *brokeredRig {
+	t.Helper()
+	r := prepareBrokeredRig(t, life)
+	r.start()
+	return r
+}
+
+// start dials the broker. A test sets up its fakes between prepare and start.
+func (r *brokeredRig) start() {
+	r.d.startTreehouse(r.ctx, treehouseOptions{Broker: r.b.address(), Accounts: r.a.server.URL, Dir: r.dir, ConfigDir: r.configDir})
+}
+
+func prepareBrokeredRig(t *testing.T, life time.Duration) *brokeredRig {
 	t.Helper()
 	a := newFakeAccounts(t)
 	identity := daemonIdentity{ID: testDaemonID, Owner: testOwner}
@@ -339,11 +487,7 @@ func newBrokeredRig(t *testing.T) *brokeredRig {
 	if err := os.WriteFile(filepath.Join(dir, "daemon.key"), pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	now := time.Now().Unix()
-	cert := a.mint(t, "treehouse.token.daemon.v1", map[string]any{
-		"iss": a.server.URL, "use": "daemon", "sub": testDaemonID, "aud": "treehouse-broker", "acct": testOwner,
-		"cnf": map[string]string{"jkt": "x"}, "name": "test", "substrate": "other", "iat": now, "exp": now + 3600, "jti": "cert-0001",
-	})
+	cert := a.daemonCert(jwkThumbprint(&key.PublicKey), life)
 	if err := os.WriteFile(filepath.Join(dir, "daemon.cert"), []byte(cert+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -356,8 +500,7 @@ func newBrokeredRig(t *testing.T) *brokeredRig {
 	t.Cleanup(func() { brokerBackoff = prev })
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	d.startTreehouse(ctx, treehouseOptions{Broker: b.address(), Accounts: a.server.URL, Dir: dir})
-	return &brokeredRig{d: d, b: b, a: a, identity: identity, logs: logs, cancel: cancel}
+	return &brokeredRig{d: d, b: b, a: a, identity: identity, logs: logs, cancel: cancel, dir: dir, ctx: ctx, configDir: t.TempDir()}
 }
 
 // openLocked attaches a channel, reads its welcome and returns both.
@@ -662,5 +805,145 @@ func TestBrokerLinkRefusesATooManyChannelsAndAConfigThatIsNotWhole(t *testing.T)
 	half.startTreehouse(context.Background(), treehouseOptions{Broker: "wss://broker.example"})
 	if half.users.(*localUsers).brokered != nil {
 		t.Fatal("a half config must leave the brokered path off")
+	}
+}
+
+func fileMode(t *testing.T, path string) os.FileMode {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return info.Mode().Perm()
+}
+
+func TestEnrollRedeemsACodeChecksTheCertificateAndWritesPrivateFiles(t *testing.T) {
+	a := newFakeAccounts(t)
+	a.codes["ABCD-1234"] = true
+	dir := filepath.Join(t.TempDir(), "treehouse")
+	identity, err := enrollDaemon(context.Background(), enrollOptions{Accounts: a.server.URL, Dir: dir, Code: " abcd-1234 ", Name: "kai-mac", Substrate: "mac"})
+	if err != nil || identity.ID != testDaemonID || identity.Owner != testOwner {
+		t.Fatalf("enroll: %+v, %v", identity, err)
+	}
+	key, err := loadDaemonKey(filepath.Join(dir, "daemon.key"))
+	if err != nil {
+		t.Fatalf("the key is private and loads: %v", err)
+	}
+	cert, _ := os.ReadFile(filepath.Join(dir, "daemon.cert"))
+	if !certBindsKey(strings.TrimSpace(string(cert)), key) || fileMode(t, filepath.Join(dir, "daemon.cert")) != 0o600 || fileMode(t, dir) != 0o700 {
+		t.Fatal("the certificate binds the key, and both files are private")
+	}
+	if _, err := enrollDaemon(context.Background(), enrollOptions{Accounts: a.server.URL, Dir: dir, Code: "ABCD-1234"}); err == nil || !strings.Contains(err.Error(), "--replace") {
+		t.Fatalf("an enrolled directory is not overwritten by accident: %v", err)
+	}
+}
+
+func TestEnrollKeepsNothingWhenTheCodeOrTheCertificateIsWrong(t *testing.T) {
+	for name, setup := range map[string]func(a *fakeAccounts){
+		"a code accounts does not know": func(a *fakeAccounts) {},
+		"a certificate for another key": func(a *fakeAccounts) { a.codes["ABCD-1234"], a.wrongKey = true, true },
+	} {
+		t.Run(name, func(t *testing.T) {
+			a := newFakeAccounts(t)
+			setup(a)
+			dir := filepath.Join(t.TempDir(), "treehouse")
+			if _, err := enrollDaemon(context.Background(), enrollOptions{Accounts: a.server.URL, Dir: dir, Code: "ABCD-1234"}); err == nil {
+				t.Fatal("enrollment should fail")
+			}
+			if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+				t.Fatalf("a failed enrollment left %d files behind", len(entries))
+			}
+		})
+	}
+	if _, err := enrollDaemon(context.Background(), enrollOptions{Accounts: "http://example.com", Dir: t.TempDir(), Code: "ABCD-1234"}); err == nil {
+		t.Fatal("accounts must be https")
+	}
+	if _, err := enrollDaemon(context.Background(), enrollOptions{Accounts: "https://accounts.example", Dir: t.TempDir(), Code: "short"}); err == nil {
+		t.Fatal("a malformed code is refused before any request")
+	}
+}
+
+func TestALapsedCertificateIsRenewedBeforeTheDialAndTheFileIsReplaced(t *testing.T) {
+	r := prepareBrokeredRig(t, -time.Hour)
+	before, _ := os.ReadFile(filepath.Join(r.dir, "daemon.cert"))
+	r.start()
+	r.b.attach(t, "c1", testOwner)
+	r.a.mu.Lock()
+	renewals := r.a.renewals
+	r.a.mu.Unlock()
+	after, _ := os.ReadFile(filepath.Join(r.dir, "daemon.cert"))
+	if renewals != 1 || bytes.Equal(before, after) || fileMode(t, filepath.Join(r.dir, "daemon.cert")) != 0o600 {
+		t.Fatalf("a lapsed certificate is renewed once before dialing: %d renewals, replaced %v", renewals, !bytes.Equal(before, after))
+	}
+	if !certExpiry(strings.TrimSpace(string(after))).After(time.Now().Add(50 * time.Minute)) {
+		t.Fatal("the new certificate lives about an hour")
+	}
+}
+
+func TestACertificateNearExpiryIsRenewedInsideTheLinkAndTheBrokerIsTold(t *testing.T) {
+	prevRetry := renewRetry
+	renewRetry = 20 * time.Millisecond
+	t.Cleanup(func() { renewRetry = prevRetry })
+	r := prepareBrokeredRig(t, 5*time.Minute)
+	r.a.renewFail = 1 // the renewal before the dial fails, the one inside the link succeeds
+	r.start()
+	select {
+	case m := <-r.b.certs:
+		if m.Cert == "" || certExpiry(m.Cert).Before(time.Now().Add(50*time.Minute)) {
+			t.Fatalf("the broker is sent the renewed certificate: %+v", m)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the broker never heard of a renewed certificate")
+	}
+	if !strings.Contains(r.logs.String(), "could not renew the Treehouse daemon certificate") {
+		t.Fatalf("the failed renewal is logged:\n%s", r.logs.String())
+	}
+}
+
+func TestAnAskReachesTheBrokerWithoutItsQuestion(t *testing.T) {
+	r := newBrokeredRig(t)
+	r.b.attach(t, "c1", testOwner)
+	// An event before the link is registered is dropped by design, so ask until it lands.
+	deadline := time.After(10 * time.Second)
+	for {
+		r.d.users.NotifyAsk(choiceAsk{Question: "SECRET-QUESTION-TEXT", Session: "scientist-evie", From: "scientist Evie"})
+		select {
+		case m := <-r.b.events:
+			raw, _ := json.Marshal(m)
+			if m.Type != "treehouse.reg.event.v1" || m.Kind != "ask" || m.SessionName != "scientist-evie" || m.Identity != "Evie" || strings.Contains(string(raw), "SECRET-QUESTION-TEXT") {
+				t.Fatalf("an ask event names the seat and not the question: %s", raw)
+			}
+			return
+		case <-time.After(100 * time.Millisecond):
+		case <-deadline:
+			t.Fatal("the broker never heard of the ask")
+		}
+	}
+}
+
+func TestWaitingSeatsBecomeBrokerEventsOnTheTrackersTerms(t *testing.T) {
+	var mu sync.Mutex
+	state := stateBusy
+	events := make(chan brokerMsg, 4)
+	d := newDaemon(func(string, ...any) {})
+	link := &brokerLink{d: d, settle: 10 * time.Millisecond, sendEvent: func(m brokerMsg) { events <- m }, views: func() []sessionView {
+		mu.Lock()
+		defer mu.Unlock()
+		return []sessionView{{Name: "scientist-evie", Role: "scientist", Identity: "Evie", State: state}}
+	}}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go link.watchSeats(ctx, 5*time.Millisecond)
+	time.Sleep(30 * time.Millisecond)
+	mu.Lock()
+	state = stateIdle
+	mu.Unlock()
+	select {
+	case m := <-events:
+		if m.Kind != "done" || m.SessionName != "scientist-evie" || m.Role != "scientist" || m.Identity != "Evie" {
+			t.Fatalf("a finished turn is a done event: %+v", m)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("no event for a seat that finished")
 	}
 }

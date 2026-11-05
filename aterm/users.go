@@ -76,6 +76,8 @@ type localUsers struct {
 	proxied   accessPolicy
 	// brokered judges unlock tokens on channels the Treehouse broker opens, nil when off.
 	brokered *brokeredGate
+	// brokerEvent tells the broker a seat is waiting, nil when the brokered path is off.
+	brokerEvent func(waitEvent)
 }
 
 // newLocalUsers is the unconfigured state a daemon starts in: no stored
@@ -181,7 +183,12 @@ func (u *localUsers) ResumeEnabled() bool { return u.resume.enabled() }
 
 func (u *localUsers) PushEnabled() bool { return u.push.enabled() }
 
-func (u *localUsers) NotifyAsk(ask choiceAsk) { u.pushAsk(ask) }
+func (u *localUsers) NotifyAsk(ask choiceAsk) {
+	if u.brokerEvent != nil {
+		u.brokerEvent(waitEvent{Kind: "ask", Session: ask.Session, Identity: askerName(ask), Question: ask.Question})
+	}
+	u.pushAsk(ask)
+}
 
 func (u *localUsers) WatchWaiting(done <-chan struct{}, every time.Duration) {
 	u.watchWaiting(done, every)

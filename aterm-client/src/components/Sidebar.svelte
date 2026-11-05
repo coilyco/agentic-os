@@ -33,6 +33,10 @@
     return () => query.removeEventListener("change", read);
   });
 
+  // Over a seat, a phone's menu is a sheet: seats, then roles to start, then alerts and hosts folded.
+  const sheet = $derived((narrow || reading) && onScreen);
+  const alertsSaid = $derived(`Sound ${app.alerts.sound ? "on" : "off"}, highlight ${app.alerts.visual ? "on" : "off"}`);
+
   // On a phone the seat gets the screen, and hosts, roles and alerts sit behind this button.
   // With no seat on screen those lists are the page, so there is nothing to open.
   let menuOpen = $state(false);
@@ -233,7 +237,7 @@
   {#if app.roles.length === 0}
     <p class="waiting">Waiting for the roster.</p>
   {:else}
-    <div role="tablist" aria-labelledby="start-label" aria-orientation="vertical" tabindex="-1" onkeydown={tablistKeys}>
+    <div role="tablist" class:chips={sheet} aria-labelledby="start-label" aria-orientation={sheet ? "horizontal" : "vertical"} tabindex="-1" onkeydown={tablistKeys}>
       {#each app.roles as role (role.slug)}
         {@const selected = app.selectedRole === role.slug}
         <button
@@ -291,12 +295,22 @@
     {#if !onScreen || menuOpen}
       <div id="sidebar-menu" class="menu" data-flow={onScreen ? "sheet" : "page"}>
         <!-- Over a seat the menu is the seat switcher too, since the bar names only the one on screen. -->
-        {#if onScreen && app.attachedHostId}{@render runningGroup()}{@render failedGroup()}{/if}
-        {#if !onScreen}{@render hostsGroup()}{/if}
-        {#if onScreen}<AttentionSwitches />{/if}
-        {#if app.attachedHostId}{@render startGroup()}{/if}
-        {#if onScreen}{@render hostsGroup()}{/if}
-        {#if !onScreen}<AttentionSwitches compact />{/if}
+        {#if onScreen}
+          {#if app.attachedHostId}{@render runningGroup()}{@render failedGroup()}{@render startGroup()}{/if}
+          <details class="more">
+            <summary>
+              <span>Alerts and hosts</span>
+              <span class="said">{alertsSaid}</span>
+              <svg class="chev" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+            </summary>
+            <AttentionSwitches />
+            {@render hostsGroup()}
+          </details>
+        {:else}
+          {@render hostsGroup()}
+          {#if app.attachedHostId}{@render startGroup()}{/if}
+          <AttentionSwitches compact />
+        {/if}
         <div class="feedback"><FeedbackEntry onopen={closeMenu} /></div>
       </div>
     {/if}
@@ -407,7 +421,7 @@
     .seats .harness { padding: 0; border: none; font-size: 11px; color: var(--muted); }
     .seats .code-inline { display: inline; }
     .scrim { position: fixed; inset: 0; z-index: -1; background: rgb(0 0 0 / 0.55); }
-    .menu[data-flow="sheet"] { position: absolute; top: 100%; left: 0; right: 0; max-height: calc(100dvh - 72px); overflow-y: auto; padding: 0 8px 12px; background: var(--ground); border-bottom: 1px solid var(--line); box-shadow: 0 12px 16px rgb(0 0 0 / 0.4); }
+    .menu[data-flow="sheet"] { position: absolute; top: 100%; left: 0; right: 0; max-height: calc(100dvh - 49px); overflow-y: auto; overscroll-behavior: contain; padding: 0 8px calc(12px + env(safe-area-inset-bottom)); background: var(--ground); border-bottom: 1px solid var(--line); box-shadow: 0 12px 16px rgb(0 0 0 / 0.4); }
     /* With no seat on screen the lists are the page: today's rows, tight, above the host's own panel. */
     .menu[data-flow="page"] { padding: 4px 0; display: flex; flex-direction: column; gap: 4px; }
     .menu[data-flow="page"] h2, .menu[data-flow="page"] .detail { display: none; }
@@ -415,6 +429,28 @@
     .menu[data-flow="page"] .tab { width: auto; flex: none; }
     .menu[data-flow="page"] .waiting { display: none; }
   }
+
+  /* The seat sheet, phone and landscape drawer alike: two-line seats, roles in one sideways row, alerts and hosts folded. */
+  .menu[data-flow="sheet"] .seat .text { flex-direction: row; flex-wrap: wrap; column-gap: 8px; }
+  .menu[data-flow="sheet"] .seat .name-row { flex-basis: 100%; }
+  .menu[data-flow="sheet"] .seat .state-text { order: 1; }
+  .menu[data-flow="sheet"] .seat .text > .detail:not(.state-text) { order: 2; }
+  .menu[data-flow="sheet"] .seat .text > .detail:not(.state-text)::before { content: "// "; }
+  .menu[data-flow="sheet"] .seat .degraded { order: 3; flex-basis: 100%; }
+  .menu[data-flow="sheet"] .chips { flex-direction: row; gap: 8px; overflow-x: auto; padding: 2px 10px 8px; scrollbar-width: none; }
+  .menu[data-flow="sheet"] .chips .tab { flex: none; width: 92px; min-height: 76px; flex-direction: column; justify-content: center; gap: 4px; padding: 6px 4px; text-align: center; border: 1px solid var(--line); }
+  .menu[data-flow="sheet"] .chips .tab[aria-selected="true"] { border-color: var(--accent); }
+  .menu[data-flow="sheet"] .chips .text { align-items: center; }
+  .menu[data-flow="sheet"] .chips .name { font-size: 12px; line-height: 1.2; white-space: normal; text-align: center; overflow: visible; }
+  .menu[data-flow="sheet"] .chips .detail { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .more { margin-top: 8px; border-top: 1px solid var(--line); }
+  .more > summary { list-style: none; min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; padding: 6px 10px; cursor: pointer; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+  .more > summary::-webkit-details-marker { display: none; }
+  .more > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; border-radius: 8px; }
+  .more > summary > span:first-child { flex: 1; }
+  .more .said { order: 3; flex-basis: 100%; font: 400 12px var(--font-body); letter-spacing: 0; text-transform: none; }
+  .more .chev { flex: none; }
+  .more[open] .chev { transform: rotate(180deg); }
 
   /* Reading view, a phone on its side: the bar becomes a rail, so the seat keeps the full height. Chosen in script, since the width is past the phone breakpoint. */
   .sidebar[data-mode="reading"] { width: 52px; flex: none; position: relative; z-index: 7; padding: 0; gap: 0; overflow: visible; border-right: 1px solid var(--line); border-bottom: none; }

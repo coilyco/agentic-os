@@ -27,6 +27,12 @@ ATERM_ANDROID_SECRETS = {
     "ATERM_ANDROID_KEYSTORE_PASSWORD": "/coilysiren/aterm/write/android-keystore-password",
     "ATERM_ANDROID_CERT_SHA256": "/coilysiren/aterm/write/android-keystore-cert-sha256",
 }
+# The self-signed identity signing the macOS aterm bundle (COI-50). SSM keeps the
+# aterm names until the alias retires (COI-3338), so the Actions names are final.
+CODESIGN_SECRETS = {
+    "TREEHOUSE_CODESIGN_CERT_PEM": "/coilysiren/codesign/aterm-cert",
+    "TREEHOUSE_CODESIGN_KEY_PEM": "/coilysiren/codesign/aterm-key",
+}
 # housecast's PyPI train, read by its publish workflow.
 PYPI_SECRETS = {"PYPI_TOKEN": "/coilysiren/pypi/token"}
 
@@ -40,7 +46,7 @@ TANGLED_SECRETS = {"TANGLED_SSH_KEY": "/coilysiren/tangled/push-key"}
 MAPPING: dict[str, dict[str, str]] = {
     # The tap, scoop and release-push sources in the COI-2935 consumer map. The tap
     # and bucket repos are only mint targets, so they hold no secret.
-    slug("agentic-os"): {**APP_SECRETS, **ATERM_ANDROID_SECRETS},
+    slug("agentic-os"): {**APP_SECRETS, **ATERM_ANDROID_SECRETS, **CODESIGN_SECRETS},
     slug("umbra"): {**APP_SECRETS, **TANGLED_SECRETS},
     slug("agent-compose"): {**APP_SECRETS, **TANGLED_SECRETS},
     slug("mcp-beaver"): dict(TANGLED_SECRETS),

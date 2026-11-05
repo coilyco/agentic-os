@@ -239,7 +239,8 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 		Description: "Start another live agent session over by typing its harness's clear command, which " +
 			"discards its context. Only the director role may call it. `to` resolves as in send_message. " +
 			"It refuses your own session, a session on a permission or choice prompt, and unless force is " +
-			"set one that is busy, holds Kai's unsent draft, or has undelivered messages.",
+			"set one that is busy, holds Kai's unsent draft, or has undelivered messages. Like close_session it " +
+			"refuses a name you did not list or that was reassigned, and takes `name@ref`.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, input clearSessionInput) (*mcp.CallToolResult, any, error) {
 		name, command, err := backend.clear(input.To, input.Force)
 		if err != nil {
@@ -253,7 +254,8 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 		Description: "End another live agent session and drop it from aterm, which closing its window does not. " +
 			"`to` resolves as in send_message, and a target matching several sessions refuses. It will not " +
 			"close your own session or one you run inside, and one holding Kai's unsent draft or undelivered " +
-			"messages stays open unless force is set.",
+			"messages stays open unless force is set. Names are reused, so list_agents first: a name you did not " +
+			"list, or one reassigned since, is refused. `name@ref` with the ref from list_agents is exact.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, input closeSessionInput) (*mcp.CallToolResult, any, error) {
 		name, code, err := backend.close(input.To, input.Force)
 		if err != nil {

@@ -19,6 +19,7 @@ import type { Role } from "./roster";
 import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
 import { TYPING_OPEN, type Typing } from "./typing";
 import { offer, pageLabel, type OpenedPage } from "./pages";
+import { loadLastOpen, seatToRestore, storeLastOpen, type LastOpen } from "./last-open";
 
 /** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
 
@@ -119,6 +120,8 @@ export function reconnecting(): boolean {
 
 /** Brings the attached host's own panel forward, where its connection check is. */
 export function showHost(): void {
+  restoring = null;
+  if (app.attachedHostId) storeLastOpen({ host: app.attachedHostId });
   app.selectedSession = null;
   app.selectedRole = null;
   if (app.attachedHostId) app.selectedHostId = app.attachedHostId;
@@ -316,7 +319,35 @@ export function selectedHost(): Host | undefined {
 }
 
 /** Selecting an online host attaches to it, so one tap reaches its seats. */
+// What this device last had open, until the restore uses it or a tap overtakes it.
+let restoring: LastOpen | null = loadLastOpen();
+let restoringNow = false;
+
+function restoreFor(host: Host): void {
+  if (restoring?.host !== host.id || app.selectedHostId || host.status.kind !== "online") return;
+  restoringNow = true;
+  try {
+    selectHost(host);
+  } finally {
+    restoringNow = false;
+  }
+}
+
+function restoreSeat(last: LastOpen, listed: readonly Session[]): void {
+  const step = seatToRestore(last, listed);
+  if (!step) return;
+  restoringNow = true;
+  try {
+    if ("open" in step) selectSession(step.open);
+    else app.notice = `${step.gone} is not running any more. Pick a seat from the list.`;
+  } finally {
+    restoringNow = false;
+  }
+}
+
 export function selectHost(host: Host): void {
+  if (!restoringNow) restoring = null;
+  storeLastOpen({ host: host.id });
   app.selectedHostId = host.id;
   app.selectedSession = null;
   app.selectedRole = null;
@@ -355,6 +386,11 @@ export function selectHost(host: Host): void {
       app.unseen = nextUnseen(app.sessions, event.sessions, viewingSession(), app.unseen);
       app.attention = nextUnseen(app.sessions, event.sessions, openSeat(), app.attention);
       app.sessions = event.sessions;
+      if (restoring?.host === host.id) {
+        const last = restoring;
+        restoring = null;
+        restoreSeat(last, event.sessions);
+      }
     }
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
     else if (event.type === "typing") {
@@ -423,6 +459,9 @@ export function selectHost(host: Host): void {
 }
 
 export function selectSession(id: string): void {
+  if (!restoringNow) restoring = null;
+  const seat = sessionById(id);
+  if (seat && app.attachedHostId) storeLastOpen({ host: app.attachedHostId, seat: { id, who: seat.identity } });
   app.selectedSession = id;
   app.selectedRole = null;
   delete app.unseen[id];
@@ -431,6 +470,7 @@ export function selectSession(id: string): void {
 
 /** Opens a role's start panel. */
 export function selectRole(slug: string): void {
+  restoring = null;
   app.selectedRole = slug;
   app.selectedSession = null;
 }
@@ -460,7 +500,7 @@ export function messagesFor(session: Session): PeerMessage[] {
   return app.messages.filter((message) => message.from.role === session.role || inbound(message));
 }
 
-for (const host of app.hosts) void checkHost(host);
+for (const host of app.hosts) void checkHost(host).then(() => restoreFor(host));
 
 /** A session's views, newest first. */
 export function viewsFor(sessionId: string): View[] {

@@ -68,12 +68,41 @@ test("type something in a multi-select", quirk("COI-3243 bug 4"), async ({ bed }
 });
 
 // Kai, 2026-11-04: the dialog's tab bar is plain text, and she expects real buttons.
-test("the question tabs are buttons", quirk("COI-3245 needs-real-buttons"), async ({ bed }) => {
+test("the question tabs are buttons", async ({ bed }) => {
   await bed.openSeat(SEATS.imp);
   bed.mock.setScene(SEATS.imp.id, new ClaudeAsk(MULTI));
   await expect(card(bed.page)).toBeVisible();
   for (const header of ["Accent", "Routes", "Name", "Submit"]) {
     await expect(card(bed.page).getByRole("button", { name: new RegExp(header) }), `${header} is text, not a button`).toBeVisible();
   }
+  await expect(card(bed.page).getByText("Question 1 of 3"), "the card does not say which question it is").toBeVisible();
   await bed.step("tabs");
+});
+
+test("a tab goes to that question and back, and Submit goes to the review", async ({ bed }) => {
+  await bed.openSeat(SEATS.imp);
+  const dialog = new ClaudeAsk(MULTI);
+  bed.mock.setScene(SEATS.imp.id, dialog);
+  const tab = (name: RegExp) => card(bed.page).getByRole("group", { name: "Questions" }).getByRole("button", { name });
+  await tab(/Routes/).click();
+  await expect(card(bed.page).getByRole("heading", { name: /routes/ })).toBeVisible();
+  await expect(card(bed.page).getByText("Question 2 of 3")).toBeVisible();
+  await expect(tab(/Routes/)).toHaveAttribute("aria-current", "step");
+  await tab(/Accent/).click();
+  await expect(card(bed.page).getByText("Question 1 of 3")).toBeVisible();
+  await tab(/Submit/).click();
+  await expect(card(bed.page).getByText("Review", { exact: true })).toBeVisible();
+  await expect(card(bed.page).getByRole("button", { name: /Submit answers/ })).toBeVisible();
+  await bed.step("review-from-a-tab");
+  await tab(/Name/).click();
+  await expect(card(bed.page).getByText("Question 3 of 3")).toBeVisible();
+});
+
+test("an answered question is marked on its tab", async ({ bed }) => {
+  await bed.openSeat(SEATS.imp);
+  bed.mock.setScene(SEATS.imp.id, new ClaudeAsk(MULTI));
+  await card(bed.page).getByRole("button", { name: /Teal/ }).click();
+  await expect(card(bed.page).getByText("Question 2 of 3")).toBeVisible();
+  await expect(card(bed.page).getByRole("button", { name: "Accent, answered" })).toBeVisible();
+  await expect(card(bed.page).getByRole("button", { name: "Routes", exact: true })).toBeVisible();
 });

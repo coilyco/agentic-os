@@ -239,7 +239,7 @@ func (v *unlockVerifier) check(ctx context.Context, raw, nonce string) error {
 
 // loadDaemonIdentity reads a daemon certificate and verifies it, so a tampered file
 // cannot change who the daemon says it is or who owns it.
-func loadDaemonIdentity(ctx context.Context, keys *accountsKeys, issuer, cert string, now time.Time) (daemonIdentity, error) {
+func loadDaemonIdentity(ctx context.Context, keys *accountsKeys, issuer, cert string, now time.Time, lapsedOK bool) (daemonIdentity, error) {
 	payload, err := verifyJWS(ctx, keys, strings.TrimSpace(cert), "treehouse.token.daemon.v1")
 	if err != nil {
 		return daemonIdentity{}, fmt.Errorf("daemon certificate: %w", err)
@@ -251,7 +251,7 @@ func loadDaemonIdentity(ctx context.Context, keys *accountsKeys, issuer, cert st
 	if err := json.Unmarshal(payload, &c); err != nil || c.Iss != issuer || c.Use != "daemon" || c.Sub == "" || c.Acct == "" {
 		return daemonIdentity{}, errors.New("daemon certificate: wrong claims")
 	}
-	if !time.Unix(c.Exp, 0).After(now) {
+	if !lapsedOK && !time.Unix(c.Exp, 0).After(now) {
 		return daemonIdentity{}, errors.New("daemon certificate: expired")
 	}
 	return daemonIdentity{ID: c.Sub, Owner: c.Acct}, nil
