@@ -1,5 +1,5 @@
 // COI-3246, garbled text mid-stream. Compares screen text with what the script left.
-// NOT A NEGATIVE CONTROL yet: both pass on main. See the testbed reference.
+// A guard only, since both pass without the fix. The proof is stream-resize-queued.
 import { expect, kindOf, pushOutput, quirk, SEATS, test } from "../harness.ts";
 
 test.beforeEach(({}, info) => test.skip(kindOf(info) !== "desktop", "one size is enough to see it"));
