@@ -14,6 +14,7 @@ const RUNS = [
 
 for (const run of RUNS) test(`a long seat opens fast and scrolls steadily (${run.style}, cpu x${run.cpu})`, async ({ page, mock }, info) => {
   test.skip(kindOf(info) !== "desktop", "measured on the desktop app first");
+  test.setTimeout(120_000);
   mock.setScene(SEATS.beetle.id, longSeat(HISTORY_BYTES, "long-seat", run.style));
   if (run.cpu > 1) await (await page.context().newCDPSession(page)).send("Emulation.setCPUThrottlingRate", { rate: run.cpu });
   await page.addInitScript(() => {

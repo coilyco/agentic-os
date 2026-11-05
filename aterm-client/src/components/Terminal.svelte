@@ -176,7 +176,15 @@
     terminal.open(host);
     // Above the end when xterm's own view or the pan box is scrolled away from the newest row.
     const above = () => linesAbove(terminal.buffer.active) + (panning && !atBottom() ? 1 : 0);
-    trackView = () => (latest = scrolled(latest, above()));
+    // One layout read per frame: a replay scrolls xterm thousands of times (COI-3422).
+    let tracking = 0;
+    trackView = () => {
+      if (tracking) return;
+      tracking = requestAnimationFrame(() => {
+        tracking = 0;
+        latest = scrolled(latest, above());
+      });
+    };
     terminal.onScroll(trackView);
     host.addEventListener("scroll", trackView);
     const cropping = () => cropHarness;
@@ -299,10 +307,12 @@
     });
     const unsubscribe = connection.subscribe((event) => {
       if (event.type === "output" && event.sessionId === sessionId) {
-        const before = above();
+        // Only a view scrolled away counts new lines, so the rest skip the layout read.
+        const counting = latest.away;
+        const before = counting ? above() : 0;
         terminal.write(event.data, () => {
           afterWrite();
-          latest = wrote(latest, before, above());
+          if (counting && latest.away) latest = wrote(latest, before, above());
           trackView();
         });
       }
@@ -340,6 +350,7 @@
       connection.detach(sessionId);
       input.dispose();
       host.removeEventListener("scroll", trackView);
+      cancelAnimationFrame(tracking);
       observer.disconnect();
       terminal.dispose();
     };
