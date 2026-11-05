@@ -34,8 +34,7 @@ A journey tagged `@quirk` is a reported quirk. It fails now and goes green when 
 
 State on main after PRs 193, 199, 203 and the find control, as the bed shows it, not as assumed:
 
-* **Green** - COI-3243 bugs 2, 3 and 4 (`native-choice`, `native-choice-captured`), COI-3238 item 1's box drawing gap and find control (`terminal-text`), and COI-3238 item 2 (`side-panel`).
-* **Red, client half only** - COI-3243 bug 1 (`dialog-input-hold`). A composer message sent while a dialog is open goes into the dialog. The daemon half cannot be tested on a mock that would only assert itself.
+* **Green** - COI-3243 bugs 2, 3 and 4 (`native-choice`, `native-choice-captured`), COI-3238 item 1's box drawing gap and find control (`terminal-text`), COI-3238 item 2 (`side-panel`), and COI-3243 bug 1's client half (`dialog-input-hold`, COI-3322): Send waits while a dialog is open and the message stays as a draft. The daemon half cannot be tested on a mock that would only assert itself.
 * **Red** - COI-3238 item 3 (`seat-rows`), the dialog's tab bar as buttons (`native-choice`), and a short conversation growing the PTY without limit (`pty-size`, COI-3291).
 * **Fixme, bed cannot judge yet** - link hover and history depth in `terminal-text` (COI-3293).
 

@@ -76,7 +76,7 @@
   let raised = $state(false);
   // A question waiting sits at the foot of the terminal, which a raised sheet would cover.
   $effect(() => {
-    if (ask || choice) raised = false;
+    if (dialogOpen) raised = false;
   });
   // A click on a page card puts this seat's browser pane on screen, and the pane loads the page (COI-3258).
   $effect(() => {
@@ -89,6 +89,8 @@
   // The browser needs room to be read, so a page takes half the width. Its empty states do not.
   const wide = $derived(side === "browser" && page !== undefined && page.state !== "none");
   let choice = $state<Choice | null>(null);
+  // The composer holds its send, and focus no longer hides the strip: leaving the field would bring it back and move the card under a tap.
+  const dialogOpen = $derived(!!(ask || choice));
   let shownKey = $state("");
   // A seat that is still starting has printed nothing, so the pane says so instead of sitting empty.
   let blank = $state(true);
@@ -180,7 +182,7 @@
       <p class="degraded">Started without {session.degraded.join(", ")}. agent-compose skipped these steps at launch, so this seat may be missing what they set up.</p>
     {/if}
   </header>
-  <div class="body" class:wide class:away={split && !sideOpen} data-composing={app.composing} style:--side={sideWidth ? `${sideWidth}px` : undefined}>
+  <div class="body" class:wide class:away={split && !sideOpen} data-composing={app.composing && !dialogOpen} style:--side={sideWidth ? `${sideWidth}px` : undefined}>
     <div class="work">
       {#if app.connection}
         {#key session.id}
@@ -237,6 +239,7 @@
             sessions={app.sessions}
             typing={app.typing}
             offline={reconnecting()}
+            {dialogOpen}
             draft={app.drafts[session.id] ?? ""}
             ondraft={(text) => (text ? (app.drafts[session.id] = text) : delete app.drafts[session.id])}
             onsent={() => (app.inputNotice = "")}

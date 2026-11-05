@@ -12,12 +12,14 @@
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
   // `offline` is the host not answering: the draft stays editable and Send waits, since a frame typed into a dead link is lost.
   // `draft` and `ondraft` keep the text outside this component, so a seat change or a remount does not take it. `onsent` says a send left.
-  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, draft = "", ondraft, onsent, onfocuschange, place, working = false }: {
+  // `dialogOpen` is a dialog open on the seat: typed text would answer it or dismiss it, so Send waits and the message stays as a draft (COI-3322).
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, draft = "", ondraft, onsent, onfocuschange, place, working = false }: {
     connection: HostConnection;
     session: Session;
     sessions?: readonly Session[];
     typing?: Typing;
     offline?: boolean;
+    dialogOpen?: boolean;
     draft?: string;
     ondraft?: (text: string) => void;
     onsent?: () => void;
@@ -90,6 +92,7 @@
       for (const chip of chips) URL.revokeObjectURL(chip.url);
     };
   });
+  const HELD_NOTE = "Not sent. A question is waiting for your answer, and your message stays here until you answer it.";
   const PASTE_OPEN = "\x1b[200~";
   const PASTE_CLOSE = "\x1b[201~";
   const STEP_MS = 200;
@@ -197,6 +200,10 @@
       status = "Not sent. The host is reconnecting, and your message stays here.";
       return;
     }
+    if (dialogOpen) {
+      status = HELD_NOTE;
+      return;
+    }
     // The seat on screen may change while an upload is out, and this message still belongs to the one it was written for.
     const target = session;
     const sending = chips;
@@ -222,6 +229,11 @@
       }
       if (offline) {
         status = "Not sent. The host is reconnecting, and your message stays here.";
+        return;
+      }
+      // A dialog may have opened while the images went up.
+      if (dialogOpen) {
+        status = HELD_NOTE;
         return;
       }
     }
@@ -381,6 +393,9 @@
       {/if}
     </div>
   {/if}
+  {#if dialogOpen && (text.trim() || chips.length)}
+    <p class="hold" role="status">A question is waiting. Answer it, then send. Your message stays here.</p>
+  {/if}
   {#if connection.images}
     <!-- The button is the way a phone adds an image, and the way to one with no clipboard image. -->
     <input bind:this={picker} hidden type="file" accept={IMAGE_TYPES.join(",")} multiple onchange={picked} />
@@ -453,7 +468,7 @@
       onkeydown={stopKey}
     >Stop</button>
   {:else}
-    <button class="button primary" type="submit" disabled={(!text.trim() && chips.length === 0) || offline || uploading !== null || resizing}>{offline ? "Waits for host" : uploading ? "Uploading" : sentFlash && !text.trim() && chips.length === 0 ? "Sent" : "Send"}</button>
+    <button class="button primary" type="submit" disabled={(!text.trim() && chips.length === 0) || offline || dialogOpen || uploading !== null || resizing}>{offline ? "Waits for host" : dialogOpen && (text.trim() || chips.length) ? "Waits for answer" : uploading ? "Uploading" : sentFlash && !text.trim() && chips.length === 0 ? "Sent" : "Send"}</button>
   {/if}
   <p class="visually-hidden" role="status">{note}</p>
 </form>
@@ -473,6 +488,7 @@
   .add-image:hover:not(:disabled) { color: var(--text); border-color: var(--brand); }
   .add-image:focus-visible, .chip-remove:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .attachments { flex: 0 0 100%; min-width: 0; }
+  .hold { flex: 0 0 100%; margin: 0; font-size: 14px; line-height: 1.4; color: var(--warn-text); }
   .image-note { margin: 0 0 8px; font-size: 14px; line-height: 1.4; color: var(--text-soft); }
   .image-note.warn { color: var(--warn-text); }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
