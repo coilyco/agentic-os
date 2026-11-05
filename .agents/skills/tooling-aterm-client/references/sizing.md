@@ -13,3 +13,5 @@ A PTY has one size, and the harness draws for it with absolute cursor moves. Sev
 **Ship the client first.** A client that predates `size` draws a wider PTY mis-wrapped, and as a raw client it also caps everyone at its own size. A client on an older daemon gets no `size` frame and keeps today's behavior.
 
 A client that sends no box (a watcher) neither caps nor grows the size. A session with nobody attached keeps its last size.
+
+**The box is asked for by its height only.** A harness box floating under a short conversation has blank rows below it. The client hides them with the box, but asks the PTY for the box's own rows, since asking for the blanks too made each answer grow them (COI-3291). The view anchors from the drawn screen, since a phone's scroll height runs past it, and re-anchors a frame after a size frame, so the final layout no longer depends on timing (COI-3293).

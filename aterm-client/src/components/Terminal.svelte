@@ -8,7 +8,7 @@
   import FindBar from "./FindBar.svelte";
   import { AT_END, jumpLabel, linesAbove, scrolled, wrote, type Follow } from "../lib/follow";
   import { envelopeRows } from "../lib/messages";
-  import { harnessInputRows } from "../lib/harness";
+  import { harnessBox } from "../lib/harness";
   import { boxToReport } from "../lib/pty-size";
   import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
   import { isBlank, screenRows, tabBarReading, type TabBarCells } from "../lib/screen";
@@ -115,11 +115,18 @@
   // The input and the newest text sit at the bottom left, so that corner stays in view
   // unless the person has panned away. Cropped rows lie below it.
   let hiddenPx = () => 0;
-  const atBottom = () => host.scrollHeight - host.clientHeight - host.scrollTop - hiddenPx() < 2;
+  // From the drawn screen, not scrollHeight, which a phone's xterm inflates past the rows it shows.
+  const contentPx = () => {
+    const style = getComputedStyle(host);
+    const screen = host.querySelector<HTMLElement>(".xterm-screen")?.clientHeight ?? 0;
+    return parseFloat(style.paddingTop) + screen + parseFloat(style.paddingBottom);
+  };
+  const lastTop = () => Math.max(0, contentPx() - host.clientHeight - hiddenPx());
+  const atBottom = () => lastTop() - host.scrollTop < 2;
   // Sideways is left alone: a phone resizes with its address bar and keyboard, and a
   // reset here would send a person who panned to a long line back to column 0.
   function anchor(follow: boolean): void {
-    if (follow) host.scrollTop = Math.max(0, host.scrollHeight - host.clientHeight - hiddenPx());
+    if (follow) host.scrollTop = lastTop();
     edges();
   }
 
@@ -158,6 +165,7 @@
   }
 
   let noteDrawn = () => {};
+  let afterSize = (_follow: boolean) => {};
 
   function remark(): void {
     decorations.forEach((decoration) => decoration.dispose());
@@ -218,7 +226,10 @@
     host.addEventListener("scroll", edges);
     const cropping = () => cropHarness;
     let hidden = 0;
+    // Blank rows under a floating box hide with it, but only its height is asked of the PTY.
+    let boxRows = 0;
     const extra = () => (cropping() ? hidden : 0);
+    const asking = () => (cropping() ? boxRows : 0);
     const cell = () => (host.querySelector<HTMLElement>(".xterm-screen")?.clientHeight ?? 0) / Math.max(terminal.rows, 1);
     // The window ends at the last shown row, not at the padding below it, which would show a sliver of the box.
     hiddenPx = () => (extra() > 0 ? extra() * cell() + parseFloat(getComputedStyle(host).paddingBottom) : 0);
@@ -228,10 +239,11 @@
     // Rows the box cannot show are asked for anyway, so the harness draws its input below the fold.
     function layout(): void {
       const more = extra();
+      const ask = asking();
       if (connection.ptySize === true) {
         panning = true;
         const box = boxToReport(fit.proposeDimensions(), true, own());
-        const asked = box && { rows: box.rows + more, cols: box.cols };
+        const asked = box && { rows: box.rows + ask, cols: box.cols };
         if (asked && (asked.rows !== reported?.rows || asked.cols !== reported?.cols)) {
           reported = asked;
           connection.resize(sessionId, asked.rows, asked.cols);
@@ -239,7 +251,7 @@
       } else {
         panning = more > 0;
         fit.fit();
-        if (more > 0) terminal.resize(terminal.cols, terminal.rows + more);
+        if (more > 0) terminal.resize(terminal.cols, terminal.rows + ask);
         connection.resize(sessionId, terminal.rows, terminal.cols);
       }
       remark();
@@ -251,10 +263,26 @@
     }
     panning = connection.ptySize === true;
     if (!panning) fit.fit();
+    // xterm measured a cell with the fallback face before this font arrived. Setting the
+    // option again measures the real one, so the grid is the same on every load.
+    let alive = true;
+    const remeasure = () => {
+      if (!alive) return;
+      const family = terminal.options.fontFamily;
+      terminal.options.fontFamily = `${family}, monospace`;
+      terminal.options.fontFamily = family;
+      layout();
+      anchor(true);
+    };
+    void document.fonts?.load(`${terminal.options.fontSize}px "JetBrains Mono"`).then(remeasure, () => {});
+    // xterm draws a new height a frame later, so the anchor runs again once it has.
+    const reanchor = (follow: boolean) => requestAnimationFrame(() => anchor(follow));
+    afterSize = reanchor;
     const observer = new ResizeObserver(() => {
       const follow = atBottom();
       layout();
       anchor(follow);
+      reanchor(follow);
     });
     observer.observe(host);
     // A pause lets a redraw finish, so a half-drawn box does not count as a box that left.
@@ -263,9 +291,12 @@
       if (!cropping()) return;
       clearTimeout(settle);
       settle = setTimeout(() => {
-        const next = harnessInputRows(screenRows(terminal.buffer.active, terminal.rows));
-        if (next === hidden) return;
+        const rows = screenRows(terminal.buffer.active, terminal.rows);
+        const found = harnessBox(rows);
+        const next = found ? rows.length - found.top : 0;
+        if (next === hidden && (found?.height ?? 0) === boxRows) return;
         hidden = next;
+        boxRows = found?.height ?? 0;
         layout();
         anchor(true);
       }, HIDE_SETTLE_MS);
@@ -273,7 +304,7 @@
     // A soft keyboard would only be a second input, so a tap on the terminal does not raise one.
     const shapeForPhone = () => {
       terminal.textarea?.setAttribute("inputmode", cropping() ? "none" : "text");
-      if (!cropping()) hidden = 0;
+      if (!cropping()) hidden = boxRows = 0;
       layout();
       anchor(true);
     };
@@ -353,6 +384,7 @@
           terminal.resize(event.cols, event.rows);
           remark();
           anchor(follow);
+          afterSize(follow);
         });
       } else if (event.type === "reconnected") {
         afterQueued(terminal, "clearing after reconnect", () => {
@@ -370,6 +402,7 @@
     if (panning) reported = box;
     watch();
     return () => {
+      alive = false;
       document.removeEventListener("visibilitychange", wake);
       window.removeEventListener("focus", wake);
       clearTimeout(watching);
