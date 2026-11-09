@@ -269,6 +269,10 @@ aterm-android-sign IN OUT:
 aterm-android-emulator *ARGS:
     @uv run scripts/aterm_android_emulator.py "$@"
 
+# Spawn fixture seats (up), list them (status) or close them (down) on a TEST aterm daemon named by ATERM_DAEMON_SOCKET. Refuses the default socket.
+aterm-fixture-seats *ARGS:
+    @uv run scripts/aterm_fixture_seats.py "$@"
+
 # Regenerate the aterm Android launcher icons from the website brand kit directory BRAND_DIR (coilyco/website src/images/brand).
 aterm-android-icons BRAND_DIR:
     @bash scripts/aterm-android-icons.sh "{{BRAND_DIR}}"
