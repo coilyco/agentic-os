@@ -121,7 +121,7 @@ export function loadSessions(): SessionSpec[] {
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
  * `images`: Add image shows. `webPush`: Notify when closed shows. */
-export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; webPush?: boolean };
+export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; webPush?: boolean; launchDelayMs?: number };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   if (!existsSync(join(DIST, "index.html"))) {
     throw new Error("The mock daemon serves aterm-client/dist, which is not built. Run `just aterm-client-testbed`, which builds it first.");
@@ -314,7 +314,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           setTimeout(() => {
             add({ name: `${role}-new-seat`, role, identity, seat: seatKey, ready: true, bracketed_paste: true, kai_drafting: false, pending: 0, scene: "claude-idle" });
             broadcast(sessionsFrame());
-          }, 400);
+          }, options.launchDelayMs ?? 400);
           return;
         }
         case "answer":

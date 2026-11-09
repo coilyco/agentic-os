@@ -20,6 +20,7 @@ import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, re
 import { TYPING_OPEN, type Typing } from "./typing";
 import { offer, pageLabel, type OpenedPage } from "./pages";
 import { loadLastOpen, seatToRestore, storeLastOpen, type LastOpen } from "./last-open";
+import { beginLaunch, newSeatFor, type PendingLaunch } from "./launch-follow";
 
 /** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
 
@@ -123,6 +124,7 @@ export function reconnecting(): boolean {
 /** Brings the attached host's own panel forward, where its connection check is. */
 export function showHost(): void {
   restoring = null;
+  launching = null;
   if (app.attachedHostId) storeLastOpen({ host: app.attachedHostId });
   app.selectedSession = null;
   app.selectedRole = null;
@@ -323,6 +325,8 @@ export function selectedHost(): Host | undefined {
 /** Selecting an online host attaches to it, so one tap reaches its seats. */
 // What this device last had open, until the restore uses it or a tap overtakes it.
 let restoring: LastOpen | null = loadLastOpen();
+// A launch waiting for its seat to be listed. Any other pick by a person ends the wait.
+let launching: PendingLaunch | null = null;
 let restoringNow = false;
 
 function restoreFor(host: Host): void {
@@ -349,6 +353,7 @@ function restoreSeat(last: LastOpen, listed: readonly Session[]): void {
 
 export function selectHost(host: Host): void {
   if (!restoringNow) restoring = null;
+  launching = null;
   storeLastOpen({ host: host.id });
   app.selectedHostId = host.id;
   app.selectedSession = null;
@@ -394,6 +399,8 @@ export function selectHost(host: Host): void {
         restoring = null;
         restoreSeat(last, event.sessions);
       }
+      const arrived = launching ? newSeatFor(launching, event.sessions, Date.now()) : null;
+      if (arrived) selectSession(arrived);
     }
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
     else if (event.type === "typing") {
@@ -436,7 +443,12 @@ export function selectHost(host: Host): void {
       settleOpen(event.label);
       app.terminalRefusals[event.label] = event.text;
     }
-    else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
+    else if (event.type === "launch") {
+      app.launches[event.role] = { state: event.state, text: event.text };
+      // Watch from the tap: the seat can be listed before `launched`, or after it.
+      if (event.state === "failed") launching = null;
+      else if (event.state === "starting" || launching?.role !== event.role) launching = beginLaunch(event.role, app.sessions, Date.now());
+    }
     else if (event.type === "reconnecting") app.link = { state: "reconnecting", attempt: event.attempt, retryAt: event.retryAt };
     else if (event.type === "resting") app.link = { state: "resting" };
     else if (event.type === "reconnected") {
@@ -453,6 +465,7 @@ export function selectHost(host: Host): void {
     }
     else if (event.type === "closed") {
       clearTimeout(restoredTimer);
+      launching = null;
       app.link = { state: "live" };
       host.status = { kind: "unreachable", reason: event.reason };
       watchHost(host);
@@ -466,6 +479,7 @@ export function selectHost(host: Host): void {
 
 export function selectSession(id: string): void {
   if (!restoringNow) restoring = null;
+  launching = null;
   const seat = sessionById(id);
   if (seat && app.attachedHostId) storeLastOpen({ host: app.attachedHostId, seat: { id, who: seat.identity } });
   app.selectedSession = id;
@@ -477,6 +491,7 @@ export function selectSession(id: string): void {
 /** Opens a role's start panel. */
 export function selectRole(slug: string): void {
   restoring = null;
+  launching = null;
   app.selectedRole = slug;
   app.selectedSession = null;
 }
