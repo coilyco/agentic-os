@@ -132,6 +132,8 @@
 
   // Whether text lies past either side, for the cue a phone's hidden scroll bar cannot give.
   let past = $state({ left: false, right: false });
+  // Where the visible part sits along the full width, in percent, for the thin position bar.
+  let thumb = $state({ x: 0, w: 100 });
   let measuring = 0;
   // A frame later, so reading the layout never lands between a resize and its anchor.
   function edges(): void {
@@ -142,6 +144,10 @@
       const left = host.scrollLeft > 2;
       const right = host.scrollLeft + host.clientWidth < host.scrollWidth - 2;
       if (left !== past.left || right !== past.right) past = { left, right };
+      const full = Math.max(host.scrollWidth, 1);
+      const x = Math.round((host.scrollLeft / full) * 100);
+      const w = Math.round((host.clientWidth / full) * 100);
+      if (x !== thumb.x || w !== thumb.w) thumb = { x, w };
     });
   }
 
@@ -460,6 +466,7 @@
   </div>
   <span class="edge left" class:on={past.left} aria-hidden="true">‹</span>
   <span class="edge right" class:on={past.right} aria-hidden="true">›</span>
+  <span class="pan" class:on={past.left || past.right} aria-hidden="true"><i style:left={`${thumb.x}%`} style:width={`${thumb.w}%`}></i></span>
   {#if finding && search}
     <FindBar {search} initial={findSeed} onclose={closeFind} />
   {/if}
@@ -480,13 +487,15 @@
   .term-host.panning :global(.xterm) { width: max-content; }
   .jump { position: absolute; z-index: 3; right: 28px; bottom: 16px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px #000a; }
   .count { min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: var(--brand-ink); font: 700 12px/22px var(--font-body); text-align: center; }
-  .edge { display: none; position: absolute; z-index: 2; top: 0; bottom: 0; width: 28px; align-items: center; color: var(--text); font: 600 22px var(--font-body); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+  .edge { display: flex; position: absolute; z-index: 2; top: 0; bottom: 0; width: 28px; align-items: center; color: var(--text); font: 600 22px var(--font-body); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
   .edge.left { left: 0; justify-content: flex-start; padding-left: 4px; background: linear-gradient(to right, #101216dd, transparent); }
   .edge.right { right: 0; justify-content: flex-end; padding-right: 4px; background: linear-gradient(to left, #101216dd, transparent); }
   .edge.on { opacity: 1; }
+  .pan { position: absolute; z-index: 2; left: 16px; right: 16px; bottom: 3px; height: 4px; border-radius: 2px; background: #ffffff1f; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+  .pan.on { opacity: 1; }
+  .pan i { position: absolute; top: 0; bottom: 0; min-width: 12px; border-radius: 2px; background: var(--brand); }
   .jump:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   @media (max-width: 720px) {
     .jump { right: 12px; bottom: 12px; }
-    .edge { display: flex; }
   }
 </style>
