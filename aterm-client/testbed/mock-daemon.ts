@@ -83,6 +83,8 @@ export interface Mock {
   /** Every `answer` and `cancel_ask` the client sent. */
   answers: { ask_id: string; picks?: number[]; text?: string; cancelled?: boolean }[];
   launches: { role: string; seat: string }[];
+  /** The `push_*` frames the client sent, in order. */
+  pushCalls: { type: string; push?: unknown }[];
   /** Every `close` target the client sent, as `name@ref`. */
   closes: string[];
   /** Every `browser_*` frame and `subscribe` the client sent about a page, in order. */
@@ -138,8 +140,8 @@ export function loadSessions(): SessionSpec[] {
 }
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
- * `images`: a host that takes an image, so the composer shows Add image. */
-export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; launchDelayMs?: number };
+ * `images`: Add image shows. `webPush`: Notify when closed shows. */
+export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; webPush?: boolean; launchDelayMs?: number };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   if (!existsSync(join(DIST, "index.html"))) {
     throw new Error("The mock daemon serves aterm-client/dist, which is not built. Run `just aterm-client-testbed`, which builds it first.");
@@ -156,7 +158,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const heard: string[] = [];
   let lastFrameAt = Date.now();
   const lastBox = new Map<string, { rows: number; cols: number }>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], browserCalls: [] as Mock["browserCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"] };
   // A seat's browser: the agent drives until a screen takes control.
   // `client` is the name each connection was given.
   const pages = new Map<string, { holder: WebSocket | null; url: string }>();
@@ -177,6 +179,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     return proof;
   };
   const unlockedFeatures = ["device-key", "resume"];
+  const pushFeature = options.webPush ? ["web-push"] : [];
 
   const add = (spec: SessionSpec): void => {
     live.set(spec.name, { spec, scene: sceneFor(spec.scene, spec), boxes: new Map() });
@@ -222,9 +225,9 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
       switch (frame.type) {
         case "hello":
           if (options.lock) {
-            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...unlockedFeatures], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
+            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...unlockedFeatures, ...pushFeature], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
           } else {
-            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: options.images ? [...FEATURES, "image-upload"] : FEATURES, typing: { allowed: true } });
+            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...(options.images ? ["image-upload"] : []), ...pushFeature], typing: { allowed: true } });
           }
           return;
         case "device_assert_begin":
@@ -257,6 +260,16 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           if (!pages.has(String(frame.session))) pages.set(String(frame.session), { holder: null, url: "about:blank" });
           send(socket, browserState(String(frame.session), socket, frame.id));
           return;
+        case "push_key":
+        case "push_subscribe":
+        case "push_unsubscribe": {
+          if (!options.webPush) return void send(socket, { type: "error", id: frame.id, error: `the test bed daemon does not model ${frame.type}` });
+          mock.pushCalls.push({ type: frame.type, push: frame.push });
+          const reply = { push_key: "push_key", push_subscribe: "push_subscribed", push_unsubscribe: "push_unsubscribed" }[frame.type];
+          // A 65 byte uncompressed P-256 point, base64url, as the daemon's public key is.
+          send(socket, { type: reply, id: frame.id, ...(frame.type === "push_key" ? { key: Buffer.alloc(65, 4).toString("base64url") } : {}) });
+          return;
+        }
         case "browser_unwatch":
           mock.browserCalls.push({ type: "browser_unwatch", session: String(frame.session) });
           return;
@@ -390,6 +403,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     launches: mock.launches,
     closes: mock.closes,
     browserCalls: mock.browserCalls,
+    pushCalls: mock.pushCalls,
     sceneOf: (session) => live.get(session)?.scene,
     holdWide(session, cols) {
       const seat = live.get(session);
