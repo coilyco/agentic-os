@@ -15,6 +15,7 @@ Daemon fields the seat rows and the pinned reply read (COI-3289, COI-3303, COI-3
 * `last_reply` is the first line, as before, and `last_reply_at` (RFC 3339) is when that reply ended. Claude's transcript stamps it. For other harnesses it is the transcript file's modification time when the reply was first read. Feature `last-reply`.
 * The whole text is fetched, not pushed, so the `sessions` frames stay small. Send `{type: "last_reply", target}` and read `{type: "last_reply", reply: {session, text, truncated, at}}`. Fetch when `last_reply_at` changes.
 * `text` is cut to 8 KiB on a rune boundary, and `truncated` says so. A seat with no finished reply yet answers empty text and no `at`.
+* **Drawn as markdown (COI-3543).** `src/lib/markdown.ts` parses a reply to a tree and `Markdown.svelte` and `InlineText.svelte` draw it node by node, so no HTML string is built and raw tags stay visible text. Only `http`, `https` and `mailto` addresses become links. The pinned line and the sidebar preview use `parseLine`, which treats a cut as expected so no half mark shows.
 * **What counts.** The prose a seat wrote since its last tool result, in its last finished turn. Narration before a tool call is dropped. A turn that ends in tool calls with no closing prose keeps the earlier reply. Messages a seat sent to other seats are tool calls, not replies.
 
 ## Background work
