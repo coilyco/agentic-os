@@ -3,6 +3,7 @@
   import AttentionSwitches from "./AttentionSwitches.svelte";
   import CloseSeat from "./CloseSeat.svelte";
   import Creature from "./Creature.svelte";
+  import ByCoilyco from "./ByCoilyco.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
   import TapTraceSwitch from "./TapTraceSwitch.svelte";
@@ -335,6 +336,7 @@
         {/if}
         <div class="feedback"><FeedbackEntry onopen={closeMenu} /></div>
         <TapTraceSwitch />
+        <ByCoilyco />
       </div>
     {/if}
   {:else}
@@ -348,6 +350,7 @@
     <AttentionSwitches />
     <div class="feedback"><FeedbackEntry /></div>
     <TapTraceSwitch />
+    <ByCoilyco />
   {/if}
 </nav>
 {#if hover && preview}

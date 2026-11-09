@@ -13,8 +13,10 @@
   --text: #f5f7fa;
   --text-soft: #d4d8e0;
   --muted: #a4abb9;
-  --brand: #c9a4ff;
-  --brand-ink: #14101d;
+  /* Treehouse green, the app's one accent. Retune its hue here and the accent follows. */
+  --treehouse: #66dd8a;
+  --brand: var(--treehouse);
+  --brand-ink: #0b1a10;
   --ok: #5ee6a8;
   --warn: #ffb454;
   --warn-text: #ffc98a;
