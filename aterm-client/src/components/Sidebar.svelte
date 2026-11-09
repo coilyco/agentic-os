@@ -168,7 +168,7 @@
     id={`tab-session-${session.id}`}
     aria-selected={selected}
     aria-controls="main-panel"
-    aria-label={sessionLabel(session, role, [stateText(session, asking), activityWords(session.activity, now)].filter(Boolean).join(", "))}
+    aria-label={sessionLabel(session, role, [stateText(session, asking), activityWords(session.activity, now, session.stateSince)].filter(Boolean).join(", "))}
     tabindex={stop ? 0 : -1}
     class="tab seat"
     data-state={session.state}
@@ -196,7 +196,7 @@
       <span class="detail">{code ? `${role.displayName} // ${code}` : role.displayName}</span>
       <span class="detail state-text">{stateText(session, asking)}</span>
       {#if session.activity}
-        {@const flag = activityFlag(session.activity, now)}
+        {@const flag = activityFlag(session.activity, now, session.stateSince)}
         <span class="activity" data-stale={flag !== ""}>
           <span class="line">{session.activity.text}</span>
           {#if flag}<span class="age">{flag}</span>{/if}

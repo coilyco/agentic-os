@@ -61,3 +61,21 @@ describe("toSession", () => {
     expect("activity" in toSession(view)).toBe(false);
   });
 });
+
+describe("a line set before the seat's present state", () => {
+  const line = { text: "Running the gate", at: 1_000_000 };
+
+  it("reads as old even while recent, and says how old", () => {
+    expect(activityFlag(line, line.at + 120_000, line.at + 60_000)).toBe("2m ago");
+  });
+
+  it("stays current when the state began as the line was set", () => {
+    expect(activityFlag(line, line.at + 120_000, line.at + 5_000)).toBe("");
+    expect(activityFlag(line, line.at + 120_000, line.at - 60_000)).toBe("");
+  });
+
+  it("changes nothing when the daemon sends no state age", () => {
+    expect(activityFlag(line, line.at + 120_000)).toBe("");
+    expect(activityWords(line, line.at + 120_000, line.at + 60_000)).toBe("says Running the gate, set 2m ago");
+  });
+});
