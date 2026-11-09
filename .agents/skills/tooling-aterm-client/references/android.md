@@ -8,7 +8,7 @@ The [aterm web client](../../../../aterm-client/README.md) wrapped as an Android
 
 **The app origin is `https://tauri.localhost`.** `useHttpsScheme` makes the webview serve the bundle from there, and the daemon's origin check refuses any non-https origin, so `https://tauri.localhost` goes in `ATERM_DAEMON_ALLOW_ORIGINS` on every host the phone dials.
 
-**The app registers one plugin, the [device key](android-devicekey.md), and no IPC commands of its own. `csp` is null like the web build.** `withGlobalTauri` exposes the plugin to the page, and the one capability grants the `main` window `devicekey:default` and nothing else, so the page otherwise talks to the daemon over its own websocket. Tauri is pinned at 2.12.1. GHSA-7gmj-67g7-phm9 (CVE-2026-42184, origin confusion that lets a remote page invoke local-only IPC on Android) is fixed from 2.11.1.
+**The app registers two plugins, the [device key](android-devicekey.md) and the [share target](android-sharetarget.md), and no IPC commands of its own. `csp` is null like the web build.** `withGlobalTauri` exposes the plugins to the page, and the one capability grants the `main` window `devicekey:default` and `sharetarget:default` and nothing else, so the page otherwise talks to the daemon over its own websocket. Tauri is pinned at 2.12.1. GHSA-7gmj-67g7-phm9 (CVE-2026-42184, origin confusion that lets a remote page invoke local-only IPC on Android) is fixed from 2.11.1.
 
 ## Build
 
@@ -45,6 +45,8 @@ The scripted steps are [`scripts/ci/aterm-android.sh`](../../../../scripts/ci/at
 ## Not yet verified
 
 * An APK installed and opened on a phone.
+* Add image opening the phone's picker. `onShowFileChooser` is in the shipped dex and wry 0.57.0 handles it, but nobody has run it on a device or emulator (COI-3485).
+* The share target: the merged manifest filters, Treehouse in the Share menu, and the sheet on a phone ([android-sharetarget.md](android-sharetarget.md)).
 * Whether Android System WebView honours `interactive-widget=resizes-content` for the keyboard.
 * Gradle and Maven dependencies are not hash-verified. Tauri's generated project pulls the Android Gradle plugin and AndroidX from Google Maven and Maven Central with no dependency verification metadata.
 

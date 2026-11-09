@@ -1,0 +1,21 @@
+[package]
+name = "tauri-plugin-sharetarget"
+version = "0.1.0"
+description = "Android's Share menu as a way into the aterm app: images shared to it wait for the page to take them."
+authors = ["coilyco"]
+license = "MIT"
+repository = "https://github.com/coilyco/agentic-os"
+edition = "2024"
+rust-version = "1.90"
+links = "tauri-plugin-sharetarget"
+
+[dependencies]
+tauri = "=2.12.1"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+
+[build-dependencies]
+tauri-plugin = { version = "=2.7.1", features = ["build"] }
+
+[dev-dependencies]
+serde_json = "1"

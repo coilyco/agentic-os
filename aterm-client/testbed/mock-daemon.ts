@@ -99,6 +99,8 @@ export interface Mock {
   heard: string[];
   /** Every proof the client presented in a `resume` frame, in order. */
   resumes: string[];
+  /** Each `image_upload` taken: the seat, and the bytes sent. */
+  uploads: { session: string; bytes: Buffer }[];
   /** The resume window passes: every proof the daemon issued stops holding. */
   endResumeWindow(): void;
   stop(): Promise<void>;
@@ -136,7 +138,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const heard: string[] = [];
   let lastFrameAt = Date.now();
   const lastBox = new Map<string, { rows: number; cols: number }>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], browserCalls: [] as Mock["browserCalls"], resumes: [] as string[] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], browserCalls: [] as Mock["browserCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"] };
   // A seat's browser: the agent drives until a screen takes control.
   // `client` is the name each connection was given.
   const pages = new Map<string, { holder: WebSocket | null; url: string }>();
@@ -284,6 +286,12 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
             draw(seat, socket);
           }
           return;
+        case "image_upload": {
+          if (!seat) return;
+          mock.uploads.push({ session: seat.spec.name, bytes: Buffer.from(String(frame.data ?? ""), "base64") });
+          send(socket, { type: "image_uploaded", id: frame.id, session: frame.session, path: `/tmp/aterm/images/${seat.spec.name}-1/upload-${mock.uploads.length}.png` });
+          return;
+        }
         case "input": {
           if (!seat) return;
           const text = Buffer.from(String(frame.data ?? ""), "base64").toString("utf8");
@@ -378,6 +386,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     dialCount: () => dials,
     heard,
     resumes: mock.resumes,
+    uploads: mock.uploads,
     endResumeWindow: () => proofs.clear(),
     async stop() {
       for (const socket of clients) socket.terminate();
