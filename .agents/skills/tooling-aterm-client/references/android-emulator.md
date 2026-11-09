@@ -8,7 +8,7 @@ A seat drives one live Android emulator running the real Treehouse app, beside t
 
 * `up` and `down` - start or stop the emulator. `up` refuses while the host is under pressure (exit 7), and does nothing when it is already up.
 * `acquire [--wait S]` and `release [--force]` - the lock. `status` and `tunnel` need none.
-* `install APK`, `open`, `stop-app`, `clear-app` - the app, `dev.coilyco.treehouse`.
+* `install APK [--reinstall]`, `open`, `stop-app`, `clear-app` - the app, `dev.coilyco.treehouse`.
 * `tap X Y`, `type TEXT`, `key NAME`, `keyboard state|close`, `shot OUT.png` - input and screenshots. A tap is an `adb shell input` touch, so the page sees what a finger sends. Open the keyboard by tapping a field.
 * `devtools`, `eval JS`, `dom SELECTOR`, `tap-selector SELECTOR` - the app's WebView over DevTools. `tap-selector` reads the element's box over DevTools, finds the WebView on screen from the UI tree, and sends one real tap.
 * `reverse PORT` - the guest's `localhost:PORT` reaches that port on the host running the adb server, as loopback.
@@ -31,7 +31,7 @@ A seat drives one live Android emulator running the real Treehouse app, beside t
 
 * Dispatch `gh workflow run aterm-android.yml -f debug_abi=x86_64` (or `aarch64`) and take the `aterm-android-debug-<abi>-<run id>` artifact with `gh run download`. A debug dispatch builds that and nothing else, so nothing publishes.
 * **An x86_64 emulator needs an x86_64 build.** The app has no arch-specific native code (no `target_arch`, `abiFilters`, `jniLibs`, `ring` or `openssl` in `aterm-android`), so the same sources build for either ABI. The release path stays arm64-only.
-* The debug APK is signed by Gradle's debug key and is not the Play or Obtainium build. Installing it over a release build needs an uninstall first.
+* The debug APK is signed by Gradle's debug key and is not the Play or Obtainium build. Each GitHub debug build has its own signing key, so a newer one, or a release build, needs `install --reinstall`, which clears the app's data.
 
 ## Reaching a daemon
 
