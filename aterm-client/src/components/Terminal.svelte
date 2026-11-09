@@ -12,6 +12,7 @@
   import { boxToReport, nextTall } from "../lib/pty-size";
   import { detectChoice } from "../lib/choices";
   import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
+  import { loadTextSize, stepTextSize, storeTextSize, TEXT_SIZES } from "../lib/text-size";
   import { isBlank, screenRows, tabBarReading, type TabBarCells } from "../lib/screen";
   import { afterQueued, safely, watchDelay } from "../lib/pane-watch";
   import type { HostConnection, PeerMessage } from "../lib/protocol";
@@ -57,6 +58,10 @@
   // Rows must touch, or box-drawing characters break into dashes.
   const LINE_HEIGHT = 1;
   const SCROLLBACK = 10000;
+  // The device's text size. A different size is a different box of columns, which layout() reports.
+  let textSize = $state(loadTextSize());
+  let sizing = $state(false);
+  let refit = () => {};
   let finding = $state(false);
   let findSeed = $state("");
   let search = $state<SearchAddon>();
@@ -182,7 +187,7 @@
     const terminal = new Terminal({
       cursorBlink: true,
       fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-      fontSize: 14,
+      fontSize: textSize,
       lineHeight: LINE_HEIGHT,
       scrollback: SCROLLBACK,
       allowProposedApi: true,
@@ -285,6 +290,11 @@
     // xterm draws a new height a frame later, so the anchor runs again once it has.
     const reanchor = (follow: boolean) => requestAnimationFrame(() => anchor(follow));
     afterSize = reanchor;
+    refit = () => requestAnimationFrame(() => {
+      layout();
+      anchor(true);
+      reanchor(true);
+    });
     const observer = new ResizeObserver(() => {
       const follow = atBottom();
       layout();
@@ -471,6 +481,14 @@
     finding = true;
   }
 
+  function setTextSize(next: number): void {
+    if (next === textSize) return;
+    textSize = next;
+    storeTextSize(next);
+    if (term) term.options.fontSize = next;
+    refit();
+  }
+
   function closeFind(): void {
     finding = false;
     term?.focus();
@@ -491,6 +509,17 @@
   </div>
   <span class="edge left" class:on={past.left} aria-hidden="true">‹</span>
   <span class="edge right" class:on={past.right} aria-hidden="true">›</span>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="size" onkeydown={(event) => event.key === "Escape" && (sizing = false)}>
+    {#if sizing}
+      <div class="size-row" role="group" aria-label="Text size">
+        <button type="button" aria-label="Smaller text" disabled={textSize === TEXT_SIZES[0]} onclick={() => setTextSize(stepTextSize(textSize, -1))}>A−</button>
+        <output aria-live="polite">{textSize}px</output>
+        <button type="button" aria-label="Larger text" disabled={textSize === TEXT_SIZES[TEXT_SIZES.length - 1]} onclick={() => setTextSize(stepTextSize(textSize, 1))}>A+</button>
+      </div>
+    {/if}
+    <button type="button" class="size-open" aria-label="Text size" aria-expanded={sizing} onclick={() => (sizing = !sizing)}>Aa</button>
+  </div>
   {#if finding && search}
     <FindBar {search} initial={findSeed} onclose={closeFind} />
   {/if}
@@ -515,9 +544,16 @@
   .edge.left { left: 0; justify-content: flex-start; padding-left: 4px; background: linear-gradient(to right, #101216dd, transparent); }
   .edge.right { right: 0; justify-content: flex-end; padding-right: 4px; background: linear-gradient(to left, #101216dd, transparent); }
   .edge.on { opacity: 1; }
-  .jump:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .size { position: absolute; z-index: 3; top: 8px; right: 28px; display: flex; align-items: center; gap: 6px; }
+  .size-row { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 12px; border: 1px solid var(--control-line); background: var(--surface); box-shadow: 0 6px 24px #000a; }
+  .size button { min-width: 44px; min-height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--control-line); background: var(--surface); color: var(--text); font: 600 15px var(--font-body); }
+  .size button:disabled { opacity: 0.4; }
+  .size-open { opacity: 0.85; }
+  .size output { min-width: 44px; text-align: center; color: var(--muted); font: 600 13px var(--font-body); }
+  .size button:focus-visible, .jump:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   @media (max-width: 720px) {
     .jump { right: 12px; bottom: 12px; }
+    .size { right: 12px; }
     .edge { display: flex; }
   }
 </style>
