@@ -288,6 +288,18 @@
     host.addEventListener("touchmove", onTouchMove, { passive: true });
     host.addEventListener("touchend", onTouchEnd, { passive: true });
     host.addEventListener("touchcancel", stopCoast, { passive: true });
+    // A harness that reports the mouse would take every wheel tick and leave the history still.
+    // On the normal screen the wheel reads the history. A full-screen app keeps its mouse.
+    let wheelCarry = 0;
+    terminal.attachCustomWheelEventHandler((event) => {
+      const active = terminal.buffer.active;
+      if (terminal.modes.mouseTrackingMode === "none" || active.type !== "normal" || active.baseY === 0) return true;
+      const row = rowPx();
+      const taken = takeRows(wheelCarry, event.deltaMode === 1 ? event.deltaY * row : event.deltaY, row);
+      wheelCarry = taken.carry;
+      if (taken.rows) terminal.scrollLines(taken.rows);
+      return false;
+    });
     const cropping = () => cropHarness;
     let hidden = 0;
     // Blank rows under a floating box hide with it, but only its height is asked of the PTY.
