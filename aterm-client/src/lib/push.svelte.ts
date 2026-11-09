@@ -97,7 +97,7 @@ export function takeLaunchSeat(): void {
 
 const seenNotes = new SeenIds();
 
-/** A coordinator ping: the chime if Sound is on, and a notice if the browser allows. */
+/** A coordinator ping: the chime if Sound is on, and a notice if the browser allows.
  * The tap opens the sending seat, as a Web Push does. Each id is handled once. */
 export async function handleNotify(note: Notify): Promise<void> {
   if (!seenNotes.first(note.id)) return;
