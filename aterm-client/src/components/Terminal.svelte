@@ -9,7 +9,8 @@
   import { AT_END, jumpLabel, linesAbove, scrolled, wrote, type Follow } from "../lib/follow";
   import { envelopeRows } from "../lib/messages";
   import { harnessBox } from "../lib/harness";
-  import { boxToReport } from "../lib/pty-size";
+  import { boxToReport, nextTall } from "../lib/pty-size";
+  import { detectChoice } from "../lib/choices";
   import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
   import { coastRows, takeRows } from "../lib/touch-scroll";
   import { isBlank, screenRows, tabBarReading, type TabBarCells } from "../lib/screen";
@@ -113,6 +114,7 @@
   }
 
   let watchHarness = () => {};
+  let watchTall = () => {};
   // The input and the newest text sit at the bottom left, so that corner stays in view
   // unless the person has panned away. Cropped rows lie below it.
   let hiddenPx = () => 0;
@@ -161,6 +163,7 @@
     markSoon();
     safely("reading the screen", reportScreen);
     safely("watching the harness", () => watchHarness());
+    safely("watching for a clipped dialog", () => watchTall());
     safely("noting the screen drew", () => noteDrawn());
     safely("noting text past the edge", edges);
   }
@@ -275,6 +278,10 @@
     let hidden = 0;
     // Blank rows under a floating box hide with it, but only its height is asked of the PTY.
     let boxRows = 0;
+    // Rows asked beyond the box while a dialog is taller than the screen (COI-3447).
+    let tall = 0;
+    let lastDialog = 0;
+    let tallTimer: ReturnType<typeof setTimeout> | undefined;
     const extra = () => (cropping() ? hidden : 0);
     const asking = () => (cropping() ? boxRows : 0);
     const cell = () => (host.querySelector<HTMLElement>(".xterm-screen")?.clientHeight ?? 0) / Math.max(terminal.rows, 1);
@@ -290,7 +297,7 @@
       if (connection.ptySize === true) {
         panning = true;
         const box = boxToReport(fit.proposeDimensions(), true, own());
-        const asked = box && { rows: box.rows + ask, cols: box.cols };
+        const asked = box && { rows: box.rows + ask + tall, cols: box.cols };
         if (asked && (asked.rows !== reported?.rows || asked.cols !== reported?.cols)) {
           reported = asked;
           connection.resize(sessionId, asked.rows, asked.cols);
@@ -347,6 +354,29 @@
         layout();
         anchor(true);
       }, HIDE_SETTLE_MS);
+    };
+    // Throttled, since a redraw is many writes. It re-arms while rows are held, to let them go.
+    const TALL_SETTLE_MS = 350;
+    watchTall = () => {
+      if (connection.ptySize !== true || tallTimer) return;
+      tallTimer = setTimeout(() => {
+        tallTimer = undefined;
+        const choice = detectChoice(screenRows(terminal.buffer.active, terminal.rows));
+        const now = performance.now();
+        if (choice) lastDialog = now;
+        const next = nextTall(tall, {
+          dialog: choice !== null,
+          clipped: (choice?.hidden ?? 0) > 0,
+          honored: terminal.rows >= (reported?.rows ?? 0),
+          idleMs: now - lastDialog,
+        });
+        if (next !== tall) {
+          tall = next;
+          layout();
+          anchor(true);
+        }
+        if (tall > 0) watchTall();
+      }, TALL_SETTLE_MS);
     };
     // A soft keyboard would only be a second input, so a tap on the terminal does not raise one.
     const shapeForPhone = () => {
@@ -455,6 +485,7 @@
       clearTimeout(watching);
       phone.removeEventListener("change", shapeForPhone);
       clearTimeout(settle);
+      clearTimeout(tallTimer);
       unsubscribe();
       connection.detach(sessionId);
       input.dispose();
