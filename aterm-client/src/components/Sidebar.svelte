@@ -328,6 +328,7 @@
             </summary>
             <AttentionSwitches />
             {@render hostsGroup()}
+            <ByCoilyco />
           </details>
         {:else}
           {@render hostsGroup()}
@@ -336,7 +337,7 @@
         {/if}
         <div class="feedback"><FeedbackEntry onopen={closeMenu} /></div>
         <TapTraceSwitch />
-        <ByCoilyco />
+        {#if !onScreen}<ByCoilyco />{/if}
       </div>
     {/if}
   {:else}
