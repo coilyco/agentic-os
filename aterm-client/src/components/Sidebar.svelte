@@ -3,13 +3,14 @@
   import AttentionSwitches from "./AttentionSwitches.svelte";
   import CloseSeat from "./CloseSeat.svelte";
   import Origin from "./Origin.svelte";
+  import PinSeat from "./PinSeat.svelte";
   import Creature from "./Creature.svelte";
   import ByCoilyco from "./ByCoilyco.svelte";
   import SettingsLink from "./SettingsLink.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
   import TapTraceSwitch from "./TapTraceSwitch.svelte";
-  import { app, askLineFor, asksShownOn, colorOf, closeAnyway, dismissCloseNote, glowSeats, layout, needsKaiIds, reopenClosed, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
+  import { app, askLineFor, asksShownOn, colorOf, closeAnyway, dismissCloseNote, glowSeats, layout, needsKaiIds, pinnedNow, reopenClosed, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
   import { stateWithAge } from "../lib/age";
@@ -17,7 +18,7 @@
   import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel, splitSessions } from "../lib/sessions";
   import { tablistKeys } from "../lib/tabs";
 
-  const live = $derived(splitSessions(orderSessions(app.sessions, app.roles)));
+  const live = $derived(splitSessions(orderSessions(app.sessions, app.roles, pinnedNow)));
   const onScreen = $derived(Boolean(app.selectedSession || app.selectedRole));
   const glowing = $derived(new Set(app.alerts.visual ? glowSeats().map((seat) => seat.sessionId) : []));
   // On a phone the one seat on screen is named here and nowhere else, and the rest waits behind it.
@@ -166,6 +167,7 @@
   {@const asking = askLineFor(session.id)}
   {@const stop = group.some((each) => each.id === app.selectedSession) ? selected : session === group[0]}
   <div class="seat-row" class:stacked={narrow} role="presentation">
+  <div class="seat-top" role="presentation">
   <button
     role="tab"
     id={`tab-session-${session.id}`}
@@ -211,6 +213,8 @@
       {/if}
     </span>
   </button>
+  <PinSeat {session} />
+  </div>
   <CloseSeat {session} needsKai={needs.has(session.id)} where="row" compact={narrow} />
   </div>
 {/snippet}
@@ -383,10 +387,11 @@
   .note-actions button { min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 13px var(--font-body); }
   .note-actions .danger { border-color: var(--danger); color: var(--danger-text); }
   .seat-row { display: flex; align-items: center; gap: 6px; }
-  .seat-row .tab { flex: 1; min-width: 0; width: auto; }
+  .seat-top { flex: 1; min-width: 0; display: flex; align-items: stretch; gap: 2px; }
+  .seat-top .tab { flex: 1; min-width: 0; width: auto; }
   /* Beside a 320px row the button leaves no room for the name, so it goes under. */
   .seat-row.stacked { flex: none; flex-direction: column; align-items: stretch; gap: 4px; }
-  .seat-row.stacked .tab { flex: 1 0 auto; width: auto; }
+  .seat-row.stacked .seat-top { flex: none; }
   .tab { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: none; border-radius: 8px; background: transparent; color: var(--text); text-align: left; }
   .tab:hover { background: #171a21; }
   .tab[aria-selected="true"] { background: #1d1729; box-shadow: inset 0 0 0 1px #3a3350; }

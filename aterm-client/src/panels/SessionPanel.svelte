@@ -4,6 +4,7 @@
   import ChoiceCard from "../components/ChoiceCard.svelte";
   import CloseSeat from "../components/CloseSeat.svelte";
   import Origin from "../components/Origin.svelte";
+  import PinSeat from "../components/PinSeat.svelte";
   import Composer from "../components/Composer.svelte";
   import LastReply from "../components/LastReply.svelte";
   import RelayNotice from "../components/RelayNotice.svelte";
@@ -216,6 +217,7 @@
     {#if !phone}
       <button type="button" class="head-button" aria-label="Find in output" title={`Find in output (${findChord})`} onclick={() => seatTerminal?.openFind()}>Find</button>
     {/if}
+    <PinSeat {session} />
     <CloseSeat {session} needsKai={needsKaiIds().has(session.id)} where="view" />
     {#if split}
       <button type="button" class="head-button" aria-expanded={sideOpen} aria-controls="side-panel" onclick={toggleSide}>
