@@ -239,7 +239,9 @@
   ol[hidden], .keys[hidden] { display: none; }
   ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   .option { width: 100%; min-height: 44px; display: flex; gap: 12px; align-items: flex-start; text-align: left; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--control-line); background: var(--surface); color: var(--text); }
-  .option:hover, .option[aria-pressed="true"] { border-color: var(--brand); background: #1d1729; }
+  .option[aria-pressed="true"] { border-color: var(--brand); background: #1d1729; }
+  /* A touch screen keeps :hover on the last thing tapped, so only a pointer that can hover paints it (COI-3334). */
+  @media (hover: hover) { .option:hover { border-color: var(--brand); background: #1d1729; } }
   /* Plain :focus too, since focus set by script may not count as visible. */
   .option:focus { outline: 2px solid var(--brand); outline-offset: 2px; border-color: var(--brand); background: #1d1729; }
   .number { flex: none; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font: 12px var(--font-mono); color: var(--brand); border: 1px solid #3a3350; }
