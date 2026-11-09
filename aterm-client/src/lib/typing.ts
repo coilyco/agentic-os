@@ -16,6 +16,16 @@ import { PLACE, type Place } from "./build";
 /** The `reason` values the daemon sends when it refuses a guarded frame. */
 const REFUSAL_REASONS = new Set(["session_descendant", "peer_unread", "passkey_required"]);
 
+/** A daemon refusal that carried its `reason`, so a lock reads apart from a failure. */
+export class Refusal extends Error {
+  constructor(
+    message: string,
+    readonly reason?: string,
+  ) {
+    super(message);
+  }
+}
+
 /** `welcome.typing` or a `typing` push, or null from a daemon that predates the guard. */
 export function parseTyping(raw: unknown): Typing | null {
   if (typeof raw !== "object" || raw === null) return null;

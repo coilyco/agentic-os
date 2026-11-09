@@ -7,13 +7,13 @@ import { safely } from "./pane-watch";
 import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, ImageChannel, MessageState, PasskeyChannel, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, ViewChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
 import { bridge, DeviceKeyError, type Invoke, enrollKey, keyStatus, KEY_CODE_SPENT, mayEnroll, signChallenge, biometricNotice } from "./device-key";
 import { CODE_SPENT, createCredential, getCredential, passkeySupport, PasskeyError } from "./passkey";
 import { RESUME_ENDED_REASON, RESUME_FEATURE, ResumeEndedError, resumeProof } from "./resume";
-import { keepStanding, parseTyping, refusalOf, typingNotice, type Typing } from "./typing";
+import { keepStanding, parseTyping, Refusal, refusalOf, typingNotice, type Typing } from "./typing";
 
 export const FORMAT = "aterm.daemon.v1";
 const LOOPBACK_DAEMON = "ws://127.0.0.1:7419";
@@ -72,6 +72,8 @@ interface SessionView {
   degraded?: string[];
   context?: { tokens: number; window?: number; source: string };
   last_reply?: string;
+  /** When that reply ended (RFC 3339). */
+  last_reply_at?: string;
   /** Seconds since the seat last wrote, as of the frame. */
   quiet_seconds?: number;
   state?: string;
@@ -138,6 +140,8 @@ interface Frame {
   data?: string;
   /** The absolute file an `image_uploaded` names. */
   path?: string;
+  /** Answers a `last_reply` request. */
+  reply?: { session?: string; text?: string; truncated?: boolean; at?: string };
   sessions?: SessionView[];
   message?: MessageView;
   roster?: unknown;
@@ -177,6 +181,8 @@ interface Frame {
   options?: unknown;
   resume?: string;
   expires_in?: number;
+  /** The VAPID public key on a `push_key` reply. */
+  key?: string;
 }
 
 interface ViewFrame {
@@ -192,6 +198,9 @@ interface ViewFrame {
 
 /** `welcome.features` names this when the daemon streams a session's browser. */
 export const BROWSER_FEATURE = "browser";
+
+/** `welcome.features` names this when the daemon has a VAPID key and answers `push_*`. */
+export const PUSH_FEATURE = "web-push";
 
 /** Replies that unlock a connection. Each names the next resume proof (COI-3305). */
 const UNLOCKED_REPLIES = new Set(["passkey_enrolled", "passkey_asserted", "device_asserted", "resumed"]);
@@ -289,6 +298,7 @@ export function toSession(view: SessionView, busy = false, quiet?: number): Sess
     ...(view.ref ? { ref: view.ref } : {}),
     ...(view.context ? { context: toContext(view.context) } : {}),
     ...(view.last_reply ? { lastReply: view.last_reply } : {}),
+    ...(view.last_reply && Number.isFinite(Date.parse(view.last_reply_at ?? "")) ? { lastReplyAt: Date.parse(view.last_reply_at ?? "") } : {}),
     ...(activity ? { activity } : {}),
     ...(quiet === undefined ? {} : { quietSince: quiet }),
   };
@@ -562,6 +572,18 @@ export class DaemonHost implements HostConnection {
     },
   };
 
+  /** Only a welcome listing `last-reply` answers for a seat's whole last reply. */
+  get lastReplies(): LastReplyChannel | undefined {
+    return this.features.has("last-reply") ? this.lastReplyChannel : undefined;
+  }
+
+  private lastReplyChannel: LastReplyChannel = {
+    fetch: async (sessionId) => {
+      const frame = await this.exchange({ type: "last_reply", target: sessionId });
+      return { text: frame.reply?.text ?? "", truncated: frame.reply?.truncated === true };
+    },
+  };
+
   /** Only a welcome listing `passkey` has a ceremony. The page decides if it can run. */
   get passkey(): PasskeyChannel | undefined {
     return this.features.has("passkey") ? this.passkeyChannel : undefined;
@@ -635,6 +657,21 @@ export class DaemonHost implements HostConnection {
       const credential = await getCredential(begun.options);
       await this.exchange({ type: "passkey_assert_finish", credential });
     },
+  };
+
+  /** Only a welcome listing `web-push` answers `push_*`. */
+  get push(): PushChannel | undefined {
+    return this.features.has(PUSH_FEATURE) ? this.pushChannel : undefined;
+  }
+
+  private pushChannel: PushChannel = {
+    key: async () => {
+      const { key } = await this.exchange({ type: "push_key" });
+      if (!key) throw new Error("The daemon sent no push key.");
+      return key;
+    },
+    subscribe: async (push) => void (await this.exchange({ type: "push_subscribe", push })),
+    unsubscribe: async (endpoint) => void (await this.exchange({ type: "push_unsubscribe", push: { endpoint } })),
   };
 
   /** One request, settled by the reply or the `error` that echoes its id. */
@@ -857,7 +894,7 @@ export class DaemonHost implements HostConnection {
         this.emit(this.last.passkey);
         this.last.deviceKey = { type: "device_key", available: this.features.has("device-key") };
         this.emit(this.last.deviceKey);
-        this.last.features = { type: "features", terminals: this.features.has("terminals") };
+        this.last.features = { type: "features", terminals: this.features.has("terminals"), ...(this.features.has(PUSH_FEATURE) ? { webPush: true as const } : {}) };
         this.emit(this.last.features);
         this.request({ type: "subscribe", channel: "sessions" });
         this.request({ type: "roster" });
@@ -916,11 +953,15 @@ export class DaemonHost implements HostConnection {
         if (frame.artifact_id) this.emit({ type: "artifact_closed", id: frame.artifact_id });
         return;
       case "view_result":
+      case "last_reply":
       case "image_uploaded":
       case "passkey_enroll_options":
       case "passkey_enrolled":
       case "passkey_assert_options":
       case "passkey_asserted":
+      case "push_key":
+      case "push_subscribed":
+      case "push_unsubscribed":
       case "device_enroll_challenge":
       case "device_enrolled":
       case "device_assert_challenge":
@@ -1005,7 +1046,7 @@ export class DaemonHost implements HostConnection {
           if (frame.reason === RESUME_ENDED_REASON) call.reject(new ResumeEndedError());
           else if (frame.reason === KEY_UNKNOWN_REASON) call.reject(new DeviceKeyError(KEY_UNKNOWN, KEY_UNKNOWN_REASON));
           else if (imageWords) call.reject(new Error(imageWords));
-          else call.reject(new Error(refused ? typingNotice(refused) : (frame.error ?? "The daemon refused the view call.")));
+          else call.reject(new Refusal(refused ? typingNotice(refused) : (frame.error ?? "The daemon refused the request."), refused?.allowed === false ? refused.reason : undefined));
           return;
         }
         const seat = frame.id ? this.pendingOpens.get(frame.id) : undefined;
@@ -1064,7 +1105,11 @@ export function probe(url = DEFAULT_DAEMON_URL, timeoutMs = 2000): Promise<numbe
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(url);
     const timer = setTimeout(() => finish(new Error("no answer")), timeoutMs);
+    let settled = false;
     function finish(result: number | Error): void {
+      // Closing a socket still connecting can raise `error`, which calls this again.
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
       socket.close();
       if (result instanceof Error) reject(result);
