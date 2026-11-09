@@ -8,6 +8,13 @@ describe("aterm.daemon.v1 mapping", () => {
     expect(session).toEqual({ id: "session-48c6d1", role: "frontend-eng", identity: "Imp-Dragonfly", seat: "zsh", state: "idle", pending: 2, drafting: true, paste: true, degraded: [] });
   });
 
+  it("dates the present state from when the frame arrived", () => {
+    const base = { name: "s", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 };
+    expect(toSession({ ...base, state_seconds: 90 }, false, undefined, 1_000_000).stateSince).toBe(910_000);
+    expect(toSession({ ...base, state_seconds: 0 }, false, undefined, 1_000_000).stateSince).toBe(1_000_000);
+    expect(toSession(base, false, undefined, 1_000_000)).not.toHaveProperty("stateSince");
+  });
+
   it("carries the startup steps a session launched without", () => {
     const view = { name: "s", role: "r", identity: "i", seat: "codex", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0, degraded: ["card", "telemetry"] };
     expect(toSession(view).degraded).toEqual(["card", "telemetry"]);
@@ -915,7 +922,7 @@ describe("the device key", () => {
     await vi.waitFor(() => expect(lastSent(socket)).toMatchObject({ type: "device_assert_begin", key_id: "k1" }));
     socket.receive({ type: "device_assert_challenge", id: lastSent(socket).id, challenge: "CHAL2" });
     await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_assert_finish"));
-    expect(invoke).toHaveBeenCalledWith("plugin:devicekey|sign", { challenge: "CHAL2", prompt: "Unlock aterm to type" });
+    expect(invoke).toHaveBeenCalledWith("plugin:devicekey|sign", { challenge: "CHAL2", prompt: "Unlock Treehouse to type" });
     socket.receive({ type: "device_asserted", id: lastSent(socket).id });
     await expect(done).resolves.toBeUndefined();
     host.close();
@@ -973,7 +980,7 @@ describe("the device key", () => {
     await vi.waitFor(() => expect(lastSent(socket)).toMatchObject({ type: "device_assert_begin", key_id: "k1" }));
     socket.receive({ type: "device_assert_challenge", id: lastSent(socket).id, challenge: "CHAL" });
     await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_assert_finish"));
-    expect(invoke).toHaveBeenCalledWith("plugin:devicekey|sign", { challenge: "CHAL", prompt: "Unlock aterm to type" });
+    expect(invoke).toHaveBeenCalledWith("plugin:devicekey|sign", { challenge: "CHAL", prompt: "Unlock Treehouse to type" });
     expect(lastSent(socket)).toMatchObject({ key_id: "k1", signature: "SIG" });
     socket.receive({ type: "device_asserted", id: lastSent(socket).id });
     await expect(done).resolves.toBeUndefined();

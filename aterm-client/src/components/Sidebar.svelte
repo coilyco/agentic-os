@@ -3,6 +3,7 @@
   import AttentionSwitches from "./AttentionSwitches.svelte";
   import CloseSeat from "./CloseSeat.svelte";
   import Creature from "./Creature.svelte";
+  import ByCoilyco from "./ByCoilyco.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
   import TapTraceSwitch from "./TapTraceSwitch.svelte";
@@ -168,7 +169,7 @@
     id={`tab-session-${session.id}`}
     aria-selected={selected}
     aria-controls="main-panel"
-    aria-label={sessionLabel(session, role, [stateText(session, asking), activityWords(session.activity, now)].filter(Boolean).join(", "))}
+    aria-label={sessionLabel(session, role, [stateText(session, asking), activityWords(session.activity, now, session.stateSince)].filter(Boolean).join(", "))}
     tabindex={stop ? 0 : -1}
     class="tab seat"
     data-state={session.state}
@@ -196,7 +197,7 @@
       <span class="detail">{code ? `${role.displayName} // ${code}` : role.displayName}</span>
       <span class="detail state-text">{stateText(session, asking)}</span>
       {#if session.activity}
-        {@const flag = activityFlag(session.activity, now)}
+        {@const flag = activityFlag(session.activity, now, session.stateSince)}
         <span class="activity" data-stale={flag !== ""}>
           <span class="line">{session.activity.text}</span>
           {#if flag}<span class="age">{flag}</span>{/if}
@@ -327,6 +328,7 @@
             </summary>
             <AttentionSwitches />
             {@render hostsGroup()}
+            <ByCoilyco />
           </details>
         {:else}
           {@render hostsGroup()}
@@ -335,10 +337,11 @@
         {/if}
         <div class="feedback"><FeedbackEntry onopen={closeMenu} /></div>
         <TapTraceSwitch />
+        {#if !onScreen}<ByCoilyco />{/if}
       </div>
     {/if}
   {:else}
-    <div class="mark">ATERM</div>
+    <div class="mark">TREEHOUSE</div>
     {@render hostsGroup()}
     {#if app.attachedHostId}
       {@render runningGroup()}
@@ -348,6 +351,7 @@
     <AttentionSwitches />
     <div class="feedback"><FeedbackEntry /></div>
     <TapTraceSwitch />
+    <ByCoilyco />
   {/if}
 </nav>
 {#if hover && preview}

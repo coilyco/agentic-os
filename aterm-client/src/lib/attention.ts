@@ -1,12 +1,12 @@
-// Cues for a seat that starts waiting on you. The glow is on until switched off, sound
-// stays off until switched on. Settings live in this browser only.
+// The glow marks a seat that starts waiting on you. Sound is the coordinator seat's ping,
+// on until switched off (COI-3517). A seat that waits makes no sound. Stored per browser.
 
 export interface AttentionSettings {
   sound: boolean;
   visual: boolean;
 }
 
-export const ATTENTION_DEFAULT: AttentionSettings = { sound: false, visual: true };
+export const ATTENTION_DEFAULT: AttentionSettings = { sound: true, visual: true };
 
 const KEY = "aterm.attention.v1";
 
@@ -19,7 +19,7 @@ export function parseAttention(raw: string | null): AttentionSettings {
     const parsed: unknown = JSON.parse(raw ?? "null");
     if (typeof parsed !== "object" || parsed === null) return ATTENTION_DEFAULT;
     const { sound, visual } = parsed as { sound?: unknown; visual?: unknown };
-    return { sound: sound === true, visual: visual !== false };
+    return { sound: sound !== false, visual: visual !== false };
   } catch {
     return ATTENTION_DEFAULT;
   }
