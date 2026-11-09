@@ -192,6 +192,9 @@
   // A program in bracketed-paste mode takes the text as one paste, then the
   // Enter a beat later so it submits instead of landing as a newline.
   // Images upload first, one after another, and only then does anything reach the seat: a failed upload sends nothing and keeps the draft.
+  // A press on a button takes focus from the field, the keyboard closes, the layout moves and the tap is lost (COI-3500).
+  const keepFocus = (event: MouseEvent): void => event.preventDefault();
+
   async function send(): Promise<void> {
     const typed = text.trim();
     if (!typed && chips.length === 0) return;
@@ -384,7 +387,7 @@
             <li class="chip">
               <img src={chip.url} alt="" />
               <span class="chip-label">{chipLabel(index, chip.file.size)}</span>
-              <button class="chip-remove" type="button" aria-label={`Remove image ${index + 1}`} disabled={uploading !== null} onclick={() => removeChip(chip.id)}>
+              <button class="chip-remove" type="button" aria-label={`Remove image ${index + 1}`} disabled={uploading !== null} onmousedown={keepFocus} onclick={() => removeChip(chip.id)}>
                 <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
               </button>
             </li>
@@ -399,7 +402,7 @@
   {#if connection.images}
     <!-- The button is the way a phone adds an image, and the way to one with no clipboard image. -->
     <input bind:this={picker} hidden type="file" accept={IMAGE_TYPES.join(",")} multiple onchange={picked} />
-    <button class="add-image" type="button" aria-label="Add image" title="Add image" disabled={uploading !== null || resizing || offline} onclick={() => picker?.click()}>
+    <button class="add-image" type="button" aria-label="Add image" title="Add image" disabled={uploading !== null || resizing || offline} onmousedown={keepFocus} onclick={() => picker?.click()}>
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8" /><circle cx="9" cy="10" r="1.6" fill="currentColor" /><path d="M4.5 17.5l4.5-4.5 3.5 3.5 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg>
     </button>
   {/if}
@@ -468,7 +471,7 @@
       onkeydown={stopKey}
     >Stop</button>
   {:else}
-    <button class="button primary" type="submit" disabled={(!text.trim() && chips.length === 0) || offline || dialogOpen || uploading !== null || resizing}>{offline ? "Waits for host" : dialogOpen && (text.trim() || chips.length) ? "Waits for answer" : uploading ? "Uploading" : sentFlash && !text.trim() && chips.length === 0 ? "Sent" : "Send"}</button>
+    <button class="button primary" type="submit" onmousedown={keepFocus} disabled={(!text.trim() && chips.length === 0) || offline || dialogOpen || uploading !== null || resizing}>{offline ? "Waits for host" : dialogOpen && (text.trim() || chips.length) ? "Waits for answer" : uploading ? "Uploading" : sentFlash && !text.trim() && chips.length === 0 ? "Sent" : "Send"}</button>
   {/if}
   <p class="visually-hidden" role="status">{note}</p>
 </form>
