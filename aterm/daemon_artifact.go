@@ -171,7 +171,8 @@ func (d *daemon) artifactAdd(cl *client, message frame) error {
 	}
 	d.apps.mu.Lock()
 	defer d.apps.mu.Unlock()
-	if earlier := d.apps.artifacts[entry.ID]; earlier != nil && !earlier.managedBy(s) {
+	earlier := d.apps.artifacts[entry.ID]
+	if earlier != nil && !earlier.managedBy(s) {
 		return withReason(reasonArtifactOwned, errors.New("another live seat posted this artifact"))
 	}
 	if err := d.artifactRoomLocked(entry, s); err != nil {
@@ -184,6 +185,9 @@ func (d *daemon) artifactAdd(cl *client, message frame) error {
 	d.persistArtifact(entry)
 	d.apps.emit(frame{Type: "artifact", Session: entry.Owner, Artifact: &entry.artifactView})
 	d.logf("%s posted an artifact, shown to %d clients", s.name, len(d.apps.watchers))
+	if entry.Waiting && (earlier == nil || !earlier.Waiting) {
+		d.notifyArtifactWaiting(s, entry.Title)
+	}
 	return cl.c.write(frame{Type: "artifact_added", ID: message.ID, Session: s.name, ArtifactID: entry.ID, Delivered: len(d.apps.watchers)})
 }
 
@@ -211,6 +215,12 @@ func (d *daemon) artifactRoomLocked(entry *artifactEntry, s *ptySession) error {
 	return nil
 }
 
+// notifyArtifactWaiting rides the ask path, since the broker's kind enum is closed.
+// The caller holds apps.mu, which NotifyAsk never takes. references/web-push.md
+func (d *daemon) notifyArtifactWaiting(s *ptySession, title string) {
+	d.users.NotifyAsk(choiceAsk{Session: s.name, From: s.role + " " + s.identity, Question: title})
+}
+
 // artifactChange is `artifact_waiting` and `artifact_remove`.
 func (d *daemon) artifactChange(cl *client, message frame) error {
 	s := d.byToken(message.Token)
@@ -234,9 +244,13 @@ func (d *daemon) artifactChange(cl *client, message frame) error {
 	if message.Waiting == nil {
 		return withExit(exitUsage, errors.New("artifact_waiting needs waiting true or false"))
 	}
+	wasWaiting := entry.Waiting
 	entry.Waiting = *message.Waiting
 	d.persistArtifact(entry)
 	d.apps.emit(frame{Type: "artifact_update", Session: entry.Owner, ArtifactID: id, Waiting: message.Waiting})
+	if entry.Waiting && !wasWaiting {
+		d.notifyArtifactWaiting(s, entry.Title)
+	}
 	return cl.c.write(frame{Type: "artifact_waiting", ID: message.ID, ArtifactID: id, Waiting: message.Waiting})
 }
 
