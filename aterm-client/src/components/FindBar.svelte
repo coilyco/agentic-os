@@ -1,14 +1,15 @@
 <script lang="ts">
   import type { ISearchOptions, SearchAddon } from "@xterm/addon-search";
   import { onMount } from "svelte";
+  import { findColours, readToken } from "../lib/brand";
   import { findCountText } from "../lib/terminal-extras";
 
   let { search, initial = "", onclose }: { search: SearchAddon; initial?: string; onclose: () => void } = $props();
 
-  // Hex only, since xterm paints these itself. The text keeps its colour, so the fills stay dark.
+  // Hex only, since xterm paints these itself, so they come from the accent token. The fills stay dark.
   const options: ISearchOptions = {
     caseSensitive: false,
-    decorations: { matchBackground: "#33294f", matchOverviewRuler: "#5b4a86", activeMatchBackground: "#5e4a99", activeMatchBorder: "#c9a4ff", activeMatchColorOverviewRuler: "#c9a4ff" },
+    decorations: findColours(readToken("--treehouse", "#66dd8a"), readToken("--ground", "#0b0c10")),
   };
   // svelte-ignore state_referenced_locally
   let query = $state(initial);

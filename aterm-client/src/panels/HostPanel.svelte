@@ -5,12 +5,15 @@
   import type { Host } from "../lib/protocol";
   import { typingNotice } from "../lib/typing";
   import { splitSessions } from "../lib/sessions";
+  import Home from "../components/Home.svelte";
   import InstallCard from "../components/InstallCard.svelte";
   import ConnectionCheck from "../components/ConnectionCheck.svelte";
 
   const host = $derived(selectedHost());
   const silent = $derived(app.hosts.filter((candidate) => candidate.status.kind === "unreachable"));
   const running = $derived(splitSessions(app.sessions).running.length);
+  // A healthy attached host with no seat open is just the logo. A fault, a lock or a notice shows the full page.
+  const home = $derived(!!host && host.id === app.attachedHostId && host.status.kind === "online" && !reconnecting() && app.typing.allowed && !app.notice && !host.found);
 
   let draft = $state("");
   let draftError = $state("");
@@ -40,6 +43,9 @@
   }
 </script>
 
+{#if home}
+  <Home seats={running} />
+{:else}
 <section class="panel">
   {#if !host}
     <h1>Pick a host</h1>
@@ -121,6 +127,7 @@
   <p class="note" role="status">{app.notice}</p>
   <InstallCard />
 </section>
+{/if}
 
 <style>
   .panel { max-width: 760px; padding: 40px clamp(16px, 4vw, 48px); display: flex; flex-direction: column; gap: 18px; }
