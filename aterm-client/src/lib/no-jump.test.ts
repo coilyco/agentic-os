@@ -24,6 +24,7 @@ describe("seat selection", () => {
       "components/SeatToast.svelte",
       "components/Sidebar.svelte",
       "lib/app.svelte.ts",
+      "lib/push.svelte.ts", // a tapped notification, held up to 15 seconds for its seat to be listed
       "panels/LaunchPanel.svelte",
     ]);
   });
