@@ -1,5 +1,6 @@
 <script lang="ts">
   import AttentionSwitches from "../components/AttentionSwitches.svelte";
+  import InstallCard from "../components/InstallCard.svelte";
   import TapTraceSwitch from "../components/TapTraceSwitch.svelte";
   import { app, closeSettings, removeHost } from "../lib/app.svelte";
   import { DEFAULT_TEXT_SIZE, loadTextSize, stepTextSize, storeTextSize, TEXT_SIZES } from "../lib/text-size";
@@ -22,6 +23,8 @@
   <p class="lede">These apply to this device only. Each takes effect as soon as you change it.</p>
 
   <AttentionSwitches />
+
+  <InstallCard />
 
   <section class="group" aria-labelledby="text-label">
     <h2 id="text-label">Terminal text</h2>

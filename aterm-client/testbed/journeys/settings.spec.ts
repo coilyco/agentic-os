@@ -16,6 +16,8 @@ test("Settings opens from home, changes take effect, and Back returns", async ({
   await expect(settings.getByRole("heading", { name: "Alerts" })).toBeVisible();
   await expect(settings.getByRole("heading", { name: "Terminal text" })).toBeVisible();
   await expect(settings.getByRole("heading", { name: "Hosts on this device" })).toBeVisible();
+  // The home screen replaced the host page, the install card's old place.
+  await expect(settings.getByRole("heading", { name: "Install Treehouse as an app" })).toBeVisible();
   await page.mouse.move(0, 0);
   await page.screenshot({ path: info.outputPath("settings.png"), fullPage: true });
 
