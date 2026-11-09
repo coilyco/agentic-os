@@ -25,8 +25,7 @@ make_users() {
     id "$name" >/dev/null 2>&1 || sudo useradd --create-home --shell /bin/bash "$name"
   done
   mkdir -p "$out"
-  sudo chmod 755 "$HOME" "$repo_root" "$out"
-  sudo chown "$SEAT_USER" "$out"
+  chmod 755 "$HOME" "$repo_root" "$out"
 }
 
 # as USER ENV... -- CMD...: a command as that user with only the given environment.
@@ -38,8 +37,7 @@ as() {
 
 build() {
   (cd "$repo_root/aterm" && go build -o "$out/aterm-bin" .)
-  sudo chown "$SEAT_USER" "$out/aterm-bin"
-  sudo chmod 755 "$out/aterm-bin"
+  chmod 755 "$out/aterm-bin"
 }
 
 start_daemon() {
