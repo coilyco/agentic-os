@@ -8,6 +8,10 @@ How [the aterm daemon](../../../../docs/aterm-daemon.md) decides which device on
 
 **A websocket opens only from the page the listener served, `https://coilyco.dev`, or the Android app's origin**, and the origin must be https.
 
+## Loopback serves the app only when it is named
+
+**The loopback listener serves a page only when its origin is on loopback itself**, so the Android app's `https://tauri.localhost` is refused there with `X-Aterm-Refusal: origin`, unlike on the tailnet listener. `--loopback-origins` (or `ATERM_DAEMON_LOOPBACK_ORIGINS`) names exact https origins to add, and is empty by default. A loopback socket types with no passkey, so only a test daemon behind `adb reverse` sets it ([android-emulator.md](android-emulator.md)).
+
 ## A Serve front is never loopback
 
 **`tailscale serve --bg http://127.0.0.1:7419` puts HTTPS on the node's name at 443.** Serve proxies to the loopback listener, so the socket the daemon sees is the proxy's. Judged as loopback, every device Serve admits would type with no passkey.

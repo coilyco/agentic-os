@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/coder/websocket"
@@ -52,9 +53,9 @@ type accessPolicy struct {
 	origin func(*http.Request, *url.URL) bool
 }
 
-// loopbackPolicy refuses a Host that is not loopback, which is how a rebound
-// DNS name arrives, and any page that is not on loopback itself.
-func loopbackPolicy() accessPolicy {
+// loopbackPolicy refuses a non-loopback Host (a rebound DNS name) and any page not on
+// loopback, bar the exact https allowOrigins a test daemon names (see tailnet-access).
+func loopbackPolicy(allowOrigins ...string) accessPolicy {
 	return accessPolicy{
 		admit: func(r *http.Request) error {
 			if !isLoopbackHost(r.Host) {
@@ -62,12 +63,14 @@ func loopbackPolicy() accessPolicy {
 			}
 			return nil
 		},
-		origin: func(_ *http.Request, origin *url.URL) bool { return isLoopbackHost(origin.Host) },
+		origin: func(_ *http.Request, origin *url.URL) bool {
+			return isLoopbackHost(origin.Host) || (origin.Scheme == "https" && slices.Contains(allowOrigins, "https://"+strings.ToLower(origin.Host)))
+		},
 	}
 }
 
 func (d *daemon) websocketHandler() http.Handler {
-	return d.handler(loopbackOrForwarded(d.users.ProxiedPolicy()))
+	return d.handler(loopbackOrForwarded(d.users.ProxiedPolicy(), d.loopbackOrigins...))
 }
 
 // handler serves the client's files, and upgrades a websocket to the same

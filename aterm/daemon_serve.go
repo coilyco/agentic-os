@@ -93,8 +93,8 @@ func forwardedPolicy(node *nodeReader, allowTags, allowOwners, allowOrigins []st
 
 // loopbackOrForwarded judges a plain local request as loopback and a proxied one
 // by tailnet identity. With no forwarded policy set, a proxied request is refused.
-func loopbackOrForwarded(forwardedAs accessPolicy) accessPolicy {
-	local := loopbackPolicy()
+func loopbackOrForwarded(forwardedAs accessPolicy, loopbackOrigins ...string) accessPolicy {
+	local := loopbackPolicy(loopbackOrigins...)
 	return accessPolicy{
 		admit: func(r *http.Request) error {
 			if !forwarded(r) {

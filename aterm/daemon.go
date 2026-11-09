@@ -33,9 +33,11 @@ const (
 )
 
 type daemon struct {
-	mu       sync.Mutex
-	github   *githubBroker
-	sessions map[string]*ptySession
+	// loopbackOrigins are the extra page origins the loopback listener serves.
+	loopbackOrigins []string
+	mu              sync.Mutex
+	github          *githubBroker
+	sessions        map[string]*ptySession
 	// terminals are plain login shells. They sit in their own map so every walk
 	// of sessions (send targets, roster, counts) skips them without a filter.
 	terminals map[string]*ptySession
@@ -187,8 +189,11 @@ type daemonOptions struct {
 	AllowOwners []string
 	// AllowOrigins are hosted client pages, like https://coilyco.dev.
 	AllowOrigins []string
-	ClientDir    string
-	Idle         time.Duration
+	// LoopbackOrigins are exact https origins, like the Android app's, that may open
+	// a session socket on the loopback listener. Empty unless a test daemon names one.
+	LoopbackOrigins []string
+	ClientDir       string
+	Idle            time.Duration
 	// EndSessions ends every session when the daemon stops. By default they
 	// keep running in their holders for the next daemon to adopt.
 	EndSessions bool
@@ -248,6 +253,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 			defer d.guard("daemon")
 		}
 	}
+	d.loopbackOrigins = options.LoopbackOrigins
 	d.users = openLocalUsers(d.userHost(), options)
 	d.holdDir = filepath.Join(dir, "hold")
 	// Beside the socket, the one directory every seat that reaches the daemon shares.
