@@ -7,7 +7,7 @@ import { safely } from "./pane-watch";
 import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, ImageChannel, MessageState, PasskeyChannel, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MessageState, PasskeyChannel, PeerMessage, Session, TerminalChannel, ViewChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
 import { bridge, DeviceKeyError, type Invoke, enrollKey, keyStatus, KEY_CODE_SPENT, mayEnroll, signChallenge, biometricNotice } from "./device-key";
@@ -72,6 +72,8 @@ interface SessionView {
   degraded?: string[];
   context?: { tokens: number; window?: number; source: string };
   last_reply?: string;
+  /** When that reply ended (RFC 3339). */
+  last_reply_at?: string;
   /** Seconds since the seat last wrote, as of the frame. */
   quiet_seconds?: number;
   /** The seat's own line about what it is doing, and when (RFC 3339). */
@@ -135,6 +137,8 @@ interface Frame {
   data?: string;
   /** The absolute file an `image_uploaded` names. */
   path?: string;
+  /** Answers a `last_reply` request. */
+  reply?: { session?: string; text?: string; truncated?: boolean; at?: string };
   sessions?: SessionView[];
   message?: MessageView;
   roster?: unknown;
@@ -277,6 +281,7 @@ export function toSession(view: SessionView, busy = false, quiet?: number): Sess
     ...(view.ready ? {} : { starting: true }),
     ...(view.context ? { context: toContext(view.context) } : {}),
     ...(view.last_reply ? { lastReply: view.last_reply } : {}),
+    ...(view.last_reply && Number.isFinite(Date.parse(view.last_reply_at ?? "")) ? { lastReplyAt: Date.parse(view.last_reply_at ?? "") } : {}),
     ...(activity ? { activity } : {}),
     ...(quiet === undefined ? {} : { quietSince: quiet }),
   };
@@ -544,6 +549,18 @@ export class DaemonHost implements HostConnection {
       const reply = await this.exchange({ type: "image_upload", session: sessionId, data });
       if (!reply.path) throw new Error("The host took the image but named no file for it.");
       return reply.path;
+    },
+  };
+
+  /** Only a welcome listing `last-reply` answers for a seat's whole last reply. */
+  get lastReplies(): LastReplyChannel | undefined {
+    return this.features.has("last-reply") ? this.lastReplyChannel : undefined;
+  }
+
+  private lastReplyChannel: LastReplyChannel = {
+    fetch: async (sessionId) => {
+      const frame = await this.exchange({ type: "last_reply", target: sessionId });
+      return { text: frame.reply?.text ?? "", truncated: frame.reply?.truncated === true };
     },
   };
 
@@ -888,6 +905,7 @@ export class DaemonHost implements HostConnection {
         if (frame.view_id) this.emit({ type: "view_closed", id: frame.view_id });
         return;
       case "view_result":
+      case "last_reply":
       case "image_uploaded":
       case "passkey_enroll_options":
       case "passkey_enrolled":

@@ -14,7 +14,7 @@ const HERE = fileURLToPath(new URL(".", import.meta.url));
 const DIST = process.env.ATERM_TESTBED_DIST ?? join(HERE, "..", "dist");
 const ROSTER = join(HERE, "..", "src", "lib", "fixtures", "roster.json");
 /** What the real daemon offers on a loopback page, so the client takes its real paths. */
-const FEATURES = ["pty-size", "terminals", "terminal-label", "browser", "open-url"];
+const FEATURES = ["pty-size", "terminals", "terminal-label", "browser", "open-url", "last-reply"];
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -41,6 +41,10 @@ export interface SessionSpec {
   degraded?: string[];
   context?: { tokens: number; window?: number; source: string };
   last_reply?: string;
+  /** What a `last_reply` returns: the whole text, its age, and whether it was cut. */
+  last_reply_text?: string;
+  last_reply_age_seconds?: number;
+  last_reply_truncated?: boolean;
   /** Seconds since the seat last wrote, as the daemon's session view carries it. */
   quiet_seconds?: number;
   /** The seat's "what I'm doing" line and how long ago it set it, in seconds. */
@@ -79,6 +83,8 @@ export interface Mock {
   holdWide(session: string, cols: number): void;
   /** Replace a seat's scene and redraw it on every client attached. */
   setScene(session: string, scene: Scene): void;
+  /** Give a seat a finished reply: the first line rides the view, the text a request. */
+  setLastReply(session: string, reply: { text: string; ageSeconds?: number; truncated?: boolean }): void;
   /** Send one daemon frame to every client, as the daemon would push it. */
   push(frame: Record<string, unknown>): void;
   /** Add a seat to the roster list, as a launch does. */
@@ -262,6 +268,12 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
         case "list":
           send(socket, { ...sessionsFrame(), id: frame.id });
           return;
+        case "last_reply": {
+          const spec = live.get(String(frame.target))?.spec;
+          const reply = spec?.last_reply_text === undefined ? { session: String(frame.target), text: "" } : { session: spec.name, text: spec.last_reply_text, truncated: spec.last_reply_truncated === true, at: new Date(Date.now() - (spec.last_reply_age_seconds ?? 0) * 1000).toISOString() };
+          send(socket, { type: "last_reply", id: frame.id, session: reply.session, reply });
+          return;
+        }
         case "roster":
           send(socket, { type: "roster", id: frame.id, roster });
           return;
@@ -358,6 +370,12 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
       seat.scene = scene;
       redraw(seat);
     },
+    setLastReply(session, reply) {
+      const seat = live.get(session);
+      if (!seat) throw new Error(`no seat named ${session}`);
+      Object.assign(seat.spec, { last_reply: reply.text.split("\n")[0], last_reply_text: reply.text, last_reply_age_seconds: reply.ageSeconds ?? 0, last_reply_truncated: reply.truncated === true });
+      broadcast(sessionsFrame());
+    },
     push: broadcast,
     addSession(spec) {
       add(spec);
@@ -388,9 +406,13 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   };
 }
 
-function withoutScene(spec: SessionSpec): Omit<SessionSpec, "scene" | "activity_age_seconds"> & { activity_at?: string } {
-  const { scene: _scene, activity_age_seconds: age, ...view } = spec;
-  return { ...view, ...(spec.activity && age !== undefined ? { activity_at: new Date(Date.now() - age * 1000).toISOString() } : {}) };
+function withoutScene(spec: SessionSpec): Record<string, unknown> {
+  const { scene: _scene, activity_age_seconds: age, last_reply_text: _text, last_reply_age_seconds: replyAge, last_reply_truncated: _cut, ...view } = spec;
+  return {
+    ...view,
+    ...(spec.activity && age !== undefined ? { activity_at: new Date(Date.now() - age * 1000).toISOString() } : {}),
+    ...(spec.last_reply && replyAge !== undefined ? { last_reply_at: new Date(Date.now() - replyAge * 1000).toISOString() } : {}),
+  };
 }
 
 function serve(request: IncomingMessage, response: ServerResponse): void {
