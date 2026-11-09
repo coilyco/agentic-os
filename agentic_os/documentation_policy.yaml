@@ -2,17 +2,23 @@
 # Band authored in agentic-os-kai. Procedure: the ratifying-an-exclusion doc.
 
 repos:
+  .github:
+    band: small # the organization profile repo, one profile README and the shared health files (COI-3214)
   agent-compose:
     band: large
     guides: true
-    excludes:
+    excludes: # evaluations/<run>/ holds dated evaluation records moved in from housecast, one per file
     - testdata/contracts/**
     - testdata/handmade-bundle/**
     - seed/roster/data/**
+    - evaluations/**
+    size_excludes:
+    - evaluations/**
   agent-proxy:
     band: large
   agentic-os:
     band: large
+    guides: true # what a human does day to day in the aterm client, never repo procedure
     excludes:
     - SSM.md
   agentic-os-hardware:
@@ -35,6 +41,8 @@ repos:
     band: micro # its info lives primarily in skills
   aterm-client:
     band: small
+  bluesky-mcp:
+    band: small # a read-only Bluesky MCP with a fixed, bounded tool surface (COI-3214)
   coilysiren:
     band: micro # fundamentally a simple repo
   deploy:
@@ -57,12 +65,16 @@ repos:
     band: small
   galaxy-gen:
     band: small
+  homebrew-tap:
+    band: small # one Formula per tool, a rendered formula tree with no prose to cap (COI-3033)
   housecast:
     band: small
     excludes:
     - evaluations/**
     size_excludes:
     - evaluations/**
+  inbox:
+    band: small # the private issue inbox for cross-repository work intake (COI-3214)
   infrastructure:
     band: large
     excludes:
@@ -70,20 +82,37 @@ repos:
     - eco-server/**
   lore:
     band: micro # its info lives primarily in skills
+  lunch-money-k8s:
+    band: small # an MCP server and Helm chart for the Lunch Money API (COI-3214)
+  mcp-beaver:
+    band: small # the guarded MCP runtime and chart, docs trimmed to the small caps (COI-2638)
+  node-stats-mcp:
+    band: small # a read-only Linux and Kubernetes diagnostics MCP (COI-3214)
+  scoop-bucket:
+    band: small # one manifest per tool, a rendered bucket tree with no prose to cap (COI-3033)
   sentry-bridge:
     band: small # one small poller service
   sirens-echo:
     band: large
     excludes: # eval/<record>/ holds Sirens Deep evaluation records
     - eval/**
+    - agent/compose/person/** # agent-compose roster data, which agent-compose loads from exactly this path (COI-3215)
     size_excludes:
     - eval/**
   ssm-app:
     band: small # one small Swift app
   steam-ops:
     band: small
+  stunt-box:
+    band: small # one demo appliance: an emoji MCP server, a kiosk display, and its deploy kit (COI-2872)
   tally:
     band: small
+  treehouse-servers:
+    band: large # the Treehouse Servers record, about 85,000 characters over three source tabs, one page per section (COI-2836)
+    excludes: # agent-compose engine inputs the Go loader reads by exact name (SKILL.md, INVARIANT.md) and the fixtures its tests parse, which are data rather than docs (COI-3367). Placement only, size caps still apply.
+    - agent-compose/seed/roster/data/**
+    - agent-compose/testdata/contracts/**
+    - agent-compose/testdata/handmade-bundle/**
   umbra:
     band: large
     guides: true

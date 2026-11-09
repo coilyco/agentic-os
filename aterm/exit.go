@@ -12,6 +12,7 @@ const (
 	exitSpawn     = 5
 	exitNested    = 6
 	exitDrift     = 7
+	exitNoClient  = 8
 )
 
 type exitError struct {
@@ -56,6 +57,8 @@ type typingStanding struct {
 	Reason  string `json:"reason,omitempty"`
 	// Passkey is "enrolled" or "unenrolled", for a remote device only.
 	Passkey string `json:"passkey,omitempty"`
+	// DeviceKey is "enrolled" or "unenrolled", for a remote device only.
+	DeviceKey string `json:"device_key,omitempty"`
 }
 
 type reasonError struct {

@@ -167,6 +167,10 @@ func TestClassifyStopsSeeingAnAnsweredPrompt(t *testing.T) {
 // The state a client lists is read off a real session's screen: held on a
 // prompt while it shows, and no longer once the program repaints over it.
 func TestListedStateFollowsTheScreen(t *testing.T) {
+	// A short grace keeps the busy window wide enough for a loaded machine to poll it.
+	saved := cardGrace
+	cardGrace = 100 * time.Millisecond
+	t.Cleanup(func() { cardGrace = saved })
 	testDaemon(t)
 	tc := dialTest(t)
 	script := `printf '\033[?2004h'; printf 'Do you want to proceed?\r\n1. Yes\r\nEsc to cancel\r\n'; ` +
@@ -220,5 +224,33 @@ func TestScreenClaudeStyleRepaint(t *testing.T) {
 	got := s.text()
 	if len(got) != 6 || got[5] != "new    status" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+// Leaving the alternate screen after a resize brought back the main buffer at its old
+// size, so the next scroll indexed outside it and panicked the daemon. COI-2756
+func TestLeavingTheAlternateScreenAfterAResizeFitsTheMainBuffer(t *testing.T) {
+	scr := newScreen(2, 8)
+	scr.write([]byte("hi\r\n"))
+	scr.write([]byte("\x1b[?1049h"))
+	scr.resize(5, 4)
+	scr.write([]byte("\x1b[?1049l"))
+	if len(scr.cells) != 5 || len(scr.cells[0]) != 4 {
+		t.Fatalf("main buffer is %dx%d, want 5x4", len(scr.cells), len(scr.cells[0]))
+	}
+	scr.write([]byte("\x1b[S\x1b[99B\x1b[99Ca"))
+	if got := scr.text(); len(got) != 5 {
+		t.Fatalf("screen reads %d rows, want 5", len(got))
+	}
+}
+
+func TestLeavingTheAlternateScreenKeepsWhatFitsOfTheMainBuffer(t *testing.T) {
+	scr := newScreen(3, 8)
+	scr.write([]byte("keep"))
+	scr.write([]byte("\x1b[?1049h"))
+	scr.resize(3, 6)
+	scr.write([]byte("\x1b[?1049l"))
+	if got := strings.TrimRight(scr.text()[0], " "); got != "keep" {
+		t.Fatalf("first row %q, want the main buffer's own text", got)
 	}
 }

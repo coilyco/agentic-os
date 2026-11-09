@@ -45,12 +45,12 @@ def test_release_bundles_every_module_a_guardfile_execs() -> None:
     ).stdout.split()
     bundled = {Path(line).name for line in listed}
 
+    # Empty is valid when no guardfile execs a module. The parser control is below.
     execed = {
         f"{argv[argv.index('-m') + 1].split('.')[-1]}.py"
         for guardfile in GUARDFILES
         for argv in _module_argvs(guardfile.read_text(encoding="utf-8"))
     }
-    assert execed, "no module execs found; the parser stopped matching"
     assert execed <= bundled, f"guardfiles exec modules the bundle omits: {execed - bundled}"
     for name in bundled:
         assert (ROOT / "agentic_os" / name).is_file(), f"{name} is bundled but absent"
@@ -95,9 +95,9 @@ def test_prose_naming_a_module_does_not_bundle_it(tmp_path: Path) -> None:
 def test_every_bundled_module_imports_only_modules_the_bundle_carries() -> None:
     """The bundler reads argv, so it cannot see an import.
 
-    `teable_personal` reuses `teable_admin`'s client, and nothing in the
-    derivation models that edge: both ship only because each has its own
-    guardfile. Dropping either guardfile would strand the other at import.
+    A module that reuses another module's client ships only because each has its
+    own guardfile, and nothing in the derivation models that edge. Dropping one
+    guardfile would strand the other at import.
     """
     listed = subprocess.run(
         ["sh", str(ROOT / "scripts" / "guardfile-python-modules.sh"), str(ROOT)],

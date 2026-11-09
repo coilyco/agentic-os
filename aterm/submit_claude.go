@@ -43,6 +43,7 @@ func (s *ptySession) confirmClaude(text string, before int) error {
 			clean = 0
 			if !seen && now.Sub(start) > boxGrace {
 				// A layout this cannot read is unknown, and costs a send no more than the grace.
+				s.d.logf("delivery to %s: box unreadable for %s, counted as delivered", s.name, boxGrace)
 				return nil
 			}
 		case holds:
@@ -53,9 +54,10 @@ func (s *ptySession) confirmClaude(text string, before int) error {
 			}
 			if now.Sub(lastEnter) >= min(enterGap<<retries, enterCeiling) && !s.holdsCard() {
 				if retries == claudeEnters {
-					return errNotSubmitted
+					return s.unsent(before)
 				}
 				retries++
+				s.d.logf("delivery to %s: text still in the box, Enter %d", s.name, retries)
 				if err := s.writePTY([]byte("\r")); err != nil {
 					return err
 				}
@@ -71,7 +73,7 @@ func (s *ptySession) confirmClaude(text string, before int) error {
 		}
 		if now.Sub(start) > arrivalWindow {
 			if holds {
-				return errNotSubmitted
+				return s.unsent(before)
 			}
 			return errNotSeen
 		}
@@ -83,6 +85,24 @@ func (s *ptySession) holdsCard() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.cardReason() != ""
+}
+
+// awaitNoCard returns once no card is up, since an Enter now would answer it, or with
+// errNotSubmitted after arrivalWindow. A session that ends meanwhile returns nil.
+func (s *ptySession) awaitNoCard() error {
+	start := time.Now()
+	for s.holdsCard() {
+		select {
+		case <-s.done:
+			return nil
+		default:
+		}
+		if time.Since(start) > arrivalWindow {
+			return errNotSubmitted
+		}
+		time.Sleep(submitPoll)
+	}
+	return nil
 }
 
 // readClaude reads the screen under the lock: whether claude's box can be found, whether

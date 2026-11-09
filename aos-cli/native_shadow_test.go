@@ -78,6 +78,9 @@ func shortNativeSessionsRoot(t *testing.T) string {
 
 func nativeTestRuntime(t *testing.T, root string) nativeRuntime {
 	t.Helper()
+	// A launch exports both with os.Setenv, and a later t.TempDir reads TMPDIR.
+	t.Setenv("TMPDIR", os.TempDir())
+	t.Setenv(nativeSessionsDirEnv, "")
 	start, err := processStartIdentity(os.Getpid())
 	if err != nil {
 		t.Fatal(err)
@@ -394,6 +397,56 @@ func TestNativeLaunchExportsSessionMarkers(t *testing.T) {
 	}
 	if got := os.Getenv(nativeSessionProjectsEnv); got != lease.SessionProjects {
 		t.Fatalf("session projects = %s, want %s", got, lease.SessionProjects)
+	}
+}
+
+func TestNativeLaunchPointsTmpdirInsideTheSession(t *testing.T) {
+	root := t.TempDir()
+	repository, _ := createNativeTestRepository(t, root, "owner", "one")
+	runtime := nativeTestRuntime(t, root)
+	runtime.CWD = repository
+	writeNativeTestPlan(t, runtime.PlanFile, "one")
+	writeNativeTestList(t, runtime.FleetFile, "owner")
+	hostTemp := t.TempDir()
+	t.Setenv("TMPDIR", hostTemp)
+
+	if _, err := prepareNativeLaunch(runtime, "claude"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, lease := onlyNativeLease(t, runtime)
+	want := filepath.Join(lease.SessionRoot, nativeSessionTempName)
+	if got := os.Getenv("TMPDIR"); got != want {
+		t.Fatalf("TMPDIR = %s, want %s", got, want)
+	}
+	if _, inside := relativeWithin(lease.SessionRoot, os.Getenv("TMPDIR")); !inside {
+		t.Fatalf("TMPDIR %s is outside the session root %s", os.Getenv("TMPDIR"), lease.SessionRoot)
+	}
+	info, err := os.Stat(want)
+	if err != nil || !info.IsDir() || info.Mode().Perm() != 0o700 {
+		t.Fatalf("session temp %s = %v, %v, want a 0700 directory", want, info, err)
+	}
+	if got := os.Getenv(nativeSessionsDirEnv); got != runtime.SessionsRoot {
+		t.Fatalf("%s = %s, want the resolved sessions root %s", nativeSessionsDirEnv, got, runtime.SessionsRoot)
+	}
+}
+
+func TestNativeLaunchKeepsAnOperatorSessionsDir(t *testing.T) {
+	root := t.TempDir()
+	repository, _ := createNativeTestRepository(t, root, "owner", "one")
+	runtime := nativeTestRuntime(t, root)
+	runtime.CWD = repository
+	writeNativeTestPlan(t, runtime.PlanFile, "one")
+	writeNativeTestList(t, runtime.FleetFile, "owner")
+	operator := filepath.Join(root, "operator-sessions")
+	t.Setenv(nativeSessionsDirEnv, operator)
+
+	if _, err := prepareNativeLaunch(runtime, "claude"); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := os.Getenv(nativeSessionsDirEnv); got != operator {
+		t.Fatalf("%s = %s, want the operator value %s", nativeSessionsDirEnv, got, operator)
 	}
 }
 
@@ -2476,5 +2529,64 @@ func TestNativeGitBoundedEndsAHungCall(t *testing.T) {
 	}
 	if took := time.Since(began); took > 5*time.Second {
 		t.Fatalf("the call ran %s past its 200ms bound", took)
+	}
+}
+
+func TestStageStandaloneRoleHomeLeavesTheHarnessRuntimeStateBehind(t *testing.T) {
+	source := filepath.Join(t.TempDir(), "source")
+	target := filepath.Join(t.TempDir(), "target")
+	state := []string{"projects", "backups", "telemetry", "file-history", "security", "todos"}
+	for _, name := range state {
+		dir := filepath.Join(source, ".claude", name, "nested")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "big.jsonl"), []byte("transcript\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"settings.json", "history.jsonl"} {
+		if err := os.WriteFile(filepath.Join(source, ".claude", name), []byte("x\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := stageStandaloneRoleHome(source, target); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Lstat(filepath.Join(target, ".claude", "settings.json")); err != nil {
+		t.Errorf("config was not copied: %v", err)
+	}
+	for _, name := range append(state, "history.jsonl") {
+		if _, err := os.Lstat(filepath.Join(target, ".claude", name)); !os.IsNotExist(err) {
+			t.Errorf("runtime state %s was copied into the session home: %v", name, err)
+		}
+	}
+}
+
+func TestStandaloneWorkspaceCloseRemovesOnlyTheStagedHome(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	projects := filepath.Join(root, "projects")
+	for _, dir := range []string{home, projects} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	workspace := standaloneWorkspace{Source: projects, HomeSource: home}
+
+	if err := workspace.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := os.Stat(home); !os.IsNotExist(err) {
+		t.Errorf("the staged home survived Close: %v", err)
+	}
+	if _, err := os.Stat(projects); err != nil {
+		t.Errorf("Close touched the worktrees: %v", err)
+	}
+	if err := (standaloneWorkspace{}).Close(); err != nil {
+		t.Errorf("Close with no staged home: %v", err)
 	}
 }

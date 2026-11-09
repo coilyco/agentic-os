@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { envelope, envelopeRows, parseFrom, upsertMessage } from "./messages";
+import { envelope, envelopeRows, gist, parseFrom, upsertMessage } from "./messages";
 import type { PeerMessage } from "./protocol";
 
 const message: PeerMessage = {
@@ -38,5 +38,17 @@ describe("upsertMessage", () => {
   it("replaces a message whose state moved", () => {
     const queued = { ...message, state: "queued" as const };
     expect(upsertMessage([queued], message)).toEqual([message]);
+  });
+});
+
+describe("gist", () => {
+  it("is the first line that says something", () => {
+    expect(gist("\n  \n  Run the gate.  \nThen merge.")).toBe("Run the gate.");
+  });
+
+  it("is empty for a message with no text, so the row shows nothing extra", () => {
+    expect(gist(null)).toBe("");
+    expect(gist(undefined)).toBe("");
+    expect(gist("  \n ")).toBe("");
   });
 });

@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+source "${GITHUB_ACTION_PATH}/../_lib/release.sh"
+
 git fetch --tags --quiet
 
 prev_tag=$(git tag --list "${TAG_PREFIX}[0-9]*.[0-9]*.[0-9]*" \
@@ -83,25 +85,29 @@ if [ -z "${new_version:-}" ]; then
 fi
 
 if [ "$create_tag" = "true" ]; then
-  payload=$(printf '{"tag_name":"%s","target":"%s"}' "$new_tag" "$RELEASE_SHA")
-  http_code=$(curl -sS -o /tmp/tagresp.json -w '%{http_code}' \
+  release_init
+  # A lightweight tag through the refs API. GitHub answers 422 when it exists.
+  tag_url="$RELEASE_API/repos/$REPO/git/refs"
+  payload=$(printf '{"ref":"refs/tags/%s","sha":"%s"}' "$new_tag" "$RELEASE_SHA")
+  if ! http_code=$(release_curl_status /tmp/tagresp.json \
     -X POST \
-    -H "Authorization: token $FORGEJO_TOKEN" \
+    "${RELEASE_HDRS[@]}" \
     -H "Content-Type: application/json" \
     -d "$payload" \
-    "$FORGEJO_BASE_URL/api/v1/repos/$REPO/tags")
-  case "$http_code" in
-    201)
-      ;;
-    409)
-      echo "tag already exists for $new_tag, continuing"
-      ;;
-    *)
-      echo "::error::forgejo tag create failed: HTTP $http_code"
-      cat /tmp/tagresp.json
-      exit 1
-      ;;
-  esac
+    "$tag_url"); then
+    echo "::error::GitHub tag create request timed out or failed"
+    cat /tmp/tagresp.json
+    exit 1
+  fi
+  if [ "$http_code" = 201 ]; then
+    :
+  elif [ "$http_code" = 422 ] && grep -q 'Reference already exists' /tmp/tagresp.json; then
+    echo "tag already exists for $new_tag, continuing"
+  else
+    echo "::error::GitHub tag create failed: HTTP $http_code"
+    cat /tmp/tagresp.json
+    exit 1
+  fi
 else
   echo "dry-run tag computation only; not creating $new_tag"
 fi
@@ -109,13 +115,16 @@ fi
 echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
 echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
 echo "previous_tag=$prev_tag" >> "$GITHUB_OUTPUT"
+# A first tag would carry the whole history into an env var past the exec
+# limit, so keep the newest commits and count the rest.
+changelog_max=100
 {
   echo "changelog<<EOF"
-  if [ -n "$prev_tag" ]; then
-    git log --pretty=format:'- %s (%h)' "$range"
-  else
-    git log --pretty=format:'- %s (%h)' HEAD
-  fi
+  git log --pretty=format:'- %s (%h)' -n "$changelog_max" "$range"
   echo ""
+  total=$(git rev-list --count "$range")
+  if [ "$total" -gt "$changelog_max" ]; then
+    echo "- ... and $((total - changelog_max)) older commits"
+  fi
   echo "EOF"
 } >> "$GITHUB_OUTPUT"

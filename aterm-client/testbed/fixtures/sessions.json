@@ -1,0 +1,53 @@
+[
+  {
+    "name": "frontend-eng-imp-dragonfly",
+    "role": "frontend-eng",
+    "identity": "Imp-Dragonfly",
+    "seat": "claude",
+    "ready": true,
+    "bracketed_paste": true,
+    "kai_drafting": false,
+    "pending": 0,
+    "context": { "tokens": 84200, "window": 200000, "source": "claude" },
+    "last_reply": "The gate is green. Changes: choices.ts reads a wrapped Next label as one row.",
+    "scene": "claude-working",
+    "quiet_seconds": 190
+  },
+  {
+    "name": "eng-platform-beetle-ox",
+    "role": "eng-platform",
+    "identity": "Beetle-Ox",
+    "seat": "claude",
+    "ready": true,
+    "bracketed_paste": true,
+    "kai_drafting": false,
+    "pending": 0,
+    "context": { "tokens": 131000, "window": 200000, "source": "claude" },
+    "last_reply": "Daemon holds sends while a dialog is open. Tests added.",
+    "scene": "claude-idle"
+  },
+  {
+    "name": "prod-director-griffin-goose",
+    "role": "prod-director",
+    "identity": "Griffin-Goose",
+    "seat": "claude",
+    "ready": true,
+    "bracketed_paste": true,
+    "kai_drafting": false,
+    "pending": 0,
+    "context": { "tokens": 42000, "window": 200000, "source": "claude" },
+    "last_reply": "Routed COI-3243 bug 1 to the platform seat.",
+    "scene": "claude-idle"
+  },
+  {
+    "name": "sysadmin-senior-turtle-ox",
+    "role": "sysadmin-senior",
+    "identity": "Turtle-Ox",
+    "seat": "codex",
+    "ready": true,
+    "bracketed_paste": true,
+    "kai_drafting": false,
+    "pending": 0,
+    "scene": "claude-idle"
+  }
+]

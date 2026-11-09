@@ -1,9 +1,11 @@
 <script lang="ts">
   import Attention from "./components/Attention.svelte";
+  import FeedbackSheet from "./components/FeedbackSheet.svelte";
   import LinkBanner from "./components/LinkBanner.svelte";
   import Sidebar from "./components/Sidebar.svelte";
-  import { onMount } from "svelte";
-  import { app, jumpToWaiting, sessionById, waitingSeats } from "./lib/app.svelte";
+  import SeatToast from "./components/SeatToast.svelte";
+  import OpenedPageCard from "./components/OpenedPageCard.svelte";
+  import { app, sessionById, waitingSeats } from "./lib/app.svelte";
   import { roleFor } from "./lib/sessions";
   import HostPanel from "./panels/HostPanel.svelte";
   import LaunchPanel from "./panels/LaunchPanel.svelte";
@@ -21,36 +23,20 @@
     else void badge.clearAppBadge?.().catch(() => {});
   });
 
-  function arrive(): void {
-    if (document.visibilityState !== "visible" || !app.attachedHostId) return;
-    const current = sessionById(app.selectedSession);
-    const alreadyThere = current && waiting.some((each) => each.sessionId === current.id);
-    app.triage = true;
-    if (!alreadyThere) jumpToWaiting();
-  }
-
-  onMount(() => {
-    const leave = () => (app.triage = false);
-    window.addEventListener("focus", arrive);
-    window.addEventListener("blur", leave);
-    document.addEventListener("visibilitychange", arrive);
-    return () => {
-      window.removeEventListener("focus", arrive);
-      window.removeEventListener("blur", leave);
-      document.removeEventListener("visibilitychange", arrive);
-    };
-  });
   const labelledBy = $derived(
     session ? `tab-session-${session.id}` : role ? `tab-role-${role.slug}` : app.selectedHostId ? `tab-host-${app.selectedHostId}` : undefined,
   );
 </script>
 
 <Attention />
+<SeatToast />
+<OpenedPageCard />
+<FeedbackSheet />
 <div class="shell">
   <Sidebar />
   <main>
     <LinkBanner />
-    <div id="main-panel" class="panel-root" role="tabpanel" aria-labelledby={labelledBy}>
+    <div id="main-panel" class="panel-root" class:clear-bottom={!(role && session && session.state !== "failed")} role="tabpanel" aria-labelledby={labelledBy}>
     {#if role && session && session.state !== "failed"}
       {#key session.id}
         <SessionPanel {role} {session} />
@@ -65,10 +51,15 @@
 </div>
 
 <style>
-  .shell { height: 100%; display: flex; }
+  /* viewport-fit=cover draws under the status bar, the cutout and the Android nav buttons, so the shell keeps clear of them (COI-2817). */
+  .shell { height: 100%; display: flex; padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
   main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: auto; }
   .panel-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  /* A seat's panel clears the bottom itself, through the tab strip it reserves. The list and launch screens have no strip. */
+  .panel-root.clear-bottom { padding-bottom: env(safe-area-inset-bottom); }
   @media (max-width: 720px) {
     .shell { flex-direction: column; }
+    /* A phone on its side keeps the row, with the sidebar as a rail. */
+    .shell:has(:global(.sidebar[data-mode="reading"])) { flex-direction: row; }
   }
 </style>

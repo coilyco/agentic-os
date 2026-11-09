@@ -58,7 +58,7 @@ func loopbackPolicy() accessPolicy {
 	return accessPolicy{
 		admit: func(r *http.Request) error {
 			if !isLoopbackHost(r.Host) {
-				return errors.New("loopback hosts only")
+				return &refusal{"name", "loopback hosts only"}
 			}
 			return nil
 		},
@@ -66,14 +66,20 @@ func loopbackPolicy() accessPolicy {
 	}
 }
 
-func (d *daemon) websocketHandler() http.Handler { return d.handler(loopbackPolicy()) }
+func (d *daemon) websocketHandler() http.Handler {
+	return d.handler(loopbackOrForwarded(d.users.ProxiedPolicy()))
+}
 
 // handler serves the client's files, and upgrades a websocket to the same
 // frames as the unix socket. A browser on this host is judged by its socket's owner.
 func (d *daemon) handler(policy accessPolicy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := policy.admit(r); err != nil {
-			http.Error(w, "aterm daemon: "+err.Error(), http.StatusForbidden)
+			d.refuse(w, r, policy, layerOf(err), err.Error())
+			return
+		}
+		if r.URL.Path == reachPath {
+			serveReach(w, r, policy)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, gatewayPrefix) {
@@ -91,7 +97,7 @@ func (d *daemon) handler(policy accessPolicy) http.Handler {
 		origin := r.Header.Get("Origin")
 		parsed, err := url.Parse(origin)
 		if origin == "" || err != nil || !policy.origin(r, parsed) {
-			http.Error(w, "aterm daemon: this page may not open a session socket", http.StatusForbidden)
+			d.refuse(w, r, policy, "origin", "this page may not open a session socket")
 			return
 		}
 		// The origin was judged above, per listener, so the library's own
@@ -108,6 +114,11 @@ func (d *daemon) handler(policy accessPolicy) http.Handler {
 // webPeer stands for an upgraded request's other end. A browser on this host is
 // named by the socket table and walked like a unix peer. An unnamed one counts as under.
 func (d *daemon) webPeer(r *http.Request) peerStanding {
+	// A proxy's socket is loopback and its pid is the proxy, so the walk below
+	// would call every device behind it a browser on this host.
+	if forwarded(r) {
+		return peerStanding{web: true, remote: true}
+	}
 	remote, err := net.ResolveTCPAddr("tcp", r.RemoteAddr)
 	if err != nil {
 		return peerStanding{web: true}
@@ -123,14 +134,22 @@ func (d *daemon) webPeer(r *http.Request) peerStanding {
 	return peerStanding{web: true, pids: pids}
 }
 
-// serveClient is the built aterm client, so a browser opens the daemon's own
-// address and gets a page whose websocket is same-origin.
+// serveClient gives a browser a page whose websocket is same-origin: the
+// --client-dir build when set, else the client embedded in this binary.
 func (d *daemon) serveClient(w http.ResponseWriter, r *http.Request) {
-	if info, err := os.Stat(d.clientDir); d.clientDir == "" || err != nil || !info.IsDir() {
-		http.Error(w, "aterm daemon: no client is installed at "+d.clientDir, http.StatusNotFound)
+	if d.clientDir != "" {
+		if info, err := os.Stat(d.clientDir); err != nil || !info.IsDir() {
+			http.Error(w, "aterm daemon: no client is installed at "+d.clientDir, http.StatusNotFound)
+			return
+		}
+		http.FileServer(http.Dir(d.clientDir)).ServeHTTP(w, r)
 		return
 	}
-	http.FileServer(http.Dir(d.clientDir)).ServeHTTP(w, r)
+	if d.clientFS == nil {
+		http.Error(w, "aterm daemon: this build embeds no client, run just aterm-client-embed or set "+clientDirEnv, http.StatusNotFound)
+		return
+	}
+	http.FileServerFS(d.clientFS).ServeHTTP(w, r)
 }
 
 func newWebsocketConn(ctx context.Context, ws *websocket.Conn) *conn {
@@ -161,7 +180,7 @@ func (d *daemon) listenWebsocket(address string) (*http.Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	server := &http.Server{Handler: d.handler(loopbackPolicy())}
+	server := &http.Server{Handler: d.websocketHandler()}
 	d.mu.Lock()
 	d.loopbackAddr = listener.Addr().String()
 	d.mu.Unlock()

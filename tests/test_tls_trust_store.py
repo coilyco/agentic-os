@@ -60,9 +60,14 @@ def test_an_unusable_candidate_is_skipped_not_fatal(tmp_path: Path) -> None:
 
 
 def test_the_diagnosis_names_the_local_cause_only_when_trust_is_broken(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch
 ) -> None:
-    broken = tls.build_ssl_context(candidates=(_pem_with_no_certs(tmp_path),))
+    # An interpreter with an empty store, whatever this host's default holds.
+    with monkeypatch.context() as patched:
+        patched.setattr(
+            ssl, "create_default_context", lambda *a, **k: ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        )
+        broken = tls.build_ssl_context(candidates=(_pem_with_no_certs(tmp_path),))
     message = tls.trust_diagnosis(broken)
     assert message is not None
     assert "empty CA trust store" in message

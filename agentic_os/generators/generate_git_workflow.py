@@ -36,19 +36,33 @@ LANES = (PULL_REQUEST, PR_AND_MERGE, BRANCH_ONLY)
 
 _DECLARED = "declared as `ward.workflow` in this file's frontmatter"
 
+# GitHub is the only canonical forge fleet-wide (COI-3083), so the block carries
+# one wording and no per-repo forge option.
+
+# Stands in for the one `_BODY` bullet that names the forge's verbs.
+_BEHIND_MARK = "@@BEHIND_BASE@@"
+
+_BEHIND_BASE = (
+    "* **A merge refused because the head branch is behind the base branch is "
+    "yours to fix, never a reason to ask.** Update the branch yourself, with "
+    "`gh pr update-branch <number> --repo <owner>/<repo>` or by merging "
+    "`origin/main` into it and pushing, never by force. Wait for green, then "
+    "merge with `gh pr merge <number> --repo <owner>/<repo> --squash`."
+)
+
 # Lead paragraph per lane. `None` keys the undeclared variant, which never
 # grants a direct push to `main` on a guess.
 _LEAD: dict[str | None, str] = {
     PR_AND_MERGE: (
         f"**This repo runs the `{PR_AND_MERGE}` lane**, {_DECLARED}. The agent "
-        "commits to a task branch, pushes it, opens a Forgejo pull request, "
+        "commits to a task branch, pushes it, opens a GitHub pull request, "
         "and **merges that pull request itself** once it is green. The author "
         "of the code is the one who merges it. Opening the pull request is a "
         "step, never the stopping point."
     ),
     PULL_REQUEST: (
         f"**This repo runs the `{PULL_REQUEST}` lane**, {_DECLARED}. The agent "
-        "commits to a task branch, pushes it, opens a Forgejo pull request, "
+        "commits to a task branch, pushes it, opens a GitHub pull request, "
         "and stops there. The author does not merge on this lane. The director "
         "merge lane takes it from the pull request onward."
     ),
@@ -77,7 +91,7 @@ _BODY = f"""The fleet runs one lane, and it authorizes the agent end to end. Pus
 * **ALWAYS open the pull request** in the same turn as the branch's first push, on every lane except `{BRANCH_ONLY}`. A pushed branch with no pull request is litter nobody reviews.
 * **NEVER `--no-verify`** and **NEVER force-push**. Those two are the real walls, and they stay closed.
 * **ALWAYS merge your own pull request on `{PR_AND_MERGE}`**, in the same turn, as soon as it is green. Reporting it as open and awaiting someone is the failure this lane exists to prevent.
-* **A merge refused with 405 "the head branch is behind the base branch" is yours to fix, never a reason to ask.** Update the branch yourself, with `aosguard ops forgejo pr update <owner> <repo> <index>`, the forgejo `update_pull-request` verb, or by merging `origin/main` into it and pushing, never by force. Wait for green, then merge.
+{_BEHIND_MARK}
 * **NEVER merge on `{PULL_REQUEST}` or `{BRANCH_ONLY}`.** Those two stop where they stop, and the director merge lane carries a `{PULL_REQUEST}` from there."""
 
 # `pointer` drops the fleet-invariant half for a repo whose AGENTS.md the global
@@ -147,7 +161,9 @@ def detect_lane(text: str) -> str | None:
 def render_body(lane: str | None, body: str = BODY_FULL) -> str:
     """Return the block prose for a lane. An unknown lane renders undeclared."""
     tail = _BODY if normalize_body(body) == BODY_FULL else _POINTER
-    return f"### Git workflow\n\n{_LEAD[normalize_lane(lane)]}\n\n{tail}"
+    tail = tail.replace(_BEHIND_MARK, _BEHIND_BASE)
+    lead = _LEAD[normalize_lane(lane)]
+    return f"### Git workflow\n\n{lead}\n\n{tail}"
 
 
 def render_block(lane: str | None, body: str = BODY_FULL) -> str:

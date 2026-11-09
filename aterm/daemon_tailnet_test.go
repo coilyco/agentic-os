@@ -45,7 +45,7 @@ func TestAdmitPeerTakesTheOwnerAndAllowedTagsOnly(t *testing.T) {
 		{"a CI runner", peerWith("tagged-devices", "tag:ci"), false},
 		{"a tagged device claiming the owner's login", peerWith("kai@example.com", "tag:proxy"), false},
 	} {
-		err := admitPeer(testCase.peer, "kai@example.com", allow)
+		err := admitPeer(testCase.peer, []string{"kai@example.com"}, allow)
 		if (err == nil) != testCase.admit {
 			t.Fatalf("%s: admitted=%v, want %v (%v)", testCase.name, err == nil, testCase.admit, err)
 		}
@@ -64,7 +64,7 @@ func tailnetServer(t *testing.T, whois func(string) (tailnetPeer, error)) (strin
 		t.Fatal(err)
 	}
 	node := tailnetNode{FQDN: testFQDN, IPv4: "127.0.0.1", Owner: "kai@example.com"}
-	server := httptest.NewTLSServer(d.handler(tailnetPolicy(node, []string{"tag:physical"}, []string{"https://coilyco.dev"}, whois)))
+	server := httptest.NewTLSServer(d.handler(tailnetPolicy(node, []string{"tag:physical"}, nil, []string{"https://coilyco.dev"}, whois)))
 	t.Cleanup(server.Close)
 	_, port, _ := net.SplitHostPort(server.Listener.Addr().String())
 	// Trust the test server's own certificate. It names example.com, and the
@@ -152,6 +152,7 @@ func TestTailnetWebsocketTakesOnlyThePageItServed(t *testing.T) {
 
 func TestLoopbackServesTheClientWhenOneIsInstalled(t *testing.T) {
 	d := newDaemon(func(string, ...any) {})
+	d.clientFS = nil
 	server := httptest.NewServer(d.handler(loopbackPolicy()))
 	t.Cleanup(server.Close)
 	if response, err := http.Get(server.URL + "/"); err != nil || response.StatusCode != http.StatusNotFound {

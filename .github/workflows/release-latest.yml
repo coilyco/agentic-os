@@ -1,0 +1,51 @@
+# Re-mark one existing release as the repo's latest, the repair for the one-per-repo flag.
+# Manual only. See docs/release.md.
+
+name: release-latest
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to mark as latest."
+        required: true
+
+concurrency:
+  group: release-latest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  mark:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - id: app
+        uses: ./actions/app-token
+        with:
+          app_id: ${{ secrets.COILYCO_OPS_APP_ID }}
+          private_key_base64: ${{ secrets.COILYCO_OPS_APP_PRIVATE_KEY_BASE64 }}
+
+      - name: Require an existing release
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TAG: ${{ inputs.tag }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/release-latest.sh" check
+
+      - uses: ./actions/create-release
+        with:
+          token: ${{ steps.app.outputs.token }}
+          tag: ${{ inputs.tag }}
+          make_latest: "true"
+
+      - name: Read the latest release back
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TAG: ${{ inputs.tag }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/release-latest.sh" verify

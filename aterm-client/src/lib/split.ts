@@ -1,4 +1,4 @@
-// The side panel's width as Kai set it. Drag and arrow keys share one clamp.
+// The side panel's width and open state. Drag and arrow keys share one clamp.
 
 export const SIDE_MIN = 280;
 /** The seat's own terminal never gets narrower than this. */
@@ -39,6 +39,25 @@ export function storeSide(width: number | null, storage: Pick<Storage, "setItem"
     else storage?.setItem(KEY, String(width));
   } catch {
     // Storage can be off. The width holds until reload.
+  }
+}
+
+const OPEN_KEY = "aterm.side-open.v1";
+
+/** Put away until a person opens it: an empty panel costs the terminal 360px. */
+export function loadSideOpen(storage: Pick<Storage, "getItem"> | undefined = safeStorage()): boolean {
+  try {
+    return storage?.getItem(OPEN_KEY) === "open";
+  } catch {
+    return false;
+  }
+}
+
+export function storeSideOpen(open: boolean, storage: Pick<Storage, "setItem"> | undefined = safeStorage()): void {
+  try {
+    storage?.setItem(OPEN_KEY, open ? "open" : "closed");
+  } catch {
+    // Storage can be off. The choice holds until reload.
   }
 }
 

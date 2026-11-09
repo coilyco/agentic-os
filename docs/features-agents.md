@@ -9,7 +9,7 @@ Every per-repo `AGENTS.md` opens with a one-line pointer at the workspace base. 
 `generate-agents-pointer` is the single source of truth for the pointer, rendered as a marker-delimited managed block (`<!-- BEGIN managed by ... -->` / `<!-- END ... -->`). Each org points at its own base, on the host that fits its trust tier:
 
 - **`coilyco/*`** and retired **`coilyco-flight-deck/*`** - the public base on its GitHub mirror (`coilyco/agentic-os/AGENTS.md`), which any reader can open. The merged org mixes public and private repos, which the offline hook cannot tell apart.
-- **`coilyco-bridge/*`** (retired) - the same public base, with the private `agentic-os-kai/AGENTS.md` overlay on canonical Forgejo layered on top. The wording carries the layering: aos-pub is the foundation, aos-kai layers Kai-specific context over it.
+- **`coilyco-bridge/*`** (retired) - the same public base, with the private `agentic-os-kai/AGENTS.md` overlay layered on top. The wording carries the layering: aos-pub is the foundation, aos-kai layers Kai-specific context over it.
 
 The canonical base repos themselves (`agentic-os`, `agentic-os-kai`) are exempt - a base does not point at itself. `coilysiren` stays **deliberately unmanaged**: Kai's public personal namespace outside the coilyco-* fleet. Since the org migration it holds one `.agentic-os-ignore`-exempt repo, the profile `coilysiren/coilysiren`, carrying a bespoke bootstrap rather than a one-line pointer. It is hand-maintained rather than templated, so it takes a hand-fix instead of a generator branch. `website` moved to `coilyco/website`.
 
@@ -43,7 +43,7 @@ hook without clobbering an operator setting. Its base merge also disables
 auto-memory and denies the `claude-in-chrome` computer-use MCP while preserving
 other user denies. Other harnesses export `AOS_AGENT_HARNESS=<harness>` and use
 the hook points they expose. Local computation stays authoritative. The fleet
-permission denies and the issue-ref Stop hook it also converges are described in
+permission denies it also converges are described in
 [native-claude-credentials.md](native-claude-credentials.md).
 
 ### Composed status line

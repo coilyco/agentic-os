@@ -1,0 +1,76 @@
+# Release aos-precommit only when its installed hook surface changes.
+# Runs on the release branch promote.yml advances. See docs/release.md.
+
+name: aos-precommit-release
+
+on:
+  push:
+    branches: [release]
+    paths:
+      - ".pre-commit-hooks.yaml"
+      - "agentic_os/__init__.py"
+      - "agentic_os/config.py"
+      - "agentic_os/*.json"
+      - "agentic_os/*.yaml"
+      - "agentic_os/generators/**"
+      - "agentic_os/pre_commit/**"
+      - "agentic_os/seed_skills_data.py"
+      - "agentic_os/workflow_contract.py"
+      - "pyproject.toml"
+      - "scripts/pr-guard-pre-push.sh"
+      - "scripts/trufflehog-scan.sh"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing or explicit aos-precommit tag for a retry."
+        required: false
+        default: ""
+      bump:
+        description: "Version bump when tag is empty."
+        required: false
+        default: "minor"
+        type: choice
+        options: [minor, patch, major]
+
+concurrency:
+  group: aos-precommit-release-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    if: ${{ github.ref == 'refs/heads/release' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - id: app
+        uses: ./actions/app-token
+        with:
+          app_id: ${{ secrets.COILYCO_OPS_APP_ID }}
+          private_key_base64: ${{ secrets.COILYCO_OPS_APP_PRIVATE_KEY_BASE64 }}
+          repositories: ${{ github.event.repository.name }}
+
+      - id: tag
+        uses: ./actions/tag-bump
+        with:
+          token: ${{ steps.app.outputs.token }}
+          bump: ${{ github.event.inputs.bump || 'minor' }}
+          tag_name: ${{ github.event.inputs.tag || '' }}
+          tag_prefix: aos-precommit-v
+          create_tag: true
+          release_sha: ${{ github.sha }}
+
+      - uses: ./actions/create-release
+        with:
+          token: ${{ steps.app.outputs.token }}
+          tag: ${{ steps.tag.outputs.new_tag }}
+          name: aos-precommit ${{ steps.tag.outputs.new_tag }}
+          body: ${{ steps.tag.outputs.changelog }}
+          make_latest: "false"

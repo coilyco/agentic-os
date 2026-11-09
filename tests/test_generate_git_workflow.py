@@ -241,8 +241,7 @@ def test_every_lane_names_the_recovery_from_a_behind_base_405():
         block = render_block(lane)
         assert 'is yours to fix, never a reason to ask' in block
         assert "head branch is behind the base branch" in block
-        assert "aosguard ops forgejo pr update" in block
-        assert "`update_pull-request`" in block
+        assert "gh pr update-branch <number> --repo <owner>/<repo>" in block
         assert "never by force" in block
 
 
@@ -389,3 +388,39 @@ def test_resolve_body_ignores_a_nonsense_value(tmp_path):
         "[tool.agentic-os.git-workflow]\nbody = 'sparse'\n"
     )
     assert resolve_body(tmp_path) == BODY_FULL
+
+
+@pytest.mark.parametrize("lane", [PR_AND_MERGE, PULL_REQUEST])
+def test_the_block_names_github_and_no_forgejo_verb(lane):
+    block = render_block(lane)
+
+    assert "opens a GitHub pull request" in block
+    assert "Forgejo" not in block and "forgejo" not in block
+
+
+def test_the_block_names_the_lifecycle_verbs_the_guard_grants():
+    block = render_block(PR_AND_MERGE)
+
+    assert "gh pr update-branch <number> --repo <owner>/<repo>" in block
+    assert "gh pr merge <number> --repo <owner>/<repo> --squash" in block
+
+
+def test_the_pointer_body_names_github_in_its_lead_only():
+    block = render_block(PR_AND_MERGE, BODY_POINTER)
+
+    assert "opens a GitHub pull request" in block
+    assert "gh pr update-branch" not in block
+
+
+def test_a_block_carrying_the_retired_forgejo_wording_is_drift():
+    text = apply_to_text(AGENTS.format(lane=PR_AND_MERGE))
+    stale = text.replace("opens a GitHub pull request", "opens a Forgejo pull request")
+
+    assert check_drift(text) == []
+    assert check_drift(stale) != []
+
+
+def test_main_prints_the_github_block(capsys):
+    assert main(["--lane", PR_AND_MERGE]) == 0
+
+    assert "opens a GitHub pull request" in capsys.readouterr().out

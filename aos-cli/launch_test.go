@@ -345,6 +345,7 @@ func TestBuildLaunchPlanMountsCWDAndRunsInternalCompose(t *testing.T) {
 		"--tmpfs\n/tmp:rw,exec,size=" + runtimeTmpfsSize,
 		"--workdir\n/workspace/my-repo",
 		"--env\nAOS_CONTAINER=1",
+		"--env\nAOS_FS_GUARD_ROOTS=/workspace/my-repo:/tmp",
 		"--env\nOPENAI_API_KEY",
 		"type=bind,source=/host/auth.json,target=/run/aos/auth/codex.json,readonly",
 		"--entrypoint\n/usr/local/bin/aos",
@@ -368,6 +369,29 @@ func TestBuildLaunchPlanMountsCWDAndRunsInternalCompose(t *testing.T) {
 	}
 	if containsArg(plan.DockerArgs, "--pull") {
 		t.Fatalf("custom image unexpectedly forced a registry pull:\n%s", joined)
+	}
+}
+
+// The image puts /opt/agentic-os/shims first on PATH (COI-2731). A plan that
+// set PATH would replace that, so the plan leaves it to the image.
+func TestBuildLaunchPlanLeavesPATHToTheImage(t *testing.T) {
+	t.Parallel()
+	plan, err := buildLaunchPlan(launchOptions{
+		Image:    "agentic-os:test",
+		Role:     "platform",
+		Layout:   "claude",
+		Delivery: "native-skills",
+		Composed: true,
+		CWD:      filepath.Join(t.TempDir(), "repo"),
+		Command:  []string{"claude"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, arg := range plan.DockerArgs {
+		if arg == "PATH" || strings.HasPrefix(arg, "PATH=") {
+			t.Fatalf("launch plan sets PATH, which would drop the image's shim directory: %q", arg)
+		}
 	}
 }
 
@@ -399,6 +423,7 @@ func TestBuildLaunchPlanMountsWorkspaceSourceAndNestedCWD(t *testing.T) {
 		"type=bind,source=" + source + ",target=/workspace",
 		"--workdir\n/workspace/owner/repo/docs",
 		"--workspace\n/workspace/owner/repo/docs",
+		"--env\nAOS_FS_GUARD_ROOTS=/workspace:/tmp",
 	} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("launch plan missing %q:\n%s", want, joined)
@@ -438,44 +463,6 @@ func TestBuildLaunchPlanMountsHomeSource(t *testing.T) {
 	}
 	if strings.Contains(joined, "--tmpfs\n"+defaultAgentHome) {
 		t.Fatalf("launch plan kept blank HOME tmpfs with a home source:\n%s", joined)
-	}
-}
-
-func TestBuildLaunchPlanMountsIssuePinContext(t *testing.T) {
-	t.Parallel()
-	source := filepath.Join(t.TempDir(), "issue-pins.md")
-	if err := os.WriteFile(source, []byte("pins\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	digest := strings.Repeat("a", 64)
-	plan, err := buildLaunchPlan(launchOptions{
-		Image:    "agentic-os:test",
-		Role:     "director",
-		Layout:   "codex",
-		Delivery: "native-skills",
-		Composed: true,
-		CWD:      t.TempDir(),
-		Command:  []string{"codex"},
-		UID:      1000,
-		GID:      1000,
-		IssuePinContext: issuePinLaunchContext{
-			HostPath: source,
-			Digest:   digest,
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	joined := strings.Join(plan.DockerArgs, "\n")
-	for _, want := range []string{
-		"--label\naos.issue-pin.digest=" + digest,
-		"type=bind,source=" + source + ",target=" + containerIssuePinContext + ",readonly",
-		"--issue-pin-context\n" + containerIssuePinContext,
-		"--issue-pin-digest\n" + digest,
-	} {
-		if !strings.Contains(joined, want) {
-			t.Errorf("launch plan missing %q:\n%s", want, joined)
-		}
 	}
 }
 

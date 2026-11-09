@@ -61,12 +61,31 @@ type frame struct {
 	// and on each terminals entry. The daemon attaches no meaning to it.
 	Label string `json:"label,omitempty"`
 
-	// attach
+	// attach. Scales says this client renders a PTY larger than its box by panning.
 	Replay bool `json:"replay,omitempty"`
+	Scales bool `json:"scales,omitempty"`
 
-	// input and output
+	// input and output, and the image bytes of an image_upload
 	Data   []byte `json:"data,omitempty"`
 	Offset int64  `json:"offset,omitempty"`
+	// Path is the absolute file an image_uploaded names.
+	Path string `json:"path,omitempty"`
+	// feedback: Image and Images are screenshot tokens, Screen the client's display text
+	// (not "context", which a seat's meter owns), Record the report's id.
+	Image  string          `json:"image,omitempty"`
+	Images []string        `json:"images,omitempty"`
+	Screen *feedbackScreen `json:"screen,omitempty"`
+	Record string          `json:"record,omitempty"`
+	// Delivered is how many clients an opened reply says took the address.
+	Delivered int `json:"delivered,omitempty"`
+
+	// Artifacts: Artifact is a whole page pushed to the views channel, ArtifactID names
+	// one, and Waiting and SeatEnded are set only when they changed. See daemon_artifact.go.
+	Artifact   *artifactView `json:"artifact,omitempty"`
+	ArtifactID string        `json:"artifact_id,omitempty"`
+	Waiting    *bool         `json:"waiting,omitempty"`
+	SeatEnded  *bool         `json:"seat_ended,omitempty"`
+	Standing   bool          `json:"standing,omitempty"`
 
 	// send
 	Token  string `json:"token,omitempty"`
@@ -81,15 +100,29 @@ type frame struct {
 	NotifyIdle bool `json:"notify_idle,omitempty"`
 	// Force closes a session even while it holds a draft or undelivered messages.
 	Force bool `json:"force,omitempty"`
+	// Self closes the caller's own session, named by Token alone and never by Target.
+	Self bool `json:"self,omitempty"`
 	// Peek asks a claim which name it would grant, without holding it.
 	Peek bool `json:"peek,omitempty"`
 	// All asks an inbox for the messages already read as well as the unread.
 	All bool `json:"all,omitempty"`
 
 	// replies and events
-	Message  *peerMessage   `json:"message,omitempty"`
-	Inbox    []inboxMessage `json:"inbox,omitempty"`
-	Sessions []sessionView  `json:"sessions,omitempty"`
+	Message *peerMessage   `json:"message,omitempty"`
+	Inbox   []inboxMessage `json:"inbox,omitempty"`
+
+	// github_token: Repo names the OWNER/REPO asked for, GithubToken and Expires
+	// answer it. The token is a credential, so it rides only the reply frame.
+	Repo        string        `json:"repo,omitempty"`
+	Workflows   bool          `json:"workflows,omitempty"`
+	GithubToken string        `json:"github_token,omitempty"`
+	Expires     string        `json:"expires,omitempty"`
+	Sessions    []sessionView `json:"sessions,omitempty"`
+
+	// stage: Body is the command and Text the note. The reply carries State,
+	// Opened and Viewers. See docs/aterm-pane.md.
+	Opened  bool `json:"opened,omitempty"`
+	Viewers int  `json:"viewers,omitempty"`
 
 	// Terminals rides beside Sessions and never inside it, so a consumer that
 	// counts or targets seats cannot meet a shell.
@@ -98,6 +131,8 @@ type frame struct {
 	// Lines is how many screen rows a status asks for, and Status is its answer.
 	Lines  int            `json:"lines,omitempty"`
 	Status *sessionStatus `json:"status,omitempty"`
+	// Reply answers a last_reply request, which carries a target.
+	Reply *lastReplyView `json:"reply,omitempty"`
 	// ask_choice
 	Ask    *choiceAsk    `json:"ask,omitempty"`
 	AskID  string        `json:"ask_id,omitempty"`
@@ -105,15 +140,34 @@ type frame struct {
 	Text   string        `json:"text,omitempty"`
 	State  string        `json:"state,omitempty"`
 	Answer *choiceAnswer `json:"answer,omitempty"`
-	Roster *listedRoster `json:"roster,omitempty"`
-	Code   int           `json:"code,omitempty"`
-	Error  string        `json:"error,omitempty"`
+	// grant_request carries Grant, grant_check carries Check, and the reply is
+	// grant_verdict. See grant.go.
+	Grant   *grantSpec    `json:"grant,omitempty"`
+	Check   *grantCheck   `json:"check,omitempty"`
+	Verdict *grantVerdict `json:"verdict,omitempty"`
+	Roster  *listedRoster `json:"roster,omitempty"`
+	Code    int           `json:"code,omitempty"`
+	Error   string        `json:"error,omitempty"`
 	// Passkey ceremonies: EnrollCode is the one-time code, Options and Credential
 	// are WebAuthn JSON. See docs/aterm-daemon.md.
-	EnrollCode string          `json:"enroll_code,omitempty"`
-	ExpiresIn  int             `json:"expires_in,omitempty"`
-	Options    json.RawMessage `json:"options,omitempty"`
-	Credential json.RawMessage `json:"credential,omitempty"`
+	EnrollCode string `json:"enroll_code,omitempty"`
+	// Resume is the bearer proof an unlock reply issues and a resume frame presents,
+	// ExpiresIn the seconds it outlives a dropped connection. See daemon_resume.go.
+	Resume    string `json:"resume,omitempty"`
+	ExpiresIn int    `json:"expires_in,omitempty"`
+	// Unlock rides the welcome of a brokered channel only, and UnlockToken is the accounts
+	// token an unlock frame presents. Token stays a seat's session token.
+	Unlock      *unlockOffer    `json:"unlock,omitempty"`
+	UnlockToken string          `json:"unlock_token,omitempty"`
+	Options     json.RawMessage `json:"options,omitempty"`
+	Credential  json.RawMessage `json:"credential,omitempty"`
+	// Device key ceremonies. The binary fields are base64url, no padding, and
+	// Attestation is an array of DER certificates, leaf first.
+	Challenge   string          `json:"challenge,omitempty"`
+	PublicKey   string          `json:"public_key,omitempty"`
+	KeyID       string          `json:"key_id,omitempty"`
+	Signature   string          `json:"signature,omitempty"`
+	Attestation json.RawMessage `json:"attestation,omitempty"`
 	// Reason is the stable name of a typing refusal on an error, and of a
 	// refusal standing on a welcome. See docs/aterm-daemon.md.
 	Reason string `json:"reason,omitempty"`
@@ -180,11 +234,26 @@ type sessionView struct {
 	// are absent from a daemon that predates them. See docs/aterm-daemon.md.
 	State        string `json:"state,omitempty"`
 	QuietSeconds int    `json:"quiet_seconds"`
+	// StateSeconds is how long State has lasted since the daemon first saw it, so a restart
+	// counts from the restart. A pointer, so 0 is a reading and absence is an old daemon.
+	StateSeconds *int `json:"state_seconds,omitempty"`
 	// Degraded names the startup steps agent-compose launched without.
 	Degraded []string `json:"degraded,omitempty"`
 	// Context is how full the seat's context is. Absent until a source has read
 	// one, and from a daemon that predates the field.
 	Context *contextView `json:"context,omitempty"`
+	// LastReply is the first line of the seat's last finished reply. Absent until a
+	// transcript has shown one, and from a daemon that predates the field.
+	LastReply string `json:"last_reply,omitempty"`
+	// LastReplyAt is when that reply finished. The whole text is fetched with last_reply.
+	LastReplyAt *time.Time `json:"last_reply_at,omitempty"`
+	// Ref names this session and not its name, which is reused. close and clear take
+	// `name@ref`. See daemon_names.go.
+	Ref string `json:"ref,omitempty"`
+	// Activity is the seat's own "what I'm doing" line, at most 57 characters, and
+	// ActivityAt when it was set. Absent until set. See references/seat-state.md.
+	Activity   string     `json:"activity,omitempty"`
+	ActivityAt *time.Time `json:"activity_at,omitempty"`
 }
 
 // terminalView is one plain terminal as a client sees it. Cwd is where the shell
@@ -208,6 +277,9 @@ type peerMessage struct {
 	State    string    `json:"state"`
 	Reason   string    `json:"reason,omitempty"`
 	Accepted time.Time `json:"accepted"`
+	// Text is set by broadcastMessage alone, never on a `sent` reply or receipt.
+	Text    string `json:"text,omitempty"`
+	TextCut bool   `json:"text_cut,omitempty"`
 }
 
 // conn is one side of a framed connection, over the unix socket or a
@@ -237,8 +309,23 @@ const sendWaitFeature = "send-wait"
 // sendIdleFeature is how a client knows the daemon reads `notify_idle` on a send.
 const sendIdleFeature = "send-idle"
 
+// askRelayFeature is how a client knows the daemon reads `relay` on an ask and stamps
+// `card_seat`. A daemon predating it would show the card on the asker, unrelayed.
+const askRelayFeature = "ask-relay"
+
+// stateAgeFeature is how a client knows a view carries `state_seconds` and a `sessions`
+// frame is pushed when a state flips. See references/seat-state.md.
+const stateAgeFeature = "state-age"
+
+// lastReplyFeature is how a client knows the daemon answers last_reply and stamps
+// `last_reply_at` on a session view.
+const lastReplyFeature = "last-reply"
+
 // closeFeature is how a client knows the daemon answers a close frame.
 const closeFeature = "close"
+
+// closeSelfFeature is how a client knows a close frame may carry Self.
+const closeSelfFeature = "close-self"
 
 // statusFeature is how a client knows the daemon answers a status frame.
 const statusFeature = "status"

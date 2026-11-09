@@ -19,18 +19,28 @@ const (
 )
 
 type launchDefaults struct {
-	Warded       bool
 	RoleShortcut bool
 	HostNetwork  bool
 }
 
 func main() {
+	if retiredInvocation(os.Args[0]) {
+		fmt.Fprintln(os.Stderr, "aosward: retired with Ward (COI-2727), use aos")
+		os.Exit(1)
+	}
 	cmd := newCommandForInvocation(os.Args[0])
 	args := normalizeRoleShortcutArgs(commandDefaultsForInvocation(os.Args[0]), os.Args)
 	if err := cmd.Run(context.Background(), args); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: %v\n", cmd.Name, err)
 		os.Exit(1)
 	}
+}
+
+// retiredInvocation is a stale aosward link, which must not fall through to the
+// standalone launcher: that is a different boundary than the one it asked for.
+func retiredInvocation(executable string) bool {
+	name := strings.TrimSuffix(strings.ToLower(filepath.Base(executable)), ".exe")
+	return name == "aosward" || strings.HasPrefix(name, "aosward-")
 }
 
 func newCommand() *cli.Command {
@@ -45,9 +55,6 @@ func newCommandForInvocation(executable string) *cli.Command {
 
 func commandDefaultsForInvocation(executable string) launchDefaults {
 	name := strings.TrimSuffix(strings.ToLower(filepath.Base(executable)), ".exe")
-	if name == "aosward" || strings.HasPrefix(name, "aosward-") {
-		return launchDefaults{Warded: true}
-	}
 	for _, alias := range []string{"aoscompose", "aoscomposed"} {
 		if name == alias || strings.HasPrefix(name, alias+"-") {
 			return launchDefaults{RoleShortcut: true, HostNetwork: true}
@@ -58,9 +65,6 @@ func commandDefaultsForInvocation(executable string) launchDefaults {
 
 func commandNameForInvocation(executable string) string {
 	name := strings.TrimSuffix(strings.ToLower(filepath.Base(executable)), ".exe")
-	if name == "aosward" || strings.HasPrefix(name, "aosward-") {
-		return "aosward"
-	}
 	for _, alias := range []string{"aoscompose", "aoscomposed"} {
 		if name == alias || strings.HasPrefix(name, alias+"-") {
 			return alias
@@ -112,7 +116,7 @@ func hasDashTerminator(args []string) bool {
 
 func rootFlagTakesValue(name string) bool {
 	switch name {
-	case "role", "agent-id", "agent", "image", "layout", "density", "delivery", "kubeconfig":
+	case "role", "agent", "image", "layout", "density", "delivery", "kubeconfig":
 		return true
 	default:
 		return false
@@ -123,7 +127,7 @@ func isRootSubcommand(value string) bool {
 	switch value {
 	case "repositories", "version", "converge", "models", "claude-ui", "acompose", "acompose-checkin",
 		"_native-shadow", "_session-id", "_launch-agent", "_container-acompose",
-		"_container-socks-forward", "_container-context-bundle":
+		"_container-socks-forward":
 		return true
 	default:
 		return false
@@ -145,16 +149,8 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 				Usage: "shared role slug selected across enabled capabilities",
 			},
 			&cli.StringFlag{
-				Name:  "agent-id",
-				Usage: "optional stable peer id for a generic warded role",
-			},
-			&cli.StringFlag{
 				Name:  "agent",
 				Usage: "agent harness selected for the launch",
-			},
-			&cli.BoolFlag{
-				Name:  "warded",
-				Usage: "delegate the runtime lifecycle and authority boundary to Ward",
 			},
 			&cli.BoolFlag{
 				Name:  "composed",
@@ -291,7 +287,7 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 			},
 			{
 				Name:      "acompose",
-				Usage:     "launch a standalone composed agent in the AOS image (no Ward: use the root action for --warded)",
+				Usage:     "launch a standalone composed agent in the AOS image",
 				ArgsUsage: "-- <harness> [args...]",
 				Action:    runAcompose,
 			},
@@ -326,6 +322,11 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 					&cli.BoolFlag{Name: "credential"},
 					&cli.BoolFlag{Name: "dry-run"},
 					&cli.StringFlag{Name: "release"},
+					&cli.IntFlag{Name: "finished"},
+					&cli.BoolFlag{Name: "release-dead"},
+					&cli.StringFlag{Name: "trust-guard"},
+					&cli.StringFlag{Name: "trust-paths"},
+					&cli.BoolFlag{Name: "trust-external"},
 				},
 				Action: runNativeShadow,
 			},
@@ -358,14 +359,6 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 						Name:   "tailnet-forward",
 						Hidden: true,
 					},
-					&cli.StringFlag{
-						Name:   "issue-pin-context",
-						Hidden: true,
-					},
-					&cli.StringFlag{
-						Name:   "issue-pin-digest",
-						Hidden: true,
-					},
 				},
 				Action: runContainerAcompose,
 			},
@@ -394,44 +387,13 @@ func newCommandWithDefaults(name string, defaults launchDefaults) *cli.Command {
 					)
 				},
 			},
-			{
-				Name:   "_container-context-bundle",
-				Hidden: true,
-				Flags: []cli.Flag{
-					&cli.StringFlag{
-						Name:     "output",
-						Required: true,
-					},
-					&cli.IntFlag{
-						Name:     "uid",
-						Required: true,
-					},
-					&cli.IntFlag{
-						Name:     "gid",
-						Required: true,
-					},
-					&cli.StringFlag{
-						Name:   "bundle",
-						Hidden: true,
-					},
-					&cli.StringFlag{
-						Name:   "issue-pin-context",
-						Hidden: true,
-					},
-					&cli.StringFlag{
-						Name:   "issue-pin-digest",
-						Hidden: true,
-					},
-				},
-				Action: runContainerContextBundle,
-			},
 		},
 	}
 }
 
 // The legacy subcommand honors none of these. --composed is absent on purpose:
 // it is a documented no-op rather than a dropped capability.
-var acomposeRefusedFlags = []string{"warded", "guarded", "agent"}
+var acomposeRefusedFlags = []string{"guarded", "agent"}
 
 func refuseIntegratedFlags(cmd *cli.Command) error {
 	ignored := make([]string, 0, len(acomposeRefusedFlags))
@@ -444,10 +406,9 @@ func refuseIntegratedFlags(cmd *cli.Command) error {
 		return nil
 	}
 	return fmt.Errorf(
-		"acompose does not honor %s: it launches a standalone AOS container "+
-			"with no Ward lifecycle and no broker boundary.\n"+
+		"acompose does not honor %s: it launches a standalone AOS container.\n"+
 			"For the integrated launch, use the root action:\n"+
-			"  aos --warded --guarded --composed --role <role> --agent <agent>\n"+
+			"  aos --role <role> --agent <agent>\n"+
 			"For the standalone container, keep the documented form:\n"+
 			"  aos --role <role> acompose -- <harness>",
 		strings.Join(ignored, " "),
@@ -510,6 +471,9 @@ func runComposedLaunch(
 	if err != nil {
 		return err
 	}
+	if command, err = applyConfiguredPermissionMode(command, layout); err != nil {
+		return err
+	}
 	uid, gid := hostIdentity()
 	auth, err := authForLaunch(ctx, cmd.Bool("auth"), layout)
 	if err != nil {
@@ -522,16 +486,9 @@ func runComposedLaunch(
 	if err != nil {
 		return err
 	}
-	var issuePins issuePinLaunchContext
-	if !cmd.Bool("dry-run") {
-		issuePins, err = prepareIssuePinLaunchContext(ctx, role)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			returnErr = errors.Join(returnErr, issuePins.Close())
-		}()
-	}
+	defer func() {
+		returnErr = errors.Join(returnErr, workspace.Close())
+	}()
 	mcp, err := discoverMCPLaunch(ctx)
 	if err != nil {
 		return err
@@ -558,7 +515,6 @@ func runComposedLaunch(
 		MCPInventory:    mcp.Inventory,
 		TailnetNetwork:  mcp.TailnetNetwork,
 		TailnetForwards: mcp.Forwards,
-		IssuePinContext: issuePins,
 	})
 	if err != nil {
 		return err
@@ -606,8 +562,6 @@ func runContainerAcompose(ctx context.Context, cmd *cli.Command) error {
 		NoSubstrate:     cmd.Bool("no-substrate"),
 		MCPInventory:    cmd.String("mcp-inventory"),
 		TailnetForwards: forwards,
-		IssuePinContext: strings.TrimSpace(cmd.String("issue-pin-context")),
-		IssuePinDigest:  strings.TrimSpace(cmd.String("issue-pin-digest")),
 	}, osCommandRunner{})
 	if err != nil {
 		return err

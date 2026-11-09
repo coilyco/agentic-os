@@ -13,6 +13,12 @@ describe("aterm.daemon.v1 mapping", () => {
     expect(toSession(view).degraded).toEqual(["card", "telemetry"]);
   });
 
+  it("carries the first line of a seat's last reply, and omits it when the daemon sent none", () => {
+    const view = { name: "s", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 };
+    expect(toSession({ ...view, last_reply: "Merged the PR." }).lastReply).toBe("Merged the PR.");
+    expect(toSession(view)).not.toHaveProperty("lastReply");
+  });
+
   it("carries a context reading, and drops an absent window instead of showing zero", () => {
     const base = { name: "s", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 };
     expect(toSession({ ...base, context: { tokens: 1050, source: "claude" } }).context).toEqual({ tokens: 1050, source: "claude" });
@@ -26,7 +32,17 @@ describe("aterm.daemon.v1 mapping", () => {
 
   it("splits the sender and keeps the failure reason", () => {
     const message = toMessage({ id: "a1", from: "eng-platform Beetle-Ox", target: "game-dev", state: "failed", reason: "no live session" });
-    expect(message).toEqual({ id: "a1", from: { role: "eng-platform", identity: "Beetle-Ox" }, target: "game-dev", session: null, state: "failed", reason: "no live session" });
+    expect(message).toEqual({ id: "a1", from: { role: "eng-platform", identity: "Beetle-Ox" }, target: "game-dev", session: null, state: "failed", reason: "no live session", text: null, textCut: false });
+  });
+
+  it("carries the text of a message when the daemon sends it", () => {
+    const message = toMessage({ id: "a2", from: "eng-platform Beetle-Ox", target: "game-dev", state: "delivered", text: "Run the gate.\nThen merge." });
+    expect(message.text).toBe("Run the gate.\nThen merge.");
+    expect(message.textCut).toBe(false);
+  });
+
+  it("says when the host sent only the head of a long message", () => {
+    expect(toMessage({ id: "a3", from: "eng-platform Beetle-Ox", target: "game-dev", state: "delivered", text: "Part one", text_cut: true }).textCut).toBe(true);
   });
 });
 
@@ -682,6 +698,602 @@ describe("riding out a daemon restart", () => {
     socket.drop();
     expect(events.length).toBe(before);
     expect(reconnecting(events).filter((event) => event.type === "reconnecting" && event.retryAt !== null)).toHaveLength(1);
+    host.close();
+  });
+});
+
+describe("typed input that goes nowhere", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  const refused = (events: HostEvent[]) => events.filter((event) => event.type === "input_refused");
+  const lastId = (socket: StubSocket) => (JSON.parse(socket.sent.at(-1)!) as { id: string }).id;
+
+  it("says so in the daemon's words when an error answers typed input and no lock explains it", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, typing: { allowed: true } });
+    host.input("seat", "hello");
+    socket.receive({ type: "error", id: lastId(socket), code: 1, error: 'not attached to "seat"' });
+    expect(refused(events)).toEqual([{ type: "input_refused", text: 'Not sent. not attached to "seat"' }]);
+    host.close();
+  });
+
+  it("leaves a refusal the lock already shows to the lock", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, typing: { allowed: true } });
+    host.input("seat", "hello");
+    socket.receive({ type: "error", id: lastId(socket), code: 6, error: "assert this device's passkey before it types", reason: "passkey_required" });
+    expect(refused(events)).toEqual([]);
+    expect(typings(events).at(-1)).toEqual({ type: "typing", typing: { allowed: false, reason: "passkey_required" } });
+    host.close();
+  });
+
+  it("ignores an error that names nothing typed", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, typing: { allowed: true } });
+    host.input("seat", "hello");
+    socket.receive({ type: "error", id: "c999", code: 1, error: "unrelated" });
+    expect(refused(events)).toEqual([]);
+    host.close();
+  });
+
+  it("reports input lost to a closed socket instead of dropping it unseen", () => {
+    vi.useFakeTimers();
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, typing: { allowed: true } });
+    socket.drop();
+    const before = socket.sent.length;
+    host.input("seat", "hello");
+    expect(socket.sent.length).toBe(before);
+    expect(refused(events)).toEqual([{ type: "input_refused", text: expect.stringMatching(/^Not sent\./) }]);
+    host.close();
+  });
+});
+
+describe("the passkey flag", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const flags = (events: HostEvent[]) => events.filter((event) => event.type === "passkey");
+
+  it("says whether the welcome lists passkey, and replays it to a later subscriber", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, features: ["typing-guard", "passkey"] });
+    expect(flags(events)).toEqual([{ type: "passkey", available: true }]);
+    const late: HostEvent[] = [];
+    host.subscribe((event) => late.push(event));
+    expect(flags(late)).toEqual([{ type: "passkey", available: true }]);
+    host.close();
+  });
+
+  it("says no for a daemon that lists no passkey", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...WELCOME, features: ["typing-guard"] });
+    expect(flags(events)).toEqual([{ type: "passkey", available: false }]);
+    host.close();
+  });
+});
+
+describe("pty-size", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const SIZED = { ...WELCOME, features: ["pty-size"] };
+  const frames = (socket: StubSocket) => socket.sent.map((line) => JSON.parse(line) as Record<string, unknown>);
+  const attaches = (socket: StubSocket) => frames(socket).filter((frame) => frame.type === "attach" && frame.rows !== undefined);
+
+  it("says a terminal pans only when the welcome lists pty-size", () => {
+    const { host, socket } = connect();
+    socket.receive(SIZED);
+    host.attach("seat", 28, 47);
+    expect(host.ptySize).toBe(true);
+    expect(attaches(socket).at(-1)).toMatchObject({ rows: 28, cols: 47, scales: true });
+    host.close();
+  });
+
+  it("keeps today's frames on a daemon that does not size the PTY", () => {
+    const { host, socket } = connect();
+    socket.receive(WELCOME);
+    host.attach("seat", 28, 47);
+    expect(host.ptySize).toBe(false);
+    expect(attaches(socket).at(-1)).not.toHaveProperty("scales");
+    host.close();
+  });
+
+  it("adds it to an attach queued before the welcome, once the welcome lists pty-size", () => {
+    const { host, socket } = connect();
+    host.attach("seat", 28, 47);
+    expect(socket.sent).toEqual([]);
+    socket.receive(SIZED);
+    expect(attaches(socket)).toEqual([expect.objectContaining({ rows: 28, cols: 47, scales: true })]);
+    host.close();
+  });
+
+  it("never claims a box for a seat that is only watched", () => {
+    const { host, socket } = connect();
+    socket.receive(SIZED);
+    socket.receive({ type: "sessions", sessions: [{ name: "seat", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 }] });
+    const watch = frames(socket).find((frame) => frame.type === "attach" && frame.session === "seat");
+    expect(watch).toMatchObject({ replay: false });
+    expect(watch).not.toHaveProperty("scales");
+    expect(watch).not.toHaveProperty("rows");
+    host.close();
+  });
+
+  it("carries the box and the claim again when a terminal is re-attached after a redial", () => {
+    vi.useFakeTimers();
+    const { host, socket } = connect();
+    socket.receive({ ...SIZED, features: ["pty-size"] });
+    host.attach("seat", 28, 47);
+    socket.drop();
+    vi.advanceTimersByTime(60_000);
+    const next = StubSocket.last;
+    next.receive({ ...SIZED, features: ["pty-size"] });
+    next.receive({ type: "sessions", sessions: [{ name: "seat", role: "r", identity: "i", seat: "claude", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0 }] });
+    expect(attaches(next).at(-1)).toMatchObject({ rows: 28, cols: 47, scales: true, replay: true });
+    host.close();
+    vi.useRealTimers();
+  });
+
+  it("turns a size frame into an event for that seat, and ignores one with no size", () => {
+    const { host, events, socket } = connect();
+    socket.receive(SIZED);
+    socket.receive({ type: "size", session: "seat", rows: 50, cols: 200 });
+    socket.receive({ type: "size", session: "seat" });
+    expect(events.filter((event) => event.type === "size")).toEqual([{ type: "size", sessionId: "seat", rows: 50, cols: 200 }]);
+    host.close();
+  });
+});
+
+describe("the device key", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  const LOCKED = { allowed: false, reason: "passkey_required" };
+  const FEATURES = { ...WELCOME, features: ["typing-guard", "device-key"] };
+  const lastSent = (socket: StubSocket) => sentFrames(socket).at(-1)!;
+  const kinds = (socket: StubSocket) => sentFrames(socket).map((frame) => frame.type);
+
+  function plugin(overrides: Record<string, unknown> = {}) {
+    const answers: Record<string, unknown> = {
+      status: { enrolled: false, key_id: null, biometric: "ready" },
+      enroll: { key_id: "k1", public_key: "PUB", attestation: ["LEAF", "INTERMEDIATE", "ROOT"] },
+      sign: { key_id: "k1", signature: "SIG" },
+      ...overrides,
+    };
+    const invoke = vi.fn(async (command: string) => {
+      const answer = answers[command.replace("plugin:devicekey|", "")];
+      if (answer instanceof Error) throw answer;
+      return answer;
+    });
+    vi.stubGlobal("__TAURI__", { core: { invoke } });
+    return invoke;
+  }
+
+  it("offers the channel only when the welcome lists device-key, and says so as an event", () => {
+    const none = connect();
+    none.socket.receive(WELCOME);
+    expect(none.host.deviceKey).toBeUndefined();
+    expect(none.events.filter((event) => event.type === "device_key")).toEqual([{ type: "device_key", available: false }]);
+    none.host.close();
+
+    const { host, events, socket } = connect();
+    socket.receive(FEATURES);
+    expect(host.deviceKey).toBeDefined();
+    expect(events.filter((event) => event.type === "device_key")).toEqual([{ type: "device_key", available: true }]);
+    host.close();
+  });
+
+  it("reads the device key standing off the typing frames, and keeps it when a refusal omits it", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, device_key: "enrolled" } });
+    socket.receive({ type: "error", id: "c9", code: 6, error: "refused", reason: "passkey_required" });
+    const typing = events.filter((event) => event.type === "typing");
+    expect(typing.at(-1)).toEqual({ type: "typing", typing: { ...LOCKED, deviceKey: "enrolled" } });
+    host.close();
+  });
+
+  it("enrolls: asks the phone first, spends the code, enrolls on the challenge, finishes, then asserts at once", async () => {
+    // After enrolling the phone reports its key, as the real plugin does.
+    const invoke = plugin();
+    invoke.mockImplementation(async (command: string) => {
+      if (command.endsWith("status")) return enrolledNow ? { enrolled: true, key_id: "k1", biometric: "ready" } : { enrolled: false, key_id: null, biometric: "ready" };
+      if (command.endsWith("enroll")) {
+        enrolledNow = true;
+        return { key_id: "k1", public_key: "PUB", attestation: ["LEAF", "INTERMEDIATE", "ROOT"] };
+      }
+      return { key_id: "k1", signature: "SIG" };
+    });
+    let enrolledNow = false;
+    const { host, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, device_key: "unenrolled" } });
+    const done = host.deviceKey!.enroll("ABCD-1234");
+    await vi.waitFor(() => expect(lastSent(socket)).toMatchObject({ type: "device_enroll_begin", enroll_code: "ABCD-1234" }));
+    expect(invoke.mock.calls[0]![0]).toBe("plugin:devicekey|status");
+    socket.receive({ type: "device_enroll_challenge", id: lastSent(socket).id, challenge: "CHAL" });
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_enroll_finish"));
+    expect(invoke).toHaveBeenCalledWith("plugin:devicekey|enroll", { challenge: "CHAL" });
+    expect(lastSent(socket)).toMatchObject({ public_key: "PUB", attestation: ["LEAF", "INTERMEDIATE", "ROOT"] });
+    socket.receive({ type: "device_enrolled", id: lastSent(socket).id, key_id: "k1" });
+    await vi.waitFor(() => expect(lastSent(socket)).toMatchObject({ type: "device_assert_begin", key_id: "k1" }));
+    socket.receive({ type: "device_assert_challenge", id: lastSent(socket).id, challenge: "CHAL2" });
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_assert_finish"));
+    expect(invoke).toHaveBeenCalledWith("plugin:devicekey|sign", { challenge: "CHAL2", prompt: "Unlock aterm to type" });
+    socket.receive({ type: "device_asserted", id: lastSent(socket).id });
+    await expect(done).resolves.toBeUndefined();
+    host.close();
+  });
+
+  it("keeps the key and says so when the prompt after enrolling is closed", async () => {
+    let enrolledNow = false;
+    const invoke = plugin();
+    invoke.mockImplementation(async (command: string) => {
+      if (command.endsWith("status")) return enrolledNow ? { enrolled: true, key_id: "k1", biometric: "ready" } : { enrolled: false, key_id: null, biometric: "ready" };
+      if (command.endsWith("enroll")) {
+        enrolledNow = true;
+        return { key_id: "k1", public_key: "PUB", attestation: ["LEAF"] };
+      }
+      throw { code: "cancelled", message: "x" };
+    });
+    const { host, socket } = connect();
+    socket.receive(FEATURES);
+    const done = host.deviceKey!.enroll("ABCD-1234");
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_enroll_begin"));
+    socket.receive({ type: "device_enroll_challenge", id: lastSent(socket).id, challenge: "CHAL" });
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_enroll_finish"));
+    socket.receive({ type: "device_enrolled", id: lastSent(socket).id, key_id: "k1" });
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_assert_begin"));
+    socket.receive({ type: "device_assert_challenge", id: lastSent(socket).id, challenge: "CHAL2" });
+    await expect(done).rejects.toThrow(/closed the prompt.*Your key is set up/);
+    host.close();
+  });
+
+  it("never sends a code for a phone that cannot ask for a fingerprint", async () => {
+    plugin({ status: { enrolled: false, key_id: null, biometric: "none_enrolled" } });
+    const { host, socket } = connect();
+    socket.receive(FEATURES);
+    await expect(host.deviceKey!.enroll("ABCD-1234")).rejects.toThrow(/Set up a fingerprint or screen lock/);
+    expect(kinds(socket)).not.toContain("device_enroll_begin");
+    host.close();
+  });
+
+  it("says the code is used up when the phone ends the enrollment after the daemon took it", async () => {
+    plugin({ enroll: Object.assign(new Error("native"), { code: "cancelled" }) });
+    const { host, socket } = connect();
+    socket.receive(FEATURES);
+    const done = host.deviceKey!.enroll("ABCD-1234");
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_enroll_begin"));
+    socket.receive({ type: "device_enroll_challenge", id: lastSent(socket).id, challenge: "CHAL" });
+    await expect(done).rejects.toThrow(/That code is used up/);
+    host.close();
+  });
+
+  it("asserts: names its own key, signs the challenge behind the prompt, and finishes with the signature", async () => {
+    const invoke = plugin({ status: { enrolled: true, key_id: "k1", biometric: "ready" } });
+    const { host, socket } = connect();
+    socket.receive({ ...FEATURES, typing: { ...LOCKED, device_key: "enrolled" } });
+    const done = host.deviceKey!.assert();
+    await vi.waitFor(() => expect(lastSent(socket)).toMatchObject({ type: "device_assert_begin", key_id: "k1" }));
+    socket.receive({ type: "device_assert_challenge", id: lastSent(socket).id, challenge: "CHAL" });
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_assert_finish"));
+    expect(invoke).toHaveBeenCalledWith("plugin:devicekey|sign", { challenge: "CHAL", prompt: "Unlock aterm to type" });
+    expect(lastSent(socket)).toMatchObject({ key_id: "k1", signature: "SIG" });
+    socket.receive({ type: "device_asserted", id: lastSent(socket).id });
+    await expect(done).resolves.toBeUndefined();
+    host.close();
+  });
+
+  it("says the host forgot this phone's key as a typed failure the panel can act on", async () => {
+    plugin({ status: { enrolled: true, key_id: "k1", biometric: "ready" } });
+    const { host, socket } = connect();
+    socket.receive(FEATURES);
+    const done = host.deviceKey!.assert();
+    await vi.waitFor(() => expect(lastSent(socket).type).toBe("device_assert_begin"));
+    socket.receive({ type: "error", id: lastSent(socket).id, code: 6, error: "no such key", reason: "device_key_unknown" });
+    await expect(done).rejects.toMatchObject({ reason: "device_key_unknown", message: expect.stringMatching(/does not know this phone/) });
+    host.close();
+  });
+
+  it("will not prompt a phone with no key yet, and says there is no plugin outside the app", async () => {
+    plugin();
+    const { host, socket } = connect();
+    socket.receive(FEATURES);
+    await expect(host.deviceKey!.assert()).rejects.toThrow(/no key yet/);
+    expect(kinds(socket)).not.toContain("device_assert_begin");
+    vi.unstubAllGlobals();
+    await expect(host.deviceKey!.status()).rejects.toThrow(/no way to hold a key/);
+    host.close();
+  });
+});
+
+describe("a pane that never drew", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("still gets a frame when a listener before it throws", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1" });
+    host.subscribe(() => {
+      throw new Error("an earlier listener broke");
+    });
+    const seen: HostEvent[] = [];
+    host.subscribe((event) => seen.push(event));
+    socket.receive({ type: "output", session: "s", data: btoa("hello") });
+    expect(seen.filter((event) => event.type === "output")).toHaveLength(1);
+    host.close();
+  });
+
+  it("asks again for the seat's screen with its own box and no new reference", () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1" });
+    host.attach("s", 40, 120);
+    socket.sent.length = 0;
+    host.replay("s");
+    expect(socket.sent.map((line) => JSON.parse(line))).toEqual([expect.objectContaining({ type: "attach", session: "s", replay: true, rows: 40, cols: 120 })]);
+    host.detach("s");
+    expect(socket.sent.map((line) => JSON.parse(line).type)).toContain("detach");
+    host.close();
+  });
+
+  it("says what reached it since the attach when it asks again, so a lost replay can be placed", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1" });
+    host.attach("s", 40, 120);
+    host.replay("s");
+    expect(warn).toHaveBeenLastCalledWith(expect.stringMatching(/^aterm: asking s for its screen again, 0 frame\(s\), 0 byte\(s\) in \d+ ms since the last attach, socket open, 0 queued$/));
+    socket.receive({ type: "output", session: "s", data: btoa("hello") });
+    host.replay("s");
+    expect(warn).toHaveBeenLastCalledWith(expect.stringContaining("1 frame(s), 5 byte(s)"));
+    host.detach("s");
+    host.replay("s");
+    expect(warn).toHaveBeenLastCalledWith(expect.stringContaining("no attach on record"));
+    host.close();
+  });
+});
+
+describe("the image channel", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const png = (bytes = 7) => new Blob([new Uint8Array(bytes).fill(1)], { type: "image/png" });
+  const sentUpload = async (socket: StubSocket) => {
+    await vi.waitFor(() => expect(socket.sent.some((line) => JSON.parse(line).type === "image_upload")).toBe(true));
+    return JSON.parse(socket.sent.find((line) => JSON.parse(line).type === "image_upload") ?? "{}");
+  };
+
+  it("offers no channel until the welcome lists the feature, and then the frame's own limit", () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["send-new"] });
+    expect(host.images).toBeUndefined();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload"] });
+    expect(host.images?.maxBytes).toBe(3_000_000);
+    host.close();
+  });
+
+  it("sends the seat and the bytes as base64, with no type, and resolves the path the host names", async () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload"] });
+    const path = host.images?.upload("seat-a", png(3));
+    const frame = await sentUpload(socket);
+    expect(frame).toMatchObject({ type: "image_upload", session: "seat-a", data: btoa("\x01\x01\x01") });
+    expect(frame).not.toHaveProperty("mime");
+    socket.receive({ type: "image_uploaded", id: frame.id, session: "seat-a", path: "/tmp/aterm/images/seat-a-1/x.png" });
+    await expect(path).resolves.toBe("/tmp/aterm/images/seat-a-1/x.png");
+    host.close();
+  });
+
+  it("encodes the most one frame carries without overflowing the stack", async () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload"] });
+    void host.images?.upload("seat-a", png(3_000_000)).catch(() => {});
+    const frame = await sentUpload(socket);
+    expect(frame.data).toHaveLength(4_000_000);
+    host.close();
+  });
+
+  it("rejects each refusal the daemon names in words a person can act on", async () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload"] });
+    for (const [reason, words] of [
+      ["not_an_image", /did not read that as a PNG/],
+      ["too_large", /over 3 MB/],
+      ["too_many", /16 images/],
+      ["session_unknown", /not attached to this seat/],
+    ] as const) {
+      const before = socket.sent.length;
+      const attempt = host.images?.upload("seat-a", png());
+      await vi.waitFor(() => expect(socket.sent.length).toBeGreaterThan(before));
+      socket.receive({ type: "error", id: JSON.parse(socket.sent.at(-1) ?? "{}").id, code: 3, error: "daemon words", reason });
+      await expect(attempt).rejects.toThrow(words);
+    }
+    host.close();
+  });
+
+  it("reads a refusal by the typing guard as read-only, the same as typed input", async () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload"], typing: { allowed: true } });
+    const attempt = host.images?.upload("seat-a", png());
+    const frame = await sentUpload(socket);
+    socket.receive({ type: "error", id: frame.id, code: 6, error: "refused", reason: "passkey_required" });
+    await expect(attempt).rejects.toThrow();
+    expect(typings(events).at(-1)).toMatchObject({ typing: { allowed: false, reason: "passkey_required" } });
+    host.close();
+  });
+
+  it("fails an upload the connection dropped under, instead of waiting for a reply that cannot come", async () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload"] });
+    const attempt = host.images?.upload("seat-a", png());
+    await sentUpload(socket);
+    socket.drop();
+    await expect(attempt).rejects.toThrow(/closed the connection/);
+    host.close();
+  });
+});
+
+// COI-3305: the daemon holds an unlock per connection, so a locked phone redials locked.
+// A held proof asks the daemon to restore it before a button shows.
+describe("resuming an unlock after a redial", () => {
+  const LOCKED = { allowed: false, reason: "passkey_required", device_key: "enrolled" };
+  const OPEN = { allowed: true };
+  const WITH = { ...WELCOME, features: ["typing-guard", "device-key", "resume"], typing: LOCKED };
+  const lastSent = (socket: StubSocket) => sentFrames(socket).at(-1)!;
+  const resumes = (socket: StubSocket) => sentFrames(socket).filter((frame) => frame.type === "resume");
+  const states = (events: HostEvent[]) => events.filter((event) => event.type === "resume").map((event) => (event.type === "resume" ? event.state : undefined));
+
+  // Unlocks with the phone's key, the daemon answering with `proof` when it has a window.
+  async function unlocked(proof: string | null = "T1", welcome: Record<string, unknown> = WITH) {
+    vi.useFakeTimers();
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    StubSocket.all = [];
+    vi.stubGlobal("__TAURI__", {
+      core: {
+        invoke: vi.fn(async (command: string) => (command.endsWith("status") ? { enrolled: true, key_id: "k1", biometric: "ready" } : { key_id: "k1", signature: "SIG" })),
+      },
+    });
+    const dialed = connect();
+    dialed.socket.receive(welcome);
+    const done = dialed.host.deviceKey!.assert();
+    await vi.waitFor(() => expect(lastSent(dialed.socket).type).toBe("device_assert_begin"));
+    dialed.socket.receive({ type: "device_assert_challenge", id: lastSent(dialed.socket).id, challenge: "CHAL" });
+    await vi.waitFor(() => expect(lastSent(dialed.socket).type).toBe("device_assert_finish"));
+    dialed.socket.receive({ type: "device_asserted", id: lastSent(dialed.socket).id, ...(proof ? { resume: proof, expires_in: 600 } : {}) });
+    await done;
+    return dialed;
+  }
+
+  function redial(socket: StubSocket, welcome: Record<string, unknown> = WITH): StubSocket {
+    socket.drop();
+    vi.advanceTimersByTime(1000);
+    StubSocket.last.receive(welcome);
+    return StubSocket.last;
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("presents the proof before any other frame, and says it is resuming until the daemon answers", async () => {
+    const { host, events, socket } = await unlocked();
+    const next = redial(socket);
+    expect(states(events)).toEqual(["resuming"]);
+    expect(sentFrames(next).map((frame) => frame.type)).toEqual(["resume", "subscribe", "roster"]);
+    expect(resumes(next)[0]).toMatchObject({ resume: "T1" });
+    next.receive({ type: "resumed", id: resumes(next)[0]!.id, resume: "T2", expires_in: 600 });
+    await vi.waitFor(() => expect(states(events)).toEqual(["resuming", null]));
+    next.receive({ type: "typing", typing: OPEN });
+    expect(typings(events).at(-1)).toEqual({ type: "typing", typing: OPEN });
+    host.close();
+  });
+
+  it("replaces the proof with the one the daemon returned, because each is good once", async () => {
+    const { host, socket } = await unlocked();
+    const first = redial(socket);
+    first.receive({ type: "resumed", id: resumes(first)[0]!.id, resume: "T2", expires_in: 600 });
+    await vi.waitFor(() => expect(host).toBeDefined());
+    const second = redial(first);
+    expect(resumes(second)[0]).toMatchObject({ resume: "T2" });
+    host.close();
+  });
+
+  it("goes back to the Unlock button and forgets the proof when the daemon says the window ended", async () => {
+    const { host, events, socket } = await unlocked();
+    const next = redial(socket);
+    next.receive({ type: "error", id: resumes(next)[0]!.id, code: 6, error: "the unlock ended", reason: "resume_ended" });
+    await vi.waitFor(() => expect(states(events)).toEqual(["resuming", "ended"]));
+    // The refusal leaves the connection locked, so no typing push says otherwise.
+    expect(typings(events).at(-1)).toMatchObject({ typing: { allowed: false, reason: "passkey_required" } });
+    expect(resumes(redial(next))).toEqual([]);
+    host.close();
+  });
+
+  it("keeps the proof when the link dies before the daemon answered, since it may not have been spent", async () => {
+    const { host, events, socket } = await unlocked();
+    const next = redial(socket);
+    next.drop();
+    await vi.waitFor(() => expect(states(events)).toEqual(["resuming", null]));
+    vi.advanceTimersByTime(2000);
+    expect(resumes(StubSocket.last)).toHaveLength(0);
+    StubSocket.last.receive(WITH);
+    expect(resumes(StubSocket.last)[0]).toMatchObject({ resume: "T1" });
+    host.close();
+  });
+
+  it("sends nothing when the welcome does not list resume, and forgets the proof for good", async () => {
+    const { host, events, socket } = await unlocked();
+    const bare = { ...WITH, features: ["typing-guard", "device-key"] };
+    const next = redial(socket, bare);
+    expect(resumes(next)).toEqual([]);
+    expect(states(events)).toEqual([]);
+    expect(resumes(redial(next))).toEqual([]);
+    host.close();
+  });
+
+  it("sends nothing when the connection is already allowed to type", async () => {
+    const { host, socket } = await unlocked();
+    expect(resumes(redial(socket, { ...WITH, typing: OPEN }))).toEqual([]);
+    host.close();
+  });
+
+  it("holds no proof when the daemon names none, so a plain unlock redials as before", async () => {
+    const { host, events, socket } = await unlocked(null);
+    expect(resumes(redial(socket))).toEqual([]);
+    expect(states(events)).toEqual([]);
+    host.close();
+  });
+
+  it("never lets the proof out in an event", async () => {
+    const { host, events, socket } = await unlocked("SECRET-PROOF");
+    const next = redial(socket);
+    next.receive({ type: "resumed", id: resumes(next)[0]!.id, resume: "SECRET-NEXT", expires_in: 600 });
+    await vi.waitFor(() => expect(states(events)).toEqual(["resuming", null]));
+    expect(JSON.stringify(events)).not.toMatch(/SECRET/);
+    host.close();
+  });
+});
+
+describe("a seat's open_url", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const subscribedTo = (socket: StubSocket, channel: string) => socket.sent.some((line) => JSON.parse(line).type === "subscribe" && JSON.parse(line).channel === channel);
+
+  it("subscribes only when the host can show a page, so the host's own browser still opens otherwise", () => {
+    const withBoth = connect();
+    withBoth.socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["open-url", "browser"] });
+    expect(subscribedTo(withBoth.socket, "open_url")).toBe(true);
+    withBoth.host.close();
+
+    const noBrowser = connect();
+    noBrowser.socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["open-url"] });
+    expect(subscribedTo(noBrowser.socket, "open_url")).toBe(false);
+    noBrowser.host.close();
+
+    const oldDaemon = connect();
+    oldDaemon.socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["browser"] });
+    expect(subscribedTo(oldDaemon.socket, "open_url")).toBe(false);
+    oldDaemon.host.close();
+  });
+
+  it("turns the push into an event naming the seat and the address", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["open-url", "browser"] });
+    socket.receive({ type: "open_url", session: "eng-platform-beetle-ox-gd85", url: "https://example.com/login" });
+    expect(events.filter((event) => event.type === "open_url")).toEqual([{ type: "open_url", session: "eng-platform-beetle-ox-gd85", url: "https://example.com/login" }]);
+    host.close();
+  });
+
+  it("ignores a push missing its seat or its address", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["open-url", "browser"] });
+    socket.receive({ type: "open_url", url: "https://example.com/" });
+    socket.receive({ type: "open_url", session: "s" });
+    expect(events.filter((event) => event.type === "open_url")).toEqual([]);
     host.close();
   });
 });

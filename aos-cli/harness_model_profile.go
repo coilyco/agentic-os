@@ -28,7 +28,7 @@ type harnessModelProfile struct {
 }
 
 // modelSettingPattern is the spelling a provider or model id may take, which
-// covers route ids such as evaluation/deepseek-v4-pro.
+// covers route ids such as chat/default.
 var modelSettingPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]*$`)
 
 // opencodeModelPattern is opencode's provider/model form.

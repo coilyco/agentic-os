@@ -63,8 +63,6 @@ Thumbs.db
 
 # Build outputs
 /dist
-# Staged by `just gh-shim-build` from the one committed copy under guardfiles/.
-.umbra/shims/specverb.lock
 /build
 /out
 .umbra/**/*.md
@@ -106,3 +104,7 @@ test-images/
 /aos-cli/aos.exe
 /aterm/aterm
 /aterm/aterm.exe
+# The client embedded into aterm, staged by `just aterm-client-embed`.
+/aterm/clientdist/*
+!/aterm/clientdist/.gitkeep
+.test-scratch/

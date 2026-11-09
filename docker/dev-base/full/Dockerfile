@@ -10,8 +10,8 @@ FROM ${LANG_DOTNET_IMAGE} AS dev-base-lang-dotnet-graft
 FROM ${LANG_PYTHON_IMAGE} AS dev-base-lang-python-graft
 
 FROM ubuntu:24.04 AS dev-base-tool-builder
-ARG UMBRA_VERSION=0.238.0
-ARG AOS_VERSION=0.390.0
+ARG UMBRA_VERSION=0.256.0
+ARG AOS_VERSION=0.491.0
 ARG TARGETARCH
 ARG DEBIAN_FRONTEND=noninteractive
 ENV PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
@@ -23,7 +23,7 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 RUN set -eux; \
     aos_asset="aos-linux-${TARGETARCH}"; \
-    aos_base="https://forgejo.coilysiren.me/coilyco/agentic-os/releases/download/aos-v${AOS_VERSION}"; \
+    aos_base="https://github.com/coilyco/agentic-os/releases/download/aos-v${AOS_VERSION}"; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
       "${aos_base}/${aos_asset}" -o "/tmp/${aos_asset}"; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
@@ -34,7 +34,7 @@ RUN set -eux; \
     rm "/tmp/${aos_asset}" /tmp/aos-SHA256SUMS; aos --version
 RUN set -eux; \
     umbra_asset="umbra-linux-${TARGETARCH}"; \
-    umbra_base="https://forgejo.coilysiren.me/coilyco/umbra/releases/download/v${UMBRA_VERSION}"; \
+    umbra_base="https://github.com/coilyco/umbra/releases/download/v${UMBRA_VERSION}"; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
       "${umbra_base}/${umbra_asset}" -o "/tmp/${umbra_asset}"; \
     curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
@@ -45,6 +45,13 @@ RUN set -eux; \
     rm "/tmp/${umbra_asset}" /tmp/umbra-SHA256SUMS; umbra --version
 COPY --from=aosguard-spec . /tmp/aosguard-spec
 COPY --from=aosguard-python . /tmp/aosguard-python/agentic_os
+COPY --from=fs-shims . /tmp/fs-shims
+# The git/rm/find/mv script guards, into one dir the final stage puts first on
+# PATH. There is no gh guard: seats run the real gh (COI-3072).
+RUN set -eux; \
+    mkdir -p /opt/agentic-os/shims; \
+    sh /tmp/fs-shims/install.sh /opt/agentic-os/shims; \
+    chmod -R a+rX /opt/agentic-os/shims; rm -rf /tmp/fs-shims
 RUN set -eux; \
     umbra --project-root /tmp/aosguard-spec/guardfiles \
       --skills-out /opt/agentic-os/aosguard-skill build \
@@ -54,11 +61,11 @@ RUN set -eux; \
     test -s /opt/agentic-os/aosguard-skill/aosguard/references/commands.yaml; \
     PYTHONPATH=/tmp/aosguard-python python3 -m agentic_os.generators.generate_aosguard_skills \
       --skills-root /opt/agentic-os/aosguard-skill; \
-    test -s /opt/agentic-os/aosguard-skill/aosguard-forgejo/SKILL.md; \
+    test -s /opt/agentic-os/aosguard-skill/aosguard-kubectl/SKILL.md; \
     rm -rf /tmp/aosguard-spec /tmp/aosguard-python; aosguard --version
 
 FROM ${BASE_IMAGE} AS dev-base-full
-ARG AGENT_COMPOSE_VERSION=2.198.0
+ARG AGENT_COMPOSE_VERSION=2.219.0
 ARG CLAUDE_VERSION=2.1.282
 ARG MCPORTER_VERSION=0.12.3
 ARG CODEX_VERSION=0.146.0
@@ -83,7 +90,7 @@ ENV PATH=/usr/local/go/bin:/usr/local/dotnet:/usr/local/node/bin:/usr/local/carg
     DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 \
     PRE_COMMIT_HOME=/opt/pre-commit \
     AOS_GIT_NAME=coilyco-ops AOS_GIT_EMAIL=coilyco-ops@coilysiren.me
-LABEL org.opencontainers.image.source="https://forgejo.coilysiren.me/coilyco/agentic-os" \
+LABEL org.opencontainers.image.source="https://github.com/coilyco/agentic-os" \
       org.opencontainers.image.licenses="MIT" \
       org.opencontainers.image.title="agentic-os full"
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -101,13 +108,14 @@ RUN --mount=type=bind,source=install-common.sh,target=/tmp/install-common.sh \
 RUN set -eux; ln -sf /usr/bin/python3 /usr/local/bin/python; \
     ln -sf /usr/bin/pip3 /usr/local/bin/pip; \
     chmod -R a+rX /opt/uv; python --version; pip --version; pipenv --version
-COPY --chmod=0755 session-name.sh git-identity.sh statusline.sh ward-shell-entrypoint.sh /opt/agentic-os/
+COPY --chmod=0755 session-name.sh git-identity.sh statusline.sh shell-entrypoint.sh /opt/agentic-os/
 COPY --chmod=0755 statusline.d/ /opt/agentic-os/statusline.d/
 COPY --chmod=0644 claude-managed-settings.json /etc/claude-code/managed-settings.json
 COPY --from=repo-lists --chmod=0644 substrate-repos.txt /opt/agentic-os/substrate-repos.txt
 COPY --from=dev-base-tool-builder /usr/local/bin/aos /usr/local/bin/aos
 COPY --from=dev-base-tool-builder /usr/local/bin/aosguard /usr/local/bin/aosguard
 COPY --from=dev-base-tool-builder /opt/agentic-os/aosguard-skill /opt/agentic-os/aosguard-skill
+COPY --from=dev-base-tool-builder /opt/agentic-os/shims /opt/agentic-os/shims
 # aos#771: the system interpreter carries the operator modules. A global
 # PYTHONPATH would also reach every isolated venv and void a pinned hook rev.
 COPY --from=aosguard-python . /tmp/agentic-os-python/agentic_os/
@@ -176,6 +184,18 @@ RUN node --version && go version && dotnet --list-sdks && cargo --version && \
       cargo "+${pin}" fmt --version && \
       rustup target list --installed --toolchain "${pin}" | grep -qx wasm32-unknown-unknown; \
     done
+# Last on purpose: every RUN above needs the real git, rm and mv. ENV reaches
+# every process started from the image, not only interactive shells.
+ENV PATH=/opt/agentic-os/shims:${PATH}
+RUN set -eux; \
+    for t in git rm find mv; do test "$(command -v "$t")" = "/opt/agentic-os/shims/$t"; done; \
+    scratch="$(mktemp -d)"; cd "${scratch}"; \
+    git init -q .; git config user.email a@b.invalid; git config user.name t; \
+    echo x > f; git add f; \
+    if git commit --no-verify -q -m x 2>/tmp/refusal; then echo "commit --no-verify was not refused"; exit 1; fi; \
+    grep -q denied /tmp/refusal; \
+    git commit -q -m ok; \
+    cd /; rm -rf "${scratch}" /tmp/refusal
 WORKDIR /workspace
-ENTRYPOINT ["/opt/agentic-os/ward-shell-entrypoint.sh"]
+ENTRYPOINT ["/opt/agentic-os/shell-entrypoint.sh"]
 CMD ["bash"]

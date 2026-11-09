@@ -4,6 +4,8 @@
 extend-exclude = [
   "*.json",
   "*.lock",
+  # Base64 inside pinned certificate PEMs reads as misspelled words.
+  "aterm/devicekey_roots.go",
 ]
 
 [default.extend-words]
@@ -24,5 +26,3 @@ SOM = "SOM"
 Iz = "Iz"
 signoz = "signoz"
 ward = "ward"
-# Teable id prefixes: typos splits the alpha run, as with `ser` above.
-viw = "viw"

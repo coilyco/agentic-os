@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/url"
@@ -24,11 +25,16 @@ const (
 	defaultTailnetPort   = "7419"
 	daemonPeerPortsEnv   = "ATERM_DAEMON_PEER_PORTS"
 	daemonAllowTagsEnv   = "ATERM_DAEMON_ALLOW_TAGS"
+	daemonAllowOwnersEnv = "ATERM_DAEMON_ALLOW_OWNERS"
 	daemonAllowOrigins   = "ATERM_DAEMON_ALLOW_ORIGINS"
 	clientDirEnv         = "ATERM_CLIENT_DIR"
 	// A whois answer is reused this long, so a page load's requests make one call.
 	whoisTTL = time.Minute
 )
+
+// whoisRefusedTTL keeps a refusal just long enough for one page load to cost one
+// whois, so a device tagged a moment ago is admitted on its next load.
+var whoisRefusedTTL = 2 * time.Second
 
 // defaultAllowTags mirrors the tailnet's SSH grant between physical devices,
 // so admitting them grants nothing SSH does not. See docs/aterm-daemon.md.
@@ -37,6 +43,10 @@ var defaultAllowTags = []string{"tag:physical"}
 // defaultAllowOrigins are hosted client pages that may open a session socket
 // on the tailnet, besides the page the daemon serves itself.
 var defaultAllowOrigins = []string{"https://coilyco.dev"}
+
+// appOrigin is the Android app's webview, always allowed beside the configured
+// pages, since ATERM_DAEMON_ALLOW_ORIGINS replaces the default.
+const appOrigin = "https://tauri.localhost"
 
 var tailscaleBin = "tailscale"
 
@@ -49,7 +59,7 @@ var tailnetGate = platformTailnetGate
 var tailnetBackoff = struct{ first, max time.Duration }{2 * time.Second, 5 * time.Minute}
 
 // tailnetProbe paces the self-probe, and `fails` in a row get the listener
-// bound again. Why: docs/aterm-daemon.md.
+// bound again. Why: .agents/skills/tooling-aterm-client/references/tailnet-access.md.
 var tailnetProbe = struct {
 	every, timeout time.Duration
 	fails          int
@@ -106,6 +116,7 @@ func readTailnetNode() (tailnetNode, error) {
 			DNSName      string   `json:"DNSName"`
 			TailscaleIPs []string `json:"TailscaleIPs"`
 			UserID       int64    `json:"UserID"`
+			Tags         []string `json:"Tags"`
 		} `json:"Self"`
 		User map[string]struct {
 			LoginName string `json:"LoginName"`
@@ -114,9 +125,11 @@ func readTailnetNode() (tailnetNode, error) {
 	if err := json.Unmarshal(raw, &status); err != nil {
 		return tailnetNode{}, fmt.Errorf("tailscale status: %w", err)
 	}
-	node := tailnetNode{
-		FQDN:  strings.TrimSuffix(status.Self.DNSName, "."),
-		Owner: status.User[strconv.FormatInt(status.Self.UserID, 10)].LoginName,
+	node := tailnetNode{FQDN: strings.TrimSuffix(status.Self.DNSName, ".")}
+	// A tagged node has no owner. Tailscale lends it a login named after the
+	// node, which no person's device carries.
+	if len(status.Self.Tags) == 0 {
+		node.Owner = status.User[strconv.FormatInt(status.Self.UserID, 10)].LoginName
 	}
 	for _, ip := range status.Self.TailscaleIPs {
 		if parsed := net.ParseIP(ip); parsed != nil && parsed.To4() != nil {
@@ -127,7 +140,7 @@ func readTailnetNode() (tailnetNode, error) {
 	if status.BackendState != "Running" {
 		return tailnetNode{}, fmt.Errorf("the tailscale backend is %q, not Running", status.BackendState)
 	}
-	if node.FQDN == "" || node.IPv4 == "" || node.Owner == "" {
+	if node.FQDN == "" || node.IPv4 == "" || (node.Owner == "" && len(status.Self.Tags) == 0) {
 		return tailnetNode{}, errors.New("tailscale reports no name, address, or owner for this node")
 	}
 	return node, nil
@@ -149,11 +162,12 @@ func tailscaleWhois(address string) (tailnetPeer, error) {
 	return peer, nil
 }
 
-// admitPeer lets in a device of this node's own owner, and a tagged device,
-// which has no owner, only when it carries an allowed tag.
-func admitPeer(peer tailnetPeer, owner string, allowTags []string) error {
+// admitPeer lets in an untagged device whose owner login is one of owners, and a
+// tagged device, which has no owner, only when it carries an allowed tag.
+func admitPeer(peer tailnetPeer, owners, allowTags []string) error {
 	if len(peer.Node.Tags) == 0 {
-		if login := peer.UserProfile.LoginName; login != "" && login == owner {
+		login := peer.UserProfile.LoginName
+		if login != "" && slices.ContainsFunc(owners, func(owner string) bool { return strings.EqualFold(owner, login) }) {
 			return nil
 		}
 		return errors.New("that device belongs to another tailnet user")
@@ -166,47 +180,103 @@ func admitPeer(peer tailnetPeer, owner string, allowTags []string) error {
 	return fmt.Errorf("that device carries none of %s", strings.Join(allowTags, ", "))
 }
 
+// admittedOwners are the logins whose untagged devices attach: this node's own
+// owner, which a tagged node has none of, and the configured ones.
+func admittedOwners(node tailnetNode, allowOwners []string) []string {
+	owners := slices.Clone(allowOwners)
+	if node.Owner != "" {
+		owners = append(owners, node.Owner)
+	}
+	return owners
+}
+
+// whoisAdmission asks tailscaled who a peer is and keeps each verdict briefly.
+type whoisAdmission struct {
+	whois     func(string) (tailnetPeer, error)
+	allowTags []string
+	mu        sync.Mutex
+	cache     map[string]admissionVerdict
+}
+
+type admissionVerdict struct {
+	err error
+	// login is what Serve's Tailscale-User-Login carries for this peer, empty
+	// for a tagged one, which Serve sends none for.
+	login   string
+	expires time.Time
+}
+
+// judge admits the peer at address, an IP with or without a port.
+func (a *whoisAdmission) judge(address string, owners []string) (login string, err error) {
+	ip := address
+	if host, _, splitErr := net.SplitHostPort(address); splitErr == nil {
+		ip = host
+	}
+	a.mu.Lock()
+	cached, ok := a.cache[ip]
+	a.mu.Unlock()
+	if ok && time.Now().Before(cached.expires) {
+		return cached.login, cached.err
+	}
+	peer, err := a.whois(address)
+	if err == nil {
+		err = admitPeer(peer, owners, a.allowTags)
+	}
+	if len(peer.Node.Tags) == 0 {
+		login = peer.UserProfile.LoginName
+	}
+	ttl := whoisTTL
+	if err != nil {
+		ttl = whoisRefusedTTL
+	}
+	a.mu.Lock()
+	if a.cache == nil {
+		a.cache = map[string]admissionVerdict{}
+	}
+	a.cache[ip] = admissionVerdict{err: err, login: login, expires: time.Now().Add(ttl)}
+	a.mu.Unlock()
+	return login, err
+}
+
+// tailnetOrigin serves a websocket to the page the listener served itself, a
+// configured hosted page, and the Android app.
+func tailnetOrigin(allowOrigins []string) func(*http.Request, *url.URL) bool {
+	return func(r *http.Request, origin *url.URL) bool {
+		if origin.Scheme != "https" {
+			return false
+		}
+		site := "https://" + strings.ToLower(origin.Host)
+		return strings.EqualFold(origin.Host, r.Host) || slices.Contains(allowOrigins, site) || site == appOrigin
+	}
+}
+
 // tailnetPolicy asks tailscaled who each peer is rather than trusting anything
 // the request says, and serves a websocket only to the page it served itself.
-func tailnetPolicy(node tailnetNode, allowTags, allowOrigins []string, whois func(string) (tailnetPeer, error)) accessPolicy {
-	type verdict struct {
-		err     error
-		expires time.Time
-	}
-	var mu sync.Mutex
-	cache := map[string]verdict{}
+func tailnetPolicy(node tailnetNode, allowTags, allowOwners, allowOrigins []string, whois func(string) (tailnetPeer, error)) accessPolicy {
+	admission := &whoisAdmission{whois: whois, allowTags: allowTags}
+	owners := admittedOwners(node, allowOwners)
 	return accessPolicy{
 		admit: func(r *http.Request) error {
 			if host, _, err := net.SplitHostPort(r.Host); err != nil || !strings.EqualFold(host, node.FQDN) {
-				return errors.New("open this daemon by its tailnet name")
+				return &refusal{"name", "open this daemon by its tailnet name"}
 			}
-			ip, _, err := net.SplitHostPort(r.RemoteAddr)
-			if err != nil {
+			if _, _, err := net.SplitHostPort(r.RemoteAddr); err != nil {
 				return err
 			}
-			mu.Lock()
-			cached, ok := cache[ip]
-			mu.Unlock()
-			if ok && time.Now().Before(cached.expires) {
-				return cached.err
-			}
-			peer, err := whois(r.RemoteAddr)
-			if err == nil {
-				err = admitPeer(peer, node.Owner, allowTags)
-			}
-			mu.Lock()
-			cache[ip] = verdict{err: err, expires: time.Now().Add(whoisTTL)}
-			mu.Unlock()
+			_, err := admission.judge(r.RemoteAddr, owners)
 			return err
 		},
-		origin: func(r *http.Request, origin *url.URL) bool {
-			if origin.Scheme != "https" {
-				return false
-			}
-			site := "https://" + strings.ToLower(origin.Host)
-			return strings.EqualFold(origin.Host, r.Host) || slices.Contains(allowOrigins, site)
-		},
+		origin: tailnetOrigin(allowOrigins),
 	}
+}
+
+// admitsSummary names who tailnetPolicy lets in, for the listener's log line.
+func admitsSummary(node tailnetNode, allowTags, allowOwners []string) string {
+	who := fmt.Sprintf("untagged devices of %d owner logins", len(admittedOwners(node, allowOwners)))
+	if node.Owner == "" && len(allowOwners) == 0 {
+		who = "no untagged device, since this node is tagged and has no owner"
+	}
+	return strings.Join(allowTags, ", ") + " and " + who
 }
 
 // tailnetState is what the Sentry check-in reads: whether a tailnet listener is
@@ -301,6 +371,41 @@ func (d *daemon) serveTailnetWhenUp(done <-chan struct{}, listen func() (*tailne
 	}
 }
 
+// startedFrom is this file with symlinks resolved at start, since an upgrade repoints
+// the launch path: .agents/skills/tooling-aterm-client/references/tailnet-access.md.
+var startedFrom = resolveExecutable()
+
+func resolveExecutable() string {
+	self, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	return resolveExecutableAt(self)
+}
+
+func resolveExecutableAt(self string) string {
+	if resolved, err := filepath.EvalSymlinks(self); err == nil {
+		return resolved
+	}
+	return self
+}
+
+func fileGone(path string) bool {
+	if path == "" {
+		return false
+	}
+	_, err := os.Stat(path)
+	return errors.Is(err, fs.ErrNotExist)
+}
+
+// executableGone reports that the file this process runs from no longer exists,
+// as after an upgrade removes the old Cellar version. macOS then drops its flows.
+var executableGone = func() bool { return fileGone(startedFrom) }
+
+// errExecutableReplaced is what runDaemon returns after stopping for a new build.
+// It is not nil so the exit is non-zero and launchd restarts the daemon.
+var errExecutableReplaced = errors.New("the binary this daemon started from was removed, so it stopped for launchd to start the installed one")
+
 // holdTailnet closes the listener when it returns. It reports true when done
 // closed, and false when the listener went bad and wants rebinding.
 func (d *daemon) holdTailnet(done <-chan struct{}, serving *tailnetServing) bool {
@@ -328,6 +433,11 @@ func (d *daemon) holdTailnet(done <-chan struct{}, serving *tailnetServing) bool
 				continue
 			}
 			if failed++; failed >= tailnetProbe.fails {
+				if executableGone() {
+					d.logf("the tailnet listener failed %d handshakes and this binary is gone from disk, so macOS drops its flows. Stopping for launchd to start the installed build: %v", failed, err)
+					d.stopForReplacement()
+					return true
+				}
 				d.logf("the tailnet listener failed %d handshakes in a row, binding a new one: %v", failed, err)
 				return false
 			}
@@ -335,9 +445,18 @@ func (d *daemon) holdTailnet(done <-chan struct{}, serving *tailnetServing) bool
 	}
 }
 
+// stopForReplacement ends the daemon the way a signal does, so the sessions go
+// back to their holders for the next daemon to adopt, and marks the exit as a failure.
+func (d *daemon) stopForReplacement() {
+	d.replaced.Store(true)
+	if d.stopServing != nil {
+		d.stopServing()
+	}
+}
+
 // listenTailnet serves HTTPS on this node's tailnet address, certified by
 // tailscaled. A failure costs remote clients, never the daemon.
-func (d *daemon) listenTailnet(port string, allowTags, allowOrigins []string, certDir string) (*tailnetServing, error) {
+func (d *daemon) listenTailnet(port, certDir string) (*tailnetServing, error) {
 	node, err := readTailnetNode()
 	if err != nil {
 		return nil, err
@@ -362,12 +481,12 @@ func (d *daemon) listenTailnet(port string, allowTags, allowOrigins []string, ce
 		return nil, err
 	}
 	server := &http.Server{
-		Handler:   d.handler(tailnetPolicy(node, allowTags, allowOrigins, tailscaleWhois)),
+		Handler:   d.handler(d.users.TailnetPolicy(node)),
 		TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12},
 	}
 	ended := make(chan error, 1)
 	go func() { ended <- server.ServeTLS(listener, "", "") }()
-	d.logf("serving https on this node's tailnet name, port %s, for %s and its own owner", port, strings.Join(allowTags, ", "))
+	d.logf("serving https on this node's tailnet name, port %s, for %s", port, d.users.Admits(node))
 	address, config := net.JoinHostPort(node.IPv4, port), &tls.Config{ServerName: node.FQDN, MinVersion: tls.VersionTLS12}
 	return &tailnetServing{
 		server: server,
@@ -376,15 +495,8 @@ func (d *daemon) listenTailnet(port string, allowTags, allowOrigins []string, ce
 	}, nil
 }
 
-// defaultClientDir is where the built aterm client is installed for the
-// daemon to serve at `/`.
+// defaultClientDir is ATERM_CLIENT_DIR, empty for the embedded client. No
+// installed default: one outlived its binary and served a stale page.
 func defaultClientDir() string {
-	if dir := strings.TrimSpace(os.Getenv(clientDirEnv)); dir != "" {
-		return dir
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".local", "share", "aterm", "client")
+	return strings.TrimSpace(os.Getenv(clientDirEnv))
 }

@@ -1,0 +1,17 @@
+# How a session's PTY is sized
+
+A PTY has one size, and the harness draws for it with absolute cursor moves. Several clients of different sizes attach to one session, so the daemon picks one size (COI-2609). The client half is `src/components/Terminal.svelte`.
+
+**The policy is the largest client.** The daemon keeps the box each attached client reported and sets the PTY to the maximum columns and the maximum rows. A client attaching, resizing smaller or leaving re-chooses it. Before this, every `attach` and `resize` set the size directly, so the last client to send one won. A phone mounting its terminal squeezed every other client, and nothing restored the size when it left.
+
+**A client's size is its capacity, not an order.** `attach` and `resize` carry `rows` and `cols` from `fit.proposeDimensions()` of the visible box. A client that pans a larger PTY says `scales: true` on `attach`. One that omits it is raw, like the kitty window, and would mis-wrap a wider PTY. The size is held to the smallest raw client's columns and rows. With only web clients it is plain largest.
+
+**The daemon sends `{type:"size", session, rows, cols}`** to a client right after its attach, even when it is the only one and even when unchanged, and to every attached client whenever the size changes, which includes the survivors when the largest client leaves. The client sets xterm to exactly that size, behind the bytes already queued (`afterQueued`), because xterm resizes at once but parses a write later and heavy output would otherwise draw old-size bytes at the new size. The feature `pty-size` in `welcome` says the daemon does this. Without it a client keeps fitting and sending.
+
+**A phone pans, anchored bottom-left**, showing the bottom rows when the PTY is taller than its box, since the input and the newest text are there. Scaling 200 columns into a phone is about 2px a column. This is COI-2608's layout. The pan keeps where a person left it, since a phone resizes with its address bar and keyboard, and a chevron at the edge says text lies past it, because a phone's scroll bar hides (COI-3317).
+
+**Ship the client first.** A client that predates `size` draws a wider PTY mis-wrapped, and as a raw client it also caps everyone at its own size. A client on an older daemon gets no `size` frame and keeps today's behavior.
+
+A client that sends no box (a watcher) neither caps nor grows the size. A session with nobody attached keeps its last size.
+
+**The box is asked for by its height only.** A harness box floating under a short conversation has blank rows below it. The client hides them with the box, but asks the PTY for the box's own rows, since asking for the blanks too made each answer grow them (COI-3291). The view anchors from the drawn screen, since a phone's scroll height runs past it, and re-anchors a frame after a size frame, so the final layout no longer depends on timing (COI-3293).

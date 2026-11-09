@@ -1,0 +1,31 @@
+# Tell deploy a role catalogue moved, so reconcile-roles-bundle runs then and not hourly.
+name: notify-deploy-catalogue
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".agents/composed/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notify-deploy-catalogue
+  cancel-in-progress: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - id: app-token
+        uses: coilyco/agentic-os/actions/app-token@2762a8b060c9871ed7317e70a29448def2f55207
+        with:
+          app_id: ${{ secrets.COILYCO_OPS_APP_ID }}
+          private_key_base64: ${{ secrets.COILYCO_OPS_APP_PRIVATE_KEY_BASE64 }}
+          repositories: deploy
+      - env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          SOURCE_REPO: ${{ github.repository }}
+        run: gh api repos/coilyco/deploy/dispatches -f event_type=catalogue-moved -f "client_payload[source]=${SOURCE_REPO}"

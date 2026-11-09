@@ -50,6 +50,11 @@ func newDaemonCommand() *cli.Command {
 				Sources: cli.EnvVars(daemonAllowTagsEnv),
 			},
 			&cli.StringSliceFlag{
+				Name:    "allow-owners",
+				Usage:   "tailnet logins whose untagged devices may attach, since a tagged node has no owner of its own",
+				Sources: cli.EnvVars(daemonAllowOwnersEnv),
+			},
+			&cli.StringSliceFlag{
 				Name:    "allow-origins",
 				Value:   defaultAllowOrigins,
 				Usage:   "hosted client pages that may open a session socket on the tailnet",
@@ -73,25 +78,64 @@ func newDaemonCommand() *cli.Command {
 				Usage:   "VAPID private key that turns on Web Push to a closed browser, empty for none",
 				Sources: cli.EnvVars(vapidKeyEnv),
 			},
+			&cli.StringFlag{
+				Name:    "treehouse-broker",
+				Usage:   "wss address of the Treehouse broker this daemon dials, empty for none. Needs --treehouse-accounts and --treehouse-dir",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_BROKER"),
+			},
+			&cli.StringFlag{
+				Name:    "treehouse-accounts",
+				Usage:   "https address of Treehouse accounts, whose signed tokens this daemon trusts",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_ACCOUNTS"),
+			},
+			&cli.StringFlag{
+				Name:    "treehouse-dir",
+				Usage:   "directory holding daemon.key (mode 0600) and daemon.cert, the daemon's Treehouse identity",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_DIR"),
+			},
+			&cli.StringFlag{
+				Name:    "treehouse-config-dir",
+				Usage:   "directory holding the Treehouse configuration snapshot, else AGENT_COMPOSE_CONFIG_DIR, else ~/.agent-compose/config. off reads none",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_CONFIG_DIR"),
+			},
+			&cli.StringFlag{
+				Name:    "resume-window",
+				Value:   resumeUntilCloseWord,
+				Usage:   "how long a remote device's unlock survives a dropped connection, so a phone lock costs no new fingerprint. app lasts until the client app closes, 0 keeps an unlock on one connection, or give a duration",
+				Sources: cli.EnvVars(resumeWindowEnv),
+			},
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			peerPorts, err := parsePeerPorts(cmd.StringSlice("peer-port"))
 			if err != nil {
 				return withExit(exitUsage, err)
 			}
+			resumeWindow, resumeUntilClose, err := parseResumeWindow(cmd.String("resume-window"))
+			if err != nil {
+				return withExit(exitUsage, err)
+			}
 			return runDaemon(daemonOptions{
-				PeerPorts:    peerPorts,
-				Socket:       cmd.String("socket"),
-				Websocket:    cmd.String("websocket"),
-				TailnetPort:  cmd.String("tailnet-port"),
-				AllowTags:    cmd.StringSlice("allow-tags"),
-				AllowOrigins: cmd.StringSlice("allow-origins"),
-				ClientDir:    cmd.String("client-dir"),
-				Idle:         cmd.Duration("idle"),
-				EndSessions:  cmd.Bool("end-sessions"),
-				AgentProxy:   cmd.String("agent-proxy"),
-				SentryDSN:    cmd.String("sentry-dsn"),
-				VAPIDKey:     cmd.String("vapid-key"),
+				PeerPorts:        peerPorts,
+				Socket:           cmd.String("socket"),
+				Websocket:        cmd.String("websocket"),
+				TailnetPort:      cmd.String("tailnet-port"),
+				AllowTags:        cmd.StringSlice("allow-tags"),
+				AllowOwners:      cmd.StringSlice("allow-owners"),
+				AllowOrigins:     cmd.StringSlice("allow-origins"),
+				ClientDir:        cmd.String("client-dir"),
+				Idle:             cmd.Duration("idle"),
+				EndSessions:      cmd.Bool("end-sessions"),
+				AgentProxy:       cmd.String("agent-proxy"),
+				SentryDSN:        cmd.String("sentry-dsn"),
+				VAPIDKey:         cmd.String("vapid-key"),
+				ResumeWindow:     resumeWindow,
+				ResumeUntilClose: resumeUntilClose,
+				Treehouse: treehouseOptions{
+					Broker:    cmd.String("treehouse-broker"),
+					Accounts:  cmd.String("treehouse-accounts"),
+					Dir:       cmd.String("treehouse-dir"),
+					ConfigDir: cmd.String("treehouse-config-dir"),
+				},
 			}, cmd.Root().ErrWriter)
 		},
 	}
@@ -105,6 +149,7 @@ func newSendCommand() *cli.Command {
 		ArgsUsage:     "<role|seat|session> <message...>",
 		Description: "The daemon stamps `[from <role> <identity>]` from this session's token,\n" +
 			"so the sender cannot choose that line. A message of `-` reads stdin.\n" +
+			"A message over 256 KiB is refused, so send a file's path instead.\n" +
 			"It waits while Kai is typing in the target and lands after her draft.",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "launch", Usage: "when no session answers to a role, open one and deliver into it"},
@@ -120,7 +165,8 @@ func newSendCommand() *cli.Command {
 			}
 			body := strings.Join(args[1:], " ")
 			if body == "-" {
-				raw, err := io.ReadAll(os.Stdin)
+				// One byte past the limit is enough to know it is over.
+				raw, err := io.ReadAll(io.LimitReader(os.Stdin, maxSendBody+1))
 				if err != nil {
 					return err
 				}
@@ -155,6 +201,16 @@ type sendOptions struct {
 // sendMessage is the one path both front doors take, the CLI and the MCP
 // tool, so the two cannot drift.
 func sendMessage(target, body string, opts sendOptions) (peerMessage, error) {
+	if len(body) > maxSendBody {
+		return peerMessage{}, errSendTooLong()
+	}
+	// Ahead of the daemon, which would hold the message three minutes for a
+	// session that can never open (COI-2668).
+	if opts.Fresh || opts.Launch {
+		if err := checkDefaultWorkingDirectory(); err != nil {
+			return peerMessage{}, err
+		}
+	}
 	token := strings.TrimSpace(os.Getenv(sessionTokenEnv))
 	if token == "" {
 		return peerMessage{}, withExit(exitUsage, fmt.Errorf(
@@ -250,7 +306,13 @@ func launchRole(role, seat string) error {
 	if err != nil {
 		return err
 	}
-	output, err := exec.Command(self, launchRoleArgs(role, seat)...).CombinedOutput()
+	command := exec.Command(self, launchRoleArgs(role, seat)...)
+	// The daemon and a shadow seat both launch from an environment whose home
+	// is not the projects root's, so the child starts on the canonical one.
+	if environ := canonicalEnviron(os.Environ(), readCanonicalLaunch()); environ != nil {
+		command.Env = environ
+	}
+	output, err := command.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%v: %s", err, strings.TrimSpace(string(output)))
 	}
@@ -337,6 +399,9 @@ func agentState(view sessionView) string {
 		parts = append(parts, fmt.Sprintf("%d pending", view.Pending))
 	}
 	parts = append(parts, fmt.Sprintf("%d client(s), up %s", view.Clients, time.Since(view.Started).Round(time.Second)))
+	if view.Ref != "" {
+		parts = append(parts, "ref "+view.Ref)
+	}
 	return strings.Join(parts, ", ")
 }
 
@@ -359,7 +424,7 @@ func listAgents() ([]sessionView, error) {
 		return nil, nil
 	}
 	defer c.Close()
-	reply, err := c.request(frame{Type: "list"})
+	reply, err := c.request(frame{Type: "list", Token: strings.TrimSpace(os.Getenv(sessionTokenEnv))})
 	if err != nil {
 		return nil, err
 	}
@@ -379,6 +444,10 @@ func askChoice(ask choiceAsk) (choiceAnswer, error) {
 		return choiceAnswer{}, withExit(exitMissing, err)
 	}
 	defer c.Close()
+	if ask.Relay && !slices.Contains(c.features, askRelayFeature) {
+		return choiceAnswer{}, withExit(exitUsage, fmt.Errorf(
+			"this aterm daemon predates send_user_question, so the card would not reach the director. Use ask_choice, or restart the daemon on a newer aterm"))
+	}
 	reply, err := c.request(frame{Type: "ask", Token: token, Ask: &ask})
 	if err != nil {
 		if reply.Code != 0 {

@@ -1,10 +1,12 @@
 <script lang="ts">
-  import { addHost, app, checkHost, HOSTED, reconnecting, removeHost, saveFoundHost, selectHost, selectedHost } from "../lib/app.svelte";
-  import PasskeyUnlock from "../components/PasskeyUnlock.svelte";
+  import { addHost, app, checkHost, placeNow, reconnecting, removeHost, saveFoundHost, selectHost, selectedHost } from "../lib/app.svelte";
+  import Unlock from "../components/Unlock.svelte";
+  import { CAN_PASSKEY, EXTERNAL } from "../lib/build";
   import type { Host } from "../lib/protocol";
   import { typingNotice } from "../lib/typing";
   import { splitSessions } from "../lib/sessions";
   import InstallCard from "../components/InstallCard.svelte";
+  import ConnectionCheck from "../components/ConnectionCheck.svelte";
 
   const host = $derived(selectedHost());
   const silent = $derived(app.hosts.filter((candidate) => candidate.status.kind === "unreachable"));
@@ -45,14 +47,14 @@
     {#each silent as quiet (quiet.id)}
       <div class="alert" role="alert">
         {#if quiet.answered}
-          <p><strong>{quiet.label} stopped answering.</strong> It answered earlier on this page, so it is probably restarting. Retry asks it again.</p>
+          <p><strong>{quiet.label} stopped answering.</strong> It answered earlier on this page, so it is probably restarting. This page asks again on its own, and Retry asks now.</p>
         {:else}
-          <p><strong>{quiet.label} is not answering.</strong> Its daemon may be stopped, or running with a tailnet listener that fails TLS. On that machine, run <code>aterm doctor</code>, which says which, then retry.</p>
+          <p><strong>{quiet.label} is not answering.</strong> Pick it to run the connection check, which shows how far the connection got.</p>
         {/if}
         <button class="button" onclick={() => retry(quiet)}>Retry {quiet.label}</button>
       </div>
     {/each}
-    {#if HOSTED && !hasDaemonHost}
+    {#if EXTERNAL && !hasDaemonHost}
       <p class="lede">No hosts on this device yet. Add one by its tailnet name, once, and this device remembers it.</p>
     {/if}
     <form class="add" onsubmit={add}>
@@ -72,9 +74,11 @@
     <h1>{host.label} {host.answered ? "stopped answering" : "is not answering"}</h1>
     <div class="alert" role="alert">
       {#if host.answered}
-        <p>{host.status.reason} It answered earlier on this page, so it is probably restarting. Retry asks it again.</p>
+        <p>{host.status.reason} It answered earlier on this page, so it is probably restarting. This page asks again on its own, and Retry asks now.</p>
+      {:else if host.status.layer && host.status.layer !== "network"}
+        <p>{host.status.reason}</p>
       {:else}
-        <p>{host.status.reason} On that machine, <code>aterm doctor</code> says which. A stopped daemon starts with <code>aterm daemon</code>, or by launching any seat with <code>aterm</code>. Then retry.</p>
+        <p>Nothing answered. The connection check below shows how far the connection got, and one button sends the report to prod-director. This page keeps asking for an hour, and asks again when you come back to it.</p>
       {/if}
       <button class="button" onclick={() => retry(host)}>Retry</button>
     </div>
@@ -87,9 +91,9 @@
     <h1>{host.label}</h1>
     {#if reconnecting() && host.id === app.attachedHostId}
       {#if running === 0}
-        <p class="lede">Reconnecting. Nothing was running when it stopped answering.</p>
+        <p class="lede">{app.link.state === "resting" ? "Not answering." : "Reconnecting."} Nothing was running when it stopped answering.</p>
       {:else}
-        <p class="lede">Reconnecting. {running} {running === 1 ? "seat was" : "seats were"} running when it stopped answering, and they show as they were.</p>
+        <p class="lede">{app.link.state === "resting" ? "Not answering." : "Reconnecting."} {running} {running === 1 ? "seat was" : "seats were"} running when it stopped answering, and they show as they were.</p>
       {/if}
     {:else}
       <p class="lede">{running} {running === 1 ? "seat" : "seats"} running. Pick a seat from the list to open its terminal.</p>
@@ -99,9 +103,20 @@
       <button class="button remove" onclick={() => keep(host)}>Save {host.label} to this device</button>
     {/if}
   {/if}
-  {#if !app.typing.allowed && host?.id === app.attachedHostId}
-    <p class="lede" role="status"><strong>Read only.</strong> {typingNotice(app.typing)}</p>
-    <PasskeyUnlock />
+  {#if host && host.kind === "daemon" && host.status.kind !== "checking"}
+    <!-- Keyed so a host that goes silent again checks again, and one that is only being looked at waits to be asked. -->
+    {#key `${host.id} ${host.status.kind} ${reconnecting()}`}
+      <ConnectionCheck {host} auto={host.status.kind === "unreachable" || (reconnecting() && host.id === app.attachedHostId)} />
+    {/key}
+  {/if}
+  {#if host?.id === app.attachedHostId}
+    <!-- The passkey section is here whatever the lock says, so enrollment never depends on a lock that failed to show. -->
+    {#if !app.typing.allowed}
+      <p class="lede" role="status"><strong>Read only.</strong> {typingNotice(app.typing, placeNow())}</p>
+    {:else if (CAN_PASSKEY && app.passkeyAvailable) || app.deviceKeyAvailable}
+      <p class="lede" role="status">Typing is on for this device.</p>
+    {/if}
+    <Unlock always />
   {/if}
   <p class="note" role="status">{app.notice}</p>
   <InstallCard />

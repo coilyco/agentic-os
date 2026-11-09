@@ -49,7 +49,7 @@ func TestLoadHarnessLaunchProfilesRejectsMalformedModelProfiles(t *testing.T) {
 		"unknown harness":    "roles:\n  a:\n    agent: codex\n    harnesses:\n      aider: {model: gpt-5}\n",
 		"codex with effort":  "roles:\n  a:\n    agent: codex\n    harnesses:\n      codex: {model: gpt-6-sol, effort: high}\n",
 		"codex no model":     "roles:\n  a:\n    agent: codex\n    harnesses:\n      codex: {}\n",
-		"opencode bare id":   "roles:\n  a:\n    agent: opencode\n    harnesses:\n      opencode: {model: deepseek-v4-pro}\n",
+		"opencode bare id":   "roles:\n  a:\n    agent: opencode\n    harnesses:\n      opencode: {model: glm-5-3}\n",
 		"opencode provider":  "roles:\n  a:\n    agent: opencode\n    harnesses:\n      opencode: {provider: x, model: a/b}\n",
 		"effort off enum":    "roles:\n  a:\n    agent: claude\n    harnesses:\n      claude: {model: sonnet, effort: extreme}\n",
 		"unresolvable alias": "roles:\n  a:\n    agent: claude\n    harnesses:\n      claude: {model: best}\n",
@@ -104,7 +104,7 @@ roles:
     harnesses:
       goose:
         provider: openai
-        model: evaluation/deepseek-v4-pro
+        model: chat/glm-5-3
   builder:
     agent: claude
     harnesses:
@@ -117,7 +117,7 @@ func TestGooseProfileReachesGooseAsEnvironmentAndNeverAsFlags(t *testing.T) {
 	document := loadModelFixture(t, gooseProfileFixture)
 	noEnv := func(string) string { return "" }
 	got := roleModelEnvironment(document, "assistant", "goose", noEnv)
-	want := map[string]string{"GOOSE_PROVIDER": "openai", "GOOSE_MODEL": "evaluation/deepseek-v4-pro"}
+	want := map[string]string{"GOOSE_PROVIDER": "openai", "GOOSE_MODEL": "chat/glm-5-3"}
 	if len(got) != len(want) || got["GOOSE_PROVIDER"] != want["GOOSE_PROVIDER"] || got["GOOSE_MODEL"] != want["GOOSE_MODEL"] {
 		t.Fatalf("environment = %v, want %v", got, want)
 	}
@@ -162,16 +162,16 @@ func TestApplyRoleModelEnvironmentExportsBeforeLaunch(t *testing.T) {
 	t.Setenv("GOOSE_PROVIDER", "")
 	t.Setenv("GOOSE_MODEL", "")
 
-	if err := resolveAndExportRoleEnvironment(context.Background(), "assistant", "claude", io.Discard, listedModels("evaluation/deepseek-v4-pro")); err != nil {
+	if err := resolveAndExportRoleEnvironment(context.Background(), "assistant", "claude", io.Discard, listedModels("chat/glm-5-3")); err != nil {
 		t.Fatal(err)
 	}
 	if os.Getenv("GOOSE_PROVIDER") != "" {
 		t.Fatal("a claude launch exported goose environment")
 	}
-	if err := resolveAndExportRoleEnvironment(context.Background(), "assistant", "goose", io.Discard, listedModels("evaluation/deepseek-v4-pro")); err != nil {
+	if err := resolveAndExportRoleEnvironment(context.Background(), "assistant", "goose", io.Discard, listedModels("chat/glm-5-3")); err != nil {
 		t.Fatal(err)
 	}
-	if os.Getenv("GOOSE_PROVIDER") != "openai" || os.Getenv("GOOSE_MODEL") != "evaluation/deepseek-v4-pro" {
+	if os.Getenv("GOOSE_PROVIDER") != "openai" || os.Getenv("GOOSE_MODEL") != "chat/glm-5-3" {
 		t.Errorf("exported %q and %q", os.Getenv("GOOSE_PROVIDER"), os.Getenv("GOOSE_MODEL"))
 	}
 }
@@ -195,7 +195,7 @@ func TestApplyRoleLaunchProfileReturnsArgvAndPinnedEnvironment(t *testing.T) {
 	writeProfilesFixture(t, gooseProfileFixture)
 	t.Setenv("GOOSE_PROVIDER", "")
 	t.Setenv("GOOSE_MODEL", "")
-	list := listedModels("evaluation/deepseek-v4-pro", "claude-sonnet-5")
+	list := listedModels("chat/glm-5-3", "claude-sonnet-5")
 
 	command, env, err := applyRoleLaunchProfile(
 		context.Background(), []string{"goose", "session"}, "assistant", "goose", io.Discard, list)
@@ -205,7 +205,7 @@ func TestApplyRoleLaunchProfileReturnsArgvAndPinnedEnvironment(t *testing.T) {
 	if !slices.Equal(command, []string{"goose", "session"}) {
 		t.Errorf("goose argv = %v, want it untouched", command)
 	}
-	want := map[string]string{"GOOSE_PROVIDER": "openai", "GOOSE_MODEL": "evaluation/deepseek-v4-pro"}
+	want := map[string]string{"GOOSE_PROVIDER": "openai", "GOOSE_MODEL": "chat/glm-5-3"}
 	if !maps.Equal(env, want) {
 		t.Errorf("env = %v, want %v", env, want)
 	}
@@ -431,7 +431,7 @@ func TestPinnedGooseModelFallsBackAsAPair(t *testing.T) {
 	if os.Getenv("GOOSE_PROVIDER") != "" || os.Getenv("GOOSE_MODEL") != "" {
 		t.Errorf("absent pin exported %q and %q", os.Getenv("GOOSE_PROVIDER"), os.Getenv("GOOSE_MODEL"))
 	}
-	want := "aos: warning: role assistant pins goose model evaluation/deepseek-v4-pro, " +
+	want := "aos: warning: role assistant pins goose model chat/glm-5-3, " +
 		"which the fixture source does not list; launching on the goose default model\n"
 	if stderr.String() != want {
 		t.Errorf("stderr = %q, want %q", stderr.String(), want)
@@ -442,7 +442,7 @@ func TestPinnedGooseModelFallsBackAsAPair(t *testing.T) {
 		unreachableModels); err != nil {
 		t.Fatal(err)
 	}
-	if os.Getenv("GOOSE_MODEL") != "evaluation/deepseek-v4-pro" || !strings.Contains(stderr.String(), "unchecked") {
+	if os.Getenv("GOOSE_MODEL") != "chat/glm-5-3" || !strings.Contains(stderr.String(), "unchecked") {
 		t.Errorf("unknown availability exported %q with stderr %q", os.Getenv("GOOSE_MODEL"), stderr.String())
 	}
 }
@@ -454,7 +454,7 @@ func TestListGooseModelsAsksTheHostGooseIsConfiguredWith(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"chat/default"},{"id":"evaluation/deepseek-v4-pro"}]}`))
+		_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"chat/default"},{"id":"chat/glm-5-3"}]}`))
 	}))
 	t.Cleanup(server.Close)
 	config := filepath.Join(t.TempDir(), "config.yaml")
@@ -468,7 +468,7 @@ func TestListGooseModelsAsksTheHostGooseIsConfiguredWith(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Equal(ids, []string{"chat/default", "evaluation/deepseek-v4-pro"}) || source != server.URL+"/v1/models" {
+	if !slices.Equal(ids, []string{"chat/default", "chat/glm-5-3"}) || source != server.URL+"/v1/models" {
 		t.Errorf("ids=%v source=%s", ids, source)
 	}
 	if _, _, err := listGooseModels(context.Background(), server.Client(),
@@ -503,7 +503,7 @@ roles:
     agent: opencode
     harnesses:
       opencode:
-        model: agent-proxy/evaluation/deepseek-v4-pro
+        model: agent-proxy/chat/default
 `
 
 func TestCodexAndOpencodePinsReachTheirHarness(t *testing.T) {
@@ -521,7 +521,7 @@ func TestCodexAndOpencodePinsReachTheirHarness(t *testing.T) {
 		"codex inline config": {"operator", "codex", []string{"--config=model=o3"}, nil},
 		"codex prompt text":   {"operator", "codex", []string{"exec", "model=o3"}, []string{"-c", `model="gpt-6-sol"`}},
 		"codex other -c":      {"operator", "codex", []string{"-c", "sandbox_mode=x"}, []string{"-c", `model="gpt-6-sol"`}},
-		"opencode pin":        {"junior", "opencode", nil, []string{"--model", "agent-proxy/evaluation/deepseek-v4-pro"}},
+		"opencode pin":        {"junior", "opencode", nil, []string{"--model", "agent-proxy/chat/default"}},
 		"opencode typed -m":   {"junior", "opencode", []string{"-m", "a/b"}, nil},
 		"wrong harness":       {"junior", "codex", nil, nil},
 	} {
@@ -550,12 +550,12 @@ func TestPinnedCodexAndOpencodeModelsFallBack(t *testing.T) {
 			[]string{"codex", "-c", `model="gpt-6-sol"`, "exec"}, "",
 		},
 		"opencode absent": {
-			[]string{"opencode"}, "junior", listedModels("agent-proxy/evaluation/deepseek-v4-flash"),
-			[]string{"opencode"}, "role junior pins opencode model agent-proxy/evaluation/deepseek-v4-pro",
+			[]string{"opencode"}, "junior", listedModels("agent-proxy/chat/minimax-m3"),
+			[]string{"opencode"}, "role junior pins opencode model agent-proxy/chat/default",
 		},
 		"opencode unknown": {
 			[]string{"opencode"}, "junior", unreachableModels,
-			[]string{"opencode", "--model", "agent-proxy/evaluation/deepseek-v4-pro"}, "unchecked",
+			[]string{"opencode", "--model", "agent-proxy/chat/default"}, "unchecked",
 		},
 	} {
 		var stderr strings.Builder
@@ -617,8 +617,8 @@ func TestListCodexModelsRPCFollowsCursors(t *testing.T) {
 
 func TestParseOpencodeModelsKeepsProviderModelLines(t *testing.T) {
 	t.Parallel()
-	got := parseOpencodeModels([]byte("agent-proxy/evaluation/deepseek-v4-flash\nagent-proxy/evaluation/deepseek-v4-pro\n\nWarning: cache stale\n"))
-	want := []string{"agent-proxy/evaluation/deepseek-v4-flash", "agent-proxy/evaluation/deepseek-v4-pro"}
+	got := parseOpencodeModels([]byte("agent-proxy/chat/minimax-m3\nagent-proxy/chat/glm-5-3\n\nWarning: cache stale\n"))
+	want := []string{"agent-proxy/chat/minimax-m3", "agent-proxy/chat/glm-5-3"}
 	if !slices.Equal(got, want) {
 		t.Errorf("got %v, want %v", got, want)
 	}

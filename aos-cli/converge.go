@@ -44,6 +44,11 @@ type environmentConvergeOptions struct {
 	Home       string
 	Check      bool
 	Now        func() time.Time
+	// Environment judges the ${VAR} headers of the Claude registry, nil keeps them all.
+	Environment environmentLookup
+	// ExportCredentials fills Environment before an apply. Check never calls it,
+	// since check makes no network access.
+	ExportCredentials func(context.Context)
 }
 
 type environmentConvergeResult struct {
@@ -67,9 +72,13 @@ type catalogueManifestEntry struct {
 
 func runEnvironmentConverge(ctx context.Context, cmd *cli.Command) error {
 	result, err := convergeEnvironment(ctx, environmentConvergeOptions{
-		ConfigPath: cmd.String("config"),
-		Home:       cmd.String("home"),
-		Check:      cmd.Bool("check"),
+		ConfigPath:  cmd.String("config"),
+		Home:        cmd.String("home"),
+		Check:       cmd.Bool("check"),
+		Environment: os.LookupEnv,
+		ExportCredentials: func(ctx context.Context) {
+			applyNativeLaunchCredentials(ctx, os.Stderr, "")
+		},
 	})
 	if err != nil {
 		return err
@@ -162,17 +171,23 @@ func convergeEnvironment(
 		if config.MCP.ProjectNative != nil {
 			projectNative = *config.MCP.ProjectNative
 		}
+		if projectNative && !opts.Check && opts.ExportCredentials != nil {
+			// Before the projection, which leaves off a header whose variable is unset.
+			opts.ExportCredentials(ctx)
+		}
 		mcpResult, err := projectNativeMCP(nativeMCPOptions{
 			Inventory:     inventory,
 			Home:          home,
 			Check:         opts.Check,
 			ProjectNative: projectNative,
+			Environment:   opts.Environment,
 		})
 		if err != nil {
 			return environmentConvergeResult{}, err
 		}
 		result.MCPServers = mcpResult.Servers
 		result.Changed = result.Changed || mcpResult.Changed
+		result.Warnings = append(result.Warnings, mcpResult.HeaderOmissions...)
 	}
 	return result, nil
 }

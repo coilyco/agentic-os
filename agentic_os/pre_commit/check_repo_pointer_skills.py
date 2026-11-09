@@ -27,7 +27,7 @@ TRACKER = "docs/features-agents.md"
 SKILLS_DIR_CANDIDATES = (".agents/skills", ".claude/skills", "skills")
 
 REGEN_HINT = (
-    "  regenerate: aosguard ops forgejo repo get <owner> <name> "
+    "  regenerate: gh repo view <owner>/<name> --json description,repositoryTopics "
     "| python -m agentic_os.generators.generate_repo_pointer_skill <name> --from-json - --repo-root <repo>"
 )
 

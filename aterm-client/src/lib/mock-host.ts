@@ -2,8 +2,11 @@
 // the surface with no daemon running. Nothing here reaches a real PTY.
 import rosterJson from "./fixtures/roster.json";
 import { envelope } from "./messages";
-import type { Ask, ContextReading, HostConnection, HostEvent, PeerMessage, Session, TerminalChannel } from "./protocol";
+import { FEEDBACK_TEXT_MAX, feedbackRefusal } from "./feedback";
+import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
+import type { Ask, ContextReading, HostConnection, FeedbackChannel, HostEvent, ImageChannel, PeerMessage, Session, TerminalChannel } from "./protocol";
 import { parseRoster } from "./roster";
+import { CLAUDE_BOX, CLAUDE_DIALOG, drawHarness, type Frame } from "./demo-harness";
 import { runShellLine, SHELL_PROMPT, type ShellStep } from "./demo-shell";
 import type { ListedTerminal } from "./terminals";
 
@@ -37,9 +40,47 @@ export function terminalModeFrom(search: string): TerminalMode {
   return TERMINAL_MODES.find((mode) => mode === asked) ?? "ok";
 }
 
+function isImage(head: Uint8Array): boolean {
+  const starts = (...bytes: number[]) => bytes.every((byte, at) => head[at] === byte);
+  return starts(0x89, 0x50, 0x4e, 0x47) || starts(0xff, 0xd8, 0xff) || starts(0x47, 0x49, 0x46, 0x38) || (starts(0x52, 0x49, 0x46, 0x46) && head[8] === 0x57 && head[9] === 0x45);
+}
+
 export class MockHost implements HostConnection {
   readonly canLaunch = true;
   readonly terminals?: TerminalChannel;
+  // The daemon's rules (references/image-upload.md): bytes set the type, 3 MB, 16 a seat.
+  readonly images: ImageChannel = {
+    maxBytes: IMAGE_UPLOAD_MAX_BYTES,
+    upload: async (sessionId, image) => {
+      const head = new Uint8Array(await image.slice(0, 12).arrayBuffer());
+      const refused = !isImage(head) ? "not_an_image" : image.size > IMAGE_UPLOAD_MAX_BYTES ? "too_large" : (this.uploads.get(sessionId) ?? 0) >= 16 ? "too_many" : null;
+      if (refused) throw new Error(imageRefusal(refused) ?? "The host refused the image.");
+      const held = (this.uploads.get(sessionId) ?? 0) + 1;
+      this.uploads.set(sessionId, held);
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      return `/tmp/aterm-demo/images/${sessionId}-1/${String(held).padStart(4, "0")}.png`;
+    },
+  };
+  // COI-3345's frames, scripted before the daemon has them, under the image rules above.
+  readonly feedback: FeedbackChannel = {
+    maxBytes: IMAGE_UPLOAD_MAX_BYTES,
+    send: async (report, progress) => {
+      if (report.text.length > FEEDBACK_TEXT_MAX) throw new Error(feedbackRefusal("text_too_long") ?? "The host refused the note.");
+      for (const [done, image] of report.images.entries()) {
+        const head = new Uint8Array(await image.slice(0, 12).arrayBuffer());
+        const refused = !isImage(head) ? "not_an_image" : image.size > IMAGE_UPLOAD_MAX_BYTES ? "too_large" : null;
+        if (refused) throw new Error(imageRefusal(refused) ?? "The host refused the screenshot.");
+        progress?.(done, report.images.length);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      progress?.(report.images.length, report.images.length);
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      this.reports += 1;
+      return `fb-demo-${String(this.reports).padStart(4, "0")}`;
+    },
+  };
+  private reports = 0;
+  private uploads = new Map<string, number>();
   private shells = new Map<string, { label: string; line: string }>();
   private nextShell = 0;
   private listeners = new Set<(event: HostEvent) => void>();
@@ -64,9 +105,23 @@ export class MockHost implements HostConnection {
     private readonly terminalMode: TerminalMode = "ok",
   ) {
     if (terminalMode !== "off") this.terminals = { open: (label) => this.openShell(label), close: (id) => this.endShell(id, null) };
-    for (const each of this.sessions) this.buffers.set(each.id, (scripts[each.role] ?? []).join("\r\n") + PROMPT);
+    for (const each of this.sessions) this.buffers.set(each.id, this.drawn(each.id) ?? (scripts[each.role] ?? []).join("\r\n") + PROMPT);
     this.timers.push(setTimeout(() => this.deliverScriptedMessage(), delayMs));
     this.timers.push(setTimeout(() => this.scriptedAsks(), delayMs * 2));
+  }
+
+  /** Two Claude seats draw as Claude Code does: one at rest, one on a permission menu. */
+  private frameFor(each: Pick<Session, "id" | "role">): { transcript: readonly string[]; frame: Frame } | null {
+    const transcript = scripts[each.role] ?? [];
+    if (each.id === "frontend-eng-imp-dragonfly-dj99") return { transcript, frame: CLAUDE_BOX };
+    if (each.id === "eng-platform-beetle-ox-eb64") return { transcript, frame: CLAUDE_DIALOG };
+    return null;
+  }
+
+  private drawn(sessionId: string, rows = 0, cols = 70): string | null {
+    const target = this.sessions.find((each) => each.id === sessionId);
+    const shape = target && this.frameFor(target);
+    return shape ? drawHarness(shape.transcript, shape.frame, rows, cols) : null;
   }
 
   answer(askId: string, picks: number[], text?: string): void {
@@ -134,12 +189,21 @@ export class MockHost implements HostConnection {
     this.emit({ type: "output", sessionId, data: this.buffers.get(sessionId) ?? "" });
   }
 
+  replay(sessionId: string): void {
+    this.emit({ type: "output", sessionId, data: this.buffers.get(sessionId) ?? "" });
+  }
+
   detach(sessionId: string): void {
     this.attached.delete(sessionId);
   }
 
   input(sessionId: string, data: string): void {
     if (this.shells.has(sessionId)) return this.typeIntoShell(sessionId, data);
+    // A harness redraws its box in place, so a turn only grows the context.
+    if (this.drawn(sessionId) !== null) {
+      if (data === "\r") this.addTurn(sessionId);
+      return;
+    }
     this.write(sessionId, data === "\r" ? PROMPT : data);
     if (data === "\r") this.addTurn(sessionId);
   }
@@ -153,7 +217,12 @@ export class MockHost implements HostConnection {
     this.emit({ type: "sessions", sessions: this.sessions });
   }
 
-  resize(): void {}
+  resize(sessionId: string, rows: number, cols: number): void {
+    const redraw = this.drawn(sessionId, rows, cols);
+    if (redraw === null) return;
+    this.buffers.set(sessionId, redraw);
+    if (this.attached.has(sessionId)) this.emit({ type: "output", sessionId, data: redraw });
+  }
 
   launch(role: string, seat: string): void {
     const identity = this.roles.find((candidate) => candidate.slug === role)?.identity ?? role;

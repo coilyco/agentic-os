@@ -1,0 +1,17 @@
+{
+  "name": "aterm-android",
+  "description": "Tauri 2 Android shell around the aterm-client bundle. Holds the build tool only, no app code.",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "packageManager": "pnpm@11.5.2",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.1"
+  }
+}

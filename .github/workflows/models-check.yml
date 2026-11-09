@@ -1,0 +1,40 @@
+# Live check of per-role model profiles against the provider model list.
+# Rationale: docs/build-file-headers.md.
+name: models-check
+
+on:
+  schedule:
+    - cron: "17 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: models-check
+  cancel-in-progress: true
+
+jobs:
+  models:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: aos-cli/go.mod
+          cache-dependency-path: aos-cli/go.sum
+      - uses: ./actions/setup-ci
+        with:
+          tools: just
+      - name: Check role model profiles against the provider
+        env:
+          ANTHROPIC_MODELS_API_KEY: ${{ secrets.ANTHROPIC_MODELS_API_KEY }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: sh scripts/ci/models-check.sh
+      - name: Alert Sentry on failure
+        if: ${{ failure() }}
+        continue-on-error: true
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py

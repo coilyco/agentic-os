@@ -75,6 +75,7 @@ function readPush(data) {
   const session = text(payload?.session);
   return {
     session,
+    kind: text(payload?.kind),
     title: text(payload?.title) || (text(payload?.identity) ? `${payload.identity} is waiting` : "A seat is waiting"),
     body: text(payload?.body),
     tag: text(payload?.tag) || (session ? `aterm-${session}` : "aterm"),
@@ -83,20 +84,26 @@ function readPush(data) {
 
 const windowsOf = () => self.clients.matchAll({ type: "window", includeUncontrolled: true });
 
-// A visible, focused window already cues itself, so its notification is shown without a
-// sound or buzz. It is still shown, and the tag replaces a repeat.
+// Every push must show one (userVisibleOnly): a watched window's is silent, then closed.
 async function showPush(event) {
   const note = readPush(event.data);
   const watched = (await windowsOf()).some((client) => client.visibilityState === "visible" && client.focused);
+  const quiet = watched || note.kind === "done";
   await self.registration.showNotification(note.title, {
     body: note.body,
     tag: note.tag,
     icon: inScope("icon-192.png"),
     data: { session: note.session },
     // silent and renotify cannot both be true.
-    silent: watched,
-    renotify: !watched,
+    silent: quiet,
+    renotify: !quiet,
   });
+  if (!watched) return;
+  try {
+    for (const shown of await self.registration.getNotifications({ tag: note.tag })) shown.close();
+  } catch {
+    // Left in the tray, which is only untidy.
+  }
 }
 
 self.addEventListener("push", (event) => {

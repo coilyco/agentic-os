@@ -80,14 +80,15 @@ func loadOverlay(
 	role string,
 	seat string,
 	expression string,
+	identity string,
 ) (overlayDocument, error) {
-	command := []string{
+	command := withIdentityEnv(identity, []string{
 		agentCompose, "overlay",
 		"--role", role,
 		"--seat", seat,
 		"--expression", expression,
 		"--json",
-	}
+	})
 	raw, err := whileWaiting2(deps.notice, command, func() ([]byte, error) {
 		return deps.output(ctx, command[0], command[1:]...)
 	})

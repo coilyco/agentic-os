@@ -142,3 +142,134 @@ func TestReleaseMarksTheLeaseAndSkipsTheGrace(t *testing.T) {
 		t.Fatal("releasing an unknown session should refuse")
 	}
 }
+
+// COI-3427: a closed seat's shadow stayed for the 24-hour grace, because nothing
+// declared it finished. Finishing collects it now and still keeps unpushed work.
+func TestFinishingCollectsADeadShadowKeepsUnpushedWorkAndSparesALiveOne(t *testing.T) {
+	root := t.TempDir()
+	repository, _ := createNativeTestRepository(t, root, "owner", "one")
+	runtime := nativeTestRuntime(t, root)
+	leases := nativeStatePath(runtime, "leases")
+	if err := os.MkdirAll(leases, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	const deadPID = 2147000
+	sessionRoot := func(id string) string {
+		path := filepath.Join(root, "sessions", id)
+		if err := os.MkdirAll(filepath.Join(path, "home"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	write := func(lease nativeLease) {
+		lease.Harness = "claude"
+		if err := writeNativeJSON(filepath.Join(leases, lease.ID+".json"), lease); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(nativeLease{ID: "gg11", PID: deadPID, ProcessStart: "gone", SessionRoot: sessionRoot("gg11")})
+	write(nativeLease{ID: "jj44", PID: os.Getpid(), ProcessStart: runtime.ProcessStart, SessionRoot: sessionRoot("jj44")})
+	keptRoot := sessionRoot("hh22")
+	worktree := filepath.Join(keptRoot, "one")
+	testGit(t, repository, "worktree", "add", "-b", "aos/claude/hh22", worktree)
+	commitFile(t, worktree, "local.txt", "local")
+	write(nativeLease{
+		ID: "hh22", PID: deadPID, ProcessStart: "gone", SessionRoot: keptRoot,
+		Artifacts: []nativeArtifact{{Repository: repository, Worktree: worktree, Branch: "aos/claude/hh22"}},
+	})
+
+	everything := func(nativeLease) bool { return true }
+	if err := finishNativeShadows(runtime, everything, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(sessionRoot("gg11")); err != nil {
+		t.Fatalf("a dry run must remove nothing: %v", err)
+	}
+	if err := finishNativeShadows(runtime, everything, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "sessions", "gg11")); !os.IsNotExist(err) {
+		t.Fatalf("a dead, clean shadow should be gone at once, stat err = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(leases, "gg11.json")); !os.IsNotExist(err) {
+		t.Fatalf("its lease should go with it, stat err = %v", err)
+	}
+	for _, kept := range []string{filepath.Join(worktree, "local.txt"), filepath.Join(root, "sessions", "jj44"), filepath.Join(leases, "hh22.json")} {
+		if _, err := os.Stat(kept); err != nil {
+			t.Fatalf("%s must survive: unpushed work and live sessions are kept: %v", kept, err)
+		}
+	}
+}
+
+// COI-3427: with --release-dead the header said 79 would be released and the footer
+// said 0, because the verdicts were read before the release the real run makes.
+func TestADryRunWithReleaseDeadReadsTheVerdictsTheRealRunEnforces(t *testing.T) {
+	root := t.TempDir()
+	runtime := nativeTestRuntime(t, root)
+	leases := nativeStatePath(runtime, "leases")
+	if err := os.MkdirAll(leases, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	fresh := runtime.Now.Add(-time.Hour)
+	for id, lease := range map[string]nativeLease{
+		"kk55": {DeadSince: &fresh},
+		"mm66": {PID: os.Getpid(), ProcessStart: runtime.ProcessStart},
+	} {
+		lease.ID, lease.Harness = id, "claude"
+		lease.SessionRoot = filepath.Join(root, "sessions", id)
+		if err := writeNativeJSON(filepath.Join(leases, id+".json"), lease); err != nil {
+			t.Fatal(err)
+		}
+	}
+	verdicts := func(releaseDead bool) map[string]bool {
+		report, err := inspectNativeShadowsAs(runtime, releaseDead)
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]bool{}
+		for _, session := range report.Sessions {
+			out[session.ID] = session.Releasable
+		}
+		return out
+	}
+	if got := verdicts(false); got["kk55"] {
+		t.Fatalf("without the flag a dead lease inside the grace is held: %v", got)
+	}
+	if got := verdicts(true); !got["kk55"] || got["mm66"] {
+		t.Fatalf("with the flag the dead lease is releasable and the live one is not: %v", got)
+	}
+}
+
+// COI-3427: the sweep removed clean, pushed worktrees that live seats made inside their
+// own shadows, since only lease artifacts counted as live. Their ignored files went too.
+func TestTheSweepLeavesWorktreesInsideALiveSessionsShadowAndScratchpad(t *testing.T) {
+	root := t.TempDir()
+	repository, _ := createNativeTestRepository(t, root, "owner", "one")
+	runtime := nativeTestRuntime(t, root)
+	liveRoot := filepath.Join(root, "native", "sp59")
+	scratch := filepath.Join(root, "claude-502", strings.ReplaceAll(liveRoot, string(os.PathSeparator), "-")+"-projects", "abc", "scratchpad")
+	add := func(path, branch string) {
+		testGit(t, repository, "worktree", "add", "-b", branch, path, "origin/main")
+		testGit(t, path, "push", "-u", "origin", branch)
+	}
+	inShadow := filepath.Join(liveRoot, "projects", "owner", "one")
+	inScratch := filepath.Join(scratch, "deploy-main")
+	elsewhere := filepath.Join(root, "stray")
+	add(inShadow, "own-shadow")
+	add(inScratch, "own-scratch")
+	add(elsewhere, "stray-branch")
+
+	live := nativeLiveWorktrees{}
+	live.addRoot(liveRoot)
+	if err := cleanUnleasedNativeWorktrees(runtime, nativeRepository{Owner: "owner", Name: "one", Path: repository}, live); err != nil {
+		t.Fatal(err)
+	}
+	for _, kept := range []string{inShadow, inScratch} {
+		if _, err := os.Stat(kept); err != nil {
+			t.Fatalf("%s belongs to a live session and must survive: %v", kept, err)
+		}
+	}
+	if _, err := os.Stat(elsewhere); !os.IsNotExist(err) {
+		t.Fatalf("a clean, pushed worktree outside every live session is still swept, stat err = %v", err)
+	}
+}

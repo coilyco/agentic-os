@@ -1,0 +1,18 @@
+────────────────────────────────────────────────────────────────────────
+←  ☒ Accent  ☒ Routes  ☐ Name  ✔ Submit  →
+
+Which routes do you want enabled?
+
+  1. [✔] Qwen
+         Route requests to the Qwen model family.
+  2. [ ] Llama
+         Route requests to the Llama model family.
+  3. [ ] Frontier
+         Route requests to frontier Claude models.
+  4. [ ] Type something
+❯    Next
+────────────────────────────────────────────────────────────────────────
+  5. Chat about this
+
+Enter to select · Tab/Arrow keys to navigate · ctrl+g to edit in VS Code
+· Esc to cancel

@@ -13,6 +13,7 @@ vi.mock("./daemon-host", async (original) => ({
     return 2;
   }),
 }));
+vi.mock("./reach", () => ({ diagnose: vi.fn(async () => ({ layer: "network", message: "Nothing answered." })) }));
 vi.mock("./discovery", async (original) => ({
   ...(await original<typeof import("./discovery")>()),
   discover: vi.fn(async () => replies.found),
@@ -92,11 +93,19 @@ describe("saving a found host", () => {
     expect(labels(app.hosts)).toContain("tower");
   });
 
-  it("is what typing a found host's name does", async () => {
+  it("is what typing a found host's name and port does", async () => {
+    replies.found = [tower];
+    const { app, addHost } = await boot();
+    const added = addHost("tower.example.ts.net:7419");
+    expect(added.id.startsWith("saved:")).toBe(true);
+    expect(app.hosts.filter((each) => each.label === "tower")).toHaveLength(1);
+  });
+
+  it("is not what typing the bare name does, since that one is dialled on 443", async () => {
     replies.found = [tower];
     const { app, addHost } = await boot();
     const added = addHost("tower.example.ts.net");
-    expect(added.id.startsWith("saved:")).toBe(true);
-    expect(app.hosts.filter((each) => each.label === "tower")).toHaveLength(1);
+    expect(added.address).toBe("wss://tower.example.ts.net/");
+    expect(app.hosts.filter((each) => each.label === "tower")).toHaveLength(2);
   });
 });

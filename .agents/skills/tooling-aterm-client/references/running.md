@@ -12,9 +12,9 @@ It talks `aterm.daemon.v1` to the aterm daemon's loopback websocket, so "this Ma
 
 ## Alt-tab use
 
-Made for tabbing out of a game to answer seats. The window title says who is waiting, tabbing in lands on the seat that needs you with its answer focused, and a number key answers and moves on.
+Made for tabbing out of a game to answer seats. The window title says who is waiting and a waiting seat gets a "?" or dot and a faint tint in the sidebar, but tabbing in leaves you on the seat you were on. Open a waiting seat with a click, and a number key answers its card.
 
-From another machine on the tailnet, such as a gaming PC: run `just aterm-client-install-dir` on the Mac once, then open `https://<mac tailnet name>:7419/` and install it as an app for its own alt-tab entry and taskbar badge. The daemon serves it over HTTPS and admits only your own devices, by `tailscale whois`.
+From another machine on the tailnet, such as a gaming PC: open `https://<mac tailnet name>:7419/` and install it as an app for its own alt-tab entry and taskbar badge. The daemon serves it over HTTPS and admits only your own devices, by `tailscale whois`.
 
 ## Running it
 
@@ -22,6 +22,8 @@ From another machine on the tailnet, such as a gaming PC: run `just aterm-client
 just aterm-client-install
 just aterm-client-dev    # http://localhost:5173
 just aterm-client-gate   # check, test, build
+just aterm-client-drive  # headless browser against the Demo host, 1280px and 320px
+just aterm-client-drive-hops  # a mock daemon that breaks each hop, and the connection check
 ```
 
 In dev, "this Mac" needs `aterm daemon` running (any `aterm` launch starts it), and `VITE_ATERM_DAEMON_WS` points the client at another port. A build dials the origin that served it, so a daemon serving `dist/` needs no configuration, and the host tab names that machine. The Demo host is scripted and needs nothing. See [architecture.md](architecture.md).

@@ -37,15 +37,18 @@ role_default_agent() {
 count_targets() {
     awk '!/^[[:space:]]*(#|$)/ { count++ } END { print count+0 }' "$1"
 }
-release_families="aos aos-bundle aoscompose aosward aosguard"
+release_families="aos aos-bundle aoscompose aosguard"
 family_count=$(printf '%s\n' $release_families | wc -l | tr -d ' ')
 target_count=$(count_targets "$repo_root/aos-cli/release-targets.txt")
 aterm_target_count=$(count_targets "$repo_root/aterm/release-targets.txt")
-expected_count=$((target_count * family_count + aterm_target_count))
+# Each darwin aterm also ships as a signed app bundle archive (COI-50).
+aterm_app_count=$(awk '!/^[[:space:]]*(#|$)/ && /^darwin\// { count++ } END { print count+0 }' \
+    "$repo_root/aterm/release-targets.txt")
+expected_count=$((target_count * family_count + aterm_target_count + aterm_app_count))
 checksum_count=$(wc -l < "$dist/SHA256SUMS" | tr -d ' ')
 if [ "$expected_count" -ne "$checksum_count" ]; then
     echo "expected $expected_count checksums ($target_count targets x $family_count families:" >&2
-    echo "  $release_families, plus $aterm_target_count aterm), found $checksum_count" >&2
+    echo "  $release_families, plus $aterm_target_count aterm and $aterm_app_count aterm app), found $checksum_count" >&2
     exit 1
 fi
 # A Windows aterm would open no window, so the artifact must not exist at all.
@@ -53,10 +56,72 @@ if [ -e "$dist/aterm-windows-amd64.exe" ]; then
     echo "aterm is unix-only (agentic-os#1264) but a Windows binary was built" >&2
     exit 1
 fi
+# Every aterm binary must carry the client the release built, found by the
+# bundle name the staged index.html points at.
+client_script=$(grep -o 'index-[A-Za-z0-9_-]*\.js' "$repo_root/aterm-client/dist/index.html" | head -1)
+if [ -z "$client_script" ]; then
+    echo "no built client at aterm-client/dist/index.html to check the aterm binaries against" >&2
+    exit 1
+fi
+for aterm_binary in "$dist"/aterm-*; do
+    case "$aterm_binary" in *.app.tar.gz) continue ;; esac
+    if ! grep -aqF "$client_script" "$aterm_binary"; then
+        echo "$aterm_binary does not embed the client ($client_script)" >&2
+        exit 1
+    fi
+done
 if grep -F 'aterm-windows-amd64.exe' "$dist/aos.json" >/dev/null 2>&1; then
     echo "the Scoop manifest still installs aterm" >&2
     exit 1
 fi
+
+# The darwin aterm ships as a signed bundle (COI-50), read back for its identifier
+# and a requirement with no build hash. AOS_RELEASE_UNSIGNED=1 is never a release.
+app_identifier=dev.coilyco.treehouse
+for target in $(awk '!/^[[:space:]]*(#|$)/ && /^darwin\// { print }' \
+    "$repo_root/aterm/release-targets.txt"); do
+    goos=${target%%/*}
+    goarch=${target#*/}
+    app_archive="$dist/aterm-${goos}-${goarch}.app.tar.gz"
+    if [ ! -s "$app_archive" ]; then
+        echo "missing the signed aterm app bundle: $app_archive" >&2
+        exit 1
+    fi
+    app_dir=$(mktemp -d)
+    tar -xzf "$app_archive" -C "$app_dir"
+    app="$app_dir/Treehouse.app"
+    test -x "$app/Contents/MacOS/aterm"
+    grep -F "<string>$app_identifier</string>" "$app/Contents/Info.plist" >/dev/null || {
+        echo "$app_archive does not carry the bundle identifier $app_identifier" >&2
+        exit 1
+    }
+    if [ -z "${AOS_RELEASE_UNSIGNED:-}" ]; then
+        if ! command -v rcodesign >/dev/null 2>&1; then
+            echo "rcodesign is required to read back the aterm app signature" >&2
+            exit 1
+        fi
+        requirement=$(rcodesign print-signature-info "$app" | grep -F 'designated(3)' | head -1)
+        case "$requirement" in
+            *cdhash*) requirement="" ;;
+            *"(identifier \"$app_identifier\")"*"certificate "*" = H\""*) ;;
+            *) requirement="" ;;
+        esac
+        if [ -z "$requirement" ]; then
+            echo "$app_archive designated requirement is not identifier plus certificate" >&2
+            exit 1
+        fi
+    fi
+    # On a Mac, ask the platform's own verifier as well, the one TCC trusts.
+    if command -v codesign >/dev/null 2>&1; then
+        codesign --verify --deep --strict "$app"
+        if [ -z "${AOS_RELEASE_UNSIGNED:-}" ] &&
+            codesign -d -r- "$app" 2>&1 | grep -F 'cdhash' >/dev/null; then
+            echo "$app_archive pins a build hash under codesign" >&2
+            exit 1
+        fi
+    fi
+    rm -rf "$app_dir"
+done
 
 for target in $(awk '!/^[[:space:]]*(#|$)/ { print }' \
     "$repo_root/aos-cli/release-targets.txt"); do
@@ -71,6 +136,7 @@ for target in $(awk '!/^[[:space:]]*(#|$)/ { print }' \
                 grep -Fx "./share/aos/python/agentic_os/$(basename "$module")" >/dev/null
         done
     tar -tzf "$bundle" | grep -Fx './share/aos/repositories/substrate-repos.txt' >/dev/null
+    tar -tzf "$bundle" | grep -Fx './share/aos/shim-src/fs-shims/git_guard.py' >/dev/null
 done
 
 python3 -m json.tool "$dist/aos.json" >/dev/null
@@ -83,35 +149,29 @@ grep -F '"aoscompose"' "$dist/aos.rb" >/dev/null
 grep -F '"aoscompose"' "$dist/aos.json" >/dev/null
 grep -F "aoscomposed" "$dist/aos.rb" >/dev/null
 grep -F "aoscomposed" "$dist/aos.json" >/dev/null
-grep -F "aosward" "$dist/aos.rb" >/dev/null
-grep -F "aosward" "$dist/aos.json" >/dev/null
 
 case "$(uname -s)/$(uname -m)" in
     Darwin/arm64)
         native_aos="$dist/aos-darwin-arm64"
         native_aoscompose="$dist/aoscompose-darwin-arm64"
-        native_aosward="$dist/aosward-darwin-arm64"
         native_aosguard="$dist/aosguard-darwin-arm64"
         native_aterm="$dist/aterm-darwin-arm64"
         ;;
     Linux/x86_64)
         native_aos="$dist/aos-linux-amd64"
         native_aoscompose="$dist/aoscompose-linux-amd64"
-        native_aosward="$dist/aosward-linux-amd64"
         native_aosguard="$dist/aosguard-linux-amd64"
         native_aterm="$dist/aterm-linux-amd64"
         ;;
     Linux/aarch64 | Linux/arm64)
         native_aos="$dist/aos-linux-arm64"
         native_aoscompose="$dist/aoscompose-linux-arm64"
-        native_aosward="$dist/aosward-linux-arm64"
         native_aosguard="$dist/aosguard-linux-arm64"
         native_aterm="$dist/aterm-linux-arm64"
         ;;
     *)
         native_aos=""
         native_aoscompose=""
-        native_aosward=""
         native_aosguard=""
         native_aterm=""
         ;;
@@ -125,11 +185,6 @@ if [ -n "$native_aos" ]; then
     actual=$("$native_aoscompose" version)
     if [ "$actual" != "$version" ]; then
         echo "native aoscompose binary reports $actual, expected $version" >&2
-        exit 1
-    fi
-    actual=$("$native_aosward" version)
-    if [ "$actual" != "$version" ]; then
-        echo "native aosward binary reports $actual, expected $version" >&2
         exit 1
     fi
     aos_plan=$("$native_aos" \
@@ -152,16 +207,6 @@ if [ -n "$native_aos" ]; then
         --version)
     printf '%s\n' "$aoscompose_plan" | grep -F -- "--composed" >/dev/null
     printf '%s\n' "$aoscompose_plan" | grep -F -- "--guarded" >/dev/null
-    aosward_plan=$("$native_aosward" \
-        --agent codex \
-        --role prod-director \
-        --image agentic-os:test \
-        --dry-run \
-        -- \
-        "aos release smoke")
-    printf '%s\n' "$aosward_plan" | grep -F -- "--composed" >/dev/null
-    printf '%s\n' "$aosward_plan" | grep -F -- "--guarded" >/dev/null
-    printf '%s\n' "$aosward_plan" | grep -F "ward agent run --role prod-director" >/dev/null
     smoke_dir=$(mktemp -d)
     trap 'rm -rf "$smoke_dir"' EXIT HUP INT TERM
     # The launch profiles own which agent a role defaults to, so read the
@@ -189,7 +234,6 @@ if [ -n "$native_aos" ]; then
         "$native_aosguard" --help >/dev/null
         "$native_aosguard" --version | grep -Fx "aosguard version $version" >/dev/null
         "$native_aosguard" ops aws --help >/dev/null
-        "$native_aosguard" ops actions --help >/dev/null
         "$native_aterm" --help >/dev/null
         "$native_aterm" --version |
             grep -Fx "aterm version $version" >/dev/null
@@ -264,4 +308,4 @@ PY
     )
 fi
 
-echo "verified aos, aoscompose, aosward, aosguard, and aterm release $version"
+echo "verified aos, aoscompose, aosguard, and aterm release $version"

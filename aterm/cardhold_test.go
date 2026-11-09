@@ -54,6 +54,27 @@ func TestAMessageWaitsBehindACardAndLandsWhenItClears(t *testing.T) {
 	target.until("[from eng-platform Beetle-Ox] ping")
 }
 
+// A repaint erases a dialog before drawing it again. A message queued in that gap was
+// typed into the dialog's free-text row, so Kai's answer was a notice (COI-3243).
+func TestAMessageStaysHeldThroughACardRepaintGap(t *testing.T) {
+	card := func(row string) string {
+		return `printf 'Do you want to proceed?\r\n` + row + `\r\nEsc to cancel\r\n'`
+	}
+	erase := `printf '\033[3A\033[J'`
+	script := `printf 'READY\033[?2004h\n'; ` + card("1. Yes") + `; sleep 3; ` + erase + `; sleep 0.8; ` +
+		card("2. Again") + `; sleep 4; ` + erase + `; exec cat`
+	token, _, target := spawnPair(t, script)
+	target.until("1. Yes")
+	if state := sendAs(t, token, "scientist", "ping"); state.State != "held" {
+		t.Fatalf("state = %+v, want held behind the card", state)
+	}
+	target.until("2. Again")
+	if strings.Contains(target.output.String(), "[from eng-platform") {
+		t.Fatalf("the message was typed while the card was being repainted:\n%q", target.output.String())
+	}
+	target.until("[from eng-platform Beetle-Ox] ping")
+}
+
 // Claude Code 2.1.293 screens read off a PTY on 2026-10-08, one per AskUserQuestion page,
 // plus an idle control (idle-*). Recapture after a Claude Code upgrade.
 const claudeScreens = "testdata/claude-screens"
@@ -104,4 +125,27 @@ func TestAMessageWaitsBehindTheAskUserQuestionReviewPage(t *testing.T) {
 		t.Fatalf("the message was typed into the review page:\n%q", target.output.String())
 	}
 	target.until("[from eng-platform Beetle-Ox] ping")
+}
+
+// COI-2653 gate: three sends to a seat at a card are each held, nothing is typed into the
+// card, and all three arrive in order once it clears.
+func TestThreeMessagesWaitBehindACardAndLandInOrder(t *testing.T) {
+	card := `printf 'Do you want to proceed?\r\n1. Yes\r\nEsc to cancel\r\n'`
+	token, _, target := spawnPair(t, `printf 'READY\033[?2004h\n'; `+card+`; sleep 8; printf '\033[3A\033[J'; exec cat`)
+	target.until("Esc to cancel")
+	for _, word := range []string{"one", "two", "three"} {
+		state := sendWaiting(t, token, "scientist", word, 1)
+		if state.State != "held" || !strings.Contains(state.Reason, "prompt card") {
+			t.Fatalf("%s: state = %+v, want held behind the card", word, state)
+		}
+	}
+	if strings.Contains(target.output.String(), "[from eng-platform") {
+		t.Fatalf("a message was typed into the card:\n%q", target.output.String())
+	}
+	target.until("[from eng-platform Beetle-Ox] three")
+	out := target.output.String()
+	first, second, third := strings.Index(out, "] one"), strings.Index(out, "] two"), strings.Index(out, "] three")
+	if first < 0 || first > second || second > third {
+		t.Fatalf("messages out of order (%d, %d, %d):\n%q", first, second, third, out)
+	}
 }

@@ -42,6 +42,7 @@ func TestBroadcastDoesNotWaitOnAStalledSubscriber(t *testing.T) {
 func TestSendNewNamesTheInstanceWhenTheLaunchFloodsTheWatch(t *testing.T) {
 	token := busyHost(t)
 	t.Setenv(sessionTokenEnv, token)
+	t.Setenv(defaultWorkingEnvVar, t.TempDir())
 	earlier := openRole
 	t.Cleanup(func() { openRole = earlier })
 	openRole = func(role, _ string) error {

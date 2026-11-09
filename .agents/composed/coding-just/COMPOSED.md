@@ -60,7 +60,7 @@ it, which is the form to use from a directory that owns no justfile.
 ## What the justfile does not own
 
 Operator verbs are **aosguard's**, surfaced as `aosguard ops <area> ...`, and
-the two surfaces do not overlap. Forgejo, AWS and SSM, Tailscale, and kubectl
+the two surfaces do not overlap. AWS and SSM, Tailscale, and kubectl
 are aosguard. Repo development commands are the justfile's. Enumerate
 operator verbs with `aosguard ops <area> describe` instead of guessing a name.
 

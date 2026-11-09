@@ -155,10 +155,10 @@ func TestMachineArchitectureSpellsBothMacArchitectures(t *testing.T) {
 func TestBundleInfoPlistGivesEachRoleItsOwnIdentifier(t *testing.T) {
 	second := testSpec()
 	second.Role = "sysadmin"
-	if !strings.Contains(bundleInfoPlist(testSpec()), "me.coilysiren.aterm.eng-platform") {
+	if !strings.Contains(bundleInfoPlist(testSpec()), "dev.coilyco.treehouse.eng-platform") {
 		t.Fatal("the identifier should carry the role")
 	}
-	if strings.Contains(bundleInfoPlist(second), "me.coilysiren.aterm.eng-platform") {
+	if strings.Contains(bundleInfoPlist(second), "dev.coilyco.treehouse.eng-platform") {
 		t.Fatal("two roles sharing an identifier would collide in LaunchServices")
 	}
 }

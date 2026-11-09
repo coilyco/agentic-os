@@ -1,0 +1,45 @@
+{
+  "name": "agentic-os",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+  "containerUser": "root",
+  "remoteUser": "root",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": { "version": "1.26.5", "installGoTools": false },
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/dotnet:2": { "version": "10.0.302" },
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "1.98.1",
+      "profile": "minimal",
+      "components": "clippy,rustfmt",
+      "targets": "wasm32-unknown-unknown"
+    },
+    "ghcr.io/devcontainers/features/aws-cli:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/git-lfs:1": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+      "version": "1.36.3",
+      "helm": "4.2.3",
+      "minikube": "none"
+    },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": { "moby": false },
+    "./features/agentic-os-tools": {
+      "tools": "just uv pre-commit trufflehog golangci-lint kdlfmt yq umbra codex goose"
+    },
+    "./features/agentic-os-media": {},
+    "./features/agentic-os-agent": {}
+  },
+  "overrideFeatureInstallOrder": [
+    "ghcr.io/devcontainers/features/go",
+    "ghcr.io/devcontainers/features/node",
+    "ghcr.io/devcontainers/features/dotnet",
+    "ghcr.io/devcontainers/features/rust",
+    "ghcr.io/devcontainers/features/aws-cli",
+    "ghcr.io/devcontainers/features/github-cli",
+    "ghcr.io/devcontainers/features/git-lfs",
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube",
+    "ghcr.io/devcontainers/features/docker-outside-of-docker",
+    "./features/agentic-os-tools",
+    "./features/agentic-os-media",
+    "./features/agentic-os-agent"
+  ]
+}

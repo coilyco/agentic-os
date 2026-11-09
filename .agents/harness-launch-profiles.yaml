@@ -1,3 +1,5 @@
+permissions:
+  claude: skip
 roles:
   eng-platform:
     agent: claude
@@ -9,7 +11,7 @@ roles:
     agent: opencode
     harnesses:
       opencode:
-        model: agent-proxy/evaluation/deepseek-v4-pro
+        model: agent-proxy/chat/default
   sysadmin-senior:
     agent: claude
     harnesses:

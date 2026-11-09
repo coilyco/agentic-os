@@ -63,8 +63,6 @@ type bootstrapOptions struct {
 	AOSGuardSkill     string
 	MCPInventory      string
 	TailnetForwards   []tailnetForward
-	IssuePinContext   string
-	IssuePinDigest    string
 }
 
 type execSpec struct {
@@ -128,9 +126,6 @@ func prepareContainer(
 	if err := stageMCPProjection(opts); err != nil {
 		return execSpec{}, err
 	}
-	if err := stageHydratedIssuePinContext(opts.Layout, opts.AgentHome, opts.IssuePinContext, opts.IssuePinDigest); err != nil {
-		return execSpec{}, err
-	}
 	if err := stageHarnessAuth(opts.Layout, opts.AgentHome); err != nil {
 		return execSpec{}, err
 	}
@@ -153,41 +148,6 @@ func prepareContainer(
 			"XDG_CONFIG_HOME": filepath.Join(opts.AgentHome, ".config"),
 		}),
 	}, nil
-}
-
-func stageHydratedIssuePinContext(layout, home, source, digest string) error {
-	if strings.TrimSpace(source) == "" {
-		return nil
-	}
-	instruction, _, err := selectedContextLayout(layout)
-	if err != nil {
-		return err
-	}
-	data, err := os.ReadFile(source)
-	if err != nil {
-		return fmt.Errorf("read issue-pin context: %w", err)
-	}
-	target := filepath.Join(home, filepath.FromSlash(instruction))
-	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
-		return fmt.Errorf("create issue-pin instruction directory: %w", err)
-	}
-	file, err := os.OpenFile(target, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
-	if err != nil {
-		return fmt.Errorf("open issue-pin instruction: %w", err)
-	}
-	defer file.Close()
-	if _, err := fmt.Fprintf(file, "\n\n# AOS Hydrated Issue Pins\n\nSnapshot digest: %s\n\n", digest); err != nil {
-		return err
-	}
-	if _, err := file.Write(data); err != nil {
-		return fmt.Errorf("append issue-pin context: %w", err)
-	}
-	if len(data) == 0 || data[len(data)-1] != '\n' {
-		if _, err := file.Write([]byte("\n")); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func bootstrapDefaults(opts bootstrapOptions) bootstrapOptions {
@@ -526,7 +486,11 @@ func findSingleBundle(root string) (string, error) {
 // stageHarnessDefaults carries container-boundary settings that the selected harness
 // cannot infer from projected role context (agentic-os#723, agentic-os#724).
 func stageHarnessDefaults(role, layout, home, workspace string) error {
-	if layout != "codex" {
+	switch layout {
+	case "claude":
+		return stageClaudeDefaults(home, workspace)
+	case "codex":
+	default:
 		return nil
 	}
 	if strings.TrimSpace(workspace) == "" {
@@ -546,6 +510,22 @@ func stageHarnessDefaults(role, layout, home, workspace string) error {
 		"trust_level = \"trusted\"\n"
 	if err := os.WriteFile(filepath.Join(dir, "config.toml"), []byte(body), 0o644); err != nil {
 		return fmt.Errorf("write codex config: %w", err)
+	}
+	return nil
+}
+
+// stageClaudeDefaults pre-answers the onboarding and folder-trust dialogs of a
+// fresh container home (COI-2732). Bypass acceptance is deliberately not seeded.
+func stageClaudeDefaults(home, workspace string) error {
+	if strings.TrimSpace(workspace) == "" {
+		return fmt.Errorf("claude workspace must not be empty")
+	}
+	config := nativeClaudeConfigPath(home)
+	if err := setNativeClaudeFlag(config, "hasCompletedOnboarding"); err != nil {
+		return fmt.Errorf("seed claude onboarding: %w", err)
+	}
+	if err := seedNativeClaudeTrust(config, []string{workspace}, true); err != nil {
+		return fmt.Errorf("seed claude workspace trust: %w", err)
 	}
 	return nil
 }

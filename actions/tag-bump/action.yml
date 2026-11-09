@@ -1,25 +1,26 @@
 name: "Semver tag bump"
 description: |
   Bump the latest semver tag by a fixed amount (minor by default) and
-  create the new tag on the forgejo repo via the Releases API, or run in
-  compute-only mode so a workflow can verify an image before the public tag
-  exists. Does NOT parse commit messages: every automated release is a minor
-  bump, and major is hand-driven only (pass bump: major, e.g. from a
-  workflow_dispatch). Nothing in commit history can escalate the bump.
-  Replaces mathieudutour/github-tag-action for the forgejo-canonical release
-  pipeline. Forgejo source of truth, no github API calls.
+  create the new tag on the repo, or run in compute-only mode so a workflow
+  can verify an image before the public tag exists. Does NOT parse commit
+  messages: every automated release is a minor bump, and major is
+  hand-driven only (pass bump: major, e.g. from a workflow_dispatch).
+  Nothing in commit history can escalate the bump. Creates the tag through the
+  GitHub git refs API. A tag made with GITHUB_TOKEN starts no workflow, so pass
+  a GitHub App token as `token` when a tag-triggered workflow must run.
+  Contract: docs/release.md.
 
 inputs:
-  forgejo_token:
-    description: "Forgejo API token. Defaults to the auto-issued job token."
+  token:
+    description: "API token. Defaults to the job token. Pass a GitHub App token when a tag, release or push must start downstream workflows, since GITHUB_TOKEN events start none, or when the target repo is not the running one."
     required: false
     default: ${{ github.token }}
-  forgejo_base_url:
-    description: "Forgejo base URL."
+  api_url:
+    description: "API base URL override, for tests and other servers. Default https://api.github.com."
     required: false
-    default: "https://forgejo.coilysiren.me"
+    default: ""
   repo:
-    description: "owner/name on forgejo."
+    description: "owner/name."
     required: false
     default: ${{ github.repository }}
   bump:
@@ -27,7 +28,7 @@ inputs:
     required: false
     default: "minor"
   create_tag:
-    description: "Create the Forgejo tag when true. Set false to only compute the next release tag/version."
+    description: "Create the tag when true. Set false to only compute the next release tag/version."
     required: false
     default: "true"
   tag_name:
@@ -54,7 +55,7 @@ outputs:
     description: "Tag the bump is relative to."
     value: ${{ steps.compute.outputs.previous_tag }}
   changelog:
-    description: "Markdown changelog of the commits included in the bump."
+    description: "Markdown changelog of the commits included in the bump: the newest 100, then a count of the older ones."
     value: ${{ steps.compute.outputs.changelog }}
 
 runs:
@@ -63,8 +64,8 @@ runs:
     - id: compute
       shell: bash
       env:
-        FORGEJO_TOKEN: ${{ inputs.forgejo_token }}
-        FORGEJO_BASE_URL: ${{ inputs.forgejo_base_url }}
+        RELEASE_TOKEN_INPUT: ${{ inputs.token }}
+        RELEASE_API_URL: ${{ inputs.api_url }}
         REPO: ${{ inputs.repo }}
         BUMP: ${{ inputs.bump }}
         CREATE_TAG: ${{ inputs.create_tag }}

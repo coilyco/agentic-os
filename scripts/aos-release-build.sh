@@ -56,7 +56,7 @@ download_umbra() {
         asset="${asset}${host_suffix}"
     fi
     umbra="$release_build/umbra${host_suffix}"
-    base="https://forgejo.coilysiren.me/coilyco/umbra/releases/download/v${umbra_version}"
+    base="https://github.com/coilyco/umbra/releases/download/v${umbra_version}"
     if [ -z "$umbra_version" ]; then
         echo "$umbra_lock does not pin cliGuard" >&2
         exit 1
@@ -114,6 +114,7 @@ build_bundle() {
     cp "$repo_root/aos-cli/repositories/substrate-repos.txt" \
         "$repo_root/aos-cli/repositories/sealed-repos.gitignore" \
         "$bundle_root/share/aos/repositories/"
+    sh "$repo_root/scripts/stage-shim-src.sh" "$bundle_root/share/aos/shim-src"
     printf '%s\n' "$version" > "$bundle_root/share/aos/version.txt"
     tar -czf "$bundle" -C "$bundle_root" .
     rm -rf "$bundle_root"
@@ -155,7 +156,7 @@ PY
         done
     (
         cd "$project"
-        GOPROXY=direct GOSUMDB=off GOPRIVATE=forgejo.coilysiren.me \
+        GOPROXY=direct GOSUMDB=off \
             GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 \
             go build -trimpath -ldflags "-s -w -X main.Version=${version}" -o "$raw" .
     )
@@ -204,9 +205,17 @@ build_aterm() {
             -o "$out" .
     )
     echo "$out"
+    # The bare darwin binary stays for the release check, but the formula
+    # installs the signed bundle. See docs/aos-cli.md.
+    if [ "$goos" = "darwin" ]; then
+        sh "$repo_root/scripts/aterm-sign-darwin.sh" "$out" "$out.app.tar.gz"
+    fi
 }
 
 mkdir -p "$dist"
+# aterm embeds its web client (aterm/client_embed.go), so the client is built
+# and staged before the first Go build, or the daemon serves nothing at `/`.
+(cd "$repo_root" && just aterm-client-embed)
 release_build=$(mktemp -d)
 trap 'rm -rf "$release_build"' EXIT HUP INT TERM
 download_umbra
@@ -232,14 +241,12 @@ while IFS= read -r target || [ -n "$target" ]; do
     esac
     out="$dist/aos-${goos}-${goarch}"
     compose_out="$dist/aoscompose-${goos}-${goarch}"
-    ward_out="$dist/aosward-${goos}-${goarch}"
     if [ "$goos" = "windows" ]; then
         out="${out}.exe"
         compose_out="${compose_out}.exe"
-        ward_out="${ward_out}.exe"
     fi
-    if [ -e "$out" ] || [ -e "$compose_out" ] || [ -e "$ward_out" ]; then
-        echo "duplicate release output: $out, $compose_out, or $ward_out" >&2
+    if [ -e "$out" ] || [ -e "$compose_out" ]; then
+        echo "duplicate release output: $out or $compose_out" >&2
         exit 1
     fi
     (
@@ -250,18 +257,16 @@ while IFS= read -r target || [ -n "$target" ]; do
             -o "$out" .
     )
     cp "$out" "$compose_out"
-    cp "$out" "$ward_out"
     build_aterm "$target"
     build_aosguard "$target"
     build_bundle "$target"
     echo "$out"
     echo "$compose_out"
-    echo "$ward_out"
 done < "$targets"
 
 (
     cd "$dist"
-    for asset in aos-* aoscompose-* aosguard-* aosward-* aterm-*; do
+    for asset in aos-* aoscompose-* aosguard-* aterm-*; do
         checksum "$asset"
     done > SHA256SUMS
 )

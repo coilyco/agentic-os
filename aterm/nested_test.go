@@ -256,3 +256,44 @@ func TestDefaultWorkingDirectoryPrefersTheCanonicalProjectsRoot(t *testing.T) {
 		t.Fatalf("a top-level launch should keep %s, got %q", defaultWorkingEnvVar, got)
 	}
 }
+
+// An incomplete shadow with no PROJECTS_ROOT falls back to <home>/projects,
+// which a shadow home does not hold (COI-2668).
+func TestDefaultWorkingDirectoryCheckNamesTheVariablesThatShouldHaveSettledIt(t *testing.T) {
+	clearShadowEnv(t)
+	t.Setenv(defaultWorkingEnvVar, "")
+	t.Setenv("HOME", t.TempDir())
+	err := checkDefaultWorkingDirectory()
+	if err == nil {
+		t.Fatal("a fallback that does not exist should fail the launch")
+	}
+	for _, name := range []string{defaultWorkingEnvVar, canonicalProjectsEnv, canonicalHomeEnv, nativeSessionRootEnv} {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("the error should name %s: %v", name, err)
+		}
+	}
+	if code := exitCodeFor(err); code != exitUsage {
+		t.Errorf("exit code = %d, want %d", code, exitUsage)
+	}
+}
+
+func TestDefaultWorkingDirectoryCheckPassesForARealProjectsRoot(t *testing.T) {
+	clearShadowEnv(t)
+	t.Setenv(defaultWorkingEnvVar, t.TempDir())
+	if err := checkDefaultWorkingDirectory(); err != nil {
+		t.Fatalf("a real projects root should pass: %v", err)
+	}
+}
+
+func TestSendNewFailsBeforeDialingWhenTheDefaultDirectoryIsGone(t *testing.T) {
+	clearShadowEnv(t)
+	t.Setenv(defaultWorkingEnvVar, "")
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv(sessionTokenEnv, "unused")
+	for _, opts := range []sendOptions{{Fresh: true}, {Launch: true}} {
+		_, err := sendMessage("scientist", "hello", opts)
+		if err == nil || !strings.Contains(err.Error(), defaultWorkingEnvVar) {
+			t.Fatalf("%+v: want an immediate error naming %s, got %v", opts, defaultWorkingEnvVar, err)
+		}
+	}
+}

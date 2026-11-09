@@ -1,0 +1,151 @@
+# Release the portable AOS bundle only when one of its shipped inputs changes.
+# Runs on the release branch promote.yml advances. See docs/release.md.
+
+name: aos-cli-release
+
+on:
+  push:
+    branches: [release]
+    paths:
+      - ".agents/harness-launch-profiles.yaml"
+      - ".umbra/**"
+      - "agentic_os/__init__.py"
+      - "aos-cli/**"
+      - "aosguard-release/**"
+      - "aterm/**"
+      - "aterm-client/**"
+      - "scripts/aos-release-build.sh"
+      - "scripts/aterm-sign-darwin.sh"
+      - "scripts/check-aos-release.sh"
+      - "scripts/ci/install-rcodesign.sh"
+      - "scripts/fs-shims/**"
+      - "scripts/guardfile-python-modules.sh"
+      - "scripts/render-aos-packaging.sh"
+      - "scripts/stage-shim-src.sh"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing or explicit aos version tag for a retry."
+        required: false
+        default: ""
+      bump:
+        description: "Version bump when tag is empty."
+        required: false
+        default: "minor"
+        type: choice
+        options: [minor, patch, major]
+
+concurrency:
+  group: aos-cli-release-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+jobs:
+  release:
+    if: ${{ github.ref == 'refs/heads/release' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: aos-cli/go.mod
+          cache-dependency-path: |
+            aos-cli/go.sum
+            aterm/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: ./actions/setup-ci
+        with:
+          tools: just
+
+      - name: Name the pinned agent-compose release
+        id: acompose
+        run: echo "tag=$(bash scripts/ci/install-agent-compose.sh tag)" >> "$GITHUB_OUTPUT"
+      - name: Fetch the private agent-compose release
+        uses: coilyco/.github/actions/fetch-release@f45ce248324c000f311419e5d39d96b16c57c266
+        with:
+          app_id: ${{ secrets.COILYCO_TREEHOUSE_READ_APP_ID }}
+          private_key_base64: ${{ secrets.COILYCO_TREEHOUSE_READ_APP_PRIVATE_KEY_BASE64 }}
+          tag: ${{ steps.acompose.outputs.tag }}
+          assets: agent-compose-linux-amd64 agent-compose-roster.tar.gz
+          dest: ${{ runner.temp }}/agent-compose-release
+      - name: Install the pinned agent-compose for the roster guard
+        env:
+          AGENT_COMPOSE_BASE: ${{ runner.temp }}/agent-compose-release
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/install-agent-compose.sh"
+
+      - name: Install the pinned rcodesign to sign the macOS aterm
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/install-rcodesign.sh"
+
+      - name: Validate the release commit
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aos-cli-release.sh" validate
+
+      - id: app
+        uses: ./actions/app-token
+        with:
+          app_id: ${{ secrets.COILYCO_OPS_APP_ID }}
+          private_key_base64: ${{ secrets.COILYCO_OPS_APP_PRIVATE_KEY_BASE64 }}
+          repositories: ${{ github.event.repository.name }},homebrew-tap,scoop-bucket
+
+      - id: next
+        uses: ./actions/tag-bump
+        with:
+          token: ${{ steps.app.outputs.token }}
+          bump: ${{ github.event.inputs.bump || 'minor' }}
+          tag_name: ${{ github.event.inputs.tag || '' }}
+          tag_prefix: aos-v
+          create_tag: false
+          release_sha: ${{ github.sha }}
+
+      - name: Build binaries and package metadata
+        env:
+          AOS_RELEASE_VERSION: ${{ steps.next.outputs.new_tag }}
+          TREEHOUSE_CODESIGN_CERT_PEM: ${{ secrets.TREEHOUSE_CODESIGN_CERT_PEM }}
+          TREEHOUSE_CODESIGN_KEY_PEM: ${{ secrets.TREEHOUSE_CODESIGN_KEY_PEM }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aos-cli-release.sh" build
+
+      - id: tag
+        uses: ./actions/tag-bump
+        with:
+          token: ${{ steps.app.outputs.token }}
+          tag_name: ${{ steps.next.outputs.new_tag }}
+          tag_prefix: aos-v
+          create_tag: true
+          release_sha: ${{ github.sha }}
+
+      - id: create
+        uses: ./actions/create-release
+        with:
+          token: ${{ steps.app.outputs.token }}
+          tag: ${{ steps.next.outputs.new_tag }}
+          name: aos ${{ steps.next.outputs.new_tag }}
+          body: ${{ steps.next.outputs.changelog }}
+          make_latest: "true"
+
+      - name: Attach release artifacts
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          TAG: ${{ steps.next.outputs.new_tag }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aos-cli-release.sh" attach
+
+      - name: Update the Homebrew tap
+        env:
+          RELEASE_GIT_TOKEN: ${{ steps.app.outputs.token }}
+          TAG: ${{ steps.next.outputs.new_tag }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aos-cli-release.sh" update-homebrew
+
+      - name: Update the Scoop bucket
+        env:
+          RELEASE_GIT_TOKEN: ${{ steps.app.outputs.token }}
+          TAG: ${{ steps.next.outputs.new_tag }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aos-cli-release.sh" update-scoop

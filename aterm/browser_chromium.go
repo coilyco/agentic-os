@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -14,6 +15,34 @@ import (
 
 // browserEnv names a Chromium or Chrome binary, ahead of the places looked in.
 const browserEnv = "ATERM_BROWSER"
+
+// browserViewportEnv sets the page size of every browser the daemon starts, as
+// WIDTHxHEIGHT in CSS pixels. It is read at each start and never changes mid-session.
+const browserViewportEnv = "ATERM_BROWSER_VIEWPORT"
+
+// Portrait and phone-sized by default: a person watches from a phone, and a desktop
+// page scaled into a phone pane made every control tiny (COI-3450).
+const (
+	defaultViewportWidth  = 390
+	defaultViewportHeight = 844
+)
+
+// browserViewport is the one place the page size is decided. A malformed or
+// out-of-range override falls back to the default rather than starting a broken page.
+func browserViewport() (width, height int) {
+	raw := strings.ToLower(strings.TrimSpace(os.Getenv(browserViewportEnv)))
+	w, h, found := strings.Cut(raw, "x")
+	if found {
+		var errW, errH error
+		var wi, hi int
+		wi, errW = strconv.Atoi(strings.TrimSpace(w))
+		hi, errH = strconv.Atoi(strings.TrimSpace(h))
+		if errW == nil && errH == nil && wi >= 200 && wi <= 4000 && hi >= 200 && hi <= 4000 {
+			return wi, hi
+		}
+	}
+	return defaultViewportWidth, defaultViewportHeight
+}
 
 // browserLink is a started browser as the daemon sees it: the CDP stream pair,
 // when the process ended, and how to end it.
@@ -109,9 +138,11 @@ func launchChromium(dir, session string, role browserProfile) (link *browserLink
 		dropProfile()
 		return nil, err
 	}
+	width, height := browserViewport()
 	args := []string{
 		"--headless=new", "--remote-debugging-pipe", "--user-data-dir=" + profile,
-		"--no-first-run", "--no-default-browser-check", "--window-size=1280,800",
+		"--no-first-run", "--no-default-browser-check",
+		fmt.Sprintf("--window-size=%d,%d", width, height),
 	}
 	// Chromium refuses to sandbox as root, which is how a dev-base container runs.
 	if os.Geteuid() == 0 {

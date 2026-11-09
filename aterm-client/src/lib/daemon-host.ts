@@ -1,18 +1,46 @@
 // aterm.daemon.v1 over the daemon's loopback websocket. The frame reference is
 // the Wire contract section of the aterm daemon page in coilyco/agentic-os.
+import { quietSince } from "./age";
+import { toActivity } from "./seat-activity";
 import { backoffDelay, differentBuild } from "./backoff";
+import { safely } from "./pane-watch";
 import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, HostConnection, HostEvent, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, ViewChannel } from "./protocol";
+import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, ImageChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, ViewChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
+import { bridge, DeviceKeyError, type Invoke, enrollKey, keyStatus, KEY_CODE_SPENT, mayEnroll, signChallenge, biometricNotice } from "./device-key";
 import { CODE_SPENT, createCredential, getCredential, passkeySupport, PasskeyError } from "./passkey";
+import { RESUME_ENDED_REASON, RESUME_FEATURE, ResumeEndedError, resumeProof } from "./resume";
 import { keepStanding, parseTyping, Refusal, refusalOf, typingNotice, type Typing } from "./typing";
 
 export const FORMAT = "aterm.daemon.v1";
 const LOOPBACK_DAEMON = "ws://127.0.0.1:7419";
 // A sleeping tailnet path can hold a dial open for minutes. Give up on it sooner.
 const DIAL_TIMEOUT_MS = 10000;
+// A link that carries nothing back is dead, whatever the socket says: a slept phone
+// leaves a socket open that never closes (COI-3352). Any frame counts.
+const PROBE_REPLY_MS = 8000;
+// A return to the page replaces a dial that has been out this long, and spares a dial
+// that only just left, so a burst of focus events does not redial in a loop.
+const WAKE_REDIAL_AFTER_MS = 1500;
+/** Input ids kept so an error naming one can be told from any other. */
+const INPUT_IDS_KEPT = 64;
+const NOT_SENT_CLOSED = "Not sent. The connection to the host closed, and it is reconnecting.";
+const PTY_SIZE_FEATURE = "pty-size";
+const NO_PLUGIN = "This app has no way to hold a key on this phone.";
+const NO_KEY_YET = "This phone has no key yet. Set one up with a code first.";
+const UNLOCK_PROMPT = "Unlock aterm to type";
+const KEY_SET_UP = "Your key is set up, so the Unlock button will work.";
+const KEY_UNKNOWN_REASON = "device_key_unknown";
+const KEY_UNKNOWN = "This host does not know this phone's key. Set one up again with a new code.";
+
+/** A queued attach with a box says it pans, once the welcome lists pty-size. */
+function withScales(line: string): string {
+  const frame = JSON.parse(line) as { type?: string; rows?: number };
+  return frame.type === "attach" && frame.rows !== undefined ? JSON.stringify({ ...frame, scales: true }) : line;
+}
 
 // The dev server reaches the local daemon. A build is served by the daemon
 // itself, so it dials the origin it came from.
@@ -43,6 +71,12 @@ interface SessionView {
   pending: number;
   degraded?: string[];
   context?: { tokens: number; window?: number; source: string };
+  last_reply?: string;
+  /** Seconds since the seat last wrote, as of the frame. */
+  quiet_seconds?: number;
+  /** The seat's own line about what it is doing, and when (RFC 3339). */
+  activity?: string;
+  activity_at?: string;
 }
 
 // A plain shell as the daemon lists it (COI-2498). `label` is whatever the opener sent
@@ -59,6 +93,8 @@ interface MessageView {
   session?: string;
   state: MessageState;
   reason?: string;
+  text?: string;
+  text_cut?: boolean;
 }
 
 // ask_choice as the daemon sends it (coilyco/agentic-os#1724).
@@ -71,6 +107,8 @@ interface AskView {
   options: { label: string; description?: string }[];
   allow_other?: boolean;
   multi?: boolean;
+  relay?: boolean;
+  card_seat?: string;
 }
 
 export function toAsk(view: AskView): Ask {
@@ -82,6 +120,8 @@ export function toAsk(view: AskView): Ask {
     options: view.options.map((option) => ({ label: option.label, description: option.description ?? "" })),
     allowOther: view.allow_other ?? false,
     multi: view.multi ?? false,
+    ...(view.relay ? { relay: true } : {}),
+    ...(view.card_seat ? { cardSeat: view.card_seat } : {}),
   };
 }
 
@@ -93,6 +133,8 @@ interface Frame {
   version?: string;
   session?: string;
   data?: string;
+  /** The absolute file an `image_uploaded` names. */
+  path?: string;
   sessions?: SessionView[];
   message?: MessageView;
   roster?: unknown;
@@ -107,6 +149,9 @@ interface Frame {
   typing?: unknown;
   reason?: unknown;
   features?: string[];
+  challenge?: string;
+  rows?: number;
+  cols?: number;
   label?: string;
   driver?: string;
   url?: string;
@@ -123,6 +168,8 @@ interface Frame {
   cancelled?: string;
   result?: unknown;
   options?: unknown;
+  resume?: string;
+  expires_in?: number;
   /** The VAPID public key on a `push_key` reply. */
   key?: string;
 }
@@ -144,8 +191,17 @@ export const BROWSER_FEATURE = "browser";
 /** `welcome.features` names this when the daemon has a VAPID key and answers `push_*`. */
 export const PUSH_FEATURE = "web-push";
 
+/** Replies that unlock a connection. Each names the next resume proof (COI-3305). */
+const UNLOCKED_REPLIES = new Set(["passkey_enrolled", "passkey_asserted", "device_asserted", "resumed"]);
+
 /** The daemon keeps a `label` on a terminal spawn and lists it back. */
 const TERMINAL_LABEL_FEATURE = "terminal-label";
+
+/** `welcome.features` names this when the daemon sends a seat's `open_url` (COI-3258). */
+const OPEN_URL_FEATURE = "open-url";
+
+/** `welcome.features` names this when the daemon answers `image_upload` (COI-3239). */
+const IMAGE_UPLOAD_FEATURE = "image-upload";
 
 /** CDP's ScreencastFrameMetadata as the daemon sends it, in snake_case. */
 export function toFrameMetadata(raw: Record<string, number> | undefined): FrameMetadata {
@@ -208,8 +264,11 @@ export function toView(session: string, view: ViewFrame): View {
 export const BUSY_WINDOW_MS = 1500;
 /** Echo, replay, and redraw this client caused are not the agent working. */
 const SELF_WINDOW_MS = 800;
+/** How often the seats are listed again while the page shows, to refresh quiet times. */
+const REFRESH_MS = 20_000;
 
-export function toSession(view: SessionView, busy = false): Session {
+export function toSession(view: SessionView, busy = false, quiet?: number): Session {
+  const activity = toActivity(view.activity, view.activity_at);
   return {
     id: view.name,
     role: view.role,
@@ -222,6 +281,9 @@ export function toSession(view: SessionView, busy = false): Session {
     degraded: view.degraded ?? [],
     ...(view.ready ? {} : { starting: true }),
     ...(view.context ? { context: toContext(view.context) } : {}),
+    ...(view.last_reply ? { lastReply: view.last_reply } : {}),
+    ...(activity ? { activity } : {}),
+    ...(quiet === undefined ? {} : { quietSince: quiet }),
   };
 }
 
@@ -237,6 +299,8 @@ export function toMessage(view: MessageView): PeerMessage {
     session: view.session ?? null,
     state: view.state,
     reason: view.reason ?? null,
+    text: view.text ?? null,
+    textCut: view.text_cut === true,
   };
 }
 
@@ -244,6 +308,13 @@ function encode(text: string): string {
   const bytes = new TextEncoder().encode(text);
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+function encodeBytes(bytes: Uint8Array): string {
+  // Chunked, since spreading megabytes into one call overflows the stack.
+  let binary = "";
+  for (let at = 0; at < bytes.length; at += 0x8000) binary += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
   return btoa(binary);
 }
 
@@ -290,6 +361,14 @@ export class DaemonHost implements HostConnection {
   private answered = false;
   // Set by close() and by a refused welcome: no more dials.
   private halted = false;
+  // The hour of automatic tries is spent. Only a return to the page or Retry dials again.
+  private resting = false;
+  // The socket that already ended, so a late close from it is not a second loss.
+  private ended?: WebSocket;
+  private dialStartedAt = 0;
+  // When a frame last arrived, and when the probe still waiting on one went out.
+  private lastHeard = 0;
+  private probeAt?: number;
   private attempt = 0;
   private redial?: ReturnType<typeof setTimeout>;
   private dialTimer?: ReturnType<typeof setTimeout>;
@@ -301,13 +380,22 @@ export class DaemonHost implements HostConnection {
   private attached = new Map<string, { rows: number; cols: number; count: number }>();
   private watching = new Map<string, { width: number; height: number } | undefined>();
   private nextId = 0;
-  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; terminals?: HostEvent } = {};
+  // Input has no reply on success, so an error naming one of these is its only failure.
+  private inputIds = new Set<string>();
+  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; passkey?: HostEvent; deviceKey?: HostEvent; terminals?: HostEvent } = {};
   private sessionViews: SessionView[] = [];
+  // The daemon's one-use unlock proof. Memory only, replaced on every use.
+  private resumeToken: string | undefined;
   private refs = new Map<string, number>();
   private lastOutput = new Map<string, number>();
   private lastPoke = new Map<string, number>();
+  // What arrived since a seat's last attach, so an ask-again can place a lost replay.
+  private arrived = new Map<string, { since: number; frames: number; bytes: number }>();
   private busy = new Set<string>();
+  // When the latest `sessions` frame arrived. Its `quiet_seconds` count back from here.
+  private viewsAt = 0;
   private ticker: ReturnType<typeof setInterval>;
+  private refresher: ReturnType<typeof setInterval>;
   private browsers = new Map<string, SharedBrowser>();
   /** Set once the welcome lists `browser`, so an older daemon keeps the empty state. */
   browser?: BrowserChannel;
@@ -315,20 +403,28 @@ export class DaemonHost implements HostConnection {
   constructor(private url = DEFAULT_DAEMON_URL) {
     this.connect();
     this.ticker = setInterval(() => this.settle(), 500);
-    // A backgrounded tab throttles its timers, so a phone left open would redial late.
+    // The daemon pushes sessions on change, not on a clock, so quiet times are asked for.
+    this.refresher = setInterval(() => this.refreshViews(), REFRESH_MS);
+    // A backgrounded tab freezes its timers, so a phone left open redials late or never.
+    // Coming back to it is the signal to look at the link at once.
     if (typeof window !== "undefined") {
-      window.addEventListener("online", this.nudge);
-      document.addEventListener("visibilitychange", this.nudge);
+      window.addEventListener("online", this.wake);
+      window.addEventListener("focus", this.wake);
+      document.addEventListener("visibilitychange", this.wake);
     }
   }
 
   private connect(): void {
     const socket = new WebSocket(this.url);
     this.socket = socket;
+    this.dialStartedAt = Date.now();
     // A socket this host has moved past must not speak for it.
     socket.addEventListener("open", () => socket.send(JSON.stringify({ type: "hello", format: FORMAT })));
     socket.addEventListener("message", (event) => {
-      if (socket === this.socket) this.receive(JSON.parse(String(event.data)) as Frame);
+      if (socket !== this.socket) return;
+      this.lastHeard = Date.now();
+      this.probeAt = undefined;
+      this.receive(JSON.parse(String(event.data)) as Frame);
     });
     socket.addEventListener("close", () => {
       if (socket === this.socket) this.lost();
@@ -339,8 +435,11 @@ export class DaemonHost implements HostConnection {
   // The socket ended. A host that answered is redialed and the page keeps its state.
   // One that never answered is reported closed.
   private lost(): void {
+    if (this.ended === this.socket) return;
+    this.ended = this.socket;
     clearTimeout(this.dialTimer);
     this.open = false;
+    this.probeAt = undefined;
     for (const call of this.calls.values()) call.reject(new Error("The daemon closed the connection."));
     this.calls.clear();
     if (this.halted) return;
@@ -353,6 +452,11 @@ export class DaemonHost implements HostConnection {
     this.launches.clear();
     this.outbox = [];
     const delay = backoffDelay(this.attempt);
+    if (delay === null) {
+      this.resting = true;
+      this.emit({ type: "resting" });
+      return;
+    }
     this.attempt += 1;
     this.emit({ type: "reconnecting", attempt: this.attempt, retryAt: Date.now() + delay });
     this.redial = setTimeout(() => this.dialAgain(), delay);
@@ -364,24 +468,56 @@ export class DaemonHost implements HostConnection {
     this.connect();
   }
 
-  /** Dials now, from the Retry button. A dial already out is left to finish. */
+  /** Dials now, from the Retry button. A dial already out is left to finish. A person
+   * asking starts the hour of tries over, since the first wait is the short one. */
   retry(): void {
-    if (this.redial === undefined) return;
+    if (this.redial === undefined && !this.resting) return;
     clearTimeout(this.redial);
+    this.resting = false;
+    this.attempt = 0;
     this.dialAgain();
   }
 
-  private nudge = (): void => {
-    if (typeof document === "undefined" || document.visibilityState === "visible") this.retry();
+  // The person came back, or the network did. Whatever the link claims, look at it now.
+  private wake = (): void => {
+    if (this.halted || (typeof document !== "undefined" && document.visibilityState !== "visible")) return;
+    if (this.redial !== undefined || this.resting) this.retry();
+    else if (this.open) this.probe();
+    else if (Date.now() - this.dialStartedAt >= WAKE_REDIAL_AFTER_MS) {
+      // A dial still out may sit on a path that is gone. Drop it for one on the path now.
+      this.ended = this.socket;
+      clearTimeout(this.dialTimer);
+      this.socket.close();
+      this.connect();
+    }
   };
+
+  // Asks for something small, so a link that carries nothing back shows within seconds.
+  // The reply, or any other frame, clears it in the message handler.
+  private probe(): void {
+    if (!this.open) return;
+    this.probeAt ??= Date.now();
+    this.request({ type: "list" });
+  }
+
+  private watchLink(now: number): void {
+    if (!this.open || this.probeAt === undefined || now - this.probeAt < PROBE_REPLY_MS) return;
+    // A half-open socket may never fire close, so the loss is declared here.
+    const socket = this.socket;
+    this.lost();
+    socket.close();
+  }
 
   subscribe(listener: (event: HostEvent) => void): () => void {
     this.listeners.add(listener);
-    if (this.last.roles) listener(this.last.roles);
-    if (this.last.sessions) listener({ type: "sessions", sessions: this.last.sessions });
-    if (this.last.typing) listener({ type: "typing", typing: this.last.typing });
-    if (this.last.features) listener(this.last.features);
-    if (this.last.terminals) listener(this.last.terminals);
+    const tell = (event: HostEvent) => safely("a host listener", () => listener(event));
+    if (this.last.roles) tell(this.last.roles);
+    if (this.last.sessions) tell({ type: "sessions", sessions: this.last.sessions });
+    if (this.last.typing) tell({ type: "typing", typing: this.last.typing });
+    if (this.last.passkey) tell(this.last.passkey);
+    if (this.last.deviceKey) tell(this.last.deviceKey);
+    if (this.last.features) tell(this.last.features);
+    if (this.last.terminals) tell(this.last.terminals);
     return () => this.listeners.delete(listener);
   }
 
@@ -397,10 +533,78 @@ export class DaemonHost implements HostConnection {
     },
   };
 
+  get ptySize(): boolean {
+    return this.features.has(PTY_SIZE_FEATURE);
+  }
+
+  /** Only a welcome listing `image-upload` takes an image for a seat. */
+  get images(): ImageChannel | undefined {
+    return this.features.has(IMAGE_UPLOAD_FEATURE) ? this.imageChannel : undefined;
+  }
+
+  private imageChannel: ImageChannel = {
+    maxBytes: IMAGE_UPLOAD_MAX_BYTES,
+    upload: async (sessionId, image) => {
+      const data = encodeBytes(new Uint8Array(await image.arrayBuffer()));
+      const reply = await this.exchange({ type: "image_upload", session: sessionId, data });
+      if (!reply.path) throw new Error("The host took the image but named no file for it.");
+      return reply.path;
+    },
+  };
+
   /** Only a welcome listing `passkey` has a ceremony. The page decides if it can run. */
   get passkey(): PasskeyChannel | undefined {
     return this.features.has("passkey") ? this.passkeyChannel : undefined;
   }
+
+  /** Only a welcome listing `device-key` has one. Without the plugin it says so. */
+  get deviceKey(): DeviceKeyChannel | undefined {
+    return this.features.has("device-key") ? this.deviceKeyChannel : undefined;
+  }
+
+  // Enrolling does not unlock the connection, so an assertion follows it at once.
+  private assertDeviceKey = async (invoke: Invoke): Promise<void> => {
+    const status = await keyStatus(invoke);
+    if (!status.enrolled || !status.keyId) throw new DeviceKeyError(NO_KEY_YET);
+    const notice = biometricNotice(status.biometric);
+    if (notice) throw new DeviceKeyError(notice);
+    const begun = await this.exchange({ type: "device_assert_begin", key_id: status.keyId });
+    const signed = await signChallenge(invoke, String(begun.challenge), UNLOCK_PROMPT);
+    await this.exchange({ type: "device_assert_finish", key_id: signed.keyId, signature: signed.signature });
+  };
+
+  private deviceKeyChannel: DeviceKeyChannel = {
+    status: async () => {
+      const invoke = bridge();
+      if (!invoke) throw new DeviceKeyError(NO_PLUGIN);
+      return keyStatus(invoke);
+    },
+    enroll: async (code) => {
+      const invoke = bridge();
+      if (!invoke) throw new DeviceKeyError(NO_PLUGIN);
+      // The code is spent at begin, so a phone that cannot ask is caught first.
+      const status = await keyStatus(invoke);
+      if (!mayEnroll(status)) throw new DeviceKeyError(biometricNotice(status.biometric) ?? NO_PLUGIN);
+      const begun = await this.exchange({ type: "device_enroll_begin", enroll_code: code });
+      try {
+        const key = await enrollKey(invoke, String(begun.challenge));
+        await this.exchange({ type: "device_enroll_finish", public_key: key.publicKey, attestation: key.attestation });
+      } catch (error) {
+        throw new DeviceKeyError(`${error instanceof Error ? error.message : String(error)} ${KEY_CODE_SPENT}`);
+      }
+      try {
+        await this.assertDeviceKey(invoke);
+      } catch (error) {
+        const reason = error instanceof DeviceKeyError ? error.reason : undefined;
+        throw new DeviceKeyError(`${error instanceof Error ? error.message : String(error)} ${KEY_SET_UP}`, reason);
+      }
+    },
+    assert: async () => {
+      const invoke = bridge();
+      if (!invoke) throw new DeviceKeyError(NO_PLUGIN);
+      await this.assertDeviceKey(invoke);
+    },
+  };
 
   private passkeyChannel: PasskeyChannel = {
     enroll: async (code) => {
@@ -449,7 +653,18 @@ export class DaemonHost implements HostConnection {
     this.refs.set(sessionId, (this.refs.get(sessionId) ?? 0) + 1);
     this.attached.set(sessionId, { rows, cols, count: (this.attached.get(sessionId)?.count ?? 0) + 1 });
     this.lastPoke.set(sessionId, Date.now());
-    this.request({ type: "attach", session: sessionId, replay: true, rows, cols });
+    this.arrived.set(sessionId, { since: Date.now(), frames: 0, bytes: 0 });
+    this.request({ type: "attach", session: sessionId, replay: true, rows, cols, ...(this.ptySize ? { scales: true } : {}) });
+  }
+
+  replay(sessionId: string): void {
+    const shown = this.attached.get(sessionId);
+    const got = this.arrived.get(sessionId);
+    // Zero frames, socket open: lost before here. Frames that never drew: in the pane.
+    console.warn(`aterm: asking ${sessionId} for its screen again, ${got ? `${got.frames} frame(s), ${got.bytes} byte(s) in ${Date.now() - got.since} ms since the last attach` : "no attach on record"}, socket ${this.open ? "open" : "closed"}, ${this.outbox.length} queued`);
+    this.lastPoke.set(sessionId, Date.now());
+    const box = shown ? { rows: shown.rows, cols: shown.cols, ...(this.ptySize ? { scales: true } : {}) } : {};
+    this.request({ type: "attach", session: sessionId, replay: true, ...box });
   }
 
   // The activity monitor holds its own reference, so closing a terminal tab
@@ -464,12 +679,19 @@ export class DaemonHost implements HostConnection {
       return;
     }
     this.refs.delete(sessionId);
+    this.arrived.delete(sessionId);
     this.request({ type: "detach", session: sessionId });
   }
 
   input(sessionId: string, data: string): void {
     this.lastPoke.set(sessionId, Date.now());
-    this.request({ type: "input", session: sessionId, data: encode(data) });
+    // A closed socket drops what is sent. Say so rather than lose it unseen.
+    if (!this.open && this.answered) {
+      this.emit({ type: "input_refused", text: NOT_SENT_CLOSED });
+      return;
+    }
+    this.inputIds.add(this.request({ type: "input", session: sessionId, data: encode(data) }));
+    if (this.inputIds.size > INPUT_IDS_KEPT) this.inputIds.delete(this.inputIds.values().next().value as string);
   }
 
   resize(sessionId: string, rows: number, cols: number): void {
@@ -496,11 +718,13 @@ export class DaemonHost implements HostConnection {
   close(): void {
     this.halted = true;
     clearInterval(this.ticker);
+    clearInterval(this.refresher);
     clearTimeout(this.redial);
     clearTimeout(this.dialTimer);
     if (typeof window !== "undefined") {
-      window.removeEventListener("online", this.nudge);
-      document.removeEventListener("visibilitychange", this.nudge);
+      window.removeEventListener("online", this.wake);
+      window.removeEventListener("focus", this.wake);
+      document.removeEventListener("visibilitychange", this.wake);
     }
     this.listeners.clear();
     this.socket.close();
@@ -539,8 +763,14 @@ export class DaemonHost implements HostConnection {
     }
   }
 
+  private refreshViews(): void {
+    if (!this.open || (typeof document !== "undefined" && document.visibilityState !== "visible")) return;
+    this.probe();
+  }
+
   private settle(): void {
     const now = Date.now();
+    this.watchLink(now);
     let changed = false;
     for (const name of [...this.busy]) {
       if (now - (this.lastOutput.get(name) ?? 0) > BUSY_WINDOW_MS) {
@@ -549,6 +779,15 @@ export class DaemonHost implements HostConnection {
       }
     }
     if (changed) this.publishSessions();
+  }
+
+  private counted(name: string, data: Uint8Array): Uint8Array {
+    const got = this.arrived.get(name);
+    if (got) {
+      got.frames += 1;
+      got.bytes += data.length;
+    }
+    return data;
   }
 
   private noteOutput(name: string): void {
@@ -562,7 +801,7 @@ export class DaemonHost implements HostConnection {
   }
 
   private publishSessions(): void {
-    this.last.sessions = this.sessionViews.map((view) => toSession(view, this.busy.has(view.name)));
+    this.last.sessions = this.sessionViews.map((view) => toSession(view, this.busy.has(view.name), quietSince(view.quiet_seconds, this.viewsAt, this.lastOutput.get(view.name))));
     this.emit({ type: "sessions", sessions: this.last.sessions });
   }
 
@@ -583,8 +822,12 @@ export class DaemonHost implements HostConnection {
     for (const name of this.refs.keys()) {
       if (!live.has(name)) continue;
       const shown = this.attached.get(name);
-      if (shown) this.lastPoke.set(name, Date.now());
-      this.request({ type: "attach", session: name, replay: shown !== undefined, ...(shown ? { rows: shown.rows, cols: shown.cols } : {}) });
+      if (shown) {
+        this.lastPoke.set(name, Date.now());
+        this.arrived.set(name, { since: Date.now(), frames: 0, bytes: 0 });
+      }
+      const box = shown ? { rows: shown.rows, cols: shown.cols, ...(this.ptySize ? { scales: true } : {}) } : {};
+      this.request({ type: "attach", session: name, replay: shown !== undefined, ...box });
     }
     for (const [session, size] of this.watching) this.request({ type: "browser_watch", session, ...(size ?? {}) });
   }
@@ -610,12 +853,20 @@ export class DaemonHost implements HostConnection {
         this.browser = frame.features?.includes(BROWSER_FEATURE) ? this.browserChannel() : undefined;
         this.setTyping(parseTyping(frame.typing));
         this.features = new Set(frame.features ?? []);
+        this.resumeUnlock(parseTyping(frame.typing));
+        this.last.passkey = { type: "passkey", available: this.features.has("passkey") };
+        this.emit(this.last.passkey);
+        this.last.deviceKey = { type: "device_key", available: this.features.has("device-key") };
+        this.emit(this.last.deviceKey);
         this.last.features = { type: "features", terminals: this.features.has("terminals"), ...(this.features.has(PUSH_FEATURE) ? { webPush: true as const } : {}) };
         this.emit(this.last.features);
         this.request({ type: "subscribe", channel: "sessions" });
         this.request({ type: "roster" });
         if (this.features.has("mcp-apps")) this.request({ type: "subscribe", channel: "views" });
-        for (const line of this.outbox.splice(0)) this.socket.send(line);
+        // Subscribers are the clients that can show a page. With no browser, stay out,
+        // and the host opens its own.
+        if (this.features.has(OPEN_URL_FEATURE) && this.features.has(BROWSER_FEATURE)) this.request({ type: "subscribe", channel: "open_url" });
+        for (const line of this.outbox.splice(0)) this.socket.send(this.ptySize ? withScales(line) : line);
         return;
       }
       case "ask":
@@ -626,6 +877,7 @@ export class DaemonHost implements HostConnection {
         return;
       case "sessions":
         this.sessionViews = frame.sessions ?? [];
+        this.viewsAt = Date.now();
         for (const { name } of frame.terminals ?? []) this.terminalNames.add(name);
         if (this.resync) this.reattach();
         this.monitor();
@@ -656,13 +908,21 @@ export class DaemonHost implements HostConnection {
         if (frame.view_id) this.emit({ type: "view_closed", id: frame.view_id });
         return;
       case "view_result":
+      case "image_uploaded":
       case "passkey_enroll_options":
       case "passkey_enrolled":
       case "passkey_assert_options":
       case "passkey_asserted":
       case "push_key":
       case "push_subscribed":
-      case "push_unsubscribed": {
+      case "push_unsubscribed":
+      case "device_enroll_challenge":
+      case "device_enrolled":
+      case "device_assert_challenge":
+      case "device_asserted":
+      case "resumed": {
+        // Only unlock replies carry a proof. Absent means no resume window.
+        if (UNLOCKED_REPLIES.has(frame.type)) this.resumeToken = resumeProof(frame);
         const call = frame.id ? this.calls.get(frame.id) : undefined;
         if (call && frame.id) {
           this.calls.delete(frame.id);
@@ -670,8 +930,14 @@ export class DaemonHost implements HostConnection {
         }
         return;
       }
+      case "open_url":
+        if (frame.session && frame.url) this.emit({ type: "open_url", session: frame.session, url: frame.url });
+        return;
       case "typing":
         this.setTyping(parseTyping(frame.typing));
+        return;
+      case "size":
+        if (frame.session && frame.rows && frame.cols) this.emit({ type: "size", sessionId: frame.session, rows: frame.rows, cols: frame.cols });
         return;
       case "roster":
         this.last.roles = { type: "roster", roles: parseRoster(frame.roster) };
@@ -680,7 +946,7 @@ export class DaemonHost implements HostConnection {
       case "output":
         if (!frame.session || !frame.data) return;
         this.noteOutput(frame.session);
-        this.emit({ type: "output", sessionId: frame.session, data: decode(frame.data) });
+        this.emit({ type: "output", sessionId: frame.session, data: this.counted(frame.session, decode(frame.data)) });
         return;
       case "message":
         if (frame.message) this.emit({ type: "message", message: toMessage(frame.message) });
@@ -708,10 +974,19 @@ export class DaemonHost implements HostConnection {
         const role = frame.id ? this.launches.get(frame.id) : undefined;
         const refused = refusalOf(frame);
         this.setTyping(refused);
+        // The lock shows the refusals it knows. Say any other in the daemon's words.
+        if (frame.id && this.inputIds.delete(frame.id) && !refused) {
+          this.emit({ type: "input_refused", text: `Not sent. ${frame.error ?? "The daemon did not take that input."}` });
+          return;
+        }
         const call = frame.id ? this.calls.get(frame.id) : undefined;
         if (call && frame.id) {
           this.calls.delete(frame.id);
-          call.reject(new Refusal(refused ? typingNotice(refused) : (frame.error ?? "The daemon refused the request."), refused?.allowed === false ? refused.reason : undefined));
+          const imageWords = refused ? null : imageRefusal(frame.reason);
+          if (frame.reason === RESUME_ENDED_REASON) call.reject(new ResumeEndedError());
+          else if (frame.reason === KEY_UNKNOWN_REASON) call.reject(new DeviceKeyError(KEY_UNKNOWN, KEY_UNKNOWN_REASON));
+          else if (imageWords) call.reject(new Error(imageWords));
+          else call.reject(new Refusal(refused ? typingNotice(refused) : (frame.error ?? "The daemon refused the request."), refused?.allowed === false ? refused.reason : undefined));
           return;
         }
         const seat = frame.id ? this.pendingOpens.get(frame.id) : undefined;
@@ -731,14 +1006,37 @@ export class DaemonHost implements HostConnection {
     }
   }
 
+  // A redial starts locked. A held proof asks the daemon to restore the unlock before
+  // a button shows. Sent ahead of every other frame, which the daemon takes in order.
+  private resumeUnlock(typing: Typing | null): void {
+    if (!this.resumeToken) return;
+    if (!this.features.has(RESUME_FEATURE)) {
+      this.resumeToken = undefined;
+      return;
+    }
+    if (!typing || typing.allowed || typing.reason !== "passkey_required") return;
+    const token = this.resumeToken;
+    this.emit({ type: "resume", state: "resuming" });
+    this.exchange({ type: "resume", resume: token }).then(
+      // The reply names the next proof, which the receive path already holds.
+      () => this.emit({ type: "resume", state: null }),
+      (error: unknown) => {
+        const ended = error instanceof ResumeEndedError;
+        if (ended) this.resumeToken = undefined;
+        this.emit({ type: "resume", state: ended ? "ended" : null });
+      },
+    );
+  }
+
   private setTyping(typing: Typing | null): void {
     if (!typing) return;
     this.last.typing = keepStanding(typing, this.last.typing);
     this.emit({ type: "typing", typing: this.last.typing });
   }
 
+  // A listener that throws must not keep the others, a terminal included, from the frame.
   private emit(event: HostEvent): void {
-    for (const listener of this.listeners) listener(event);
+    for (const listener of this.listeners) safely("a host listener", () => listener(event));
   }
 }
 
@@ -747,7 +1045,11 @@ export function probe(url = DEFAULT_DAEMON_URL, timeoutMs = 2000): Promise<numbe
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(url);
     const timer = setTimeout(() => finish(new Error("no answer")), timeoutMs);
+    let settled = false;
     function finish(result: number | Error): void {
+      // Closing a socket still connecting can raise `error`, which calls this again.
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
       socket.close();
       if (result instanceof Error) reject(result);

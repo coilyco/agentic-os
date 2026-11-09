@@ -4,7 +4,7 @@
 # coilyco/agentic-os pre-commit block.
 
 repos:
-  - repo: https://forgejo.coilysiren.me/coilyco/agentic-os
+  - repo: https://github.com/coilyco/agentic-os
     rev: aos-precommit-v0.1.0
     hooks:
       - id: check-skills

@@ -15,7 +15,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
 HOOKS = ROOT / ".pre-commit-hooks.yaml"
-WORKFLOW = ROOT / ".forgejo" / "workflows" / "aos-precommit-release.yml"
+WORKFLOW = ROOT / ".github" / "workflows" / "aos-precommit-release.yml"
 
 
 def _release_paths() -> list[str]:
@@ -46,7 +46,7 @@ def test_every_hook_script_triggers_a_release() -> None:
     }
     assert not missing, (
         f"hook scripts absent from the aos-precommit-release paths filter: {missing}. "
-        "Add each to .forgejo/workflows/aos-precommit-release.yml so a fix to the "
+        "Add each to .github/workflows/aos-precommit-release.yml so a fix to the "
         "script cuts a release (agentic-os#1148)."
     )
 

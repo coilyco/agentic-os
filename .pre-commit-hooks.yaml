@@ -1,7 +1,7 @@
 # aos-precommit hooks shipped by coilyco/agentic-os.
 # Consumers reference via:
 #
-#   - repo: https://forgejo.coilysiren.me/coilyco/agentic-os
+#   - repo: https://github.com/coilyco/agentic-os
 #     rev: aos-precommit-v0.1.0
 #     hooks:
 #       - id: catalog-trifecta
@@ -48,7 +48,7 @@
 
 - id: pr-guard
   name: pre-push PR guard
-  description: "Refuse pushes whose destination is the remote default branch, and refuse to update an already-published branch that has no open PR, naming the merged PR when one exists so a stranded push is told to branch again rather than to open another PR on a dead branch. No lane exempts a repo from the first half: merge-remote-main was the one that did and it is retired, so every repo including an undeclared one stays guarded. The PR half needs FORGEJO_TOKEN and degrades to a notice without it. Client-side only; git push --no-verify bypasses it."
+  description: "Refuse pushes whose destination is the remote default branch, and refuse to update an already-published branch that has no open PR, naming the merged PR when one exists so a stranded push is told to branch again rather than to open another PR on a dead branch. No lane exempts a repo from the first half: merge-remote-main was the one that did and it is retired, so every repo including an undeclared one stays guarded. The PR half needs an authenticated gh and degrades to a notice without it. Client-side only; git push --no-verify bypasses it."
   entry: scripts/pr-guard-pre-push.sh
   language: script
   always_run: true
@@ -129,13 +129,24 @@
 
 - id: actions-run-one-line
   name: Actions run steps stay one line
-  description: "Reject multiline run commands, and program bodies inlined onto one line, in GitHub and Forgejo workflows and composite actions. Move script bodies into tracked language-native files. See docs/pre-commit-hygiene.md."
+  description: "Reject multiline run commands, and program bodies inlined onto one line, in GitHub workflows and composite actions. Move script bodies into tracked language-native files. See docs/pre-commit-hygiene.md."
   entry: check-actions-run-one-line
   language: python
   additional_dependencies: [pyyaml]
   always_run: true
   pass_filenames: false
-  files: '(^|/)(\.github/workflows/.*\.ya?ml|\.forgejo/workflows/.*\.ya?ml|action\.ya?ml)$'
+  files: '(^|/)(\.github/workflows/.*\.ya?ml|action\.ya?ml)$'
+  stages: [pre-commit, pre-push]
+
+- id: github-workflow-contract
+  name: GitHub workflows stay portable
+  description: "Reject a .github/workflows file that runs on a label outside the GitHub-hosted contract or names the Forgejo host, which a hosted runner cannot reach. See docs/dev-container.md."
+  entry: check-github-workflow-contract
+  language: python
+  additional_dependencies: [pyyaml]
+  always_run: true
+  pass_filenames: false
+  files: '(^|/)\.github/workflows/.*\.ya?ml$'
   stages: [pre-commit, pre-push]
 
 - id: source-doc-refs

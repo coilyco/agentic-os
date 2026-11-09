@@ -4,12 +4,14 @@
 /** A remote device's passkey, as the daemon last said: one exists, or none yet. */
 export type PasskeyStanding = "enrolled" | "unenrolled";
 
-export type Typing = { allowed: true } | { allowed: false; reason: string; passkey?: PasskeyStanding };
+/** `passkey` rides on an allowed answer too, so an unlocked device can still enroll. */
+export type Typing =
+  | { allowed: true; passkey?: PasskeyStanding; deviceKey?: PasskeyStanding }
+  | { allowed: false; reason: string; passkey?: PasskeyStanding; deviceKey?: PasskeyStanding };
 
 export const TYPING_OPEN: Typing = { allowed: true };
 
-/** The hosted build is the only page whose origin a passkey can belong to. */
-const HOSTED_BUILD = import.meta.env.VITE_ATERM_HOSTED === "1";
+import { PLACE, type Place } from "./build";
 
 /** The `reason` values the daemon sends when it refuses a guarded frame. */
 const REFUSAL_REASONS = new Set(["session_descendant", "peer_unread", "passkey_required"]);
@@ -27,14 +29,13 @@ export class Refusal extends Error {
 /** `welcome.typing` or a `typing` push, or null from a daemon that predates the guard. */
 export function parseTyping(raw: unknown): Typing | null {
   if (typeof raw !== "object" || raw === null) return null;
-  const { allowed, reason, passkey } = raw as { allowed?: unknown; reason?: unknown; passkey?: unknown };
-  if (allowed === true) return TYPING_OPEN;
+  const { allowed, reason, passkey, device_key } = raw as { allowed?: unknown; reason?: unknown; passkey?: unknown; device_key?: unknown };
+  const standing: { passkey?: PasskeyStanding; deviceKey?: PasskeyStanding } = {};
+  if (passkey === "enrolled" || passkey === "unenrolled") standing.passkey = passkey;
+  if (device_key === "enrolled" || device_key === "unenrolled") standing.deviceKey = device_key;
+  if (allowed === true) return standing.passkey || standing.deviceKey ? { allowed: true, ...standing } : TYPING_OPEN;
   if (allowed !== false) return null;
-  return {
-    allowed: false,
-    reason: typeof reason === "string" && reason ? reason : "unspecified",
-    ...(passkey === "enrolled" || passkey === "unenrolled" ? { passkey } : {}),
-  };
+  return { allowed: false, reason: typeof reason === "string" && reason ? reason : "unspecified", ...standing };
 }
 
 /** An `error` frame the guard sent. Any other error, reason or not, is no refusal. */
@@ -44,8 +45,28 @@ export function refusalOf(frame: { reason?: unknown }): Typing | null {
 
 /** A refusal frame names no passkey standing, so keep the one the welcome gave. */
 export function keepStanding(next: Typing, previous: Typing | undefined): Typing {
-  if (next.allowed || next.passkey || !previous || previous.allowed || previous.reason !== next.reason || !previous.passkey) return next;
-  return { ...next, passkey: previous.passkey };
+  if (next.allowed || !previous || previous.allowed || previous.reason !== next.reason) return next;
+  const passkey = next.passkey ?? previous.passkey;
+  const deviceKey = next.deviceKey ?? previous.deviceKey;
+  return { ...next, ...(passkey ? { passkey } : {}), ...(deviceKey ? { deviceKey } : {}) };
+}
+
+/** What the passkey section offers. */
+export interface PasskeyOffer {
+  /** Assertion with a passkey that already exists. Left out when none does. */
+  unlock: boolean;
+  /** The enrollment code field, which stays reachable even when nothing is locked. */
+  enroll: boolean;
+  /** Open by default, because no passkey is known to exist yet. */
+  enrollOpen: boolean;
+}
+
+/** `always` is the host page. An unknown standing shows both paths, never none. */
+export function passkeyOffer(typing: Typing, opts: { hosted: boolean; channel: boolean; always?: boolean }): PasskeyOffer | null {
+  if (!opts.hosted || !opts.channel) return null;
+  const locked = needsPasskey(typing);
+  if (!locked && !opts.always) return null;
+  return { unlock: locked && typing.passkey !== "unenrolled", enroll: true, enrollOpen: typing.passkey !== "enrolled" };
 }
 
 /** True while a passkey can lift the lock. A refused `cancel_ask` stays disabled then. */
@@ -54,7 +75,7 @@ export function needsPasskey(typing: Typing): boolean {
 }
 
 /** What the person reads in place of the composer. Empty when typing is allowed. */
-export function typingNotice(typing: Typing, hosted = HOSTED_BUILD): string {
+export function typingNotice(typing: Typing, place: Place = PLACE): string {
   if (typing.allowed) return "";
   switch (typing.reason) {
     case "session_descendant":
@@ -62,7 +83,9 @@ export function typingNotice(typing: Typing, hosted = HOSTED_BUILD): string {
     case "peer_unread":
       return "The daemon could not tell which program opened this page, so it blocks typing to be safe. You can still watch.";
     case "passkey_required":
-      return hosted
+      if (place === "app-key") return "This device is locked. It can watch, and types after you unlock it with your fingerprint or screen lock.";
+      if (place === "app") return "This device is locked, and the app cannot unlock it yet. It can watch but not type.";
+      return place === "hosted"
         ? "This device is locked. It can watch, and types after you unlock it with a passkey."
         : "This device is locked, and passkeys only work from the hosted client at coilyco.dev. Open it there, add this host, and unlock it.";
     default:

@@ -9,9 +9,8 @@ The ansible `shell` role (in the infrastructure repo) symlinks, by `ansible_syst
 - `~/.zshrc` from `shell/zshrc` on all hosts
 - `~/.bashrc` from `shell/bashrc` on Mac and Linux
 - `~/.config/alacritty/alacritty.toml` from `alacritty/alacritty.toml` on Mac and Linux workstations
+- `~/.config/kitty/kitty.conf` from `kitty/kitty.conf` on Mac and Linux workstations
 - `~/.local/bin/gpg-ssm` from `scripts/gpg-ssm` (Mac, Linux) or `scripts/gpg-ssm.cmd` (Windows)
-- the Forgejo git credential helper from `scripts/git-credential-forgejo-ssm.*`
-- the Forgejo Docker credential helper from `scripts/docker-credential-forgejo-ssm*`
 - the `~/.local/bin` PATH helpers
 
 A pre-existing regular shell, kitty, or Alacritty config is backed up to `<path>.bak`
@@ -25,14 +24,6 @@ is in [the README](../README.md).
 
 It refuses to run from a native-session checkout, and writes the durable host home into `gpg.program` rather than `$HOME`. Both guard the same failure: a session-scoped path is durable enough to write into global config and gone by the time anything resolves it (agentic-os#1137).
 
-Wire the helper into Git once:
-
-```bash
-git config --global credential.https://forgejo.coilysiren.me.helper \
-  "!C:/Users/firem/.local/bin/git-credential-forgejo-ssm.cmd"
-```
-
-The helper keeps the token in git's `credential-cache` daemon, in memory and never in a file, so a burst of requests costs one SSM read. A partial clone's lazy fetches each ask the helper, and a blobless clone of 120 commits under `git log -p -M` made 52 requests and 52 SSM reads before, and 1 after. `FORGEJO_CREDENTIAL_CACHE_SECONDS` sets the lifetime, 600 by default and 0 for none. When Forgejo rejects the token, git tells the helper, which drops its copy, so a rotated token takes effect on the next command and not after the lifetime. Where git has no `credential-cache`, as on native Windows, every request reads SSM as before.
 
 ## Per-host notes
 
@@ -53,7 +44,7 @@ That links the wrapper and sets `gpg.program` to it in one step, on every OS. Ve
 
 ## Cross-platform shell
 
-One shared core (`shell/common.sh`) owns shell setup. Zsh (`shell/zshrc`) and Bash (`shell/bashrc`) source it, then add their prompt and completion. The rendered Windows PowerShell profile reads its marked blocks and derives Windows paths natively, without launching Bash: `shared-environment` carries exports and stays declarative, and `shared-environment-clear` carries bare `unset NAME` lines, so a name Unix clears is cleared on Windows too (agentic-os#849). Setup boots cleanly on Mac, Linux (kai-server), and Windows. It carries identity, history, AWS defaults, `WARD_LOCKDOWN_ROOT`, git helpers, aliases, an `rg` wrapper, and on-demand SSM reads.
+One shared core (`shell/common.sh`) owns shell setup. Zsh (`shell/zshrc`) and Bash (`shell/bashrc`) source it, then add their prompt and completion. The rendered Windows PowerShell profile reads its marked blocks and derives Windows paths natively, without launching Bash: `shared-environment` carries exports and stays declarative, and `shared-environment-clear` carries bare `unset NAME` lines, so a name Unix clears is cleared on Windows too (agentic-os#849). Setup boots cleanly on Mac, Linux (kai-server), and Windows. It carries identity, history, AWS defaults, git helpers, aliases, an `rg` wrapper, and on-demand SSM reads.
 
 The core's env + PATH block runs once per terminal tree, gated by an exported `_SIREN_SHELL_ENV` guard: a nested shell inherits the env and skips re-running brew/pyenv/PATH, while still defining aliases and functions (per-shell, never inherited). Env + PATH load for non-interactive shells too (scripts, ssh exec, the Claude Code Bash tool). Prompt and completion are interactive-only. The core exports `PROJECTS_ROOT`, honoring a set value, then `~/projects`, then deriving the workspace umbrella from the AOS checkout. Fresh shells at `$HOME` or an AOS session root auto-cd to `$AOS_STARTUP_DIR` or `$PROJECTS_ROOT`. Nested and checkout shells stay put. Host-specific lines live in untracked `~/.shellrc.local` (shared) or `~/.{bash,zsh}rc.local` (per shell).
 
@@ -83,16 +74,11 @@ invisible to scripts and agent tool calls, which then restate the raw
 converged link and falls back to the checkout, so a host that has not run
 `just apply-shell-links` yet still resolves it.
 
-The integrated `aos --warded` launch uses the same on-demand posture for its
-deployment-owned Forgejo broker credential. AOS resolves the value through the
-host AWS session only when `FORGEJO_TOKEN` is absent, passes it to Ward's
-privileged broker launch environment, and never projects it into the agent
-harness. See the [AOS to Ward credential handoff](aos-cluster-access.md).
-
 ## Cross-platform terminal
 
 kitty supplies the portable Sombra rendering baseline for `aterm` windows. Mac
 and Linux workstations symlink the live kitty config to the canonical AOS file.
+`just kitty-config-check` parses it headlessly.
 kitty does not ship on Windows, so **`aterm` is Mac and Linux only** and is not
 built or packaged for Windows (agentic-os#1264). Alacritty keeps the Windows
 terminal baseline for everything else: infrastructure renders Git Bash as
@@ -103,6 +89,10 @@ multiplexer.
 
 `gpg-ssm` is a wrapper around `gpg` that pulls the signing passphrase from AWS SSM at sign time instead of caching it on disk. When the configured signing key is missing locally, it bootstraps `/coilysiren/gpg-secret-key` in memory before signing. Mac/Linux + Windows (`.cmd` shim for Git for Windows). Wire it in once with `just apply-shell-links`.
 
+## Disk-pressure guard
+
+`just disk-guard-install [--load]` installs `scripts/disk-guard/disk-guard.sh` and a launchd job that runs it every 15 minutes (COI-2766). Under 15 GiB free on the data volume it runs `docker builder prune -f` and logs `free before=N KiB after=M KiB`; images and volumes stay. Floor and paths are `DISK_GUARD_*` env vars. Add an in-use check if a prune ever lands mid-build. Host-wide rollout is ansible's.
+
 ## Install surface
 
-[README.md](../README.md) carries per-OS install steps. `just apply-shell-links` repairs shell links, `gpg-ssm`, and the Forgejo git credential helper. Windows skips `~/.bashrc` so Git Bash hook launchers cannot recreate stale state. Mac/Linux can also use plain `ln -sf`. Windows symlinks need Developer Mode or elevation.
+[README.md](../README.md) carries per-OS install steps. `just apply-shell-links` repairs shell links and `gpg-ssm`. Windows skips `~/.bashrc` so Git Bash hook launchers cannot recreate stale state. Mac/Linux can also use plain `ln -sf`. Windows symlinks need Developer Mode or elevation.

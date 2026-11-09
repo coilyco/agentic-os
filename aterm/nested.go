@@ -61,6 +61,50 @@ func refuseNestedLaunch() error {
 	))
 }
 
+// checkDefaultWorkingDirectory fails a launch whose fallback root does not exist,
+// naming the variables that should have settled it (COI-2668).
+func checkDefaultWorkingDirectory() error {
+	dir := defaultWorkingDirectory()
+	if info, err := os.Stat(dir); err == nil && info.IsDir() {
+		return nil
+	}
+	launch := readCanonicalLaunch()
+	missing := []string{}
+	for _, entry := range []struct{ name, value string }{
+		{defaultWorkingEnvVar, os.Getenv(defaultWorkingEnvVar)},
+		{canonicalProjectsEnv, launch.Projects},
+		{canonicalHomeEnv, launch.Home},
+		{nativeSessionRootEnv, launch.Root},
+	} {
+		if strings.TrimSpace(entry.value) == "" {
+			missing = append(missing, entry.name)
+		}
+	}
+	return withExit(exitUsage, fmt.Errorf(
+		"the default working directory %q does not exist, and %s %s unset. "+
+			"Set %s to the real projects root, or pass --working-directory",
+		dir, strings.Join(missing, ", "), pluralIs(len(missing)), defaultWorkingEnvVar,
+	))
+}
+
+func pluralIs(count int) string {
+	if count == 1 {
+		return "is"
+	}
+	return "are"
+}
+
+// launchWorkingDirectory is the flag's value, checked. A directory the person
+// named keeps the plain stat error, since the variables did not choose it.
+func launchWorkingDirectory(explicit bool, value string) (string, error) {
+	if !explicit {
+		if err := checkDefaultWorkingDirectory(); err != nil {
+			return "", err
+		}
+	}
+	return validateWorkingDirectory(value)
+}
+
 // canonicalEnviron drops every value pointing into this session's shadow and
 // restores the canonical home and projects root. See docs/aterm.md.
 func canonicalEnviron(environ []string, launch canonicalLaunch) []string {

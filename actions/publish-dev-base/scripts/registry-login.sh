@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Authenticate the image publisher to the canonical registry.
+# Authenticate the image publisher to GHCR with the workflow token.
 
 set -euo pipefail
 
@@ -23,7 +23,7 @@ retry() {
 }
 
 if [ -z "${REGISTRY_TOKEN:-}" ]; then
-  echo "::error::REGISTRY_TOKEN not set. Mint a forgejo PAT with write:package and add it as an Actions secret. See docs/dev-base-image.md." >&2
+  echo "::error::REGISTRY_TOKEN not set. Pass the workflow GITHUB_TOKEN, and grant the job packages: write. See docs/dev-base-image.md." >&2
   exit 1
 fi
-retry 4 sh -c 'printf "%s" "$REGISTRY_TOKEN" | docker login forgejo.coilysiren.me -u coilyco-ops --password-stdin'
+retry 4 sh -c 'printf "%s" "$REGISTRY_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR:-coilyco-ops}" --password-stdin'

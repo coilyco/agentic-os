@@ -69,8 +69,7 @@ ln -sf "$PWD/kitty/kitty.conf" ~/.config/kitty/kitty.conf
 ```
 
 On Windows, `just apply-shell-links` manages `~/.zshrc` and the `gpg-ssm.cmd`
-shim only. It also links the Forgejo git credential helper. Git Bash popup shells
-should not recreate `~/.bashrc`.
+shim only. Git Bash popup shells should not recreate `~/.bashrc`.
 
 Agent self-name and composition hooks, per-host steps, and gpg wiring: [docs/install.md](docs/install.md).
 
@@ -83,25 +82,23 @@ together.
 ```bash
 aoscompose platform                          # role's default agent
 aoscompose platform goose                    # override the agent
-aosward --agent codex --role eng-platform -- owner/repo#267
 aos converge                                 # host runtime inputs, --check for drift
 ```
 
 `aoscompose` is the canonical explicit alias of `aos`, and `aoscomposed`
-survives as a compatibility spelling. `aosward` adds `--warded`. Bare
+survives as a compatibility spelling. Bare
 `acompose <role> <harness>` is the native-host launcher and starts no Docker,
 while an `aos` prefix is the container boundary.
 
-Role names never union authority across layers. Ward owns fixed workflows and
-container lifecycle, agent-compose produces context, and umbra generates the
-guarded tools. AOS applies its own bounded standalone gates on top.
+Role names never union authority across layers. Agent-compose produces
+context, and umbra generates the guarded tools. AOS applies its own bounded standalone gates on top.
 
-Homebrew and Scoop install `aos`, `aoscompose`, `aoscomposed`, `aosward`,
+Homebrew and Scoop install `aos`, `aoscompose`, `aoscomposed`,
 `aosguard`, and `aterm`. The launch and handoff contract,
 release binaries, and the native update path are in
 [docs/aos-cli.md](docs/aos-cli.md). Convergence is in
 [docs/aos-convergence.md](docs/aos-convergence.md), standalone connectivity in
-[docs/aos-context-bundle.md](docs/aos-context-bundle.md), and cluster access in
+[docs/aos-connectivity.md](docs/aos-connectivity.md), and cluster access in
 [docs/aos-cluster-access.md](docs/aos-cluster-access.md).
 
 ## Secrets pattern
@@ -150,7 +147,7 @@ grammar.
 
 - [AGENTS.md](AGENTS.md) - public-safe agent operating conventions and the global load point.
 - [docs/FEATURES.md](docs/FEATURES.md) - inventory of what ships today.
-- [Repo maps](docs/repo-layout.md) - compact starting points for high-churn warded workflow areas.
+- [Repo maps](docs/repo-layout.md) - compact starting points for high-churn workflow areas.
 - [CODE-REVIEW.md](CODE-REVIEW.md) - root review contract for repo-local invariants and historical issues.
 - [justfile](justfile) - dev verbs, which agents route through -, catalog metadata only.
 

@@ -17,7 +17,7 @@ pnpm := if `command -v pnpm || true` != "" { "pnpm" } else { "corepack pnpm" }
 default:
     @just --list --unsorted
 
-# Canonical short agent-id generator over the dictatable alphabet (lowercase 2-letter+2-digit, e.g. `ab85`). Bare invocation prints a fresh `secrets`-backed id (`-n 5` for more); `--seed <s>` prints the deterministic contract id for a seed, `--org <forgejo-org>` prints the short container token, `--emit-vectors` regenerates agent_id_vectors.json. The cross-repo naming primitive ward and umbra's Go port build against. See docs/build-output-is-not-content.md.
+# Canonical short agent-id generator over the dictatable alphabet (lowercase 2-letter+2-digit, e.g. `ab85`). Bare invocation prints a fresh `secrets`-backed id (`-n 5` for more); `--seed <s>` prints the deterministic contract id for a seed, `--org <org>` prints the short container token, `--emit-vectors` regenerates agent_id_vectors.json. The cross-repo naming primitive ward and umbra's Go port build against. See docs/build-output-is-not-content.md.
 agent-id *ARGS:
     @uv run python -m agentic_os.agent_id "$@"
 
@@ -25,9 +25,9 @@ agent-id *ARGS:
 agents-context-inventory *ARGS:
     @uv run python -m agentic_os.agents_context_inventory "$@"
 
-# Validate the shared kitty configuration against the installed kitty.
-kitty-config-check *ARGS:
-    @kitty --config kitty/kitty.conf +runpy 'raise SystemExit(0)' "$@"
+# Parse the shared kitty configuration with the installed kitty and fail on any warning it prints. Headless: `kitty --config` would open a window and never return.
+kitty-config-check:
+    @out="$(kitty +runpy 'from kitty.config import load_config; load_config("kitty/kitty.conf")' 2>&1)"; [ -z "$out" ] || { printf '%s\n' "$out"; exit 1; }
 
 # Compile the standalone Go `aos` container launcher.
 aos-build *ARGS:
@@ -36,14 +36,6 @@ aos-build *ARGS:
 # Remove the local standalone Go `aos` build artifact.
 aos-clean *ARGS:
     @go clean -C aos-cli "$@"
-
-# Render the always-composed, always-guarded Ward launch without starting Docker. Pass the Ward issue or freeform arguments as trailing arguments.
-aos-composition-dry-run *ARGS:
-    @./aos-cli/aos --agent codex --role eng-platform --warded --dry-run -- "$@"
-
-# Materialize the full local context bundle and render Ward's launch without starting an agent container. Pass the Ward issue or freeform arguments as trailing arguments.
-aos-composition-smoke *ARGS:
-    @bash scripts/aos-composition-smoke.sh "$@"
 
 # Launch the full local image through `aos`, compose the platform Codex HOME, verify its container-boundary defaults, hydrate substrate, and print the in-container Codex version.
 aos-container-smoke *ARGS:
@@ -110,15 +102,17 @@ aosguard-build *ARGS:
     @umbra --project-root .umbra/guardfiles --skills-out dist/skills build --out dist/aosguard "$@"
     @uv run python -m agentic_os.generators.generate_aosguard_skills --skills-root dist/skills
 
-# Materialize the guarded `gh` replacement binary from its own .umbra project root. It occupies `gh` on an agent session's PATH; see the tooling-aosguard skill's gh-replacement reference.
-gh-shim-build *ARGS:
-    @cp .umbra/guardfiles/specverb.lock .umbra/shims/specverb.lock
-    @umbra --project-root .umbra/shims build --out dist/shims/gh "$@"
+# Install the git, rm, find and mv guard stubs into a shim directory (an arbitrary path, never the live one unless rolling out by hand). See the tooling-aosguard skill's git-shim and fs-shims references.
+fs-shims-install DEST:
+    @sh scripts/fs-shims/install.sh "{{DEST}}"
 
-# Negative controls: every never and withhold in both .umbra roots must refuse by its own text and be load-bearing (umbra docs/negative-controls.md).
+# Install the disk-pressure guard and its launchd job into the current user's home; pass --load to bootstrap it. See docs/install.md#disk-pressure-guard.
+disk-guard-install *ARGS:
+    @sh scripts/disk-guard/install.sh "$HOME/.local/bin" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs/disk-guard.log" "$@"
+
+# Negative controls: every never and withhold in the .umbra root must refuse by its own text and be load-bearing (umbra docs/negative-controls.md).
 guard-controls *ARGS:
     @umbra --project-root .umbra/guardfiles controls "$@"
-    @umbra --project-root .umbra/shims controls "$@"
 
 # Refresh aosguard's vendored API snapshot and frozen umbra dependency graph with the packaged umbra driver. Pass umbra lock flags as trailing arguments.
 aosguard-lock *ARGS:
@@ -188,6 +182,14 @@ aterm-client-check *ARGS:
 aterm-client-test *ARGS:
     @cd aterm-client && {{pnpm}} run test "$@"
 
+# Drive the real aterm client against the Demo host in a headless browser at 1280px and 320px, and assert what is on screen. Screenshots land in aterm-client/drive-*.png.
+aterm-client-drive:
+    @uv run aterm-client/scripts/drive.py
+
+# Point the real aterm client at a mock daemon that breaks one hop per scenario, on real sockets, and check the connection check names that hop. Screenshots land in aterm-client/drive-hops/.
+aterm-client-drive-hops:
+    @uv run aterm-client/scripts/hops_drive.py
+
 # Build the aterm web client's production bundle into aterm-client/dist/.
 aterm-client-build *ARGS:
     @cd aterm-client && {{pnpm}} run build "$@"
@@ -198,10 +200,74 @@ aterm-client-gate:
     @just aterm-client-test
     @just aterm-client-build
 
-# Build the aterm web client and install it where the daemon serves it: ATERM_CLIENT_DIR, else ~/.local/share/aterm/client.
+# The aterm client test bed: build the client, then drive every journey at desktop and phone sizes against a mock daemon. Writes baselines on a first run, diffs on later ones. Pass Playwright args, e.g. `--project=iphone`. See the aterm-client skill's testbed reference.
+aterm-client-testbed *ARGS:
+    @just aterm-client-install
+    @cd aterm-client && {{pnpm}} exec playwright install chromium webkit
+    @just aterm-client-build
+    @cd aterm-client && {{pnpm}} run testbed "$@"
+
+# Install the test bed's browsers with the OS libraries they need, on a CI runner. Needs apt, so not for a Mac.
+aterm-client-testbed-deps:
+    @cd aterm-client && {{pnpm}} exec playwright install --with-deps chromium webkit
+
+# Accept what the aterm client test bed shows now as the new baselines. Review `git diff --stat aterm-client/testbed/baselines` first.
+aterm-client-testbed-update *ARGS:
+    @just aterm-client-build
+    @cd aterm-client && {{pnpm}} run testbed --update-snapshots "$@"
+
+# Open the last test bed run's report, with each failing step's baseline, new screenshot and diff.
+aterm-client-testbed-report:
+    @cd aterm-client && {{pnpm}} exec playwright show-report testbed/out/report
+
+# Measure the aterm client at growing seat counts, e.g. `just aterm-client-scale 25,100,200`. SCALE_RUNS repeats each, SCALE_LIVE=<daemon page> reads a real daemon. Not the gate.
+aterm-client-scale COUNTS="25,100":
+    @just aterm-client-build
+    @cd aterm-client && SCALE_COUNTS={{COUNTS}} {{pnpm}} exec playwright test -c testbed/scale/playwright.config.ts
+
+# Serve the built client from the mock daemon on a port, to look at a journey's screen by hand.
+aterm-client-testbed-serve *ARGS:
+    @just aterm-client-build
+    @cd aterm-client && {{pnpm}} run testbed:serve "$@"
+
+# Build the aterm web client and copy it into aterm/clientdist/, where the next `go build` of aterm embeds it. A release does this before the Go build. See docs/aterm-daemon.md.
+aterm-client-embed:
+    @just aterm-client-install
+    @just aterm-client-build
+    @mkdir -p aterm/clientdist && find aterm/clientdist -mindepth 1 ! -name .gitkeep -delete && cp -R aterm-client/dist/. aterm/clientdist/ && echo "staged aterm-client/dist in aterm/clientdist"
+
+# Build the aterm web client and sync it into ATERM_CLIENT_DIR, which a daemon serves instead of its embedded client (dev override, nothing reads it by default).
 aterm-client-install-dir:
     @just aterm-client-build
-    @dir="${ATERM_CLIENT_DIR:-$HOME/.local/share/aterm/client}"; mkdir -p "$dir" && rsync -a --delete aterm-client/dist/ "$dir/" && echo "installed to $dir"
+    @dir="${ATERM_CLIENT_DIR:?set ATERM_CLIENT_DIR, the daemon serves its embedded client unless it is set}"; mkdir -p "$dir" && rsync -a --delete aterm-client/dist/ "$dir/" && echo "installed to $dir"
+
+# Install the aterm Android app's Tauri CLI from its frozen pnpm-lock.yaml. See docs/aterm-android.md.
+aterm-android-install *ARGS:
+    @cd aterm-android && {{pnpm}} install --frozen-lockfile "$@"
+
+# Run the pinned Tauri CLI inside the aterm Android project, for example `just aterm-android-tauri info`.
+aterm-android-tauri *ARGS:
+    @cd aterm-android && {{pnpm}} exec tauri "$@"
+
+# Re-resolve aterm-android/src-tauri/Cargo.lock after a dependency pin changes, then commit it.
+aterm-android-lock:
+    @cd aterm-android/src-tauri && cargo generate-lockfile
+
+# Install the JDK, Android SDK, NDK and Rust target the aterm APK build needs. Run as root, as the CI container does.
+aterm-android-toolchain:
+    @bash scripts/ci/aterm-android.sh toolchain
+
+# Build the unsigned aterm APK at OUT for a major.minor.patch VERSION, with the client bundle built for the app.
+aterm-android-build VERSION OUT:
+    @bash scripts/ci/aterm-android.sh build "{{VERSION}}" "{{OUT}}"
+
+# Sign the unsigned APK IN to OUT with ATERM_ANDROID_KEYSTORE_B64 and ATERM_ANDROID_KEYSTORE_PASSWORD, or a throwaway key when unset, then verify it.
+aterm-android-sign IN OUT:
+    @bash scripts/ci/aterm-android.sh sign "{{IN}}" "{{OUT}}"
+
+# Regenerate the aterm Android launcher icons from the website brand kit directory BRAND_DIR (coilyco/website src/images/brand).
+aterm-android-icons BRAND_DIR:
+    @bash scripts/aterm-android-icons.sh "{{BRAND_DIR}}"
 
 # Build the aterm web client for a hosted deployment: ATERM_CLIENT_BASE sets the base path, hosts are added per device and none are baked in.
 aterm-client-build-hosted:
@@ -251,14 +317,6 @@ dev-base-build *ARGS:
 dev-base-check *ARGS:
     @bash scripts/dev-base-check.sh "$@"
 
-# Fail when the agent-compose roles baked into agentic-os:release differ from the latest agent-compose release's. Run it inside that image.
-agent-compose-roster-watch *ARGS:
-    @uv run python -m agentic_os.agent_compose_roster_watch "$@"
-
-# Fetch exact Forgejo 16 Actions log bytes: `just forgejo-actions-logs <owner> <repo> <run> [job] [attempt] [--max-bytes N]`. Omit job for a whole-run ZIP. Visible run/job indexes, explicit `id:<n>`, and exact job names are supported. Needs FORGEJO_TOKEN.
-forgejo-actions-logs *ARGS:
-    @uv run python -m agentic_os.forgejo_actions_logs "$@"
-
 # Render the managed AGENTS.md workspace-pointer block for an org (--org) or the cwd repo. Single source of truth for the block shape.
 gen-agents-pointer *ARGS:
     @uv run python -m agentic_os.generators.generate_agents_pointer "$@"
@@ -267,7 +325,7 @@ gen-agents-pointer *ARGS:
 gen-caps-reference *ARGS:
     @uv run python -m agentic_os.generators.generate_caps_reference "$@"
 
-# Generate a repo-<name> pointer skill from repository metadata. Pipe `aosguard ops forgejo repo view --repo coilysiren/<name> --json` into it with `<name> --from-json -`, or pass --description/--topic. See docs/features-agents.md.
+# Generate a repo-<name> pointer skill from repository metadata. Pipe `gh repo view coilyco/<name> --json description,repositoryTopics` into it with `<name> --from-json -`, or pass --description/--topic. See docs/features-agents.md.
 gen-repo-pointer-skill *ARGS:
     @uv run python -m agentic_os.generators.generate_repo_pointer_skill "$@"
 
@@ -307,7 +365,7 @@ pre-commit-shellcheck *ARGS:
 pre-commit-shellcheck-files *ARGS:
     @pre-commit run shellcheck --files "$@"
 
-# Resolve guard, Ward, or AOS to the immutable generated tag at its production release branch, falling back to the literal `release` ref.
+# Resolve guard, umbra, or AOS to the immutable generated tag at its production release branch, exiting non-zero when none is there.
 prod-install-ref *ARGS:
     @python3 -m agentic_os.prod_install_ref "$@"
 
@@ -315,19 +373,11 @@ prod-install-ref *ARGS:
 release *ARGS:
     @uv run python scripts/release.py "$@"
 
-# Remint the two-stage promote PAT on the coilyco-ops bot (write:repository + read:user - without read:user Forgejo drops the release enqueue, ward#1117) and overwrite SSM /forgejo/coilyco-ops/ci-release-token. Values stay in-process. `--dry-run` previews. Follow with `just sync-actions-secrets`.
-remint-ci-release-token *ARGS:
-    @uv run --with boto3 python scripts/remint-ci-release-token.py "$@"
-
-# Remint the coilyco-ops read:package token, verify it against the Forgejo registry, and overwrite SSM /forgejo/coilyco-ops/registry-read-token. Values stay in-process. `--dry-run` previews.
-remint-registry-read-token *ARGS:
-    @uv run --with boto3 python scripts/remint-registry-read-token.py "$@"
-
 # Run the exact repository CI gate, bootstrapping the pinned umbra release before pytest and the full pre-commit suite.
 repo-test-gate *ARGS:
-    @bash scripts/ci-command.sh bash scripts/ci/repo-test-gate.sh "$@"
+    @bash scripts/ci/repo-test-gate.sh "$@"
 
-# Validate SSM parameter paths against the /<org>/<repo>/<tier>/<tail> schema. `just ssm-path /coilysiren/backend/write/ts-authkey [more...]`, or `--stdin` for one path per line. A CLI validator (paths arrive as args, not repo files), so it is ward-fenced rather than a commit-path hook. See docs/release.md.
+# Validate SSM parameter paths against the /<org>/<repo>/<tier>/<tail> schema. `just ssm-path /coilysiren/backend/write/ts-authkey [more...]`, or `--stdin` for one path per line. A CLI validator (paths arrive as args, not repo files), so it is ward-fenced rather than a commit-path hook. See docs/aos-cli.md.
 ssm-path *ARGS:
     @uv run python -m agentic_os.pre_commit.check_ssm_path "$@"
 
@@ -339,7 +389,7 @@ sweep-documentation-layout *ARGS:
 sweep-precommit *ARGS:
     @uv run python scripts/sweep-precommit.py "$@"
 
-# Sync Forgejo Actions secrets (release PATs, package-repository writers, housecast's PyPI token, and deploy's pin-reconciler pair) from their SSM sources of truth. Entries are keyed `owner/repo`, so the mapping spans orgs: aos + ward + umbra + housecast under coilyco-flight-deck, plus coilyco/deploy. Values flow SSM -> Forgejo API in-process, never disk or argv. An attended operator supplies `FORGEJO_ADMIN_TOKEN`; `--dry-run` previews the mapping. See docs/release.md.
+# Sync GitHub Actions secrets from their SSM sources of truth: the coilyco-ops App id and key, the Sentry fleet DSN on every workflow repo, and a few per-repo keys. Values flow SSM -> `gh secret set` in-process, never disk or argv. `--dry-run` previews the plan, `--check` lists the secret names GitHub holds, `--repo` and `--secret` narrow it. See docs/aos-cli.md.
 sync-actions-secrets *ARGS:
     @uv run python scripts/sync-actions-secrets.py "$@"
 

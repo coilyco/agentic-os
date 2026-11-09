@@ -47,6 +47,10 @@ const (
 	pnpmStoreDirEnv          = "PNPM_CONFIG_STORE_DIR"
 	nativeSessionProjectsEnv = "AOS_NATIVE_SESSION_PROJECTS"
 	nativeSessionRootEnv     = "AOS_NATIVE_SESSION_ROOT"
+	nativeSessionsDirEnv     = "AOS_NATIVE_SESSIONS_DIR"
+	// The seat fs guard allows rm and mv only inside the session root, and the
+	// host temp directory is outside it. tooling-aosguard references/fs-shims.md
+	nativeSessionTempName = "tmp"
 	// A launcher inside a shadow needs the values the shadow replaced, so it
 	// can hand a new session the canonical ones. docs/native-shadow.md
 	nativeCanonicalHomeEnv     = "AOS_NATIVE_CANONICAL_HOME"
@@ -114,6 +118,8 @@ type nativeWorktree struct {
 }
 
 type nativeLiveWorktrees struct {
+	// roots are live sessions' roots. A worktree a seat made inside one is its own.
+	roots     []string
 	paths     map[string]struct{}
 	branches  map[string]struct{}
 	uncertain bool
@@ -274,10 +280,16 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 			return err
 		}
 	}
+	credentialsApplied := false
 	if nativeLaunchSpecEnabled() {
 		if command, err = resolveSpecLaunch(ctx, command); err != nil {
 			return err
 		}
+		// resolveSpecLaunch exported them before it wrote the MCP config.
+		credentialsApplied = true
+	}
+	if command, err = applyConfiguredPermissionMode(command, harness); err != nil {
+		return err
 	}
 	applyNativeSessionHeader(harness, workspace.SessionHome, runtime.Stderr)
 	if err := prependNativeShimPath(workspace.SessionHome); err != nil {
@@ -288,8 +300,12 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 			fmt.Fprintf(runtime.Stderr, "aos: withheld %s from %s: an Anthropic API key is for operational checks only\n", key, harness)
 		}
 	}
-	applyNativeLinearEnvironment(ctx, runtime.Stderr)
+	if !credentialsApplied {
+		applyNativeLaunchCredentials(ctx, runtime.Stderr, role)
+	}
 	runtime.Progress.Ready()
+	recheckNativeClaudeTrust(runtime, workspace.Trust)
+	startNativeTrustGuard(workspace.Trust)
 	runtime.Progress.Exec(command)
 	return execNative(command)
 }
@@ -314,6 +330,24 @@ func prependNativeShimPath(sessionHome string) error {
 		shims += string(os.PathListSeparator) + path
 	}
 	return os.Setenv("PATH", shims)
+}
+
+// exportNativeSessionTemp points TMPDIR inside the session root, where the fs guard
+// allows cleanup, and pins the sessions root first. See references/fs-shims.md
+func exportNativeSessionTemp(sessionsRoot, sessionRoot string) error {
+	dir := filepath.Join(sessionRoot, nativeSessionTempName)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("create native session temp %s: %w", dir, err)
+	}
+	if strings.TrimSpace(os.Getenv(nativeSessionsDirEnv)) == "" {
+		if err := os.Setenv(nativeSessionsDirEnv, sessionsRoot); err != nil {
+			return fmt.Errorf("set %s: %w", nativeSessionsDirEnv, err)
+		}
+	}
+	if err := os.Setenv("TMPDIR", dir); err != nil {
+		return fmt.Errorf("set TMPDIR: %w", err)
+	}
+	return nil
 }
 
 func convergeNativeEnvironment(ctx context.Context, runtime nativeRuntime) error {
@@ -441,7 +475,7 @@ func resolveNativeRuntime() (nativeRuntime, error) {
 	if stateRoot == "" {
 		stateRoot = filepath.Join(cache, "agentic-os", "native-shadow")
 	}
-	sessionsRoot := strings.TrimSpace(os.Getenv("AOS_NATIVE_SESSIONS_DIR"))
+	sessionsRoot := strings.TrimSpace(os.Getenv(nativeSessionsDirEnv))
 	if sessionsRoot == "" {
 		if sessionsRoot, err = defaultNativeSessionsRoot(); err != nil {
 			return nativeRuntime{}, err
@@ -493,6 +527,8 @@ type nativeLaunchWorkspace struct {
 	// ClaudeSeat is the --add-dir carrying this seat's CLAUDE.md and skills,
 	// set only when the launch shares the seats config directory.
 	ClaudeSeat string
+	// Trust is what a Claude launch seeded, checked again before the hand-off.
+	Trust nativeTrustPlan
 }
 
 func prepareNativeLaunch(runtime nativeRuntime, harness string) (string, error) {
@@ -692,6 +728,35 @@ func (live *nativeLiveWorktrees) addArtifacts(artifacts []nativeArtifact) {
 	}
 }
 
+func (live *nativeLiveWorktrees) addRoot(root string) {
+	if root = filepath.Clean(strings.TrimSpace(root)); root != "." && root != string(os.PathSeparator) {
+		live.roots = append(live.roots, root)
+	}
+}
+
+// insideLiveSession is whether a path sits under a live session's root, or under that
+// session's claude scratchpad, whose directory name spells the root with dashes.
+func (live nativeLiveWorktrees) insideLiveSession(path string) bool {
+	forms := []string{filepath.Clean(path)}
+	if resolved, err := filepath.EvalSymlinks(path); err == nil {
+		forms = append(forms, resolved)
+	}
+	for _, root := range live.roots {
+		marker := strings.ReplaceAll(root, string(os.PathSeparator), "-")
+		for _, form := range forms {
+			if underAny(form, []string{root}) {
+				return true
+			}
+			if at := strings.Index(form, marker); at >= 0 {
+				if rest := form[at+len(marker):]; rest == "" || rest[0] == '-' || rest[0] == os.PathSeparator {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // holdsBranch reports a branch some lease still claims, purged worktree
 // included. Uncertainty answers yes, since the cost of keeping is a stale ref.
 func (live nativeLiveWorktrees) holdsBranch(branch string) bool {
@@ -837,6 +902,12 @@ type nativeHeldLease struct {
 }
 
 func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error) {
+	return cleanNativeSessionsWhere(runtime, nil)
+}
+
+// cleanNativeSessionsWhere is cleanDeadNativeSessions over the leases pick accepts, every
+// lease when it is nil. Leases it skips are untouched and absent from the live set.
+func cleanNativeSessionsWhere(runtime nativeRuntime, pick func(nativeLease) bool) (nativeLiveWorktrees, error) {
 	leaseDir := nativeStatePath(runtime, "leases")
 	entries, err := os.ReadDir(leaseDir)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -862,6 +933,9 @@ func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error)
 			fmt.Fprintf(runtime.Stderr, "aos: preserving unreadable native lease %s\n", path)
 			continue
 		}
+		if pick != nil && !pick(lease) {
+			continue
+		}
 		held = append(held, nativeHeldLease{path: path, lease: lease})
 		pids = append(pids, lease.PID)
 	}
@@ -878,6 +952,7 @@ func cleanDeadNativeSessions(runtime nativeRuntime) (nativeLiveWorktrees, error)
 				}
 			}
 			live.addArtifacts(lease.Artifacts)
+			live.addRoot(lease.SessionRoot)
 			continue
 		}
 		// A dead session's token is harvested at once rather than after the
@@ -1703,7 +1778,7 @@ func cleanUnleasedNativeWorktrees(
 	}
 	for _, worktree := range worktrees {
 		if samePath(worktree.Path, repository.Path) || live.contains(worktree.Path) ||
-			humanWorkdir(worktree.Path) {
+			live.insideLiveSession(worktree.Path) || humanWorkdir(worktree.Path) {
 			continue
 		}
 		artifact := nativeArtifact{
@@ -1974,6 +2049,9 @@ func createNativeSession(
 	if err := os.Setenv(nativeSessionProjectsEnv, sessionProjects); err != nil {
 		return nativeLaunchWorkspace{}, fmt.Errorf("set native session projects: %w", err)
 	}
+	if err := exportNativeSessionTemp(runtime.SessionsRoot, sessionRoot); err != nil {
+		return nativeLaunchWorkspace{}, err
+	}
 	// Pinned to the canonical home so the recorded path is the same string in
 	// every session. An operator setting wins. docs/native-shadow.md
 	if store := canonicalPnpmStoreDir(runtime.Home); store != "" &&
@@ -2021,6 +2099,7 @@ func createNativeSession(
 		}
 	}
 	seat := ""
+	var trust nativeTrustPlan
 	if harness == "claude" {
 		config := nativeClaudeConfigPath(runtime.Home)
 		if sessionHome != "" {
@@ -2038,9 +2117,19 @@ func createNativeSession(
 			config = filepath.Join(nativeClaudeSeatsDir(runtime.Home), ".claude.json")
 			trusted = append(trusted, seat)
 		}
-		if err := seedNativeClaudeTrust(config, trusted); err != nil {
+		external := nativeClaudeImportsApproved(runtime.Home, []string{sessionRoot},
+			filepath.Join(runtime.Home, ".claude", "CLAUDE.md"),
+			filepath.Join(sessionHome, ".claude", "CLAUDE.md"),
+			filepath.Join(seat, ".claude", "CLAUDE.md"))
+		if !external {
+			fmt.Fprintf(runtime.Stderr, "aos: native session external imports not pre-approved, a CLAUDE.md imports a file beyond the approved two\n")
+		}
+		result, err := ensureNativeClaudeTrust(config, trusted, external, nativeClaudeSeedChecks)
+		if err != nil {
 			fmt.Fprintf(runtime.Stderr, "aos: native session trust not seeded: %v\n", err)
 		}
+		trust = nativeTrustPlan{Config: config, Paths: trusted, External: external}
+		logNativeClaudeTrust(runtime, "staged", trust, result, err)
 	}
 	runtime.Progress.Workspace(sessionProjects, len(artifacts))
 	return nativeLaunchWorkspace{
@@ -2048,6 +2137,7 @@ func createNativeSession(
 		SessionProjects: sessionProjects,
 		SessionHome:     sessionHome,
 		ClaudeSeat:      seat,
+		Trust:           trust,
 	}, nil
 }
 
@@ -2161,7 +2251,7 @@ func stageStandaloneRoleHome(source, target string) error {
 		blocked map[string]bool
 	}{
 		{name: ".agents", blocked: map[string]bool{"skills": true}},
-		{name: ".claude", blocked: map[string]bool{"skills": true, ".credentials.json": true}},
+		{name: ".claude", blocked: standaloneClaudeBlocked()},
 	} {
 		if err := copyStandaloneHomeDirectory(
 			filepath.Join(source, spec.name),
@@ -2178,6 +2268,22 @@ func stageStandaloneRoleHome(source, target string) error {
 		}
 	}
 	return nil
+}
+
+// standaloneClaudeRuntimeState is what the harness writes as it runs, never config.
+// Its projects transcripts alone were 4 GiB in every shadow home. COI-2799
+var standaloneClaudeRuntimeState = []string{
+	"projects", "backups", "telemetry", "file-history", "shell-snapshots", "debug",
+	"paste-cache", "session-env", "sessions", "todos", "ide", "statsig", "security",
+	"cache", "plans", "history.jsonl",
+}
+
+func standaloneClaudeBlocked() map[string]bool {
+	blocked := map[string]bool{"skills": true, ".credentials.json": true}
+	for _, name := range standaloneClaudeRuntimeState {
+		blocked[name] = true
+	}
+	return blocked
 }
 
 func copyStandaloneHomeDirectory(source, target string, blocked map[string]bool) error {

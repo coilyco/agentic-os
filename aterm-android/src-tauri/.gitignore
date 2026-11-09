@@ -1,0 +1,3 @@
+# Cargo output, and the Gradle project `tauri android init` writes at build time from the pinned CLI.
+/target/
+/gen/

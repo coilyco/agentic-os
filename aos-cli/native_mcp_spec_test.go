@@ -17,14 +17,14 @@ func TestNativeSpecMCPArgsRefusesWithoutAnInventory(t *testing.T) {
 	t.Setenv(openCodeConfigEnv, "")
 	for _, harness := range []string{"claude", "codex", "goose", "opencode"} {
 		spec := nativeLaunchSpec{Harness: harness}
-		_, err := nativeSpecMCPArgs(context.Background(), spec, "eng-platform", t.TempDir(), t.TempDir(), nil)
+		_, err := nativeSpecMCPScope(context.Background(), spec, "eng-platform", t.TempDir(), t.TempDir(), nil)
 		if !errors.Is(err, errNoMCPInventory) {
 			t.Fatalf("%s: a host with no inventory should refuse, got %v", harness, err)
 		}
 	}
 	spec := nativeLaunchSpec{Harness: "claude"}
-	got, err := nativeSpecMCPArgs(context.Background(), spec, "eng-platform", t.TempDir(), t.TempDir(), []string{"--mcp-config", "mine.json"})
-	if err != nil || got != nil {
+	got, err := nativeSpecMCPScope(context.Background(), spec, "eng-platform", t.TempDir(), t.TempDir(), []string{"--mcp-config", "mine.json"})
+	if err != nil || got.Flags != nil || got.Allow != nil {
 		t.Fatalf("a caller's own scope is used as given, got %v, %v", got, err)
 	}
 }
@@ -69,10 +69,11 @@ func TestSpecGooseScopeReplacesTheProfile(t *testing.T) {
 	stubRoleCatalog(t)
 	t.Setenv("XDG_CONFIG_HOME", "")
 	home := scopeInventoryHome(t)
-	flags, err := nativeSpecMCPArgs(context.Background(), nativeLaunchSpec{Harness: "goose"}, "eng-platform", home, t.TempDir(), nil)
+	scope, err := nativeSpecMCPScope(context.Background(), nativeLaunchSpec{Harness: "goose"}, "eng-platform", home, t.TempDir(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
+	flags := scope.Flags
 	want := "--no-profile|--with-builtin|developer|--with-streamable-http-extension|https://example.invalid/mcp|" +
 		"--with-extension|script:sh -c \"PATH=" + home + "/bin:$PATH exec tool\""
 	if got := strings.Join(flags, "|"); got != want {
@@ -92,7 +93,7 @@ func TestSpecOpenCodeScopeSetsTheInlineConfig(t *testing.T) {
 	stubRoleCatalog(t)
 	t.Setenv(openCodeConfigEnv, "")
 	home := scopeInventoryHome(t)
-	if _, err := nativeSpecMCPArgs(context.Background(), nativeLaunchSpec{Harness: "opencode"}, "eng-platform", home, t.TempDir(), nil); err != nil {
+	if _, err := nativeSpecMCPScope(context.Background(), nativeLaunchSpec{Harness: "opencode"}, "eng-platform", home, t.TempDir(), nil); err != nil {
 		t.Fatal(err)
 	}
 	var config struct {
@@ -104,5 +105,59 @@ func TestSpecOpenCodeScopeSetsTheInlineConfig(t *testing.T) {
 	if config.MCP["remote"]["type"] != "remote" || config.MCP["script"]["type"] != "local" ||
 		config.MCP["pw_sysadmin"]["enabled"] != false || len(config.MCP["pw_sysadmin"]) != 1 {
 		t.Fatalf("mcp = %v", config.MCP)
+	}
+}
+
+// A header whose ${VAR} is unset stays off the generated config. With the variable
+// set the entry is unchanged and the value never reaches the file.
+func TestWriteClaudeConfigLeavesOffAHeaderWhoseVariableIsUnset(t *testing.T) {
+	servers := map[string]mcpScopeServer{
+		"public_coilyco_linear": {URL: "https://example.invalid/mcp", Headers: map[string]string{
+			"Authorization": "${LINEAR_MCP_AUTHORIZATION:-}", "X-Static": "fixed",
+		}},
+		"defaulted": {URL: "https://example.invalid/d", Headers: map[string]string{"X-Mode": "${MODE:-ro}"}},
+	}
+	write := func(env map[string]string) (map[string]map[string]any, string) {
+		t.Helper()
+		selection := selectMCPScope(servers, "eng-platform")
+		selection.lookup = func(name string) (string, bool) { value, ok := env[name]; return value, ok }
+		path, err := selection.writeClaudeConfig(t.TempDir(), t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var config struct {
+			Servers map[string]map[string]any `json:"mcpServers"`
+		}
+		if err := json.Unmarshal(raw, &config); err != nil {
+			t.Fatal(err)
+		}
+		return config.Servers, strings.Join(selection.headerOmissions(), "\n")
+	}
+
+	for name, env := range map[string]map[string]string{"unset": {}, "blank": {"LINEAR_MCP_AUTHORIZATION": " \n"}} {
+		got, omitted := write(env)
+		headers, _ := got["public_coilyco_linear"]["headers"].(map[string]any)
+		if _, present := headers["Authorization"]; present {
+			t.Fatalf("%s: Authorization still in the config: %v", name, headers)
+		}
+		if headers["X-Static"] != "fixed" {
+			t.Fatalf("%s: a static header was dropped: %v", name, headers)
+		}
+		if !strings.Contains(omitted, "public_coilyco_linear") || !strings.Contains(omitted, "LINEAR_MCP_AUTHORIZATION") {
+			t.Fatalf("%s: the launch does not name the cause: %q", name, omitted)
+		}
+		if strings.Contains(omitted, "X-Mode") || got["defaulted"]["headers"] == nil {
+			t.Fatalf("%s: a header with a default was treated as unreadable: %v %q", name, got["defaulted"], omitted)
+		}
+	}
+
+	got, omitted := write(map[string]string{"LINEAR_MCP_AUTHORIZATION": "Bearer s3cret"})
+	headers, _ := got["public_coilyco_linear"]["headers"].(map[string]any)
+	if headers["Authorization"] != "${LINEAR_MCP_AUTHORIZATION:-}" || omitted != "" {
+		t.Fatalf("a readable secret changed the entry: %v %q", headers, omitted)
 	}
 }

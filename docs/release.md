@@ -1,25 +1,19 @@
 # Release pipeline
 
-`promote.yml` gates every `main` push and fast-forwards `release` with
-`CI_RELEASE_TOKEN`. Three artifact workflows use native paths on that diff.
-`aos-cli-release.yml` cuts the versioned CLI bundle, `aos-precommit-release.yml`
-cuts the hook package, and `dev-base-publish.yml` publishes draft images under
-`draft-${sha}` only when the promoted diff changes `docker/`. After the full
-draft succeeds, it calls `release.yml` to publish the next root minor release.
-Manual dispatch overrides the path filter and can resume the image graph.
-`release.yml` is also a no-cancel retry and override queue. It never gates the
-branch. `main` stays yolo-able, while `release` is last-known-good. Forgejo owns releases per
-[forgejo-ops.md](../.agents/skills/tooling-aosguard/references/forgejo-ops.md).
+`.github/workflows/promote.yml` gates every `main` push through `ci.yml` and fast-forwards `release` with a coilyco-ops App token. Two artifact workflows filter on that diff. `aos-cli-release.yml` cuts the versioned CLI bundle and `aos-precommit-release.yml` cuts the hook package. Manual dispatch overrides the path filter and runs only against `release`, the last-known-good branch. The dev-base train (`dev-base-publish.yml` and `release.yml`, publishing draft images under `draft-${sha}` only when the promoted diff changes `docker/`) publishes to `ghcr.io/coilyco/agentic-os` from `.github/workflows` on `ubuntu-latest` (COI-3096).
 
 Promotion only gates and advances the branch. Non-artifact merges produce no
-package tag or draft image.
+package tag or draft image. One gate runs at a time and a merge waits behind it,
+keeping only the newest waiting merge, so `release` moves at the gate's pace
+(about 6 minutes) however fast merges arrive. Every merge still ships, since a
+promoted commit carries the ones before it.
 `release.yml` runs as a reusable workflow after the full draft is verified and
 as the manual retry path. Its retag job promotes only that full manifest.
 Dispatches can override `sha`, `tag`, and `source-tag` to resume or repair a
 publication. The moving alias is always `:release`, independent of the dispatch
 ref. Planning and release-metadata jobs bootstrap from the already-promoted
 `:latest` full image, so an absent `:release` alias remains repairable through
-the workflow. `draft-*` tags are staging refs for Forgejo package cleanup rules.
+the workflow. `draft-*` tags are staging refs.
 Language drafts and stable language cache refs are build-only artifacts.
 `:latest` is a compatibility alias for `:release`.
 
@@ -36,7 +30,7 @@ majors use `scripts/release.py --bump major`. Workflow dispatch remains the
 explicit patch, major, retry, and native path-filter override.
 
 `actions/tag-bump` also has a compute-only mode: derive the next semver first,
-create the public tag and Forgejo release only at the end.
+create the public tag and the release only at the end, so a failed build leaves no tag.
 
 ## Manual re-run (enqueue-miss recovery)
 
@@ -63,11 +57,7 @@ package tag is present.
 
 ## Mirror to GitHub
 
-No workflow in this repo mirrors to GitHub. A timer in the infrastructure repo
-fast-forwards Forgejo `main` onto the read-only GitHub mirror
-(`coilysiren/agentic-os`) with a GitHub App token, never `--force`. It skips
-`agentic-os` tags on purpose, since nothing consumes them from GitHub. See
-[forgejo-ops.md](../.agents/skills/tooling-aosguard/references/forgejo-ops.md) for the mirror-side detail.
+GitHub is canonical, so nothing mirrors `main`. The Forgejo-to-GitHub mirror timer retired with Forgejo on 2026-11-01. `release`, the `aos-v*` and `aos-precommit-v*` tags, and their releases are written on GitHub only.
 
 ## Skip markers
 
@@ -80,7 +70,7 @@ commit at all. Shared composite actions live under `actions/*` in this repo.
 Managed repos pin `aos-precommit-v*` via `rev:`. The distribution keeps the
 `agentic_os` namespace but releases independently from dev-base and AOS.
 The suite covers Actions policy, contracts, links, source-doc refs,
-`actionlint`, Forgejo, `shellcheck`, and `typos`. `shfmt`, placeholders, and
+`actionlint`, `shellcheck`, and `typos`. `shfmt`, placeholders, and
 issue refs stay opt-in in [pre-commit hygiene](pre-commit-hygiene.md). See the
 [hook manifest](../.pre-commit-hooks.yaml).
 
@@ -99,22 +89,19 @@ Single-purpose validators for cryptic failure modes. These plus [`ward context-b
 
 - `ward aws-config` - catches the `[profile default]` trap (SDKs read `[default]`, and a misplaced region surfaces later as a useless `NoRegion`).
 - `ward ssm-path` - checks parameter paths against the `/<org>/<repo>/<tier>/<tail>` schema before IAM/KMS, where a malformed path silently misses every tier policy.
-- `just prod-install-ref guard|ward|aos` - returns the immutable
-  generated product tag attached to the promoted `release` branch. It returns
-  the literal `release` ref when promotion has no matching tag yet.
+- `just prod-install-ref guard|umbra|aos` - returns the immutable
+  generated product tag attached to the promoted `release` branch. It exits
+  non-zero, printing nothing, when the branch head carries no matching tag.
 - GPG signing doctor that walks every check needed to diagnose `failed to sign the data` and names the likely fix per failure mode.
 
-## Forgejo-canonical release actions
+## Release actions
 
-Composite Forgejo Actions for the brew release pipeline, each a forgejo-API-only replacement for a github-coupled marketplace action:
+`actions/tag-bump`, `create-release`, `upload-release-asset` and `bump-formula`
+run against the GitHub API. Each input is described in its `action.yml`.
 
-- `actions/tag-bump` - bump the latest semver tag by a fixed amount (minor by default, major hand-driven via the `bump` input), or run in compute-only mode before the public tag exists. Does not parse commit messages. Replaces `mathieudutour/github-tag-action`.
-- `actions/create-release` - POST to forgejo Releases API with bounded JSON marshalling and timeouts. Idempotent on tag collision. Replaces `softprops/action-gh-release` for release creation.
-- `actions/upload-release-asset` - POST a release asset with bounded lookup, delete, and upload calls.
-- `actions/bump-formula` - rewrite a Homebrew Formula's `url ".."` line to pin the new tag + revision and PUT via forgejo Contents API with bounded lookup and write calls.
+* **Token** - `token` defaults to the job token. A `GITHUB_TOKEN` tag starts no workflow and cannot write a tap, so those take an App token from `actions/app-token`: it decodes the base64 `COILYCO_OPS_APP_PRIVATE_KEY_BASE64` with `COILYCO_OPS_APP_ID`, masks it, and mints a `contents:write` token for `repositories`, plus `workflows:write` when `workflows: write` is set, as `promote.yml` needs to push workflow edits (COI-2935).
+* **Calls** - tag: `POST /git/refs`. An existing tag or release (422) is reused. Asset: raw body to `uploads.github.com`. Formula: Contents API, and an empty `url_template` writes the GitHub clone URL.
+* **Latest** - `make_latest` sets GitHub's one-per-repo latest flag on create and on reuse. `aos-cli-release` passes true and `aos-precommit-release` false. `release-latest.yml` re-marks a named release by hand.
+* **Proof** - `.github/workflows/release-actions-proof.yml` (manual) runs a real tag, release and asset on GitHub, reads them back, and deletes them. `tests/test_release_actions_api.py` runs each action against a fake API.
 
-Forgejo imports use a fully qualified canonical URL:
-`uses: https://forgejo.coilysiren.me/coilyco/agentic-os/actions/<name>@main`.
-GitHub uses the mirror.
-
-agentic-os dogfoods local `uses:` refs.
+Callers pin a ref: `uses: coilyco/agentic-os/actions/<name>@<sha>`.

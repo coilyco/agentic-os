@@ -2,6 +2,7 @@
 // The frames and payload: .agents/skills/tooling-aterm-client/references/web-push.md
 import type { PushChannel } from "./protocol";
 import { fromBase64Url } from "./passkey";
+import type { Place } from "./build";
 import { Refusal } from "./typing";
 
 /** A failure already in words for the person. */
@@ -16,6 +17,8 @@ export const seatTag = (session: string) => `aterm-${session}`;
 export const SEAT_WAIT_MS = 15000;
 
 export const DENIED = "Notifications are blocked for this site. Allow them in the browser's site settings, then switch this on again.";
+// NotAllowedError after permission was granted: the browser holds push back.
+const NO_PUSH = "This browser allows notifications here but would not set up push for them. Check its settings for push messaging, then switch this on again.";
 const DISMISSED = "Notifications were not allowed, so nothing was turned on. Switch this on again to be asked.";
 const NO_WORKER = "The page is not ready for notifications yet. Reload it, then switch this on again.";
 
@@ -49,17 +52,24 @@ export function pushUnavailable(globals: PushGlobals = pushGlobals()): string | 
   return null;
 }
 
-/** The lock a remote device is under, in the words the switch shows. */
-export function lockedMessage(hosted: boolean): string {
-  return hosted
-    ? "This device is locked, so it cannot turn notifications on yet. Unlock it with a passkey, then switch this on."
-    : "This device is locked, and passkeys only work from the hosted client at coilyco.dev. Open it there, unlock this device, and switch this on.";
+/** The lock a remote device is under, worded per place as `typingNotice` is. */
+export function lockedMessage(place: Place): string {
+  switch (place) {
+    case "app-key":
+      return "This device is locked, so it cannot turn notifications on yet. Unlock it with your fingerprint or screen lock, then switch this on.";
+    case "app":
+      return "This device is locked, and the app cannot unlock it yet, so it cannot turn notifications on.";
+    case "hosted":
+      return "This device is locked, so it cannot turn notifications on yet. Unlock it with a passkey, then switch this on.";
+    default:
+      return "This device is locked, and passkeys only work from the hosted client at coilyco.dev. Open it there, unlock this device, and switch this on.";
+  }
 }
 
 /** What a person reads when the browser, not the daemon, ends the subscribe. */
-export function subscribeFailure(error: unknown): string {
+export function subscribeFailure(error: unknown, permission: NotificationPermission): string {
   const name = error instanceof Error ? error.name : "";
-  if (name === "NotAllowedError") return DENIED;
+  if (name === "NotAllowedError") return permission === "granted" ? NO_PUSH : DENIED;
   if (name === "NotSupportedError") return "This browser cannot subscribe to push here.";
   return "The browser could not reach its push service, so nothing was turned on. Check the connection and try again.";
 }
@@ -101,7 +111,7 @@ export function liveBrowser(): PushBrowser {
 }
 
 /** Permission, then the key, then the browser, then the daemon. Permission goes first. */
-export async function enablePush(channel: PushChannel, browser: PushBrowser, hosted: boolean): Promise<void> {
+export async function enablePush(channel: PushChannel, browser: PushBrowser, place: Place): Promise<void> {
   let permission = browser.permission();
   if (permission === "default") permission = await browser.requestPermission();
   if (permission === "denied") throw new PushError(DENIED);
@@ -120,7 +130,7 @@ export async function enablePush(channel: PushChannel, browser: PushBrowser, hos
       try {
         subscription = await browser.subscribe(applicationServerKey(key));
       } catch (error) {
-        throw new PushError(error instanceof PushError ? error.message : subscribeFailure(error));
+        throw new PushError(error instanceof PushError ? error.message : subscribeFailure(error, permission));
       }
     }
     try {
@@ -131,7 +141,7 @@ export async function enablePush(channel: PushChannel, browser: PushBrowser, hos
       throw error;
     }
   } catch (error) {
-    if (error instanceof Refusal && error.reason === "passkey_required") throw new PushError(lockedMessage(hosted));
+    if (error instanceof Refusal && error.reason === "passkey_required") throw new PushError(lockedMessage(place));
     throw error instanceof Error ? new PushError(error.message) : error;
   }
 }

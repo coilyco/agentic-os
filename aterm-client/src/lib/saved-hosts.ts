@@ -1,7 +1,8 @@
 // Hosts added by hand on this device. Tailnet names are opaque, so the hosted
 // build ships none and each device remembers its own (teable:coilyco/website#8256).
 const KEY = "aterm.hosts.v1";
-const DAEMON_PORT = 7419;
+const LOOPBACK_PORT = 7419;
+const LOOPBACK = /^(localhost|127\.0\.0\.1)$/;
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 
 function labelFor(hostname: string): string {
@@ -25,7 +26,9 @@ export function parseHostInput(input: string): SavedHost {
   const [name = "", port] = text.split(":");
   if (IPV4.test(name)) throw new Error("Use the tailnet name, not an IP address. The daemon only answers by name.");
   if (port !== undefined && !/^\d+$/.test(port)) throw new Error("The port after the colon should be a number.");
-  return { label: labelFor(name), address: `wss://${name}:${port ?? DAEMON_PORT}/` };
+  // A bare tailnet name is Tailscale Serve on 443 (COI-3437). Only loopback has 7419.
+  const authority = port ?? (LOOPBACK.test(name) ? String(LOOPBACK_PORT) : "");
+  return { label: labelFor(name), address: `wss://${name}${authority ? `:${authority}` : ""}/` };
 }
 
 export function loadSavedHosts(): SavedHost[] {

@@ -19,19 +19,13 @@ def _load_script():
 def _make_repo(root: Path) -> None:
     (root / "shell").mkdir(parents=True)
     (root / "scripts").mkdir()
+    (root / "kitty").mkdir()
+    (root / "kitty" / "kitty.conf").write_text("font_size 14\n", encoding="utf-8")
     (root / "shell" / "zshrc").write_text("zsh\n", encoding="utf-8")
     (root / "shell" / "bashrc").write_text("bash\n", encoding="utf-8")
     (root / "scripts" / "gpg-ssm").write_text("gpg\n", encoding="utf-8")
     (root / "scripts" / "gpg-ssm.cmd").write_text("gpg\n", encoding="utf-8")
     (root / "scripts" / "ssm-get").write_text("ssm\n", encoding="utf-8")
-    (root / "scripts" / "git-credential-forgejo-ssm.sh").write_text("git\n", encoding="utf-8")
-    (root / "scripts" / "git-credential-forgejo-ssm.cmd").write_text("git\n", encoding="utf-8")
-    (root / "scripts" / "docker-credential-forgejo-ssm").write_text(
-        "docker\n", encoding="utf-8"
-    )
-    (root / "scripts" / "docker-credential-forgejo-ssm.cmd").write_text(
-        "docker\n", encoding="utf-8"
-    )
 
 
 def test_repoints_stale_symlink(tmp_path: Path) -> None:
@@ -97,6 +91,37 @@ def test_check_reports_drift(tmp_path: Path) -> None:
     assert action == "would-link"
 
 
+def test_kitty_config_links_from_a_stock_install(monkeypatch, tmp_path: Path) -> None:
+    # The stock kitty.conf a fresh kitty writes is a regular file. It is backed
+    # up and replaced, and the tracked file is what kitty then reads.
+    script = _load_script()
+    home = tmp_path / "home"
+    repo = tmp_path / "repo"
+    (home / ".config" / "kitty").mkdir(parents=True)
+    _make_repo(repo)
+    stock = home / ".config" / "kitty" / "kitty.conf"
+    stock.write_text("# stock\n", encoding="utf-8")
+    monkeypatch.setattr(script.os, "name", "posix")
+
+    spec = next(s for s in script.link_specs(home, repo) if s.name == "kitty")
+    action, _ = script.apply_link(spec, dry_run=False)
+
+    assert action == "backed-up"
+    assert stock.resolve() == (repo / "kitty" / "kitty.conf").resolve()
+    assert (stock.parent / "kitty.conf.bak").read_text(encoding="utf-8") == "# stock\n"
+
+
+def test_windows_skips_kitty(monkeypatch, tmp_path: Path) -> None:
+    script = _load_script()
+    home = tmp_path / "home"
+    repo = tmp_path / "repo"
+    home.mkdir()
+    _make_repo(repo)
+    monkeypatch.setattr(script.os, "name", "nt")
+
+    assert "kitty" not in [spec.name for spec in script.link_specs(home, repo)]
+
+
 def test_windows_skips_bashrc(monkeypatch, tmp_path: Path) -> None:
     script = _load_script()
     home = tmp_path / "home"
@@ -111,11 +136,7 @@ def test_windows_skips_bashrc(monkeypatch, tmp_path: Path) -> None:
         "zshrc",
         "gpg-ssm",
         "ssm-get",
-        "git-credential-forgejo-ssm",
-        "docker-credential-forgejo-ssm",
         "gpg-ssm-bash",
-        "git-credential-forgejo-ssm-bash",
-        "docker-credential-forgejo-ssm-bash",
     ]
 
 

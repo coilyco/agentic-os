@@ -65,9 +65,11 @@ describe("whether this page can receive push at all", () => {
 });
 
 describe("the lock a remote device is under", () => {
-  it("sends the hosted client to unlock, and a daemon-served one to coilyco.dev", () => {
-    expect(lockedMessage(true)).toMatch(/Unlock it with a passkey/);
-    expect(lockedMessage(false)).toMatch(/only work from the hosted client at coilyco\.dev/);
+  it("sends the hosted client to unlock, a daemon-served one to coilyco.dev, and the app to its key", () => {
+    expect(lockedMessage("hosted")).toMatch(/Unlock it with a passkey/);
+    expect(lockedMessage("served")).toMatch(/only work from the hosted client at coilyco\.dev/);
+    expect(lockedMessage("app-key")).toMatch(/fingerprint or screen lock/);
+    expect(lockedMessage("app")).toMatch(/app cannot unlock it yet/);
   });
 });
 
@@ -78,7 +80,7 @@ describe("turning push on", () => {
     const page = browser("default");
     page.subscribe.mockImplementation(async () => (order.push("browser"), page.made as unknown as PushSubscription));
     page.requestPermission.mockImplementation(async () => (order.push("permission"), "granted" as const));
-    await enablePush(daemon, page, true);
+    await enablePush(daemon, page, "hosted");
     expect(order).toEqual(["permission", "key", "browser", "daemon"]);
     expect(page.subscribe).toHaveBeenCalledWith(applicationServerKey(KEY));
     expect(daemon.subscribe).toHaveBeenCalledWith({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "p", auth: "a" } });
@@ -86,7 +88,7 @@ describe("turning push on", () => {
 
   it("does not ask again when permission is already granted", async () => {
     const page = browser("granted");
-    await enablePush(channel(), page, true);
+    await enablePush(channel(), page, "hosted");
     expect(page.requestPermission).not.toHaveBeenCalled();
   });
 
@@ -94,7 +96,7 @@ describe("turning push on", () => {
     const held = subscription();
     const daemon = channel();
     const page = browser("granted", held);
-    await enablePush(daemon, page, true);
+    await enablePush(daemon, page, "hosted");
     expect(page.subscribe).not.toHaveBeenCalled();
     expect(held.unsubscribe).not.toHaveBeenCalled();
     expect(daemon.subscribe).toHaveBeenCalledOnce();
@@ -104,53 +106,53 @@ describe("turning push on", () => {
     const other = "BQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQ";
     const held = subscription(other);
     const page = browser("granted", held);
-    await enablePush(channel(), page, true);
+    await enablePush(channel(), page, "hosted");
     expect(held.unsubscribe).toHaveBeenCalledOnce();
     expect(page.subscribe).toHaveBeenCalledOnce();
   });
 
   it("stops at a blocked site without calling the daemon", async () => {
     const daemon = channel();
-    await expect(enablePush(daemon, browser("denied"), true)).rejects.toThrow(DENIED);
+    await expect(enablePush(daemon, browser("denied"), "hosted")).rejects.toThrow(DENIED);
     expect(daemon.key).not.toHaveBeenCalled();
   });
 
   it("says nothing was turned on when the prompt is dismissed", async () => {
     const daemon = channel();
-    const error = await enablePush(daemon, browser("default", null, "default"), true).catch((each: unknown) => each);
+    const error = await enablePush(daemon, browser("default", null, "default"), "hosted").catch((each: unknown) => each);
     expect(error).toBeInstanceOf(PushError);
     expect((error as Error).message).toMatch(/nothing was turned on/);
     expect(daemon.key).not.toHaveBeenCalled();
   });
 
   it("reads a prompt answered no as blocked", async () => {
-    await expect(enablePush(channel(), browser("default", null, "denied"), true)).rejects.toThrow(DENIED);
+    await expect(enablePush(channel(), browser("default", null, "denied"), "hosted")).rejects.toThrow(DENIED);
   });
 
   it("says the push service was unreachable when the browser's subscribe fails, and does not tell the daemon", async () => {
     const daemon = channel();
     const page = browser("granted");
     page.subscribe.mockRejectedValue(Object.assign(new Error("Registration failed - push service error"), { name: "AbortError" }));
-    await expect(enablePush(daemon, page, true)).rejects.toThrow(/could not reach its push service/);
+    await expect(enablePush(daemon, page, "hosted")).rejects.toThrow(/could not reach its push service/);
     expect(daemon.subscribe).not.toHaveBeenCalled();
   });
 
   it("explains a locked device in the hosted client's terms, and takes the new browser subscription back down", async () => {
     const daemon = channel({ subscribe: vi.fn().mockRejectedValue(new Refusal("locked", "passkey_required")) });
     const page = browser("granted");
-    await expect(enablePush(daemon, page, true)).rejects.toThrow(lockedMessage(true));
+    await expect(enablePush(daemon, page, "hosted")).rejects.toThrow(lockedMessage("hosted"));
     expect(page.made.unsubscribe).toHaveBeenCalledOnce();
   });
 
   it("explains a locked device on a daemon-served page as needing coilyco.dev", async () => {
     const daemon = channel({ subscribe: vi.fn().mockRejectedValue(new Refusal("locked", "passkey_required")) });
-    await expect(enablePush(daemon, browser("granted"), false)).rejects.toThrow(lockedMessage(false));
+    await expect(enablePush(daemon, browser("granted"), "served")).rejects.toThrow(lockedMessage("served"));
   });
 
   it("keeps a held subscription when the daemon refuses, since it was not made here", async () => {
     const held = subscription();
     const daemon = channel({ subscribe: vi.fn().mockRejectedValue(new Error("push endpoint must be https")) });
-    await expect(enablePush(daemon, browser("granted", held), true)).rejects.toThrow("push endpoint must be https");
+    await expect(enablePush(daemon, browser("granted", held), "hosted")).rejects.toThrow("push endpoint must be https");
     expect(held.unsubscribe).not.toHaveBeenCalled();
   });
 });
@@ -193,8 +195,10 @@ describe("what the switch reads", () => {
     expect(parsePushHosts('["ws://a",3,"ws://b"]')).toEqual(["ws://a", "ws://b"]);
   });
 
-  it("reads a browser's NotAllowedError as blocked", () => {
-    expect(subscribeFailure(Object.assign(new Error("x"), { name: "NotAllowedError" }))).toBe(DENIED);
+  it("reads a browser's NotAllowedError as blocked, unless permission was granted, then as push held back", () => {
+    const refused = Object.assign(new Error("x"), { name: "NotAllowedError" });
+    expect(subscribeFailure(refused, "denied")).toBe(DENIED);
+    expect(subscribeFailure(refused, "granted")).toMatch(/would not set up push/);
   });
 });
 

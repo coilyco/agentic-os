@@ -5,8 +5,12 @@ Major shipped capabilities, not files.
 ## Inventory
 
 - [Shell and secrets](install.md) - shared shells, SSM, and GPG.
-- [Branded agent terminal](aterm.md) - `aterm` opens an agent session in kitty, with a macOS `.app` per [role bundle](aterm-bundles.md) and a [creature](aterm-creature.md) card. `aterm pane` [splits it](aterm-pane.md). A [host daemon](aterm-daemon.md) owns sessions and shells across restarts and routes `aterm send`. A [web client](../aterm-client/README.md) attaches, with [MCP Apps](../.agents/skills/tooling-aterm-client/references/mcp-apps-gateway.md), a browser, and [Web Push](../.agents/skills/tooling-aterm-client/references/web-push.md) to a closed client. Mac and Linux.
+- [Branded agent terminal](aterm.md) - `aterm` opens an agent session in kitty, with a macOS `.app` per [role bundle](aterm-bundles.md) and a [creature](aterm-creature.md). `aterm pane` [splits it](aterm-pane.md). [`aterm stage`](aterm-pane.md#aterm-stage) types a command into the terminal beside a seat, for Kai to run with one Enter. A [host daemon](aterm-daemon.md) owns sessions across restarts and routes `aterm send`. A [web client and Android app](../aterm-android/README.md) attaches, with [MCP Apps](../.agents/skills/tooling-aterm-client/references/mcp-apps-gateway.md), a browser, and [Web Push](../.agents/skills/tooling-aterm-client/references/web-push.md) to a closed client. Mac and Linux.
+- [Signed macOS aterm](aos-cli.md#signed-macos-aterm) - the Mac release wraps `aterm` in a bundle signed on the Linux release job with `rcodesign` and one stable certificate, so Kai's privacy grants survive an upgrade.
+- [aterm client test bed](../.agents/skills/tooling-aterm-client/references/testbed.md) - Playwright journeys drive the real client against a mock `aterm.daemon.v1` daemon at desktop and phone sizes, with baselines, diffs, and reported quirks that go green as fixes land.
+- [aterm screen feedback](../.agents/skills/tooling-aterm-client/references/feedback.md#the-daemon-half) - the daemon keeps a screenshot and note sent from the client as a durable record on the host's disk and hands it to a frontend-eng seat to file.
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.
+- [Disk guard](install.md) - launchd job prunes Docker build cache under 15 GiB free.
 - [Agents and sessions](features-agents.md) - self-name, composition
   status, harness [and model](native-harness-config.md) policy, and
   [settings guardrails](native-claude-credentials.md).
@@ -24,31 +28,24 @@ Major shipped capabilities, not files.
 - [Agent tool evaluation](../.agents/skills/tooling-agent-tool-evaluation/SKILL.md) - cross-harness tool evals.
 - [Role-composed skills](role-composed-skills.md) - v2 Core Roster method slices.
 - [AOS launcher](aos-cli.md) - role context with
-  [convergence](aos-convergence.md), [connectivity](aos-context-bundle.md),
-  [kubeconfig](aos-cluster-access.md), [issue pins](aos-issue-flow.md), and
-  [check-ins](aos-issue-flow.md).
+  [convergence](aos-convergence.md), [connectivity](aos-connectivity.md),
+  [kubeconfig](aos-cluster-access.md), and [check-ins](aos-issue-flow.md).
 - [aos run](aos-cli.md) - `aos run <verb>` resolves a just verb to the resident repository
   declaring it, reports how far that checkout trails its upstream, and `--handoff` prints the
   absolute-path line to run outside a session shadow.
 - [aosguard](../.agents/skills/tooling-aosguard/references/aosguard.md) - guarded CLI with PR
-  merge, sealed
-  [Forgejo storage measurement](../.agents/skills/tooling-aosguard/references/forgejo-ops.md),
-  and a guarded `gh` replacement withholding every pull-request write.
+  merge, a
+  [guarded `git`](../.agents/skills/tooling-aosguard/references/git-shim.md) refusing hook-skips
+  and force-pushes, and an [fs guard](../.agents/skills/tooling-aosguard/references/fs-shims.md).
 - [Guarded helm releases](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - cluster-pinned upgrade, install, and rollback with release destruction unexposed.
 - [Code review skill](../.agents/composed/tooling-code-review/COMPOSED.md) - Portfolio Director gate-decision review stance.
 - [Code review contract](../CODE-REVIEW.md) - review invariants.
-- [Forgejo Actions logs and rerun](../.agents/skills/tooling-aosguard/references/forgejo-actions-runs.md) - job logs, run ZIPs, and a guarded rerun of a failed pull-request run.
-- [Forgejo runner tokens](../.agents/skills/tooling-aosguard/references/forgejo-ops.md) - guarded registration-token minting.
 - [Homebrew updates](../.agents/skills/tooling-aosguard/references/guardfile-headers.md) - `aosguard update brew` refreshes tap metadata, upgrades this estate's own formulae first, then the rest, and exits non-zero on anything left behind.
-- [Teable schema admin](../.agents/skills/tooling-aosguard/references/teable-admin.md) - guarded field and table creation plus select-choice rename/add, each re-read and refused unless it stored as asked. Free convert and table-delete are refused by name.
-- [Teable personal records](../.agents/skills/tooling-aosguard/references/teable-personal.md) - guarded record reads and writes over one SSM-pinned base that the caller cannot name. Writes re-read before reporting success, and record-delete is unmounted and refused by name.
-- [Ward integration boundary](ward-specs.md) - one generic runner for every
-  [composed role](aos-cli.md#generic-warded-roles), and no role-derived authority.
+- [Ward record](ward-specs.md) - the archived Ward schema, kept as a record, and no role-derived authority.
 - [Cross-repo tooling and release](release.md) - aos-precommit and release operations.
 - [dev-base image](dev-base-image.md) - parallel cached language payloads feeding one automatically released full development surface.
-- [Pinned and vendored build inputs](vendor-forgejo-policy.md) - the Forgejo policy pushes down to deploy, and the WASM toolchain is baked so no build downloads it.
-- [CI parity in dev-base](ci-in-dev-base.md) - CI runs inside the moving :release dev-base image.
-- [Pull-request CI gate](ci-in-dev-base.md) - fast tests and Docker-only image validation.
+- [Pinned WASM toolchain](pinned-wasm-toolchain.md) - wasm-pack, wasm-opt and the wasm-bindgen CLI are baked so no build downloads them.
+- [CI, dev container and workflow porting](dev-container.md) - hosted CI via `actions/setup-ci` and agent containers via `devcontainer.json`.
 - [AGENTS pointer](features-agents.md) - generated sibling-repo workspace pointer.
 - [AGENTS git-workflow block](build-file-headers.md) - generated per-lane standing authorization to commit, branch, push, and open a PR. One fleet lane, `pull-request-and-merge`.
 - **Brand case** - the brand name is lowercase in prose, or all caps
@@ -68,22 +65,15 @@ Major shipped capabilities, not files.
 - [Catalog caps reference](catalog-caps-reference.md) - generated numeric caps for validators.
 - [TLS trust-store fallback](../.agents/skills/tooling-aosguard/references/tls-trust-store.md) -
   operator verbs and repo modules load a system CA bundle when the interpreter
-  ships without one, instead of failing every HTTPS call closed with an error
-  that reads like a bad endpoint. Verification is never weakened.
+  ships without one, instead of failing every HTTPS call closed.
+  Verification is never weakened.
 - [Narrative guides shelf](documentation-bands.md) - `guides/*.md` as a second
   structural documentation type beside `docs/*.md`, with its own roomier size
-  caps and no count cap, so an end-to-end walkthrough has somewhere legal to
-  live when the reference shelf is full.
+  caps and no count cap, for end-to-end walkthroughs.
 - [Centrally ratified documentation exclusions](ratifying-an-exclusion.md) -
   a `documentation-layout` exclusion applies only when the repo's own config and
   agentic-os both name it, so adding one costs two pull requests, a release and
-  a pin bump, while removing one costs one. An unratified local pattern fails
-  the hook by name rather than silently not applying.
-- [Issue-ref links](../scripts/issue-ref-links.sh) - a Stop hook naming the URL that resolves each
-  hash-ref in a reply, read off the payload key rather than the unflushed transcript. Warn first,
-  and never a Forgejo issue URL.
-- [PR merge-status check](../scripts/pr-merge-status-check.py) - a Stop hook asking Forgejo
-  whether each cited pull request really merged. Blocks on a contradiction.
+  a pin bump, while removing one costs one. An unratified pattern fails the hook by name.
 - [Canonical agent-id generator](build-output-is-not-content.md) - short lowercase agent IDs.
 - Skill mounts - `aos skills mount`.
 

@@ -48,7 +48,7 @@ way yourself is theatre, and it costs a round you do not get back.
    portfolio. Get the authoritative open count before fetching anything, because
    the count is the coverage gate for everything after it. See
    [coverage-and-counts](references/coverage-and-counts.md) and, for a fleet
-   pass, [global-forgejo-scope](references/global-forgejo-scope.md).
+   pass, [global-fleet-scope](references/global-fleet-scope.md).
 2. **Read, including the comments.** Fan discovery out one repository per worker,
    each carrying its exact N. The thread is where a design fork gets named and
    where a seat releases a claim, so a pass over titles and bodies alone

@@ -27,7 +27,7 @@
     <label class="switch">
       <input type="checkbox" role="switch" checked={app.alerts.visual} aria-describedby="alerts-visual-hint" onchange={(event) => setAlert("visual", event.currentTarget.checked)} />
       <span class="track" aria-hidden="true"></span>
-      <span class="name">Strong visual</span>
+      <span class="name">Highlight</span>
     </label>
     {#if app.webPush}
       <label class="switch">
@@ -38,7 +38,7 @@
     {/if}
   </div>
   <p id="alerts-sound-hint" class="hint">One short tone when a seat starts waiting on you.</p>
-  <p id="alerts-visual-hint" class="hint">A glow at the page edge and on the seat's tab, until you open it.</p>
+  <p id="alerts-visual-hint" class="hint">A soft tint on the seat's tab, until you open it.</p>
   {#if app.webPush}
     <p id="alerts-push-hint" class="hint">A notification on this device when a seat starts waiting on you, even with the app closed.</p>
     <p id="alerts-push-note" class={push.failed || blocked ? "blocked" : "hint"} role={push.failed ? "alert" : "status"}>

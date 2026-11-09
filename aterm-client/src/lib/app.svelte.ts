@@ -1,28 +1,41 @@
 import { nextUnseen } from "./activity";
+import { EXTERNAL, PLACE, type Place } from "./build";
+import { bridge } from "./device-key";
 import { type AttentionSettings, loadAttention, storeAttention } from "./attention";
 import { chime, isBlocked, unlock, watchBlocked } from "./chime";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
 import { discover, listedAddresses, newFoundHosts, staleFoundHosts } from "./discovery";
 import { upsertMessage } from "./messages";
+import { askerLine, cardSeatOf } from "./relay";
 import { MockHost, terminalModeFrom } from "./mock-host";
+import { diagnose } from "./reach";
+import { Recheck } from "./recheck";
 import type { View } from "./mcp-apps";
 import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
 import type { Ask, Host, HostConnection, LaunchState, Link, PeerMessage, Session } from "./protocol";
+import type { ResumeState } from "./resume";
 import type { Role } from "./roster";
 import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
 import { TYPING_OPEN, type Typing } from "./typing";
+import { offer, pageLabel, type OpenedPage } from "./pages";
+import { loadLastOpen, seatToRestore, storeLastOpen, type LastOpen } from "./last-open";
 
 /** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
-export const HOSTED = import.meta.env.VITE_ATERM_HOSTED === "1";
 
 function savedHost(saved: { label: string; address: string }): Host {
   return { id: `saved:${saved.address}`, label: saved.label, address: saved.address, kind: "daemon", status: { kind: "checking" } };
 }
 
+/** A phone on its side: too short to read the desktop layout in.
+ *  A short desktop window has a fine pointer, so it keeps its layout. */
+const READING = "(orientation: landscape) and (max-height: 500px) and (pointer: coarse)";
+export const layout = $state({ reading: typeof matchMedia === "function" && matchMedia(READING).matches });
+if (typeof matchMedia === "function") matchMedia(READING).addEventListener("change", (event) => (layout.reading = event.matches));
+
 export const app = $state({
   hosts: [
-    ...(HOSTED ? [] : [{ id: "local", label: hostLabel(location, import.meta.env.DEV), address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } } as Host]),
+    ...(EXTERNAL ? [] : [{ id: "local", label: hostLabel(location, import.meta.env.DEV), address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } } as Host]),
     ...loadSavedHosts().map(savedHost),
     { id: "demo", label: "Demo host", address: "scripted, no daemon", kind: "demo", status: { kind: "online", sessionCount: 4 } },
   ] as Host[],
@@ -35,6 +48,12 @@ export const app = $state({
   newerBuild: false,
   /** Whether the daemon's guard lets this connection type. A mock host never refuses. */
   typing: TYPING_OPEN as Typing,
+  /** The host lists device-key and this page has the app's plugin. */
+  deviceKeyAvailable: false,
+  /** A held unlock proof is out, or the daemon said it ended. Null otherwise. */
+  resume: null as ResumeState | null,
+  /** The welcome lists passkey. Reactive, which the connection's feature list is not. */
+  passkeyAvailable: false,
   roles: [] as Role[],
   sessions: [] as Session[],
   messages: [] as PeerMessage[],
@@ -43,6 +62,10 @@ export const app = $state({
   /** A role picked to start, when no session is on screen. */
   selectedRole: null as string | null,
   notice: "",
+  /** Pages seats asked to open. A card offers each, and nothing moves until a click. */
+  openedPages: [] as OpenedPage[],
+  /** The page a click is loading into a seat's pane, until it holds control and loads. */
+  pageToShow: null as { sessionId: string; url: string; since: number } | null,
   launches: {} as Record<string, { state: LaunchState; text: string }>,
   /** Sessions that finished a turn while you were looking at another one. */
   unseen: {} as Record<string, boolean>,
@@ -54,10 +77,16 @@ export const app = $state({
   alerts: { ...loadAttention(), soundBlocked: false } as AttentionSettings & { soundBlocked: boolean },
   /** ask_choice calls waiting on a person, by ask id. */
   asks: {} as Record<string, Ask>,
-  /** True from alt-tabbing in until you leave, while answers walk the waiting seats. */
-  triage: false,
-  /** Bumped to ask the visible choice card to take keyboard focus. */
+  /** Bumped when a person opens a seat with an ask, so its card takes the keyboard. */
   focusCard: 0,
+  /** The seat whose card was asked for the keyboard. Spent once it has it. */
+  focusAsk: null as string | null,
+  /** The composer has focus. On a phone that is the soft keyboard being up. */
+  composing: false,
+  /** What was typed and not sent, by seat, so a lock or a seat change never takes it. */
+  drafts: {} as Record<string, string>,
+  /** Why typed input was not taken. Stays until dismissed or the next send. */
+  inputNotice: "",
   /** MCP Apps views by view id, newest last. */
   views: {} as Record<string, View>,
   /** Each seat's shared browser, by session id. */
@@ -85,9 +114,19 @@ const dismissed = new Set<string>();
 const RESTORED_MS = 5000;
 let restoredTimer: ReturnType<typeof setTimeout> | undefined;
 
-/** True while the attached host is silent and the screen is its last known state. */
+/** True while the attached host is silent and the screen is its last known state. That
+ * holds in the hour of tries and after it, when only a return to the page dials again. */
 export function reconnecting(): boolean {
-  return app.link.state === "reconnecting";
+  return app.link.state === "reconnecting" || app.link.state === "resting";
+}
+
+/** Brings the attached host's own panel forward, where its connection check is. */
+export function showHost(): void {
+  restoring = null;
+  if (app.attachedHostId) storeLastOpen({ host: app.attachedHostId });
+  app.selectedSession = null;
+  app.selectedRole = null;
+  if (app.attachedHostId) app.selectedHostId = app.attachedHostId;
 }
 
 /** Asks the connection to dial now. A host that does not redial has nothing to hurry. */
@@ -145,12 +184,59 @@ export async function checkHost(host: Host): Promise<void> {
     host.status = { kind: "online", sessionCount: await probe(host.address) };
     host.answered = true;
   } catch {
-    host.status = { kind: "unreachable", reason: "Nothing answered, so the daemon is stopped or its tailnet listener is failing TLS. A browser cannot tell which." };
+    // The socket failure says nothing, so ask over HTTPS which layer stopped it.
+    const { layer, message } = await diagnose(host.address);
+    host.status = { kind: "unreachable", reason: message, layer };
+    watchHost(host);
     return;
   }
+  stopWatching(host);
   // Picked while the probe was still out, so attach now that it answered.
   if (app.selectedHostId === host.id && app.attachedHostId !== host.id) selectHost(host);
   if (!host.found) void refreshFound();
+}
+
+// Hosts that are not answering are asked again on the backoff and on every return to
+// the page, so they never wait for a tap (COI-3352). Keyed by address: ids change.
+const rechecks = new Map<string, Recheck>();
+
+function watchHost(host: Host): void {
+  if (host.kind !== "daemon") return;
+  let recheck = rechecks.get(host.address);
+  if (!recheck) {
+    recheck = new Recheck(() => recheckHost(host));
+    rechecks.set(host.address, recheck);
+  }
+  recheck.start();
+}
+
+function stopWatching(host: Host): void {
+  rechecks.get(host.address)?.stop();
+  rechecks.delete(host.address);
+}
+
+/** The checkHost probe without its Checking screen, so the page does not flicker.
+ * Attaches the host if it was the one picked. */
+async function recheckHost(host: Host): Promise<boolean> {
+  try {
+    host.status = { kind: "online", sessionCount: await probe(host.address) };
+  } catch {
+    return false;
+  }
+  host.answered = true;
+  stopWatching(host);
+  if (app.selectedHostId === host.id && app.attachedHostId !== host.id) selectHost(host);
+  if (!host.found) void refreshFound();
+  return true;
+}
+
+if (typeof window !== "undefined" && typeof document !== "undefined") {
+  const wake = () => {
+    if (document.visibilityState === "visible") for (const recheck of rechecks.values()) recheck.wake();
+  };
+  window.addEventListener("online", wake);
+  window.addEventListener("focus", wake);
+  document.addEventListener("visibilitychange", wake);
 }
 
 const FOUND_REFRESH_MS = 60_000;
@@ -219,6 +305,8 @@ export function removeHost(id: string): void {
     app.connection = null;
     app.attachedHostId = null;
   }
+  const removed = app.hosts.find((host) => host.id === id);
+  if (removed) stopWatching(removed);
   app.hosts = app.hosts.filter((host) => host.id !== id);
   if (app.selectedHostId === id) app.selectedHostId = null;
   persist();
@@ -233,17 +321,52 @@ export function selectedHost(): Host | undefined {
 }
 
 /** Selecting an online host attaches to it, so one tap reaches its seats. */
+// What this device last had open, until the restore uses it or a tap overtakes it.
+let restoring: LastOpen | null = loadLastOpen();
+let restoringNow = false;
+
+function restoreFor(host: Host): void {
+  if (restoring?.host !== host.id || app.selectedHostId || host.status.kind !== "online") return;
+  restoringNow = true;
+  try {
+    selectHost(host);
+  } finally {
+    restoringNow = false;
+  }
+}
+
+function restoreSeat(last: LastOpen, listed: readonly Session[]): void {
+  const step = seatToRestore(last, listed);
+  if (!step) return;
+  restoringNow = true;
+  try {
+    if ("open" in step) selectSession(step.open);
+    else app.notice = `${step.gone} is not running any more. Pick a seat from the list.`;
+  } finally {
+    restoringNow = false;
+  }
+}
+
 export function selectHost(host: Host): void {
+  if (!restoringNow) restoring = null;
+  storeLastOpen({ host: host.id });
   app.selectedHostId = host.id;
   app.selectedSession = null;
   app.selectedRole = null;
   app.notice = "";
+  app.openedPages = [];
+  app.pageToShow = null;
   if (host.status.kind !== "online" || app.attachedHostId === host.id) return;
   app.connection?.close();
   clearTimeout(restoredTimer);
   app.link = { state: "live" };
   app.newerBuild = false;
   app.typing = TYPING_OPEN;
+  app.passkeyAvailable = false;
+  app.deviceKeyAvailable = false;
+  app.resume = null;
+  app.inputNotice = "";
+  app.drafts = {};
   app.roles = [];
   app.sessions = [];
   app.messages = [];
@@ -266,10 +389,21 @@ export function selectHost(host: Host): void {
       app.unseen = nextUnseen(app.sessions, event.sessions, viewingSession(), app.unseen);
       app.attention = nextUnseen(app.sessions, event.sessions, openSeat(), app.attention);
       app.sessions = event.sessions;
+      if (restoring?.host === host.id) {
+        const last = restoring;
+        restoring = null;
+        restoreSeat(last, event.sessions);
+      }
     }
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
-    else if (event.type === "typing") app.typing = event.typing;
+    else if (event.type === "typing") {
+      app.typing = event.typing;
+      if (event.typing.allowed) app.resume = null;
+    }
+    else if (event.type === "resume") app.resume = event.state;
     else if (event.type === "notice") app.notice = event.text;
+    else if (event.type === "open_url") offerPage(event.session, event.url);
+    else if (event.type === "input_refused") app.inputNotice = event.text;
     else if (event.type === "ask") app.asks[event.ask.id] = event.ask;
     else if (event.type === "asked") delete app.asks[event.id];
     else if (event.type === "view") app.views[event.view.id] = event.view;
@@ -279,6 +413,8 @@ export function selectHost(host: Host): void {
     }
     else if (event.type === "view_closed") delete app.views[event.id];
     else if (event.type === "browser") app.browsers[event.browser.session] = event.browser;
+    else if (event.type === "passkey") app.passkeyAvailable = event.available;
+    else if (event.type === "device_key") app.deviceKeyAvailable = event.available && bridge() !== null;
     else if (event.type === "features") {
       app.terminalSupport = event.terminals ? "yes" : "no";
       app.webPush = event.webPush === true;
@@ -302,7 +438,9 @@ export function selectHost(host: Host): void {
     }
     else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
     else if (event.type === "reconnecting") app.link = { state: "reconnecting", attempt: event.attempt, retryAt: event.retryAt };
+    else if (event.type === "resting") app.link = { state: "resting" };
     else if (event.type === "reconnected") {
+      app.resume = null;
       // The new connection re-sends pending asks. The old ones belong to a dead daemon.
       app.asks = {};
       app.link = { state: "restored" };
@@ -311,12 +449,13 @@ export function selectHost(host: Host): void {
         if (app.link.state === "restored") app.link = { state: "live" };
       }, RESTORED_MS);
       // A hosted page is not served by the daemon, so a reload brings no new build.
-      if (event.newerBuild && !HOSTED) app.newerBuild = true;
+      if (event.newerBuild && !EXTERNAL) app.newerBuild = true;
     }
     else if (event.type === "closed") {
       clearTimeout(restoredTimer);
       app.link = { state: "live" };
       host.status = { kind: "unreachable", reason: event.reason };
+      watchHost(host);
       app.attachedHostId = null;
       app.connection = null;
       app.selectedSession = null;
@@ -326,6 +465,9 @@ export function selectHost(host: Host): void {
 }
 
 export function selectSession(id: string): void {
+  if (!restoringNow) restoring = null;
+  const seat = sessionById(id);
+  if (seat && app.attachedHostId) storeLastOpen({ host: app.attachedHostId, seat: { id, who: seat.identity } });
   app.selectedSession = id;
   app.selectedRole = null;
   delete app.unseen[id];
@@ -334,6 +476,7 @@ export function selectSession(id: string): void {
 
 /** Opens a role's start panel. */
 export function selectRole(slug: string): void {
+  restoring = null;
   app.selectedRole = slug;
   app.selectedSession = null;
 }
@@ -363,7 +506,7 @@ export function messagesFor(session: Session): PeerMessage[] {
   return app.messages.filter((message) => message.from.role === session.role || inbound(message));
 }
 
-for (const host of app.hosts) void checkHost(host);
+for (const host of app.hosts) void checkHost(host).then(() => restoreFor(host));
 
 /** A session's views, newest first. */
 export function viewsFor(sessionId: string): View[] {
@@ -372,6 +515,42 @@ export function viewsFor(sessionId: string): View[] {
 
 export function asksFor(sessionId: string): Ask[] {
   return Object.values(app.asks).filter((ask) => ask.session === sessionId);
+}
+
+// One Set per roster: a row building its own made a frame cost N squared (COI-3363).
+// Keyed by the array a frame replaces. A $derived recomputes when nothing watches it.
+let liveCache: { list: unknown; size: number; ids: Set<string> } | null = null;
+function liveIds(): Set<string> {
+  const list = app.sessions;
+  if (liveCache?.list !== list || liveCache.size !== list.length) liveCache = { list, size: list.length, ids: new Set(list.map((session) => session.id)) };
+  return liveCache.ids;
+}
+
+/** Asks whose card shows on this seat's pane: its own, and a worker's relayed to it. */
+export function asksShownOn(sessionId: string): Ask[] {
+  const live = liveIds();
+  return Object.values(app.asks).filter((ask) => cardSeatOf(ask, live) === sessionId);
+}
+
+/** The seat showing the card for a question this seat asked, if another seat. */
+export function relayedTo(sessionId: string): Session | undefined {
+  const live = liveIds();
+  for (const ask of Object.values(app.asks)) {
+    if (ask.session !== sessionId) continue;
+    const seat = cardSeatOf(ask, live);
+    if (seat !== sessionId) return app.sessions.find((session) => session.id === seat);
+  }
+  return undefined;
+}
+
+/** What a row says about an ask that concerns its seat, or null when none does. */
+export function askLineFor(sessionId: string): string | null {
+  // Almost always no ask is open, so a row costs nothing and reads no seat.
+  if (Object.keys(app.asks).length === 0) return null;
+  const live = liveIds();
+  const nameOf = (id: string) => app.sessions.find((session) => session.id === id)?.identity ?? id;
+  const ask = Object.values(app.asks).find((each) => each.session === sessionId || cardSeatOf(each, live) === sessionId);
+  return ask ? askerLine(ask, sessionId, live, nameOf) : null;
 }
 
 export interface Waiting {
@@ -384,8 +563,9 @@ export interface Waiting {
 /** Seats that need you, asks before finished turns, in the order they arrived. */
 export function waitingSeats(): Waiting[] {
   const bySession = new Map(app.sessions.map((session) => [session.id, session]));
+  const live = liveIds();
   const asking = Object.values(app.asks)
-    .map((ask) => bySession.get(ask.session))
+    .map((ask) => bySession.get(cardSeatOf(ask, live)))
     .filter((session): session is Session => session !== undefined);
   const done = Object.keys(app.unseen)
     .map((id) => bySession.get(id))
@@ -399,13 +579,43 @@ export function waitingSeats(): Waiting[] {
     .map(({ session, kind }) => ({ sessionId: session.id, role: session.role, identity: session.identity, kind }));
 }
 
-/** Opens the seat that most needs you and hands its answer card the keyboard. */
-export function jumpToWaiting(): boolean {
-  const next = waitingSeats()[0];
-  if (!next) return false;
-  selectSession(next.sessionId);
-  if (next.kind === "asking") app.focusCard++;
-  return true;
+let nextPage = 0;
+
+/** A seat asked to open a page. It becomes a card, and the screen stays where it is. */
+export function offerPage(sessionId: string, url: string): void {
+  app.openedPages = offer(app.openedPages, { sessionId, url, at: Date.now() }, ++nextPage);
+}
+
+export function dismissPage(id: number): void {
+  app.openedPages = app.openedPages.filter((page) => page.id !== id);
+}
+
+/** The click on a card: that seat on screen, its browser showing, the page loading. */
+export function showPage(id: number): void {
+  const page = app.openedPages.find((each) => each.id === id);
+  if (!page) return;
+  dismissPage(id);
+  const seat = sessionById(page.sessionId);
+  if (!seat) {
+    app.notice = `That seat has ended, so ${pageLabel(page.url)} was not opened.`;
+    return;
+  }
+  if (!app.connection?.browser) {
+    app.notice = `This host does not stream a browser, so ${pageLabel(page.url)} was not opened here.`;
+    return;
+  }
+  openByPerson(seat.id);
+  app.pageToShow = { sessionId: seat.id, url: page.url, since: Date.now() };
+}
+
+// A person opened this seat by click or tap, the only way one is selected.
+// A pending ask takes the keyboard, as it does for anyone who opens its seat.
+export function openByPerson(id: string): void {
+  selectSession(id);
+  if (asksShownOn(id).length) {
+    app.focusAsk = id;
+    app.focusCard++;
+  }
 }
 
 /** The seat on screen, while the tab is: the one seat the cues leave alone. */
@@ -415,8 +625,8 @@ export function openSeat(): string | null {
 
 /** Who is waiting, for cues. A read-only browser cannot answer, so its asks sit out. */
 export function cueSeats(): string[] {
-  const live = new Set(app.sessions.map((session) => session.id));
-  const asking = app.typing.allowed ? Object.values(app.asks).map((ask) => ask.session) : [];
+  const live = liveIds();
+  const asking = app.typing.allowed ? Object.values(app.asks).map((ask) => cardSeatOf(ask, live)) : [];
   return [...new Set([...Object.keys(app.attention), ...asking])].filter((id) => live.has(id));
 }
 
@@ -444,4 +654,9 @@ export async function setAlert(key: keyof AttentionSettings, on: boolean): Promi
 /** Plays the cue if Sound is on. */
 export function playCue(): void {
   if (app.alerts.sound) chime();
+}
+
+/** Where this page unlocks from, for the words a locked device shows. */
+export function placeNow(): Place {
+  return app.deviceKeyAvailable ? "app-key" : PLACE;
 }

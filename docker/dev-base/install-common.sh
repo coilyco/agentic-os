@@ -108,7 +108,7 @@ rm /tmp/goose.tar.gz
 goose --version
 
 agent_compose_asset="agent-compose-linux-${GO_ARCH}"
-agent_compose_base="https://forgejo.coilysiren.me/coilyco/agent-compose/releases/download/v${AGENT_COMPOSE_VERSION:?}"
+agent_compose_base="https://github.com/coilyco/agent-compose/releases/download/v${AGENT_COMPOSE_VERSION:?}"
 curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
   "${agent_compose_base}/${agent_compose_asset}" \
   -o "/tmp/${agent_compose_asset}"
@@ -214,11 +214,7 @@ while read -r ref; do
   esac
   owner="${ref%%/*}"
   name="${ref##*/}"
-  case "$owner" in
-    coilysiren) base="https://github.com" ;;
-    *) base="https://forgejo.coilysiren.me" ;;
-  esac
-  git clone --mirror "$base/$owner/$name.git" \
+  git clone --mirror "https://github.com/$owner/$name.git" \
     "/opt/substrate-seed/${owner}__${name}.git"
 done < "$substrate_repos"
 chmod -R a+rX /opt/substrate-seed

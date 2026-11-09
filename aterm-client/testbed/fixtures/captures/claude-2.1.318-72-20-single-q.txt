@@ -1,0 +1,39 @@
+▎ https://code.claude.com/docs/en/permission-modes
+
+❯ Use the AskUserQuestion tool exactly once with three questions and
+  nothing else. Q1 header Accent, single-select, options Purple, Teal,
+  Black, Gold, each with a short description. Q2 header Routes,
+  multiSelect true, options Qwen, Llama, Frontier, each with a short
+  description. Q3 header Name, single-select, options Fern, Moss, Pine,
+  Birch, each with a short description. After the answers, reply only
+  done.
+
+⏺ User declined to answer questions
+  ⎿  · Which accent color do you want? (Purple / Teal / Black / Gold)
+     · Which routes do you want enabled? (Qwen / Llama / Frontier)
+     · Which name do you want? (Fern / Moss / Pine / Birch)
+
+✻ Brewed for 3s · done 9:32 AM
+
+❯ Use the AskUserQuestion tool exactly once with ONE question and
+  nothing else. Header Accent, single-select, options Purple, Teal,
+  Black, Gold with short descriptions. After the answer reply only
+  done.
+────────────────────────────────────────────────────────────────────────
+ ☐ Accent
+
+Which accent color do you want?
+
+❯ 1. Purple
+     Deep violet tone with a bold, creative feel.
+  2. Teal
+     Cool blue-green tone that reads calm and modern.
+  3. Black
+     High-contrast monochrome, minimal and sharp.
+  4. Gold
+     Warm metallic yellow for a premium look.
+  5. Type something.
+────────────────────────────────────────────────────────────────────────
+  6. Chat about this
+
+Enter to select · ↑/↓ to navigate · Esc to cancel

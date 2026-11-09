@@ -1,7 +1,11 @@
 // The client's view of a host. `DaemonHost` maps aterm.daemon.v1 onto it,
 // and `MockHost` scripts it for the demo. Why: the architecture reference.
+import type { KeyStatus } from "./device-key";
 import type { ToolResult, View } from "./mcp-apps";
+import type { ResumeState } from "./resume";
 import type { Role } from "./roster";
+import type { Layer } from "./reach";
+import type { Activity } from "./seat-activity";
 import type { InputKind, SharedBrowser } from "./screencast";
 import type { ListedTerminal } from "./terminals";
 import type { Typing } from "./typing";
@@ -11,7 +15,7 @@ export type HostKind = "daemon" | "demo";
 export type HostStatus =
   | { kind: "checking" }
   | { kind: "online"; sessionCount: number }
-  | { kind: "unreachable"; reason: string };
+  | { kind: "unreachable"; reason: string; layer?: Layer };
 
 export interface Host {
   id: string;
@@ -29,6 +33,8 @@ export interface Host {
 export type Link =
   | { state: "live" }
   | { state: "reconnecting"; attempt: number; retryAt: number | null }
+  // The hour of automatic tries is spent. A return to the page, or Retry, dials again.
+  | { state: "resting" }
   | { state: "restored" };
 
 export type SessionState = "idle" | "working" | "failed";
@@ -56,6 +62,12 @@ export interface Session {
   degraded: string[];
   /** Absent until a source has read one, and from a daemon that predates it. */
   context?: ContextReading;
+  /** First line of its last finished reply. Absent until read or from an old daemon. */
+  lastReply?: string;
+  /** When it last wrote, in ms. Absent from a daemon that predates `quiet_seconds`. */
+  quietSince?: number;
+  /** What the seat says it is doing, and when it set that. Absent until it sets one. */
+  activity?: Activity;
   /** Not yet ready for input, so its terminal may have nothing to draw. */
   starting?: boolean;
   failure?: string;
@@ -72,6 +84,10 @@ export interface PeerMessage {
   session: string | null;
   state: MessageState;
   reason: string | null;
+  /** What the sender wrote. Absent from a daemon that does not send it (COI-3362). */
+  text?: string | null;
+  /** The host sent only the head of a longer message. */
+  textCut?: boolean;
 }
 
 /** A seat's `ask_choice` call, waiting on a person. */
@@ -83,6 +99,10 @@ export interface Ask {
   options: { label: string; description: string }[];
   allowOther: boolean;
   multi: boolean;
+  /** A worker's question relayed to a director, so `session` is the asker (COI-3241). */
+  relay?: boolean;
+  /** The session whose pane shows the card. Absent when no director was up. */
+  cardSeat?: string;
 }
 
 export type AskOutcome = "answered" | "cancelled" | "timed_out";
@@ -93,6 +113,10 @@ export type HostEvent =
   | { type: "output"; sessionId: string; data: string | Uint8Array }
   | { type: "message"; message: PeerMessage }
   | { type: "notice"; text: string }
+  // A seat asked to open a page. Its name is the label, and the daemon names no pane.
+  | { type: "open_url"; session: string; url: string }
+  // Typed input not taken for a reason the lock does not show, or lost to a dead socket.
+  | { type: "input_refused"; text: string }
   | { type: "ask"; ask: Ask }
   | { type: "asked"; id: string; outcome: AskOutcome }
   | { type: "launch"; role: string; state: LaunchState; text: string }
@@ -100,14 +124,24 @@ export type HostEvent =
   | { type: "closed"; reason: string }
   // The daemon stopped. `retryAt` is the next dial's time, null while one is out.
   | { type: "reconnecting"; attempt: number; retryAt: number | null }
+  // The hour of tries ended with no answer. Nothing is scheduled until a wake or Retry.
+  | { type: "resting" }
   // It answered again. `newerBuild` means it is not the build that served this page.
   | { type: "reconnected"; newerBuild: boolean }
+  // A held unlock proof is out (`resuming`), the daemon said it ended, or neither (null).
+  | { type: "resume"; state: ResumeState | null }
   | { type: "view"; view: View }
   | { type: "view_update"; id: string; toolResult?: ToolResult; cancelled?: string }
   | { type: "view_closed"; id: string }
   | { type: "browser"; browser: SharedBrowser }
   // `webPush` is only ever true: a daemon without it sends the event as it always did.
   | { type: "features"; terminals: boolean; webPush?: true }
+  // Whether this daemon runs a passkey ceremony. Apart from `features`, which tests pin.
+  | { type: "passkey"; available: boolean }
+  // Whether the daemon lists `device-key`. The page also needs the app's plugin.
+  | { type: "device_key"; available: boolean }
+  // The PTY's effective size, which a client sets its terminal to exactly.
+  | { type: "size"; sessionId: string; rows: number; cols: number }
   | { type: "terminals"; terminals: ListedTerminal[] }
   | { type: "terminal_opened"; label: string; id: string }
   | { type: "terminal_exit"; id: string; code: number }
@@ -137,6 +171,39 @@ export interface TerminalChannel {
   close(id: string): void;
 }
 
+/** Images for a seat (COI-3240). No daemon has one yet (COI-3239). */
+export interface ImageChannel {
+  /** The host's own limit in bytes, so the client never guesses one. */
+  maxBytes: number;
+  /** Puts the image on the seat's host and resolves its path. Rejects in words. */
+  upload(sessionId: string, image: Blob): Promise<string>;
+}
+
+/** The screen as the client saw it. Display text, never trusted. */
+export interface FeedbackContext {
+  view: string;
+  host: string;
+  viewport: { width: number; height: number; ratio: number };
+  build: string;
+  /** The Android app, not a browser. */
+  app: boolean;
+  at: string;
+}
+
+export interface FeedbackReport {
+  text: string;
+  context: FeedbackContext;
+  images: Blob[];
+}
+
+/** A note and screenshots kept as a host record. Needs `feedback` (COI-3345). */
+export interface FeedbackChannel {
+  /** The host's limit per screenshot in bytes. */
+  maxBytes: number;
+  /** Uploads each image, then the note. Resolves the record's id. Rejects in words. */
+  send(report: FeedbackReport, progress?: (done: number, total: number) => void): Promise<string>;
+}
+
 /** A remote device's passkey. Only a daemon that lists `passkey` has one. */
 export interface PasskeyChannel {
   /** Spends the one-time code, makes a passkey, and unlocks. Rejects in words. */
@@ -154,20 +221,38 @@ export interface PushChannel {
   unsubscribe(endpoint: string): Promise<void>;
 }
 
+/** The app's phone-held key. Needs a daemon with `device-key` and the plugin. */
+export interface DeviceKeyChannel {
+  /** The phone's own state, answered without a prompt. */
+  status(): Promise<KeyStatus>;
+  /** Spends the one-time code, makes a Keystore key, and unlocks. Rejects in words. */
+  enroll(code: string): Promise<void>;
+  /** Asks for a fingerprint, signs the challenge, and unlocks. Rejects in words. */
+  assert(): Promise<void>;
+}
+
 export interface HostConnection {
   readonly canLaunch: boolean;
   readonly passkey?: PasskeyChannel;
   readonly push?: PushChannel;
+  readonly deviceKey?: DeviceKeyChannel;
   readonly views?: ViewChannel;
   readonly browser?: BrowserChannel;
   readonly terminals?: TerminalChannel;
+  readonly images?: ImageChannel;
+  readonly feedback?: FeedbackChannel;
   subscribe(listener: (event: HostEvent) => void): () => void;
   /** Dial now, skipping the backoff. Only a connection that redials has it. */
   retry?(): void;
   attach(sessionId: string, rows: number, cols: number): void;
+  /** Asks again for a seat's screen when its replay never drew. No new reference. */
+  replay(sessionId: string): void;
   detach(sessionId: string): void;
   input(sessionId: string, data: string): void;
+  /** `rows` and `cols` are this client's box. A `ptySize` daemon answers `size`. */
   resize(sessionId: string, rows: number, cols: number): void;
+  /** The daemon sizes the PTY itself and sends `size`, so the terminal follows it. */
+  readonly ptySize?: boolean;
   launch(role: string, seat: string): void;
   answer(askId: string, picks: number[], text?: string): void;
   cancelAsk(askId: string): void;

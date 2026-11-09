@@ -6,8 +6,8 @@ import (
 	"testing"
 )
 
-// acompose once took the integrated capability flags and ran, so a standalone
-// container could read as Ward-brokered. See agentic-os#810.
+// acompose once took the integrated capability flags and ran, ignoring them.
+// See agentic-os#810.
 func runAOS(t *testing.T, args ...string) error {
 	t.Helper()
 	cmd := newCommandWithDefaults("aos", launchDefaults{})
@@ -25,30 +25,30 @@ func assertRefused(t *testing.T, err error, wantFlags ...string) {
 		}
 	}
 	// The error has to point somewhere, or the operator retries the same shape.
-	if !strings.Contains(err.Error(), "aos --warded --guarded --composed --role") {
+	if !strings.Contains(err.Error(), "aos --role <role> --agent <agent>") {
 		t.Fatalf("error does not show the canonical root launch: %v", err)
 	}
 }
 
 func TestAcomposeRefusesCapabilityFlagsAfterTheToken(t *testing.T) {
 	err := runAOS(t,
-		"acompose", "--warded", "--guarded", "--composed",
+		"acompose", "--guarded", "--composed",
 		"--role", "director", "--agent", "codex", "--", "codex")
 
-	assertRefused(t, err, "--warded", "--guarded", "--agent")
+	assertRefused(t, err, "--guarded", "--agent")
 }
 
 func TestAcomposeRefusesCapabilityFlagsBeforeTheToken(t *testing.T) {
 	// Parser ordering must not reopen the bypass.
 	err := runAOS(t,
-		"--warded", "--guarded", "--composed",
+		"--guarded", "--composed",
 		"--role", "director", "--agent", "codex", "acompose", "--", "codex")
 
-	assertRefused(t, err, "--warded", "--guarded", "--agent")
+	assertRefused(t, err, "--guarded", "--agent")
 }
 
 func TestAcomposeRefusesEachCapabilityFlagAlone(t *testing.T) {
-	for _, flag := range []string{"--warded", "--guarded"} {
+	for _, flag := range []string{"--guarded"} {
 		if err := runAOS(t, "acompose", flag, "--role", "director", "--", "codex"); err == nil {
 			t.Fatalf("acompose accepted %s alone", flag)
 		}
@@ -60,9 +60,9 @@ func TestAcomposeRefusesEachCapabilityFlagAlone(t *testing.T) {
 func TestAcomposeStopsBeforeItNeedsARoleOrACommand(t *testing.T) {
 	// Fail closed means before materialization, so the refusal precedes the
 	// argument checks that would otherwise mask it.
-	err := runAOS(t, "acompose", "--warded")
+	err := runAOS(t, "acompose", "--guarded")
 
-	assertRefused(t, err, "--warded")
+	assertRefused(t, err, "--guarded")
 	if strings.Contains(err.Error(), "needs --role") {
 		t.Fatalf("argument validation ran before the capability refusal: %v", err)
 	}

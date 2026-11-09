@@ -27,4 +27,4 @@ mutation { updateRepository(input:{repositoryId:"R_...",hasPullRequestsEnabled:f
 can open PRs" dropdown, also on `updateRepository`. The current AOSguard
 surface does not expose GitHub GraphQL. An authorized GitHub-capable operator
 must use the approved GitHub surface and pass the query from a file. Origin:
-the Forgejo API contract.
+the REST behavior described above.

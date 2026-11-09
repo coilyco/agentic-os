@@ -1,0 +1,154 @@
+# Promote the dev-base draft image to the version tag, release, and latest aliases.
+# Rationale: docs/build-file-headers.md.
+name: release
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: "Commit SHA to release. Defaults to the caller SHA."
+        required: false
+        default: ""
+        type: string
+      tag:
+        description: "Existing or explicit version tag for a retry."
+        required: false
+        default: ""
+        type: string
+      source-tag:
+        description: "Draft tag override. Defaults to draft-<sha>."
+        required: false
+        default: ""
+        type: string
+      bump:
+        description: "Version bump when tag is empty."
+        required: false
+        default: "minor"
+        type: string
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit SHA to retag. Defaults to the dispatch ref."
+        required: false
+        default: ""
+        type: string
+      tag:
+        description: "Version tag override. Defaults to the next semver tag."
+        required: false
+        default: ""
+        type: string
+      source-tag:
+        description: "Draft tag override. Defaults to draft-<sha>."
+        required: false
+        default: ""
+        type: string
+      bump:
+        description: "Version bump for a manual run."
+        required: false
+        default: "minor"
+        type: choice
+        options:
+          - minor
+          - major
+          - patch
+          - none
+
+concurrency:
+  group: release-pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  plan-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      tag: ${{ steps.tag.outputs.new_tag }}
+      version: ${{ steps.tag.outputs.new_version }}
+      changelog: ${{ steps.tag.outputs.changelog }}
+      draft_tag: ${{ steps.draft.outputs.draft_tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: tag
+        uses: ./actions/tag-bump
+        with:
+          bump: ${{ inputs.bump || 'minor' }}
+          create_tag: false
+          tag_name: ${{ inputs.tag || '' }}
+          release_sha: ${{ inputs.sha || github.sha }}
+
+      - id: draft
+        name: Derive the draft image tag
+        env:
+          SHA: ${{ inputs.sha || github.sha }}
+          DRAFT_TAG_OVERRIDE: ${{ inputs['source-tag'] || '' }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/derive-draft-tag.sh"
+
+      - name: Alert Sentry on main failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        continue-on-error: true
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py
+  retag-full:
+    needs: [plan-release]
+    if: ${{ needs.plan-release.outputs.tag != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./actions/publish-dev-base
+        with:
+          tier: full
+          mode: promote
+          tag: ${{ needs.plan-release.outputs.tag }}
+          source-tag: ${{ needs.plan-release.outputs.draft_tag }}
+          alias: release
+          extra-aliases: latest
+          registry-token: ${{ github.token }}
+          build-timeout: 80m
+
+      - name: Alert Sentry on main failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        continue-on-error: true
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py
+  release:
+    needs: [plan-release, retag-full]
+    if: ${{ needs.plan-release.outputs.tag != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: tag
+        uses: ./actions/tag-bump
+        with:
+          bump: ${{ inputs.bump || 'minor' }}
+          create_tag: true
+          tag_name: ${{ needs.plan-release.outputs.tag }}
+          release_sha: ${{ inputs.sha || github.sha }}
+
+      - id: create
+        uses: ./actions/create-release
+        with:
+          tag: ${{ needs.plan-release.outputs.tag }}
+          name: ${{ needs.plan-release.outputs.tag }}
+          body: ${{ needs.plan-release.outputs.changelog }}
+          make_latest: "false"
+
+      - name: Alert Sentry on main failure
+        if: ${{ failure() && github.ref == 'refs/heads/main' }}
+        continue-on-error: true
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_CI_DSN }}
+        run: python3 scripts/alert_sentry.py

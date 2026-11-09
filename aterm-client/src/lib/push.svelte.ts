@@ -1,4 +1,4 @@
-import { app, HOSTED, selectHost, selectSession } from "./app.svelte";
+import { app, openByPerson, placeNow, selectHost } from "./app.svelte";
 import { disablePush, enablePush, liveBrowser, loadPushHosts, lockedMessage, PushError, pushIsOn, pushUnavailable, resolveSeat, seatFromLocation, storePushHosts, type PendingSeat } from "./push";
 import { needsPasskey } from "./typing";
 
@@ -36,8 +36,8 @@ export async function setPush(want: boolean): Promise<void> {
   push.failed = false;
   try {
     if (want) {
-      if (needsPasskey(app.typing)) throw new PushError(lockedMessage(HOSTED));
-      await enablePush(channel, liveBrowser(), HOSTED);
+      if (needsPasskey(app.typing)) throw new PushError(lockedMessage(placeNow()));
+      await enablePush(channel, liveBrowser(), placeNow());
       hosts = [...new Set([...hosts, address])];
     } else {
       await disablePush(channel, liveBrowser());
@@ -80,7 +80,8 @@ export function settleSeat(): void {
     Date.now(),
   );
   pending = result.keep;
-  if (result.select) selectSession(result.select);
+  // The tap is the click. It waits SEAT_WAIT_MS for the seat to be listed.
+  if (result.select) openByPerson(result.select);
 }
 
 /** Takes the seat a tapped notification launched with out of the address. */

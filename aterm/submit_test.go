@@ -6,31 +6,49 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
-// fakeBoxCommand plays a claude seat that boots late, drops N Enters (COI-2474) and reads
-// nothing for a while once its prompt is up (COI-2300). Args: boot, drops, lag ms.
+// fakeBoxCommand plays claude: boot, dropped Enters (COI-2474), lag (COI-2300), deaf
+// mid-turn (COI-2619), a card at the paste (COI-2653). Args: boot/drops/lag/deaf/card
 const fakeBoxCommand = "fake-claude-box"
 
 func runFakeBox() {
 	boot, _ := strconv.Atoi(os.Args[2])
 	drops, _ := strconv.Atoi(os.Args[3])
 	lag, _ := strconv.Atoi(os.Args[4])
+	deaf := 0
+	if len(os.Args) > 5 {
+		deaf, _ = strconv.Atoi(os.Args[5])
+	}
+	card := 0
+	if len(os.Args) > 6 {
+		card, _ = strconv.Atoi(os.Args[6])
+	}
 	fmt.Print("\x1b[?2004h")
 	time.Sleep(time.Duration(boot) * time.Millisecond)
 	var sent []string
 	var input strings.Builder
+	var mu sync.Mutex
+	cardUntil := time.Time{}
 	draw := func(placeholder string) {
+		if time.Now().Before(cardUntil) {
+			return
+		}
 		fmt.Print("\x1b[2J\x1b[H")
 		for _, line := range sent {
 			fmt.Printf("> %s\r\n", line)
+		}
+		if deaf > 0 {
+			fmt.Print("✻ Working… (12s · ↓ 1.2k tokens)\r\n")
 		}
 		rule := strings.Repeat("─", 60)
 		fmt.Printf("%s\r\n❯ %s%s\r\n%s\r\n  auto mode on\r\n", rule, input.String(), placeholder, rule)
 	}
 	draw(` Try "how do I log an error?"`)
+	deafUntil := time.Now().Add(time.Duration(deaf) * time.Millisecond)
 	time.Sleep(time.Duration(lag) * time.Millisecond)
 	reader := bufio.NewReader(os.Stdin)
 	inPaste := false
@@ -53,10 +71,27 @@ func runFakeBox() {
 				}
 			}
 			inPaste = string(seq[:n]) == "[200~"
+			if string(seq[:n]) == "[201~" && card > 0 {
+				mu.Lock()
+				cardUntil = time.Now().Add(time.Duration(card) * time.Millisecond)
+				fmt.Print("\x1b[2J\x1b[HDo you want to proceed?\r\n1. Yes\r\nEsc to cancel\r\n")
+				mu.Unlock()
+				card = 0
+				time.AfterFunc(time.Until(cardUntil), func() {
+					mu.Lock()
+					defer mu.Unlock()
+					draw("")
+				})
+			}
 			if !inPaste {
 				draw("")
 			}
+		case b == '\r' && !inPaste && time.Now().Before(cardUntil):
+			fmt.Print("ENTER_IN_CARD\r\n")
 		case b == '\r' && !inPaste:
+			if time.Now().Before(deafUntil) {
+				continue
+			}
 			if drops > 0 {
 				drops--
 				continue
@@ -76,6 +111,16 @@ func runFakeBox() {
 
 func fakeBoxSeat(t *testing.T, bootMillis, drops, lagMillis int) (token string, target *testClient) {
 	t.Helper()
+	return fakeBusyBoxSeat(t, bootMillis, drops, lagMillis, 0)
+}
+
+func fakeBusyBoxSeat(t *testing.T, bootMillis, drops, lagMillis, deafMillis int) (token string, target *testClient) {
+	t.Helper()
+	return fakeCardBoxSeat(t, bootMillis, drops, lagMillis, deafMillis, 0)
+}
+
+func fakeCardBoxSeat(t *testing.T, bootMillis, drops, lagMillis, deafMillis, cardMillis int) (token string, target *testClient) {
+	t.Helper()
 	testDaemon(t)
 	sender := dialTest(t)
 	sender.spawn("eng-platform-beetle-ox", "eng-platform", "Beetle-Ox", `echo TOKEN=$ATERM_SESSION_TOKEN; sleep 60`)
@@ -83,7 +128,7 @@ func fakeBoxSeat(t *testing.T, bootMillis, drops, lagMillis int) (token string, 
 	target = dialTest(t)
 	_, err := target.c.request(frame{
 		Type: "spawn", Session: "eng-junior-beetle-ox", Role: "eng-junior", Identity: "Beetle-Ox", Seat: "claude",
-		Argv: []string{"/bin/sh", "-c", fmt.Sprintf("stty raw -echo; exec %s %s %d %d %d", os.Args[0], fakeBoxCommand, bootMillis, drops, lagMillis)},
+		Argv: []string{"/bin/sh", "-c", fmt.Sprintf("stty raw -echo; exec %s %s %d %d %d %d %d", os.Args[0], fakeBoxCommand, bootMillis, drops, lagMillis, deafMillis, cardMillis)},
 		Env:  os.Environ(), Cwd: "/", Rows: 24, Cols: 200,
 	})
 	if err != nil {
@@ -217,5 +262,23 @@ func TestEchoCountReadsRecordedClaudeScreens(t *testing.T) {
 	}
 	if got := echoCount(read("submitted-in-hooks.txt"), second); got != 0 {
 		t.Fatalf("a message not yet shown counted %d, want 0", got)
+	}
+}
+
+// COI-2653: a card opened by the paste is up when Enter is due, and Enter would answer
+// it, so Enter waits for it to close.
+func TestEnterWaitsForACardThatOpenedAfterThePaste(t *testing.T) {
+	token, target := fakeCardBoxSeat(t, 200, 0, 0, 0, 1500)
+	state := sendWaiting(t, token, "eng-junior", "do the thing", 30)
+	if state.State != "delivered" {
+		t.Fatalf("state = %+v, want delivered once the card closed", state)
+	}
+	target.drain(300 * time.Millisecond)
+	out := target.output.String()
+	if strings.Contains(out, "ENTER_IN_CARD") {
+		t.Fatalf("an Enter reached the open card:\n%q", out)
+	}
+	if !strings.Contains(out, "SUBMITTED [from eng-platform Beetle-Ox] do the thing") {
+		t.Fatalf("the message was never submitted:\n%q", out)
 	}
 }

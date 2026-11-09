@@ -35,6 +35,7 @@ def test_base_settings_disable_memory_and_chrome_without_losing_local_denies() -
         "deniedMcpServers",
         "permissions.deny",
         "permissions.allow",
+        "autoMode.allow",
     }
     assert MODULE.merge_base_settings(settings) == []
 
@@ -136,6 +137,68 @@ def test_no_retired_rule_is_also_a_live_rule() -> None:
     assert not set(MODULE.RETIRED_ALLOWED_PERMISSIONS) & set(MODULE.BASE_ALLOWED_PERMISSIONS)
 
 
+OPS_HELP = """NAME:
+   aosguard ops - ops operations
+
+COMMANDS:
+   aws    guarded verbs (exec dialect)
+   helm          spec-driven verbs
+   help, h          Shows a list of commands
+
+OPTIONS:
+   --help, -h  show help
+"""
+
+
+def test_areas_come_from_the_commands_block_of_the_help_text() -> None:
+    assert MODULE.parse_ops_areas(OPS_HELP) == ["aws", "helm"]
+    assert MODULE.parse_ops_areas("") == []
+
+
+def test_each_area_gets_an_allow_rule_and_the_prose_names_it() -> None:
+    settings: dict = {}
+    changed = MODULE.merge_base_settings(settings, ["aws", "helm"])
+    allow = settings["permissions"]["allow"]
+    assert "Bash(aosguard ops helm *)" in allow
+    assert "Bash(aosguard ops aws *)" in allow
+    assert "Bash(*)" not in allow
+    assert "autoMode.allow" in changed
+    prose = settings["autoMode"]["allow"]
+    assert prose[0] == "$defaults"
+    assert any("`helm`" in entry for entry in prose)
+    assert MODULE.merge_base_settings(settings, ["aws", "helm"]) == []
+
+
+def test_auto_mode_prose_merges_beside_hand_added_entries() -> None:
+    settings = {"autoMode": {"allow": ["$defaults", "a hand-written rule"], "environment": ["x"]}}
+    MODULE.merge_base_settings(settings, ["helm"])
+    assert settings["autoMode"]["allow"][:2] == ["$defaults", "a hand-written rule"]
+    assert settings["autoMode"]["environment"] == ["x"]
+
+
+def test_a_new_area_replaces_the_area_entry_instead_of_adding_a_second() -> None:
+    settings: dict = {}
+    MODULE.merge_base_settings(settings, ["helm"])
+    MODULE.merge_base_settings(settings, ["helm", "redis"])
+    named = [e for e in settings["autoMode"]["allow"] if e.startswith("Each `aosguard ops` area")]
+    assert len(named) == 1 and "`redis`" in named[0]
+
+
+def test_the_read_only_rule_merges_with_its_credential_exception_in_place() -> None:
+    older = MODULE.BASE_AUTO_MODE_ALLOW[1].split(" Reading credential")[0]
+    settings = {"autoMode": {"allow": ["$defaults", older]}}
+    MODULE.merge_base_settings(settings)
+    merged = [e for e in settings["autoMode"]["allow"] if e.startswith(older[:40])]
+    assert len(merged) == 1
+    assert "stays with the classifier" in merged[0]
+
+
+def test_a_hand_added_copy_of_an_owned_rule_is_adopted_not_duplicated() -> None:
+    settings = {"autoMode": {"allow": ["$defaults", MODULE.BASE_AUTO_MODE_ALLOW[-1]]}}
+    MODULE.merge_base_settings(settings)
+    assert settings["autoMode"]["allow"].count(MODULE.BASE_AUTO_MODE_ALLOW[-1]) == 1
+
+
 def test_write_follows_a_symlink_instead_of_replacing_it(tmp_path) -> None:
     host = tmp_path / "host"
     host.mkdir()
@@ -161,3 +224,30 @@ def test_write_creates_a_plain_file_when_the_path_is_not_a_link(tmp_path) -> Non
     assert target == path
     assert not path.is_symlink()
     assert json.loads(path.read_text()) == {"theme": "dark"}
+
+
+def test_ssh_to_kai_server_is_allowed_once_and_survives_a_second_run() -> None:
+    settings: dict = {}
+    MODULE.merge_base_settings(settings)
+    rules = [r for r in settings["permissions"]["allow"] if r.startswith("Bash(ssh kai@kai-server")]
+    assert len(rules) == 1
+    assert MODULE.merge_base_settings(settings) == []
+
+
+def test_the_sudo_prose_names_exact_forms_and_keeps_destructive_kubectl_with_the_classifier() -> None:
+    settings: dict = {}
+    MODULE.merge_base_settings(settings)
+    prose = [e for e in settings["autoMode"]["allow"] if "ssh kai@kai-server" in e]
+    assert len(prose) == 1
+    assert "/bin/systemctl {start|stop|restart|status}" in prose[0]
+    assert "delete and drain stay with the classifier" in prose[0]
+    assert "sudo *" not in prose[0]
+
+
+def test_the_sudo_prose_replaces_a_reworded_copy_in_place() -> None:
+    owned = [e for e in MODULE.BASE_AUTO_MODE_ALLOW if "ssh kai@kai-server" in e][0]
+    older = owned[: MODULE.AUTO_MODE_KEY_LEN] + " an older wording."
+    settings = {"autoMode": {"allow": ["$defaults", older]}}
+    MODULE.merge_base_settings(settings)
+    merged = [e for e in settings["autoMode"]["allow"] if e.startswith(older[: MODULE.AUTO_MODE_KEY_LEN])]
+    assert merged == [owned]

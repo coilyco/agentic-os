@@ -1,0 +1,78 @@
+# Gate the aterm web client only when its tree changes, so other changes pay nothing.
+name: aterm-client
+
+on:
+  workflow_dispatch:
+    inputs:
+      update:
+        description: Rewrite the test bed's Linux baselines and upload them as an artifact.
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - "aterm-client/**"
+      - ".github/workflows/aterm-client.yml"
+  pull_request:
+    paths:
+      - "aterm-client/**"
+      - ".github/workflows/aterm-client.yml"
+
+permissions:
+  contents: read
+
+env:
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+concurrency:
+  group: aterm-client-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: aterm-client/.node-version
+      - uses: ./actions/setup-ci
+        with:
+          tools: just
+      - run: just aterm-client-install
+      - run: just aterm-client-gate
+
+  testbed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: aterm-client/.node-version
+      - uses: ./actions/setup-ci
+        with:
+          tools: just
+      - run: just aterm-client-install
+      - run: just aterm-client-testbed-deps
+      - if: ${{ inputs.update }}
+        run: just aterm-client-testbed-update
+      - if: ${{ !inputs.update }}
+        run: just aterm-client-testbed --grep-invert @quirk
+      - if: ${{ !inputs.update }}
+        continue-on-error: true
+        run: just aterm-client-testbed --grep @quirk
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testbed
+          path: |
+            aterm-client/testbed/out/report
+            aterm-client/testbed/out/results
+            aterm-client/testbed/baselines/linux
+          if-no-files-found: ignore

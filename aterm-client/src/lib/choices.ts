@@ -7,6 +7,10 @@ export interface ChoiceOption {
   description: string;
   /** Claude Code's "Type something." row takes a typed answer instead. */
   freeText: boolean;
+  /** A multi-select's checkbox state. Undefined on a row that has no checkbox. */
+  checked?: boolean;
+  /** The number the harness printed before the label. Typing it addresses the row. */
+  number?: number;
 }
 
 export interface Choice {
@@ -17,15 +21,23 @@ export interface Choice {
   cancellable: boolean;
   /** Several options may be picked, then submitted together. */
   multi: boolean;
+  /** Options scrolled off the top of a screen too short for the dialog. Unreadable. */
+  hidden?: number;
 }
 
 const CURSOR = "❯";
 const FOOTER = /\b(Enter|Esc) to\b/;
 const RULE = /^[\s│|]*[─━╭╰┌└]{3,}/;
 const CHIP = /^[☐☒✔✓■□]\s+/;
+// A multi-question dialog opens with a tab bar that does not say which tab is current.
+const TAB_BAR = /^←\s+[☐☒✔✓■□]\s/;
 const SCROLL_MARK = /^[↑↓]\s/;
 const FREE_TEXT = /^type something\.?$/i;
+const CHECKBOX = /^\[([ ✔✓xX])\]\s+/;
+// Next and Submit are rows of their own, with no number, at the label column.
+const ACTION_ROW = /^(next|submit)$/i;
 const QUESTION_LINES = 8;
+const NUMBERED = /^\s*\d+\.\s/;
 
 function strip(line: string): string {
   return line.replace(/^[\s│|]*?(?=\S)/, (lead) => lead.replace(/[│|]/g, " "));
@@ -34,17 +46,26 @@ function strip(line: string): string {
 /** The last select menu on screen, or null when none is showing. */
 export function detectChoice(screen: readonly string[]): Choice | null {
   const lines = screen.map(strip);
-  const cursorRow = lines.findLastIndex((line) => line.trimStart().startsWith(CURSOR));
-  if (cursorRow === -1) return null;
-  const column = lines[cursorRow]!.indexOf(CURSOR);
+  let cursorRow = lines.findLastIndex((line) => line.trimStart().startsWith(CURSOR));
+  let column = cursorRow === -1 ? -1 : lines[cursorRow]!.indexOf(CURSOR);
+  // A dialog taller than the screen loses its top, highlight included.
+  const lost = cursorRow === -1;
+  if (lost) {
+    const found = optionsWithoutCursor(lines);
+    if (!found) return null;
+    ({ row: cursorRow, column } = found);
+  }
   const optionAt = (line: string): string | null => {
     const lead = line.slice(0, column + 2);
     const rest = line.slice(column + 2);
     if (lead.trim() !== "" && lead.trim() !== CURSOR) return null;
-    return rest.trim() && !rest.startsWith(" ") ? rest.trim() : null;
+    if (rest.trim() && !rest.startsWith(" ")) return rest.trim();
+    return ACTION_ROW.test(rest.trim()) ? rest.trim() : null;
   };
   let top = cursorRow;
-  while (top > 0 && (optionAt(lines[top - 1]!) !== null || isDescription(lines[top - 1]!, column))) top--;
+  // The rule above "Chat about this" sits between two options.
+  const rowAbove = (at: number): number => (RULE.test(lines[at - 1] ?? "") && optionAt(lines[at - 2] ?? "") !== null ? at - 1 : at);
+  for (let above = rowAbove(top); above > 0 && (optionAt(lines[above - 1]!) !== null || isDescription(lines[above - 1]!, column)); above = rowAbove(top)) top = above - 1;
   while (top < cursorRow && optionAt(lines[top]!) === null) top++;
   const options: ChoiceOption[] = [];
   let cursor = -1;
@@ -54,8 +75,11 @@ export function detectChoice(screen: readonly string[]): Choice | null {
     const label = optionAt(line);
     if (label !== null) {
       if (line.trimStart().startsWith(CURSOR)) cursor = options.length;
-      const text = label.replace(/^\d+\.\s+/, "");
-      options.push({ label: text, description: "", freeText: FREE_TEXT.test(text) });
+      const numbered = label.replace(/^\d+\.\s+/, "");
+      const box = CHECKBOX.exec(numbered);
+      const text = box ? numbered.slice(box[0].length) : numbered;
+      const printed = /^(\d+)\./.exec(label);
+      options.push({ label: text, description: "", freeText: FREE_TEXT.test(text), ...(box ? { checked: box[1] !== " " } : {}), ...(printed ? { number: Number(printed[1]) } : {}) });
     } else if (RULE.test(line) && optionAt(lines[row + 1] ?? "") !== null) {
       continue;
     } else if (options.length && isDescription(line, column)) {
@@ -65,13 +89,36 @@ export function detectChoice(screen: readonly string[]): Choice | null {
       break;
     }
   }
-  const footer = lines.slice(row, row + 3).find((line) => FOOTER.test(line));
-  if (!footer || options.length < 2 || cursor === -1) return null;
+  const footerRows = lines.slice(row, row + 5);
+  const footer = footerRows.find((line) => FOOTER.test(line));
+  // A narrow terminal wraps the footer onto later rows.
+  const footerText = footer === undefined ? "" : footerRows.slice(footerRows.indexOf(footer)).join(" ");
+  // The review screen draws no footer, only its Submit answers row.
+  const reviewing = options.some((option) => /^submit answers$/i.test(option.label));
+  if ((!footer && !reviewing) || options.length < 2 || (cursor === -1 && !lost)) return null;
+  // The first option on screen is not the first option when its number is not 1.
+  const firstNumber = options.find((option) => option.number !== undefined)?.number ?? 1;
+  // A harness that windows its own list marks it with an arrow.
+  const windowed = lines.slice(Math.max(0, top - 2), top).some((line) => SCROLL_MARK.test(line.trim()));
+  const hidden = windowed ? 0 : Math.max(0, firstNumber - 1);
+  // Rows above a clipped dialog's first option are the tail of an option nobody can see.
+  if (hidden > 0) return { header: "", question: "", options, cursor, cancellable: /Esc to/.test(footerText), multi: options.some((option) => option.checked !== undefined), hidden };
   const [first, ...rest] = questionAbove(lines, top).split("\n\n");
+  const tabbed = first !== undefined && TAB_BAR.test(first);
   const chipped = first !== undefined && CHIP.test(first);
   const header = chipped ? first.replace(CHIP, "") : "";
-  const question = (chipped ? rest : [first ?? "", ...rest]).join("\n\n").trim();
-  return { header, question, options, cursor, cancellable: /Esc to/.test(footer), multi: false };
+  const question = (chipped || tabbed ? rest : [first ?? "", ...rest]).join("\n\n").trim();
+  const multi = options.some((option) => option.checked !== undefined);
+  return { header, question, options, cursor, cancellable: /Esc to/.test(footerText), multi };
+}
+
+// With no highlight row, the last numbered row above the footer anchors the options.
+function optionsWithoutCursor(lines: readonly string[]): { row: number; column: number } | null {
+  const footer = lines.findLastIndex((line) => /\bEnter to select\b/.test(line));
+  if (footer === -1 || !/to navigate/.test(lines.slice(footer, footer + 4).join(" "))) return null;
+  const row = lines.findLastIndex((line, at) => at < footer && NUMBERED.test(line));
+  if (row === -1) return null;
+  return { row, column: Math.max(0, lines[row]!.length - lines[row]!.trimStart().length - 2) };
 }
 
 function isDescription(line: string, column: number): boolean {
@@ -95,7 +142,22 @@ function questionAbove(lines: readonly string[], top: number): string {
     taken++;
   }
   while (found[0] === "") found.shift();
-  return found.reduce((text, line) => (line === "" ? `${text}\n` : text.endsWith("\n") || !text ? `${text}${line}` : `${text} ${line}`), "").replace(/\n/g, "\n\n").trim();
+  // The review screen lists "● question" and "→ answer" rows, one per line.
+  const hard = (line: string): boolean => /^[●→]\s/.test(line);
+  return found
+    .reduce((text, line) => (line === "" ? `${text}\n` : text.endsWith("\n") || !text ? `${text}${line}` : `${text}${hard(line) ? "\0" : " "}${line}`), "")
+    .replace(/\n/g, "\n\n")
+    .replace(/\0/g, "\n")
+    .trim();
+}
+
+// A counter in the dialog's text, such as an away-timer, must not remake the card.
+const counted = (text: string): string => text.replace(/\d+/g, "#");
+
+/** What makes two readings of the screen one card. The cursor and counters do not. */
+export function choiceKey(choice: Choice): string {
+  const rows = choice.options.map((option) => [counted(option.label), counted(option.description), option.freeText, option.checked ?? null]);
+  return JSON.stringify([choice.header, counted(choice.question), rows]);
 }
 
 const ADVANCE = /^(next|submit( answers)?|done)$/i;
@@ -105,8 +167,56 @@ export function advanceIndex(choice: Choice): number {
   return choice.multi ? -1 : choice.options.findIndex((option) => !option.freeText && ADVANCE.test(option.label));
 }
 
+/** A multi-select's unnumbered Next or Submit row, or -1. */
+export function nextRowIndex(choice: Choice): number {
+  return choice.multi ? choice.options.findIndex((option) => option.checked === undefined && !option.freeText && ADVANCE.test(option.label)) : -1;
+}
+
+const DOWN = "\x1b[B";
+const UP = "\x1b[A";
+
+/** Key chunks for a native multi-select. See the choices reference. */
+export function keysForPicks(choice: Choice, picks: number[], text = ""): string[] {
+  // Nothing here knows where the highlight is, so no arrow count is right.
+  if (choice.cursor === -1) return [];
+  const chunks: string[] = [];
+  let at = choice.cursor;
+  const move = (to: number): void => {
+    if (to === at) return;
+    chunks.push((to > at ? DOWN : UP).repeat(Math.abs(to - at)));
+    at = to;
+  };
+  choice.options.forEach((option, index) => {
+    if (option.checked === undefined) return;
+    const wanted = picks.includes(index);
+    if (option.freeText) {
+      if (wanted && text) {
+        move(index);
+        chunks.push(text);
+      } else if (!wanted && option.checked) {
+        move(index);
+        chunks.push("\r");
+      }
+    } else if (wanted !== option.checked) {
+      move(index);
+      chunks.push("\r");
+    }
+  });
+  const next = nextRowIndex(choice);
+  if (next !== -1) {
+    move(next);
+    chunks.push("\r");
+  }
+  return chunks;
+}
+
 /** Key chunks to reach `target`, type `text`, and confirm. See the choices reference. */
 export function keysFor(choice: Choice, target: number, text = ""): string[] {
+  // 2.1.318 answers a single-select on a typed number wherever the highlight is.
+  if (choice.cursor === -1) {
+    const printed = choice.options[target]?.number;
+    return printed === undefined || choice.options[target]?.freeText ? [] : [String(printed)];
+  }
   const steps = target - choice.cursor;
   const arrow = steps > 0 ? "\x1b[B" : "\x1b[A";
   const chunks = [arrow.repeat(Math.abs(steps)), text, "\r"];

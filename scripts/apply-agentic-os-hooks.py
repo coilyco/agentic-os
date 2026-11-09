@@ -83,9 +83,9 @@ GITATTRIBUTES_RULES = [
     "*.cmd text eol=crlf",
 ]
 
-# Canonical source for the hook suite. Forgejo, not the GitHub mirror: it is
-# the source of truth and lands release tags first.
-AGENTIC_OS_REPO_URL = "https://forgejo.coilysiren.me/coilyco/agentic-os"
+# Hook source. GitHub, because Forgejo is deleted and a hosted runner could never clone
+# it (COI-2943). A rev must be a tag on GitHub.
+AGENTIC_OS_REPO_URL = "https://github.com/coilyco/agentic-os"
 
 # Upstream check-merge-conflict, displaced from the agentic-os catalog
 # ; --assume-in-merge keeps the old always-scan behavior.
@@ -112,13 +112,12 @@ VENDORED_CONFIG_SECTION = "managed-hooks"
 
 ACTIONLINT_REPO_URL = "https://github.com/rhysd/actionlint"
 ACTIONLINT_REV = "v1.7.12"
-FORGEJO_WORKFLOW_FILES = r"^\.forgejo/workflows/.*\.(ya?ml)$"
-# actionlint keys project detection off .github/workflows, so a Forgejo-only
-# repo never auto-discovers this config. See actionlint_args.
+GITHUB_WORKFLOW_FILES = r"^\.github/workflows/.*\.(ya?ml)$"
 ACTIONLINT_CONFIG_REL = ".github/actionlint.yaml"
 
-FORGEJO_RUNNER_REPO_URL = "https://code.forgejo.org/forgejo/runner"
-FORGEJO_RUNNER_REV = "v12.10.1"
+# No longer emitted. Still stripped so a consumer's old pin on the deleted Forgejo host
+# goes away on the next apply (COI-3127).
+RETIRED_REPO_URLS = ["https://code.forgejo.org/forgejo/runner"]
 
 SHELLCHECK_REPO_URL = "https://github.com/shellcheck-py/shellcheck-py"
 SHELLCHECK_REV = "v0.11.0.1"
@@ -130,7 +129,6 @@ TYPOS_REV = "v1.48.0"
 MANAGED_REPO_URLS = [
     PRECOMMIT_HOOKS_REPO_URL,
     ACTIONLINT_REPO_URL,
-    FORGEJO_RUNNER_REPO_URL,
     SHELLCHECK_REPO_URL,
     TYPOS_REPO_URL,
 ]
@@ -253,13 +251,8 @@ def managed_block(
   - repo: {ACTIONLINT_REPO_URL}
     rev: {ACTIONLINT_REV}
     hooks:
-      # Forgejo workflows use GitHub Actions syntax; no exclude split is needed yet.
       - id: actionlint{actionlint_args(repo_dir)}
-        files: {FORGEJO_WORKFLOW_FILES}
-  - repo: {FORGEJO_RUNNER_REPO_URL}
-    rev: {FORGEJO_RUNNER_REV}
-    hooks:
-      - id: forgejo-runner-validate
+        files: {GITHUB_WORKFLOW_FILES}
   - repo: {SHELLCHECK_REPO_URL}
     rev: {SHELLCHECK_REV}
     hooks:
@@ -326,7 +319,7 @@ def strip_legacy_blocks(text: str) -> tuple[str, int]:
         if n:
             removed += n
             text = new_text
-    for repo_url in MANAGED_REPO_URLS:
+    for repo_url in [*MANAGED_REPO_URLS, *RETIRED_REPO_URLS]:
         lines = text.splitlines(keepends=True)
         new_lines: list[str] = []
         skipping = False

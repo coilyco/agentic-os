@@ -27,6 +27,10 @@ const (
 	draftHold = time.Minute
 )
 
+// cardGrace is how long a card that left the screen still holds messages, since a
+// repaint erases a dialog before it draws it again (COI-3243).
+var cardGrace = 1500 * time.Millisecond
+
 // terminalQuery matches output a terminal answers: status, attribute, version,
 // mode, window, color, setting, capability, and kitty graphics queries.
 var terminalQuery = regexp.MustCompile("\x1b\\[(?:\\??[0-9;]*n|[>=]?[0-9;]*c|>[0-9;]*q|\\?u|\\??[0-9;]*\\$p|(?:1[13-689]|2[01])t)" +
@@ -81,8 +85,23 @@ type ptySession struct {
 	// interleaves with a person's keystrokes.
 	writeMu sync.Mutex
 
-	mu           sync.Mutex
-	clients      map[*conn]bool
+	// imageMu serializes uploads and the cleanup, and imagesClosed is set once the
+	// directory is gone so a late upload cannot recreate it. See daemon_image.go.
+	imageMu      sync.Mutex
+	imagesClosed bool
+
+	// fileRoots are the directories the launch named besides its cwd, where a seat
+	// may register an artifact source from.
+	fileRoots []string
+
+	// openMu guards opened, the times this seat asked to open an address.
+	openMu sync.Mutex
+	opened []time.Time
+
+	mu      sync.Mutex
+	clients map[*conn]bool
+	// size is what each client can show and the PTY size chosen from it.
+	size         sizeState
 	scrollback   []byte
 	outputOffset int64
 	modeTracker
@@ -92,11 +111,19 @@ type ptySession struct {
 	// keeps a mark split across two chunks.
 	promptSeen time.Time
 	promptTail []byte
+	// cardUp is whether the last chunk left a card up, cardLost when a chunk last took one
+	// off. One screen read cannot say a card closed, so cardReason adds a grace.
+	cardUp   bool
+	cardLost time.Time
+	// startupCard is whether a card showed before the harness's prompt mark did.
+	startupCard bool
 	// scr is the screen the output so far draws, read for the session's state.
 	scr     *screen
 	draft   int
 	keys    keyState
 	pending []*pendingSend
+	// parked is a message typed into a busy seat's box that the seat has not taken.
+	parked *parkedSend
 	// inbox keeps what enqueue accepted, for a seat that reads over MCP.
 	inbox inbox
 	// sending is the message submit is writing. finish leaves it to submit,
@@ -117,6 +144,22 @@ type ptySession struct {
 	context      *contextView
 	contextFile  contextSource
 	contextRetry time.Time
+	// lastReply is kept across rounds, and replySig is the transcript it was read at.
+	lastReply string
+	replySig  fileSig
+	// lastReplyText is the reply cut to maxLastReplyBytes, lastReplyCut whether it was
+	// cut, and lastReplyAt when it finished. See refreshReply.
+	lastReplyText string
+	lastReplyCut  bool
+	lastReplyAt   time.Time
+	// stateNow is the state last seen and stateSince when it began. A state's start
+	// before the daemon first saw it is unknown, so a restart counts from the restart.
+	stateNow   string
+	stateSince time.Time
+	// activity is the line a seat set with `aterm activity`, and activityAt when.
+	// Only that frame writes it, never the screen. See daemon_activity.go.
+	activity   string
+	activityAt time.Time
 }
 
 // keyState carries a partly read escape sequence across input chunks.
@@ -152,7 +195,7 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 		suffix = randomID(3)
 	} else {
 		token = randomID(24)
-		env, suffix = d.withCDPEndpoint(sessionEnv(message.Env, name, token), token), token[:6]
+		env, suffix = d.withOpenShims(d.withCDPEndpoint(sessionEnv(message.Env, name, token), token)), token[:6]
 	}
 	spec := frame{
 		Type: "spawn", Session: name, Role: message.Role, Identity: message.Identity, Seat: message.Seat,
@@ -169,6 +212,7 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 	if err != nil {
 		return nil, fmt.Errorf("attach to the holder of %s: %w", name, err)
 	}
+	s.fileRoots = envDirs(message.Env, "AOS_NATIVE_SESSION_ROOT", "TMPDIR")
 	return s, nil
 }
 
@@ -338,6 +382,7 @@ func (s *ptySession) output(chunk []byte) {
 	s.scrollback = append(s.scrollback, chunk...)
 	if s.scr != nil {
 		s.scr.write(chunk)
+		s.noteCard()
 	}
 	if over := len(s.scrollback) - scrollbackLimit; over > 0 {
 		s.scrollback = append([]byte(nil), s.scrollback[over:]...)
@@ -356,6 +401,22 @@ func (s *ptySession) output(chunk []byte) {
 	if pasteChanged || degradedChanged {
 		s.d.pushSessions()
 	}
+}
+
+// noteCard follows whether a card is on the screen, chunk by chunk, so the moment one
+// leaves is known even when nothing asks during it. Caller holds mu.
+func (s *ptySession) noteCard() {
+	if len(promptScreens[s.seat]) == 0 {
+		return
+	}
+	up := showsCard(s.seat, strings.Join(s.scr.text(), "\n"))
+	if s.cardUp && !up {
+		s.cardLost = s.lastOutput
+	}
+	if _, marked := promptMarks[s.seat]; up && marked && s.promptSeen.IsZero() {
+		s.startupCard = true
+	}
+	s.cardUp = up
 }
 
 func (s *ptySession) scanModes(chunk []byte) { s.modeTracker.scan(chunk) }
@@ -400,7 +461,12 @@ func (s *ptySession) finish(code int) {
 			}
 		}
 		s.pending = nil
+		if s.parked != nil {
+			pending = append(pending, s.parked.p)
+			s.parked = nil
+		}
 		s.mu.Unlock()
+		s.activity, s.activityAt = "", time.Time{}
 		close(s.done)
 		_ = s.holder.write(frame{Type: "release"})
 		_ = s.holder.Close()
@@ -573,21 +639,7 @@ func (s *ptySession) detach(c *conn) {
 	s.mu.Lock()
 	delete(s.clients, c)
 	s.mu.Unlock()
-}
-
-func (s *ptySession) resize(rows, cols int) {
-	if rows <= 0 || cols <= 0 {
-		return
-	}
-	rows, cols = clampSize(rows, 24), clampSize(cols, 80)
-	if s.holder != nil {
-		_ = s.holder.write(frame{Type: "resize", Rows: rows, Cols: cols})
-	}
-	s.mu.Lock()
-	if s.scr != nil {
-		s.scr.resize(rows, cols)
-	}
-	s.mu.Unlock()
+	s.forgetSize(c)
 }
 
 // typeInput is a person at a client. It is the only path that is not stamped.
@@ -596,6 +648,10 @@ func (s *ptySession) typeInput(data []byte) error {
 	defer s.writeMu.Unlock()
 	err := s.writePTY(data)
 	if s.kind == kindTerminal {
+		// Only the unsent-line count, which a stage reads (daemon_stage.go).
+		s.mu.Lock()
+		s.trackDraft(data)
+		s.mu.Unlock()
 		return err
 	}
 	s.mu.Lock()
@@ -703,6 +759,40 @@ func (s *ptySession) deliverLoop() {
 		case <-ticker.C:
 		}
 		s.deliverNext(time.Now())
+		s.sampleState(time.Now())
+	}
+}
+
+// currentState is classify plus the card hold, and keeps the state's start. A held card
+// keeps the seat at prompt through a repaint. Caller holds mu.
+func (s *ptySession) currentState(now time.Time, lines []string, ready bool, quiet time.Duration) string {
+	state := classify(s.seat, lines, ready, quiet)
+	if ready && state != statePrompt && s.cardReason() != "" {
+		state = statePrompt
+	}
+	if s.stateNow != state {
+		s.stateNow, s.stateSince = state, now
+		if state == stateStarting && !s.started.IsZero() {
+			s.stateSince = s.started
+		}
+	}
+	return state
+}
+
+// sampleState follows the state between views, so a flip is known when it happens and
+// is pushed to clients that would otherwise poll for it.
+func (s *ptySession) sampleState(now time.Time) {
+	s.mu.Lock()
+	if s.scr == nil {
+		s.mu.Unlock()
+		return
+	}
+	before := s.stateNow
+	s.currentState(now, s.scr.text(), s.ready(now), now.Sub(s.lastOutput))
+	flipped := before != "" && s.stateNow != before
+	s.mu.Unlock()
+	if flipped && s.d != nil {
+		s.d.pushSessions()
 	}
 }
 
@@ -714,13 +804,25 @@ var pasteSeats = map[string]bool{"codex": true, "goose": true}
 // claude drop a paste until then, though paste is on. See docs/aterm-daemon.md.
 var promptMarks = map[string][]byte{"opencode": []byte("Ask anything"), "claude": []byte(`Try "`)}
 
-const (
-	// promptSettle is the beat after the mark, so the input is mounted.
-	promptSettle = 250 * time.Millisecond
-	// promptWait is how long a seat waits for its mark before trying anyway, for
-	// a version that words it differently or a session adopted long after it.
-	promptWait = 20 * time.Second
-)
+// promptSettle is the beat after the mark, so the input is mounted.
+const promptSettle = 250 * time.Millisecond
+
+// promptWait is how long a seat waits for its mark before trying anyway, for a version
+// that words it differently or a session adopted long after it. A var, for tests.
+var promptWait = 20 * time.Second
+
+// startupDialogReport is how long a startup dialog may stay up before senders are told
+// it, instead of hearing the seat is still starting (COI-3343). A var, for tests.
+var startupDialogReport = 15 * time.Second
+
+// pastStartupDialog is false after a dialog that came before the prompt, until the mark
+// shows or promptWait passes with it gone, so text never lands as it clears (COI-3343).
+func (s *ptySession) pastStartupDialog(now time.Time) bool {
+	if _, marked := promptMarks[s.seat]; !marked || !s.startupCard || !s.promptSeen.IsZero() {
+		return true
+	}
+	return !s.cardUp && !s.cardLost.IsZero() && now.Sub(s.cardLost) > promptWait
+}
 
 // ready is whether the program can take a message yet. Caller holds mu.
 func (s *ptySession) ready(now time.Time) bool {
@@ -754,32 +856,71 @@ func (s *ptySession) holdReason(now time.Time) string {
 // cardReason is why a message waits behind a permission or choice card, since the Enter
 // that submits it would answer the card. Caller holds mu.
 func (s *ptySession) cardReason() string {
-	if s.scr != nil && showsCard(s.seat, strings.Join(s.scr.text(), "\n")) {
+	if s.scr == nil {
+		return ""
+	}
+	// A card that left less than cardGrace ago may be mid-repaint, not closed.
+	recent := !s.cardLost.IsZero() && time.Since(s.cardLost) < cardGrace
+	if s.cardUp || recent || showsCard(s.seat, strings.Join(s.scr.text(), "\n")) {
 		return s.name + " is held at a prompt card"
 	}
 	return ""
 }
 
+// deliveryTrace is what the daemon believed when it typed, for the log. A seat whose
+// message sat unsubmitted can then be read back (COI-3404). Caller holds mu.
+func (s *ptySession) deliveryTrace(now time.Time) string {
+	return fmt.Sprintf("age %s, prompt seen %t, startup card %t, card up %t, parked %t, pending %d",
+		now.Sub(s.started).Round(time.Second), !s.promptSeen.IsZero(), s.startupCard, s.cardUp, s.parked != nil, len(s.pending))
+}
+
+// holdFollowers gives the messages queued behind a held one the same reason, so every
+// sender hears held rather than a queue position that never moves (COI-2653).
+func (s *ptySession) holdFollowers(reason string) {
+	s.mu.Lock()
+	var rest []*pendingSend
+	if len(s.pending) > 1 {
+		rest = append(rest, s.pending[1:]...)
+	}
+	s.mu.Unlock()
+	for _, p := range rest {
+		p.setState("held", reason)
+	}
+}
+
 func (s *ptySession) deliverNext(now time.Time) {
 	s.mu.Lock()
+	if s.parked != nil {
+		s.mu.Unlock()
+		s.settleParked(now)
+		s.holdBehindParked()
+		return
+	}
 	if len(s.pending) == 0 {
 		s.mu.Unlock()
 		return
 	}
 	next := s.pending[0]
-	ready := s.ready(now)
+	ready := s.ready(now) && s.pastStartupDialog(now)
 	hold := s.holdReason(now)
 	if hold == "" {
 		hold = s.cardReason()
 	}
 	paste := s.paste
+	stuck := s.startupCard && s.cardUp && now.Sub(s.started) > startupDialogReport
 	s.mu.Unlock()
 	switch {
+	case !ready && stuck:
+		reason := s.name + " is stopped at a startup dialog. Nothing was typed. Answer it or relaunch."
+		next.setState("held", reason)
+		s.holdFollowers(reason)
+		return
 	case !ready:
 		next.setState("queued", s.name+" is still starting")
 		return
 	case hold != "":
 		next.setState("held", hold)
+		s.holdFollowers(hold)
 		return
 	}
 	s.writeMu.Lock()
@@ -793,11 +934,15 @@ func (s *ptySession) deliverNext(now time.Time) {
 		s.mu.Unlock()
 		s.writeMu.Unlock()
 		next.setState("held", hold)
+		s.holdFollowers(hold)
 		return
 	}
 	s.sending = next
+	trace := s.deliveryTrace(now)
 	s.mu.Unlock()
+	typed := time.Now()
 	err := s.submit(next.text, paste)
+	s.d.logf("delivery to %s: %s, took %s, result %v", s.name, trace, time.Since(typed).Round(time.Millisecond), err)
 	s.mu.Lock()
 	s.sending = nil
 	if len(s.pending) > 0 && s.pending[0] == next {
@@ -805,6 +950,11 @@ func (s *ptySession) deliverNext(now time.Time) {
 	}
 	s.mu.Unlock()
 	s.writeMu.Unlock()
+	var parkedAt *parkedError
+	if errors.As(err, &parkedAt) {
+		s.park(next, parkedAt.before)
+		return
+	}
 	if errors.Is(err, errNotSubmitted) || errors.Is(err, errNotSeen) {
 		next.setState("failed", s.name+": "+err.Error())
 		return
@@ -828,6 +978,10 @@ func (s *ptySession) inject(text string, paste bool) error {
 		return err
 	}
 	time.Sleep(submitDelay)
+	// A card can open as the paste lands, and Enter would answer it (COI-2653).
+	if err := s.awaitNoCard(); err != nil {
+		return err
+	}
 	return s.writePTY([]byte("\r"))
 }
 
@@ -848,7 +1002,7 @@ func (s *ptySession) status(lines int) sessionStatus {
 		input = int(now.Sub(s.lastInput) / time.Second)
 	}
 	return sessionStatus{
-		Name: s.name, State: classify(s.seat, text, ready, quiet), Ready: ready,
+		Name: s.name, State: s.currentState(now, text, ready, quiet), Ready: ready,
 		QuietSeconds: int(quiet / time.Second), InputSeconds: input,
 		Drafted: s.draft > 0, Pending: len(s.pending), Clients: len(s.clients),
 		Rows: rows, Cols: cols, Prompt: promptLines(s.seat, text), Screen: tailLines(text, lines),
@@ -865,8 +1019,21 @@ func (s *ptySession) view() sessionView {
 	if s.scr != nil {
 		lines = s.scr.text()
 	}
+	state := s.currentState(now, lines, ready, quiet)
+	inState := int(now.Sub(s.stateSince) / time.Second)
+	var repliedAt *time.Time
+	if !s.lastReplyAt.IsZero() {
+		at := s.lastReplyAt.UTC()
+		repliedAt = &at
+	}
+	var activityAt *time.Time
+	if s.activity != "" {
+		at := s.activityAt.UTC()
+		activityAt = &at
+	}
 	return sessionView{
-		State:        classify(s.seat, lines, ready, quiet),
+		State:        state,
+		StateSeconds: &inState,
 		QuietSeconds: int(quiet / time.Second),
 		Name:         s.name,
 		Role:         s.role,
@@ -881,6 +1048,11 @@ func (s *ptySession) view() sessionView {
 		Pending:      len(s.pending),
 		Degraded:     append([]string(nil), s.degraded...),
 		Context:      s.context,
+		LastReply:    s.lastReply,
+		LastReplyAt:  repliedAt,
+		Ref:          sessionRef(s.name, s.started),
+		Activity:     s.activity,
+		ActivityAt:   activityAt,
 	}
 }
 

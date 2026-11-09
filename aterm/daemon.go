@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"os"
 	"os/signal"
@@ -15,6 +17,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -31,18 +34,40 @@ const (
 
 type daemon struct {
 	mu       sync.Mutex
+	github   *githubBroker
 	sessions map[string]*ptySession
 	// terminals are plain login shells. They sit in their own map so every walk
 	// of sessions (send targets, roster, counts) skips them without a filter.
-	terminals  map[string]*ptySession
-	tokens     map[string]*ptySession
-	orphans    []*pendingSend
+	terminals map[string]*ptySession
+	// stageMu serializes finding or opening the terminal a stage types into.
+	stageMu sync.Mutex
+	tokens  map[string]*ptySession
+	orphans []*pendingSend
+	// seen is what each seat last listed, name to ref, and retired when each ended name
+	// left the pool. See daemon_names.go.
+	seen       map[string]map[string]string
+	retired    map[string]time.Time
 	asks       map[string]*pendingAsk
+	grants     *grantStore
 	askTimeout time.Duration
 	clientDir  string
+	clientFS   fs.FS
 	// holdDir is where each session's holder keeps its socket. A restarted
 	// daemon adopts what it finds there.
 	holdDir string
+	// imageRoot holds each seat's uploaded images. Empty means this daemon takes
+	// none and does not offer image-upload.
+	imageRoot string
+	// artifactDir keeps standing artifacts across a restart, empty for none.
+	artifactDir string
+	// feedbackDir keeps each feedback report. It sits in the state directory and not
+	// beside the socket, since /tmp is cleared daily. Empty means none is taken.
+	feedbackDir string
+	feedback    feedbackState
+	// shimDir holds the `open` shims a seat's PATH leads with, empty for none.
+	shimDir string
+	// openers are the clients subscribed to open_url, guarded by mu.
+	openers map[*conn]bool
 	tailnet tailnetState
 	// loopbackAddr is where the loopback listener bound, empty while it is not
 	// serving. A session's Playwright reaches its browser there.
@@ -64,11 +89,12 @@ type daemon struct {
 	// claims holds a granted pool name until its spawn arrives or the hold lapses,
 	// so two launches at once never settle on one name.
 	claims      map[string]time.Time
-	subscribers map[*conn]bool
+	subscribers map[*conn]*client
 	conns       int
 	lastActive  time.Time
 	processes   func() ([]processEntry, error)
-	passkeys    *passkeyStore
+	// users is every question of who a person is. See users.go.
+	users userManagement
 	// peerLookup names the processes holding a local TCP peer's end.
 	peerLookup func(remote, local net.Addr) ([]int, error)
 	roster     func(context.Context) (listedRoster, error)
@@ -80,33 +106,43 @@ type daemon struct {
 	browsers      browserHub
 	browserLaunch browserLauncher
 	logf          func(string, ...any)
+	refused       refusalLog
+	// finishShadow collects an ended session's native shadow. Nil in tests.
+	finishShadow func(pid int)
 
 	// apps is the per-session MCP Apps gateway and the views it captured.
 	apps appsState
 
-	// push sends Web Push to a browser that is not connected. See daemon_push.go.
-	push pushState
+	// replaced is set when the daemon stops because its binary was removed.
+	replaced atomic.Bool
+	// stopServing closes the main listener, which is how a signal stops the daemon.
+	stopServing func()
 }
 
 func newDaemon(logf func(string, ...any)) *daemon {
-	return &daemon{
+	d := &daemon{
 		sessions:    map[string]*ptySession{},
 		terminals:   map[string]*ptySession{},
 		tokens:      map[string]*ptySession{},
 		asks:        map[string]*pendingAsk{},
+		seen:        map[string]map[string]string{},
+		retired:     map[string]time.Time{},
+		grants:      newGrantStore(),
 		ended:       map[string]endedSession{},
 		claims:      map[string]time.Time{},
 		askTimeout:  defaultAskTimeout,
-		subscribers: map[*conn]bool{},
+		subscribers: map[*conn]*client{},
 		lastActive:  time.Now(),
-		processes:   listProcesses,
+		clientFS:    embeddedClient(),
+		processes:   func() ([]processEntry, error) { return processLister() },
 		peerLookup:  tcpPeerPIDs,
-		passkeys:    defaultPasskeys(),
 		roster:      launchableRoster,
 		launch:      launchRole,
 		discovery:   newHostDiscovery(),
 		logf:        logf,
 	}
+	d.users = newLocalUsers(d.userHost())
+	return d
 }
 
 // launchableRoster is `aterm --list --json` for a client that cannot shell
@@ -141,6 +177,9 @@ type daemonOptions struct {
 	// PeerPorts maps a peer name to the port its daemon listens on, for host discovery.
 	PeerPorts map[string]string
 	AllowTags []string
+	// AllowOwners are tailnet logins whose untagged devices attach, besides this
+	// node's own owner, which a tagged node has none of.
+	AllowOwners []string
 	// AllowOrigins are hosted client pages, like https://coilyco.dev.
 	AllowOrigins []string
 	ClientDir    string
@@ -154,8 +193,16 @@ type daemonOptions struct {
 	AgentProxy string
 	// VAPIDKey turns on Web Push, empty for none. Never logged.
 	VAPIDKey string
+	// ResumeWindow is how long a remote device's unlock outlives its dropped
+	// connection, and ResumeUntilClose lifts the limit. Neither keeps it on one connection.
+	ResumeWindow     time.Duration
+	ResumeUntilClose bool
+	// Treehouse turns on the brokered path. See treehouse_broker.go.
+	Treehouse treehouseOptions
 	// Stop ends the daemon when closed, as a signal does. A test's handle.
 	Stop <-chan struct{}
+	// tailnetListen replaces the tailnet bind, so a test needs no Tailscale.
+	tailnetListen func() (*tailnetServing, error)
 }
 
 // runDaemon holds the lock, owns the socket, and serves until idle. A second
@@ -196,17 +243,22 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 			defer d.guard("daemon")
 		}
 	}
-	if d.passkeys, err = newPasskeyStore(passkeyStatePath(), passkeyRPID, []string{passkeyOrigin}); err != nil {
-		logf("no stored passkeys, so no remote device can type: %v", err)
-		d.passkeys = defaultPasskeys()
-	}
+	d.users = openLocalUsers(d.userHost(), options)
 	d.holdDir = filepath.Join(dir, "hold")
+	// Beside the socket, the one directory every seat that reaches the daemon shares.
+	d.imageRoot = filepath.Join(dir, "images")
+	d.installShims(filepath.Join(dir, shimDirName))
 	d.ledgerDir = ledgerDir()
+	if ledgerGuard == nil {
+		d.finishShadow = shadowReleaser(logf)
+	}
+	d.loadRetired(time.Now())
 	pruneLedger(d.ledgerDir, time.Now())
 	logf("serving %s as pid %d, build %s", socket, os.Getpid(), version)
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGTERM, syscall.SIGINT)
 	defer signal.Stop(stop)
+	d.stopServing = func() { _ = listener.Close() }
 	go func() {
 		select {
 		case <-stop:
@@ -222,17 +274,24 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	contextDone := make(chan struct{})
 	defer close(contextDone)
 	go d.watchContext(contextDone, contextEvery)
-	if store, err := loadPushStore(pushStatePath()); err != nil {
-		logf("no stored push subscriptions, so no browser is notified while closed: %v", err)
-	} else if err := d.setupPush(options.VAPIDKey, store); err != nil {
-		logf("no Web Push: %v", err)
-	} else if d.push.enabled() {
-		go d.watchWaiting(contextDone, pushWatchEvery)
+	if d.users.PushEnabled() {
+		go d.users.WatchWaiting(contextDone, pushWatchEvery)
 	}
 	d.adoptHolders()
+	d.sweepImages()
+	if d.ledgerDir != "" {
+		d.artifactDir = filepath.Join(filepath.Dir(d.ledgerDir), "artifacts")
+		d.feedbackDir = filepath.Join(filepath.Dir(d.ledgerDir), "feedback")
+		d.sweepFeedback()
+		d.handWaitingFeedback()
+	}
+	d.restoreArtifacts()
 	d.clientDir = options.ClientDir
 	d.discovery.port = func() string { return options.TailnetPort }
 	d.discovery.peerPorts = options.PeerPorts
+	treehouseCtx, stopTreehouse := context.WithCancel(context.Background())
+	defer stopTreehouse()
+	d.startTreehouse(treehouseCtx, options.Treehouse)
 	if options.Websocket != "" {
 		server, err := d.listenWebsocket(options.Websocket)
 		if err != nil {
@@ -244,19 +303,19 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	checkInDone := make(chan struct{})
 	defer close(checkInDone)
 	if options.SentryDSN != "" {
-		if cron, err := newSentryCron(options.SentryDSN, sentryMonitorSlug(hostName())); err != nil {
-			logf("no Sentry check-ins: %v", err)
-		} else {
-			go d.sentryCheckIns(checkInDone, cron)
-		}
+		d.startSentryCheckIns(options.SentryDSN, checkInDone)
 	}
 	if options.TailnetPort != "" {
 		d.tailnet.want()
 		done := make(chan struct{})
 		defer close(done)
-		go d.serveTailnetWhenUp(done, func() (*tailnetServing, error) {
-			return d.listenTailnet(options.TailnetPort, options.AllowTags, options.AllowOrigins, filepath.Join(dir, "tailnet"))
-		})
+		listen := options.tailnetListen
+		if listen == nil {
+			listen = func() (*tailnetServing, error) {
+				return d.listenTailnet(options.TailnetPort, filepath.Join(dir, "tailnet"))
+			}
+		}
+		go d.serveTailnetWhenUp(done, listen)
 	}
 	go d.watchIdle(listener, idle)
 	for {
@@ -275,6 +334,9 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		d.letGoAll()
 	}
 	logf("stopped")
+	if d.replaced.Load() {
+		return errExecutableReplaced
+	}
 	return nil
 }
 
@@ -354,7 +416,9 @@ func (d *daemon) endAll() {
 // or this host, and the pids holding it. A remote device has none to walk.
 type peerStanding struct {
 	web, remote bool
-	pids        []int
+	// brokered is a channel the Treehouse broker opened. Only the broker link sets it.
+	brokered bool
+	pids     []int
 }
 
 // client is one connection's standing: which sessions it spawned, which it is
@@ -367,7 +431,15 @@ type client struct {
 	asks     []string
 	// asserted is a passkey assertion on this connection, which a remote device needs.
 	asserted bool
-	ceremony *passkeyCeremony
+	// unlockNonce is the one a brokered channel's unlock token must carry, and
+	// unlockFails counts the tokens refused on it.
+	unlockNonce    string
+	unlockFails    int
+	ceremony       *passkeyCeremony
+	deviceCeremony *deviceCeremony
+	// resumeKey is the hash of the proof this connection holds, if resumeHeld.
+	resumeKey  [sha256.Size]byte
+	resumeHeld bool
 }
 
 func (d *daemon) serve(raw net.Conn) {
@@ -387,12 +459,24 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, mcpAppsFeature, inboxFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, closeSelfFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature, activityFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
-	if d.push.enabled() {
+	if d.users.PushEnabled() {
 		welcome.Features = append(welcome.Features, pushFeature)
+	}
+	if d.imageRoot != "" {
+		welcome.Features = append(welcome.Features, imageUploadFeature)
+	}
+	if d.feedbackDir != "" {
+		welcome.Features = append(welcome.Features, feedbackFeature)
+	}
+	if d.users.ResumeEnabled() {
+		welcome.Features = append(welcome.Features, resumeFeature)
+	}
+	if offer := d.users.Challenge(cl); offer != nil {
+		welcome.Features, welcome.Unlock = append(welcome.Features, unlockTokenFeature), offer
 	}
 	if peer.web {
 		welcome.Typing = d.typingStanding(cl)
@@ -405,16 +489,19 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	d.lastActive = time.Now()
 	d.mu.Unlock()
 	defer func() {
+		d.users.Disconnected(cl)
 		for _, s := range cl.attached {
 			s.detach(c)
 		}
 		asked := cl.asks
 		d.settleWhere(func(ask choiceAsk) bool { return slices.Contains(asked, ask.ID) }, "the asking call ended")
 		d.browsers.leave(c)
+		d.feedback.dropOwner(cl)
 		d.mu.Lock()
 		d.conns--
 		d.lastActive = time.Now()
 		delete(d.subscribers, c)
+		delete(d.openers, c)
 		d.mu.Unlock()
 		d.unwatchViews(c)
 		d.pushSessions()
@@ -431,8 +518,11 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 }
 
 func (d *daemon) handle(cl *client, message frame) error {
-	if cl.remote && !cl.asserted && remoteLocked[message.Type] {
+	if cl.remote && !d.users.Unlocked(cl) && remoteLocked[message.Type] {
 		return d.typingRefusal(cl, "")
+	}
+	if d.users.Handles(message.Type) {
+		return d.users.Frame(cl, message)
 	}
 	switch message.Type {
 	case "spawn":
@@ -478,8 +568,13 @@ func (d *daemon) handle(cl *client, message frame) error {
 		if err := cl.c.write(frame{Type: "attached", ID: message.ID, Session: s.name, PID: s.pid}); err != nil {
 			return err
 		}
+		s.report(cl.c, message.Rows, message.Cols, &message.Scales)
+		if size, ok := s.sizeFrame(); ok {
+			if err := cl.c.write(size); err != nil {
+				return err
+			}
+		}
 		s.attach(cl.c, message.Replay, message.Offset)
-		s.resize(message.Rows, message.Cols)
 		d.pushSessions()
 		return nil
 	case "detach":
@@ -500,15 +595,29 @@ func (d *daemon) handle(cl *client, message frame) error {
 			}
 		}
 		return s.typeInput(message.Data)
+	case "image_upload":
+		return d.uploadImage(cl, message)
+	case "feedback_image":
+		return d.feedbackImage(cl, message)
+	case "feedback":
+		return d.saveFeedback(cl, message)
+	case "open_url":
+		return d.openURL(cl, message)
+	case "artifact_add":
+		return d.artifactAdd(cl, message)
+	case "artifact_waiting", "artifact_remove":
+		return d.artifactChange(cl, message)
 	case "resize":
 		if s := cl.attached[message.Session]; s != nil {
-			s.resize(message.Rows, message.Cols)
+			s.report(cl.c, message.Rows, message.Cols, nil)
 		}
 		return nil
 	case "send":
 		return d.send(cl.c, message)
 	case "close":
 		return d.closeSession(cl, message)
+	case "stage":
+		return d.stage(cl, message)
 	case "status":
 		s, err := d.oneTarget(message.Target)
 		if err != nil {
@@ -516,8 +625,17 @@ func (d *daemon) handle(cl *client, message frame) error {
 		}
 		status := s.status(message.Lines)
 		return cl.c.write(frame{Type: "status", ID: message.ID, Session: s.name, Status: &status})
+	case "last_reply":
+		s, err := d.oneTarget(message.Target)
+		if err != nil {
+			return err
+		}
+		view := s.lastReplyView()
+		return cl.c.write(frame{Type: "last_reply", ID: message.ID, Session: s.name, Reply: &view})
 	case "clear":
 		return d.clearSession(cl, message)
+	case "activity":
+		return d.activity(cl, message)
 	case "inbox":
 		// Only the token names whose inbox it is, never a target.
 		s := d.byToken(message.Token)
@@ -532,7 +650,9 @@ func (d *daemon) handle(cl *client, message frame) error {
 		}
 		return cl.c.write(frame{Type: "claimed", ID: message.ID, Session: name})
 	case "list":
-		return cl.c.write(frame{Type: "sessions", ID: message.ID, Sessions: d.views(), Terminals: d.terminalViews()})
+		views := d.views()
+		d.noteSeen(d.callerSession(cl, message.Token), views)
+		return cl.c.write(frame{Type: "sessions", ID: message.ID, Sessions: views, Terminals: d.terminalViews()})
 	case "launch":
 		if cl.web {
 			if err := d.typingRefusal(cl, "a process inside an aterm session cannot launch a seat as Kai, use `aterm send --launch`"); err != nil {
@@ -546,8 +666,6 @@ func (d *daemon) handle(cl *client, message frame) error {
 			return withExit(exitSpawn, err)
 		}
 		return cl.c.write(frame{Type: "launched", ID: message.ID, Role: message.Role, Seat: message.Seat})
-	case "passkey_mint", "passkey_revoke", "passkey_enroll_begin", "passkey_enroll_finish", "passkey_assert_begin", "passkey_assert_finish":
-		return d.passkey(cl, message)
 	case "roster":
 		roster, err := d.roster(context.Background())
 		if err != nil {
@@ -556,8 +674,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return cl.c.write(frame{Type: "roster", ID: message.ID, Roster: &roster})
 	case "hosts":
 		return d.hosts(cl.c, message)
-	case "push_key", "push_subscribe", "push_unsubscribe":
-		return d.pushFrame(cl, message)
+	case "github_token":
+		return d.githubToken(cl, message)
 	case "whoami":
 		s := d.byToken(message.Token)
 		if s == nil {
@@ -568,11 +686,14 @@ func (d *daemon) handle(cl *client, message frame) error {
 		if message.Channel == "views" {
 			return d.watchViews(cl, message)
 		}
+		if message.Channel == "open_url" {
+			return d.watchOpens(cl, message)
+		}
 		if message.Channel != "sessions" {
 			return fmt.Errorf("no channel named %q", message.Channel)
 		}
 		d.mu.Lock()
-		d.subscribers[cl.c] = true
+		d.subscribers[cl.c] = cl
 		d.mu.Unlock()
 		if err := cl.c.write(frame{Type: "sessions", ID: message.ID, Channel: "sessions", Sessions: d.views(), Terminals: d.terminalViews()}); err != nil {
 			return err
@@ -601,6 +722,10 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return d.ask(cl, message)
 	case "answer":
 		return d.answer(cl, message)
+	case "grant_request":
+		return d.grantRequest(cl, message)
+	case "grant_check":
+		return d.grantCheck(cl, message)
 	case "cancel_ask":
 		if !d.settle(message.AskID, choiceAnswer{State: "cancelled", Reason: "a client dismissed it"}) {
 			return withExit(exitOffRoster, fmt.Errorf("no pending ask %q", message.AskID))
@@ -679,7 +804,14 @@ func (d *daemon) spawn(message frame) (*ptySession, error) {
 	d.lastActive = time.Now()
 	d.mu.Unlock()
 	for _, orphan := range adopted {
+		d.noteSeenOne(orphan.sender, s)
 		s.enqueue(orphan)
+	}
+	if s.role == feedbackRole {
+		go func() {
+			defer d.guard("feedback hand-off")
+			d.handWaitingFeedback()
+		}()
 	}
 	d.logf("spawned %s as pid %d: %s", name, s.pid, strings.Join(message.Argv, " "))
 	d.recordSession(s, message)
@@ -708,7 +840,8 @@ func (d *daemon) claimName(base string, peek bool) (string, error) {
 		_, live := d.sessions[candidate]
 		_, shell := d.terminals[candidate]
 		_, held := d.claims[candidate]
-		return live || shell || held
+		// The bare name is the role's stable name and stays reusable. Pool slots retire.
+		return live || shell || held || (candidate != base && d.retiredName(candidate, now))
 	})
 	if !peek {
 		d.claims[name] = now.Add(claimHold)
@@ -791,6 +924,8 @@ func (d *daemon) forget(s *ptySession) {
 	delete(d.tokens, s.token)
 	d.lastActive = time.Now()
 	d.ended[s.name] = endedSession{code: s.exitCode, at: time.Now()}
+	d.retire(s.name, time.Now())
+	delete(d.seen, s.name)
 	defer d.markEnded(s)
 	for name, earlier := range d.ended {
 		if time.Since(earlier.at) > endedMemory {
@@ -799,8 +934,14 @@ func (d *daemon) forget(s *ptySession) {
 	}
 	d.mu.Unlock()
 	d.settleWhere(func(ask choiceAsk) bool { return ask.Session == s.name }, s.name+" ended")
+	d.rehomeAsks(s.name)
 	d.browsers.end(s.name)
 	d.dropApps(s.name)
+	s.dropImages(d.imageRoot)
+	d.endArtifacts(s)
+	if d.finishShadow != nil && s.pid > 0 {
+		d.finishShadow(s.pid)
+	}
 	d.pushSessions()
 }
 
@@ -813,6 +954,9 @@ func (d *daemon) send(c *conn, message frame) error {
 	}
 	if strings.TrimSpace(message.Body) == "" {
 		return withExit(exitUsage, errors.New("the message is empty"))
+	}
+	if len(message.Body) > maxSendBody {
+		return errSendTooLong()
 	}
 	from := sender.role + " " + sender.identity
 	pending := &pendingSend{
@@ -828,6 +972,7 @@ func (d *daemon) send(c *conn, message frame) error {
 		sender:     sender,
 		notifyIdle: message.NotifyIdle,
 	}
+	pending.shown, pending.cut = bodyHead(message.Body)
 	if message.New {
 		if !safeRoleSlug(message.Target) || d.session(message.Target) != nil {
 			return withExit(exitUsage, fmt.Errorf("new opens an instance of a role, and %q is not a role slug", message.Target))
@@ -852,6 +997,7 @@ func (d *daemon) send(c *conn, message frame) error {
 		}
 		return withExit(exitUsage, fmt.Errorf("%q matches %s, name one", message.Target, strings.Join(names, ", ")))
 	case len(targets) == 1:
+		d.noteSeenOne(sender, targets[0])
 		targets[0].enqueue(pending)
 	case message.Launch && safeRoleSlug(message.Target):
 		pending.target = message.Target
@@ -894,10 +1040,14 @@ const forgetGrace = 5 * time.Second
 // closeSession ends a live session and drops it, which closing its window does
 // not. It never ends the caller or a session the caller runs inside.
 func (d *daemon) closeSession(cl *client, message frame) error {
+	if message.Self {
+		return d.closeSelf(cl, message)
+	}
 	if shell := d.terminal(message.Target); shell != nil {
 		return d.closeTerminal(cl, message, shell)
 	}
-	s, err := d.oneTarget(message.Target)
+	target, ref := splitRef(message.Target)
+	s, err := d.oneTarget(target)
 	if err != nil {
 		return err
 	}
@@ -905,15 +1055,14 @@ func (d *daemon) closeSession(cl *client, message frame) error {
 	if caller == s {
 		return withExit(exitUsage, fmt.Errorf("%s is this session", s.name))
 	}
+	if err := d.staleTarget(caller, ref, s); err != nil {
+		return err
+	}
 	if d.clientDescendsFrom(cl, map[int]bool{s.pid: true}) {
 		return withExit(exitUsage, fmt.Errorf("this caller runs inside %s, so closing it would end the caller too", s.name))
 	}
-	if view := s.view(); !message.Force && (view.Drafted || view.Pending > 0) {
-		held := "Kai's unsent draft"
-		if !view.Drafted {
-			held = fmt.Sprintf("%d undelivered message(s)", view.Pending)
-		}
-		return withExit(exitUsage, fmt.Errorf("%s holds %s, so it stays open unless forced", s.name, held))
+	if err := closeHeld(s, message.Force); err != nil {
+		return err
 	}
 	by := "a client outside every session"
 	if caller != nil {
@@ -953,7 +1102,8 @@ func (d *daemon) clearSession(cl *client, message frame) error {
 			return err
 		}
 	}
-	s, err := d.oneTarget(message.Target)
+	target, ref := splitRef(message.Target)
+	s, err := d.oneTarget(target)
 	if err != nil {
 		return err
 	}
@@ -965,6 +1115,9 @@ func (d *daemon) clearSession(cl *client, message frame) error {
 		return withExit(exitUsage, errors.New("a process inside a session must present its session token to clear another"))
 	case caller == s:
 		return withExit(exitUsage, fmt.Errorf("%s is this session, and clearing it would discard the context doing the clearing", s.name))
+	}
+	if err := d.staleTarget(caller, ref, s); err != nil {
+		return err
 	}
 	command, known := clearCommands[s.seat]
 	if !known {
@@ -1068,20 +1221,39 @@ func (d *daemon) pushSessions() {
 }
 
 func (d *daemon) broadcast(message frame) {
+	d.fanout(func(*client) frame { return message })
+}
+
+// fanout offers each subscriber the frame built for it, so a frame can differ
+// by who is reading. frameFor runs outside d.mu.
+func (d *daemon) fanout(frameFor func(*client) frame) {
 	d.mu.Lock()
-	subscribers := make([]*conn, 0, len(d.subscribers))
-	for c := range d.subscribers {
-		subscribers = append(subscribers, c)
+	subscribers := make(map[*conn]*client, len(d.subscribers))
+	for c, cl := range d.subscribers {
+		subscribers[c] = cl
 	}
 	d.mu.Unlock()
-	for _, c := range subscribers {
-		if !c.offer(message) {
+	for c, cl := range subscribers {
+		if !c.offer(frameFor(cl)) {
 			d.mu.Lock()
 			delete(d.subscribers, c)
 			d.mu.Unlock()
 			_ = c.Close()
 		}
 	}
+}
+
+// broadcastMessage pushes a message state change, with the body only for a peer
+// that may type. See .agents/skills/tooling-aterm-client/references/message-text.md.
+func (d *daemon) broadcastMessage(snapshot peerMessage, text string, cut bool) {
+	under := d.descender(d.sessionRoots())
+	d.fanout(func(cl *client) frame {
+		shown := snapshot
+		if text != "" && d.typingRefusalVia(cl, "", under) == nil {
+			shown.Text, shown.TextCut = text, cut
+		}
+		return frame{Type: "message", Message: &shown}
+	})
 }
 
 // insideSession reports whether pid runs under a session this daemon started,
@@ -1103,6 +1275,10 @@ func (d *daemon) sessionRoots() map[int]bool {
 // clientDescendsFrom is descendsFrom for a connection held by several pids.
 // A remote device never descends, and a local peer left unnamed counts as under.
 func (d *daemon) clientDescendsFrom(cl *client, roots map[int]bool) bool {
+	return clientUnder(cl, d.descender(roots))
+}
+
+func clientUnder(cl *client, under func(pid int) bool) bool {
 	if cl.remote {
 		return false
 	}
@@ -1110,7 +1286,7 @@ func (d *daemon) clientDescendsFrom(cl *client, roots map[int]bool) bool {
 		return true
 	}
 	for _, pid := range cl.pids {
-		if d.descendsFrom(pid, roots) {
+		if under(pid) {
 			return true
 		}
 	}
@@ -1120,13 +1296,19 @@ func (d *daemon) clientDescendsFrom(cl *client, roots map[int]bool) bool {
 // typingRefusal is the typing guard for what is Kai's to do, as a refusal a
 // client can show: nil when the peer may, otherwise message with a reason.
 func (d *daemon) typingRefusal(cl *client, message string) error {
+	return d.typingRefusalVia(cl, message, d.descender(d.sessionRoots()))
+}
+
+// typingRefusalVia is typingRefusal with the process walk handed in, so several
+// peers can be judged against one reading of the process table.
+func (d *daemon) typingRefusalVia(cl *client, message string, under func(pid int) bool) error {
 	if cl.remote {
-		if cl.asserted {
+		if d.users.Unlocked(cl) {
 			return nil
 		}
-		return withReason(reasonPasskeyRequired, errors.New("assert this device's passkey before it types"))
+		return withReason(reasonPasskeyRequired, errors.New("unlock this device with its passkey or device key before it types"))
 	}
-	if !d.clientDescendsFrom(cl, d.sessionRoots()) {
+	if !clientUnder(cl, under) {
 		return nil
 	}
 	if len(cl.pids) == 0 {
@@ -1143,10 +1325,7 @@ func (d *daemon) typingStanding(cl *client) *typingStanding {
 		standing = &typingStanding{Reason: reasonFor(err)}
 	}
 	if cl.remote {
-		standing.Passkey = "unenrolled"
-		if d.passkeys.enrolled() {
-			standing.Passkey = "enrolled"
-		}
+		standing.Passkey, standing.DeviceKey = d.users.Standing(cl)
 	}
 	return standing
 }
@@ -1154,33 +1333,51 @@ func (d *daemon) typingStanding(cl *client) *typingStanding {
 // descendsFrom reports whether pid is one of roots or runs under one. An
 // unreadable pid or process table counts as under, the cautious answer.
 func (d *daemon) descendsFrom(pid int, roots map[int]bool) bool {
-	if pid <= 0 {
-		return true
-	}
-	entries, err := d.processes()
-	if err != nil {
-		return true
-	}
-	parents := map[int]int{}
-	for _, entry := range entries {
-		parents[entry.PID] = entry.PPID
-	}
-	seen := map[int]bool{}
-	for current := pid; current > 1 && !seen[current]; current = parents[current] {
-		if roots[current] {
+	return d.descender(roots)(pid)
+}
+
+// descender is descendsFrom for many pids against one reading of the process
+// table, taken on the first pid that needs it.
+func (d *daemon) descender(roots map[int]bool) func(pid int) bool {
+	var parents map[int]int
+	var read, readable bool
+	return func(pid int) bool {
+		if pid <= 0 {
 			return true
 		}
-		seen[current] = true
+		if !read {
+			read = true
+			if entries, err := d.processes(); err == nil {
+				readable, parents = true, make(map[int]int, len(entries))
+				for _, entry := range entries {
+					parents[entry.PID] = entry.PPID
+				}
+			}
+		}
+		if !readable {
+			return true
+		}
+		seen := map[int]bool{}
+		for current := pid; current > 1 && !seen[current]; current = parents[current] {
+			if roots[current] {
+				return true
+			}
+			seen[current] = true
+		}
+		return false
 	}
-	return false
 }
 
 // pendingSend is a message on its way. Its state is read by the sender's
 // reply, the sessions channel, and the delivering session, so it locks itself.
 type pendingSend struct {
-	mu     sync.Mutex
-	msg    peerMessage
-	text   string
+	mu   sync.Mutex
+	msg  peerMessage
+	text string
+	// shown is the head of the body a typing peer's `message` frame carries,
+	// and cut says the body was longer. See bodyHead.
+	shown  string
+	cut    bool
 	target string
 	fresh  bool
 	done   chan struct{}
@@ -1204,7 +1401,7 @@ func (p *pendingSend) setState(state, reason string) {
 		p.once.Do(func() { close(p.done) })
 	}
 	if changed && p.d != nil {
-		p.d.broadcast(frame{Type: "message", Message: &snapshot})
+		p.d.broadcastMessage(snapshot, p.shown, p.cut)
 	}
 	if finalState(state) {
 		p.sendReceipt()

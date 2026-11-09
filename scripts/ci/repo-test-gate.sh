@@ -5,15 +5,13 @@ set -euo pipefail
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 umbra_bin=${UMBRA_BIN:-umbra}
 umbra_version=$(
-  sed -n 's/^ARG UMBRA_VERSION=//p' \
-    "$repo_root/docker/dev-base/full/Dockerfile" | tr -d '\r'
+  PLAN=1 TOOLS=umbra bash "$repo_root/.devcontainer/features/agentic-os-tools/install.sh" | cut -f2
 )
 if [ -z "$umbra_version" ]; then
-  echo "Dockerfile does not pin umbra" >&2
+  echo "the tools installer does not pin umbra" >&2
   exit 1
 fi
-# The CI image carries the umbra it was built with, which lags a pin bump
-# until the image republishes, so a mismatch bootstraps the pin too.
+# A runner or image may carry an older umbra than the pin, so a mismatch bootstraps it.
 installed=$("$umbra_bin" --version 2>/dev/null | sed -n 's/^umbra version v\([^ ]*\).*/\1/p' || true)
 if [ "$installed" != "$umbra_version" ]; then
   tmpdir=$(mktemp -d)
@@ -50,7 +48,7 @@ if [ "$installed" != "$umbra_version" ]; then
     umbra_path="$tmpdir/umbra"
   fi
 
-  base="https://forgejo.coilysiren.me/coilyco/umbra/releases/download/v${umbra_version}"
+  base="https://github.com/coilyco/umbra/releases/download/v${umbra_version}"
   curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
     "${base}/${asset}" -o "$tmpdir/$asset"
   curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \

@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // nativeClaudeConfigPath is the single owner of the config-location question.
@@ -67,25 +68,56 @@ var nativeClaudeTrustKeys = []string{
 	"hasClaudeMdExternalIncludesWarningShown",
 }
 
-// Folder trust is keyed by absolute project path, and every native session
-// mints a fresh one, so the launcher pre-accepts the paths it just created.
-func seedNativeClaudeTrust(configPath string, projects []string) error {
-	path := nativeClaudeWritePath(configPath)
+// nativeClaudeTrustKeysFor drops the external-imports approval unless external is set,
+// which only an import check passing sets. See nativeClaudeImportsApproved.
+func nativeClaudeTrustKeysFor(external bool) []string {
+	if external {
+		return nativeClaudeTrustKeys
+	}
+	return nativeClaudeTrustKeys[:2]
+}
+
+func readNativeClaudeJSON(path string) (map[string]json.RawMessage, error) {
 	top := map[string]json.RawMessage{}
 	raw, err := os.ReadFile(path)
 	switch {
 	case err == nil:
 		if err := json.Unmarshal(raw, &top); err != nil {
-			return fmt.Errorf("parse Claude config %s: %w", path, err)
+			return nil, fmt.Errorf("parse Claude config %s: %w", path, err)
 		}
 	case errors.Is(err, fs.ErrNotExist):
 	default:
-		return fmt.Errorf("read Claude config %s: %w", path, err)
+		return nil, fmt.Errorf("read Claude config %s: %w", path, err)
+	}
+	return top, nil
+}
+
+func writeNativeClaudeJSON(path string, top map[string]json.RawMessage) error {
+	payload, err := json.MarshalIndent(top, "", "  ")
+	if err != nil {
+		return fmt.Errorf("render Claude config: %w", err)
+	}
+	return writeAtomicFile(path, appendNativeTrailingNewline(payload), 0o600)
+}
+
+// Folder trust is keyed by absolute project path, and every native session
+// mints a fresh one, so the launcher pre-accepts the paths it just created.
+func seedNativeClaudeTrust(configPath string, projects []string, external bool) error {
+	_, err := seedNativeClaudeTrustChanged(configPath, projects, external)
+	return err
+}
+
+// seedNativeClaudeTrustChanged is the seed, and whether it had anything to write.
+func seedNativeClaudeTrustChanged(configPath string, projects []string, external bool) (bool, error) {
+	path := nativeClaudeWritePath(configPath)
+	top, err := readNativeClaudeJSON(path)
+	if err != nil {
+		return false, err
 	}
 	entries := map[string]map[string]json.RawMessage{}
 	if current := top["projects"]; len(current) > 0 {
 		if err := json.Unmarshal(current, &entries); err != nil {
-			return fmt.Errorf("parse Claude project state %s: %w", path, err)
+			return false, fmt.Errorf("parse Claude project state %s: %w", path, err)
 		}
 	}
 	changed := false
@@ -94,7 +126,7 @@ func seedNativeClaudeTrust(configPath string, projects []string) error {
 		if entry == nil {
 			entry = map[string]json.RawMessage{}
 		}
-		for _, key := range nativeClaudeTrustKeys {
+		for _, key := range nativeClaudeTrustKeysFor(external) {
 			if string(entry[key]) == "true" {
 				continue
 			}
@@ -104,18 +136,63 @@ func seedNativeClaudeTrust(configPath string, projects []string) error {
 		entries[project] = entry
 	}
 	if !changed {
-		return nil
+		return false, nil
 	}
 	encoded, err := json.Marshal(entries)
 	if err != nil {
-		return fmt.Errorf("render Claude project state: %w", err)
+		return false, fmt.Errorf("render Claude project state: %w", err)
 	}
 	top["projects"] = encoded
-	payload, err := json.MarshalIndent(top, "", "  ")
+	return true, writeNativeClaudeJSON(path, top)
+}
+
+// nativeClaudeSeedChecks are the waits at which the seed is read back and repaired, since
+// a live claude's write that straddles ours erases it silently (COI-3343).
+var nativeClaudeSeedChecks = []time.Duration{150 * time.Millisecond, 350 * time.Millisecond, time.Second}
+
+// nativeSeedResult is whether the first write had work, how many checks found the seed
+// erased, and whether the last was clean.
+type nativeSeedResult struct {
+	Wrote   bool
+	Repairs int
+	Clean   bool
+}
+
+// ensureNativeClaudeTrust seeds, then reads back at each wait and repairs what it finds.
+func ensureNativeClaudeTrust(configPath string, projects []string, external bool, checks []time.Duration) (nativeSeedResult, error) {
+	result := nativeSeedResult{}
+	wrote, err := seedNativeClaudeTrustChanged(configPath, projects, external)
 	if err != nil {
-		return fmt.Errorf("render Claude config: %w", err)
+		return result, err
 	}
-	return writeAtomicFile(path, appendNativeTrailingNewline(payload), 0o600)
+	result.Wrote, result.Clean = wrote, true
+	for _, wait := range checks {
+		time.Sleep(wait)
+		repaired, err := seedNativeClaudeTrustChanged(configPath, projects, external)
+		if err != nil {
+			return result, err
+		}
+		if repaired {
+			result.Repairs++
+		}
+		result.Clean = !repaired
+	}
+	return result, nil
+}
+
+// setNativeClaudeFlag sets one top-level boolean in a Claude JSON file and
+// leaves every other key as found. It is a no-op when the flag is already true.
+func setNativeClaudeFlag(path, key string) error {
+	path = nativeClaudeWritePath(path)
+	top, err := readNativeClaudeJSON(path)
+	if err != nil {
+		return err
+	}
+	if string(top[key]) == "true" {
+		return nil
+	}
+	top[key] = json.RawMessage("true")
+	return writeNativeClaudeJSON(path, top)
 }
 
 // macOS resolves /var to /private/var, and the harness records whichever form

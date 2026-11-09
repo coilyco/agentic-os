@@ -17,10 +17,12 @@ const windowOf = (visibilityState = "hidden", focused = false, focus = vi.fn().m
 /** Runs the worker against fakes, so what a push shows and a tap does need no browser. */
 function boot(windows: FakeWindow[] = []) {
   const handlers: Record<string, Handler> = {};
-  const shown: { title: string; options: Record<string, unknown> }[] = [];
+  const shown: { title: string; options: Record<string, unknown>; close: ReturnType<typeof vi.fn> }[] = [];
   const opened: string[] = [];
   const self = {
-    registration: { scope: SCOPE, showNotification: async (title: string, options: Record<string, unknown>) => void shown.push({ title, options }) },
+    registration: { scope: SCOPE, showNotification: async (title: string, options: Record<string, unknown>) => void shown.push({ title, options, close: vi.fn() }),
+      getNotifications: async ({ tag }: { tag: string }) => shown.filter((each) => each.options.tag === tag),
+    },
     location: new URL(SCOPE),
     clients: { claim: async () => {}, matchAll: async () => windows, openWindow: async (url: string) => void opened.push(url) },
     addEventListener: (type: string, handler: Handler) => void (handlers[type] = handler),
@@ -61,11 +63,35 @@ describe("a push for a waiting seat", () => {
     expect(worker.shown[0]!.options).toMatchObject({ silent: false, renotify: true });
   });
 
-  it("still shows the notification, silently, while a visible focused window carries the cue", async () => {
+  it("shows it silently and closes it at once while a visible focused window carries the cue", async () => {
     const worker = boot([windowOf("hidden"), windowOf("visible", true)]);
     await worker.push(WAITING);
     expect(worker.shown).toHaveLength(1);
     expect(worker.shown[0]!.options).toMatchObject({ silent: true, renotify: false });
+    expect(worker.shown[0]!.close).toHaveBeenCalledOnce();
+  });
+
+  it("leaves it in the tray when no window is watching, or the window is visible but not focused", async () => {
+    for (const windows of [[], [windowOf("hidden", false)], [windowOf("visible", false)]]) {
+      const worker = boot(windows);
+      await worker.push(WAITING);
+      expect(worker.shown[0]!.close).not.toHaveBeenCalled();
+    }
+  });
+
+  it("shows a done silently and keeps it in the tray, since it fires for seats that are not asking this person", async () => {
+    const worker = boot();
+    await worker.push({ ...WAITING, kind: "done", title: "Imp-Dragonfly is done" });
+    expect(worker.shown[0]!.options).toMatchObject({ silent: true, renotify: false });
+    expect(worker.shown[0]!.close).not.toHaveBeenCalled();
+  });
+
+  it("keeps an ask and a prompt audible", async () => {
+    for (const kind of ["ask", "prompt"]) {
+      const worker = boot();
+      await worker.push({ ...WAITING, kind });
+      expect(worker.shown[0]!.options).toMatchObject({ silent: false, renotify: true });
+    }
   });
 
   it("is audible for a window that is visible but not focused", async () => {

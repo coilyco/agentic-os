@@ -1,21 +1,22 @@
-name: "Bump a Homebrew Formula via forgejo Contents API"
+name: "Bump a Homebrew Formula via the Contents API"
 description: |
   Rewrite the `url "..."` line of a Homebrew Formula to point at the new
-  tag + revision and PUT the result back via forgejo's Contents API. The
-  canonical brew clone URL is forgejo, and the bump commit lands on the
-  same forgejo repo that emitted the release - no cross-host writes.
+  tag + revision and PUT the result back via the GitHub Contents API. The bump
+  commit lands on `repo`, which is usually the tap, not the repo running the
+  workflow, so pass a GitHub App token with contents:write on the tap as
+  `token`. Contract: docs/release.md.
 
 inputs:
-  forgejo_token:
-    description: "Forgejo API token. Defaults to the auto-issued job token."
+  token:
+    description: "API token. Defaults to the job token. Pass a GitHub App token when a tag, release or push must start downstream workflows, since GITHUB_TOKEN events start none, or when the target repo is not the running one."
     required: false
     default: ${{ github.token }}
-  forgejo_base_url:
-    description: "Forgejo base URL."
+  api_url:
+    description: "API base URL override, for tests and other servers. Default https://api.github.com."
     required: false
-    default: "https://forgejo.coilysiren.me"
+    default: ""
   repo:
-    description: "owner/name on forgejo. The Formula lives in this repo."
+    description: "owner/name. The Formula lives in this repo."
     required: false
     default: ${{ github.repository }}
   formula_path:
@@ -30,10 +31,10 @@ inputs:
   url_template:
     description: |
       Template for the `url "..."` line that gets written. {REPO} is
-      substituted with the `repo` input. Default produces the forgejo
-      HTTPS clone URL.
+      substituted with the `repo` input. Empty (the default) writes the
+      GitHub HTTPS clone URL.
     required: false
-    default: 'https://forgejo.coilysiren.me/{REPO}.git'
+    default: ''
   branch:
     description: "Branch the Formula bump lands on."
     required: false
@@ -49,8 +50,8 @@ runs:
     - id: bump
       shell: bash
       env:
-        FORGEJO_TOKEN: ${{ inputs.forgejo_token }}
-        FORGEJO_BASE_URL: ${{ inputs.forgejo_base_url }}
+        RELEASE_TOKEN_INPUT: ${{ inputs.token }}
+        RELEASE_API_URL: ${{ inputs.api_url }}
         REPO: ${{ inputs.repo }}
         FORMULA_PATH: ${{ inputs.formula_path }}
         TAG: ${{ inputs.tag }}

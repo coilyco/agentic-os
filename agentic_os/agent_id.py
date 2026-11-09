@@ -83,7 +83,7 @@ def load_org_shortnames() -> dict:
 
 
 def org_shortname(org: str) -> str:
-    """Map a long Forgejo org to its short container token.
+    """Map a long org to its short container token.
 
     Explicit mappings win; an unmapped org falls back to its last `-` segment
     (`some-long-org` -> `org`), the documented default that keeps container and
@@ -140,7 +140,7 @@ def main(argv: list[str] | None = None) -> int:
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--seed", help="print the deterministic id for SEED and exit")
     group.add_argument(
-        "--org", help="print the short container token for a Forgejo org and exit"
+        "--org", help="print the short container token for an org and exit"
     )
     group.add_argument(
         "--emit-vectors",

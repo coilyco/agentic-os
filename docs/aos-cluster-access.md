@@ -1,42 +1,6 @@
 # AOS cluster access
 
-The two credentials a warded session needs to reach the cluster.
-
-## AOS ward credentials
-
-## AOS to Ward credential handoff
-
-AOS owns the coilyco deployment source for Ward's Forgejo broker credential.
-Ward owns the broker, its authorization policy, lifecycle, and agent isolation.
-Ward never learns how the deployment obtains the credential.
-
-## Launch behavior
-
-For an integrated `aos --warded` launch:
-
-1. AOS uses a non-empty host `FORGEJO_TOKEN` as an explicit override.
-2. Otherwise, AOS reads the deployment parameter through the host AWS session.
-3. AOS supplies the value only in Ward's privileged process environment.
-4. Ward keeps the raw value in its sibling broker.
-5. Ward removes the value from the selected agent harness environment.
-
-The credential stays in process memory. It never enters argv, dry-run output,
-the context bundle, tracked configuration, or agent-visible files.
-
-The direct host AWS read is a credential-bootstrap exception. AOS must obtain
-the credential before Ward can expose any guarded operator surface. AWS and SSM
-remain deployment details in AOS rather than dependencies in Ward.
-
-An absent or unreadable deployment credential fails the launch before Ward
-starts. The operator refreshes the host AWS session or supplies the explicit
-environment override. AOS never asks the operator to paste the token.
-
-## Boundaries
-
-* Ward remains provider-neutral and accepts the credential as a launch input.
-* AOSguard keeps its independent umbra-owned credential mounts.
-* Standalone AOS launches do not gain this Ward broker credential.
-* Agent-compose context bundles carry no credential or Ward authority.
+How a standalone session reaches the cluster.
 
 ## AOS kubeconfig
 
@@ -68,9 +32,6 @@ slug narrows that, `engineer` and `qa` included.
 The mount belongs to the standalone AOS runtime. It does not transfer a
 permission into Ward, agent-compose, or AOSguard merely because those layers
 use the same role slug.
-
-`--kubeconfig` is rejected with `--warded`. Ward owns warded runtime mounts, so
-AOS does not pass an operator-local host path across that lifecycle boundary.
 
 ## Container projection
 

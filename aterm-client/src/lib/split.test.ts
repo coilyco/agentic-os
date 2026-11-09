@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampSide, keyedSide, loadSide, MAIN_MIN, SIDE_MIN, storeSide } from "./split";
+import { clampSide, keyedSide, loadSide, loadSideOpen, MAIN_MIN, SIDE_MIN, storeSide, storeSideOpen } from "./split";
 
 describe("clampSide", () => {
   it("keeps the side panel readable and leaves the seat room, on a 1280 wide window", () => {
@@ -44,5 +44,29 @@ describe("stored width", () => {
     expect(loadSide(storage)).toBeNull();
     data.set("aterm.side-width.v1", "wide");
     expect(loadSide(storage)).toBeNull();
+  });
+});
+
+describe("stored open state", () => {
+  const stub = () => {
+    const data = new Map<string, string>();
+    return { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => void data.set(key, value), removeItem: (key: string) => void data.delete(key) };
+  };
+
+  it("starts put away, since an empty panel costs the terminal 360px", () => {
+    expect(loadSideOpen(stub())).toBe(false);
+  });
+
+  it("keeps what a person chose, either way", () => {
+    const storage = stub();
+    storeSideOpen(true, storage);
+    expect(loadSideOpen(storage)).toBe(true);
+    storeSideOpen(false, storage);
+    expect(loadSideOpen(storage)).toBe(false);
+  });
+
+  it("falls back to put away when storage is off or holds something else", () => {
+    expect(loadSideOpen({ getItem: () => { throw new Error("off"); } })).toBe(false);
+    expect(loadSideOpen({ getItem: () => "maybe" })).toBe(false);
   });
 });

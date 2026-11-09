@@ -22,12 +22,10 @@ from pathlib import Path
 BEGIN = "<!-- BEGIN managed by agentic-os/scripts/apply-agents-pointer.py -->"
 END = "<!-- END managed by agentic-os/scripts/apply-agents-pointer.py -->"
 
-# Public base on its GitHub mirror (unauthenticated, the public face) and the
-# private Kai overlay on canonical Forgejo. Default branch is `main` on both.
+# Public base (unauthenticated, the public face) and the private Kai overlay,
+# both on GitHub. Default branch is `main` on both.
 PUBLIC_BASE_URL = "https://github.com/coilyco/agentic-os/blob/main/AGENTS.md"
-KAI_OVERLAY_URL = (
-    "https://forgejo.coilysiren.me/coilyco/agentic-os-kai/src/branch/main/AGENTS.md"
-)
+KAI_OVERLAY_URL = "https://github.com/coilyco/agentic-os-kai/blob/main/AGENTS.md"
 
 # The merged org cannot carry the old public/private split, so it takes the
 # public body every reader can open. docs/features-agents.md

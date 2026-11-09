@@ -178,3 +178,8 @@ func startSOCKSForwarders(uid, gid int, spec execSpec) error {
 	}
 	return nil
 }
+
+// detachNativeProcess puts a child in its own session, so it outlives the exec.
+func detachNativeProcess(command *exec.Cmd) {
+	command.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+}

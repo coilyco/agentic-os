@@ -22,7 +22,7 @@ Public hosts and work laptops import this base only; personal machines may compo
 
 Route every dev command through the [`justfile`](justfile): `just <verb> <args>`, not bare `make`/`uv`/`python`/`npm`/`cargo`/`dotnet`. Bare `just` lists every verb; add new ones there before invoking them.
 
-**Operator verbs** (forgejo, aws/ssm, tailscale, kubectl, ...) live in **aosguard**, as `aosguard ops <area> ...` from the full dev-base image - enumerate with `aosguard ops <area> describe`/`--help`, never guess a verb name. Ward retains fixed workflow policy; repo dev commands are the justfile's. `coily ops` and `ward ops` are retired spellings.
+**Operator verbs** (aws/ssm, tailscale, kubectl, ...) live in **aosguard**, as `aosguard ops <area> ...` from the full dev-base image - enumerate with `aosguard ops <area> describe`/`--help`, never guess a verb name. Ward retains fixed workflow policy; repo dev commands are the justfile's. `coily ops` and `ward ops` are retired spellings, and `aosguard ops forgejo` retired with Forgejo on 2026-11-01.
 
 **Model transport** goes through Agent Proxy - Ollama and LiteLLM are backends behind it, so use its OpenAI-compatible surface rather than either directly. A direct evaluation sends the frozen request through Agent Proxy without a harness; a harness evaluation still routes transport through it. Backend-direct calls are limited to Agent Proxy implementation, parity testing, or named incident isolation.
 
@@ -64,16 +64,16 @@ Config splits on three axes, each a distinct owner: **permission/surface** (AOSg
 
 ## Release
 
-Conventional-commits 1.0.0 is encouraged house style, unenforced since the `conventional-commit`/`closes-issue` hooks retired. Reference a tracker record by its Linear identifier, `COI-<n>`. A `teable:<owner>/<repo>#<n>` ref is a frozen pre-cutover record, Forgejo issue trackers are off fleet-wide, and a bare `<owner>/<repo>#<n>` still means Forgejo, where PRs and historical issues live. Each release train advances only on a promoted diff touching its own inputs: the standalone AOS CLI on a shipped binary/package input, `aos-precommit-v*` on an installed hook input, dev-base publication on an image tier. Manual workflow dispatch is the explicit retry/override path; major versions are hand-driven only (`scripts/release.py --bump major` for aos-precommit, workflow dispatch for other trains), never inferred from commit messages. Canonical history lives on Forgejo, the GitHub mirror stays PR-gated. A seat receiving dispatched work follows the resolved lane, defined once in the Git workflow block below.
+Conventional-commits 1.0.0 is encouraged house style, unenforced since the `conventional-commit`/`closes-issue` hooks retired. Reference a tracker record by its Linear identifier, `COI-<n>`. A `teable:<owner>/<repo>#<n>` ref is a frozen pre-cutover record, and a bare `<owner>/<repo>#<n>` is an archived Forgejo ref kept in the COI-3075 dump (`s3://kai-game-backups/backups/coi3075-forgejo-final/`), never rewritten one by one. Each release train advances only on a promoted diff touching its own inputs: the standalone AOS CLI on a shipped binary/package input, `aos-precommit-v*` on an installed hook input, dev-base publication on an image tier. Manual workflow dispatch is the explicit retry/override path; major versions are hand-driven only (`scripts/release.py --bump major` for aos-precommit, workflow dispatch for other trains), never inferred from commit messages. GitHub is canonical for every repo with no exceptions (`https://github.com/coilyco/<repo>`), and Forgejo was deleted on 2026-11-01 (COI-3075). A seat receiving dispatched work follows the resolved lane, defined once in the Git workflow block below.
 
-A read-only clone cannot push itself, so push or merge workflows need a writable surface. Track landed work by tracker-record state and commits on `main`. `aosguard ops forgejo pr list` and `pr view` are allowed. Merge stays gated.
+A read-only clone cannot push itself, so push or merge workflows need a writable surface. Track landed work by tracker-record state and commits on `main`. `gh pr list` and `gh pr view` read pull requests, with `--repo OWNER/REPO` on every pull-request verb. Merge stays gated.
 
 ## Agent rules
 
 <!-- BEGIN managed by agentic-os/scripts/apply-git-workflow.py -->
 ### Git workflow
 
-**This repo runs the `pull-request-and-merge` lane**, declared as `ward.workflow` in this file's frontmatter. The agent commits to a task branch, pushes it, opens a Forgejo pull request, and **merges that pull request itself** once it is green. The author of the code is the one who merges it. Opening the pull request is a step, never the stopping point.
+**This repo runs the `pull-request-and-merge` lane**, declared as `ward.workflow` in this file's frontmatter. The agent commits to a task branch, pushes it, opens a GitHub pull request, and **merges that pull request itself** once it is green. The author of the code is the one who merges it. Opening the pull request is a step, never the stopping point.
 
 The fleet runs one lane, and it authorizes the agent end to end. Pushing straight to `main` is over: `merge-remote-main` is retired, so no repo can declare its way back to one.
 
@@ -87,7 +87,7 @@ The fleet runs one lane, and it authorizes the agent end to end. Pushing straigh
 * **ALWAYS open the pull request** in the same turn as the branch's first push, on every lane except `remote-branch-only`. A pushed branch with no pull request is litter nobody reviews.
 * **NEVER `--no-verify`** and **NEVER force-push**. Those two are the real walls, and they stay closed.
 * **ALWAYS merge your own pull request on `pull-request-and-merge`**, in the same turn, as soon as it is green. Reporting it as open and awaiting someone is the failure this lane exists to prevent.
-* **A merge refused with 405 "the head branch is behind the base branch" is yours to fix, never a reason to ask.** Update the branch yourself, with `aosguard ops forgejo pr update <owner> <repo> <index>`, the forgejo `update_pull-request` verb, or by merging `origin/main` into it and pushing, never by force. Wait for green, then merge.
+* **A merge refused because the head branch is behind the base branch is yours to fix, never a reason to ask.** Update the branch yourself, with `gh pr update-branch <number> --repo <owner>/<repo>` or by merging `origin/main` into it and pushing, never by force. Wait for green, then merge with `gh pr merge <number> --repo <owner>/<repo> --squash`.
 * **NEVER merge on `pull-request` or `remote-branch-only`.** Those two stop where they stop, and the director merge lane carries a `pull-request` from there.
 <!-- END managed by agentic-os/scripts/apply-git-workflow.py -->
 
@@ -122,11 +122,11 @@ Task and safety rules outrank output shape: explain fully when asked, confirm be
 
 ### Finish the whole task
 
-"Done" includes the obvious follow-through, not the first reportable milestone: commit, push to canonical main, and file the follow-up issue for anything deferred, all without pausing between steps to ask. A task ends at a verifiable done-condition (tests green, change landed, exemption committed), not at "something to report."
+"Done" includes the obvious follow-through, not the first reportable milestone: commit, push to canonical main, and file the follow-up issue for anything deferred, all without pausing between steps to ask. A task ends at a verifiable done-condition (tests green, change landed, exemption committed), not at "something to report." Before telling a human their ask is done, reproduce their own observation for every item they named, one line each ([tooling-verify-for-the-human](.agents/skills/tooling-verify-for-the-human/SKILL.md)).
 
 ### Native checkpoints must be remote
 
-**Every checkpoint - a decision wall, blocked dependency, handoff, or context boundary - must be remote, not just committed.** If work isn't ready for `main`, push it to a task-specific branch, which is then the recovery artifact. Uncommitted changes, local-only commits, stashes, reflogs, and a clean worktree with no remote ref do not count; never force-push to fix this. **Work product is more than the worktree** - a design, a measurement, the reasoning under a decision, a rejected alternative: durable means committed or filed on the tracker, not held in a transcript or scratchpad. This check fires at every turn end, not only when asked: audit what is still at risk and name it.
+**Every checkpoint - a decision wall, blocked dependency, handoff, or context boundary - must be remote, not just committed.** If work isn't ready for `main`, push it to a task-specific branch, which is then the recovery artifact. Uncommitted changes, local-only commits, stashes, reflogs, and a clean worktree with no remote ref do not count; never force-push to fix this. **Work product is more than the worktree** - a design, a measurement, the reasoning under a decision, a rejected alternative: durable means committed or filed on the tracker, not held in a transcript or scratchpad. This check fires at every turn end, not only when asked: audit what is still at risk and name it. **A denied commit or push leaves finished work at risk**: never reset, checkout, clean or delete its worktree, attach `git diff --binary` to the tracker record, name the branch, path and base commit, hand the human one `!` command that commits, pushes and opens the pull request, and never retry the denied action in another shape ([classifier denials](.agents/skills/tooling-agent-orchestration/references/classifier-denials.md)).
 
 ### A pushed branch owes its pull request
 
@@ -168,7 +168,7 @@ Acquisition is bounded to sources that would change a specific pending claim, co
 
 Commands for a human must cross the current execution boundary truthfully.
 
-* **Container / surface session** - a `warded` container or read-only director surface has no writable host mount, so hand one-off commands back inline. Anything reusable gets committed to a pushable repo and handed back as a path - a local container file does not cross this boundary.
+* **Container / surface session** - a container or read-only director surface has no writable host mount, so hand one-off commands back inline. Anything reusable gets committed to a pushable repo and handed back as a path - a local container file does not cross this boundary.
 * **Host harness** - hand one-off commands back inline; a temp file is optional, not required. Resolve a repo command with `aos run --handoff <verb>`, not a bare `just` line (no justfile sits at the projects root).
 
 Either way, a **reusable script** - anything worth running more than once, optional or alternative commands included - is committed to a repo and handed back as a path. The trigger is the recipient, so commands the agent runs itself through its own shell tool stay out of scope entirely.

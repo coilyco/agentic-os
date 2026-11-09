@@ -19,7 +19,6 @@ ATERM_TARGETS = ROOT / "aterm" / "release-targets.txt"
 RELEASE_BINARIES = (
     "aos",
     "aoscompose",
-    "aosward",
     "aosguard",
     "aterm",
 )
@@ -67,6 +66,8 @@ def test_packaging_covers_every_release_binary(tmp_path: Path) -> None:
         for target in targets_for(program):
             name = artifact_name(target, program)
             (tmp_path / name).write_bytes(f"{program}:{target}".encode())
+            if program == "aterm" and target.startswith("darwin/"):
+                (tmp_path / f"{name}.app.tar.gz").write_bytes(f"app:{target}".encode())
 
     version = "aos-v1.2.3"
     env = os.environ | {
@@ -85,9 +86,15 @@ def test_packaging_covers_every_release_binary(tmp_path: Path) -> None:
     rendered = formula + json.dumps(manifest)
     for program in RELEASE_BINARIES:
         for target in targets_for(program):
-            digest = hashlib.sha256(
-                (tmp_path / artifact_name(target, program)).read_bytes()
-            ).hexdigest()
+            name = artifact_name(target, program)
+            # The Mac formula installs the signed bundle, never the bare binary (COI-50).
+            if program == "aterm" and target.startswith("darwin/"):
+                name = f"{name}.app.tar.gz"
+                bare = hashlib.sha256(
+                    (tmp_path / artifact_name(target, program)).read_bytes()
+                ).hexdigest()
+                assert bare not in rendered
+            digest = hashlib.sha256((tmp_path / name).read_bytes()).hexdigest()
             assert digest in rendered
 
     assert manifest["version"] == version.removeprefix("aos-v")
@@ -98,12 +105,17 @@ def test_packaging_covers_every_release_binary(tmp_path: Path) -> None:
     bins = manifest["architecture"]["64bit"]["bin"]
     assert ["aoscompose-windows-amd64.exe", "aoscompose"] in bins
     assert ["aoscompose-windows-amd64.exe", "aoscomposed"] in bins
-    assert ["aosward-windows-amd64.exe", "aosward"] in bins
     assert ["aosguard-windows-amd64.exe", "aosguard"] in bins
     # Nothing Windows-side may install aterm, on either surface.
     assert not [entry for entry in bins if entry[1] == "aterm"]
     assert "aterm" not in json.dumps(manifest["pre_install"])
     assert 'bin.install_symlink bin/"aoscompose" => "aoscomposed"' in formula
+    assert 'bin.install_symlink prefix/"Treehouse.app/Contents/MacOS/aterm"' in formula
+    # Homebrew reads the formula as every macOS arch, and a block that names only
+    # arm leaves Intel with no URL, which fails `brew tap` outright.
+    macos = formula.split("on_macos do", 1)[1].split("on_linux do", 1)[0]
+    assert "depends_on arch: :arm64" in macos
+    assert "on_arm" not in macos and "on_intel" not in macos
     for program in RELEASE_BINARIES[1:]:
         assert f'resource("{program}")' in formula
 
@@ -167,7 +179,7 @@ def test_release_check_family_list_matches_the_released_binaries() -> None:
 
 def test_release_workflow_derives_assets_from_dist() -> None:
     workflow = (
-        ROOT / ".forgejo" / "workflows" / "aos-cli-release.yml"
+        ROOT / ".github" / "workflows" / "aos-cli-release.yml"
     ).read_text(encoding="utf-8")
     workflow_script = (ROOT / "scripts" / "ci" / "aos-cli-release.sh").read_text(
         encoding="utf-8"
@@ -176,7 +188,8 @@ def test_release_workflow_derives_assets_from_dist() -> None:
         encoding="utf-8"
     )
 
-    assert "for asset in dist/*" in workflow_script
+    assert "gh release upload" in workflow_script
+    assert '"$dist"/*' in workflow_script
     assert "release-targets.txt" in builder
     assert "build_aosguard" in builder
     assert "build_aosguard_skill" in builder
@@ -202,7 +215,7 @@ def test_release_workflow_derives_assets_from_dist() -> None:
     assert "--dry-run" in release_check
     assert "agent-compose" in release_check
     assert "--aos-bin" in release_check
-    assert "ops actions --help" in release_check
+    assert "ops aws --help" in release_check
     assert "aterm.launch.v1" in release_check
     assert "an off-roster role should exit 3" in release_check
     assert "a missing dependency should exit 4" in release_check
@@ -266,7 +279,7 @@ def test_release_trigger_paths_cover_what_the_builder_embeds() -> None:
     assert embedded, "the builder embeds nothing, so the derivation is broken"
 
     workflow = yaml.safe_load(
-        (ROOT / ".forgejo" / "workflows" / "aos-cli-release.yml").read_text(
+        (ROOT / ".github" / "workflows" / "aos-cli-release.yml").read_text(
             encoding="utf-8"
         )
     )
@@ -281,6 +294,28 @@ def test_release_trigger_paths_cover_what_the_builder_embeds() -> None:
     assert not uncovered, (
         "aos-cli-release.yml paths omit files aos-release-build.sh embeds: "
         f"{uncovered}"
+    )
+
+
+def test_release_builds_the_client_before_the_go_binary() -> None:
+    """aterm embeds its web client, so a release stages it first and re-releases on a client change (COI-2582)."""
+    builder = (ROOT / "scripts" / "aos-release-build.sh").read_text(encoding="utf-8")
+    # The go builds sit in functions, so the first call site is the target loop.
+    assert builder.index("just aterm-client-embed") < builder.index("while IFS= read -r target")
+
+    gate = (ROOT / "scripts" / "ci" / "aos-cli-release.sh").read_text(encoding="utf-8")
+    assert gate.index("just aterm-client-embed") < gate.index("ATERM_REQUIRE_EMBEDDED_CLIENT=1 just aterm-test")
+
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "aos-cli-release.yml").read_text(encoding="utf-8")
+    )
+    filters = [
+        _path_filter_regex(pattern)
+        for pattern in (workflow.get("on") or workflow[True])["push"]["paths"]
+    ]
+    client_files = _tracked("aterm-client/package.json")
+    assert client_files and all(any(f.fullmatch(file) for f in filters) for file in client_files), (
+        "a client-only change must start a release, or it never reaches the binary"
     )
 
 
@@ -302,61 +337,139 @@ def test_umbra_pin_is_owned_by_the_dependency_lock() -> None:
     assert f"ARG UMBRA_VERSION={pinned}\n" in dockerfile
 
 
-def _serve_assets(tmp_path: Path, missing_requests: int):
-    """A local release server whose assets 404 for the first requests, then answer."""
-    import http.server
-    import threading
+def _remote(tmp_path: Path, repo: str, path: str, text: str) -> Path:
+    """A bare repo standing in for a GitHub tap or bucket, with one file on main."""
+    seed = tmp_path / "seed" / repo
+    seed.mkdir(parents=True)
+    (seed / path).parent.mkdir(parents=True, exist_ok=True)
+    (seed / path).write_text(text, encoding="utf-8")
+    ident = ["-c", "user.name=seed", "-c", "user.email=seed@example.invalid"]
+    for args in (["init", "-q", "-b", "main"], ["add", "."], [*ident, "commit", "-qm", "seed"]):
+        subprocess.run(["git", *args], cwd=seed, check=True, capture_output=True)
+    bare = tmp_path / "remotes" / f"{repo}.git"
+    bare.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "clone", "-q", "--bare", str(seed), str(bare)], check=True)
+    return bare
 
-    served = {"count": 0}
 
-    class Handler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self) -> None:  # noqa: N802
-            served["count"] += 1
-            self.send_response(404 if served["count"] <= missing_requests else 200)
-            self.send_header("Content-Length", "1")
-            self.end_headers()
-            self.wfile.write(b"x")
-
-        def log_message(self, *args: object) -> None:
-            return
-
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
+def _bump(tmp_path: Path, verb: str, **env: str) -> subprocess.CompletedProcess[str]:
     dist = tmp_path / "dist"
-    dist.mkdir()
-    base = f"http://127.0.0.1:{server.server_address[1]}/releases/download/aos-v1.2.3"
-    (dist / "aos.rb").write_text(f'url "{base}/aos-darwin-arm64"\n', encoding="utf-8")
-    (dist / "aos.json").write_text(f'{{"url": "{base}/aos-windows-amd64.exe"}}\n', encoding="utf-8")
-    return server, served
-
-
-def _wait(tmp_path: Path, **env: str) -> subprocess.CompletedProcess[str]:
+    dist.mkdir(exist_ok=True)
+    (dist / "aos.rb").write_text("formula 2\n", encoding="utf-8")
+    (dist / "aos.json").write_text('{"version": "2"}\n', encoding="utf-8")
     return subprocess.run(
-        ["bash", str(ROOT / "scripts" / "ci" / "aos-cli-release.sh"), "wait-github-assets"],
+        ["bash", str(ROOT / "scripts" / "ci" / "aos-cli-release.sh"), verb],
         cwd=tmp_path,
-        env=os.environ | env,
+        env=os.environ
+        | {
+            "AOS_RELEASE_DIST": str(dist),
+            "RELEASE_GIT_BASE": f"file://{tmp_path / 'remotes'}",
+            "RELEASE_GIT_TOKEN": "not-a-real-token",
+            "TAG": "aos-v1.2.3",
+        }
+        | env,
         capture_output=True,
         text=True,
         check=False,
     )
 
 
-def test_the_tap_bump_waits_until_every_release_asset_answers(tmp_path: Path) -> None:
-    server, served = _serve_assets(tmp_path, missing_requests=2)
-    try:
-        done = _wait(tmp_path, AOS_ASSET_WAIT="30", AOS_ASSET_POLL="0")
-    finally:
-        server.shutdown()
+def _main_log(bare: Path) -> list[str]:
+    done = subprocess.run(
+        ["git", "log", "--format=%an|%s", "main"],
+        cwd=bare,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return done.stdout.splitlines()
+
+
+def test_the_tap_bump_commits_the_rendered_formula(tmp_path: Path) -> None:
+    bare = _remote(tmp_path, "homebrew-tap", "Formula/aos.rb", "formula 1\n")
+    done = _bump(tmp_path, "update-homebrew")
+
     assert done.returncode == 0, done.stderr
-    assert served["count"] > 2
+    assert _main_log(bare)[0] == "coilyco-ops|chore(aos): bump formula to aos-v1.2.3 [skip ci]"
+    shown = subprocess.run(
+        ["git", "show", "main:Formula/aos.rb"], cwd=bare, check=True, capture_output=True, text=True
+    )
+    assert shown.stdout == "formula 2\n"
 
 
-def test_the_tap_bump_fails_loudly_when_an_asset_never_appears(tmp_path: Path) -> None:
-    server, _ = _serve_assets(tmp_path, missing_requests=10**6)
-    try:
-        done = _wait(tmp_path, AOS_ASSET_WAIT="1", AOS_ASSET_POLL="0")
-    finally:
-        server.shutdown()
-    assert done.returncode == 1
-    assert "still missing" in done.stderr
-    assert "aos-darwin-arm64" in done.stderr
+def test_the_bucket_bump_writes_the_manifest_under_bucket(tmp_path: Path) -> None:
+    bare = _remote(tmp_path, "scoop-bucket", "bucket/aos.json", "{}\n")
+    done = _bump(tmp_path, "update-scoop")
+
+    assert done.returncode == 0, done.stderr
+    assert _main_log(bare)[0].endswith("bump manifest to aos-v1.2.3 [skip ci]")
+
+
+def test_a_bump_that_changes_nothing_adds_no_commit(tmp_path: Path) -> None:
+    bare = _remote(tmp_path, "homebrew-tap", "Formula/aos.rb", "formula 2\n")
+    done = _bump(tmp_path, "update-homebrew")
+
+    assert done.returncode == 0, done.stderr
+    assert len(_main_log(bare)) == 1
+
+
+def test_a_bump_without_a_token_fails_instead_of_skipping(tmp_path: Path) -> None:
+    _remote(tmp_path, "homebrew-tap", "Formula/aos.rb", "formula 1\n")
+    done = _bump(tmp_path, "update-homebrew", RELEASE_GIT_TOKEN="")
+
+    assert done.returncode != 0
+    assert "RELEASE_GIT_TOKEN" in done.stderr
+
+
+def test_every_release_secret_is_synced_from_ssm() -> None:
+    """A secret the release reads but nothing syncs is a signing step that fails mid-release (COI-50).
+
+    The names come from the workflow and the sync script's own mapping, so
+    neither is restated here.
+    """
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "sync_actions_secrets", ROOT / "scripts" / "sync-actions-secrets.py"
+    )
+    assert spec and spec.loader
+    sync = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sync)
+
+    workflow = (ROOT / ".github" / "workflows" / "aos-cli-release.yml").read_text(
+        encoding="utf-8"
+    )
+    used = set(re.findall(r"secrets\.([A-Z0-9_]+)", workflow)) - {"GITHUB_TOKEN"}
+    assert "TREEHOUSE_CODESIGN_CERT_PEM" in used, "the release must pass the signing pair"
+    synced = set(sync.MAPPING[sync.slug("agentic-os")])
+    assert used <= synced, f"read by the release, synced from nowhere: {sorted(used - synced)}"
+
+
+def test_the_signing_step_fails_closed_without_the_certificate(tmp_path: Path) -> None:
+    """An unsigned bundle ships looking fine and re-prompts on every release."""
+    binary = tmp_path / "aterm-darwin-arm64"
+    binary.write_bytes(b"not a real binary")
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TREEHOUSE_CODESIGN")}
+    env.pop("AOS_RELEASE_UNSIGNED", None)
+    done = subprocess.run(
+        ["sh", str(ROOT / "scripts" / "aterm-sign-darwin.sh"), str(binary), str(tmp_path / "out.tar.gz")],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert done.returncode != 0
+    assert "TREEHOUSE_CODESIGN_CERT_PEM" in done.stderr
+    assert not (tmp_path / "out.tar.gz").exists()
+
+
+def test_the_release_signs_darwin_and_checks_the_signature() -> None:
+    builder = (ROOT / "scripts" / "aos-release-build.sh").read_text(encoding="utf-8")
+    assert "aterm-sign-darwin.sh" in builder
+    release_check = (ROOT / "scripts" / "check-aos-release.sh").read_text(encoding="utf-8")
+    assert "dev.coilyco.treehouse" in release_check
+    assert "aterm_app_count" in release_check
+    # The sign script reads its output back, because rcodesign exits 0 on a
+    # bundle whose executable it never found.
+    signer = (ROOT / "scripts" / "aterm-sign-darwin.sh").read_text(encoding="utf-8")
+    assert "print-signature-info" in signer
