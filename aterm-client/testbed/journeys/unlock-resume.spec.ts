@@ -23,6 +23,8 @@ test("an unlock survives a redial inside the window and ends after it", async ({
     w.__TAURI__ = {
       core: {
         invoke: async (command: string) => {
+          // Another plugin's call, like the share target's `take`, is not a prompt.
+          if (!command.startsWith("plugin:devicekey|")) return null;
           if (command.endsWith("status")) return { enrolled: true, key_id: "k1", biometric: "ready" };
           w.prompts += 1;
           return { key_id: "k1", signature: "SIG" };

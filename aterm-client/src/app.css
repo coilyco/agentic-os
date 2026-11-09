@@ -25,6 +25,8 @@
   --font-display: "Chakra Petch", sans-serif;
   --font-body: "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  /* An Android WebView can report no bottom inset with the gesture bar over the page. */
+  --bottom-clear: max(env(safe-area-inset-bottom, 0px), 24px);
   color-scheme: dark;
 }
 
