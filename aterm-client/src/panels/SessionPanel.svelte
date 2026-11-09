@@ -3,6 +3,7 @@
   import Creature from "../components/Creature.svelte";
   import ChoiceCard from "../components/ChoiceCard.svelte";
   import CloseSeat from "../components/CloseSeat.svelte";
+  import Origin from "../components/Origin.svelte";
   import Composer from "../components/Composer.svelte";
   import RelayNotice from "../components/RelayNotice.svelte";
   import SidePanel from "../components/SidePanel.svelte";
@@ -179,6 +180,7 @@
   <header class:folded={phone}>
     {#if !phone}<Creature role={role.slug} color={role.color} size={40} />{/if}
     <h1 class:visually-hidden={phone}>{session.identity}</h1>
+    {#if !phone}<Origin origin={session.origin} />{/if}
     {#if !phone}
       <span class="role">{role.displayName} // {session.seat}{sessionCode(session) ? ` // ${sessionCode(session)}` : ""}</span>
       {#if session.context}

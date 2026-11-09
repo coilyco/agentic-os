@@ -2,11 +2,12 @@
   import { onMount, tick } from "svelte";
   import AttentionSwitches from "./AttentionSwitches.svelte";
   import CloseSeat from "./CloseSeat.svelte";
+  import Origin from "./Origin.svelte";
   import Creature from "./Creature.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
   import TapTraceSwitch from "./TapTraceSwitch.svelte";
-  import { app, askLineFor, asksShownOn, colorOf, glowSeats, layout, needsKaiIds, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
+  import { app, askLineFor, asksShownOn, colorOf, closeAnyway, dismissCloseNote, glowSeats, layout, needsKaiIds, reopenClosed, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
   import { stateWithAge } from "../lib/age";
@@ -190,6 +191,7 @@
     <span class="text">
       <span class="name-row">
         <span class="name">{session.identity}</span>
+        <Origin origin={session.origin} />
         <span class="harness mono">{session.seat}</span>
         {#if code}<span class="code-inline mono">{code}</span>{/if}
       </span>
@@ -235,7 +237,14 @@
 
 {#snippet runningGroup()}
   <h2 id="sessions-label">Running <span class="count">{live.running.length}</span></h2>
-  {#if app.closeNote}<p class="waiting" role="status">{app.closeNote}</p>{/if}
+  {#if app.closeNote}
+    <p class="waiting" role="status">{app.closeNote}</p>
+    <div class="note-actions">
+      {#if app.closeAction?.kind === "force"}<button type="button" class="danger" onclick={closeAnyway}>Close anyway</button>{/if}
+      {#if app.closeAction?.kind === "reopen"}<button type="button" onclick={reopenClosed}>Reopen</button>{/if}
+      <button type="button" onclick={dismissCloseNote}>{app.closeAction?.kind === "force" ? "Keep" : "Dismiss"}</button>
+    </div>
+  {/if}
   {#if live.running.length === 0}
     <p class="waiting">{narrow ? "Nothing running yet." : "Nothing running on this host. Start a seat below."}</p>
   {:else}
@@ -299,6 +308,7 @@
           >
             {#if currentRole}<Creature role={currentRole.slug} color={currentRole.color} size={28} />{/if}
             <span class="who">{current?.identity ?? `Start ${currentRole?.displayName ?? "a seat"}`}</span>
+            {#if current}<Origin origin={current.origin} />{/if}
             {#if current}<span class="state mono" data-state={current.state}>{current.state}</span>{/if}
             {#if waitingElsewhere}<span class="elsewhere" aria-hidden="true">{waitingElsewhere}<span class="word">&nbsp;waiting</span></span>{/if}
             <svg class="chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
@@ -361,6 +371,9 @@
   .mark { font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: 0.08em; color: var(--brand); padding: 4px 10px 12px; }
   h2 { margin: 14px 10px 4px; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
   [role="tablist"] { display: flex; flex-direction: column; gap: 2px; }
+  .note-actions { display: flex; gap: 8px; margin: 4px 10px 8px; }
+  .note-actions button { min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 13px var(--font-body); }
+  .note-actions .danger { border-color: var(--danger); color: var(--danger-text); }
   .seat-row { display: flex; align-items: center; gap: 6px; }
   .seat-row .tab { flex: 1; min-width: 0; width: auto; }
   /* Beside a 320px row the button leaves no room for the name, so it goes under. */

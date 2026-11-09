@@ -81,6 +81,8 @@ export const app = $state({
   /** The control asking "Close it?" (row:id or view:id), and the last result. */
   closing: null as string | null,
   closeNote: "",
+  /** What the note offers: close it anyway, or reopen what was closed. */
+  closeAction: null as { kind: "force" | "reopen"; session: string; ref: string } | null,
   /** Pages seats put on her desk, by id. One marked waiting is a seat that needs her. */
   artifacts: {} as Record<string, SeatArtifact>,
   /** Bumped when a person opens a seat with an ask, so its card takes the keyboard. */
@@ -451,13 +453,27 @@ export function selectHost(host: Host): void {
       const gone = closePending;
       closePending = null;
       if (gone?.id === event.session) {
-        app.closeNote = closedWords(gone.identity, gone.roleName);
+        const canReopen = app.connection?.canReopen === true;
+        app.closeNote = closedWords(gone.identity, gone.roleName, canReopen);
+        app.closeAction = canReopen ? { kind: "reopen", session: gone.id, ref: gone.ref } : null;
         if (app.selectedSession === gone.id) showHost();
       }
     }
     else if (event.type === "seat_close_refused") {
-      closePending = null;
       app.closeNote = event.text;
+      // Work on no remote is the person's call: close again, forced, after a second ask.
+      app.closeAction = event.unpushed && closePending ? { kind: "force", session: closePending.id, ref: closePending.ref } : null;
+      if (!event.unpushed) closePending = null;
+    }
+    else if (event.type === "seat_reopened") {
+      app.closeNote = "Reopened. It opens here once the host lists it.";
+      app.closeAction = null;
+      // A fresh name, so it is found as a launch is: the first new seat of its role.
+      launching = beginLaunch(event.role, app.sessions, Date.now());
+    }
+    else if (event.type === "seat_reopen_refused") {
+      app.closeNote = event.text;
+      app.closeAction = null;
     }
     else if (event.type === "launch") {
       app.launches[event.role] = { state: event.state, text: event.text };
@@ -505,7 +521,7 @@ export function selectSession(id: string): void {
   delete app.unseen[id];
 }
 
-let closePending: { id: string; identity: string; roleName: string } | null = null;
+let closePending: { id: string; ref: string; identity: string; role: string; roleName: string } | null = null;
 
 /** Seats a card or a waiting page concerns, as one set so a row costs a lookup. */
 export function needsKaiIds(): Set<string> {
@@ -522,9 +538,31 @@ export function closable(session: Session, needsKai: boolean): boolean {
 export function closeSeatNow(session: Session): void {
   app.closing = null;
   if (!session.ref || !app.connection?.closeSeat) return;
-  closePending = { id: session.id, identity: session.identity, roleName: app.roles.find((role) => role.slug === session.role)?.displayName ?? session.role };
+  closePending = { id: session.id, ref: session.ref, identity: session.identity, role: session.role, roleName: app.roles.find((role) => role.slug === session.role)?.displayName ?? session.role };
   app.closeNote = "";
+  app.closeAction = null;
   app.connection.closeSeat(session.id, session.ref);
+}
+
+/** The close that was refused for unpushed work, sent again as the person's decision. */
+export function closeAnyway(): void {
+  const again = app.closeAction;
+  app.closeAction = null;
+  if (again?.kind === "force" && closePending?.id === again.session) app.connection?.closeSeat?.(again.session, again.ref, true);
+}
+
+/** Brings back the seat just closed, under the fresh name the daemon gives it. */
+export function reopenClosed(): void {
+  const again = app.closeAction;
+  app.closeAction = null;
+  if (again?.kind === "reopen") app.connection?.reopenSeat?.(again.session, again.ref);
+}
+
+/** Puts the note away: the seat stays open, or the closed one stays closed. */
+export function dismissCloseNote(): void {
+  app.closeNote = "";
+  app.closeAction = null;
+  closePending = null;
 }
 
 /** Opens a role's start panel. */

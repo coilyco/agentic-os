@@ -20,7 +20,16 @@ export function fullyIdle(session: Session, { needsKai, unseen }: SeatContext): 
   return session.ref !== undefined;
 }
 
-/** What the row says once a seat is closed, which is all that can honestly be said. */
-export function closedWords(identity: string, roleName: string): string {
-  return `Closed ${identity}. It does not reopen from here. Start ${roleName} again from Start.`;
+/** What the list says once a seat is closed. Reopen only where the daemon has it. */
+export function closedWords(identity: string, roleName: string, canReopen: boolean): string {
+  return canReopen
+    ? `Closed ${identity}. Reopen it to pick its conversation up again, or start ${roleName} fresh from Start.`
+    : `Closed ${identity}. It does not reopen from here. Start ${roleName} again from Start.`;
+}
+
+/** Where a seat started, in the words a screen reader and the icon's tooltip share. */
+export function originWords(origin: Session["origin"]): string {
+  if (origin === "window") return "started in a terminal window";
+  if (origin === "headless") return "started with no window";
+  return "";
 }

@@ -1,5 +1,6 @@
 // Live sessions as peers: every instance on every harness gets its own tab,
 // so two Beetle-Ox sessions, or one on claude and one on codex, never fold into one.
+import { originWords } from "./idle-close";
 import type { Host, Session } from "./protocol";
 import type { Role } from "./roster";
 
@@ -37,6 +38,8 @@ export function sessionLabel(session: Session, role: Role, activity: string): st
   const parts = [`${session.identity}, ${role.displayName} on ${session.seat}`];
   if (code) parts.push(`session ${code}`);
   parts.push(activity);
+  const where = originWords(session.origin);
+  if (where) parts.push(where);
   if (session.degraded.length) parts.push(`started without ${session.degraded.join(", ")}`);
   return parts.join(", ");
 }
