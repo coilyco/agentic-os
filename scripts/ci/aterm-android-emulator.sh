@@ -70,13 +70,14 @@ boot() {
   echo "emulator booted after ~${waited}s: $(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
 }
 
-# daemon: a real aterm daemon on loopback, tailnet off, plus the stub seat. The app
-# reaches it through `adb reverse`, set up by the journey.
+# daemon: a real aterm daemon on 7420 with the tailnet off, the COI-3494 relay on 7419
+# (the app's origin is refused by the loopback listener), and the stub seat.
 daemon() {
   mkdir -p "$out" "$state"
   chmod 700 "$state"
   (cd "$repo_root/aterm" && go build -o "$out/aterm" .)
-  nohup "$out/aterm" daemon --socket "$state/d.sock" --websocket 127.0.0.1:7419 --tailnet-port "" --idle 0 >"$out/daemon.log" 2>&1 &
+  nohup "$out/aterm" daemon --socket "$state/d.sock" --websocket 127.0.0.1:7420 --tailnet-port "" --idle 0 >"$out/daemon.log" 2>&1 &
+  nohup python3 -I "$repo_root/scripts/aterm_test_rig_proxy.py" --listen 127.0.0.1:7419 --upstream 127.0.0.1:7420 >"$out/relay.log" 2>&1 &
   local waited=0
   until [ -S "$state/d.sock" ]; do
     [ "$waited" -lt 20 ] || { cat "$out/daemon.log" >&2; fail "the daemon never opened its socket"; }

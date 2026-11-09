@@ -66,5 +66,6 @@ jobs:
           path: |
             ${{ github.workspace }}/aterm-emulator-out/screens
             ${{ github.workspace }}/aterm-emulator-out/daemon.log
+            ${{ github.workspace }}/aterm-emulator-out/relay.log
             ${{ github.workspace }}/aterm-emulator-out/emulator.log
           retention-days: 14
