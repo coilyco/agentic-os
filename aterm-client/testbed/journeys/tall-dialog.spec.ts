@@ -11,6 +11,8 @@ const TOP_OFF = "claude-2.1.318-34x20-multi-top-off-screen";
 
 const show = async (bed: Parameters<Parameters<typeof test>[2]>[0]["bed"], file: string) => {
   await bed.openSeat(SEATS.imp);
+  // A capture cannot redraw taller, so the PTY is held as a raw client holds it.
+  bed.mock.capRows(SEATS.imp.id, bed.mock.boxOf(SEATS.imp.id)!.rows);
   bed.mock.setScene(SEATS.imp.id, captured(file));
 };
 

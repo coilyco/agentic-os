@@ -1,0 +1,44 @@
+──────────────────────────────────
+ ☐ Task
+
+What would you like to work on in
+this session?
+
+❯ 1. Start a new project
+     Scaffold a fresh codebase
+     here from scratch, choosing a
+     language, framework, and
+     layout, then set up tooling
+     such as linting, tests, and a
+     basic README so you can
+     begin building right away.
+  2. Explore existing code
+     Walk through a repository or
+     directory you point me at,
+     map its structure, trace key
+     execution paths, and
+     summarize how the pieces fit
+     together before making any
+     changes.
+  3. Fix a bug or issue
+     Investigate a specific
+     failure, error message, or
+     unexpected behavior you
+     describe, reproduce it where
+     possible, identify the root
+     cause, and apply a targeted
+     fix with verification.
+  4. Write or review docs
+     Draft, edit, or review
+     documentation such as
+     READMEs, design notes, or API
+     references, focusing on
+     clarity and accuracy, and
+     publish a shareable page if
+     that would help your team.
+  5. Type something.
+──────────────────────────────────
+  6. Chat about this
+
+Enter to select · ↑/↓ to navigate
+· Esc to cancel

@@ -13,13 +13,15 @@
   // `offline` is the host not answering: the draft stays editable and Send waits, since a frame typed into a dead link is lost.
   // `draft` and `ondraft` keep the text outside this component, so a seat change or a remount does not take it. `onsent` says a send left.
   // `dialogOpen` is a dialog open on the seat: typed text would answer it or dismiss it, so Send waits and the message stays as a draft (COI-3322).
-  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, draft = "", ondraft, onsent, onfocuschange, place, working = false }: {
+  // `reading` is a phone on its side, where height is scarce: the composer is one row (COI-3371).
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, reading = false, draft = "", ondraft, onsent, onfocuschange, place, working = false }: {
     connection: HostConnection;
     session: Session;
     sessions?: readonly Session[];
     typing?: Typing;
     offline?: boolean;
     dialogOpen?: boolean;
+    reading?: boolean;
     draft?: string;
     ondraft?: (text: string) => void;
     onsent?: () => void;
@@ -362,6 +364,7 @@
 <form
   class="composer"
   class:dropping
+  data-reading={reading}
   onsubmit={(event) => { event.preventDefault(); void send(); }}
   ondragover={dragOver}
   ondragleave={dragLeave}
@@ -446,7 +449,7 @@
       aria-controls={open ? "composer-mentions" : undefined}
       aria-activedescendant={open ? `mention-${current}` : undefined}
       rows="1"
-      placeholder={narrow ? `Message ${session.identity}` : `Type or dictate to ${session.identity}. Enter sends, Shift+Enter for a new line, @ names a session.${connection.images ? " Paste or drop an image to attach it." : ""}`}
+      placeholder={narrow || reading ? `Message ${session.identity}` : `Type or dictate to ${session.identity}. Enter sends, Shift+Enter for a new line, @ names a session.${connection.images ? " Paste or drop an image to attach it." : ""}`}
       autocomplete="off"
       spellcheck="true"
     ></textarea>
@@ -533,4 +536,7 @@
     .chip-remove::after { content: ""; position: absolute; inset: -8px; }
     textarea { padding: 9px 12px; max-height: 112px; }
   }
+  /* A phone on its side is wider than 720px, so the rules above miss it. Add, field and Send share one 44px row, and the field grows only while it holds text. */
+  .composer[data-reading="true"] { gap: 8px; padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left)); }
+  .composer[data-reading="true"] textarea { min-height: 44px; max-height: min(112px, 40vh); padding: 9px 12px; font-size: 15px; }
 </style>

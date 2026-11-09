@@ -63,6 +63,8 @@ interface Live {
   boxes: Map<WebSocket, { rows: number; cols: number }>;
   /** Columns a wider client holds the PTY at, by the daemon's largest-client rule. */
   wideCols?: number;
+  /** Rows a raw client caps the PTY at, however many rows another client asks for. */
+  capRows?: number;
 }
 
 export interface Mock {
@@ -85,6 +87,8 @@ export interface Mock {
   sceneOf(session: string): Scene | undefined;
   /** Size a seat's PTY to at least this many columns, as a wider client does. */
   holdWide(session: string, cols: number): void;
+  /** Hold a seat's PTY to at most this many rows, as a raw client's window does. */
+  capRows(session: string, rows: number): void;
   /** Replace a seat's scene and redraw it on every client attached. */
   setScene(session: string, scene: Scene): void;
   /** Send one daemon frame to every client, as the daemon would push it. */
@@ -107,6 +111,8 @@ export interface Mock {
   heard: string[];
   /** Every proof the client presented in a `resume` frame, in order. */
   resumes: string[];
+  /** Each `image_upload` taken: the seat, and the bytes sent. */
+  uploads: { session: string; bytes: Buffer }[];
   /** The resume window passes: every proof the daemon issued stops holding. */
   endResumeWindow(): void;
   stop(): Promise<void>;
@@ -144,7 +150,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const heard: string[] = [];
   let lastFrameAt = Date.now();
   const lastBox = new Map<string, { rows: number; cols: number }>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], browserCalls: [] as Mock["browserCalls"], resumes: [] as string[] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], browserCalls: [] as Mock["browserCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"] };
   // A seat's browser: the agent drives until a screen takes control.
   // `client` is the name each connection was given.
   const pages = new Map<string, { holder: WebSocket | null; url: string }>();
@@ -183,7 +189,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const draw = (seat: Live, socket: WebSocket, attach = false): void => {
     const own = seat.boxes.get(socket);
     if (!own) return;
-    const box = { rows: own.rows, cols: Math.max(own.cols, seat.wideCols ?? 0) };
+    const box = { rows: Math.min(own.rows, seat.capRows ?? own.rows), cols: Math.max(own.cols, seat.wideCols ?? 0) };
     send(socket, { type: "size", session: seat.spec.name, rows: box.rows, cols: box.cols });
     const text = attach && seat.scene.history ? seat.scene.history(box.cols, box.rows) : paint(seat.scene.render(box.cols, box.rows));
     send(socket, { type: "output", session: seat.spec.name, data: encode(text) });
@@ -292,6 +298,12 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
             draw(seat, socket);
           }
           return;
+        case "image_upload": {
+          if (!seat) return;
+          mock.uploads.push({ session: seat.spec.name, bytes: Buffer.from(String(frame.data ?? ""), "base64") });
+          send(socket, { type: "image_uploaded", id: frame.id, session: frame.session, path: `/tmp/aterm/images/${seat.spec.name}-1/upload-${mock.uploads.length}.png` });
+          return;
+        }
         case "input": {
           if (!seat) return;
           const text = Buffer.from(String(frame.data ?? ""), "base64").toString("utf8");
@@ -373,6 +385,12 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
       seat.wideCols = cols;
       redraw(seat);
     },
+    capRows(session, rows) {
+      const seat = live.get(session);
+      if (!seat) throw new Error(`no seat named ${session}`);
+      seat.capRows = rows;
+      redraw(seat);
+    },
     setScene(session, scene) {
       const seat = live.get(session);
       if (!seat) throw new Error(`no seat named ${session}`);
@@ -399,6 +417,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     dialCount: () => dials,
     heard,
     resumes: mock.resumes,
+    uploads: mock.uploads,
     endResumeWindow: () => proofs.clear(),
     async stop() {
       for (const socket of clients) socket.terminate();

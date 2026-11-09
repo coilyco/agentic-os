@@ -10,7 +10,7 @@ test("no strip, and one 44px button inside the screen opens the panel", async ({
   await expect(bed.screen()).toContainText("Churning");
   await expect(bed.page.getByRole("tab", { name: /^Messages/ }), "the strip is gone").toBeHidden();
   const { width, height } = bed.page.viewportSize()!;
-  const composer = await bed.page.getByPlaceholder(/Type or dictate/).boundingBox();
+  const composer = await bed.page.getByRole("textbox", { name: /^Message / }).boundingBox();
   expect((composer?.y ?? 0) + (composer?.height ?? 0), "no strip is reserved under the composer").toBeGreaterThanOrEqual(height - 20);
   const button = await reveal(bed.page).boundingBox();
   expect(button?.width).toBeGreaterThanOrEqual(44);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMAGE_UPLOAD_MAX_BYTES, MAX_IMAGES, attachNote, chipLabel, fitAttempts, formatSize, imageRefusal, pastedImages, pasteSteps, screenImages, typedPath, withImagePaths } from "./images";
+import { IMAGE_UPLOAD_MAX_BYTES, MAX_IMAGES, attachNote, chipLabel, fitAttempts, formatSize, imagePrefix, imageRefusal, pastedImages, pasteSteps, screenImages, typedPath, withImagePaths } from "./images";
 
 function file(name: string, type: string, size = 100): File {
   return new File([new Uint8Array(size)], name, { type });
@@ -155,12 +155,16 @@ describe("pasteSteps", () => {
   const open = "<";
   const close = ">";
 
-  it("pastes each path on its own, then the words, since a lone path is what attaches", () => {
-    expect(pasteSteps(["/t/a.png", "/t/b.png"], "what is this", open, close)).toEqual(["</t/a.png>", "</t/b.png>", "<what is this>"]);
+  it("pastes each path on its own, then one paste of the words that names every path", () => {
+    expect(pasteSteps(["/t/a.png", "/t/b.png"], "what is this", open, close)).toEqual([
+      "</t/a.png>",
+      "</t/b.png>",
+      "<[Attached image 1 of 2: /t/a.png] [Attached image 2 of 2: /t/b.png] what is this>",
+    ]);
   });
 
-  it("pastes only the path for an image sent with no words", () => {
-    expect(pasteSteps(["/t/a.png"], "", open, close)).toEqual(["</t/a.png>"]);
+  it("still names the path for an image sent with no words, so a late attachment is not lost", () => {
+    expect(pasteSteps(["/t/a.png"], "", open, close)).toEqual(["</t/a.png>", "<[Attached image: /t/a.png]>"]);
   });
 
   it("is one paste for a text-only message, as before", () => {
@@ -192,5 +196,16 @@ describe("attachNote", () => {
 
   it("says nothing for a harness that attaches", () => {
     for (const harness of ["claude", "codex", "opencode"]) expect(attachNote(harness)).toBeNull();
+  });
+});
+
+describe("imagePrefix", () => {
+  it("is nothing without an image", () => {
+    expect(imagePrefix([])).toBe("");
+  });
+
+  it("names one image plainly and several by their place, each with its absolute path in brackets", () => {
+    expect(imagePrefix(["/tmp/a b/x.png"])).toBe("[Attached image: /tmp/a b/x.png]");
+    expect(imagePrefix(["/t/a.png", "/t/b.png"])).toBe("[Attached image 1 of 2: /t/a.png] [Attached image 2 of 2: /t/b.png]");
   });
 });

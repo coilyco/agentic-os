@@ -262,6 +262,7 @@
             typing={app.typing}
             offline={reconnecting()}
             {dialogOpen}
+            reading={layout.reading}
             draft={app.drafts[session.id] ?? ""}
             ondraft={(text) => (text ? (app.drafts[session.id] = text) : delete app.drafts[session.id])}
             onsent={() => (app.inputNotice = "")}
