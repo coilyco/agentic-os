@@ -10,14 +10,19 @@ function rig() {
 const file = (name: string) => new File([new Uint8Array([1])], name, { type: "image/png" });
 
 describe("sendToSeat", () => {
-  it("pastes each path alone, then the words, then Enter a beat later, for a seat that takes pastes", async () => {
+  it("pastes each path alone, then the words naming each path, then Enter a beat later", async () => {
     const { io, typed, queue } = rig();
     const upload = vi.fn(async (_id: string, image: Blob) => `/images/${(image as File).name}`);
     const line = await sendToSeat({ upload }, io, { id: "s1", seat: "claude", paste: true }, " what is this ", [file("a.png"), file("b.png")]);
     expect(upload).toHaveBeenCalledTimes(2);
     expect(typed).toEqual([["s1", "\x1b[200~/images/a.png\x1b[201~"]]);
     queue.forEach((step) => step.run());
-    expect(typed.map(([, data]) => data)).toEqual(["\x1b[200~/images/a.png\x1b[201~", "\x1b[200~/images/b.png\x1b[201~", "\x1b[200~what is this\x1b[201~", "\r"]);
+    expect(typed.map(([, data]) => data)).toEqual([
+      "\x1b[200~/images/a.png\x1b[201~",
+      "\x1b[200~/images/b.png\x1b[201~",
+      "\x1b[200~[Attached image 1 of 2: /images/a.png] [Attached image 2 of 2: /images/b.png] what is this\x1b[201~",
+      "\r",
+    ]);
     expect(queue.map((step) => step.ms)).toEqual([200, 400, 700]);
     expect(line).toBeNull();
   });
