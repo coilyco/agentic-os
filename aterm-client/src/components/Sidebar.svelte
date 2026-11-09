@@ -364,7 +364,8 @@
   .seat-row { display: flex; align-items: center; gap: 6px; }
   .seat-row .tab { flex: 1; min-width: 0; width: auto; }
   /* Beside a 320px row the button leaves no room for the name, so it goes under. */
-  .seat-row.stacked { flex-direction: column; align-items: stretch; gap: 4px; }
+  .seat-row.stacked { flex: none; flex-direction: column; align-items: stretch; gap: 4px; }
+  .seat-row.stacked .tab { flex: 1 0 auto; width: auto; }
   .tab { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: none; border-radius: 8px; background: transparent; color: var(--text); text-align: left; }
   .tab:hover { background: #171a21; }
   .tab[aria-selected="true"] { background: #1d1729; box-shadow: inset 0 0 0 1px #3a3350; }
