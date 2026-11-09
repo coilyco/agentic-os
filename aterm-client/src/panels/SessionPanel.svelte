@@ -316,6 +316,8 @@
     /* The card leaves the seat's output a readable slice. While a text box is open the keyboard takes the rest, so it may use all of it. */
     .overlay { max-height: 58%; padding-bottom: 6px; }
     .overlay:has(:global([data-writing="true"])) { max-height: 100%; }
+    /* Keyboard up, the terminal is a few hundred pixels: options matter more than the output behind them (COI-3482). */
+    @media (max-height: 560px) { .overlay { max-height: 100%; } }
     /* The tab strip gives way to the keyboard, so typing has the whole screen but the seat's text. */
     .body[data-composing="true"] :global(.panel) { display: none; }
     .body[data-composing="true"] { --strip: 0px; }
