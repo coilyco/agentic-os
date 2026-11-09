@@ -107,6 +107,11 @@ class Page:
     def text(self) -> str:
         return str(self.js("document.body.innerText") or "")
 
+    def labels(self) -> str:
+        """The interactive elements' names, so a failed find says what was there to tap."""
+        found = self.js("[...document.querySelectorAll('button,[role=tab],[role=button],a,[aria-label]')].slice(0,40).map(e=>e.tagName+'['+(e.getAttribute('aria-label')||e.textContent.trim().slice(0,30))+']').join(' ')")
+        return str(found)
+
     def center(self, finder: str) -> tuple[float, float] | None:
         """Viewport centre of the element finder() returns, or None."""
         return self.js(f"(()=>{{const e=({finder})();if(!e)return null;const r=e.getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2]}})()")  # type: ignore[return-value]
@@ -120,7 +125,7 @@ class Page:
                     self.call("Input.dispatchMouseEvent", type=kind, x=at[0], y=at[1], button="left", clickCount=1)
                 return
             time.sleep(0.5)
-        raise Fail(f"nothing to tap for {finder}. page text: {self.text()[:300]!r}")
+        raise Fail(f"nothing to tap for {finder[-90:]}. elements: {self.labels()[:900]}")
 
     def wait_text(self, needle: str, wait: float = 20) -> None:
         deadline = time.monotonic() + wait
@@ -131,8 +136,9 @@ class Page:
         raise Fail(f"{needle!r} never appeared. page text: {self.text()[:300]!r}")
 
 
-def by_text(text: str, selector: str = "button,[role=tab],[role=button],a,li") -> str:
-    return f"()=>[...document.querySelectorAll({json.dumps(selector)})].find(e=>e.textContent.includes({json.dumps(text)}))"
+def by_text(text: str, selector: str = "button,[role=tab],[role=button],a,li,[aria-label]") -> str:
+    """Finder for the first element whose text or aria-label holds text."""
+    return f"()=>[...document.querySelectorAll({json.dumps(selector)})].find(e=>(e.textContent+' '+(e.getAttribute('aria-label')||'')).includes({json.dumps(text)}))"
 
 
 class Journey:
