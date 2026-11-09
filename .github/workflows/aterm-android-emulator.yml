@@ -46,10 +46,12 @@ jobs:
       - name: Make the emulator image
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" avd
       - name: Boot the emulator
+        timeout-minutes: 10
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" boot
       - name: Start a real daemon with a stub seat
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" daemon
       - name: Run the journeys
+        timeout-minutes: 20
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" journey "$GITHUB_WORKSPACE/aterm-emulator-out/aterm-debug.apk"
       - name: Collect the final logs
         if: ${{ always() }}

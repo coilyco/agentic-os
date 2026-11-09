@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """Drive the debug aterm app on the CI emulator through the image journeys (COI-3485).
 
-Journey A: add a host, open the seat, tap Add image, see the system picker, pick the
-seeded PNG, Send, then check the daemon wrote the same bytes (aterm_android_seat.py).
-Journey C: stop the daemon, send again, keep the page text and screenshots as evidence.
-The page is driven over DevTools (the debug WebView is debuggable), the picker through
-uiautomator. A screenshot follows every step, and a failed step keeps its own.
+A: add a host, open the seat, Add image, see the picker, pick a PNG, Send. B: fire a
+SEND with a MediaStore URI cold and warm and answer the sheet. Both end with the
+daemon's file hashing equal to the PNG (aterm_android_seat.py). C: stop the daemon and
+keep the page text. The page is driven over DevTools, the picker through uiautomator.
 Design: tooling-aterm-client references/android.md. Standard library only.
 """
 from __future__ import annotations
@@ -41,11 +40,14 @@ def adb(*args: str, check: bool = True, timeout: int = 60) -> str:
     return done.stdout
 
 
-def seed_png(path: Path) -> None:
-    """A small red PNG with a signature the daemon accepts, made here so no binary is tracked."""
+def seed_png(path: Path, red: int = 220) -> None:
+    """A small PNG with a signature the daemon accepts, made here so no binary is tracked.
+
+    `red` makes each journey's file hash differ from the others.
+    """
     def chunk(kind: bytes, body: bytes) -> bytes:
         return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
-    rows = b"".join(b"\x00" + bytes([220, 30, 30]) * 64 for _ in range(64))
+    rows = b"".join(b"\x00" + bytes([red, 30, 30]) * 64 for _ in range(64))
     path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 64, 64, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
 
 
@@ -239,12 +241,63 @@ class Journey:
         page.wait_text(PNG_NAME.split(".")[0], 20)
         page.tap(by_text("Send", "button"))
 
-    def daemon_got_the_bytes(self) -> None:
-        png = self.out / PNG_NAME
+    def daemon_got_the_bytes(self, name: str = PNG_NAME) -> None:
+        png = self.out / name
         done = subprocess.run([sys.executable, "-I", str(HERE / "aterm_android_seat.py"), "expect-image", self.args.socket, self.args.seat, str(png), self.args.seat_log, "--timeout", "30"], capture_output=True, text=True, check=False)
         print(done.stdout + done.stderr, end="")
         if done.returncode != 0:
             raise Fail(f"the daemon did not receive the image: {done.stderr.strip()}")
+
+    def seed(self, name: str, red: int) -> None:
+        """Put a distinct PNG in MediaStore so each share has its own bytes to hash."""
+        png = self.out / name
+        seed_png(png, red)
+        adb("push", str(png), f"/sdcard/Pictures/{name}")
+        adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", f"file:///sdcard/Pictures/{name}")
+
+    def media_uri(self, name: str) -> str:
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            row = adb("shell", "content", "query", "--uri", "content://media/external/images/media", "--projection", "_id:_display_name", "--where", f"_display_name='{name}'", check=False)
+            found = re.search(r"_id=(\d+)", row)
+            if found:
+                return f"content://media/external/images/media/{found.group(1)}"
+            time.sleep(1)
+        raise Fail(f"MediaStore never listed {name}")
+
+    def share_target_present(self) -> bool:
+        """Journey B runs when the build registers a SEND target. ATERM_JOURNEY_B=required makes absence a failure."""
+        if APP in adb("shell", "cmd", "package", "query-activities", "-a", "android.intent.action.SEND", "-t", "image/png", check=False):
+            return True
+        if os.environ.get("ATERM_JOURNEY_B") == "required":
+            raise SystemExit("journey B: the build has no SEND target and ATERM_JOURNEY_B=required")
+        print("::warning::journey B skipped: this build registers no SEND target yet (COI-3485)")
+        return False
+
+    def share_target_is_registered(self) -> None:
+        for action, mime in (("android.intent.action.SEND", "image/png"), ("android.intent.action.SEND_MULTIPLE", "image/*")):
+            listed = adb("shell", "cmd", "package", "query-activities", "-a", action, "-t", mime)
+            if APP not in listed:
+                raise Fail(f"{APP} is not a target for {action} {mime}. query-activities said: {listed.strip()[:200]!r}")
+
+    def share(self, name: str, cold: bool) -> None:
+        """Fire a SEND for the named image, then answer the sheet and Send."""
+        if cold:
+            adb("shell", "am", "force-stop", APP)
+        uri = self.media_uri(name)
+        adb("shell", "am", "start", "-a", "android.intent.action.SEND", "-t", "image/png", "--eu", "android.intent.extra.STREAM", uri, "--grant-read-uri-permission", "-n", f"{APP}/.MainActivity")
+        if cold:
+            self.page = None
+            self.attach_page()
+        page = self.page
+        assert page
+        page.wait_text("Send to a seat", 30)
+        page.js("(()=>{const t=document.querySelector('[role=dialog] textarea,[role=dialog] input[type=text]');if(t){t.value='look at this';t.dispatchEvent(new Event('input',{bubbles:true}))}})()")
+        if "Pick a seat" in page.text():
+            page.tap("()=>document.querySelector('[role=dialog] input[type=radio]')")
+        page.tap(by_text("Send to ", "button"))
+        self.shot(f"sheet-sent-{name}")
+        self.daemon_got_the_bytes(name)
 
     def journey_c_daemon_down(self) -> None:
         """Evidence only: the failure copy is the client's to specify (COI-3485)."""
@@ -274,6 +327,12 @@ class Journey:
         self.step("chip-then-send", self.chip_then_send)
         self.step("daemon-received-the-bytes", self.daemon_got_the_bytes)
         print("journey A: passed")
+        if self.share_target_present():
+            self.step("share-target-registered", self.share_target_is_registered)
+            self.step("seed-share-images", lambda: (self.seed("ci-share-cold.png", 90), self.seed("ci-share-warm.png", 150)))
+            self.step("share-cold-start", lambda: self.share("ci-share-cold.png", cold=True))
+            self.step("share-warm-app-open", lambda: self.share("ci-share-warm.png", cold=False))
+            print("journey B: passed")
         self.step("journey-c-daemon-down", self.journey_c_daemon_down)
         self.evidence()
 

@@ -44,11 +44,13 @@ avd() {
 boot() {
   use_sdk
   mkdir -p "$out"
+  adb start-server
   nohup emulator -avd "$AVD" -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel on >"$out/emulator.log" 2>&1 &
-  adb wait-for-device
-  local waited=0
+  local emu_pid=$! waited=0
+  # Every wait is bounded and checks the emulator is alive, so a dead one fails fast.
   until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do
-    [ "$waited" -lt 300 ] || { tail -20 "$out/emulator.log" >&2; fail "the emulator did not finish booting in 300 s"; }
+    kill -0 "$emu_pid" 2>/dev/null || { tail -30 "$out/emulator.log" >&2; fail "the emulator process exited after ${waited}s"; }
+    [ "$waited" -lt 420 ] || { tail -30 "$out/emulator.log" >&2; adb devices >&2; fail "the emulator did not finish booting in 420 s"; }
     sleep 3
     waited=$((waited + 3))
   done
