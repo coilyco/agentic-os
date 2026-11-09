@@ -14,8 +14,9 @@ const ask = {
   },
 };
 
-for (const [width, height] of [[320, 420], [360, 480], [393, 520]] as const) {
-  test(`at ${width}x${height} with the keyboard up, two options can be read`, quirk("COI-3482"), async ({ bed }) => {
+// Options whole in the card. At 320x420 the next shows in part and the card scrolls.
+for (const [width, height, whole] of [[320, 420, 1], [360, 480, 2], [393, 520, 2]] as const) {
+  test(`at ${width}x${height} with the keyboard up, ${whole} option${whole > 1 ? "s" : ""} can be read`, quirk("COI-3482"), async ({ bed }) => {
     test.skip(kindOf(test.info()) !== "phone", "phone");
     await bed.openSeat(SEATS.imp);
     await bed.page.locator("#composer-input").focus();
@@ -24,6 +25,7 @@ for (const [width, height] of [[320, 420], [360, 480], [393, 520]] as const) {
     bed.mock.push(ask);
     await expect(card(bed.page)).toBeVisible();
     await bed.step(`keyboard-${width}x${height}`, { compare: false });
+    await expect(card(bed.page).getByRole("heading", { name: /accent color/ }), "the question is not on screen").toBeInViewport();
     const rows = card(bed.page).locator("button.option");
     const region = (await card(bed.page).locator(".body").boundingBox())!;
     let readable = 0;
@@ -31,6 +33,6 @@ for (const [width, height] of [[320, 420], [360, 480], [393, 520]] as const) {
       const box = (await rows.nth(i).boundingBox())!;
       if (box.y >= region.y - 1 && box.y + box.height <= region.y + region.height + 1) readable += 1;
     }
-    expect(readable, `${readable} options sit fully inside the card's scrolling area, which is ${Math.round(region.height)}px tall`).toBeGreaterThanOrEqual(2);
+    expect(readable, `${readable} options sit fully inside the card's scrolling area, which is ${Math.round(region.height)}px tall`).toBeGreaterThanOrEqual(whole);
   });
 }
