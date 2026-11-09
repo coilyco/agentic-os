@@ -64,3 +64,61 @@ test("a desktop does not pin the reply", async ({ bed }, info) => {
   await bed.page.waitForTimeout(300);
   await expect(bed.page.getByRole("button", { name: /Last reply from/ })).toHaveCount(0);
 });
+
+// COI-3543: a reply is seat-written markdown, drawn formatted. Raw HTML stays text.
+const MARKED = [
+  "**Done**: merged `PR 304`, see [the notes](https://example.com/notes) <b>raw</b>",
+  "",
+  "- first **bold** item",
+  "- second item with `code`",
+  "",
+  "```",
+  "just aterm-client-gate",
+  "```",
+  "",
+  '<img src=x onerror="window.__pwned = 1">',
+].join("\n");
+
+test("the last reply reads as formatted text and raw HTML never runs", async ({ bed }, info) => {
+  test.skip(!phoneOnly(info), "a phone pins it");
+  await bed.openSeat(SEATS.imp);
+  bed.mock.setLastReply(SEATS.imp.id, { text: MARKED, ageSeconds: 20 });
+  const pin = bed.page.getByRole("button", { name: /Last reply from Imp-Dragonfly/ });
+  await expect(pin).toBeVisible();
+  await expect(pin, "no stray marks").toContainText("Done: merged PR 304, see the notes <b>raw</b>");
+  await expect(pin).not.toContainText("**");
+  await expect(pin).not.toContainText("`");
+  await expect(pin.locator("strong")).toHaveText("Done");
+  await bed.step("pinned-formatted", { compare: false });
+
+  await pin.click();
+  const text = bed.page.getByRole("region", { name: /Full text of the last reply/ });
+  await expect(text.locator("li")).toHaveCount(2);
+  await expect(text.locator("li strong")).toHaveText("bold");
+  await expect(text.locator("pre")).toHaveText("just aterm-client-gate");
+  await expect(text).not.toContainText("```");
+  await expect(text, "the tag shows as the words it is").toContainText("<img src=x");
+  await expect(text.locator("img, b, script"), "no element from raw HTML").toHaveCount(0);
+  expect(await bed.page.evaluate(() => (window as unknown as { __pwned?: number }).__pwned)).toBeUndefined();
+
+  const link = text.getByRole("link", { name: "the notes" });
+  await expect(link).toHaveAttribute("href", "https://example.com/notes");
+  await bed.page.evaluate(() => {
+    const w = window as unknown as { __opened: string[] };
+    w.__opened = [];
+    window.open = (url) => (w.__opened.push(String(url)), null);
+  });
+  await link.click();
+  expect(await bed.page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual(["https://example.com/notes"]);
+  await bed.step("open-formatted", { compare: false });
+});
+
+test("a pinned line cut mid-mark shows no stray mark", async ({ bed }, info) => {
+  test.skip(!phoneOnly(info), "a phone pins it");
+  await bed.openSeat(SEATS.imp);
+  bed.mock.setLastReply(SEATS.imp.id, { text: "Merged **PR 304 and the `orig", ageSeconds: 5 });
+  const pin = bed.page.getByRole("button", { name: /Last reply from Imp-Dragonfly/ });
+  await expect(pin).toContainText("Merged PR 304 and the orig");
+  await expect(pin).not.toContainText("**");
+  await expect(pin).not.toContainText("`");
+});

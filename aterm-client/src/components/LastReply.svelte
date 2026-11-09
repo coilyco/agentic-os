@@ -1,7 +1,11 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { pinnedLine, replyAge, replyKey } from "../lib/last-reply";
+  import { parseLine } from "../lib/markdown";
+  import { openExternal } from "../lib/open-external";
   import type { HostConnection, Session } from "../lib/protocol";
+  import InlineText from "./InlineText.svelte";
+  import Markdown from "./Markdown.svelte";
 
   let { session, connection, hidden = false }: { session: Session; connection: HostConnection; hidden?: boolean } = $props();
 
@@ -13,6 +17,7 @@
   // The whole text, by the reply it belongs to, so a reopen does not ask again.
   let held = $state<{ key: string; text: string; truncated: boolean } | undefined>();
   let failed = $state(false);
+  let linkNote = $state("");
   let pin = $state<HTMLButtonElement>();
   let close = $state<HTMLButtonElement>();
 
@@ -41,8 +46,14 @@
     }
   }
 
+  async function follow(href: string): Promise<void> {
+    const opened = await openExternal(href);
+    linkNote = opened.ok ? "" : opened.message;
+  }
+
   async function hide(): Promise<void> {
     open = false;
+    linkNote = "";
     await tick();
     pin?.focus();
   }
@@ -53,7 +64,7 @@
 {#if line && session.lastReplyAt !== undefined && !hidden}
   <button type="button" class="pin" bind:this={pin} onclick={show} aria-haspopup="dialog" aria-label={`Last reply from ${session.identity}${age ? `, ${age}` : ""}. Opens the whole reply.`}>
     <span class="label">Last reply{#if age}<span class="age">{age}</span>{/if}</span>
-    <span class="line">{line}</span>
+    <span class="line"><InlineText nodes={parseLine(line)} /></span>
   </button>
 {/if}
 
@@ -69,12 +80,13 @@
       {#if whole}
         <!-- Focusable so a long reply scrolls by keyboard. -->
         <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-        <pre class="text" tabindex="0" role="region" aria-label="Full text of the last reply">{whole.text}</pre>
+        <div class="text" tabindex="0" role="region" aria-label="Full text of the last reply"><Markdown source={whole.text} onlink={(href) => void follow(href)} /></div>
         {#if whole.truncated}<p class="note">The host sent only the first 8 KiB of this reply.</p>{/if}
       {:else}
-        <p class="text first">{line}</p>
+        <p class="text first"><InlineText nodes={parseLine(line)} /></p>
         <p class="note" role="status">{failed ? "The host would not send the whole reply, so only its first line shows." : connection.lastReplies ? "Loading the whole reply." : "This host sends only the first line of a reply."}</p>
       {/if}
+      {#if linkNote}<p class="note" role="status">{linkNote}</p>{/if}
     </div>
   </div>
 {/if}
@@ -93,7 +105,7 @@
   .close { min-width: 44px; min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 14px var(--font-body); }
   .close:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 16px; }
-  .text { margin: 0; font: 14px/1.5 var(--font-body); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .text { margin: 0; font: 14px/1.5 var(--font-body); overflow-wrap: anywhere; }
   .text:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .note { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
 </style>

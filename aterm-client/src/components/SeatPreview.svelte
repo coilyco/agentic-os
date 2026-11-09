@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { parseLine } from "../lib/markdown";
   import type { Preview } from "../lib/preview";
+  import InlineText from "./InlineText.svelte";
 
   // Never takes focus or the pointer: the seat row under it stays what the person is on.
   let { preview, top, left, color }: { preview: Preview; top: number; left: number; color: string } = $props();
@@ -7,7 +9,7 @@
 
 <div id="seat-preview" class="preview" role="tooltip" style:top={`${top}px`} style:left={`${left}px`} style:--accent={color}>
   <p class="who"><span class="name">{preview.identity}</span> <span class="kind" data-kind={preview.kind}>{preview.heading}</span></p>
-  {#if preview.detail}<p class="detail">{preview.detail}</p>{/if}
+  {#if preview.detail}<p class="detail">{#if preview.kind === "done"}<InlineText nodes={parseLine(preview.detail)} />{:else}{preview.detail}{/if}</p>{/if}
   <p class="hint">Click to open</p>
 </div>
 
