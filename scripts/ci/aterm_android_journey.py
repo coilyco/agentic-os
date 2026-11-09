@@ -299,7 +299,8 @@ class Journey:
     def find_media_uri(self, name: str, wait: float) -> str | None:
         deadline = time.monotonic() + wait
         while time.monotonic() < deadline:
-            row = adb("shell", "content", "query", "--uri", "content://media/external/images/media", "--projection", "_id:_display_name", "--where", f"_display_name='{name}'", check=False)
+            # adb joins its arguments for the device shell, so quote the SQL here.
+            row = adb_all("shell", f"content query --uri content://media/external/images/media --projection _id:_display_name --where \"_display_name='{name}'\"")
             found = re.search(r"_id=(\d+)", row)
             if found:
                 return f"content://media/external/images/media/{found.group(1)}"
