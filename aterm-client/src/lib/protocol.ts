@@ -72,6 +72,12 @@ export interface Session {
   activity?: Activity;
   /** Not yet ready for input, so its terminal may have nothing to draw. */
   starting?: boolean;
+  /** What the daemon read off the screen. `state` above also folds in recent output. */
+  screen?: "starting" | "busy" | "idle" | "prompt";
+  /** Background tasks the seat has running. Absent from a daemon without the field. */
+  background?: number;
+  /** Names this session and not its name, which is reused. Close takes `name@ref`. */
+  ref?: string;
   failure?: string;
 }
 
@@ -133,6 +139,8 @@ export type HostEvent =
   | { type: "artifact"; artifact: SeatArtifact }
   | { type: "artifact_update"; id: string; waiting?: boolean; seatEnded?: boolean }
   | { type: "artifact_closed"; id: string }
+  | { type: "seat_closed"; session: string }
+  | { type: "seat_close_refused"; session: string; text: string }
   | { type: "launch"; role: string; state: LaunchState; text: string }
   | { type: "typing"; typing: Typing }
   | { type: "closed"; reason: string }
@@ -255,6 +263,8 @@ export interface HostConnection {
   subscribe(listener: (event: HostEvent) => void): () => void;
   /** Dial now, skipping the backoff. Only a connection that redials has it. */
   retry?(): void;
+  /** Ends a seat by its name and ref, which a reused name cannot confuse (COI-3403). */
+  closeSeat?(session: string, ref: string): void;
   attach(sessionId: string, rows: number, cols: number): void;
   /** Asks again for a seat's screen when its replay never drew. No new reference. */
   replay(sessionId: string): void;

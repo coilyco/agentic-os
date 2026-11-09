@@ -27,7 +27,7 @@ test("a finger swipe scrolls the seat's history up, and Jump to latest brings it
   // A finger put down, dragged down in small steps, and lifted, as a screen sends it.
   const x = Math.round(host.x + host.width / 2);
   const y0 = Math.round(host.y + host.height / 3);
-  const touch = (type: string, y?: number) => client.send("Input.dispatchTouchEvent", { type, touchPoints: y === undefined ? [] : [{ x, y }] });
+  const touch = (type: "touchStart" | "touchMove" | "touchEnd", y?: number) => client.send("Input.dispatchTouchEvent", { type, touchPoints: y === undefined ? [] : [{ x, y }] });
   await touch("touchStart", y0);
   for (let step = 1; step <= 20; step++) {
     await touch("touchMove", y0 + step * 20);
