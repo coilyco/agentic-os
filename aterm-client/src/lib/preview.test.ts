@@ -5,6 +5,10 @@ import type { Ask } from "./protocol";
 const ask = (question: string): Ask => ({ id: "x", session: "a", header: "Pick", question, options: [], allowOther: false, multi: false });
 
 describe("previewFor", () => {
+  it("says a seat left a page, with no detail to read", () => {
+    expect(previewFor({ identity: "Frog-Ox", kind: "artifact" }, undefined)).toEqual({ identity: "Frog-Ox", kind: "artifact", heading: "Left you a page", detail: null });
+  });
+
   it("says an asking seat is asking and shows its question on one line", () => {
     expect(previewFor({ identity: "Imp-Dragonfly", kind: "asking" }, ask("Merge   the PR\nnow?"))).toEqual({
       identity: "Imp-Dragonfly",

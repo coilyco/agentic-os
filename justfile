@@ -265,9 +265,29 @@ aterm-android-build VERSION OUT:
 aterm-android-sign IN OUT:
     @bash scripts/ci/aterm-android.sh sign "{{IN}}" "{{OUT}}"
 
+# Drive the one Android emulator running the real Treehouse app: acquire, up, install, open, tap, tap-selector, keyboard, shot, devtools, release. See the aterm-client skill's android-emulator reference.
+aterm-android-emulator *ARGS:
+    @uv run scripts/aterm_android_emulator.py "$@"
+
 # Regenerate the aterm Android launcher icons from the website brand kit directory BRAND_DIR (coilyco/website src/images/brand).
 aterm-android-icons BRAND_DIR:
     @bash scripts/aterm-android-icons.sh "{{BRAND_DIR}}"
+
+# Run the windowed Treehouse app's Rust tests on a Mac. See .agents/skills/tooling-aterm-client/references/desktop.md.
+treehouse-mac-test:
+    @bash scripts/treehouse-mac.sh test
+
+# Build the windowed Treehouse app for this Mac from the same client the Android app ships.
+treehouse-mac-build:
+    @bash scripts/treehouse-mac.sh build
+
+# Copy the built Treehouse.app into ~/Applications. Quit a running copy first.
+treehouse-mac-install:
+    @bash scripts/treehouse-mac.sh install
+
+# Show, set (on) or undo (off) Treehouse as this Mac's login item, replacing Portfolio Director so there is one.
+treehouse-mac-login ACTION="status":
+    @bash scripts/treehouse-mac.sh login "{{ACTION}}"
 
 # Build the aterm web client for a hosted deployment: ATERM_CLIENT_BASE sets the base path, hosts are added per device and none are baked in.
 aterm-client-build-hosted:

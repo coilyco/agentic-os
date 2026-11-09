@@ -1,0 +1,14 @@
+{
+  "productName": "Treehouse",
+  "identifier": "dev.coilyco.treehouse.desktop",
+  "app": {
+    "windows": []
+  },
+  "bundle": {
+    "targets": ["app"],
+    "category": "public.app-category.developer-tools",
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    }
+  }
+}

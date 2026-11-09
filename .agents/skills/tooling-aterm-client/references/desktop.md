@@ -1,0 +1,31 @@
+# Treehouse for the Mac
+
+A windowed Tauri 2 app around the same client bundle the [Android app](android.md) ships (COI-3471). It is built from `aterm-android/`, whose name predates it (COI-3338). It opens at login on a `prod-director` seat and replaces the Portfolio Director kitty launcher as the login item.
+
+**The identity is productName `Treehouse` and bundle id `dev.coilyco.treehouse.desktop`.** The signed CLI wrapper `Treehouse.app` that ships inside the aos formula already holds `dev.coilyco.treehouse`, and macOS privacy grants attach to that id (COI-50), so the windowed app must not take it. `tauri.conf.json` keeps `dev.coilyco.treehouse` for Android, where it is the permanent application id. `tauri.macos.conf.json` is merged over it on macOS only and sets the Mac name and id. The wrapper is untouched. The two bundles share a file name and sit in different folders, the wrapper in the Cellar and the app in `~/Applications`.
+
+**Tauri's `"targets": "all"` does build a macOS target.** `just treehouse-mac-build` produced a 6 MiB arm64 `Treehouse.app` with only the Command Line Tools, no Xcode. There is no macOS CI path, so a Mac build is the proof (COI-3247 allows no macOS runner).
+
+## What it does at launch
+
+`src-tauri/src/desktop.rs` runs before the window exists.
+
+* **It waits up to 30 seconds for the daemon**, since the daemon LaunchAgent and a Login Item start together, then asks `aterm agents --json` for a live `prod-director`.
+* **It opens one headless when there is none**, with `aterm --headless prod-director`. A live director is never duplicated.
+* **It opens the window with an initialization script** that adds `this Mac` (`ws://127.0.0.1:7419/`) to `aterm.hosts.v1` when absent, and on the first load of the window writes `aterm.last-open.v1` so the client restores that seat. A reload keeps the seat the person moved to. A host the person added stays.
+
+The loopback daemon accepts the webview's `tauri://localhost` origin, since its origin check reads the host and not the scheme. **A second target is a saved host**, typed in the host panel and kept on the device, so a cloud target needs no rebuild (COI-3469). Discovery, the broker and a `wss` host work as in any app build.
+
+## Commands
+
+* `just treehouse-mac-test` runs the shell's Rust tests.
+* `just treehouse-mac-build` builds the client for the app, builds the bundle, and signs it under the bundle id.
+* `just treehouse-mac-install` copies it to `~/Applications/Treehouse.app`. Quit a running copy first.
+* `just treehouse-mac-login on` makes it the login item and removes Portfolio Director, so there is one. `off` reverses both. `status` lists them.
+
+## Not yet
+
+* **The signature is ad-hoc.** A rebuild is a new identity to macOS, so a grant would not survive it. `TREEHOUSE_SIGN_IDENTITY` takes a keychain identity once one exists for the app (COI-3338).
+* **The seed writes the client's storage keys** from outside it. A build-time local host and an open-this-role setting in the client would replace it.
+* **The executable is still `aterm-app`**, so the process list and `ps` say that.
+* **The Android build was not re-run** after the `cfg(desktop)` split in `lib.rs`. Its next scheduled run is the check.

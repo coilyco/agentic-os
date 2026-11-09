@@ -23,12 +23,6 @@
     if (result.fire) playCue();
   });
 
-  // Coming back to a tab whose open seat finished is the opening of it.
-  $effect(() => {
-    const open = openSeat();
-    if (open && app.attention[open]) delete app.attention[open];
-  });
-
   onMount(() => {
     const visibility = () => (app.pageVisible = document.visibilityState === "visible");
     const touch = () => {
