@@ -19,6 +19,9 @@ fail() {
 }
 
 use_sdk() {
+  # avdmanager and emulator must agree on where AVDs live, so name it for both.
+  export ANDROID_AVD_HOME="$HOME/.android/avd"
+  mkdir -p "$ANDROID_AVD_HOME"
   local java_home
   for java_home in /usr/lib/jvm/java-17-openjdk-*; do
     [ -x "$java_home/bin/java" ] && export JAVA_HOME="$java_home" && break
@@ -44,6 +47,7 @@ avd() {
   echo no | avdmanager create avd --force --name "$AVD" --package "$IMAGE" --device pixel_6
   command -v emulator || fail "no emulator binary on PATH after sdkmanager"
   emulator -version | head -n3
+  emulator -list-avds | grep -qx "$AVD" || fail "emulator does not list $AVD, AVD home is $ANDROID_AVD_HOME"
 }
 
 boot() {
