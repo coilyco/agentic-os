@@ -118,10 +118,13 @@
   function goToTab(index: number): void {
     if (!dialogTabs) return;
     const chunks = tabKeys(dialogTabs.current, index, dialogTabs.tabs.length);
-    chunks.forEach((chunk, at) => setTimeout(() => app.connection?.input(session.id, chunk), at * KEY_GAP_MS));
+    // Read now: the seat may be gone from the roster by the time a key is due (COI-3524).
+    const id = session.id;
+    chunks.forEach((chunk, at) => setTimeout(() => app.connection?.input(id, chunk), at * KEY_GAP_MS));
   }
 
   function readScreen(rows: string[], tabBar: TabBarCells | null): void {
+    const scope = screenScope(session.id);
     blank = isBlank(rows);
     const found = detectChoice(rows);
     if ((found !== null) !== menuSeen) mark("screen", found ? "menu" : "no-menu");
@@ -134,7 +137,7 @@
         answered = "";
         hideTimer = undefined;
         // A dialog that flickers away keeps its draft for a while. One that stays gone does not.
-        forgetTimer = setTimeout(() => forgetCardMemos(screenScope(session.id)), FORGET_AFTER_MS);
+        forgetTimer = setTimeout(() => forgetCardMemos(scope), FORGET_AFTER_MS);
       }, HIDE_AFTER_MS);
       return;
     }
@@ -168,7 +171,8 @@
     forgetCardMemos(screenScope(session.id));
     heldQuestion = choice.question;
     holdUntil = performance.now() + chunks.length * KEY_GAP_MS + HOLD_AFTER_KEYS_MS;
-    chunks.forEach((chunk, index) => setTimeout(() => app.connection?.input(session.id, chunk), index * KEY_GAP_MS));
+    const id = session.id;
+    chunks.forEach((chunk, index) => setTimeout(() => app.connection?.input(id, chunk), index * KEY_GAP_MS));
     choice = null;
     shownKey = "";
   }
