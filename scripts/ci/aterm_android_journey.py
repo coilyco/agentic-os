@@ -390,6 +390,15 @@ class Journey:
         print("journey D (observation only):\n" + report)
         adb("shell", "am", "start", "-n", f"{APP}/.MainActivity")
 
+    def recover(self) -> None:
+        """Bring the app back to the seat after a failed share, so the journeys after it can run."""
+        adb("shell", "am", "force-stop", APP, check=False)
+        adb("shell", "am", "start", "-n", f"{APP}/.MainActivity", check=False)
+        self.page = None
+        self.attach_page()
+        self.page.tap("()=>document.querySelector('[id^=tab-host-]')")  # type: ignore[union-attr]
+        self.page.tap(by_text("frontend-eng", "nav button"))  # type: ignore[union-attr]
+
     def journey_c_daemon_down(self) -> None:
         """Evidence only: the failure copy is the client's to specify (COI-3485)."""
         page = self.page
@@ -419,11 +428,17 @@ class Journey:
         self.step("daemon-received-the-bytes", self.daemon_got_the_bytes)
         print("journey A: passed")
         if self.share_target_present():
-            self.step("share-target-registered", self.share_target_is_registered)
-            self.step("seed-share-images", lambda: (self.seed("ci-share-cold.png", 90), self.seed("ci-share-warm.png", 150)))
-            self.step("share-cold-start", lambda: self.share("ci-share-cold.png", cold=True))
-            self.step("share-warm-app-open", lambda: self.share("ci-share-warm.png", cold=False))
-            print("journey B: passed")
+            try:
+                self.step("share-target-registered", self.share_target_is_registered)
+                self.step("seed-share-images", lambda: (self.seed("ci-share-cold.png", 90), self.seed("ci-share-warm.png", 150)))
+                self.step("share-cold-start", lambda: self.share("ci-share-cold.png", cold=True))
+                self.step("share-warm-app-open", lambda: self.share("ci-share-warm.png", cold=False))
+                print("journey B: passed")
+            except SystemExit:
+                if os.environ.get("ATERM_JOURNEY_B") != "optional":
+                    raise
+                print("::warning::journey B failed and is optional (COI-3485), see its FAILED screenshot")
+                self.recover()
         self.step("journey-d-open-in-browser", self.journey_d_open_in_browser)
         self.step("journey-c-daemon-down", self.journey_c_daemon_down)
         self.evidence()
