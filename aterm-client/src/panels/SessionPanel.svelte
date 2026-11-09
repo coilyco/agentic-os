@@ -196,7 +196,7 @@
     {#if !phone}
       <button type="button" class="head-button" aria-label="Find in output" title={`Find in output (${findChord})`} onclick={() => seatTerminal?.openFind()}>Find</button>
     {/if}
-    <PinSeat {session} />
+    {#if !phone}<PinSeat {session} />{/if}
     <CloseSeat {session} needsKai={needsKaiIds().has(session.id)} where="view" />
     {#if split}
       <button type="button" class="head-button" aria-expanded={sideOpen} aria-controls="side-panel" onclick={toggleSide}>
