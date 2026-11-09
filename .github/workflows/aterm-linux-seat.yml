@@ -1,0 +1,44 @@
+# Linux seat proof (COI-3498): no TCP listener, a stub seat, a shut-out uid.
+# Dispatch and the listener code paths only, since Actions minutes are watched (COI-3249).
+name: aterm-linux-seat
+
+on:
+  pull_request:
+    paths:
+      - "aterm/daemon_ws.go"
+      - "aterm/daemon_tailnet.go"
+      - "aterm/peer*.go"
+      - "scripts/ci/aterm-linux-seat.sh"
+      - "scripts/aterm_listener_probe.py"
+      - ".github/workflows/aterm-linux-seat.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: aterm-linux-seat-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  seat:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: aterm/go.mod
+      - name: Prove the seat user has no listener and a second uid is shut out
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-linux-seat.sh"
+      - name: Keep the daemon logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: aterm-linux-seat-${{ github.run_id }}
+          path: |
+            ${{ github.workspace }}/aterm-linux-out/daemon.log
+            ${{ github.workspace }}/aterm-linux-out/control.log
+            ${{ github.workspace }}/aterm-linux-out/other.err
+          retention-days: 14
+          if-no-files-found: ignore

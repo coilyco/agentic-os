@@ -11,3 +11,5 @@ Proof for one capped seat user on kai-server, kept host-neutral for the cloud ta
 **What the tailnet change does not cover.** A locked remote peer can still attach and read seat screens. It reaches the host with a tailnet identity and no passkey.
 
 **Probe.** `scripts/aterm_listener_probe.py HOST PORT [--tls] [--insecure] --marker PATH` sends `hello` then a `spawn` that touches the marker. Exit 0 means refused, 1 means the spawn ran, 2 means no verdict. Run it as the seat user and as a different local user, against each listener.
+
+**The Linux seat job runs it on Ubuntu.** `.github/workflows/aterm-linux-seat.yml` runs `scripts/ci/aterm-linux-seat.sh` on dispatch and on the listener code paths. It runs a daemon as an unprivileged user with both listener variables empty, asserts with `ss` that the user holds no TCP listener (a control with the websocket on must show one), runs a stub seat that takes an image, and checks a second uid cannot reach the socket. It cannot prove the tailnet listener, a real agent harness, or kai-server's own limits.
