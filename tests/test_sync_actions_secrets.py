@@ -117,7 +117,11 @@ def test_build_plan_without_fleet_is_just_the_mapping() -> None:
 def test_every_github_secret_name_and_repo_key_is_acceptable() -> None:
     """Real GitHub config validates through the loader's own rules."""
     mod = _load_script()
-    named = {**mod.MAPPING, "fleet": mod.FLEET_SECRETS}
+    named = {
+        **mod.MAPPING,
+        "fleet": mod.FLEET_SECRETS,
+        "org": {name: secret.ssm for name, secret in mod.ORG_SECRETS.items()},
+    }
     assert mod.invalid_secret_names(named) == []
     assert len(set(mod.WORKFLOW_REPOS)) == len(mod.WORKFLOW_REPOS)
     for key in (*mod.WORKFLOW_REPOS, *mod.MAPPING):
@@ -179,6 +183,7 @@ def test_github_dry_run_plans_every_repo_and_writes_nothing(monkeypatch, capsys)
     monkeypatch.setattr(mod, "WORKFLOW_REPOS", ("o/a", "o/b"))
     monkeypatch.setattr(mod, "FLEET_SECRETS", {"F": "/fleet"})
     monkeypatch.setattr(mod, "MAPPING", {"o/a": {"G": "/g"}})
+    monkeypatch.setattr(mod, "ORG_SECRETS", {})
 
     def _no_write(*_a, **_k):
         raise AssertionError("dry run must not write or read SSM")
@@ -201,6 +206,7 @@ def test_repo_filter_plans_a_repo_outside_the_workflow_set(monkeypatch, capsys) 
     monkeypatch.setattr(mod, "WORKFLOW_REPOS", ("o/a",))
     monkeypatch.setattr(mod, "FLEET_SECRETS", {"F": "/fleet"})
     monkeypatch.setattr(mod, "MAPPING", {"o/a": {"G": "/g"}, "o/scratch": {"S": "/s"}})
+    monkeypatch.setattr(mod, "ORG_SECRETS", {})
 
     assert mod.main(["--dry-run", "--repo", "o/scratch"]) == 0
 
@@ -236,6 +242,7 @@ def test_secret_filter_narrows_the_plan_and_rejects_an_unknown_name(monkeypatch,
     monkeypatch.setattr(mod, "WORKFLOW_REPOS", ("o/a", "o/b"))
     monkeypatch.setattr(mod, "FLEET_SECRETS", {"F": "/fleet"})
     monkeypatch.setattr(mod, "MAPPING", {"o/a": {"G": "/g"}})
+    monkeypatch.setattr(mod, "ORG_SECRETS", {})
 
     assert mod.main(["--dry-run", "--target", "github", "--secret", "G"]) == 0
     assert capsys.readouterr().out.splitlines() == [
@@ -251,3 +258,107 @@ def test_a_removed_target_is_refused_by_the_parser() -> None:
     with pytest.raises(SystemExit) as refused:
         mod.main(["--dry-run", "--target", "elsewhere"])
     assert refused.value.code == 2
+
+
+def test_org_secrets_reach_only_their_selected_repos() -> None:
+    mod = _load_script()
+    secrets = {"A": mod.OrgSecret("/a", ("agentic-os", "sirens-echo")), "B": mod.OrgSecret("/b", ("other",))}
+    assert mod.org_secret_names("coilyco/agentic-os", secrets) == {"A"}
+    assert mod.org_secret_names("coilyco/other", secrets) == {"B"}
+    assert mod.org_secret_names("coilyco/unlisted", secrets) == set()
+
+
+def test_the_treehouse_read_pair_is_org_level_and_never_also_a_repo_secret() -> None:
+    """A repo-level secret of the same name would shadow the org one (COI-3382)."""
+    mod = _load_script()
+    pair = {"COILYCO_TREEHOUSE_READ_APP_ID", "COILYCO_TREEHOUSE_READ_APP_PRIVATE_KEY_BASE64"}
+    assert pair <= set(mod.ORG_SECRETS)
+    for repo_secrets in (*mod.MAPPING.values(), mod.FLEET_SECRETS):
+        assert not pair & set(repo_secrets)
+    assert pair <= mod.org_secret_names(mod.slug("agentic-os"))
+
+
+def test_the_raw_pem_is_sealed_as_one_line_of_base64() -> None:
+    mod = _load_script()
+    pem = "-----BEGIN KEY-----\nbody\n-----END KEY-----\n"
+    sealed = mod.encode_org_value(mod.OrgSecret("/k", ("r",), encode_base64=True), pem)
+    assert "\n" not in sealed
+    assert mod.base64.b64decode(sealed).decode() == pem
+    assert mod.encode_org_value(mod.OrgSecret("/i", ("r",)), "42") == "42"
+
+
+def test_gh_set_org_secret_selects_repos_and_keeps_the_value_off_argv(monkeypatch) -> None:
+    mod = _load_script()
+    seen: dict[str, object] = {}
+
+    def _fake_run(argv, **kwargs):
+        seen["argv"] = argv
+        seen["input"] = kwargs.get("input")
+
+    monkeypatch.setattr(mod.subprocess, "run", _fake_run)
+    mod.gh_set_org_secret("N", mod.OrgSecret("/p", ("a", "b")), "the-secret-value")
+
+    assert seen["argv"] == [
+        "gh", "secret", "set", "N", "--org", mod.OWNER,
+        "--visibility", "selected", "--repos", "a,b",
+    ]
+    assert "the-secret-value" not in " ".join(seen["argv"])
+    assert seen["input"] == "the-secret-value"
+
+
+def test_apply_org_plan_encodes_writes_and_reports_failures_without_values() -> None:
+    mod = _load_script()
+    written: dict[str, str] = {}
+    secrets = {
+        "RAW": mod.OrgSecret("/raw", ("r",)),
+        "ENC_BASE64": mod.OrgSecret("/enc", ("r",), encode_base64=True),
+        "GONE": mod.OrgSecret("/gone", ("r",)),
+    }
+
+    def _read(param):
+        if param == "/gone":
+            raise SystemExit("ssm parameter /gone resolved empty")
+        return "line1\nline2"
+
+    def _write(name, _secret, value):
+        written[name] = value
+
+    failures = mod.apply_org_plan(secrets, read=_read, write=_write)
+
+    assert written["RAW"] == "line1\nline2"
+    assert mod.base64.b64decode(written["ENC_BASE64"]).decode() == "line1\nline2"
+    assert failures == [f"{mod.OWNER} (org): GONE: SystemExit"]
+
+
+def test_check_org_plan_reports_missing_and_unreadable_by_name() -> None:
+    mod = _load_script()
+    secrets = {"HAVE": mod.OrgSecret("/h", ("r",)), "LACK": mod.OrgSecret("/l", ("r",))}
+    lines, problems = mod.check_org_plan(secrets, lister=lambda: {"HAVE"})
+    assert lines == [f"{mod.OWNER} (org): HAVE ok", f"{mod.OWNER} (org): LACK missing"]
+    assert problems == 1
+
+    def _denied():
+        raise mod.subprocess.CalledProcessError(1, "gh")
+
+    assert mod.check_org_plan(secrets, lister=_denied) == (
+        [f"{mod.OWNER} (org): unreadable (CalledProcessError)"],
+        1,
+    )
+
+
+def test_dry_run_lists_org_secrets_and_a_repo_run_leaves_them_out(monkeypatch, capsys) -> None:
+    mod = _load_script()
+    monkeypatch.setattr(mod, "WORKFLOW_REPOS", ("o/a",))
+    monkeypatch.setattr(mod, "FLEET_SECRETS", {})
+    monkeypatch.setattr(mod, "MAPPING", {"o/a": {"G": "/g"}})
+    monkeypatch.setattr(mod, "ORG_SECRETS", {"ORG": mod.OrgSecret("/org", ("a", "b"))})
+
+    assert mod.main(["--dry-run"]) == 0
+    assert capsys.readouterr().out.splitlines() == [
+        "o/a: G <- ssm /g",
+        f"{mod.OWNER} (org, selected 2 repos): ORG <- ssm /org",
+        "1 secrets across 1 repos on GitHub",
+        "1 org secrets on GitHub",
+    ]
+    assert mod.main(["--dry-run", "--repo", "o/a"]) == 0
+    assert "ORG" not in capsys.readouterr().out
