@@ -36,6 +36,9 @@ kvm() {
 
 avd() {
   use_sdk
+  # The emulator links libpulse even with -no-audio, and the runner image lacks it.
+  sudo apt-get update -qq
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libpulse0 libgl1
   yes | sdkmanager --licenses >/dev/null || true
   sdkmanager "emulator" "$IMAGE"
   echo no | avdmanager create avd --force --name "$AVD" --package "$IMAGE" --device pixel_6
