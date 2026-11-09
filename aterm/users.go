@@ -36,6 +36,8 @@ type userManagement interface {
 	// NotifyAsk wakes subscribed devices for a seat's ask. WatchWaiting does the
 	// same for a seat that starts waiting, until done closes.
 	NotifyAsk(ask choiceAsk)
+	// NotifyPush wakes subscribed devices with a coordinator's notify.
+	NotifyPush(payload pushPayload)
 	WatchWaiting(done <-chan struct{}, every time.Duration)
 }
 
@@ -189,6 +191,8 @@ func (u *localUsers) NotifyAsk(ask choiceAsk) {
 	}
 	u.pushAsk(ask)
 }
+
+func (u *localUsers) NotifyPush(payload pushPayload) { u.pushWaiting(payload) }
 
 func (u *localUsers) WatchWaiting(done <-chan struct{}, every time.Duration) {
 	u.watchWaiting(done, every)
