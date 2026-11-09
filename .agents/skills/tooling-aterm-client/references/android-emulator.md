@@ -2,6 +2,8 @@
 
 A seat drives one live Android emulator running the real Treehouse app, beside the browser test bed (COI-3494). Browser emulation is not Android's WebView, and COI-3334's two-tap bug did not reproduce there. Code: `scripts/aterm_android_emulator.py`, tests `tests/test_aterm_android_emulator.py`.
 
+Starting the whole rig and the card-tap recipe: [android-emulator-rig.md](android-emulator-rig.md).
+
 ## Verb
 
 `just aterm-android-emulator <command>`. Run `acquire` first. Every command that touches the device needs the lock.
