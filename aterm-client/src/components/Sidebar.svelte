@@ -4,21 +4,26 @@
   import CloseSeat from "./CloseSeat.svelte";
   import Origin from "./Origin.svelte";
   import PinSeat from "./PinSeat.svelte";
+  import RoleSwitches from "./RoleSwitches.svelte";
   import Creature from "./Creature.svelte";
   import ByCoilyco from "./ByCoilyco.svelte";
   import SettingsLink from "./SettingsLink.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
   import TapTraceSwitch from "./TapTraceSwitch.svelte";
-  import { app, askLineFor, asksShownOn, colorOf, closeAnyway, dismissCloseNote, glowSeats, layout, needsKaiIds, pinnedNow, reopenClosed, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
+  import { app, askLineFor, asksShownOn, colorOf, closeAnyway, dismissCloseNote, glowSeats, layout, needsKaiIds, pinnedNow, reopenClosed, showAllRoles, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
   import { stateWithAge } from "../lib/age";
   import { activityFlag, activityWords } from "../lib/seat-activity";
+  import { splitHidden } from "../lib/hidden-roles";
   import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel, splitSessions } from "../lib/sessions";
   import { tablistKeys } from "../lib/tabs";
 
-  const live = $derived(splitSessions(orderSessions(app.sessions, app.roles, pinnedNow)));
+  // A hidden role's quiet seats leave the list. One that needs Kai, is pinned or is open stays.
+  const split = $derived(splitHidden(orderSessions(app.sessions, app.roles, pinnedNow), app.hiddenRoles, (seat) => seat.state === "failed" || pinnedNow(seat) || needs.has(seat.id) || seat.id === app.selectedSession));
+  const live = $derived(splitSessions(split.shown));
+  const hiddenCount = $derived(split.hidden.length);
   const onScreen = $derived(Boolean(app.selectedSession || app.selectedRole));
   const glowing = $derived(new Set(app.alerts.visual ? glowSeats().map((seat) => seat.sessionId) : []));
   // On a phone the one seat on screen is named here and nowhere else, and the rest waits behind it.
@@ -251,9 +256,13 @@
       <button type="button" onclick={dismissCloseNote}>{app.closeAction?.kind === "force" ? "Keep" : "Dismiss"}</button>
     </div>
   {/if}
-  {#if live.running.length === 0}
+  {#if hiddenCount}
+    <p class="waiting" role="status">{hiddenCount} {hiddenCount === 1 ? "seat is" : "seats are"} hidden.</p>
+    <div class="note-actions"><button type="button" onclick={showAllRoles}>Show them</button></div>
+  {/if}
+  {#if live.running.length === 0 && hiddenCount === 0}
     <p class="waiting">{narrow ? "Nothing running yet." : "Nothing running on this host. Start a seat below."}</p>
-  {:else}
+  {:else if live.running.length > 0}
     <div role="tablist" aria-labelledby="sessions-label" aria-orientation="vertical" tabindex="-1" onkeydown={tablistKeys}>
       {#each live.running as session (session.id)}{@render seatTab(session, live.running)}{/each}
     </div>
@@ -341,6 +350,7 @@
               <span class="said">{alertsSaid}</span>
               <svg class="chev" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </summary>
+            <RoleSwitches />
             <AttentionSwitches />
             {@render hostsGroup()}
             <SettingsLink onopen={closeMenu} />
@@ -365,6 +375,7 @@
       {@render failedGroup()}
       {@render startGroup()}
     {/if}
+    <RoleSwitches />
     <AttentionSwitches />
     <div class="feedback"><FeedbackEntry /></div>
     <SettingsLink />
