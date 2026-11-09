@@ -93,10 +93,16 @@ export function withImagePaths(body: string, paths: readonly string[]): string {
   return body ? `${lead} ${body}` : lead;
 }
 
+/** Names each image and its path, so a seat finds the file if the attachment is late. */
+export function imagePrefix(paths: readonly string[]): string {
+  return paths.map((path, index) => `[Attached image${paths.length > 1 ? ` ${index + 1} of ${paths.length}` : ""}: ${path}]`).join(" ");
+}
+
 /** Bracketed pastes for a send. A path goes alone, since that paste is what attaches. */
 export function pasteSteps(paths: readonly string[], text: string, open: string, close: string): string[] {
   const steps = paths.map((path) => `${open}${path}${close}`);
-  if (text) steps.push(`${open}${text}${close}`);
+  const words = [imagePrefix(paths), text].filter(Boolean).join(" ");
+  if (words) steps.push(`${open}${words}${close}`);
   return steps;
 }
 
