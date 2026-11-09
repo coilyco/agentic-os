@@ -16,6 +16,12 @@ A browser, possibly on a phone, cannot put a file where a seat on the host can r
 
 **No bytes reach a log or Sentry.** The daemon logs the session, the type and the size.
 
+## The words name the path too
+
+**A send is the lone path paste, then one paste of the words that begins with `[Attached image: /absolute/path.png]` (COI-3496).** Several images read `[Attached image 1 of 2: ...]` and so on, in one line. The first paste is what attaches, and a busy seat can take the words before it has turned that paste into an attachment, so the attachment then rides in with the next message. Naming the path in the words means a seat opens the file whatever the harness does with the first paste, including a harness with no attachment support. An image sent with no words still gets the prefix as its words, so the message always ends with it. The prefix is `imagePrefix` in `images.ts`, and the test bed's `image-send` journey pins it for an idle and a busy seat.
+
+**A native seat can read the file at that path.** Checked 2026-11-09 from a native claude seat as the same user: the images root beside the socket is traversable and a stored PNG's first bytes read as `89 50 4e 47`. A harness that sandboxes reads to its working directory is the case this does not cover.
+
 ## What each harness does with the path
 
 Observed on 2026-11-04 against a private daemon on this build. Each seat started in a directory outside `images/`, was handed one 11.9 KB PNG reading `ZEBRA 4417`, and was asked what it said. The path was sent twice, as plain `input` keystrokes and as a bracketed paste (`ESC[200~` path `ESC[201~`).
