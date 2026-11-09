@@ -162,6 +162,8 @@ type ptySession struct {
 	// Only that frame writes it, never the screen. See daemon_activity.go.
 	activity   string
 	activityAt time.Time
+	// notifyTried is when this seat last tried `notify`, accepted or not. daemon_notify.go
+	notifyTried time.Time
 }
 
 // keyState carries a partly read escape sequence across input chunks.

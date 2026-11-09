@@ -15,7 +15,7 @@ import (
 func newMCPCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "mcp",
-		Usage: "serve list_agents, send_message, read_messages, session_status, clear_session, close_session, stage_command, ask_choice and send_user_question over MCP stdio",
+		Usage: "serve list_agents, send_message, read_messages, session_status, clear_session, close_session, stage_command, ask_choice, send_user_question and notify_kai over MCP stdio",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return serveMCP(ctx, os.Stdin, cmd.Root().Writer)
 		},
@@ -36,6 +36,8 @@ type mcpBackend struct {
 	artifact    func(frame) (frame, error)
 	ask         func(choiceAsk) (choiceAnswer, error)
 	inbox       func(all bool) ([]inboxMessage, error)
+	// notify pings Kai, and the daemon refuses any seat whose role is not a coordinator.
+	notify func(title, body string) (frame, error)
 }
 
 var liveBackend = mcpBackend{
@@ -49,6 +51,7 @@ var liveBackend = mcpBackend{
 	artifact:    artifactCall,
 	ask:         askChoice,
 	inbox:       readInbox,
+	notify:      pingKai,
 }
 
 type askOptionInput struct {
@@ -105,6 +108,11 @@ type addArtifactInput struct {
 	Source   string `json:"source" jsonschema:"the artifact's HTML source file, under your working directory or scratchpad, at most 2 MiB"`
 	Waiting  bool   `json:"waiting,omitempty" jsonschema:"mark it as waiting on Kai"`
 	Standing bool   `json:"standing,omitempty" jsonschema:"keep it after your session ends and across a daemon restart"`
+}
+
+type notifyKaiInput struct {
+	Title string `json:"title" jsonschema:"what needs her, one short line, at most 60 characters"`
+	Body  string `json:"body,omitempty" jsonschema:"the decision or result in one line, at most 140 characters"`
 }
 
 type artifactRefInput struct {
@@ -316,6 +324,20 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 			return nil, nil, err
 		}
 		return textResult("removed", false)
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "notify_kai",
+		Description: "Ping Kai: plays the chime and raises a desktop notification in her client, and a push on her phone. " +
+			"Only a coordinator seat may call it, and the daemon refuses every other seat from its token. Use it only for a real " +
+			"decision or a result that needs her now. Never for routine status, progress, a finished task that can wait, or a " +
+			"question a card can ask. At most one every 10 seconds. Tapping the notice opens your seat.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, input notifyKaiInput) (*mcp.CallToolResult, any, error) {
+		reply, err := backend.notify(input.Title, input.Body)
+		if err != nil {
+			return nil, nil, err
+		}
+		return textResult(fmt.Sprintf("pinged, shown to %d clients", reply.Delivered), false)
 	})
 
 	return server

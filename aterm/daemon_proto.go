@@ -138,7 +138,9 @@ type frame struct {
 	// Reply answers a last_reply request, which carries a target.
 	Reply *lastReplyView `json:"reply,omitempty"`
 	// ask_choice
-	Ask    *choiceAsk    `json:"ask,omitempty"`
+	Ask *choiceAsk `json:"ask,omitempty"`
+	// Notify is the notice a coordinator seat raised, sent to every client. daemon_notify.go
+	Notify *kaiNotice    `json:"notify,omitempty"`
 	AskID  string        `json:"ask_id,omitempty"`
 	Picks  []int         `json:"picks,omitempty"`
 	Text   string        `json:"text,omitempty"`

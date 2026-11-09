@@ -377,3 +377,12 @@ func newVAPIDCommand() *cli.Command {
 		},
 	}
 }
+
+// NotifyKai pushes a coordinator's own words, and tells the broker as an ask, since its
+// event kinds are closed and it words that push itself. references/notify.md
+func (u *localUsers) NotifyKai(notice kaiNotice) {
+	if u.brokerEvent != nil {
+		u.brokerEvent(waitEvent{Kind: "ask", Session: notice.Session, Role: notice.Role, Identity: notice.Identity, Question: notice.Body})
+	}
+	u.pushWaiting(pushPayload{Kind: "notify", Session: notice.Session, Role: notice.Role, Identity: notice.Identity, Title: notice.Title, Body: notice.Body, Tag: "aterm-" + notice.Session})
+}

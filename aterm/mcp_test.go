@@ -14,7 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var mcpToolNames = []string{"add_artifact", "ask_choice", "clear_session", "close_session", "list_agents", "read_messages", "remove_artifact", "send_message", "send_user_question", "session_status", "set_artifact_waiting", "stage_command"}
+var mcpToolNames = []string{"add_artifact", "ask_choice", "clear_session", "close_session", "list_agents", "notify_kai", "read_messages", "remove_artifact", "send_message", "send_user_question", "session_status", "set_artifact_waiting", "stage_command"}
 
 func fakeBackend() mcpBackend {
 	return mcpBackend{
@@ -60,6 +60,12 @@ func fakeBackend() mcpBackend {
 				return frame{}, errors.New("no artifact \"missing\"")
 			}
 			return frame{}, nil
+		},
+		notify: func(title, body string) (frame, error) {
+			if title == "refused" {
+				return frame{}, errors.New("only a coordinator seat can ping Kai, and this role is not one")
+			}
+			return frame{Delivered: 1}, nil
 		},
 		inbox: func(all bool) ([]inboxMessage, error) {
 			if all {
@@ -171,6 +177,7 @@ func TestMCPCallsEveryTool(t *testing.T) {
 		{"add_artifact", map[string]any{"url": "https://claude.ai/artifact/abc", "title": "T", "source": "/x/y.html"}, "added abc, shown to 2 clients"},
 		{"set_artifact_waiting", map[string]any{"artifact": "abc", "waiting": true}, "waiting true"},
 		{"remove_artifact", map[string]any{"artifact": "abc"}, "removed"},
+		{"notify_kai", map[string]any{"title": "Pick one", "body": "Postgres or SQLite"}, "pinged, shown to 1 clients"},
 		{"ask_choice", map[string]any{"question": "Ship?", "options": []map[string]any{{"label": "yes"}}},
 			`{"labels":["yes"],"picks":[0],"text":""}`},
 		{"send_user_question", map[string]any{"question": "Ship?", "options": []map[string]any{{"label": "yes"}}},
@@ -203,6 +210,7 @@ func TestMCPReportsToolFailuresAsOutputNotProtocolErrors(t *testing.T) {
 			"give either question or questions, not both"},
 		{"bad artifact address", "add_artifact", map[string]any{"url": "https://example.com/x", "title": "T", "source": "/x"}, "an artifact address is exactly"},
 		{"unknown artifact", "remove_artifact", map[string]any{"artifact": "missing"}, `no artifact "missing"`},
+		{"refused ping", "notify_kai", map[string]any{"title": "refused"}, "only a coordinator seat can ping Kai"},
 		{"refused stage", "stage_command", map[string]any{"command": "ls\nrm x"}, "refused: the command may not carry U+000A"},
 		{"missing required field", "send_message", map[string]any{"message": "hi"}, "to"},
 		{"wrong type", "session_status", map[string]any{"to": "ox", "lines": "many"}, "lines"},

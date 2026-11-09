@@ -36,6 +36,8 @@ type userManagement interface {
 	// NotifyAsk wakes subscribed devices for a seat's ask. WatchWaiting does the
 	// same for a seat that starts waiting, until done closes.
 	NotifyAsk(ask choiceAsk)
+	// NotifyKai sends a coordinator's notice to the devices a page is not open on.
+	NotifyKai(notice kaiNotice)
 	WatchWaiting(done <-chan struct{}, every time.Duration)
 }
 

@@ -75,6 +75,7 @@ than editing it by hand.
 * [browser.md](references/browser.md) - the daemon's streamed Chromium and its `browser_*` frames.
 * [web-push.md](references/web-push.md) - the daemon's Web Push to a closed browser, the frames, and what the service worker builds against.
 * [image-upload.md](references/image-upload.md) - the `image_upload` frame: a pasted image becomes a file on the host, where it lives, the cap, and the guards.
+* [notify.md](references/notify.md) - `notify_kai`, the `notify` frame, and why only a coordinator seat can ping Kai.
 * [open-url.md](references/open-url.md) - `aterm open`, the `open_url` frame, the shims every seat launches with, and the native fallback.
 * [artifacts.md](references/artifacts.md) - `aterm artifact`, the `artifact` frames on the views channel, the path and size limits, and what a standing page does when its seat ends.
 * [terminal-split.md](references/terminal-split.md) - the Terminal tab, the split, and the side panel's default tab by role.
