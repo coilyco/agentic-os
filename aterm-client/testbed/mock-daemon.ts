@@ -14,7 +14,7 @@ const HERE = fileURLToPath(new URL(".", import.meta.url));
 const DIST = process.env.ATERM_TESTBED_DIST ?? join(HERE, "..", "dist");
 const ROSTER = join(HERE, "..", "src", "lib", "fixtures", "roster.json");
 /** What the real daemon offers on a loopback page, so the client takes its real paths. */
-const FEATURES = ["pty-size", "terminals", "terminal-label", "browser", "open-url", "last-reply"];
+const FEATURES = ["pty-size", "terminals", "terminal-label", "browser", "open-url", "last-reply", "notify"];
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -47,6 +47,8 @@ export interface SessionSpec {
   last_reply_truncated?: boolean;
   /** Seconds since the seat last wrote, as the daemon's session view carries it. */
   quiet_seconds?: number;
+  /** How long the daemon has seen the present state. */
+  state_seconds?: number;
   /** The seat's "what I'm doing" line and how long ago it set it, in seconds. */
   activity?: string;
   activity_age_seconds?: number;

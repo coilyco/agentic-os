@@ -22,6 +22,7 @@
   import { needsPasskey } from "../lib/typing";
   import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
   import { loadSide, loadSideOpen, storeSide, storeSideOpen } from "../lib/split";
+  import { activityFlag } from "../lib/seat-activity";
   import { mark } from "../lib/tap-trace";
   import { wantsFind } from "../lib/terminal-extras";
 
@@ -51,6 +52,12 @@
       query.removeEventListener("change", read);
       wide.removeEventListener("change", read);
     };
+  });
+  // The line's age moves on without a frame, so the page looks again every ten seconds.
+  let now = $state(Date.now());
+  onMount(() => {
+    const timer = setInterval(() => (now = Date.now()), 10_000);
+    return () => clearInterval(timer);
   });
   const messages = $derived(messagesFor(session));
   let seatTerminal = $state<{ openFind: () => void }>();
@@ -118,10 +125,13 @@
   function goToTab(index: number): void {
     if (!dialogTabs) return;
     const chunks = tabKeys(dialogTabs.current, index, dialogTabs.tabs.length);
-    chunks.forEach((chunk, at) => setTimeout(() => app.connection?.input(session.id, chunk), at * KEY_GAP_MS));
+    // Read now: the seat may be gone from the roster by the time a key is due (COI-3524).
+    const id = session.id;
+    chunks.forEach((chunk, at) => setTimeout(() => app.connection?.input(id, chunk), at * KEY_GAP_MS));
   }
 
   function readScreen(rows: string[], tabBar: TabBarCells | null): void {
+    const scope = screenScope(session.id);
     blank = isBlank(rows);
     const found = detectChoice(rows);
     if ((found !== null) !== menuSeen) mark("screen", found ? "menu" : "no-menu");
@@ -134,7 +144,7 @@
         answered = "";
         hideTimer = undefined;
         // A dialog that flickers away keeps its draft for a while. One that stays gone does not.
-        forgetTimer = setTimeout(() => forgetCardMemos(screenScope(session.id)), FORGET_AFTER_MS);
+        forgetTimer = setTimeout(() => forgetCardMemos(scope), FORGET_AFTER_MS);
       }, HIDE_AFTER_MS);
       return;
     }
@@ -168,7 +178,8 @@
     forgetCardMemos(screenScope(session.id));
     heldQuestion = choice.question;
     holdUntil = performance.now() + chunks.length * KEY_GAP_MS + HOLD_AFTER_KEYS_MS;
-    chunks.forEach((chunk, index) => setTimeout(() => app.connection?.input(session.id, chunk), index * KEY_GAP_MS));
+    const id = session.id;
+    chunks.forEach((chunk, index) => setTimeout(() => app.connection?.input(id, chunk), index * KEY_GAP_MS));
     choice = null;
     shownKey = "";
   }
@@ -179,7 +190,16 @@
 <section class="session" style:--accent={role.color}>
   <header class:folded={phone}>
     {#if !phone}<Creature role={role.slug} color={role.color} size={40} />{/if}
-    <h1 class:visually-hidden={phone}>{session.identity}</h1>
+    <div class="name-block">
+      <h1 class:visually-hidden={phone}>{session.identity}</h1>
+      {#if !phone && session.activity}
+        {@const flag = activityFlag(session.activity, now, session.stateSince)}
+        <p class="activity" data-stale={flag !== ""} title={flag ? `${session.activity.text} (set ${flag})` : session.activity.text}>
+          <span class="line">{session.activity.text}</span>
+          {#if flag}<span class="age">{flag}</span>{/if}
+        </p>
+      {/if}
+    </div>
     {#if !phone}
       <span class="role">{role.displayName} // {session.seat}{sessionCode(session) ? ` // ${sessionCode(session)}` : ""}</span>
       {#if session.context}
@@ -287,6 +307,11 @@
   .session { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   header { flex: none; min-height: 64px; padding: 8px 24px; display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; border-bottom: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--ground)); }
   h1 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 22px; }
+  .name-block { display: flex; flex-direction: column; min-width: 0; max-width: 460px; }
+  .activity { display: flex; gap: 8px; margin: 0; font-size: 13px; line-height: 1.3; color: var(--text-soft); }
+  .activity .line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .activity .age { flex: none; color: var(--muted); }
+  .activity[data-stale="true"] .line { color: var(--muted); }
   .role { font-size: 14px; color: color-mix(in srgb, var(--accent) 55%, white); }
   .degraded { flex-basis: 100%; margin: 0; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--warn); background: var(--warn-fill); color: var(--warn-text); font-size: 13px; }
   .head-button { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 13px var(--font-body); }
