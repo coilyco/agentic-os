@@ -17,7 +17,7 @@
   // The title is what the Windows alt-tab switcher shows, so it names who is waiting.
   $effect(() => {
     const first = waiting[0];
-    document.title = first ? `(${waiting.length}) ${first.identity} ${first.kind === "asking" ? "asking" : "done"} // aterm` : "aterm";
+    document.title = first ? `(${waiting.length}) ${first.identity} ${first.kind === "asking" ? "asking" : "left a page"} // aterm` : "aterm";
     const badge = navigator as Navigator & { setAppBadge?: (count: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
     if (waiting.length) void badge.setAppBadge?.(waiting.length).catch(() => {});
     else void badge.clearAppBadge?.().catch(() => {});
