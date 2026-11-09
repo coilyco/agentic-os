@@ -33,8 +33,18 @@ kvm() {
   echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules >/dev/null
   sudo udevadm control --reload-rules
   sudo udevadm trigger --name-match=kvm
-  [ -w /dev/kvm ] || fail "/dev/kvm is not writable, so this runner cannot accelerate an x86_64 emulator"
-  echo "kvm ready"
+  sudo udevadm settle || true
+  local waited=0
+  until [ -w /dev/kvm ]; do
+    if [ "$waited" -ge 15 ]; then
+      ls -l /dev/kvm >&2 || true
+      echo "cpu virtualization flags: $(grep -c -E 'vmx|svm' /proc/cpuinfo)" >&2
+      fail "/dev/kvm is not writable, so this runner cannot accelerate an x86_64 emulator"
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  echo "kvm ready after ${waited}s"
 }
 
 avd() {
