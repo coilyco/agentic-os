@@ -56,7 +56,10 @@ def talk(sock_path: str):
 def start(args: argparse.Namespace) -> int:
     """Spawn a seat that appends each line typed into it to args.log."""
     send, _ = talk(args.socket)
-    script = f'while IFS= read -r line; do printf "%s\\n" "$line" >> "{args.log}"; done'
+    # A trigger file makes the seat run its own opener, which carries its token.
+    trigger = f"{args.log}.open"
+    watcher = f'while sleep 1; do [ -f "{trigger}" ] && {{ "$BROWSER" "$(cat "{trigger}")"; rm -f "{trigger}"; }}; done'
+    script = f'({watcher}) & while IFS= read -r line; do printf "%s\\n" "$line" >> "{args.log}"; done'
     reply = send({"type": "spawn", "session": args.seat, "role": ROLE, "argv": ["/bin/sh", "-c", script], "rows": 24, "cols": 80})
     if reply.get("type") != "spawned":
         raise SystemExit(f"spawn refused: {reply}")

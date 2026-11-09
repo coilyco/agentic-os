@@ -299,6 +299,31 @@ class Journey:
         self.shot(f"sheet-sent-{name}")
         self.daemon_got_the_bytes(name)
 
+    def journey_d_open_in_browser(self) -> None:
+        """Observe only: what a tap on an artifact card's Open in browser does on Android (COI-3520)."""
+        page = self.page
+        assert page
+        Path(self.args.seat_log + ".open").write_text("https://claude.ai/artifact/ci-observe")
+        card = 'section[aria-label="A seat opened a page"] button'
+        deadline = time.monotonic() + 30
+        while not page.js(f"!!document.querySelector({json.dumps(card)})"):
+            if time.monotonic() > deadline:
+                raise Fail(f"no artifact card appeared. page text: {page.text()[:300]!r}")
+            time.sleep(0.5)
+        self.shot("card-before-tap")
+        before = self.focus()
+        page.tap(f"()=>document.querySelector({json.dumps(card)})")
+        time.sleep(4)
+        resumed = [line.strip() for line in adb("shell", "dumpsys", "activity", "activities", check=False).splitlines() if "ResumedActivity" in line][:2]
+        try:
+            href = page.js("location.href")
+        except (Fail, OSError) as err:
+            href = f"page not reachable: {err}"
+        report = f"focus before: {before}\nfocus after: {self.focus()}\nresumed: {resumed}\npage url after: {href}\n"
+        (self.out / "journey-d.txt").write_text(report)
+        print("journey D (observation only):\n" + report)
+        adb("shell", "am", "start", "-n", f"{APP}/.MainActivity")
+
     def journey_c_daemon_down(self) -> None:
         """Evidence only: the failure copy is the client's to specify (COI-3485)."""
         page = self.page
@@ -333,6 +358,7 @@ class Journey:
             self.step("share-cold-start", lambda: self.share("ci-share-cold.png", cold=True))
             self.step("share-warm-app-open", lambda: self.share("ci-share-warm.png", cold=False))
             print("journey B: passed")
+        self.step("journey-d-open-in-browser", self.journey_d_open_in_browser)
         self.step("journey-c-daemon-down", self.journey_c_daemon_down)
         self.evidence()
 
