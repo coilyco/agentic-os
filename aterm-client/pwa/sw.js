@@ -1,6 +1,7 @@
 // The app shell for aterm. The build swaps the SHELL string below for the file list
 // and a hash of their bytes (pwa-plugin.ts). It never touches a websocket, and every
-// request that is not the shell goes to the network untouched.
+// request that is not the shell goes to the network untouched. It also shows Web Push:
+// .agents/skills/tooling-aterm-client/references/web-push.md
 const SHELL = "__SHELL__";
 const CACHE = `aterm-shell-${SHELL.version}`;
 const SLOW_NETWORK_MS = 3000;
@@ -59,4 +60,72 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.open(CACHE).then(async (cache) => (await cache.match(request, { ignoreSearch: true })) ?? fetch(request)),
   );
+});
+
+// A push that is not the daemon's payload still shows something, since showing nothing
+// makes Chrome add its own notice.
+function readPush(data) {
+  let payload = null;
+  try {
+    payload = data ? data.json() : null;
+  } catch {
+    // Not JSON. The fallback below speaks for it.
+  }
+  const text = (value) => (typeof value === "string" && value ? value : "");
+  const session = text(payload?.session);
+  return {
+    session,
+    kind: text(payload?.kind),
+    title: text(payload?.title) || (text(payload?.identity) ? `${payload.identity} is waiting` : "A seat is waiting"),
+    body: text(payload?.body),
+    tag: text(payload?.tag) || (session ? `aterm-${session}` : "aterm"),
+  };
+}
+
+const windowsOf = () => self.clients.matchAll({ type: "window", includeUncontrolled: true });
+
+// Every push must show one (userVisibleOnly): a watched window's is silent, then closed.
+async function showPush(event) {
+  const note = readPush(event.data);
+  const watched = (await windowsOf()).some((client) => client.visibilityState === "visible" && client.focused);
+  const quiet = watched || note.kind === "done";
+  await self.registration.showNotification(note.title, {
+    body: note.body,
+    tag: note.tag,
+    icon: inScope("icon-192.png"),
+    data: { session: note.session },
+    // silent and renotify cannot both be true.
+    silent: quiet,
+    renotify: !quiet,
+  });
+  if (!watched) return;
+  try {
+    for (const shown of await self.registration.getNotifications({ tag: note.tag })) shown.close();
+  } catch {
+    // Left in the tray, which is only untidy.
+  }
+}
+
+self.addEventListener("push", (event) => {
+  event.waitUntil(showPush(event));
+});
+
+// A window already open is told which seat to show. With none, the app opens on it.
+async function openSeat(session) {
+  const open = (await windowsOf())[0];
+  if (open) {
+    try {
+      await open.focus();
+    } catch {
+      // The browser may refuse to focus. The message still reaches the page.
+    }
+    open.postMessage({ type: "aterm-open-seat", session });
+    return;
+  }
+  await self.clients.openWindow(session ? inScope(`./?seat=${encodeURIComponent(session)}`) : inScope("./"));
+}
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(openSeat(event.notification.data?.session ?? ""));
 });
