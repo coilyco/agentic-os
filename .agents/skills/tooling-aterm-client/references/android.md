@@ -45,7 +45,7 @@ The scripted steps are [`scripts/ci/aterm-android.sh`](../../../../scripts/ci/at
 ## Not yet verified
 
 * An APK installed and opened on a phone.
-* Add image opening the phone's picker. `onShowFileChooser` is in the shipped dex and wry 0.57.0 handles it, but nobody has run it on a device or emulator (COI-3485).
+* Add image's picker on a real phone. A CI emulator run (Android 15, debug x86_64, 2026-11-09, COI-3485) opened the Photo Picker (`PhotoPickerGetContentActivity`, not a `documentsui` package), so `onShowFileChooser` works there. Picking a file and the send on the emulator, and any run on a phone, are not yet observed.
 * The share target: the merged manifest filters, Treehouse in the Share menu, and the sheet on a phone ([android-sharetarget.md](android-sharetarget.md)).
 * Whether Android System WebView honours `interactive-widget=resizes-content` for the keyboard.
 * Gradle and Maven dependencies are not hash-verified. Tauri's generated project pulls the Android Gradle plugin and AndroidX from Google Maven and Maven Central with no dependency verification metadata.
