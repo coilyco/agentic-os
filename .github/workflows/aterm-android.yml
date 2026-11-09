@@ -30,6 +30,12 @@ on:
         required: false
         default: false
         type: boolean
+      debug_abi:
+        description: "Build one debuggable APK for an emulator and nothing else, no release, no publish."
+        required: false
+        default: none
+        type: choice
+        options: [none, x86_64, aarch64]
       allow_throwaway:
         description: "Publish even when the signing secrets are unset. The APK will not install over a later properly signed build."
         required: false
@@ -63,7 +69,34 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
           DRY_RUN: ${{ inputs.dry_run }}
+          DEBUG_ABI: ${{ inputs.debug_abi }}
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-release.sh" plan
+
+  debug-apk:
+    needs: plan
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.debug_abi != 'none' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: aterm-client/.node-version
+      - uses: ./actions/setup-ci
+        with:
+          tools: just
+      - name: Install the Android toolchain
+        run: mkdir -p "$GITHUB_WORKSPACE/aterm-android-out" && bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" toolchain
+      - name: Build the debuggable APK
+        env:
+          ABI: ${{ inputs.debug_abi }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" build-debug "$ABI" "$GITHUB_WORKSPACE/aterm-android-out/aterm-debug.apk"
+      - name: Keep the debug build as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aterm-android-debug-${{ inputs.debug_abi }}-${{ github.run_id }}
+          path: ${{ github.workspace }}/aterm-android-out/aterm-debug.apk
+          retention-days: 7
 
   apk:
     needs: plan

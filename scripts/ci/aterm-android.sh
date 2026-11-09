@@ -193,6 +193,36 @@ verify() {
   echo "signer SHA-256: $cert"
 }
 
+# build-debug ABI OUT: a debuggable APK for one emulator ABI (x86_64 or aarch64), signed
+# by Gradle's debug key. Release builds have no WebView DevTools, see android.md.
+build_debug() {
+  local abi="${1:?usage: build-debug ABI OUT}" out="${2:?usage: build-debug ABI OUT}" rust_target native badging
+  case "$abi" in
+    x86_64) rust_target=x86_64-linux-android native=x86_64 ;;
+    aarch64) rust_target=aarch64-linux-android native=arm64-v8a ;;
+    *) fail "ABI must be x86_64 or aarch64, got $abi" ;;
+  esac
+  use_java
+  cd "$repo_root"
+  just aterm-client-install
+  VITE_ATERM_APP=1 just aterm-client-build
+  just aterm-android-install
+  rustup target add "$rust_target"
+  rm -rf "$android_dir/src-tauri/gen/android"
+  just aterm-android-tauri android init --ci
+  just aterm-android-tauri android build --debug --apk --target "$abi" --ci \
+    --config "$(tauri_config 0.0.0 "$(resolve_code)")"
+  local found
+  found=$(find "$android_dir/src-tauri/gen/android/app/build/outputs/apk" -name '*-debug.apk')
+  [ "$(printf '%s\n' "$found" | grep -c .)" -eq 1 ] || fail "expected one debug APK, found: ${found:-none}"
+  badging=$(aapt2 dump badging "$found")
+  printf '%s\n' "$badging" | grep -q "^package: name='$APP_ID' " || fail "package name is not $APP_ID"
+  printf '%s\n' "$badging" | grep -q "^native-code: '$native'$" || fail "native code is not $native only"
+  printf '%s\n' "$badging" | grep -q "^application-debuggable" || fail "the APK is not debuggable"
+  cp "$found" "$out"
+  echo "debug APK ($abi): $out"
+}
+
 bundletool() {
   java -jar "$bundletool_jar" "$@"
 }
@@ -270,9 +300,10 @@ cmd="${1:-}"
 [ $# -gt 0 ] && shift
 case "$cmd" in
   toolchain | build | sign | verify | bundle) "$cmd" "$@" ;;
+  build-debug) build_debug "$@" ;;
   version-code) version_code "$@" ;;
   sign-bundle) sign_bundle "$@" ;;
   verify-bundle) verify_bundle "$@" ;;
   app-id) echo "$APP_ID" ;;
-  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | sign IN OUT | verify APK | bundle VERSION OUT | sign-bundle IN OUT | verify-bundle AAB | version-code [EPOCH] | app-id" ;;
+  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | sign IN OUT | verify APK | bundle VERSION OUT | build-debug ABI OUT | sign-bundle IN OUT | verify-bundle AAB | version-code [EPOCH] | app-id" ;;
 esac

@@ -68,7 +68,9 @@ type ptySession struct {
 	cwd  string
 	// label is what the client that opened a terminal called it. Opaque, kept
 	// in the holder so a restart adopts it.
-	label   string
+	label string
+	// origin is how the launcher said the seat started. See knownOrigin.
+	origin  string
 	pid     int
 	started time.Time
 	// mcpApps is whether the launch opted in to the MCP Apps gateway.
@@ -200,7 +202,7 @@ func startPTYSession(d *daemon, name string, message frame) (*ptySession, error)
 	spec := frame{
 		Type: "spawn", Session: name, Role: message.Role, Identity: message.Identity, Seat: message.Seat,
 		Kind: message.Kind, Argv: message.Argv, Env: env, Cwd: message.Cwd,
-		Rows: message.Rows, Cols: message.Cols, Token: token, Label: message.Label,
+		Rows: message.Rows, Cols: message.Cols, Token: token, Label: message.Label, Origin: knownOrigin(message.Origin),
 		MCPApps: token != "" && slices.Contains(message.Env, mcpAppsEnv+"=1"),
 	}
 	// A pool name recurs, and a lingering holder removes its socket as it goes.
@@ -262,6 +264,7 @@ func (d *daemon) connectHolder(socket string, adopted bool) (*ptySession, error)
 		kind:         info.Kind,
 		cwd:          info.Cwd,
 		label:        info.Label,
+		origin:       info.Origin,
 		mcpApps:      info.MCPApps,
 		heldGateways: info.Gateways,
 		pid:          info.PID,
@@ -1031,7 +1034,13 @@ func (s *ptySession) view() sessionView {
 		at := s.activityAt.UTC()
 		activityAt = &at
 	}
+	var background *int
+	if count, known := backgroundCount(s.seat, lines); known {
+		background = &count
+	}
 	return sessionView{
+		Background:   background,
+		Origin:       s.origin,
 		State:        state,
 		StateSeconds: &inState,
 		QuietSeconds: int(quiet / time.Second),
