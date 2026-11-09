@@ -139,12 +139,14 @@ export function loadSessions(): SessionSpec[] {
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
  * `images`: a host that takes an image, so the composer shows Add image. */
-export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; launchDelayMs?: number };
+export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; launchDelayMs?: number; pinnedRoles?: string[] };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   if (!existsSync(join(DIST, "index.html"))) {
     throw new Error("The mock daemon serves aterm-client/dist, which is not built. Run `just aterm-client-testbed`, which builds it first.");
   }
-  const roster = JSON.parse(readFileSync(ROSTER, "utf8")) as unknown;
+  const roster = JSON.parse(readFileSync(ROSTER, "utf8")) as { roles: { slug: string; pinned_by_default?: boolean }[] };
+  // Roles the roster marks pinned by default, as a daemon with the attribute would.
+  for (const role of roster.roles) if (options.pinnedRoles?.includes(role.slug)) role.pinned_by_default = true;
   const live = new Map<string, Live>();
   const typedBy = new Map<string, string[]>();
   const clients = new Set<WebSocket>();
