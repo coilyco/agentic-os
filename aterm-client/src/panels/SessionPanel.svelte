@@ -20,6 +20,7 @@
   import { needsPasskey } from "../lib/typing";
   import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
   import { loadSide, loadSideOpen, storeSide, storeSideOpen } from "../lib/split";
+  import { mark } from "../lib/tap-trace";
   import { wantsFind } from "../lib/terminal-extras";
 
   let { role, session }: { role: Role; session: Session } = $props();
@@ -101,6 +102,8 @@
   let answered = "";
   // A redraw arrives in pieces, so one frame without the menu is not it closing.
   let hideTimer: ReturnType<typeof setTimeout> | undefined;
+  // Whether the last screen read held a menu, so a trace notes only the change.
+  let menuSeen = false;
   const HIDE_AFTER_MS = 400;
   const FORGET_AFTER_MS = 5000;
   let forgetTimer: ReturnType<typeof setTimeout> | undefined;
@@ -119,6 +122,8 @@
   function readScreen(rows: string[], tabBar: TabBarCells | null): void {
     blank = isBlank(rows);
     const found = detectChoice(rows);
+    if ((found !== null) !== menuSeen) mark("screen", found ? "menu" : "no-menu");
+    menuSeen = found !== null;
     dialogTabs = found && tabBar ? readTabs(tabBar.text, new Set(tabBar.highlighted)) : null;
     if (!found) {
       hideTimer ??= setTimeout(() => {
@@ -156,6 +161,7 @@
 
   function answer(chunks: string[]): void {
     if (!choice) return;
+    mark("answer", "screen-card");
     answered = shownKey;
     forgetCardMemos(screenScope(session.id));
     heldQuestion = choice.question;
@@ -208,7 +214,7 @@
             {#if ask}
               {@const asked = choiceFromAsk(ask)}
               {#key ask.id}
-                <div class="overlay">
+                <div class="overlay" data-card="daemon">
                   <ChoiceCard
                     choice={asked}
                     memo={cardMemo(memoKey(askScope(ask.id), asked.options), [])}
@@ -219,6 +225,7 @@
                     lockedLabel={reconnecting() ? "Reconnecting" : "Read only"}
                     cancelLocked={needsPasskey(app.typing) || reconnecting()}
                     onanswer={(picks, text) => {
+                      mark("answer", "daemon-card");
                       const reply = askAnswer(ask, picks, text);
                       forgetCardMemos(askScope(ask.id));
                       app.connection?.answer(ask.id, reply.picks, reply.text);
@@ -233,7 +240,7 @@
             {:else if choice}
               {@const current = choice}
               {#key shownKey}
-                <div class="overlay">
+                <div class="overlay" data-card="screen">
                   <ChoiceCard choice={current} tabs={dialogTabs} ontab={goToTab} onmove={() => app.connection?.input(session.id, "\x1b[B")} memo={cardMemo(memoKey(screenScope(session.id), current.options), tickedRows(current.options))} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onanswer={(picks, text) => answer(current.multi ? keysForPicks(current, picks, text) : keysFor(current, picks[0] ?? 0, text))} oncancel={() => answer(CANCEL)} />
                 </div>
               {/key}
