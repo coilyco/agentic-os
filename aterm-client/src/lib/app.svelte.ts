@@ -13,13 +13,15 @@ import { Recheck } from "./recheck";
 import type { View } from "./mcp-apps";
 import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
-import type { Ask, Host, HostConnection, LaunchState, Link, PeerMessage, Session } from "./protocol";
+import type { Ask, Host, HostConnection, LaunchState, Link, PeerMessage, SeatArtifact, Session } from "./protocol";
+import { seatsNeedingKai, type NeedsKai } from "./needs-kai";
 import type { ResumeState } from "./resume";
 import type { Role } from "./roster";
 import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
 import { TYPING_OPEN, type Typing } from "./typing";
 import { offer, pageLabel, type OpenedPage } from "./pages";
 import { loadLastOpen, seatToRestore, storeLastOpen, type LastOpen } from "./last-open";
+import { beginLaunch, newSeatFor, type PendingLaunch } from "./launch-follow";
 
 /** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
 
@@ -69,14 +71,14 @@ export const app = $state({
   launches: {} as Record<string, { state: LaunchState; text: string }>,
   /** Sessions that finished a turn while you were looking at another one. */
   unseen: {} as Record<string, boolean>,
-  /** Seats waiting on you, for cues. Unlike `unseen`, counts the open seat if hidden. */
-  attention: {} as Record<string, boolean>,
   /** Whether the tab is on screen. The open seat is only "seen" while it is. */
   pageVisible: document.visibilityState === "visible",
   /** The opt-in cues, per browser. `soundBlocked` is the browser refusing audio. */
   alerts: { ...loadAttention(), soundBlocked: false } as AttentionSettings & { soundBlocked: boolean },
   /** ask_choice calls waiting on a person, by ask id. */
   asks: {} as Record<string, Ask>,
+  /** Pages seats put on her desk, by id. One marked waiting is a seat that needs her. */
+  artifacts: {} as Record<string, SeatArtifact>,
   /** Bumped when a person opens a seat with an ask, so its card takes the keyboard. */
   focusCard: 0,
   /** The seat whose card was asked for the keyboard. Spent once it has it. */
@@ -121,6 +123,7 @@ export function reconnecting(): boolean {
 /** Brings the attached host's own panel forward, where its connection check is. */
 export function showHost(): void {
   restoring = null;
+  launching = null;
   if (app.attachedHostId) storeLastOpen({ host: app.attachedHostId });
   app.selectedSession = null;
   app.selectedRole = null;
@@ -321,6 +324,8 @@ export function selectedHost(): Host | undefined {
 /** Selecting an online host attaches to it, so one tap reaches its seats. */
 // What this device last had open, until the restore uses it or a tap overtakes it.
 let restoring: LastOpen | null = loadLastOpen();
+// A launch waiting for its seat to be listed. Any other pick by a person ends the wait.
+let launching: PendingLaunch | null = null;
 let restoringNow = false;
 
 function restoreFor(host: Host): void {
@@ -347,6 +352,7 @@ function restoreSeat(last: LastOpen, listed: readonly Session[]): void {
 
 export function selectHost(host: Host): void {
   if (!restoringNow) restoring = null;
+  launching = null;
   storeLastOpen({ host: host.id });
   app.selectedHostId = host.id;
   app.selectedSession = null;
@@ -369,7 +375,7 @@ export function selectHost(host: Host): void {
   app.sessions = [];
   app.messages = [];
   app.asks = {};
-  app.attention = {};
+  app.artifacts = {};
   app.views = {};
   app.browsers = {};
   app.terminals = [];
@@ -384,13 +390,14 @@ export function selectHost(host: Host): void {
     if (event.type === "roster") app.roles = event.roles;
     else if (event.type === "sessions") {
       app.unseen = nextUnseen(app.sessions, event.sessions, viewingSession(), app.unseen);
-      app.attention = nextUnseen(app.sessions, event.sessions, openSeat(), app.attention);
       app.sessions = event.sessions;
       if (restoring?.host === host.id) {
         const last = restoring;
         restoring = null;
         restoreSeat(last, event.sessions);
       }
+      const arrived = launching ? newSeatFor(launching, event.sessions, Date.now()) : null;
+      if (arrived) selectSession(arrived);
     }
     else if (event.type === "message") app.messages = upsertMessage(app.messages, event.message);
     else if (event.type === "typing") {
@@ -403,6 +410,12 @@ export function selectHost(host: Host): void {
     else if (event.type === "input_refused") app.inputNotice = event.text;
     else if (event.type === "ask") app.asks[event.ask.id] = event.ask;
     else if (event.type === "asked") delete app.asks[event.id];
+    else if (event.type === "artifact") app.artifacts[event.artifact.id] = event.artifact;
+    else if (event.type === "artifact_update") {
+      const page = app.artifacts[event.id];
+      if (page) Object.assign(page, { waiting: event.waiting ?? page.waiting, seatEnded: event.seatEnded ?? page.seatEnded });
+    }
+    else if (event.type === "artifact_closed") delete app.artifacts[event.id];
     else if (event.type === "view") app.views[event.view.id] = event.view;
     else if (event.type === "view_update") {
       const view = app.views[event.id];
@@ -430,13 +443,19 @@ export function selectHost(host: Host): void {
       settleOpen(event.label);
       app.terminalRefusals[event.label] = event.text;
     }
-    else if (event.type === "launch") app.launches[event.role] = { state: event.state, text: event.text };
+    else if (event.type === "launch") {
+      app.launches[event.role] = { state: event.state, text: event.text };
+      // Watch from the tap: the seat can be listed before `launched`, or after it.
+      if (event.state === "failed") launching = null;
+      else if (event.state === "starting" || launching?.role !== event.role) launching = beginLaunch(event.role, app.sessions, Date.now());
+    }
     else if (event.type === "reconnecting") app.link = { state: "reconnecting", attempt: event.attempt, retryAt: event.retryAt };
     else if (event.type === "resting") app.link = { state: "resting" };
     else if (event.type === "reconnected") {
       app.resume = null;
       // The new connection re-sends pending asks. The old ones belong to a dead daemon.
       app.asks = {};
+      app.artifacts = {};
       app.link = { state: "restored" };
       clearTimeout(restoredTimer);
       restoredTimer = setTimeout(() => {
@@ -447,6 +466,7 @@ export function selectHost(host: Host): void {
     }
     else if (event.type === "closed") {
       clearTimeout(restoredTimer);
+      launching = null;
       app.link = { state: "live" };
       host.status = { kind: "unreachable", reason: event.reason };
       watchHost(host);
@@ -460,17 +480,18 @@ export function selectHost(host: Host): void {
 
 export function selectSession(id: string): void {
   if (!restoringNow) restoring = null;
+  launching = null;
   const seat = sessionById(id);
   if (seat && app.attachedHostId) storeLastOpen({ host: app.attachedHostId, seat: { id, who: seat.identity } });
   app.selectedSession = id;
   app.selectedRole = null;
   delete app.unseen[id];
-  delete app.attention[id];
 }
 
 /** Opens a role's start panel. */
 export function selectRole(slug: string): void {
   restoring = null;
+  launching = null;
   app.selectedRole = slug;
   app.selectedSession = null;
 }
@@ -547,30 +568,11 @@ export function askLineFor(sessionId: string): string | null {
   return ask ? askerLine(ask, sessionId, live, nameOf) : null;
 }
 
-export interface Waiting {
-  sessionId: string;
-  role: string;
-  identity: string;
-  kind: "asking" | "done";
-}
+export type Waiting = NeedsKai;
 
-/** Seats that need you, asks before finished turns, in the order they arrived. */
+/** Seats that need you: the one list the title, badge, chip, toast and cues all read. */
 export function waitingSeats(): Waiting[] {
-  const bySession = new Map(app.sessions.map((session) => [session.id, session]));
-  const live = liveIds();
-  const asking = Object.values(app.asks)
-    .map((ask) => bySession.get(cardSeatOf(ask, live)))
-    .filter((session): session is Session => session !== undefined);
-  const done = Object.keys(app.unseen)
-    .map((id) => bySession.get(id))
-    .filter((session): session is Session => session !== undefined && !asking.includes(session));
-  const seen = new Set<string>();
-  return [
-    ...asking.map((session) => ({ session, kind: "asking" as const })),
-    ...done.map((session) => ({ session, kind: "done" as const })),
-  ]
-    .filter(({ session }) => (seen.has(session.id) ? false : (seen.add(session.id), true)))
-    .map(({ session, kind }) => ({ sessionId: session.id, role: session.role, identity: session.identity, kind }));
+  return seatsNeedingKai(Object.values(app.asks), Object.values(app.artifacts), app.sessions);
 }
 
 let nextPage = 0;
@@ -619,9 +621,8 @@ export function openSeat(): string | null {
 
 /** Who is waiting, for cues. A read-only browser cannot answer, so its asks sit out. */
 export function cueSeats(): string[] {
-  const live = liveIds();
-  const asking = app.typing.allowed ? Object.values(app.asks).map((ask) => cardSeatOf(ask, live)) : [];
-  return [...new Set([...Object.keys(app.attention), ...asking])].filter((id) => live.has(id));
+  const asks = app.typing.allowed ? Object.values(app.asks) : [];
+  return seatsNeedingKai(asks, Object.values(app.artifacts), app.sessions).map((seat) => seat.sessionId);
 }
 
 /** Waiting seats the strong visual draws, with their role colour. */

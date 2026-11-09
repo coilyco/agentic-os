@@ -164,6 +164,10 @@ interface Frame {
   metadata?: Record<string, number>;
   view?: ViewFrame;
   view_id?: string;
+  artifact?: { id: string; waiting?: boolean; seat_ended?: boolean };
+  artifact_id?: string;
+  waiting?: boolean;
+  seat_ended?: boolean;
   tool_result?: ToolResult;
   cancelled?: string;
   result?: unknown;
@@ -842,7 +846,7 @@ export class DaemonHost implements HostConnection {
         this.emit(this.last.features);
         this.request({ type: "subscribe", channel: "sessions" });
         this.request({ type: "roster" });
-        if (this.features.has("mcp-apps")) this.request({ type: "subscribe", channel: "views" });
+        if (this.features.has("mcp-apps") || this.features.has("artifacts")) this.request({ type: "subscribe", channel: "views" });
         // Subscribers are the clients that can show a page. With no browser, stay out,
         // and the host opens its own.
         if (this.features.has(OPEN_URL_FEATURE) && this.features.has(BROWSER_FEATURE)) this.request({ type: "subscribe", channel: "open_url" });
@@ -886,6 +890,15 @@ export class DaemonHost implements HostConnection {
         return;
       case "view_closed":
         if (frame.view_id) this.emit({ type: "view_closed", id: frame.view_id });
+        return;
+      case "artifact":
+        if (frame.artifact && frame.session) this.emit({ type: "artifact", artifact: { id: frame.artifact.id, session: frame.session, waiting: frame.artifact.waiting === true, seatEnded: frame.artifact.seat_ended === true } });
+        return;
+      case "artifact_update":
+        if (frame.artifact_id) this.emit({ type: "artifact_update", id: frame.artifact_id, ...(frame.waiting === undefined ? {} : { waiting: frame.waiting }), ...(frame.seat_ended === undefined ? {} : { seatEnded: frame.seat_ended }) });
+        return;
+      case "artifact_closed":
+        if (frame.artifact_id) this.emit({ type: "artifact_closed", id: frame.artifact_id });
         return;
       case "view_result":
       case "image_uploaded":

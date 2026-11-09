@@ -6,7 +6,7 @@ export const TOAST_MS = 6_000;
 export interface ToastSeat {
   sessionId: string;
   identity: string;
-  kind: "asking" | "done";
+  kind: "asking" | "artifact";
 }
 
 export interface Toast {
@@ -22,7 +22,7 @@ export function toastFor(waiting: readonly ToastSeat[], open: string | null): To
   const others = waiting.filter((seat) => seat.sessionId !== open);
   const first = others[0];
   if (!first) return null;
-  const said = `${first.identity} is ${first.kind === "asking" ? "asking" : "done"}`;
+  const said = first.kind === "asking" ? `${first.identity} is asking` : `${first.identity} left you a page`;
   const more = others.length - 1;
   return { sessionId: first.sessionId, count: others.length, text: more > 0 ? `${said}, and ${more} more waiting` : said };
 }
