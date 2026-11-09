@@ -273,9 +273,9 @@ aterm-android-emulator *ARGS:
 aterm-fixture-seats *ARGS:
     @uv run scripts/aterm_fixture_seats.py "$@"
 
-# Regenerate the aterm Android launcher icons from the website brand kit directory BRAND_DIR (coilyco/website src/images/brand).
-aterm-android-icons BRAND_DIR:
-    @bash scripts/aterm-android-icons.sh "{{BRAND_DIR}}"
+# Regenerate the Treehouse icons (Android launcher, Tauri source, web client) from the website's mark-exports/treehouse directory TREEHOUSE_DIR.
+aterm-android-icons TREEHOUSE_DIR:
+    @bash scripts/aterm-android-icons.sh "{{TREEHOUSE_DIR}}"
 
 # Run the windowed Treehouse app's Rust tests on a Mac. See .agents/skills/tooling-aterm-client/references/desktop.md.
 treehouse-mac-test:

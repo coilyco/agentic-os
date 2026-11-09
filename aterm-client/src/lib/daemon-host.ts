@@ -76,6 +76,7 @@ interface SessionView {
   last_reply_at?: string;
   /** Seconds since the seat last wrote, as of the frame. */
   quiet_seconds?: number;
+  state_seconds?: number;
   state?: string;
   ref?: string;
   background?: number;
@@ -140,6 +141,8 @@ interface Frame {
   data?: string;
   /** The absolute file an `image_uploaded` names. */
   path?: string;
+  /** A coordinator seat's ping, on the sessions channel. */
+  notify?: { id?: string; session?: string; role?: string; identity?: string; title?: string; body?: string; at?: string };
   /** Answers a `last_reply` request. */
   reply?: { session?: string; text?: string; truncated?: boolean; at?: string };
   sessions?: SessionView[];
@@ -280,7 +283,7 @@ const REFRESH_MS = 20_000;
 
 const SCREEN_STATES = ["starting", "busy", "idle", "prompt"];
 
-export function toSession(view: SessionView, busy = false, quiet?: number): Session {
+export function toSession(view: SessionView, busy = false, quiet?: number, receivedAt?: number): Session {
   const activity = toActivity(view.activity, view.activity_at);
   return {
     id: view.name,
@@ -301,6 +304,7 @@ export function toSession(view: SessionView, busy = false, quiet?: number): Sess
     ...(view.last_reply && Number.isFinite(Date.parse(view.last_reply_at ?? "")) ? { lastReplyAt: Date.parse(view.last_reply_at ?? "") } : {}),
     ...(activity ? { activity } : {}),
     ...(quiet === undefined ? {} : { quietSince: quiet }),
+    ...(receivedAt === undefined || typeof view.state_seconds !== "number" ? {} : { stateSince: receivedAt - view.state_seconds * 1000 }),
   };
 }
 
@@ -837,7 +841,7 @@ export class DaemonHost implements HostConnection {
   }
 
   private publishSessions(): void {
-    this.last.sessions = this.sessionViews.map((view) => toSession(view, this.busy.has(view.name), quietSince(view.quiet_seconds, this.viewsAt, this.lastOutput.get(view.name))));
+    this.last.sessions = this.sessionViews.map((view) => toSession(view, this.busy.has(view.name), quietSince(view.quiet_seconds, this.viewsAt, this.lastOutput.get(view.name)), this.viewsAt));
     this.emit({ type: "sessions", sessions: this.last.sessions });
   }
 
@@ -973,6 +977,14 @@ export class DaemonHost implements HostConnection {
         if (call && frame.id) {
           this.calls.delete(frame.id);
           call.resolve(frame);
+        }
+        return;
+      }
+      case "notify": {
+        // An older daemon sends none, and one without the feature is not trusted to.
+        const note = frame.notify;
+        if (this.features.has("notify") && note?.id && note.session && note.title) {
+          this.emit({ type: "notify", notify: { id: note.id, session: note.session, role: note.role ?? "", identity: note.identity ?? "", title: note.title, body: note.body ?? "", at: Date.parse(note.at ?? "") || Date.now() } });
         }
         return;
       }
