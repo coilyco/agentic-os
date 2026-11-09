@@ -9,6 +9,7 @@
   import { AT_END, jumpLabel, linesAbove, scrolled, wrote, type Follow } from "../lib/follow";
   import { envelopeRows } from "../lib/messages";
   import { harnessBox } from "../lib/harness";
+  import { openLink } from "../lib/link-notice.svelte";
   import { boxToReport, nextTall } from "../lib/pty-size";
   import { detectChoice } from "../lib/choices";
   import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
@@ -222,7 +223,7 @@
       new WebLinksAddon(
         (click, uri) => {
           const href = linkTarget(uri);
-          if (href && opensLink(click, touch.matches)) window.open(href, "_blank", "noopener,noreferrer");
+          if (href && opensLink(click, touch.matches)) void openLink(href);
         },
         { hover: () => (host.title = touch.matches ? "" : `${verb} to open`), leave: () => (host.title = "") },
       ),

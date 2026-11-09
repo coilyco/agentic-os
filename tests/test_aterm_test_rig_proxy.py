@@ -1,11 +1,13 @@
-"""The test rig relay against a real throwaway aterm daemon, and its loopback-only rule."""
+"""The test rig relay against a real throwaway aterm daemon: origin, frames, refusals."""
 
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import shutil
 import socket
+import struct
 import subprocess
 import sys
 import tempfile
@@ -15,6 +17,7 @@ from pathlib import Path
 import pytest
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "aterm_test_rig_proxy.py"
+APP = "https://tauri.localhost"
 needs_aterm = pytest.mark.skipif(shutil.which("aterm") is None, reason="needs the aterm binary on PATH")
 
 
@@ -31,31 +34,111 @@ def free_port() -> int:
         return probe.getsockname()[1]
 
 
-def upgrade_status(port: int, origin: str) -> str:
-    """The status line of a websocket upgrade sent with the given Origin."""
-    head = (
-        f"GET / HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-        "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n"
-        f"Origin: {origin}\r\n\r\n"
-    )
-    with socket.create_connection(("127.0.0.1", port), timeout=10) as conn:
-        conn.sendall(head.encode())
-        return conn.recv(512).decode(errors="replace").split("\r\n", 1)[0]
+def request(port: int, line: str = "GET / HTTP/1.1", origin: str = APP, upgrade: bool = True, extra: str = "") -> socket.socket:
+    head = f"{line}\r\nHost: 127.0.0.1:{port}\r\n"
+    if upgrade:
+        head += "Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n"
+    head += (f"Origin: {origin}\r\n" if origin else "") + extra + "\r\n"
+    conn = socket.create_connection(("127.0.0.1", port), timeout=10)
+    conn.sendall(head.encode())
+    return conn
+
+
+def status(conn: socket.socket) -> str:
+    return conn.recv(512).decode(errors="replace").split("\r\n", 1)[0]
+
+
+class Wire:
+    """A websocket client over a raw socket, so a test can send frames no library would."""
+
+    def __init__(self, port: int):
+        self.conn = request(port)
+        data = b""
+        while b"\r\n\r\n" not in data:
+            data += self.conn.recv(4096)
+        head, _, self.buffer = data.partition(b"\r\n\r\n")
+        assert head.startswith(b"HTTP/1.1 101"), head
+
+    def frame(self, opcode: int, payload: bytes, fin: bool = True, masked: bool = True) -> bytes:
+        key = b"\x01\x02\x03\x04"
+        size = len(payload)
+        head = bytes([(0x80 if fin else 0) | opcode])
+        head += bytes([(0x80 if masked else 0) | size]) if size < 126 else bytes([(0x80 if masked else 0) | 126]) + struct.pack(">H", size)
+        body = bytes(b ^ key[i % 4] for i, b in enumerate(payload)) if masked else payload
+        return head + (key if masked else b"") + body
+
+    def send(self, obj: dict | str, **kw) -> None:
+        text = obj if isinstance(obj, str) else json.dumps(obj)
+        self.conn.sendall(self.frame(0x1, text.encode(), **kw))
+
+    def read_exact(self, n: int) -> bytes:
+        while len(self.buffer) < n:
+            chunk = self.conn.recv(65536)
+            if not chunk:
+                raise EOFError
+            self.buffer += chunk
+        out, self.buffer = self.buffer[:n], self.buffer[n:]
+        return out
+
+    def receive(self, want: str | None = None, secs: float = 10) -> dict:
+        """The next JSON text frame, or one of the wanted type. EOFError when the relay hangs up."""
+        end = time.time() + secs
+        while time.time() < end:
+            b0, b1 = self.read_exact(2)
+            size = b1 & 0x7F
+            if size == 126:
+                (size,) = struct.unpack(">H", self.read_exact(2))
+            elif size == 127:
+                (size,) = struct.unpack(">Q", self.read_exact(8))
+            payload = self.read_exact(size)
+            if b0 & 0x0F == 0x1:
+                message = json.loads(payload)
+                if want is None or message.get("type") == want:
+                    return message
+            elif b0 & 0x0F == 0x8:
+                raise EOFError("closed")
+        raise TimeoutError(want)
+
+    def hangs_up(self) -> bool:
+        self.conn.settimeout(5)
+        try:
+            while True:
+                if not self.conn.recv(65536):
+                    return True
+        except (ConnectionError, TimeoutError, socket.timeout):
+            return True
 
 
 def test_only_the_app_origin_is_rewritten() -> None:
     proxy = load()
     head = b"GET / HTTP/1.1\r\nHost: x\r\nOrigin: https://TAURI.localhost\r\nUpgrade: websocket\r\n\r\n"
-    out, changed = proxy.rewrite_head(head, "https://tauri.localhost", "http://127.0.0.1")
+    out, changed = proxy.rewrite_head(head, APP, "http://127.0.0.1")
     assert changed and b"Origin: http://127.0.0.1\r\n" in out and b"tauri" not in out.lower()
     other = b"GET / HTTP/1.1\r\nOrigin: https://tauri.localhost.example\r\n\r\n"
-    assert proxy.rewrite_head(other, "https://tauri.localhost", "http://127.0.0.1") == (other, False)
+    assert proxy.rewrite_head(other, APP, "http://127.0.0.1") == (other, False)
 
 
-def test_a_non_loopback_address_is_refused() -> None:
-    for flag in (["--listen", "0.0.0.0:7419", "--upstream", "127.0.0.1:7420"], ["--listen", "127.0.0.1:7419", "--upstream", "10.0.0.5:7420"]):
+def test_a_frame_is_judged_the_way_the_daemon_reads_it() -> None:
+    proxy = load()
+    deny = ("spawn", "launch")
+    assert proxy.judge(b'{"type":"list","id":"a"}', deny) == ("forward", "list")
+    assert proxy.judge(b'{"type":"spawn","kind":"terminal"}', deny)[0] == "refuse"
+    assert proxy.judge(b'{"Type":"Spawn"}', deny)[0] == "refuse"
+    assert proxy.judge(b'{"TYPE":"launch","role":"x"}', deny)[0] == "refuse"
+    for bad in (b'{"type":"list","Type":"spawn"}', b"[1,2]", b'{"id":"a"}', b'{"type":5}', b"not json", b"\xff\xfe", b'{"type":"list"} {"type":"spawn"}', b"[]"):
+        with pytest.raises(proxy.Drop):
+            proxy.judge(bad, deny)
+
+
+def test_a_non_loopback_address_and_a_deny_list_without_spawn_are_refused() -> None:
+    cases = (
+        ["--listen", "0.0.0.0:7419", "--upstream", "127.0.0.1:7420"],
+        ["--listen", "127.0.0.1:7419", "--upstream", "10.0.0.5:7420"],
+        ["--listen", "127.0.0.1:7419", "--upstream", "127.0.0.1:7420", "--deny", "launch"],
+    )
+    for flag in cases:
         done = subprocess.run([sys.executable, str(SCRIPT), *flag], capture_output=True, text=True, check=False, timeout=20)
-        assert done.returncode == 2 and "loopback" in done.stderr
+        assert done.returncode == 2 and ("loopback" in done.stderr or "spawn" in done.stderr)
 
 
 @pytest.fixture
@@ -84,16 +167,90 @@ def rig():
     shutil.rmtree(root, ignore_errors=True)
 
 
+def attach(port: int) -> Wire:
+    wire = Wire(port)
+    wire.send({"type": "hello", "format": "aterm.daemon.v1"})
+    assert wire.receive("welcome")["format"] == "aterm.daemon.v1"
+    return wire
+
+
+def terminals(wire: Wire) -> int:
+    wire.send({"type": "list", "id": "probe"})
+    reply = wire.receive("sessions")
+    return len(reply.get("terminals") or []) + len(reply.get("sessions") or [])
+
+
 @needs_aterm
 def test_the_app_origin_opens_a_socket_through_the_relay_and_not_without_it(rig) -> None:
     daemon_port, relay_port = rig
-    app = "https://tauri.localhost"
-    assert "403" in upgrade_status(daemon_port, app)
-    assert "101" in upgrade_status(relay_port, app)
+    assert "403" in status(request(daemon_port))
+    assert "101" in status(request(relay_port))
 
 
 @needs_aterm
-def test_the_relay_does_not_widen_what_the_daemon_serves(rig) -> None:
+def test_an_attached_client_lists_and_a_fragmented_frame_still_works(rig) -> None:
+    _, relay_port = rig
+    wire = attach(relay_port)
+    assert terminals(wire) == 0
+    wire.conn.sendall(wire.frame(0x1, b'{"type":"list",', fin=False) + wire.frame(0x0, b'"id":"split"}'))
+    assert wire.receive("sessions")["id"] == "split"
+
+
+@needs_aterm
+def test_a_spawn_frame_is_refused_in_every_form_and_nothing_is_spawned(rig) -> None:
+    _, relay_port = rig
+    wire = attach(relay_port)
+    attempts = [
+        {"type": "spawn", "id": "t", "kind": "terminal"},
+        {"type": "spawn", "id": "s", "session": "x-y", "role": "x", "identity": "Y", "seat": "claude", "argv": ["/bin/sh", "-c", "touch /tmp/rig-pwned"], "cwd": "/"},
+        {"Type": "SPAWN", "id": "case", "kind": "terminal"},
+        {"type": "launch", "id": "l", "role": "eng-platform"},
+    ]
+    for attempt in attempts:
+        wire.send(attempt)
+        refused = wire.receive("error")
+        assert refused["id"] == attempt["id"] and refused["reason"] == "rig_refused", attempt
+    fragments = json.dumps({"type": "spawn", "id": "frag", "kind": "terminal"}).encode()
+    wire.conn.sendall(wire.frame(0x1, fragments[:9], fin=False) + wire.frame(0x0, fragments[9:]))
+    assert wire.receive("error")["id"] == "frag"
+    assert terminals(wire) == 0
+    assert not Path("/tmp/rig-pwned").exists()
+
+
+@needs_aterm
+def test_a_connection_is_dropped_on_anything_the_relay_cannot_parse(rig) -> None:
+    _, relay_port = rig
+    cases = {
+        "ambiguous type": lambda w: w.send('{"type":"list","Type":"spawn"}'),
+        "not json": lambda w: w.send("hello there"),
+        "binary": lambda w: w.conn.sendall(w.frame(0x2, b"\x00\x01")),
+        "unmasked": lambda w: w.send({"type": "list"}, masked=False),
+        "reserved bit": lambda w: w.conn.sendall(bytes([0xC1, 0x80, 1, 2, 3, 4])),
+        "lone continuation": lambda w: w.conn.sendall(w.frame(0x0, b"x")),
+    }
+    for name, act in cases.items():
+        wire = attach(relay_port)
+        act(wire)
+        assert wire.hangs_up(), name
+
+
+@needs_aterm
+def test_only_the_session_socket_and_reach_are_served(rig) -> None:
+    _, relay_port = rig
+    for line in ("GET /_aterm/cdp/x HTTP/1.1", "GET /_aterm/gateway/x HTTP/1.1", "GET /anything HTTP/1.1"):
+        assert "403" in status(request(relay_port, line, upgrade=True)), line
+    assert "403" in status(request(relay_port, "GET / HTTP/1.1", upgrade=False))
+    assert "403" in status(request(relay_port, "POST / HTTP/1.1", upgrade=True))
+    assert "200" in status(request(relay_port, "GET /_aterm/reach HTTP/1.1", upgrade=False))
+    assert "403" in status(request(relay_port, "GET / HTTP/1.1", origin="https://evil.example"))
+
+
+@needs_aterm
+def test_other_origins_stay_refused_and_a_request_with_a_body_or_repeated_header_is_dropped(rig) -> None:
     _, relay_port = rig
     for origin in ("https://evil.example", "https://tauri.localhost.example", "http://tauri.localhost"):
-        assert "403" in upgrade_status(relay_port, origin), origin
+        assert "403" in status(request(relay_port, origin=origin)), origin
+    body = request(relay_port, extra="Content-Length: 5\r\n")
+    assert body.recv(512) == b""
+    twice = request(relay_port, extra="Upgrade: websocket\r\n")
+    assert twice.recv(512) == b""

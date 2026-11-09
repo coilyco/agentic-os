@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
   import { app } from "../lib/app.svelte";
+  import { openLink } from "../lib/link-notice.svelte";
   import { PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge";
   import { resultText, ViewBridge, viewDocument, type DisplayMode, type View } from "../lib/mcp-apps";
 
@@ -32,7 +33,7 @@
       {
         callTool: (name, args) => app.connection?.views?.call(view.id, "tools/call", { name, arguments: args }) ?? Promise.reject(new Error("This host no longer forwards view calls.")),
         readResource: (uri) => app.connection?.views?.call(view.id, "resources/read", { uri }) ?? Promise.reject(new Error("This host no longer forwards view calls.")),
-        openLink: (url) => window.open(url, "_blank", "noopener,noreferrer"),
+        openLink: (url) => void openLink(url),
         resize: (next) => (height = Math.max(MIN_HEIGHT, Math.ceil(next))),
         displayMode: setMode,
         started: () => (silent = false),
