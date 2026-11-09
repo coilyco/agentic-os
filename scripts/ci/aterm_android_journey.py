@@ -27,6 +27,9 @@ from pathlib import Path
 APP = "dev.coilyco.treehouse"
 HERE = Path(__file__).resolve().parent
 PNG_NAME = "ci-seed.png"
+# The composer's chip for the first picked image, and its Send button (frontend-eng).
+CHIP = 'button[aria-label="Remove image 1"]'
+SEND = "form.composer button.primary"
 
 
 class Fail(Exception):
@@ -126,6 +129,14 @@ class Page:
                 return
             time.sleep(0.5)
         raise Fail(f"nothing to tap for {finder[-90:]}. elements: {self.labels()[:900]}")
+
+    def wait_selector(self, css: str, wait: float = 20) -> None:
+        deadline = time.monotonic() + wait
+        while time.monotonic() < deadline:
+            if self.js(f"!!document.querySelector({json.dumps(css)})"):
+                return
+            time.sleep(0.5)
+        raise Fail(f"{css} never appeared. elements: {self.labels()[:900]}")
 
     def wait_text(self, needle: str, wait: float = 20) -> None:
         deadline = time.monotonic() + wait
@@ -246,8 +257,8 @@ class Journey:
     def chip_then_send(self) -> None:
         page = self.page
         assert page
-        page.wait_text(PNG_NAME.split(".")[0], 20)
-        page.tap(by_text("Send", "button"))
+        page.wait_selector(CHIP)
+        page.tap(f"()=>document.querySelector({json.dumps(SEND)})")
 
     def daemon_got_the_bytes(self, name: str = PNG_NAME) -> None:
         png = self.out / name
@@ -338,13 +349,13 @@ class Journey:
         assert page
         self.open_picker()
         self.pick_image()
-        page.wait_text(PNG_NAME.split(".")[0], 20)
+        page.wait_selector(CHIP)
         subprocess.run(["pkill", "-f", f"aterm daemon --socket {self.args.socket}"], check=False)
         time.sleep(1)
-        page.tap(by_text("Send", "button"))
+        page.tap(f"()=>document.querySelector({json.dumps(SEND)})")
         time.sleep(3)
         (self.out / "journey-c-page.txt").write_text(page.text())
-        if PNG_NAME.split(".")[0] not in page.text():
+        if not page.js(f"!!document.querySelector({json.dumps(CHIP)})"):
             raise Fail("the image chip is gone after a failed send, the draft was not kept")
         words = os.environ.get("ATERM_JOURNEY_C_WORDS")
         if words and not re.search(words, page.text(), re.IGNORECASE):
