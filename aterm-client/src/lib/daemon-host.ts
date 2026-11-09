@@ -79,6 +79,7 @@ interface SessionView {
   state_seconds?: number;
   state?: string;
   ref?: string;
+  origin?: string;
   background?: number;
   /** The seat's own line about what it is doing, and when (RFC 3339). */
   activity?: string;
@@ -299,6 +300,7 @@ export function toSession(view: SessionView, busy = false, quiet?: number, recei
     ...(SCREEN_STATES.includes(view.state as never) ? { screen: view.state as NonNullable<Session["screen"]> } : {}),
     ...(typeof view.background === "number" ? { background: view.background } : {}),
     ...(view.ref ? { ref: view.ref } : {}),
+    ...(view.origin === "window" || view.origin === "headless" ? { origin: view.origin } : {}),
     ...(view.context ? { context: toContext(view.context) } : {}),
     ...(view.last_reply ? { lastReply: view.last_reply } : {}),
     ...(view.last_reply && Number.isFinite(Date.parse(view.last_reply_at ?? "")) ? { lastReplyAt: Date.parse(view.last_reply_at ?? "") } : {}),
@@ -373,6 +375,7 @@ export class DaemonHost implements HostConnection {
   private launches = new Map<string, string>();
   // Close request ids to the seat they name, until the daemon answers.
   private closes = new Map<string, string>();
+  private reopens = new Map<string, string>();
   private features = new Set<string>();
   private calls = new Map<string, { resolve: (reply: Frame) => void; reject: (error: Error) => void }>();
   private socket!: WebSocket;
@@ -473,6 +476,7 @@ export class DaemonHost implements HostConnection {
     // Replies will not come, and keystrokes sent into a dead link must not land later.
     this.pendingOpens.clear();
     this.closes.clear();
+    this.reopens.clear();
     this.launches.clear();
     this.outbox = [];
     const delay = backoffDelay(this.attempt);
@@ -745,8 +749,16 @@ export class DaemonHost implements HostConnection {
     this.request({ type: "cancel_ask", ask_id: askId });
   }
 
-  closeSeat(session: string, ref: string): void {
-    this.closes.set(this.request({ type: "close", target: `${session}@${ref}` }), session);
+  closeSeat(session: string, ref: string, force = false): void {
+    this.closes.set(this.request({ type: "close", target: `${session}@${ref}`, ...(force ? { force: true } : {}) }), session);
+  }
+
+  reopenSeat(session: string, ref: string): void {
+    this.reopens.set(this.request({ type: "reopen", target: `${session}@${ref}` }), session);
+  }
+
+  get canReopen(): boolean {
+    return this.features.has("reopen");
   }
 
   launch(role: string, seat: string): void {
@@ -1035,6 +1047,14 @@ export class DaemonHost implements HostConnection {
         }
         return;
       }
+      case "reopened": {
+        const seat = frame.id ? this.reopens.get(frame.id) : undefined;
+        if (seat !== undefined && frame.id) {
+          this.reopens.delete(frame.id);
+          this.emit({ type: "seat_reopened", session: seat, role: frame.role ?? "" });
+        }
+        return;
+      }
       case "error": {
         // Code 2: the answer does not fit the ask. Code 3: the ask is gone or settled.
         const role = frame.id ? this.launches.get(frame.id) : undefined;
@@ -1043,7 +1063,13 @@ export class DaemonHost implements HostConnection {
         const closing = frame.id ? this.closes.get(frame.id) : undefined;
         if (closing !== undefined && frame.id) {
           this.closes.delete(frame.id);
-          this.emit({ type: "seat_close_refused", session: closing, text: refused ? typingNotice(refused) : `Not closed. ${frame.error ?? "The daemon would not close it."}` });
+          this.emit({ type: "seat_close_refused", session: closing, text: refused ? typingNotice(refused) : `Not closed. ${frame.error ?? "The daemon would not close it."}`, ...(frame.reason === "unpushed_work" ? { unpushed: true } : {}) });
+          return;
+        }
+        const reopening = frame.id ? this.reopens.get(frame.id) : undefined;
+        if (reopening !== undefined && frame.id) {
+          this.reopens.delete(frame.id);
+          this.emit({ type: "seat_reopen_refused", session: reopening, text: refused ? typingNotice(refused) : `Not reopened. ${frame.error ?? "The daemon would not reopen it."}` });
           return;
         }
         // The lock shows the refusals it knows. Say any other in the daemon's words.

@@ -3,6 +3,7 @@
   import Creature from "../components/Creature.svelte";
   import ChoiceCard from "../components/ChoiceCard.svelte";
   import CloseSeat from "../components/CloseSeat.svelte";
+  import Origin from "../components/Origin.svelte";
   import Composer from "../components/Composer.svelte";
   import LastReply from "../components/LastReply.svelte";
   import RelayNotice from "../components/RelayNotice.svelte";
@@ -200,6 +201,7 @@
         </p>
       {/if}
     </div>
+    {#if !phone}<Origin origin={session.origin} />{/if}
     {#if !phone}
       <span class="role">{role.displayName} // {session.seat}{sessionCode(session) ? ` // ${sessionCode(session)}` : ""}</span>
       {#if session.context}
