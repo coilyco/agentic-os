@@ -43,6 +43,13 @@ def adb(*args: str, check: bool = True, timeout: int = 60) -> str:
     return done.stdout
 
 
+def adb_all(*args: str, stdin: Path | None = None, timeout: int = 60) -> str:
+    """Stdout and stderr of an adb call, for diagnosis, never raising on a failed command."""
+    with (stdin.open("rb") if stdin else open(os.devnull, "rb")) as feed:
+        done = subprocess.run(["adb", *args], stdin=feed, capture_output=True, text=True, timeout=timeout, check=False)
+    return (done.stdout + done.stderr).strip()
+
+
 def seed_png(path: Path, red: int = 220) -> None:
     """A small PNG with a signature the daemon accepts, made here so no binary is tracked.
 
@@ -268,23 +275,42 @@ class Journey:
             raise Fail(f"the daemon did not receive the image: {done.stderr.strip()}")
 
     def seed(self, name: str, red: int) -> None:
-        """Put a distinct PNG in MediaStore, and wait until it is listed, so the picker shows it."""
+        """Put a distinct PNG in MediaStore, trying three ways until it is listed, so the picker shows it."""
         png = self.out / name
         seed_png(png, red)
         adb("push", str(png), f"/sdcard/Pictures/{name}")
-        adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", f"file:///sdcard/Pictures/{name}", check=False)
-        adb("shell", "content", "call", "--uri", "content://media/", "--method", "scan_volume", "--arg", "external_primary", check=False)
-        self.media_uri(name)
+        tried: list[str] = []
+        attempts = (
+            ("scan-file", ("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", f"file:///sdcard/Pictures/{name}")),
+            ("scan-volume", ("shell", "content", "call", "--uri", "content://media/", "--method", "scan_volume", "--arg", "external_primary")),
+            ("insert", ("shell", "content", "insert", "--uri", "content://media/external/images/media", "--bind", f"_display_name:s:{name}", "--bind", "mime_type:s:image/png", "--bind", "relative_path:s:Pictures/ci")),
+        )
+        for label, command in attempts:
+            tried.append(f"{label}: {adb_all(*command)[:160]!r}")
+            uri = self.find_media_uri(name, 12)
+            if uri:
+                if label == "insert":
+                    tried.append("write: " + adb_all("shell", "content", "write", "--uri", uri, stdin=png)[:160])
+                print(f"indexed {name} by {label}")
+                return
+        listing = adb_all("shell", "ls", "-l", "/sdcard/Pictures")[:300]
+        raise Fail(f"MediaStore never listed {name}. " + " | ".join(tried) + f" | ls: {listing!r}")
 
-    def media_uri(self, name: str) -> str:
-        deadline = time.monotonic() + 30
+    def find_media_uri(self, name: str, wait: float) -> str | None:
+        deadline = time.monotonic() + wait
         while time.monotonic() < deadline:
             row = adb("shell", "content", "query", "--uri", "content://media/external/images/media", "--projection", "_id:_display_name", "--where", f"_display_name='{name}'", check=False)
             found = re.search(r"_id=(\d+)", row)
             if found:
                 return f"content://media/external/images/media/{found.group(1)}"
             time.sleep(1)
-        raise Fail(f"MediaStore never listed {name}")
+        return None
+
+    def media_uri(self, name: str) -> str:
+        uri = self.find_media_uri(name, 30)
+        if not uri:
+            raise Fail(f"MediaStore never listed {name}")
+        return uri
 
     def share_target_present(self) -> bool:
         """Journey B runs when the build registers a SEND target. ATERM_JOURNEY_B=required makes absence a failure."""
