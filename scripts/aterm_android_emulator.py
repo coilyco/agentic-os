@@ -282,10 +282,18 @@ class Emulator:
 
     # Driving the app
 
-    def install(self, apk: str) -> str:
+    def install(self, apk: str, reinstall: bool = False) -> str:
         if not Path(apk).is_file():
             raise Refused(f"no such APK: {apk}", EXIT_USAGE)
-        self.adb("install", "-r", "-t", apk)
+        if reinstall:
+            self.adb("uninstall", APP_ID, check=False)
+        done = self.adb("install", "-r", "-t", apk, check=False)
+        if done.returncode != 0:
+            text = (done.stdout + done.stderr).strip()
+            if "INSTALL_FAILED_UPDATE_INCOMPATIBLE" in text:
+                raise Refused("the installed app has another signing key, each GitHub debug build has its own: "
+                              "run install --reinstall, which clears the app's data")
+            raise Refused(f"install failed: {text}")
         return f"installed {apk}"
 
     def pid(self) -> str:
@@ -377,6 +385,8 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--wait", type=int, default=0, help="seconds to wait for the lock")
         if name == "release":
             p.add_argument("--force", action="store_true")
+        if name == "install":
+            p.add_argument("--reinstall", action="store_true", help="uninstall first, which clears the app's data")
     return parser
 
 
@@ -403,7 +413,7 @@ def dispatch(emu: Emulator, args: argparse.Namespace) -> str:
         return emu.release(args.force)
     emu.need_lock()
     if cmd == "install":
-        return emu.install(args.apk)
+        return emu.install(args.apk, args.reinstall)
     if cmd == "open":
         emu.shell(f"monkey -p {APP_ID} -c android.intent.category.LAUNCHER 1")
         return f"opened {APP_ID}"

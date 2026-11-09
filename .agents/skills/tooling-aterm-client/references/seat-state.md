@@ -24,6 +24,13 @@ Daemon fields the seat rows and the pinned reply read (COI-3289, COI-3303, COI-3
 * A `close` of a seat whose checkouts hold commits on no remote or changed files is refused with `reason: "unpushed_work"` (feature `close-unpushed`). Show the error text, and send the close again with `force` only after a confirm. Names a checkout under the seat's directory, at most two levels down.
 * `{type: "reopen", target: "name@ref"}` resumes a closed claude seat headless, answered `reopened` with `role` and `seat`. It claims a fresh name, so find the seat in the next `sessions` push. Refused with no conversation on record, or while the name is live. Feature `reopen`.
 
+## Notify
+
+* A coordinator seat pings Kai with the `notify_kai` tool, `{type: "notify", token, title, body}` on the wire (feature `notify`). The daemon sends clients on the `sessions` channel `{type: "notify", notify: {id, session, role, identity, title, body, at}}`: `at` is RFC 3339, `id` is unique per notify so a client plays it once, and title and body are cut to 60 and 140 characters with control characters dropped. It is **not replayed** on subscribe.
+* Web Push goes out too, whether or not a page is attached: `kind: "notify"`, the same `title` and `body`, `tag: "aterm-<session>"`, so the worker shows it as it is and a tap opens the seat.
+* Only a role the roster marks `pinned_by_default` may send one, looked up by the token's role slug. The seat's refusal carries `reason`: `not_coordinator`, `too_soon` (one per seat per 10 seconds), `bad_text`, or `roster_unavailable`, which fails closed. Until an agent-compose release carries the attribute no seat may.
+* The tool's bar: a real decision or a result that needs Kai, never routine status. A seat's own waiting sounds or notifies nothing.
+
 ## Roster
 
 * A role in `aterm.roster.v1` may carry `pinned_by_default: true`, agent-compose's role attribute, set for the coordinator. Absent means false, so an older roster pins nothing. A person's own pin or unpin wins over it.

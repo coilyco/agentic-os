@@ -1,0 +1,5 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Lets the aterm window take the images Android's Share menu handed the app."
+permissions = ["allow-take"]

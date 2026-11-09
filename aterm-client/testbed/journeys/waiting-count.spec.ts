@@ -45,7 +45,7 @@ test.describe("the waiting count", () => {
     for (const n of [11, 12, 13, 14, 15]) pushOutput(mock, `eng-platform-seat-${n}`, "Finished the task.\r\n");
     if (kindOf(info) === "desktop") await expect(tab.getByText("done, your turn").first()).toBeVisible({ timeout: 8000 });
     else await tab.waitForTimeout(2500);
-    await expect(tab, "finished seats are not waiting").toHaveTitle("aterm");
+    await expect(tab, "finished seats are not waiting").toHaveTitle("Treehouse");
     expect(await badge(tab)).toBe(0);
     await bed.step("none-waiting", { compare: false });
 

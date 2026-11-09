@@ -8,13 +8,13 @@ The [aterm web client](../../../../aterm-client/README.md) wrapped as an Android
 
 **The app origin is `https://tauri.localhost`.** `useHttpsScheme` makes the webview serve the bundle from there, and the daemon's origin check refuses any non-https origin, so `https://tauri.localhost` goes in `ATERM_DAEMON_ALLOW_ORIGINS` on every host the phone dials.
 
-**The app registers one plugin, the [device key](android-devicekey.md), and no IPC commands of its own. `csp` is null like the web build.** `withGlobalTauri` exposes the plugin to the page, and the one capability grants the `main` window `devicekey:default` and nothing else, so the page otherwise talks to the daemon over its own websocket. Tauri is pinned at 2.12.1. GHSA-7gmj-67g7-phm9 (CVE-2026-42184, origin confusion that lets a remote page invoke local-only IPC on Android) is fixed from 2.11.1.
+**The app registers two plugins, the [device key](android-devicekey.md) and the [share target](android-sharetarget.md), and no IPC commands of its own. `csp` is null like the web build.** `withGlobalTauri` exposes the plugins to the page, and the one capability grants the `main` window `devicekey:default` and `sharetarget:default` and nothing else, so the page otherwise talks to the daemon over its own websocket. Tauri is pinned at 2.12.1. GHSA-7gmj-67g7-phm9 (CVE-2026-42184, origin confusion that lets a remote page invoke local-only IPC on Android) is fixed from 2.11.1.
 
 ## Build
 
 * **`just aterm-android-toolchain`** installs JDK 17, the Android command-line tools (pinned by SHA-256), platform 37.0, build-tools 36.0.0, NDK 28.2.13676358, which links at 16 KiB pages by default and the `aarch64-linux-android` Rust target. It runs as root, as the CI container does.
 * **`just aterm-android-build VERSION OUT`** builds the client with `VITE_ATERM_APP=1`, runs `tauri android init`, then `tauri android build --apk --target aarch64`. Only arm64 is built, which is every current Pixel. The versionName is VERSION and the versionCode is the clock code below.
-* **`just aterm-android-sign IN OUT`** signs with apksigner from `ATERM_ANDROID_KEYSTORE_B64` and `ATERM_ANDROID_KEYSTORE_PASSWORD`, and with a throwaway key when they are unset, then runs verify. Verify checks the v2 or v3 signature, the package name, arm64-only native code, 16 KiB page alignment of the native library, and the signer certificate against `ATERM_ANDROID_CERT_SHA256` when that is set, because an update signed with another key does not install over the last one.
+* **`just aterm-android-sign IN OUT`** signs with apksigner from `ATERM_ANDROID_KEYSTORE_B64` and `ATERM_ANDROID_KEYSTORE_PASSWORD`, and with a throwaway key when they are unset, then runs verify. Verify checks the v2 or v3 signature, the package name, the launcher label Treehouse (COI-3487), arm64-only native code, 16 KiB page alignment of the native library, and the signer certificate against `ATERM_ANDROID_CERT_SHA256` when that is set, because an update signed with another key does not install over the last one. `against-release TAG APK` downloads the last stable APK and refuses a build whose package or signer differs or whose versionCode does not rise, the three things Android decides an in-place update on. It is skipped without the keystore secret.
 
 The scripted steps are [`scripts/ci/aterm-android.sh`](../../../../scripts/ci/aterm-android.sh). Every Android pin is manual and lives at its top.
 
@@ -45,6 +45,8 @@ The scripted steps are [`scripts/ci/aterm-android.sh`](../../../../scripts/ci/at
 ## Not yet verified
 
 * An APK installed and opened on a phone.
+* Add image opening the phone's picker. `onShowFileChooser` is in the shipped dex and wry 0.57.0 handles it, but nobody has run it on a device or emulator (COI-3485).
+* The share target: the merged manifest filters, Treehouse in the Share menu, and the sheet on a phone ([android-sharetarget.md](android-sharetarget.md)).
 * Whether Android System WebView honours `interactive-widget=resizes-content` for the keyboard.
 * Gradle and Maven dependencies are not hash-verified. Tauri's generated project pulls the Android Gradle plugin and AndroidX from Google Maven and Maven Central with no dependency verification metadata.
 

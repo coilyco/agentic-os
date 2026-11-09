@@ -8,10 +8,10 @@
 
 {#if shown}
   <section class="install" aria-labelledby="install-title">
-    <h2 id="install-title">Install aterm as an app</h2>
+    <h2 id="install-title">Install Treehouse as an app</h2>
     {#if state.kind === "ready"}
       <p>It opens in its own window with its own icon, so it has an alt-tab entry and a Dock or app-list icon. Installing grants nothing new. A host still has to answer before any seat shows.</p>
-      <button class="button primary" type="button" onclick={install}>Install aterm</button>
+      <button class="button primary" type="button" onclick={install}>Install Treehouse</button>
     {:else if state.kind === "menu"}
       <p>Your browser installs it from its own menu. A window opened that way works the same as this one.</p>
       <ul>
