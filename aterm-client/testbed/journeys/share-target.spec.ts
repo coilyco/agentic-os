@@ -59,6 +59,28 @@ test.describe("a host that takes images", () => {
     expect(bed.mock.typed(SEATS.imp.id).join("")).toContain("/tmp/aterm/images/");
   });
 
+  test("a refused upload says why, sends nothing, keeps the picture and words, and sends once allowed", async ({ bed }) => {
+    await shared(bed.page, { images: [{ name: "Screenshot_1.png", mime: "image/png", data: PIXEL_B64 }], skipped: [], text: "keep these words" });
+    await bed.page.goto("/");
+    const sheet = bed.page.getByRole("dialog", { name: "Send to a seat" });
+    const send = sheet.getByRole("button", { name: `Send to ${SEATS.imp.name}` });
+    await expect(send).toBeEnabled();
+    bed.mock.refuseUploads("too_large");
+    await send.click();
+    await expect(sheet.getByRole("alert")).toContainText("Not sent. The host took that as over 3 MB.");
+    await expect(sheet.getByRole("alert")).toContainText("Your screenshot and words stay here.");
+    await expect(sheet.getByRole("alert"), "the refusal is on screen, not below the fold").toBeInViewport({ ratio: 1 });
+    await expect(sheet.getByLabel("Words to go with it, if any")).toHaveValue("keep these words");
+    await expect(sheet.getByRole("button", { name: "Remove image 1" })).toBeVisible();
+    expect(bed.mock.typed(SEATS.imp.id), "nothing reached the seat").toEqual([]);
+    await bed.step("refused", { compare: false });
+    bed.mock.refuseUploads(null);
+    await expect(send).toBeEnabled();
+    await send.click();
+    await expect(sheet).toBeHidden();
+    expect(bed.mock.uploads).toHaveLength(1);
+  });
+
   test("Discard drops the share and puts nothing into the seat", async ({ bed }) => {
     await shared(bed.page, { images: [{ name: "Screenshot_1.png", mime: "image/png", data: PIXEL_B64 }], skipped: [], text: null });
     await bed.page.goto("/");

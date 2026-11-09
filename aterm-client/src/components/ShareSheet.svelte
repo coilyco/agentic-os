@@ -135,6 +135,8 @@
   <form method="dialog" class="body" onsubmit={(event) => { event.preventDefault(); void send(); }}>
     <h2 id="share-title">Send to a seat</h2>
     {#if blocker}<p class="refusal" role="alert">{blocker}</p>{/if}
+    <!-- Up here so a failed send is seen without scrolling past the seats. -->
+    {#if note}<p class="refusal" role="alert">{note}</p>{/if}
     {#if files.length}
       <ul class="chips" aria-label="Screenshots to send">
         {#each files as file, index (file)}
@@ -166,7 +168,6 @@
     <label for="share-words">Words to go with it, if any</label>
     <textarea id="share-words" bind:value={text} rows="3" disabled={phase === "sending"}></textarea>
     <div class="status" role="status" aria-live="polite">{#if phase === "sending"}{sendingLine(progress.done, progress.total)}{:else if info}{info}{/if}</div>
-    {#if note}<p class="refusal" role="alert">{note}</p>{/if}
     <div class="actions">
       <button class="button" type="button" disabled={phase === "sending"} onclick={discard}>Discard</button>
       <button class="button primary" type="submit" disabled={!ready}>{phase === "sending" ? "Sending" : seat ? `Send to ${seat.identity}` : "Pick a seat"}</button>

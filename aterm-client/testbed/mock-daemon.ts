@@ -113,6 +113,8 @@ export interface Mock {
   resumes: string[];
   /** Each `image_upload` taken: the seat, and the bytes sent. */
   uploads: { session: string; bytes: Buffer }[];
+  /** The daemon refuses every `image_upload` with this reason, until set back to null. */
+  refuseUploads(reason: string | null): void;
   /** The resume window passes: every proof the daemon issued stops holding. */
   endResumeWindow(): void;
   stop(): Promise<void>;
@@ -141,6 +143,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const roster = JSON.parse(readFileSync(ROSTER, "utf8")) as unknown;
   const live = new Map<string, Live>();
   const typedBy = new Map<string, string[]>();
+  let uploadRefusal: string | null = null;
   const clients = new Set<WebSocket>();
   // Sockets that went silent: they stay open but speak and hear nothing.
   const silent = new WeakSet<WebSocket>();
@@ -300,6 +303,10 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           return;
         case "image_upload": {
           if (!seat) return;
+          if (uploadRefusal) {
+            send(socket, { type: "error", id: frame.id, code: 6, error: "refused", reason: uploadRefusal });
+            return;
+          }
           mock.uploads.push({ session: seat.spec.name, bytes: Buffer.from(String(frame.data ?? ""), "base64") });
           send(socket, { type: "image_uploaded", id: frame.id, session: frame.session, path: `/tmp/aterm/images/${seat.spec.name}-1/upload-${mock.uploads.length}.png` });
           return;
@@ -418,6 +425,9 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     heard,
     resumes: mock.resumes,
     uploads: mock.uploads,
+    refuseUploads(reason) {
+      uploadRefusal = reason;
+    },
     endResumeWindow: () => proofs.clear(),
     async stop() {
       for (const socket of clients) socket.terminate();
