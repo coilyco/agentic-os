@@ -81,6 +81,8 @@ export const app = $state({
   /** The control asking "Close it?" (row:id or view:id), and the last result. */
   closing: null as string | null,
   closeNote: "",
+  // Settings replaces the main panel until a seat, host or role is picked (COI-3521).
+  settingsOpen: false,
   // The latest coordinator ping. Attention turns it into a chime and a notice.
   notify: null as Notify | null,
   /** Pages seats put on her desk, by id. One marked waiting is a seat that needs her. */
@@ -129,8 +131,18 @@ export function reconnecting(): boolean {
 }
 
 /** Brings the attached host's own panel forward, where its connection check is. */
+/** Puts the Settings page in the main panel. Picking a seat, host or role closes it. */
+export function openSettings(): void {
+  app.settingsOpen = true;
+}
+
+export function closeSettings(): void {
+  app.settingsOpen = false;
+}
+
 export function showHost(): void {
   restoring = null;
+  app.settingsOpen = false;
   launching = null;
   if (app.attachedHostId) storeLastOpen({ host: app.attachedHostId });
   app.selectedSession = null;
@@ -360,6 +372,7 @@ function restoreSeat(last: LastOpen, listed: readonly Session[]): void {
 
 export function selectHost(host: Host): void {
   if (!restoringNow) restoring = null;
+  app.settingsOpen = false;
   launching = null;
   storeLastOpen({ host: host.id });
   app.selectedHostId = host.id;
@@ -505,6 +518,7 @@ export function selectHost(host: Host): void {
 
 export function selectSession(id: string): void {
   if (!restoringNow) restoring = null;
+  app.settingsOpen = false;
   app.closing = null;
   launching = null;
   const seat = sessionById(id);
@@ -539,6 +553,7 @@ export function closeSeatNow(session: Session): void {
 /** Opens a role's start panel. */
 export function selectRole(slug: string): void {
   restoring = null;
+  app.settingsOpen = false;
   launching = null;
   app.selectedRole = slug;
   app.selectedSession = null;
