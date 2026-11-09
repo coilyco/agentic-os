@@ -4,6 +4,7 @@
   import Creature from "./Creature.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
+  import TapTraceSwitch from "./TapTraceSwitch.svelte";
   import { app, askLineFor, asksShownOn, colorOf, glowSeats, layout, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
@@ -90,7 +91,14 @@
     hover = { id, top: Math.max(8, box.top), left: box.right + 8 };
   }
   const hidePreview = () => (hover = null);
-  const previewing = $derived(hover ? waitingSeats().find((seat) => seat.sessionId === hover!.id) : undefined);
+  // A finished seat is not counted as waiting, but its row still previews its last reply.
+  const previewing = $derived.by(() => {
+    if (!hover) return undefined;
+    const id = hover.id;
+    const needs = waitingSeats().find((seat) => seat.sessionId === id);
+    const seat = sessionById(id);
+    return needs ?? (seat && app.unseen[id] ? { sessionId: id, role: seat.role, identity: seat.identity, kind: "done" as const } : undefined);
+  });
   // A relayed question names the worker who asked, not the director whose pane shows it.
   const previewAsk = $derived(previewing ? asksShownOn(previewing.sessionId)[0] : undefined);
   const preview = $derived(
@@ -286,7 +294,7 @@
             {#if currentRole}<Creature role={currentRole.slug} color={currentRole.color} size={28} />{/if}
             <span class="who">{current?.identity ?? `Start ${currentRole?.displayName ?? "a seat"}`}</span>
             {#if current}<span class="state mono" data-state={current.state}>{current.state}</span>{/if}
-            {#if waitingElsewhere}<span class="elsewhere" aria-hidden="true">{waitingElsewhere}<span class="word"> waiting</span></span>{/if}
+            {#if waitingElsewhere}<span class="elsewhere" aria-hidden="true">{waitingElsewhere}<span class="word">&nbsp;waiting</span></span>{/if}
             <svg class="chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </button>
           <FeedbackEntry compact />
@@ -320,6 +328,7 @@
           <AttentionSwitches compact />
         {/if}
         <div class="feedback"><FeedbackEntry onopen={closeMenu} /></div>
+        <TapTraceSwitch />
       </div>
     {/if}
   {:else}
@@ -332,6 +341,7 @@
     {/if}
     <AttentionSwitches />
     <div class="feedback"><FeedbackEntry /></div>
+    <TapTraceSwitch />
   {/if}
 </nav>
 {#if hover && preview}
