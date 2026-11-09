@@ -16,7 +16,7 @@ test.describe("a host with no push key", () => {
   test("offers no switch, and nothing about notifications", async ({ bed }) => {
     await openAlerts(bed.page);
     await expect(notify(bed.page)).toHaveCount(0);
-    await bed.step("no-switch", { mask: [bed.page.locator(".xterm-rows")] });
+    await bed.step("no-switch", { mask: [bed.page.locator("section.panel")] });
   });
 });
 
@@ -34,7 +34,7 @@ test.describe("a host with a push key", () => {
     } else {
       await expect(notify(bed.page).first()).toBeEnabled();
     }
-    await bed.step("off", { mask: [bed.page.locator(".xterm-rows")] });
+    await bed.step("off", { mask: [bed.page.locator("section.panel")] });
   });
 
   // Headless Chromium reports notifications denied. A failed subscribe: push.test.ts.
@@ -46,7 +46,7 @@ test.describe("a host with a push key", () => {
     await expect(notify(bed.page).first()).not.toBeChecked();
     // Permission goes first, so the daemon heard nothing.
     expect(bed.mock.pushCalls).toEqual([]);
-    await bed.step("notifications-blocked", { mask: [bed.page.locator(".xterm-rows")] });
+    await bed.step("notifications-blocked", { mask: [bed.page.locator("section.panel")] });
   });
 });
 
@@ -60,6 +60,6 @@ test.describe("a locked device on a host with a push key", () => {
     await expect(bed.page.getByRole("alert").filter({ hasText: /coilyco\.dev/ })).toBeVisible();
     await expect(notify(bed.page).first()).not.toBeChecked();
     expect(bed.mock.pushCalls).toEqual([]);
-    await bed.step("locked", { mask: [bed.page.locator(".xterm-rows")] });
+    await bed.step("locked", { mask: [bed.page.locator("section.panel")] });
   });
 });
