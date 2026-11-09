@@ -26,7 +26,7 @@
 * `push_subscribe` takes `push`, the browser's `PushSubscription.toJSON()` as it is, and answers `push_subscribed`. `push_unsubscribe` takes `push.endpoint` and answers `push_unsubscribed`.
 * **A remote device needs its passkey** for both, as for typing. The relying party is `coilyco.dev`, so only the page served there can subscribe.
 * **An endpoint must be https on port 443** at `fcm.googleapis.com` or under `.push.services.mozilla.com`, `.push.apple.com` or `.notify.windows.com`. Anything else is refused, since the endpoint is a URL the daemon posts to.
-* **The payload** is JSON, `kind` (`done`, `prompt`, `ask`), `session`, `role`, `identity`, `title`, `body`, and `tag` (`aterm-<session>`, so a second push replaces the first). It is encrypted to the browser under RFC 8291, so the push service sees ciphertext. TTL is 600 seconds, urgency high.
+* **The payload** is JSON, `kind` (`done`, `prompt`, `ask`, `notify`), `session`, `role`, `identity`, `title`, `body`, and `tag` (`aterm-<session>`, so a second push replaces the first). It is encrypted to the browser under RFC 8291, so the push service sees ciphertext. TTL is 600 seconds, urgency high.
 * **A 404 or 410** from the push service means the browser dropped the subscription, and the daemon forgets it.
 
 ## Built on the standard library

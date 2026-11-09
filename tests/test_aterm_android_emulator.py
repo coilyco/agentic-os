@@ -26,7 +26,14 @@ cmd=$1
 shift
 case "$cmd" in
   devices) printf 'List of devices attached\n%s\tdevice\n' "${FAKE_SERIAL:-emulator-5554}" ;;
-  connect | forward | reverse | install) echo ok ;;
+  uninstall) touch "$dev/uninstalled"; echo Success ;;
+  install)
+    if [ "${FAKE_INCOMPATIBLE:-0}" = 1 ] && [ ! -e "$dev/uninstalled" ]; then
+      echo "Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package dev.coilyco.treehouse]" >&2
+      exit 1
+    fi
+    echo Success ;;
+  connect | forward | reverse) echo ok ;;
   shell)
     case "$1" in
       "getprop sys.boot_completed") [ "${FAKE_BOOTED:-1}" = 1 ] && echo 1 ;;
@@ -175,3 +182,12 @@ def test_a_tunnel_started_with_ssh_f_does_not_hang_the_verb(device: Path) -> Non
             subprocess.run(["kill", pid], check=False)
     assert done.returncode == 0, done.stderr
     assert "tunnel to user@host ready" in done.stdout
+
+
+def test_an_install_over_another_signing_key_says_to_reinstall(device: Path, tmp_path: Path) -> None:
+    apk = tmp_path / "a.apk"
+    apk.write_bytes(b"apk")
+    verb(device, "acquire")
+    refused = verb(device, "install", str(apk), FAKE_INCOMPATIBLE="1")
+    assert refused.returncode == 1 and "install --reinstall" in refused.stderr
+    assert verb(device, "install", str(apk), "--reinstall", FAKE_INCOMPATIBLE="1").stdout.startswith("installed")
