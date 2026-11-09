@@ -74,6 +74,9 @@ interface SessionView {
   last_reply?: string;
   /** Seconds since the seat last wrote, as of the frame. */
   quiet_seconds?: number;
+  state?: string;
+  ref?: string;
+  background?: number;
   /** The seat's own line about what it is doing, and when (RFC 3339). */
   activity?: string;
   activity_at?: string;
@@ -266,6 +269,8 @@ const SELF_WINDOW_MS = 800;
 /** How often the seats are listed again while the page shows, to refresh quiet times. */
 const REFRESH_MS = 20_000;
 
+const SCREEN_STATES = ["starting", "busy", "idle", "prompt"];
+
 export function toSession(view: SessionView, busy = false, quiet?: number): Session {
   const activity = toActivity(view.activity, view.activity_at);
   return {
@@ -279,6 +284,9 @@ export function toSession(view: SessionView, busy = false, quiet?: number): Sess
     paste: view.bracketed_paste,
     degraded: view.degraded ?? [],
     ...(view.ready ? {} : { starting: true }),
+    ...(SCREEN_STATES.includes(view.state as never) ? { screen: view.state as NonNullable<Session["screen"]> } : {}),
+    ...(typeof view.background === "number" ? { background: view.background } : {}),
+    ...(view.ref ? { ref: view.ref } : {}),
     ...(view.context ? { context: toContext(view.context) } : {}),
     ...(view.last_reply ? { lastReply: view.last_reply } : {}),
     ...(activity ? { activity } : {}),
@@ -349,6 +357,8 @@ export class DaemonHost implements HostConnection {
   // Every terminal name seen. Not a seat: never watched for busy, its exit is its own.
   private terminalNames = new Set<string>();
   private launches = new Map<string, string>();
+  // Close request ids to the seat they name, until the daemon answers.
+  private closes = new Map<string, string>();
   private features = new Set<string>();
   private calls = new Map<string, { resolve: (reply: Frame) => void; reject: (error: Error) => void }>();
   private socket!: WebSocket;
@@ -448,6 +458,7 @@ export class DaemonHost implements HostConnection {
     }
     // Replies will not come, and keystrokes sent into a dead link must not land later.
     this.pendingOpens.clear();
+    this.closes.clear();
     this.launches.clear();
     this.outbox = [];
     const delay = backoffDelay(this.attempt);
@@ -691,6 +702,10 @@ export class DaemonHost implements HostConnection {
 
   cancelAsk(askId: string): void {
     this.request({ type: "cancel_ask", ask_id: askId });
+  }
+
+  closeSeat(session: string, ref: string): void {
+    this.closes.set(this.request({ type: "close", target: `${session}@${ref}` }), session);
   }
 
   launch(role: string, seat: string): void {
@@ -959,11 +974,25 @@ export class DaemonHost implements HostConnection {
         if (frame.id) this.launches.delete(frame.id);
         this.emit({ type: "launch", role: frame.role ?? "", state: "started", text: `${frame.role} launched. It appears here once its session starts.` });
         return;
+      case "closed": {
+        const seat = frame.id ? this.closes.get(frame.id) : undefined;
+        if (seat !== undefined && frame.id) {
+          this.closes.delete(frame.id);
+          this.emit({ type: "seat_closed", session: seat });
+        }
+        return;
+      }
       case "error": {
         // Code 2: the answer does not fit the ask. Code 3: the ask is gone or settled.
         const role = frame.id ? this.launches.get(frame.id) : undefined;
         const refused = refusalOf(frame);
         this.setTyping(refused);
+        const closing = frame.id ? this.closes.get(frame.id) : undefined;
+        if (closing !== undefined && frame.id) {
+          this.closes.delete(frame.id);
+          this.emit({ type: "seat_close_refused", session: closing, text: refused ? typingNotice(refused) : `Not closed. ${frame.error ?? "The daemon would not close it."}` });
+          return;
+        }
         // The lock shows the refusals it knows. Say any other in the daemon's words.
         if (frame.id && this.inputIds.delete(frame.id) && !refused) {
           this.emit({ type: "input_refused", text: `Not sent. ${frame.error ?? "The daemon did not take that input."}` });
