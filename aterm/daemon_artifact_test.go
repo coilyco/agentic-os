@@ -1,7 +1,10 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -425,5 +428,84 @@ func TestArtifactSourceNeverReachesTheLog(t *testing.T) {
 	<-mu
 	if strings.Contains(text, marker) || strings.Contains(text, cwd) {
 		t.Fatalf("the log must hold neither the source nor its path:\n%s", text)
+	}
+}
+
+func TestArtifactTurningToWaitingPushesOnceAsAnAsk(t *testing.T) {
+	r := newArtifactRig(t)
+	store, _ := loadPushStore("")
+	if err := r.d.local().setupPush(mustKey(t), store); err != nil {
+		t.Fatal(err)
+	}
+	sub, _, _ := testSubscription(t, "https://fcm.googleapis.com/fcm/send/phone")
+	_ = store.add(sub)
+	sent := make(chan pushPayload, 8)
+	r.d.local().push.send = func(_ context.Context, _ *vapidKey, _ pushSubscription, payload []byte) (int, error) {
+		var got pushPayload
+		if err := json.Unmarshal(payload, &got); err != nil {
+			t.Errorf("payload: %v", err)
+		}
+		sent <- got
+		return http.StatusCreated, nil
+	}
+	brokered := make(chan waitEvent, 8)
+	r.d.local().brokerEvent = func(e waitEvent) { brokered <- e }
+	none := func(step string) {
+		t.Helper()
+		select {
+		case got := <-sent:
+			t.Fatalf("%s should push nothing: %+v", step, got)
+		case got := <-brokered:
+			t.Fatalf("%s should tell the broker nothing: %+v", step, got)
+		case <-time.After(150 * time.Millisecond):
+		}
+	}
+	s, cwd := r.seat("scientist-evie")
+	path := filepath.Join(cwd, "page.html")
+	if err := os.WriteFile(path, []byte("<p>q</p>"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	yes, no := true, false
+	add := func(waiting *bool) {
+		t.Helper()
+		if _, err := r.call(s, frame{Type: "artifact_add", URL: testArtifactURL, Title: "Desk", Path: path, Waiting: waiting}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	flip := func(waiting *bool) {
+		t.Helper()
+		if _, err := r.call(s, frame{Type: "artifact_waiting", ArtifactID: testArtifactURL, Waiting: waiting}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	add(&no)
+	none("a page that does not wait on Kai")
+	add(&yes)
+	select {
+	case got := <-sent:
+		if got.Kind != "ask" || got.Session != s.name || got.Title != "scientist-evie is asking" || got.Body != "Desk" || got.Tag != "aterm-"+s.name {
+			t.Fatalf("a page added waiting pushes as an ask naming its title: %+v", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a page added waiting on Kai never pushed")
+	}
+	if got := <-brokered; got.Kind != "ask" || got.Session != s.name || got.Identity != "scientist-evie" || got.Question != "Desk" {
+		t.Fatalf("the broker hears the same ask, its question gated by the owner's setting later: %+v", got)
+	}
+	add(&yes)
+	none("replacing a page that already waits")
+	flip(&yes)
+	none("marking a waiting page waiting again")
+	flip(&no)
+	none("clearing waiting")
+	flip(&yes)
+	select {
+	case got := <-sent:
+		if got.Kind != "ask" || got.Body != "Desk" {
+			t.Fatalf("flipping a page to waiting pushes: %+v", got)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("a page flipped to waiting never pushed")
 	}
 }
