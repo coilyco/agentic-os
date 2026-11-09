@@ -208,6 +208,9 @@ func (l *brokerLink) watchSeats(ctx context.Context, every time.Duration) {
 			return
 		case now := <-ticker.C:
 			for _, event := range tracker.observe(l.views(), now) {
+				if !l.d.mayPing(event.Role) {
+					continue
+				}
 				l.emit(event)
 			}
 		}

@@ -144,6 +144,7 @@ func TestFirstCharsNeverSplitsACharacter(t *testing.T) {
 // askEvent asks on the rig and returns the exact bytes of the reg.event the broker got.
 func askEvent(t *testing.T, r *brokeredRig, question string) []byte {
 	t.Helper()
+	notifyRoster(t, "scientist")
 	r.b.attach(t, "c1", testOwner)
 	deadline := time.After(10 * time.Second)
 	for {
