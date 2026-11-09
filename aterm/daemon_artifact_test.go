@@ -433,6 +433,7 @@ func TestArtifactSourceNeverReachesTheLog(t *testing.T) {
 
 func TestArtifactTurningToWaitingPushesOnceAsAnAsk(t *testing.T) {
 	r := newArtifactRig(t)
+	r.d.roster = flaggedRoster(t, "scientist")
 	store, _ := loadPushStore("")
 	if err := r.d.local().setupPush(mustKey(t), store); err != nil {
 		t.Fatal(err)

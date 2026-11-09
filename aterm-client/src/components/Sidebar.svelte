@@ -4,6 +4,7 @@
   import CloseSeat from "./CloseSeat.svelte";
   import Origin from "./Origin.svelte";
   import Creature from "./Creature.svelte";
+  import ByCoilyco from "./ByCoilyco.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
   import TapTraceSwitch from "./TapTraceSwitch.svelte";
@@ -337,6 +338,7 @@
             </summary>
             <AttentionSwitches />
             {@render hostsGroup()}
+            <ByCoilyco />
           </details>
         {:else}
           {@render hostsGroup()}
@@ -345,6 +347,7 @@
         {/if}
         <div class="feedback"><FeedbackEntry onopen={closeMenu} /></div>
         <TapTraceSwitch />
+        {#if !onScreen}<ByCoilyco />{/if}
       </div>
     {/if}
   {:else}
@@ -358,6 +361,7 @@
     <AttentionSwitches />
     <div class="feedback"><FeedbackEntry /></div>
     <TapTraceSwitch />
+    <ByCoilyco />
   {/if}
 </nav>
 {#if hover && preview}

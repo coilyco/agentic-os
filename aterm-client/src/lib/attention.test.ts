@@ -35,9 +35,9 @@ describe("detectCue", () => {
 });
 
 describe("parseAttention", () => {
-  it("reads the glow on and sound off when nothing is stored, so a fresh browser glows", () => {
-    expect(parseAttention(null)).toEqual({ sound: false, visual: true });
-    expect(ATTENTION_DEFAULT).toEqual({ sound: false, visual: true });
+  it("reads the glow and the coordinator's ping on when nothing is stored", () => {
+    expect(parseAttention(null)).toEqual({ sound: true, visual: true });
+    expect(ATTENTION_DEFAULT).toEqual({ sound: true, visual: true });
   });
 
   it("round-trips each switch on its own, and a stored opt-out of the glow wins", () => {
@@ -48,6 +48,7 @@ describe("parseAttention", () => {
 
   it("reads a stored value that never mentions the glow as the default, which is on", () => {
     expect(parseAttention('{"sound":true}')).toEqual({ sound: true, visual: true });
+    expect(parseAttention('{"visual":false}')).toEqual({ sound: true, visual: false });
   });
 
   it("reads anything malformed as the default", () => {

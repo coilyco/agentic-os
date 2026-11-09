@@ -267,6 +267,7 @@ func tailnetPolicy(node tailnetNode, allowTags, allowOwners, allowOrigins []stri
 			return err
 		},
 		origin: tailnetOrigin(allowOrigins),
+		remote: true,
 	}
 }
 

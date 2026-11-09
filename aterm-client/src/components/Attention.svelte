@@ -3,10 +3,16 @@
   import { app, openSeat } from "../lib/app.svelte";
   import { unlock } from "../lib/chime";
   import { closeSeatNotifications } from "../lib/push";
-  import { openSeatFromNotification, settleSeat, syncPush, takeLaunchSeat } from "../lib/push.svelte";
+  import { handleNotify, openSeatFromNotification, settleSeat, syncPush, takeLaunchSeat } from "../lib/push.svelte";
 
   // A seat that starts waiting makes no sound here, only the glow and list cues (COI-3517).
   // The coordinator's own ping arrives as a notify frame.
+
+  // The coordinator seat's ping sounds and shows once per id (COI-3517).
+  $effect(() => {
+    const note = app.notify;
+    if (note) void handleNotify(note);
+  });
 
   // The switch reads the browser's subscription again whenever the host it belongs to changes.
   $effect(() => {
@@ -40,8 +46,10 @@
     // addEventListener does not start the message queue the way onmessage does.
     worker?.startMessages();
     const visibility = () => (app.pageVisible = document.visibilityState === "visible");
+    // Audio stays shut until the first touch, so a page with Sound on wakes it once, then stops asking.
+    let awake = false;
     const touch = () => {
-      if (app.alerts.sound && app.alerts.soundBlocked) void unlock();
+      if (app.alerts.sound && !awake) void unlock().then((running) => (awake = running));
     };
     document.addEventListener("visibilitychange", visibility);
     window.addEventListener("pointerdown", touch);
