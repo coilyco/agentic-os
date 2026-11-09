@@ -9,8 +9,11 @@
   import { AT_END, jumpLabel, linesAbove, scrolled, wrote, type Follow } from "../lib/follow";
   import { envelopeRows } from "../lib/messages";
   import { harnessBox } from "../lib/harness";
-  import { boxToReport } from "../lib/pty-size";
+  import { boxToReport, nextTall } from "../lib/pty-size";
+  import { detectChoice } from "../lib/choices";
   import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
+  import { coastRows, takeRows } from "../lib/touch-scroll";
+  import { DEFAULT_TEXT_SIZE, loadTextSize, stepTextSize, storeTextSize, TEXT_SIZES } from "../lib/text-size";
   import { isBlank, screenRows, tabBarReading, type TabBarCells } from "../lib/screen";
   import { afterQueued, safely, watchDelay } from "../lib/pane-watch";
   import type { HostConnection, PeerMessage } from "../lib/protocol";
@@ -56,6 +59,13 @@
   // Rows must touch, or box-drawing characters break into dashes.
   const LINE_HEIGHT = 1;
   const SCROLLBACK = 10000;
+  // The device's text size. A different size is a different box of columns, which layout() reports.
+  let textSize = $state(loadTextSize());
+  let sizing = $state(false);
+  // Measured in pixels, not columns: a smaller size adds columns and must not take its own button away.
+  let narrow = $state(false);
+  const NARROW_PX = 360;
+  let refit = () => {};
   let finding = $state(false);
   let findSeed = $state("");
   let search = $state<SearchAddon>();
@@ -112,6 +122,7 @@
   }
 
   let watchHarness = () => {};
+  let watchTall = () => {};
   // The input and the newest text sit at the bottom left, so that corner stays in view
   // unless the person has panned away. Cropped rows lie below it.
   let hiddenPx = () => 0;
@@ -132,6 +143,8 @@
 
   // Whether text lies past either side, for the cue a phone's hidden scroll bar cannot give.
   let past = $state({ left: false, right: false });
+  // Where the visible part sits along the full width, in percent, for the thin position bar.
+  let thumb = $state({ x: 0, w: 100 });
   let measuring = 0;
   // A frame later, so reading the layout never lands between a resize and its anchor.
   function edges(): void {
@@ -142,6 +155,10 @@
       const left = host.scrollLeft > 2;
       const right = host.scrollLeft + host.clientWidth < host.scrollWidth - 2;
       if (left !== past.left || right !== past.right) past = { left, right };
+      const full = Math.max(host.scrollWidth, 1);
+      const x = Math.round((host.scrollLeft / full) * 100);
+      const w = Math.round((host.clientWidth / full) * 100);
+      if (x !== thumb.x || w !== thumb.w) thumb = { x, w };
     });
   }
 
@@ -160,6 +177,7 @@
     markSoon();
     safely("reading the screen", reportScreen);
     safely("watching the harness", () => watchHarness());
+    safely("watching for a clipped dialog", () => watchTall());
     safely("noting the screen drew", () => noteDrawn());
     safely("noting text past the edge", edges);
   }
@@ -179,7 +197,7 @@
     const terminal = new Terminal({
       cursorBlink: true,
       fontFamily: '"JetBrains Mono", ui-monospace, monospace',
-      fontSize: 14,
+      fontSize: textSize,
       lineHeight: LINE_HEIGHT,
       scrollback: SCROLLBACK,
       allowProposedApi: true,
@@ -224,10 +242,72 @@
     terminal.onScroll(trackView);
     host.addEventListener("scroll", trackView);
     host.addEventListener("scroll", edges);
+    // A finger's vertical drag scrolls the history: xterm reads wheels and keys, not touch (COI-3253).
+    const rowPx = () => (host.querySelector<HTMLElement>(".xterm-screen")?.clientHeight ?? 0) / Math.max(terminal.rows, 1);
+    let fingerY = 0;
+    let carry = 0;
+    let speed = 0;
+    let fingerAt = 0;
+    let coasting = 0;
+    const stopCoast = () => {
+      cancelAnimationFrame(coasting);
+      coasting = 0;
+    };
+    const onTouchStart = (event: TouchEvent) => {
+      stopCoast();
+      if (event.touches.length !== 1) return;
+      fingerY = event.touches[0]!.clientY;
+      fingerAt = event.timeStamp;
+      carry = 0;
+      speed = 0;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return;
+      const y = event.touches[0]!.clientY;
+      const drag = fingerY - y;
+      const span = Math.max(event.timeStamp - fingerAt, 1);
+      speed = speed * 0.6 + (drag / span) * 0.4;
+      fingerY = y;
+      fingerAt = event.timeStamp;
+      const taken = takeRows(carry, drag, rowPx());
+      carry = taken.carry;
+      if (taken.rows) terminal.scrollLines(taken.rows);
+    };
+    const onTouchEnd = () => {
+      let left = coastRows(speed, rowPx());
+      const step = () => {
+        const now = Math.sign(left) * Math.max(1, Math.round(Math.abs(left) / 8));
+        if (!left) return;
+        terminal.scrollLines(now);
+        left -= now;
+        coasting = requestAnimationFrame(step);
+      };
+      if (left) coasting = requestAnimationFrame(step);
+    };
+    host.addEventListener("touchstart", onTouchStart, { passive: true });
+    host.addEventListener("touchmove", onTouchMove, { passive: true });
+    host.addEventListener("touchend", onTouchEnd, { passive: true });
+    host.addEventListener("touchcancel", stopCoast, { passive: true });
+    // A harness that reports the mouse would take every wheel tick and leave the history still.
+    // On the normal screen the wheel reads the history. A full-screen app keeps its mouse.
+    let wheelCarry = 0;
+    terminal.attachCustomWheelEventHandler((event) => {
+      const active = terminal.buffer.active;
+      if (terminal.modes.mouseTrackingMode === "none" || active.type !== "normal" || active.baseY === 0) return true;
+      const row = rowPx();
+      const taken = takeRows(wheelCarry, event.deltaMode === 1 ? event.deltaY * row : event.deltaY, row);
+      wheelCarry = taken.carry;
+      if (taken.rows) terminal.scrollLines(taken.rows);
+      return false;
+    });
     const cropping = () => cropHarness;
     let hidden = 0;
     // Blank rows under a floating box hide with it, but only its height is asked of the PTY.
     let boxRows = 0;
+    // Rows asked beyond the box while a dialog is taller than the screen (COI-3447).
+    let tall = 0;
+    let lastDialog = 0;
+    let tallTimer: ReturnType<typeof setTimeout> | undefined;
     const extra = () => (cropping() ? hidden : 0);
     const asking = () => (cropping() ? boxRows : 0);
     const cell = () => (host.querySelector<HTMLElement>(".xterm-screen")?.clientHeight ?? 0) / Math.max(terminal.rows, 1);
@@ -243,7 +323,7 @@
       if (connection.ptySize === true) {
         panning = true;
         const box = boxToReport(fit.proposeDimensions(), true, own());
-        const asked = box && { rows: box.rows + ask, cols: box.cols };
+        const asked = box && { rows: box.rows + ask + tall, cols: box.cols };
         if (asked && (asked.rows !== reported?.rows || asked.cols !== reported?.cols)) {
           reported = asked;
           connection.resize(sessionId, asked.rows, asked.cols);
@@ -278,7 +358,13 @@
     // xterm draws a new height a frame later, so the anchor runs again once it has.
     const reanchor = (follow: boolean) => requestAnimationFrame(() => anchor(follow));
     afterSize = reanchor;
+    refit = () => requestAnimationFrame(() => {
+      layout();
+      anchor(true);
+      reanchor(true);
+    });
     const observer = new ResizeObserver(() => {
+      narrow = host.clientWidth < NARROW_PX;
       const follow = atBottom();
       layout();
       anchor(follow);
@@ -300,6 +386,29 @@
         layout();
         anchor(true);
       }, HIDE_SETTLE_MS);
+    };
+    // Throttled, since a redraw is many writes. It re-arms while rows are held, to let them go.
+    const TALL_SETTLE_MS = 350;
+    watchTall = () => {
+      if (connection.ptySize !== true || tallTimer) return;
+      tallTimer = setTimeout(() => {
+        tallTimer = undefined;
+        const choice = detectChoice(screenRows(terminal.buffer.active, terminal.rows));
+        const now = performance.now();
+        if (choice) lastDialog = now;
+        const next = nextTall(tall, {
+          dialog: choice !== null,
+          clipped: (choice?.hidden ?? 0) > 0,
+          honored: terminal.rows >= (reported?.rows ?? 0),
+          idleMs: now - lastDialog,
+        });
+        if (next !== tall) {
+          tall = next;
+          layout();
+          anchor(true);
+        }
+        if (tall > 0) watchTall();
+      }, TALL_SETTLE_MS);
     };
     // A soft keyboard would only be a second input, so a tap on the terminal does not raise one.
     const shapeForPhone = () => {
@@ -408,6 +517,7 @@
       clearTimeout(watching);
       phone.removeEventListener("change", shapeForPhone);
       clearTimeout(settle);
+      clearTimeout(tallTimer);
       unsubscribe();
       connection.detach(sessionId);
       input.dispose();
@@ -415,6 +525,11 @@
       cancelAnimationFrame(tracking);
       clearTimeout(marking);
       host.removeEventListener("scroll", edges);
+      host.removeEventListener("touchstart", onTouchStart);
+      host.removeEventListener("touchmove", onTouchMove);
+      host.removeEventListener("touchend", onTouchEnd);
+      host.removeEventListener("touchcancel", stopCoast);
+      stopCoast();
       observer.disconnect();
       terminal.dispose();
     };
@@ -440,6 +555,14 @@
     finding = true;
   }
 
+  function setTextSize(next: number): void {
+    if (next === textSize) return;
+    textSize = next;
+    storeTextSize(next);
+    if (term) term.options.fontSize = next;
+    refit();
+  }
+
   function closeFind(): void {
     finding = false;
     term?.focus();
@@ -460,6 +583,20 @@
   </div>
   <span class="edge left" class:on={past.left} aria-hidden="true">‹</span>
   <span class="edge right" class:on={past.right} aria-hidden="true">›</span>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  {#if narrow || sizing || textSize !== DEFAULT_TEXT_SIZE}
+  <div class="size" onkeydown={(event) => event.key === "Escape" && (sizing = false)}>
+    {#if sizing}
+      <div class="size-row" role="group" aria-label="Text size">
+        <button type="button" aria-label="Smaller text" disabled={textSize === TEXT_SIZES[0]} onclick={() => setTextSize(stepTextSize(textSize, -1))}>A−</button>
+        <output aria-live="polite">{textSize}px</output>
+        <button type="button" aria-label="Larger text" disabled={textSize === TEXT_SIZES[TEXT_SIZES.length - 1]} onclick={() => setTextSize(stepTextSize(textSize, 1))}>A+</button>
+      </div>
+    {/if}
+    <button type="button" class="size-open" aria-label="Text size" aria-expanded={sizing} onclick={() => (sizing = !sizing)}>Aa</button>
+  </div>
+  {/if}
+  <span class="pan" class:on={past.left || past.right} aria-hidden="true"><i style:left={`${thumb.x}%`} style:width={`${thumb.w}%`}></i></span>
   {#if finding && search}
     <FindBar {search} initial={findSeed} onclose={closeFind} />
   {/if}
@@ -476,17 +613,27 @@
   .term-frame { position: relative; flex: 1 1 auto; min-height: 240px; min-width: 0; display: flex; flex-direction: column; }
   .term-host { position: relative; flex: 1 1 auto; min-height: 0; padding: 12px 0 12px 16px; background: var(--terminal); overflow: hidden; }
   .waiting { position: absolute; z-index: 1; top: 12px; left: 16px; right: 16px; margin: 0; color: var(--muted); font-size: 13px; pointer-events: none; }
+  /* The client scrolls a vertical drag itself, so the browser keeps only the sideways pan and pinch. */
+  .term-host { touch-action: pan-x pinch-zoom; }
   .term-host.panning { overflow: auto; }
   .term-host.panning :global(.xterm) { width: max-content; }
   .jump { position: absolute; z-index: 3; right: 28px; bottom: 16px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px #000a; }
   .count { min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: var(--brand-ink); font: 700 12px/22px var(--font-body); text-align: center; }
-  .edge { display: none; position: absolute; z-index: 2; top: 0; bottom: 0; width: 28px; align-items: center; color: var(--text); font: 600 22px var(--font-body); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+  .edge { display: flex; position: absolute; z-index: 2; top: 0; bottom: 0; width: 28px; align-items: center; color: var(--text); font: 600 22px var(--font-body); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
   .edge.left { left: 0; justify-content: flex-start; padding-left: 4px; background: linear-gradient(to right, #101216dd, transparent); }
   .edge.right { right: 0; justify-content: flex-end; padding-right: 4px; background: linear-gradient(to left, #101216dd, transparent); }
   .edge.on { opacity: 1; }
-  .jump:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .size { position: absolute; z-index: 3; top: 12px; right: 28px; display: flex; align-items: center; gap: 6px; }
+  .size-row { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 12px; border: 1px solid var(--control-line); background: var(--surface); box-shadow: 0 6px 24px #000a; }
+  .size button { min-width: 44px; min-height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--control-line); background: var(--surface); color: var(--text); font: 600 15px var(--font-body); }
+  .size button:disabled { opacity: 0.4; }
+  .size output { min-width: 44px; text-align: center; color: var(--muted); font: 600 13px var(--font-body); }
+  .pan { position: absolute; z-index: 2; left: 16px; right: 16px; bottom: 3px; height: 4px; border-radius: 2px; background: #ffffff1f; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+  .pan.on { opacity: 1; }
+  .pan i { position: absolute; top: 0; bottom: 0; min-width: 12px; border-radius: 2px; background: var(--brand); }
+  .size button:focus-visible, .jump:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   @media (max-width: 720px) {
     .jump { right: 12px; bottom: 12px; }
-    .edge { display: flex; }
+    .size { right: 12px; }
   }
 </style>

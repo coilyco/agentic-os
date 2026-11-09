@@ -112,12 +112,15 @@ export class ClaudeAsk implements Scene {
   phase: Phase = "asking";
   step = 0;
   cursor = 0;
+  private questions: Question[];
   private picked: Set<number>[];
   private typed: string[];
   /** What each question answered with, in the words Claude would read back. */
   answers: string[];
 
-  constructor(private questions: Question[]) {
+  // No parameter property: serve.ts runs under Node's strip-only mode, which rejects one.
+  constructor(questions: Question[]) {
+    this.questions = questions;
     this.picked = questions.map(() => new Set());
     this.typed = questions.map(() => "");
     this.answers = questions.map(() => "");

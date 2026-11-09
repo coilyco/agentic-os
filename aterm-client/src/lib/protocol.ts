@@ -64,12 +64,20 @@ export interface Session {
   context?: ContextReading;
   /** First line of its last finished reply. Absent until read or from an old daemon. */
   lastReply?: string;
+  /** When that reply ended, in ms. Absent from a daemon without `last-reply`. */
+  lastReplyAt?: number;
   /** When it last wrote, in ms. Absent from a daemon that predates `quiet_seconds`. */
   quietSince?: number;
   /** What the seat says it is doing, and when it set that. Absent until it sets one. */
   activity?: Activity;
   /** Not yet ready for input, so its terminal may have nothing to draw. */
   starting?: boolean;
+  /** What the daemon read off the screen. `state` above also folds in recent output. */
+  screen?: "starting" | "busy" | "idle" | "prompt";
+  /** Background tasks the seat has running. Absent from a daemon without the field. */
+  background?: number;
+  /** Names this session and not its name, which is reused. Close takes `name@ref`. */
+  ref?: string;
   failure?: string;
 }
 
@@ -107,6 +115,15 @@ export interface Ask {
 
 export type AskOutcome = "answered" | "cancelled" | "timed_out";
 
+/** A page a seat put on Kai's desk. Only whether it waits on her is read here. */
+export interface SeatArtifact {
+  id: string;
+  /** The posting seat. It stays after the seat ends, so see `seatEnded`. */
+  session: string;
+  waiting: boolean;
+  seatEnded: boolean;
+}
+
 export type HostEvent =
   | { type: "roster"; roles: Role[] }
   | { type: "sessions"; sessions: Session[] }
@@ -119,6 +136,11 @@ export type HostEvent =
   | { type: "input_refused"; text: string }
   | { type: "ask"; ask: Ask }
   | { type: "asked"; id: string; outcome: AskOutcome }
+  | { type: "artifact"; artifact: SeatArtifact }
+  | { type: "artifact_update"; id: string; waiting?: boolean; seatEnded?: boolean }
+  | { type: "artifact_closed"; id: string }
+  | { type: "seat_closed"; session: string }
+  | { type: "seat_close_refused"; session: string; text: string }
   | { type: "launch"; role: string; state: LaunchState; text: string }
   | { type: "typing"; typing: Typing }
   | { type: "closed"; reason: string }
@@ -134,7 +156,8 @@ export type HostEvent =
   | { type: "view_update"; id: string; toolResult?: ToolResult; cancelled?: string }
   | { type: "view_closed"; id: string }
   | { type: "browser"; browser: SharedBrowser }
-  | { type: "features"; terminals: boolean }
+  // `webPush` is only ever true: a daemon without it sends the event as it always did.
+  | { type: "features"; terminals: boolean; webPush?: true }
   // Whether this daemon runs a passkey ceremony. Apart from `features`, which tests pin.
   | { type: "passkey"; available: boolean }
   // Whether the daemon lists `device-key`. The page also needs the app's plugin.
@@ -168,6 +191,12 @@ export interface TerminalChannel {
   /** `label` is the seat's session name, which the host echoes back in its list. */
   open(label: string): void;
   close(id: string): void;
+}
+
+/** A seat's whole last reply. The session view carries only its first line (COI-3253). */
+export interface LastReplyChannel {
+  /** Resolves the text. `truncated` says the host cut it. Rejects in words. */
+  fetch(sessionId: string): Promise<{ text: string; truncated: boolean }>;
 }
 
 /** Images for a seat (COI-3240). No daemon has one yet (COI-3239). */
@@ -211,6 +240,15 @@ export interface PasskeyChannel {
   assert(): Promise<void>;
 }
 
+/** Web Push. Only a daemon that lists `web-push` has one. */
+export interface PushChannel {
+  /** The daemon's VAPID public key, base64url, to pass as `applicationServerKey`. */
+  key(): Promise<string>;
+  /** `PushSubscription.toJSON()` as it is. A remote device needs its passkey first. */
+  subscribe(subscription: unknown): Promise<void>;
+  unsubscribe(endpoint: string): Promise<void>;
+}
+
 /** The app's phone-held key. Needs a daemon with `device-key` and the plugin. */
 export interface DeviceKeyChannel {
   /** The phone's own state, answered without a prompt. */
@@ -224,15 +262,20 @@ export interface DeviceKeyChannel {
 export interface HostConnection {
   readonly canLaunch: boolean;
   readonly passkey?: PasskeyChannel;
+  readonly push?: PushChannel;
   readonly deviceKey?: DeviceKeyChannel;
   readonly views?: ViewChannel;
   readonly browser?: BrowserChannel;
   readonly terminals?: TerminalChannel;
   readonly images?: ImageChannel;
+  /** Only a daemon with `last-reply` has one. */
+  readonly lastReplies?: LastReplyChannel;
   readonly feedback?: FeedbackChannel;
   subscribe(listener: (event: HostEvent) => void): () => void;
   /** Dial now, skipping the backoff. Only a connection that redials has it. */
   retry?(): void;
+  /** Ends a seat by its name and ref, which a reused name cannot confuse (COI-3403). */
+  closeSeat?(session: string, ref: string): void;
   attach(sessionId: string, rows: number, cols: number): void;
   /** Asks again for a seat's screen when its replay never drew. No new reference. */
   replay(sessionId: string): void;

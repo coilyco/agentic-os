@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import AttentionSwitches from "./AttentionSwitches.svelte";
+  import CloseSeat from "./CloseSeat.svelte";
   import Creature from "./Creature.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
-  import { app, askLineFor, asksShownOn, colorOf, glowSeats, layout, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
+  import TapTraceSwitch from "./TapTraceSwitch.svelte";
+  import { app, askLineFor, asksShownOn, colorOf, glowSeats, layout, needsKaiIds, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
   import { stateWithAge } from "../lib/age";
@@ -90,7 +92,15 @@
     hover = { id, top: Math.max(8, box.top), left: box.right + 8 };
   }
   const hidePreview = () => (hover = null);
-  const previewing = $derived(hover ? waitingSeats().find((seat) => seat.sessionId === hover!.id) : undefined);
+  // A finished seat is not counted as waiting, but its row still previews its last reply.
+  const needs = $derived(needsKaiIds());
+  const previewing = $derived.by(() => {
+    if (!hover) return undefined;
+    const id = hover.id;
+    const needs = waitingSeats().find((seat) => seat.sessionId === id);
+    const seat = sessionById(id);
+    return needs ?? (seat && app.unseen[id] ? { sessionId: id, role: seat.role, identity: seat.identity, kind: "done" as const } : undefined);
+  });
   // A relayed question names the worker who asked, not the director whose pane shows it.
   const previewAsk = $derived(previewing ? asksShownOn(previewing.sessionId)[0] : undefined);
   const preview = $derived(
@@ -152,6 +162,7 @@
   {@const code = sessionCode(session)}
   {@const asking = askLineFor(session.id)}
   {@const stop = group.some((each) => each.id === app.selectedSession) ? selected : session === group[0]}
+  <div class="seat-row" class:stacked={narrow} role="presentation">
   <button
     role="tab"
     id={`tab-session-${session.id}`}
@@ -196,6 +207,8 @@
       {/if}
     </span>
   </button>
+  <CloseSeat {session} needsKai={needs.has(session.id)} where="row" compact={narrow} />
+  </div>
 {/snippet}
 
 {#snippet hostsGroup()}
@@ -222,6 +235,7 @@
 
 {#snippet runningGroup()}
   <h2 id="sessions-label">Running <span class="count">{live.running.length}</span></h2>
+  {#if app.closeNote}<p class="waiting" role="status">{app.closeNote}</p>{/if}
   {#if live.running.length === 0}
     <p class="waiting">{narrow ? "Nothing running yet." : "Nothing running on this host. Start a seat below."}</p>
   {:else}
@@ -286,7 +300,7 @@
             {#if currentRole}<Creature role={currentRole.slug} color={currentRole.color} size={28} />{/if}
             <span class="who">{current?.identity ?? `Start ${currentRole?.displayName ?? "a seat"}`}</span>
             {#if current}<span class="state mono" data-state={current.state}>{current.state}</span>{/if}
-            {#if waitingElsewhere}<span class="elsewhere" aria-hidden="true">{waitingElsewhere}<span class="word"> waiting</span></span>{/if}
+            {#if waitingElsewhere}<span class="elsewhere" aria-hidden="true">{waitingElsewhere}<span class="word">&nbsp;waiting</span></span>{/if}
             <svg class="chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </button>
           <FeedbackEntry compact />
@@ -320,6 +334,7 @@
           <AttentionSwitches compact />
         {/if}
         <div class="feedback"><FeedbackEntry onopen={closeMenu} /></div>
+        <TapTraceSwitch />
       </div>
     {/if}
   {:else}
@@ -332,6 +347,7 @@
     {/if}
     <AttentionSwitches />
     <div class="feedback"><FeedbackEntry /></div>
+    <TapTraceSwitch />
   {/if}
 </nav>
 {#if hover && preview}
@@ -345,6 +361,11 @@
   .mark { font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: 0.08em; color: var(--brand); padding: 4px 10px 12px; }
   h2 { margin: 14px 10px 4px; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
   [role="tablist"] { display: flex; flex-direction: column; gap: 2px; }
+  .seat-row { display: flex; align-items: center; gap: 6px; }
+  .seat-row .tab { flex: 1; min-width: 0; width: auto; }
+  /* Beside a 320px row the button leaves no room for the name, so it goes under. */
+  .seat-row.stacked { flex: none; flex-direction: column; align-items: stretch; gap: 4px; }
+  .seat-row.stacked .tab { flex: 1 0 auto; width: auto; }
   .tab { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: none; border-radius: 8px; background: transparent; color: var(--text); text-align: left; }
   .tab:hover { background: #171a21; }
   .tab[aria-selected="true"] { background: #1d1729; box-shadow: inset 0 0 0 1px #3a3350; }
@@ -436,7 +457,7 @@
     .seats .harness { padding: 0; border: none; font-size: 11px; color: var(--muted); }
     .seats .code-inline { display: inline; }
     .scrim { position: fixed; inset: 0; z-index: -1; background: rgb(0 0 0 / 0.55); }
-    .menu[data-flow="sheet"] { position: absolute; top: 100%; left: 0; right: 0; max-height: calc(100dvh - 49px); overflow-y: auto; overscroll-behavior: contain; padding: 0 8px calc(12px + env(safe-area-inset-bottom)); background: var(--ground); border-bottom: 1px solid var(--line); box-shadow: 0 12px 16px rgb(0 0 0 / 0.4); }
+    .menu[data-flow="sheet"] { position: absolute; top: 100%; left: 0; right: 0; max-height: calc(100dvh - 49px); overflow-y: auto; overscroll-behavior: contain; padding: 0 8px calc(12px + var(--bottom-clear)); background: var(--ground); border-bottom: 1px solid var(--line); box-shadow: 0 12px 16px rgb(0 0 0 / 0.4); }
     /* With no seat on screen the lists are the page: today's rows, tight, above the host's own panel. */
     .menu[data-flow="page"] { padding: 4px 0; display: flex; flex-direction: column; gap: 4px; }
     .menu[data-flow="page"] h2, .menu[data-flow="page"] .detail { display: none; }

@@ -41,8 +41,11 @@ type daemon struct {
 	terminals map[string]*ptySession
 	// stageMu serializes finding or opening the terminal a stage types into.
 	stageMu sync.Mutex
-	tokens  map[string]*ptySession
-	orphans []*pendingSend
+	// notifyLast is when each seat last notified, so a notify holds one per notifyGap.
+	notifyMu   sync.Mutex
+	notifyLast map[string]time.Time
+	tokens     map[string]*ptySession
+	orphans    []*pendingSend
 	// seen is what each seat last listed, name to ref, and retired when each ended name
 	// left the pool. See daemon_names.go.
 	seen       map[string]map[string]string
@@ -99,6 +102,9 @@ type daemon struct {
 	peerLookup func(remote, local net.Addr) ([]int, error)
 	roster     func(context.Context) (listedRoster, error)
 	launch     func(role, seat string) error
+	// reopen resumes a closed seat from its ledger entry, and entries reads the ledger.
+	reopen  func(ledgerEntry) error
+	entries func() []ledgerEntry
 	// proxyFetch reads Agent Proxy's session usage. Nil when no proxy is configured.
 	proxyFetch proxyFetcher
 	// browsers holds a session's streamed Chromium. browserLaunch replaces the
@@ -138,6 +144,8 @@ func newDaemon(logf func(string, ...any)) *daemon {
 		peerLookup:  tcpPeerPIDs,
 		roster:      launchableRoster,
 		launch:      launchRole,
+		reopen:      reopenSeat,
+		entries:     func() []ledgerEntry { return readLedger(ledgerDir()) },
 		discovery:   newHostDiscovery(),
 		logf:        logf,
 	}
@@ -459,7 +467,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, closeSelfFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature, activityFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, closeSelfFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature, activityFeature, backgroundFeature, closeUnpushedFeature, reopenFeature, originFeature, notifyFeature}}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -666,6 +674,10 @@ func (d *daemon) handle(cl *client, message frame) error {
 			return withExit(exitSpawn, err)
 		}
 		return cl.c.write(frame{Type: "launched", ID: message.ID, Role: message.Role, Seat: message.Seat})
+	case "reopen":
+		return d.reopenSession(cl, message)
+	case "notify":
+		return d.notify(cl, message)
 	case "roster":
 		roster, err := d.roster(context.Background())
 		if err != nil {
@@ -1062,6 +1074,9 @@ func (d *daemon) closeSession(cl *client, message frame) error {
 		return withExit(exitUsage, fmt.Errorf("this caller runs inside %s, so closing it would end the caller too", s.name))
 	}
 	if err := closeHeld(s, message.Force); err != nil {
+		return err
+	}
+	if err := closeUnpushed(s, message.Force); err != nil {
 		return err
 	}
 	by := "a client outside every session"

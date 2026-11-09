@@ -42,7 +42,7 @@ jobs:
       - name: Install the Android toolchain
         run: mkdir -p "$GITHUB_WORKSPACE/aterm-emulator-out" && bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" toolchain
       - name: Build the debug x86_64 APK
-        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" build-debug "$GITHUB_WORKSPACE/aterm-emulator-out/aterm-debug.apk"
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" build-debug x86_64 "$GITHUB_WORKSPACE/aterm-emulator-out/aterm-debug.apk"
       - name: Make the emulator image
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" avd
       - name: Boot the emulator
@@ -52,6 +52,8 @@ jobs:
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" daemon
       - name: Run the journeys
         timeout-minutes: 20
+        env:
+          ATERM_JOURNEY_B: required
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" journey "$GITHUB_WORKSPACE/aterm-emulator-out/aterm-debug.apk"
       - name: Collect the final logs
         if: ${{ always() }}

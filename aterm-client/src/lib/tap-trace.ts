@@ -1,4 +1,4 @@
-// On-device record of what a tap did (COI-3334, COI-3243). Off unless ?taptrace is set.
+// On-device record of what a tap did (COI-3334, COI-3243). Off unless flag or switch.
 // Never holds seat content, an address or a token. See the tooling-aterm-client skill.
 
 export const TRACE_FLAG = "taptrace";
@@ -33,6 +33,31 @@ export interface Shape {
   index?: number;
   /** The button or link a tap on an inner element lands in. */
   within?: Shape | null;
+}
+
+const STORE = "aterm.taptrace.v1";
+
+/** The app has no address bar, so a switch saves the choice here (COI-3334). */
+export function traceStored(): boolean {
+  try {
+    return localStorage.getItem(STORE) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function storeTrace(on: boolean): void {
+  try {
+    if (on) localStorage.setItem(STORE, "1");
+    else localStorage.removeItem(STORE);
+  } catch {
+    // Storage can be off. The switch then does nothing.
+  }
+}
+
+/** Only the app has no address bar. A running trace keeps the switch, to turn off. */
+export function switchShown(inApp: boolean, stored: boolean, search: string): boolean {
+  return inApp || stored || traceWanted(search);
 }
 
 export function traceWanted(search: string): boolean {
@@ -150,7 +175,7 @@ export function headerFor(win: Window, build: string, place: string): string {
 
 /** Starts recording when the flag is set. Returns stop, or null when off. */
 export function startTrace(win: Window & typeof globalThis): (() => void) | null {
-  if (on || !traceWanted(win.location.search)) return null;
+  if (on || !(traceWanted(win.location.search) || traceStored())) return null;
   on = true;
   events = [];
   seen = () => rendererOf(win.document);

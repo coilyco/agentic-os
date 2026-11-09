@@ -51,9 +51,12 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 name = "aterm-app"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-devicekey",
+ "tauri-plugin-sharetarget",
 ]
 
 [[package]]
@@ -3167,6 +3170,16 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-devicekey"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "tauri-plugin-sharetarget"
 version = "0.1.0"
 dependencies = [
  "serde",

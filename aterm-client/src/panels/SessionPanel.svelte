@@ -2,12 +2,14 @@
   import { onMount } from "svelte";
   import Creature from "../components/Creature.svelte";
   import ChoiceCard from "../components/ChoiceCard.svelte";
+  import CloseSeat from "../components/CloseSeat.svelte";
   import Composer from "../components/Composer.svelte";
+  import LastReply from "../components/LastReply.svelte";
   import RelayNotice from "../components/RelayNotice.svelte";
   import SidePanel from "../components/SidePanel.svelte";
   import SplitHandle from "../components/SplitHandle.svelte";
   import Terminal from "../components/Terminal.svelte";
-  import { app, asksShownOn, colorOf, layout, messagesFor, placeNow, reconnecting, relayedTo } from "../lib/app.svelte";
+  import { app, asksShownOn, colorOf, layout, messagesFor, needsKaiIds, placeNow, reconnecting, relayedTo } from "../lib/app.svelte";
   import { readTabs, tabKeys, type TabReading } from "../lib/dialog-tabs";
   import type { TabBarCells } from "../lib/screen";
   import { askScope, cardMemo, forgetCardMemos, memoKey, screenScope, tickedRows } from "../lib/card-memo.svelte";
@@ -192,6 +194,7 @@
     {#if !phone}
       <button type="button" class="head-button" aria-label="Find in output" title={`Find in output (${findChord})`} onclick={() => seatTerminal?.openFind()}>Find</button>
     {/if}
+    <CloseSeat {session} needsKai={needsKaiIds().has(session.id)} where="view" />
     {#if split}
       <button type="button" class="head-button" aria-expanded={sideOpen} aria-controls="side-panel" onclick={toggleSide}>
         Side panel{#if messages.length}<span class="count">{messages.length}</span>{/if}
@@ -260,6 +263,7 @@
             typing={app.typing}
             offline={reconnecting()}
             {dialogOpen}
+            reading={layout.reading}
             draft={app.drafts[session.id] ?? ""}
             ondraft={(text) => (text ? (app.drafts[session.id] = text) : delete app.drafts[session.id])}
             onsent={() => (app.inputNotice = "")}
@@ -267,6 +271,8 @@
             place={placeNow()}
             working={session.state === "working" && !blank}
           />
+          <!-- Gives way to the keyboard, so the pin never takes the terminal's last lines. -->
+          {#if narrow && !layout.reading}<LastReply {session} connection={app.connection} hidden={app.composing} />{/if}
         {/key}
       {/if}
     </div>

@@ -53,6 +53,10 @@ type frame struct {
 	// the holder keeps since it drops the environment that said so.
 	MCPApps bool `json:"mcp_apps,omitempty"`
 
+	// Origin is on a seat spawn: the launcher says whether it holds a window ("window") or
+	// not ("headless"). Anything else is dropped. See references/seat-state.md.
+	Origin string `json:"origin,omitempty"`
+
 	// Kind is "terminal" on a spawn for a login shell, absent for a seat, and the
 	// input type (mouse, wheel, key, text) on a browser_input. See docs/aterm-daemon.md.
 	Kind string `json:"kind,omitempty"`
@@ -181,9 +185,12 @@ type frame struct {
 
 	// browser_*. State, Reason, Force and Data carry the shared fields above.
 	// Params, shared with the MCP Apps frames, is declared below.
-	Driver   string          `json:"driver,omitempty"`
-	URL      string          `json:"url,omitempty"`
-	Title    string          `json:"title,omitempty"`
+	Driver string `json:"driver,omitempty"`
+	URL    string `json:"url,omitempty"`
+	Title  string `json:"title,omitempty"`
+	// Notify is a `notify` event for clients, and NotifyID the id a `notified` reply names.
+	Notify   *notifyEvent    `json:"notify,omitempty"`
+	NotifyID string          `json:"notify_id,omitempty"`
 	Holder   string          `json:"holder,omitempty"`
 	Tab      int             `json:"tab,omitempty"`
 	Tabs     int             `json:"tabs,omitempty"`
@@ -254,6 +261,12 @@ type sessionView struct {
 	// ActivityAt when it was set. Absent until set. See references/seat-state.md.
 	Activity   string     `json:"activity,omitempty"`
 	ActivityAt *time.Time `json:"activity_at,omitempty"`
+	// Background counts the seat's background tasks. A pointer, so 0 is a reading and
+	// absence is unknown, never zero. See references/seat-state.md.
+	Background *int `json:"background,omitempty"`
+	// Origin is how the seat was launched, a fact of the launch that attaching never moves.
+	// Absent when the launcher or an older daemon did not say. See references/seat-state.md.
+	Origin string `json:"origin,omitempty"`
 }
 
 // terminalView is one plain terminal as a client sees it. Cwd is where the shell
@@ -326,6 +339,29 @@ const closeFeature = "close"
 
 // closeSelfFeature is how a client knows a close frame may carry Self.
 const closeSelfFeature = "close-self"
+
+// backgroundFeature is how a client knows a view may carry `background`.
+const backgroundFeature = "background"
+
+// closeUnpushedFeature is how a client knows a close refuses a seat holding unpushed
+// work with reason `unpushed_work`, and takes `force` to close it anyway.
+const closeUnpushedFeature = "close-unpushed"
+
+// Launch origins, the closed set a spawn and a session view carry.
+const (
+	originWindow   = "window"
+	originHeadless = "headless"
+)
+
+// originFeature is how a client knows a view may carry `origin`.
+const originFeature = "origin"
+
+// notifyFeature is how a client knows the daemon sends `notify` events and answers a
+// `notify` frame from a coordinator seat.
+const notifyFeature = "notify"
+
+// reopenFeature is how a client knows the daemon answers a reopen frame.
+const reopenFeature = "reopen"
 
 // statusFeature is how a client knows the daemon answers a status frame.
 const statusFeature = "status"

@@ -14,7 +14,7 @@ const HERE = fileURLToPath(new URL(".", import.meta.url));
 const DIST = process.env.ATERM_TESTBED_DIST ?? join(HERE, "..", "dist");
 const ROSTER = join(HERE, "..", "src", "lib", "fixtures", "roster.json");
 /** What the real daemon offers on a loopback page, so the client takes its real paths. */
-const FEATURES = ["pty-size", "terminals", "terminal-label", "browser", "open-url"];
+const FEATURES = ["pty-size", "terminals", "terminal-label", "browser", "open-url", "last-reply"];
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -41,11 +41,21 @@ export interface SessionSpec {
   degraded?: string[];
   context?: { tokens: number; window?: number; source: string };
   last_reply?: string;
+  /** What a `last_reply` returns: the whole text, its age, and whether it was cut. */
+  last_reply_text?: string;
+  last_reply_age_seconds?: number;
+  last_reply_truncated?: boolean;
   /** Seconds since the seat last wrote, as the daemon's session view carries it. */
   quiet_seconds?: number;
   /** The seat's "what I'm doing" line and how long ago it set it, in seconds. */
   activity?: string;
   activity_age_seconds?: number;
+  /** The screen reading, the `ref` a close takes, and background tasks running. */
+  state?: "starting" | "busy" | "idle" | "prompt";
+  ref?: string;
+  background?: number;
+  /** The daemon refuses a close with this text, as it does for a held draft. */
+  refuse_close?: string;
   /** Which scene draws it: a name from scenes.ts. */
   scene: string;
 }
@@ -57,6 +67,8 @@ interface Live {
   boxes: Map<WebSocket, { rows: number; cols: number }>;
   /** Columns a wider client holds the PTY at, by the daemon's largest-client rule. */
   wideCols?: number;
+  /** Rows a raw client caps the PTY at, however many rows another client asks for. */
+  capRows?: number;
 }
 
 export interface Mock {
@@ -71,14 +83,22 @@ export interface Mock {
   /** Every `answer` and `cancel_ask` the client sent. */
   answers: { ask_id: string; picks?: number[]; text?: string; cancelled?: boolean }[];
   launches: { role: string; seat: string }[];
+  /** The `push_*` frames the client sent, in order. */
+  pushCalls: { type: string; push?: unknown }[];
+  /** Every `close` target the client sent, as `name@ref`. */
+  closes: string[];
   /** Every `browser_*` frame and `subscribe` the client sent about a page, in order. */
   browserCalls: { type: string; session?: string; take?: boolean; url?: string; channel?: string }[];
   /** The scene a seat runs, to read what a native dialog received. */
   sceneOf(session: string): Scene | undefined;
   /** Size a seat's PTY to at least this many columns, as a wider client does. */
   holdWide(session: string, cols: number): void;
+  /** Hold a seat's PTY to at most this many rows, as a raw client's window does. */
+  capRows(session: string, rows: number): void;
   /** Replace a seat's scene and redraw it on every client attached. */
   setScene(session: string, scene: Scene): void;
+  /** Give a seat a finished reply: the first line rides the view, the text a request. */
+  setLastReply(session: string, reply: { text: string; ageSeconds?: number; truncated?: boolean }): void;
   /** Send one daemon frame to every client, as the daemon would push it. */
   push(frame: Record<string, unknown>): void;
   /** Add a seat to the roster list, as a launch does. */
@@ -99,6 +119,10 @@ export interface Mock {
   heard: string[];
   /** Every proof the client presented in a `resume` frame, in order. */
   resumes: string[];
+  /** Each `image_upload` taken: the seat, and the bytes sent. */
+  uploads: { session: string; bytes: Buffer }[];
+  /** The daemon refuses every `image_upload` with this reason, until set back to null. */
+  refuseUploads(reason: string | null): void;
   /** The resume window passes: every proof the daemon issued stops holding. */
   endResumeWindow(): void;
   stop(): Promise<void>;
@@ -118,8 +142,8 @@ export function loadSessions(): SessionSpec[] {
 }
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
- * `images`: a host that takes an image, so the composer shows Add image. */
-export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean };
+ * `images`: Add image shows. `webPush`: Notify when closed shows. */
+export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; webPush?: boolean; launchDelayMs?: number };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   if (!existsSync(join(DIST, "index.html"))) {
     throw new Error("The mock daemon serves aterm-client/dist, which is not built. Run `just aterm-client-testbed`, which builds it first.");
@@ -127,6 +151,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const roster = JSON.parse(readFileSync(ROSTER, "utf8")) as unknown;
   const live = new Map<string, Live>();
   const typedBy = new Map<string, string[]>();
+  let uploadRefusal: string | null = null;
   const clients = new Set<WebSocket>();
   // Sockets that went silent: they stay open but speak and hear nothing.
   const silent = new WeakSet<WebSocket>();
@@ -136,7 +161,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const heard: string[] = [];
   let lastFrameAt = Date.now();
   const lastBox = new Map<string, { rows: number; cols: number }>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], browserCalls: [] as Mock["browserCalls"], resumes: [] as string[] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"] };
   // A seat's browser: the agent drives until a screen takes control.
   // `client` is the name each connection was given.
   const pages = new Map<string, { holder: WebSocket | null; url: string }>();
@@ -157,6 +182,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     return proof;
   };
   const unlockedFeatures = ["device-key", "resume"];
+  const pushFeature = options.webPush ? ["web-push"] : [];
 
   const add = (spec: SessionSpec): void => {
     live.set(spec.name, { spec, scene: sceneFor(spec.scene, spec), boxes: new Map() });
@@ -175,7 +201,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const draw = (seat: Live, socket: WebSocket, attach = false): void => {
     const own = seat.boxes.get(socket);
     if (!own) return;
-    const box = { rows: own.rows, cols: Math.max(own.cols, seat.wideCols ?? 0) };
+    const box = { rows: Math.min(own.rows, seat.capRows ?? own.rows), cols: Math.max(own.cols, seat.wideCols ?? 0) };
     send(socket, { type: "size", session: seat.spec.name, rows: box.rows, cols: box.cols });
     const text = attach && seat.scene.history ? seat.scene.history(box.cols, box.rows) : paint(seat.scene.render(box.cols, box.rows));
     send(socket, { type: "output", session: seat.spec.name, data: encode(text) });
@@ -202,9 +228,9 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
       switch (frame.type) {
         case "hello":
           if (options.lock) {
-            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...unlockedFeatures], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
+            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...unlockedFeatures, ...pushFeature], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
           } else {
-            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: options.images ? [...FEATURES, "image-upload"] : FEATURES, typing: { allowed: true } });
+            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...(options.images ? ["image-upload"] : []), ...pushFeature], typing: { allowed: true } });
           }
           return;
         case "device_assert_begin":
@@ -237,6 +263,16 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           if (!pages.has(String(frame.session))) pages.set(String(frame.session), { holder: null, url: "about:blank" });
           send(socket, browserState(String(frame.session), socket, frame.id));
           return;
+        case "push_key":
+        case "push_subscribe":
+        case "push_unsubscribe": {
+          if (!options.webPush) return void send(socket, { type: "error", id: frame.id, error: `the test bed daemon does not model ${frame.type}` });
+          mock.pushCalls.push({ type: frame.type, push: frame.push });
+          const reply = { push_key: "push_key", push_subscribe: "push_subscribed", push_unsubscribe: "push_unsubscribed" }[frame.type];
+          // A 65 byte uncompressed P-256 point, base64url, as the daemon's public key is.
+          send(socket, { type: reply, id: frame.id, ...(frame.type === "push_key" ? { key: Buffer.alloc(65, 4).toString("base64url") } : {}) });
+          return;
+        }
         case "browser_unwatch":
           mock.browserCalls.push({ type: "browser_unwatch", session: String(frame.session) });
           return;
@@ -262,6 +298,12 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
         case "list":
           send(socket, { ...sessionsFrame(), id: frame.id });
           return;
+        case "last_reply": {
+          const spec = live.get(String(frame.target))?.spec;
+          const reply = spec?.last_reply_text === undefined ? { session: String(frame.target), text: "" } : { session: spec.name, text: spec.last_reply_text, truncated: spec.last_reply_truncated === true, at: new Date(Date.now() - (spec.last_reply_age_seconds ?? 0) * 1000).toISOString() };
+          send(socket, { type: "last_reply", id: frame.id, session: reply.session, reply });
+          return;
+        }
         case "roster":
           send(socket, { type: "roster", id: frame.id, roster });
           return;
@@ -284,6 +326,16 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
             draw(seat, socket);
           }
           return;
+        case "image_upload": {
+          if (!seat) return;
+          if (uploadRefusal) {
+            send(socket, { type: "error", id: frame.id, code: 6, error: "refused", reason: uploadRefusal });
+            return;
+          }
+          mock.uploads.push({ session: seat.spec.name, bytes: Buffer.from(String(frame.data ?? ""), "base64") });
+          send(socket, { type: "image_uploaded", id: frame.id, session: frame.session, path: `/tmp/aterm/images/${seat.spec.name}-1/upload-${mock.uploads.length}.png` });
+          return;
+        }
         case "input": {
           if (!seat) return;
           const text = Buffer.from(String(frame.data ?? ""), "base64").toString("utf8");
@@ -301,7 +353,19 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           setTimeout(() => {
             add({ name: `${role}-new-seat`, role, identity, seat: seatKey, ready: true, bracketed_paste: true, kai_drafting: false, pending: 0, scene: "claude-idle" });
             broadcast(sessionsFrame());
-          }, 400);
+          }, options.launchDelayMs ?? 400);
+          return;
+        }
+        case "close": {
+          const target = String(frame.target);
+          mock.closes.push(target);
+          const [name, ref] = target.split("@");
+          const seat = live.get(name ?? "");
+          if (!seat || seat.spec.ref !== ref) return void send(socket, { type: "error", id: frame.id, error: `${target} names no live session` });
+          if (seat.spec.refuse_close) return void send(socket, { type: "error", id: frame.id, error: seat.spec.refuse_close });
+          live.delete(seat.spec.name);
+          broadcast(sessionsFrame());
+          send(socket, { type: "closed", id: frame.id, session: seat.spec.name, code: 0 });
           return;
         }
         case "answer":
@@ -344,7 +408,9 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     idleMs: () => Date.now() - lastFrameAt,
     answers: mock.answers,
     launches: mock.launches,
+    closes: mock.closes,
     browserCalls: mock.browserCalls,
+    pushCalls: mock.pushCalls,
     sceneOf: (session) => live.get(session)?.scene,
     holdWide(session, cols) {
       const seat = live.get(session);
@@ -352,11 +418,23 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
       seat.wideCols = cols;
       redraw(seat);
     },
+    capRows(session, rows) {
+      const seat = live.get(session);
+      if (!seat) throw new Error(`no seat named ${session}`);
+      seat.capRows = rows;
+      redraw(seat);
+    },
     setScene(session, scene) {
       const seat = live.get(session);
       if (!seat) throw new Error(`no seat named ${session}`);
       seat.scene = scene;
       redraw(seat);
+    },
+    setLastReply(session, reply) {
+      const seat = live.get(session);
+      if (!seat) throw new Error(`no seat named ${session}`);
+      Object.assign(seat.spec, { last_reply: reply.text.split("\n")[0], last_reply_text: reply.text, last_reply_age_seconds: reply.ageSeconds ?? 0, last_reply_truncated: reply.truncated === true });
+      broadcast(sessionsFrame());
     },
     push: broadcast,
     addSession(spec) {
@@ -378,6 +456,10 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     dialCount: () => dials,
     heard,
     resumes: mock.resumes,
+    uploads: mock.uploads,
+    refuseUploads(reason) {
+      uploadRefusal = reason;
+    },
     endResumeWindow: () => proofs.clear(),
     async stop() {
       for (const socket of clients) socket.terminate();
@@ -388,9 +470,13 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   };
 }
 
-function withoutScene(spec: SessionSpec): Omit<SessionSpec, "scene" | "activity_age_seconds"> & { activity_at?: string } {
-  const { scene: _scene, activity_age_seconds: age, ...view } = spec;
-  return { ...view, ...(spec.activity && age !== undefined ? { activity_at: new Date(Date.now() - age * 1000).toISOString() } : {}) };
+function withoutScene(spec: SessionSpec): Record<string, unknown> {
+  const { scene: _scene, activity_age_seconds: age, last_reply_text: _text, last_reply_age_seconds: replyAge, last_reply_truncated: _cut, ...view } = spec;
+  return {
+    ...view,
+    ...(spec.activity && age !== undefined ? { activity_at: new Date(Date.now() - age * 1000).toISOString() } : {}),
+    ...(spec.last_reply && replyAge !== undefined ? { last_reply_at: new Date(Date.now() - replyAge * 1000).toISOString() } : {}),
+  };
 }
 
 function serve(request: IncomingMessage, response: ServerResponse): void {

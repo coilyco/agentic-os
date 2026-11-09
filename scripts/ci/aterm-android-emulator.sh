@@ -39,6 +39,8 @@ avd() {
   yes | sdkmanager --licenses >/dev/null || true
   sdkmanager "emulator" "$IMAGE"
   echo no | avdmanager create avd --force --name "$AVD" --package "$IMAGE" --device pixel_6
+  command -v emulator || fail "no emulator binary on PATH after sdkmanager"
+  emulator -version | head -n3
 }
 
 boot() {
@@ -89,7 +91,8 @@ collect() {
   use_sdk
   mkdir -p "$out/screens"
   cp "$state/seat.log" "$out/screens/seat.log" 2>/dev/null || true
-  adb logcat -d -t 6000 >"$out/screens/logcat-final.txt" 2>/dev/null || true
+  # logcat waits forever with no device, which hung a run to its job limit.
+  timeout 30 adb logcat -d -t 6000 >"$out/screens/logcat-final.txt" 2>/dev/null || true
 }
 
 cmd="${1:-}"

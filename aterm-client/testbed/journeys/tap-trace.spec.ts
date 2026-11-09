@@ -113,3 +113,30 @@ test("the record holds no seat words, address or token, and one tap copies it", 
   }
   expect(copied.length).toBeLessThanOrEqual(7000);
 });
+
+// The app has no address bar, so a saved switch is its way in. A browser is offered none.
+test("a browser with no flag is offered no switch, and a saved one can turn the record off", async ({ bed }) => {
+  test.skip(kindOf(test.info()) !== "desktop", "the sidebar");
+  await openTraced(bed, "");
+  await expect(bed.page.getByRole("switch", { name: "Tap trace" })).toHaveCount(0);
+  await bed.page.evaluate(() => localStorage.setItem("aterm.taptrace.v1", "1"));
+  await Promise.all([bed.page.waitForEvent("load"), bed.page.reload()]);
+  const toggle = bed.page.getByRole("switch", { name: "Tap trace" });
+  await expect(toggle).toBeChecked();
+  expect(await trace(bed)).not.toBeNull();
+  // The switch is gone after the reload, so click it. uncheck() waits to see it.
+  await Promise.all([bed.page.waitForEvent("load"), toggle.click()]);
+  await expect(bed.page.locator("[data-taptrace]")).toHaveCount(0);
+  expect(await trace(bed)).toBeNull();
+});
+
+test("a saved switch records on a phone with no flag in the address", async ({ bed }) => {
+  test.skip(kindOf(test.info()) !== "phone", "touch");
+  await bed.page.addInitScript(() => localStorage.setItem("aterm.taptrace.v1", "1"));
+  await openTraced(bed, "");
+  bed.mock.push(ask);
+  await card(bed.page).getByRole("button", { name: /Behind a button/ }).tap();
+  await expect.poll(() => bed.mock.answers).toHaveLength(1);
+  expect(await trace(bed)).not.toBeNull();
+  await expect(bed.page.getByRole("button", { name: /Copy trace/ })).toBeVisible();
+});

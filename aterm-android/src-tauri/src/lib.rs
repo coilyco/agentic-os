@@ -1,7 +1,13 @@
+#[cfg(desktop)]
+mod desktop;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-  tauri::Builder::default()
+  let builder = tauri::Builder::default()
     .plugin(tauri_plugin_devicekey::init())
-    .run(tauri::generate_context!())
-    .expect("error while running the aterm app");
+    .plugin(tauri_plugin_sharetarget::init());
+  // The desktop config declares no window, so the window opens here with its seed.
+  #[cfg(desktop)]
+  let builder = builder.setup(desktop::open);
+  builder.run(tauri::generate_context!()).expect("error while running the aterm app");
 }
