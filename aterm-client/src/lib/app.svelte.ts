@@ -691,11 +691,6 @@ export async function setAlert(key: keyof AttentionSettings, on: boolean): Promi
   if (await unlock()) chime();
 }
 
-/** Plays the cue if Sound is on. */
-export function playCue(): void {
-  if (app.alerts.sound) chime();
-}
-
 /** Where this page unlocks from, for the words a locked device shows. */
 export function placeNow(): Place {
   return app.deviceKeyAvailable ? "app-key" : PLACE;
