@@ -21,7 +21,8 @@
         <li data-state={message.state}>
           <button type="button" class="row" aria-expanded={expanded} aria-controls={`message-${message.id}`} onclick={() => (open[message.id] = !expanded)}>
             <span class="meta">
-              <Creature role={outgoing ? message.target : message.from.role} color={colorOf(outgoing ? message.target : message.from.role)} size={24} />
+              <!-- Art is keyed by role slug, and message.target is a session name. -->
+              <Creature role={outgoing ? selfRole : message.from.role} color={colorOf(outgoing ? selfRole : message.from.role)} size={24} />
               <strong>{outgoing ? "this seat" : message.from.identity}</strong>
               <span class="dir">{outgoing ? `to ${message.target}` : "to this seat"}</span>
               <span class="state">{stateLabel[message.state]}</span>
