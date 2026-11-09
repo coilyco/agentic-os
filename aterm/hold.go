@@ -62,6 +62,8 @@ type holdInfo struct {
 	Kind  string `json:"kind,omitempty"`
 	Cwd   string `json:"cwd,omitempty"`
 	Label string `json:"label,omitempty"`
+	// Origin lets an adopting daemon keep how the seat was launched.
+	Origin string `json:"origin,omitempty"`
 
 	// MCPApps and Gateways let an adopting daemon rebuild the gateway. Memory
 	// only, since a stdio spec's env can carry credentials.
@@ -403,6 +405,7 @@ func (h *holder) attach(c *conn, message frame) error {
 		Kind:        h.spec.Kind,
 		Cwd:         h.spec.Cwd,
 		Label:       h.spec.Label,
+		Origin:      h.spec.Origin,
 		MCPApps:     h.spec.MCPApps,
 		Gateways:    maps.Clone(h.gateways),
 	}
