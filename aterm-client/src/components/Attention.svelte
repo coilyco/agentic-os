@@ -1,29 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { app, cueSeats, openSeat, playCue } from "../lib/app.svelte";
-  import { detectCue, SETTLE_MS } from "../lib/attention";
+  import { app, openSeat } from "../lib/app.svelte";
   import { unlock } from "../lib/chime";
   import { closeSeatNotifications } from "../lib/push";
   import { openSeatFromNotification, settleSeat, syncPush, takeLaunchSeat } from "../lib/push.svelte";
 
-  let known: Set<string> | null = null;
-  let attachedFor: string | null = null;
-  let settleUntil = 0;
-
-  // Tracks who is waiting whether or not Sound is on, so switching it on later is not news.
-  $effect(() => {
-    const ids = cueSeats();
-    const open = openSeat();
-    if (app.attachedHostId !== attachedFor) {
-      attachedFor = app.attachedHostId;
-      known = null;
-      settleUntil = performance.now() + SETTLE_MS;
-    }
-    const settling = known === null || performance.now() < settleUntil;
-    const result = detectCue(settling ? null : known, ids, open);
-    known = result.known;
-    if (result.fire) playCue();
-  });
+  // A seat that starts waiting makes no sound here, only the glow and list cues (COI-3517).
+  // The coordinator's own ping arrives as a notify frame.
 
   // The switch reads the browser's subscription again whenever the host it belongs to changes.
   $effect(() => {

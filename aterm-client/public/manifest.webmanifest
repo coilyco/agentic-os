@@ -1,7 +1,7 @@
 {
-  "name": "aterm",
-  "short_name": "aterm",
-  "description": "Attach to aterm agent sessions on any host.",
+  "name": "Treehouse",
+  "short_name": "Treehouse",
+  "description": "Attach to Treehouse agent sessions on any host.",
   "id": "./",
   "start_url": "./",
   "scope": "./",

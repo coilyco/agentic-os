@@ -37,7 +37,7 @@
       </label>
     {/if}
   </div>
-  <p id="alerts-sound-hint" class="hint">One short tone when a seat starts waiting on you.</p>
+  <p id="alerts-sound-hint" class="hint">One short tone when the coordinator seat pings you. A seat that is waiting on you stays silent.</p>
   <p id="alerts-visual-hint" class="hint">A soft tint on the seat's tab, until you open it.</p>
   {#if app.webPush}
     <p id="alerts-push-hint" class="hint">A notification on this device when a seat starts waiting on you, even with the app closed.</p>

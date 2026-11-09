@@ -10,6 +10,9 @@ async function openAlerts(page: Page): Promise<void> {
   await page.goto("/");
   await page.getByRole("tab", { name: /this Mac/ }).click();
   await expect(page.getByRole("switch", { name: "Sound" }).first()).toBeVisible();
+  // The install card comes in on a timer and grows the panel the steps mask, so a picture
+  // taken before it differs from the baseline's by the card's height. Wait for it.
+  await expect(page.locator("section.install")).toBeVisible();
 }
 
 test.describe("a host with no push key", () => {

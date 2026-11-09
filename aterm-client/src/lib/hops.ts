@@ -255,7 +255,7 @@ export interface ReportContext {
 /** The report as a message to prod-director, so no one describes it by hand. */
 export function reportText(report: HopReport, context: ReportContext): string {
   const lines = [
-    "To prod-director: aterm client connection report (COI-3256).",
+    "To prod-director: Treehouse client connection report (COI-3256).",
     "",
     `Host: ${context.label}, ${report.address}`,
     `Page: ${context.page}`,
