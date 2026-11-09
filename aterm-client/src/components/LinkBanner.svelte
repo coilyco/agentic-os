@@ -33,7 +33,7 @@
       <strong>{label} is back.</strong> <span class="extra">Your seats are live again.</span>
     {/if}
     {#if app.newerBuild}
-      A newer aterm is ready. <span class="extra">Reload to use it.</span>
+      A newer Treehouse is ready. <span class="extra">Reload to use it.</span>
     {/if}
   </p>
   {#if link.state === "resting"}
