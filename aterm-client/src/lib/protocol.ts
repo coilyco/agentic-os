@@ -68,6 +68,8 @@ export interface Session {
   lastReplyAt?: number;
   /** When it last wrote, in ms. Absent from a daemon that predates `quiet_seconds`. */
   quietSince?: number;
+  /** When the daemon first saw its present state, in ms. Absent from an old daemon. */
+  stateSince?: number;
   /** What the seat says it is doing, and when it set that. Absent until it sets one. */
   activity?: Activity;
   /** Not yet ready for input, so its terminal may have nothing to draw. */

@@ -76,6 +76,7 @@ interface SessionView {
   last_reply_at?: string;
   /** Seconds since the seat last wrote, as of the frame. */
   quiet_seconds?: number;
+  state_seconds?: number;
   state?: string;
   ref?: string;
   origin?: string;
@@ -281,7 +282,7 @@ const REFRESH_MS = 20_000;
 
 const SCREEN_STATES = ["starting", "busy", "idle", "prompt"];
 
-export function toSession(view: SessionView, busy = false, quiet?: number): Session {
+export function toSession(view: SessionView, busy = false, quiet?: number, receivedAt?: number): Session {
   const activity = toActivity(view.activity, view.activity_at);
   return {
     id: view.name,
@@ -303,6 +304,7 @@ export function toSession(view: SessionView, busy = false, quiet?: number): Sess
     ...(view.last_reply && Number.isFinite(Date.parse(view.last_reply_at ?? "")) ? { lastReplyAt: Date.parse(view.last_reply_at ?? "") } : {}),
     ...(activity ? { activity } : {}),
     ...(quiet === undefined ? {} : { quietSince: quiet }),
+    ...(receivedAt === undefined || typeof view.state_seconds !== "number" ? {} : { stateSince: receivedAt - view.state_seconds * 1000 }),
   };
 }
 
@@ -849,7 +851,7 @@ export class DaemonHost implements HostConnection {
   }
 
   private publishSessions(): void {
-    this.last.sessions = this.sessionViews.map((view) => toSession(view, this.busy.has(view.name), quietSince(view.quiet_seconds, this.viewsAt, this.lastOutput.get(view.name))));
+    this.last.sessions = this.sessionViews.map((view) => toSession(view, this.busy.has(view.name), quietSince(view.quiet_seconds, this.viewsAt, this.lastOutput.get(view.name)), this.viewsAt));
     this.emit({ type: "sessions", sessions: this.last.sessions });
   }
 
