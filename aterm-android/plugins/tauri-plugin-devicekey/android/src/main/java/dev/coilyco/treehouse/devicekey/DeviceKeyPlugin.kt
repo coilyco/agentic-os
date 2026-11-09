@@ -53,7 +53,7 @@ class DeviceKeyPlugin(activity: Activity) : Plugin(activity) {
         val args = invoke.parseArgs(SignArgs::class.java)
         val message = DeviceKeyCodec.assertionMessage(DeviceKeyCodec.decodeChallenge(args.challenge))
         val (signature, keyId) = store.signatureForPrompt()
-        val title = args.prompt?.trim()?.take(64)?.takeIf { it.isNotEmpty() } ?: "Unlock aterm typing"
+        val title = args.prompt?.trim()?.take(64)?.takeIf { it.isNotEmpty() } ?: "Unlock Treehouse typing"
         prompt.sign(
             signature, message, title,
             onSigned = { der ->

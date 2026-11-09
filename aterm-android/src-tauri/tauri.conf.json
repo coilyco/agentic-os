@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "aterm",
+  "productName": "Treehouse",
   "version": "0.1.0",
   "identifier": "dev.coilyco.treehouse",
   "build": {
@@ -9,7 +9,7 @@
   "app": {
     "windows": [
       {
-        "title": "aterm",
+        "title": "Treehouse",
         "useHttpsScheme": true
       }
     ],
