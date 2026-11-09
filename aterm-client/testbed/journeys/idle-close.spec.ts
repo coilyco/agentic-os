@@ -30,6 +30,7 @@ const SESSIONS = ([
   seat("queued01", "Queued-Ox", { pending: 1 }),
   seat("asks0001", "Asks-Ox"),
   seat("draft001", "Draft-Ox", { refuse_close: "Draft-Ox holds Kai's unsent draft. Close it with --force." }),
+  seat("push0001", "Push-Ox", { unpushed: true }),
 ] as unknown) as SessionSpec[];
 
 const ask = {
@@ -50,13 +51,13 @@ test.describe("close a fully idle seat", () => {
     bed.mock.push(ask);
     await openSeats(bed.page, kindOf(info) === "phone");
     await expect(bed.page.getByRole("tab", { name: /Asks-Ox/ }).first()).toBeVisible();
-    await expect(closeButtons(bed.page).filter({ hasText: "Close" })).toHaveCount(2);
-    for (const name of ["Calm-Ox", "Draft-Ox"]) await expect(bed.page.getByRole("button", { name: `Close ${name}` })).toBeVisible();
+    await expect(closeButtons(bed.page).filter({ hasText: "Close" })).toHaveCount(3);
+    for (const name of ["Calm-Ox", "Draft-Ox", "Push-Ox"]) await expect(bed.page.getByRole("button", { name: `Close ${name}` })).toBeVisible();
     for (const name of ["Busy-Ox", "Ci-Ox", "Silent-Ox", "Queued-Ox", "Asks-Ox"]) await expect(bed.page.getByRole("button", { name: `Close ${name}` }), `${name} is not fully idle`).toHaveCount(0);
     await bed.step("rows", { compare: false });
   });
 
-  test("a tap asks first, Keep leaves the seat, Close it ends it by name and ref and says how to bring the role back", async ({ bed }, info) => {
+  test("a tap asks first, Keep leaves the seat, Close it ends it by name and ref and says how to bring it back", async ({ bed }, info) => {
     await bed.openSeat(SEATS.imp);
     await openSeats(bed.page, kindOf(info) === "phone");
     await bed.page.getByRole("button", { name: "Close Calm-Ox" }).click();
@@ -69,7 +70,7 @@ test.describe("close a fully idle seat", () => {
     await bed.page.getByRole("button", { name: "Close it" }).click();
     await expect.poll(() => bed.mock.closes).toEqual(["eng-platform-calm0001@calm0001"]);
     await expect(bed.page.getByRole("tab", { name: /Calm-Ox/ })).toHaveCount(0);
-    await expect(bed.page.getByRole("status").filter({ hasText: /Closed Calm-Ox\. It does not reopen from here\. Start Platform Engineer again from Start\./ })).toBeVisible();
+    await expect(bed.page.getByRole("status").filter({ hasText: /Closed Calm-Ox\. Reopen it to pick its conversation up again, or start Platform Engineer fresh from Start\./ })).toBeVisible();
     await bed.step("closed", { compare: false });
   });
 
@@ -81,6 +82,31 @@ test.describe("close a fully idle seat", () => {
     await expect(bed.page.getByRole("status").filter({ hasText: /Not closed\. Draft-Ox holds Kai's unsent draft/ })).toBeVisible();
     await expect(bed.page.getByRole("tab", { name: /Draft-Ox/ }).first()).toBeVisible();
     await bed.step("refused", { compare: false });
+  });
+
+  test("commits on no remote are said first, and Close anyway is the person's second decision", async ({ bed }, info) => {
+    await bed.openSeat(SEATS.imp);
+    await openSeats(bed.page, kindOf(info) === "phone");
+    await bed.page.getByRole("button", { name: "Close Push-Ox" }).click();
+    await bed.page.getByRole("button", { name: "Close it" }).click();
+    await expect(bed.page.getByRole("status").filter({ hasText: /Not closed\. Push-Ox holds commits on no remote\./ })).toBeVisible();
+    expect(bed.mock.forced, "the first close was not forced").toEqual([]);
+    await expect(bed.page.getByRole("tab", { name: /Push-Ox/ }).first()).toBeVisible();
+    await bed.step("unpushed", { compare: false });
+    await bed.page.getByRole("button", { name: "Close anyway" }).click();
+    await expect.poll(() => bed.mock.forced).toEqual(["eng-platform-push0001@push0001"]);
+    await expect(bed.page.getByRole("tab", { name: /Push-Ox/ })).toHaveCount(0);
+  });
+
+  test("Reopen brings the closed seat back under a fresh name and opens it", async ({ bed }, info) => {
+    await bed.openSeat(SEATS.imp);
+    await openSeats(bed.page, kindOf(info) === "phone");
+    await bed.page.getByRole("button", { name: "Close Calm-Ox" }).click();
+    await bed.page.getByRole("button", { name: "Close it" }).click();
+    await bed.page.getByRole("button", { name: "Reopen" }).click();
+    await expect.poll(() => bed.mock.reopens).toEqual(["eng-platform-calm0001@calm0001"]);
+    await expect(bed.page.getByRole("heading", { name: "Calm-Ox", level: 1 })).toBeAttached();
+    await bed.step("reopened", { compare: false });
   });
 
   test("in its own view a fully idle seat has the same Close", async ({ bed }, info) => {

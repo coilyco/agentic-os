@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { closedWords, fullyIdle } from "./idle-close";
+import { closedWords, fullyIdle, originWords } from "./idle-close";
 import type { Session } from "./protocol";
 
 const idle: Session = { id: "a-b", role: "r", seat: "claude", identity: "Seat-1", state: "idle", pending: 0, drafting: false, paste: true, degraded: [], screen: "idle", background: 0, ref: "1a2b3c4d" };
@@ -42,7 +42,19 @@ describe("fullyIdle", () => {
 });
 
 describe("closedWords", () => {
-  it("names the seat and the one way back that exists", () => {
-    expect(closedWords("Seat-1", "Frontend Engineer")).toBe("Closed Seat-1. It does not reopen from here. Start Frontend Engineer again from Start.");
+  it("names the one way back that exists when the daemon cannot reopen", () => {
+    expect(closedWords("Seat-1", "Frontend Engineer", false)).toBe("Closed Seat-1. It does not reopen from here. Start Frontend Engineer again from Start.");
+  });
+
+  it("offers a reopen where the daemon has one, and still names a fresh start", () => {
+    expect(closedWords("Seat-1", "Frontend Engineer", true)).toBe("Closed Seat-1. Reopen it to pick its conversation up again, or start Frontend Engineer fresh from Start.");
+  });
+});
+
+describe("originWords", () => {
+  it("says a window, no window, and nothing when unknown", () => {
+    expect(originWords("window")).toBe("started in a terminal window");
+    expect(originWords("headless")).toBe("started with no window");
+    expect(originWords(undefined)).toBe("");
   });
 });

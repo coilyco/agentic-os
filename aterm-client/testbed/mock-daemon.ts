@@ -14,7 +14,7 @@ const HERE = fileURLToPath(new URL(".", import.meta.url));
 const DIST = process.env.ATERM_TESTBED_DIST ?? join(HERE, "..", "dist");
 const ROSTER = join(HERE, "..", "src", "lib", "fixtures", "roster.json");
 /** What the real daemon offers on a loopback page, so the client takes its real paths. */
-const FEATURES = ["pty-size", "terminals", "terminal-label", "browser", "open-url", "last-reply", "notify"];
+const FEATURES = ["pty-size", "terminals", "terminal-label", "browser", "open-url", "background", "close-unpushed", "reopen", "origin", "last-reply", "notify"];
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -55,6 +55,9 @@ export interface SessionSpec {
   /** The screen reading, the `ref` a close takes, and background tasks running. */
   state?: "starting" | "busy" | "idle" | "prompt";
   ref?: string;
+  origin?: "window" | "headless";
+  /** The daemon refuses an unforced close, as it does for commits on no remote. */
+  unpushed?: boolean;
   background?: number;
   /** The daemon refuses a close with this text, as it does for a held draft. */
   refuse_close?: string;
@@ -89,6 +92,9 @@ export interface Mock {
   pushCalls: { type: string; push?: unknown }[];
   /** Every `close` target the client sent, as `name@ref`. */
   closes: string[];
+  /** Every `close` sent with `force`, as `name@ref`, and every `reopen` target. */
+  forced: string[];
+  reopens: string[];
   /** Every `browser_*` frame and `subscribe` the client sent about a page, in order. */
   browserCalls: { type: string; session?: string; take?: boolean; url?: string; channel?: string }[];
   /** The scene a seat runs, to read what a native dialog received. */
@@ -163,7 +169,8 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const heard: string[] = [];
   let lastFrameAt = Date.now();
   const lastBox = new Map<string, { rows: number; cols: number }>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"] };
+  const closed = new Map<string, SessionSpec>();
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"] };
   // A seat's browser: the agent drives until a screen takes control.
   // `client` is the name each connection was given.
   const pages = new Map<string, { holder: WebSocket | null; url: string }>();
@@ -365,9 +372,24 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           const seat = live.get(name ?? "");
           if (!seat || seat.spec.ref !== ref) return void send(socket, { type: "error", id: frame.id, error: `${target} names no live session` });
           if (seat.spec.refuse_close) return void send(socket, { type: "error", id: frame.id, error: seat.spec.refuse_close });
+          if (frame.force) mock.forced.push(target);
+          else if (seat.spec.unpushed) return void send(socket, { type: "error", id: frame.id, reason: "unpushed_work", error: `${seat.spec.identity} holds commits on no remote.` });
+          closed.set(target, seat.spec);
           live.delete(seat.spec.name);
           broadcast(sessionsFrame());
           send(socket, { type: "closed", id: frame.id, session: seat.spec.name, code: 0 });
+          return;
+        }
+        case "reopen": {
+          const target = String(frame.target);
+          mock.reopens.push(target);
+          const spec = closed.get(target);
+          if (!spec) return void send(socket, { type: "error", id: frame.id, error: "no conversation is on record for that seat" });
+          send(socket, { type: "reopened", id: frame.id, role: spec.role, seat: spec.seat });
+          setTimeout(() => {
+            add({ ...spec, name: `${spec.name}-2`, ref: `${spec.ref ?? "0"}2`.slice(0, 8) });
+            broadcast(sessionsFrame());
+          }, 300);
           return;
         }
         case "answer":
@@ -411,6 +433,8 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     answers: mock.answers,
     launches: mock.launches,
     closes: mock.closes,
+    forced: mock.forced,
+    reopens: mock.reopens,
     browserCalls: mock.browserCalls,
     pushCalls: mock.pushCalls,
     sceneOf: (session) => live.get(session)?.scene,
