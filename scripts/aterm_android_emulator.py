@@ -17,6 +17,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 from dataclasses import dataclass, field
@@ -131,7 +132,17 @@ class Emulator:
         cmd = ["ssh", "-f", "-N", "-o", "BatchMode=yes", "-o", "ExitOnForwardFailure=yes", "-o", "ServerAliveInterval=15"]
         cmd += ["-L", f"{c.adb_host}:{c.adb_port}:127.0.0.1:{c.ssh_adb_port}"]
         cmd += ["-L", f"127.0.0.1:{c.devtools_port}:127.0.0.1:{c.ssh_devtools_port}", c.ssh]
-        run(cmd)
+        # ssh -f leaves a child holding a pipe, so its output goes to a file.
+        with tempfile.TemporaryFile() as err:
+            done = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=err, check=False)
+            err.seek(0)
+            if done.returncode != 0:
+                raise Refused(f"ssh tunnel to {c.ssh} failed ({done.returncode}): {err.read().decode(errors='replace').strip()}")
+        for _ in range(20):
+            if not self.tunnel_end_closed():
+                return
+            time.sleep(0.5)
+        raise Refused(f"the ssh tunnel to {c.ssh} started but {c.adb_host}:{c.adb_port} never opened", EXIT_NO_DEVICE)
 
     def stop_reason(self) -> str | None:
         """Why the host stopped the emulator, when it published a reason."""
@@ -337,11 +348,13 @@ class Emulator:
     def tap_selector(self, selector: str) -> str:
         js = (
             "(() => { const e = document.querySelector(" + json.dumps(selector) + "); if (!e) return null;"
-            " const r = e.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2, dpr: window.devicePixelRatio}; })()"
+            " const r = e.getBoundingClientRect(); return {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height, dpr: window.devicePixelRatio}; })()"
         )
         point = self.evaluate(js)
         if not point:
             raise Refused(f"no element matches {selector}", EXIT_FAIL)
+        if point["w"] <= 0 or point["h"] <= 0:
+            raise Refused(f"the first match for {selector} has no size on screen, a tap would hit the corner", EXIT_FAIL)
         left, top = self.webview_bounds()
         x, y = round(left + point["x"] * point["dpr"]), round(top + point["y"] * point["dpr"])
         self.shell(f"input tap {x} {y}")

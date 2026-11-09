@@ -27,7 +27,7 @@ export interface Bed {
   /** The terminal's rows as text, for asserting what a person can read. */
   screen(): Locator;
   /** Save a numbered screenshot and compare it to the baseline of the same name. */
-  step(name: string, options?: { mask?: Locator[]; compare?: boolean }): Promise<void>;
+  step(name: string, options?: { mask?: Locator[]; compare?: boolean; hide?: string[] }): Promise<void>;
   /** The terminal's columns, as the PTY was last sized for this seat. */
   cols(seat: Seat): number;
 }
@@ -77,7 +77,14 @@ export const test = base.extend<{ bed: Bed; mock: Mock; mockOptions: MockOptions
         await page.screenshot({ path: info.outputPath(file) });
         // ATERM_TESTBED_COMPARE=0 judges a fix's behavior and ignores how it now looks.
         if (options?.compare === false || process.env.ATERM_TESTBED_COMPARE === "0") return;
-        await expect(page).toHaveScreenshot(file, { mask: options?.mask ?? [] });
+        // `hide` keeps a floating control out of the picture, as the baseline has it.
+        const hidden = (options?.hide ?? []).map((selector) => `${selector} { visibility: hidden !important }`).join("\n");
+        const sheet = hidden ? await page.addStyleTag({ content: hidden }) : undefined;
+        try {
+          await expect(page).toHaveScreenshot(file, { mask: options?.mask ?? [] });
+        } finally {
+          await sheet?.evaluate((node) => (node as HTMLElement).remove());
+        }
       },
     };
     await use(bed);
