@@ -39,8 +39,13 @@ A seat drives one live Android emulator running the real Treehouse app, beside t
 
 **A fixture seat is a `spawn` frame whose argv is a shell loop, with no agent harness.** The daemon gives it a fresh `ATERM_SESSION_TOKEN`, so `aterm ask` inside it raises a stamped choice card on every attached client and returns the pick. `just aterm-fixture-seats up|status|down` spawns `fixture-cards` (a three-option card, asked again after each answer) and `fixture-quiet` (a heartbeat line). It needs `ATERM_DAEMON_SOCKET` or `--socket` and refuses the default socket, which holds real seats. The test daemon runs `aterm daemon --tailnet-port ""` with a 0700 socket directory and `aterm` on the seats' PATH, from `aos-v0.540.0` (the `ask` frame is older, `aos-v0.376.0`, and the app origin is `aos-v0.462.0`).
 
+## Verified on the kai-server emulator, 2026-11-09
+
+Android 15 google_apis x86_64, WebView Chrome 124, 412 by 915 CSS px at 2.625 DPR, `hover: false`. A second holder is refused with exit 6 naming the first. The 130 MB debug APK installs in about 16 s over the tunnel. `devtools` reads `https://tauri.localhost/` and `tap-selector` taps it for real: a stray tap toggled a switch in the app. A tap on the host field opened Gboard, `type` filled it, `keyboard close` hid it. **The keyboard overlaid the page and `visualViewport.height` stayed at 915**, so this WebView did not resize the layout for it. One emulator, one read.
+
+* `tap-selector` taps the first match, so pick the selector from `eval` of `document.querySelectorAll`. It refuses an element with no size, which a hidden `type=file` input is.
+
 ## Not verified yet
 
-* An APK installed and opened in the emulator, and `devtools` reading the DOM.
 * The COI-3334 one-tap check in the real app.
-* A seat attached to a daemon from the emulator, and the `adb reverse` expectation above.
+* A seat attached to a test daemon from the emulator, and the `adb reverse` expectation above.
