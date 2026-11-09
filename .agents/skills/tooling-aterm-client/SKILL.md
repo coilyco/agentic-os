@@ -53,6 +53,7 @@ than editing it by hand.
 * [features.md](references/features.md) - what ships today.
 * [testbed.md](references/testbed.md) - the test bed: journeys against a mock daemon at desktop and phone sizes, baselines, and reported quirks.
 * [android-emulator.md](references/android-emulator.md) - `just aterm-android-emulator`: drive one live emulator running the real Treehouse app, the lock, the debug APK, and where it runs.
+* [android-emulator-rig.md](references/android-emulator-rig.md) - starting and stopping the whole emulator rig, and the one-tap check for a choice card in the real app.
 * [tap-trace.md](references/tap-trace.md) - the `?taptrace` flag: an on-device record of a tap or submit, one Copy button, no seat content.
 * [context-meter.md](references/context-meter.md) - the per-seat context-token count, where each harness's reading comes from, and Kai's freeze exception.
 * [architecture.md](references/architecture.md) - the host seam, envelopes, activity, the composer.
