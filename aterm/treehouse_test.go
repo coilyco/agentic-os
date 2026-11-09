@@ -901,6 +901,7 @@ func TestACertificateNearExpiryIsRenewedInsideTheLinkAndTheBrokerIsTold(t *testi
 }
 
 func TestAnAskReachesTheBrokerWithoutItsQuestion(t *testing.T) {
+	notifyRoster(t, "scientist")
 	r := newBrokeredRig(t)
 	r.b.attach(t, "c1", testOwner)
 	// An event before the link is registered is dropped by design, so ask until it lands.
@@ -922,6 +923,7 @@ func TestAnAskReachesTheBrokerWithoutItsQuestion(t *testing.T) {
 }
 
 func TestWaitingSeatsBecomeBrokerEventsOnTheTrackersTerms(t *testing.T) {
+	notifyRoster(t, "scientist")
 	var mu sync.Mutex
 	state := stateBusy
 	events := make(chan brokerMsg, 4)

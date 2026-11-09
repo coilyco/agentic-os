@@ -49,6 +49,8 @@ type userHost struct {
 	views          func() []sessionView
 	typingRefusal  func(cl *client, message string) error
 	typingStanding func(cl *client) *typingStanding
+	// mayPing says whether a role is a coordinator, the only kind that reaches Kai by push.
+	mayPing func(role string) bool
 }
 
 func (d *daemon) userHost() userHost {
@@ -58,6 +60,7 @@ func (d *daemon) userHost() userHost {
 		views:          d.views,
 		typingRefusal:  d.typingRefusal,
 		typingStanding: d.typingStanding,
+		mayPing:        d.mayPing,
 	}
 }
 
@@ -186,6 +189,9 @@ func (u *localUsers) ResumeEnabled() bool { return u.resume.enabled() }
 func (u *localUsers) PushEnabled() bool { return u.push.enabled() }
 
 func (u *localUsers) NotifyAsk(ask choiceAsk) {
+	if !u.mayPing(askerRole(ask)) {
+		return
+	}
 	if u.brokerEvent != nil {
 		u.brokerEvent(waitEvent{Kind: "ask", Session: ask.Session, Identity: askerName(ask), Question: ask.Question})
 	}

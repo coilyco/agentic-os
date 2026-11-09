@@ -282,6 +282,9 @@ func (u *localUsers) watchWaiting(done <-chan struct{}, every time.Duration) {
 			return
 		case now := <-ticker.C:
 			for _, event := range u.push.tracker.observe(u.host.views(), now) {
+				if !u.mayPing(event.Role) {
+					continue
+				}
 				u.pushWaiting(waitPayload(event, ""))
 			}
 		}
@@ -376,4 +379,16 @@ func newVAPIDCommand() *cli.Command {
 			return err
 		},
 	}
+}
+
+// mayPing is whether a seat of this role may reach Kai by push. A role it cannot tell,
+// and a host with no gate, are silent.
+func (u *localUsers) mayPing(role string) bool {
+	return u.host.mayPing != nil && u.host.mayPing(role)
+}
+
+// askerRole is the role half of "<role> <identity>".
+func askerRole(ask choiceAsk) string {
+	role, _, _ := strings.Cut(ask.From, " ")
+	return role
 }
