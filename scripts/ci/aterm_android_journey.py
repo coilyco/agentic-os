@@ -269,6 +269,8 @@ class Journey:
             named = PNG_NAME in (node.get("text", "") + node.get("content-desc", ""))
             return named or node.get("resource-id", "").endswith(("icon_thumb", "icon_thumbnail", "item_root"))
         if self.tap_node(thumb, 12):
+            # The app's input allows several files, so the picker waits for Add (1).
+            self.tap_node(lambda n: n.get("resource-id", "").endswith("button_add"), 8)
             return
         print("the Photo Picker lists no image, so browsing to the file")
         if not self.tap_node(lambda n: n.get("content-desc") == "More options", 10):
