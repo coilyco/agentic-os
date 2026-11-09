@@ -274,7 +274,8 @@ class Journey:
             raise Fail("no More options in the picker, ui.xml has what it did show")
         if not self.tap_node(lambda n: n.get("text", "").startswith("Browse"), 10):
             raise Fail("no Browse item in the picker menu, ui.xml has what it did show")
-        if not self.tap_node(lambda n: n.get("text") == PNG_NAME, 30):
+        # A grid item names the file in its content description, not its text.
+        if not self.tap_node(lambda n: n.get("content-desc", "").startswith(f"{PNG_NAME},") or n.get("text") == PNG_NAME, 30):
             raise Fail(f"the file browser did not show {PNG_NAME}, ui.xml has what it did show")
 
     def chip_then_send(self) -> None:
