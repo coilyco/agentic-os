@@ -10,6 +10,7 @@
   import { roleFor } from "./lib/sessions";
   import HostPanel from "./panels/HostPanel.svelte";
   import LaunchPanel from "./panels/LaunchPanel.svelte";
+  import SettingsPanel from "./panels/SettingsPanel.svelte";
   import SessionPanel from "./panels/SessionPanel.svelte";
 
   const session = $derived(sessionById(app.selectedSession));
@@ -38,8 +39,10 @@
   <Sidebar />
   <main>
     <LinkBanner />
-    <div id="main-panel" class="panel-root" class:clear-bottom={!(role && session && session.state !== "failed")} role="tabpanel" aria-labelledby={labelledBy}>
-    {#if role && session && session.state !== "failed"}
+    <div id="main-panel" class="panel-root" class:clear-bottom={app.settingsOpen || !(role && session && session.state !== "failed")} role="tabpanel" aria-labelledby={labelledBy}>
+    {#if app.settingsOpen}
+      <SettingsPanel />
+    {:else if role && session && session.state !== "failed"}
       {#key session.id}
         <SessionPanel {role} {session} />
       {/key}
