@@ -91,3 +91,31 @@ func TestListJSONThroughTheCommandAndTheFlagGuard(t *testing.T) {
 		t.Fatalf("nothing should have been spawned: %v", spawns)
 	}
 }
+
+// agent-compose owns the attribute, and the relay carries it as it is. A role without
+// it reads false, which the machine form leaves out.
+func TestListRosterRelaysPinnedByDefaultAndLeavesItOutWhenAbsent(t *testing.T) {
+	raw := `{"format":"` + catalogFormat + `","items":[
+		{"slug":"coordinator","display_name":"C","pinned_by_default":true,"seats":[{"key":"k","harness":"claude"}]},
+		{"slug":"other","display_name":"O","seats":[{"key":"k","harness":"claude"}]}]}`
+	document, err := parseRoster([]byte(raw))
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	encoded, err := json.Marshal(listRoster(document))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var back struct {
+		Roles []map[string]any `json:"roles"`
+	}
+	if err := json.Unmarshal(encoded, &back); err != nil {
+		t.Fatal(err)
+	}
+	if got := back.Roles[0]["pinned_by_default"]; got != true {
+		t.Errorf("the flagged role carries pinned_by_default = %v, want true", got)
+	}
+	if _, present := back.Roles[1]["pinned_by_default"]; present {
+		t.Errorf("a role without the attribute must leave it out: %v", back.Roles[1])
+	}
+}
