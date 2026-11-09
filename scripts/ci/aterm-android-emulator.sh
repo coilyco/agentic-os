@@ -76,6 +76,8 @@ boot() {
   for scale in window_animation_scale transition_animation_scale animator_duration_scale; do
     adb shell settings put global "$scale" 0
   done
+  # A slow CI emulator raises ANR dialogs for system apps, which take focus from the app.
+  adb shell settings put global hide_error_dialogs 1
   adb shell input keyevent 82
   echo "emulator booted after ~${waited}s: $(adb shell getprop ro.product.cpu.abi | tr -d '\r')"
 }

@@ -191,15 +191,15 @@ class Journey:
         return adb("exec-out", "cat", "/sdcard/ui.xml", check=False)
 
     def focus(self) -> str:
-        return "\n".join(line for line in adb("shell", "dumpsys", "window").splitlines() if "mCurrentFocus" in line)
+        """The focused window and the resumed activity, since an error dialog can take focus."""
+        window = [line for line in adb("shell", "dumpsys", "window").splitlines() if "mCurrentFocus" in line]
+        resumed = [line for line in adb("shell", "dumpsys", "activity", "activities").splitlines() if "ResumedActivity" in line]
+        return "\n".join(window + resumed[:2])
 
     def install_and_launch(self) -> None:
         adb("reverse", "tcp:7419", "tcp:7419")
         adb("install", "-r", "-g", self.args.apk, timeout=180)
-        png = self.out / PNG_NAME
-        seed_png(png)
-        adb("push", str(png), f"/sdcard/Pictures/{PNG_NAME}")
-        adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", f"file:///sdcard/Pictures/{PNG_NAME}")
+        self.seed(PNG_NAME, 220)
         adb("shell", "am", "start", "-n", f"{APP}/.MainActivity")
 
     def attach_page(self) -> None:
@@ -268,11 +268,13 @@ class Journey:
             raise Fail(f"the daemon did not receive the image: {done.stderr.strip()}")
 
     def seed(self, name: str, red: int) -> None:
-        """Put a distinct PNG in MediaStore so each share has its own bytes to hash."""
+        """Put a distinct PNG in MediaStore, and wait until it is listed, so the picker shows it."""
         png = self.out / name
         seed_png(png, red)
         adb("push", str(png), f"/sdcard/Pictures/{name}")
-        adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", f"file:///sdcard/Pictures/{name}")
+        adb("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", f"file:///sdcard/Pictures/{name}", check=False)
+        adb("shell", "content", "call", "--uri", "content://media/", "--method", "scan_volume", "--arg", "external_primary", check=False)
+        self.media_uri(name)
 
     def media_uri(self, name: str) -> str:
         deadline = time.monotonic() + 30
