@@ -15,6 +15,7 @@
 * **done** - a seat went busy then idle and stayed idle for 4 seconds.
 * **prompt** - a permission or choice card holds the seat for 4 seconds.
 * **ask** - an `ask` frame arrives, at once, with the question as the body.
+* **artifact** - a seat's artifact turns to waiting on Kai, by `artifact_add` with `waiting` true or `artifact_waiting` from false to true. It goes out as an `ask` (title "<identity> is asking", body the artifact title), so no new `kind` or frame exists. A re-add of a page already waiting, and clearing waiting, push nothing.
 * **Baseline** - a seat already waiting when the daemon first sees it never fires. A second done or prompt about one seat inside 30 seconds is held.
 
 **The daemon sends whether or not a page is attached.** A phone that sleeps leaves a websocket the daemon cannot tell from a live one, so counting attachment would suppress the push this exists for. What to show while a window is open is the service worker's call. Chrome shows a default notice for a push that shows none, and no documented exemption for a visible page turned up, so the worker should show one and let the `tag` replace repeats.
