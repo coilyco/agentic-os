@@ -248,18 +248,34 @@ class Journey:
             time.sleep(0.5)
         raise Fail(f"no system picker in front. focus: {self.focus() or 'none'}")
 
-    def pick_image(self) -> None:
-        deadline = time.monotonic() + 30
+    def tap_node(self, wanted, wait: float) -> bool:
+        """Tap the centre of the first uiautomator node `wanted` accepts, within wait seconds."""
+        deadline = time.monotonic() + wait
         while time.monotonic() < deadline:
             # uiautomator's dump from the emulator this job started, not untrusted XML.
             tree = ET.fromstring(self.ui_xml() or "<hierarchy/>")
             for node in tree.iter("node"):
-                if PNG_NAME in (node.get("text", "") + node.get("content-desc", "")) or node.get("resource-id", "").endswith(("icon_thumb", "icon_thumbnail", "item_root")):
+                if wanted(node):
                     x0, y0, x1, y1 = map(int, re.findall(r"\d+", node.get("bounds", "0,0,0,0")))
                     adb("shell", "input", "tap", str((x0 + x1) // 2), str((y0 + y1) // 2))
-                    return
+                    return True
             time.sleep(1)
-        raise Fail("the picker showed no image to tap, ui.xml has what it did show")
+        return False
+
+    def pick_image(self) -> None:
+        """Pick the seeded PNG: a Photo Picker thumbnail if it lists one, else Browse to the file."""
+        def thumb(node: ET.Element) -> bool:
+            named = PNG_NAME in (node.get("text", "") + node.get("content-desc", ""))
+            return named or node.get("resource-id", "").endswith(("icon_thumb", "icon_thumbnail", "item_root"))
+        if self.tap_node(thumb, 12):
+            return
+        print("the Photo Picker lists no image, so browsing to the file")
+        if not self.tap_node(lambda n: n.get("content-desc") == "More options", 10):
+            raise Fail("no More options in the picker, ui.xml has what it did show")
+        if not self.tap_node(lambda n: n.get("text", "").startswith("Browse"), 10):
+            raise Fail("no Browse item in the picker menu, ui.xml has what it did show")
+        if not self.tap_node(lambda n: n.get("text") == PNG_NAME, 30):
+            raise Fail(f"the file browser did not show {PNG_NAME}, ui.xml has what it did show")
 
     def chip_then_send(self) -> None:
         page = self.page
