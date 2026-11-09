@@ -215,7 +215,8 @@ class Journey:
         page.js("(()=>{const i=document.querySelector('#add-host');i.value='ws://127.0.0.1:7419';i.dispatchEvent(new Event('input',{bubbles:true}))})()")
         page.tap(by_text("Add host", "button"))
         page.tap("()=>document.querySelector('[id^=tab-host-]')")
-        page.tap(by_text(self.args.seat))
+        # The seat button is named by role and state, its own name label is empty.
+        page.tap(by_text("frontend-eng", "nav button"))
 
     def open_picker(self) -> None:
         page = self.page
