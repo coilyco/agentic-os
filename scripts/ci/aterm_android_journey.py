@@ -115,7 +115,8 @@ class Page:
         return out["result"].get("value")
 
     def text(self) -> str:
-        return str(self.js("document.body.innerText") or "")
+        # Right after a cold start the page has no body yet, which reads as empty text.
+        return str(self.js("document.body ? document.body.innerText : ''") or "")
 
     def labels(self) -> str:
         """The interactive elements' names, so a failed find says what was there to tap."""
