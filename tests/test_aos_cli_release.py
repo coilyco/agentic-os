@@ -425,7 +425,8 @@ def test_every_release_secret_is_synced_from_ssm() -> None:
     """A secret the release reads but nothing syncs is a signing step that fails mid-release (COI-50).
 
     The names come from the workflow and the sync script's own mapping, so
-    neither is restated here.
+    neither is restated here. An org-level secret counts only when the script
+    syncs it to this repo with selected visibility (COI-3302).
     """
     import importlib.util
 
@@ -441,7 +442,8 @@ def test_every_release_secret_is_synced_from_ssm() -> None:
     )
     used = set(re.findall(r"secrets\.([A-Z0-9_]+)", workflow)) - {"GITHUB_TOKEN"}
     assert "TREEHOUSE_CODESIGN_CERT_PEM" in used, "the release must pass the signing pair"
-    synced = set(sync.MAPPING[sync.slug("agentic-os")])
+    repo = sync.slug("agentic-os")
+    synced = set(sync.MAPPING[repo]) | sync.org_secret_names(repo)
     assert used <= synced, f"read by the release, synced from nowhere: {sorted(used - synced)}"
 
 

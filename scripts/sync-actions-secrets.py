@@ -9,9 +9,11 @@ seals them. `--check` lists secret names only.
 from __future__ import annotations
 
 import argparse
+import base64
 import re
 import subprocess
 import sys
+from typing import NamedTuple
 
 OWNER = "coilyco"
 
@@ -52,6 +54,44 @@ MAPPING: dict[str, dict[str, str]] = {
     slug("mcp-beaver"): dict(TANGLED_SECRETS),
     slug("housecast"): dict(PYPI_SECRETS),
 }
+
+
+class OrgSecret(NamedTuple):
+    """One org-level Actions secret with selected-repository visibility.
+
+    `repos` are bare repo names, which is what `gh secret set --repos` takes.
+    `encode_base64` is for a `_BASE64` secret whose SSM source is the raw value.
+    A NamedTuple, because the test loaders import this file outside sys.modules
+    and a dataclass looks itself up there.
+    """
+
+    ssm: str
+    repos: tuple[str, ...]
+    encode_base64: bool = False
+
+
+# The coilyco-read App pair behind the private agent-compose fetch (COI-3302).
+# Org-level only: a same-named repo secret would shadow it (COI-3382).
+TREEHOUSE_READ_REPOS = ("agentic-os", "agentic-os-kai", "sirens-echo", "infrastructure")
+ORG_SECRETS: dict[str, OrgSecret] = {
+    "COILYCO_TREEHOUSE_READ_APP_ID": OrgSecret(
+        "/coilysiren/github/coilyco-read-app/app-id", TREEHOUSE_READ_REPOS
+    ),
+    "COILYCO_TREEHOUSE_READ_APP_PRIVATE_KEY_BASE64": OrgSecret(
+        "/coilysiren/github/coilyco-read-app/private-key", TREEHOUSE_READ_REPOS, encode_base64=True
+    ),
+}
+
+
+def org_secret_names(repo_slug: str, org_secrets: dict[str, OrgSecret] | None = None) -> set[str]:
+    """Return the org-level secret names this script syncs to `repo_slug`."""
+    return {
+        name
+        for name, secret in (ORG_SECRETS if org_secrets is None else org_secrets).items()
+        if repo_slug in {slug(repo) for repo in secret.repos}
+    }
+
+
 # GitHub's org-secret plan tier is unverified, so this is set per repo.
 FLEET_SECRETS = {"SENTRY_CI_DSN": "/coilysiren/sentry/dsn/fleet-heartbeats"}
 # Repos that carry workflows, read 2026-10-27 (COI-2928).
@@ -129,6 +169,70 @@ def gh_set_secret(repo_slug: str, name: str, value: str) -> None:
         check=True,
         capture_output=True,
     )
+
+
+def encode_org_value(secret: OrgSecret, value: str) -> str:
+    """Return the value to seal: base64 on one line when the secret name says so."""
+    if not secret.encode_base64:
+        return value
+    return base64.b64encode(value.encode()).decode()
+
+
+def gh_set_org_secret(name: str, secret: OrgSecret, value: str) -> None:
+    """Seal and set one org secret on its selected repos; the value rides stdin."""
+    subprocess.run(
+        [
+            "gh", "secret", "set", name, "--org", OWNER,
+            "--visibility", "selected", "--repos", ",".join(secret.repos),
+        ],
+        input=value,
+        text=True,
+        check=True,
+        capture_output=True,
+    )
+
+
+def gh_org_secret_names() -> set[str]:
+    """Return the org secret names GitHub holds. Values are never readable."""
+    out = subprocess.run(
+        ["gh", "secret", "list", "--org", OWNER, "--json", "name", "--jq", ".[].name"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return set(out.stdout.split())
+
+
+def check_org_plan(
+    org_secrets: dict[str, OrgSecret], lister=gh_org_secret_names
+) -> tuple[list[str], int]:
+    """Return one report line per org secret name and how many are missing or unreadable."""
+    try:
+        present = lister()
+    except (subprocess.CalledProcessError, OSError) as err:
+        return [f"{OWNER} (org): unreadable ({type(err).__name__})"], 1
+    lines = [
+        f"{OWNER} (org): {name} " + ("ok" if name in present else "missing")
+        for name in org_secrets
+    ]
+    return lines, sum(name not in present for name in org_secrets)
+
+
+def apply_org_plan(
+    org_secrets: dict[str, OrgSecret],
+    read=ssm_get,
+    write=gh_set_org_secret,
+) -> list[str]:
+    """Write every org secret, returning one line per failure and never a value."""
+    failures: list[str] = []
+    for name, secret in org_secrets.items():
+        try:
+            write(name, secret, encode_org_value(secret, read(secret.ssm)))
+        except (subprocess.CalledProcessError, OSError, SystemExit) as err:
+            failures.append(f"{OWNER} (org): {name}: {type(err).__name__}")
+        else:
+            print(f"{OWNER} (org): {name} set")
+    return failures
 
 
 def gh_secret_names(repo_slug: str) -> set[str]:
@@ -224,8 +328,10 @@ def main(argv: list[str] | None = None) -> int:
         return {k: v for k, v in mapping.items() if not args.repo or k in args.repo}
 
     mapping = only(MAPPING)
+    # An org secret is not one repo's, so a --repo run leaves it alone.
+    org_secrets = {} if args.repo else dict(ORG_SECRETS)
     plan = build_plan(mapping, FLEET_SECRETS, tuple(args.repo) or WORKFLOW_REPOS)
-    named = {**mapping, "fleet": FLEET_SECRETS}
+    named = {**mapping, "fleet": FLEET_SECRETS, "org": {n: s.ssm for n, s in org_secrets.items()}}
 
     # Before any write, so a rejected name cannot half-apply the plan.
     rejected = invalid_secret_names(named)
@@ -237,21 +343,29 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.secret:
         plan = [row for row in plan if row[1] in args.secret]
-        if not plan:
+        org_secrets = {n: s for n, s in org_secrets.items() if n in args.secret}
+        if not plan and not org_secrets:
             raise SystemExit("--secret matched no planned secret: " + ", ".join(args.secret))
 
     if args.check:
         lines, problems = check_plan(plan)
+        if org_secrets:
+            org_lines, org_problems = check_org_plan(org_secrets)
+            lines, problems = lines + org_lines, problems + org_problems
         print("\n".join(lines))
         return 1 if problems else 0
 
     for repo_slug, name, param in plan:
         print(f"{repo_slug}: {name} <- ssm {param}")
+    for name, secret in org_secrets.items():
+        print(f"{OWNER} (org, selected {len(secret.repos)} repos): {name} <- ssm {secret.ssm}")
     print(f"{len(plan)} secrets across {len({row[0] for row in plan})} repos on GitHub")
+    if org_secrets:
+        print(f"{len(org_secrets)} org secrets on GitHub")
     if args.dry_run:
         return 0
 
-    failures = apply_plan(plan)
+    failures = apply_plan(plan) + apply_org_plan(org_secrets)
     if failures:
         print(f"{len(failures)} of {len(plan)} secrets failed:", file=sys.stderr)
         for line in failures:
