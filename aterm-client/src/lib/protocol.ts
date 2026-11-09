@@ -107,6 +107,15 @@ export interface Ask {
 
 export type AskOutcome = "answered" | "cancelled" | "timed_out";
 
+/** A page a seat put on Kai's desk. Only whether it waits on her is read here. */
+export interface SeatArtifact {
+  id: string;
+  /** The posting seat. It stays after the seat ends, so see `seatEnded`. */
+  session: string;
+  waiting: boolean;
+  seatEnded: boolean;
+}
+
 export type HostEvent =
   | { type: "roster"; roles: Role[] }
   | { type: "sessions"; sessions: Session[] }
@@ -119,6 +128,9 @@ export type HostEvent =
   | { type: "input_refused"; text: string }
   | { type: "ask"; ask: Ask }
   | { type: "asked"; id: string; outcome: AskOutcome }
+  | { type: "artifact"; artifact: SeatArtifact }
+  | { type: "artifact_update"; id: string; waiting?: boolean; seatEnded?: boolean }
+  | { type: "artifact_closed"; id: string }
   | { type: "launch"; role: string; state: LaunchState; text: string }
   | { type: "typing"; typing: Typing }
   | { type: "closed"; reason: string }

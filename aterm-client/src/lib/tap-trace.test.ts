@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { clear, describe as describeShape, format, mark, records, traceWanted, TRACE_TEXT_MAX, type TraceEvent } from "./tap-trace";
+import { clear, describe as describeShape, format, mark, records, switchShown, traceWanted, TRACE_TEXT_MAX, type TraceEvent } from "./tap-trace";
 
 describe("the flag", () => {
   it("is off with no flag and on with one", () => {
@@ -54,5 +54,21 @@ describe("when off", () => {
     mark("answer", "daemon-card");
     expect(records()).toEqual([]);
     for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("the stored switch", () => {
+  it("reads off when storage is missing", async () => {
+    const { traceStored } = await import("./tap-trace");
+    expect(traceStored()).toBe(false);
+  });
+});
+
+describe("who is offered the switch", () => {
+  it("is the app, or whoever already has the trace on", () => {
+    expect(switchShown(true, false, "")).toBe(true);
+    expect(switchShown(false, true, "")).toBe(true);
+    expect(switchShown(false, false, "?taptrace")).toBe(true);
+    expect(switchShown(false, false, "")).toBe(false);
   });
 });

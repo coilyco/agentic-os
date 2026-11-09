@@ -25,12 +25,6 @@
     if (result.fire) playCue();
   });
 
-  // Coming back to a tab whose open seat finished is the opening of it.
-  $effect(() => {
-    const open = openSeat();
-    if (open && app.attention[open]) delete app.attention[open];
-  });
-
   // The switch reads the browser's subscription again whenever the host it belongs to changes.
   $effect(() => {
     void app.attachedHostId;
