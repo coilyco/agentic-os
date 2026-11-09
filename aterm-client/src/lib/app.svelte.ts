@@ -15,6 +15,7 @@ import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
 import type { Ask, Host, HostConnection, LaunchState, Link, PeerMessage, SeatArtifact, Session } from "./protocol";
 import { seatsNeedingKai, type NeedsKai } from "./needs-kai";
+import { closedWords, fullyIdle } from "./idle-close";
 import type { ResumeState } from "./resume";
 import type { Role } from "./roster";
 import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
@@ -77,6 +78,9 @@ export const app = $state({
   alerts: { ...loadAttention(), soundBlocked: false } as AttentionSettings & { soundBlocked: boolean },
   /** ask_choice calls waiting on a person, by ask id. */
   asks: {} as Record<string, Ask>,
+  /** The control asking "Close it?" (row:id or view:id), and the last result. */
+  closing: null as string | null,
+  closeNote: "",
   /** Pages seats put on her desk, by id. One marked waiting is a seat that needs her. */
   artifacts: {} as Record<string, SeatArtifact>,
   /** Bumped when a person opens a seat with an ask, so its card takes the keyboard. */
@@ -449,6 +453,18 @@ export function selectHost(host: Host): void {
       settleOpen(event.label);
       app.terminalRefusals[event.label] = event.text;
     }
+    else if (event.type === "seat_closed") {
+      const gone = closePending;
+      closePending = null;
+      if (gone?.id === event.session) {
+        app.closeNote = closedWords(gone.identity, gone.roleName);
+        if (app.selectedSession === gone.id) showHost();
+      }
+    }
+    else if (event.type === "seat_close_refused") {
+      closePending = null;
+      app.closeNote = event.text;
+    }
     else if (event.type === "launch") {
       app.launches[event.role] = { state: event.state, text: event.text };
       // Watch from the tap: the seat can be listed before `launched`, or after it.
@@ -486,12 +502,35 @@ export function selectHost(host: Host): void {
 
 export function selectSession(id: string): void {
   if (!restoringNow) restoring = null;
+  app.closing = null;
   launching = null;
   const seat = sessionById(id);
   if (seat && app.attachedHostId) storeLastOpen({ host: app.attachedHostId, seat: { id, who: seat.identity } });
   app.selectedSession = id;
   app.selectedRole = null;
   delete app.unseen[id];
+}
+
+let closePending: { id: string; identity: string; roleName: string } | null = null;
+
+/** Seats a card or a waiting page concerns, as one set so a row costs a lookup. */
+export function needsKaiIds(): Set<string> {
+  return new Set([...waitingSeats().map((seat) => seat.sessionId), ...Object.values(app.asks).map((ask) => ask.session)]);
+}
+
+/** Whether to offer Close. A read-only or redialing connection offers none. */
+export function closable(session: Session, needsKai: boolean): boolean {
+  if (!app.connection?.closeSeat || !app.typing.allowed || reconnecting()) return false;
+  return fullyIdle(session, { needsKai, unseen: !!app.unseen[session.id] });
+}
+
+/** Closes the seat the person confirmed, by its ref and never its name. */
+export function closeSeatNow(session: Session): void {
+  app.closing = null;
+  if (!session.ref || !app.connection?.closeSeat) return;
+  closePending = { id: session.id, identity: session.identity, roleName: app.roles.find((role) => role.slug === session.role)?.displayName ?? session.role };
+  app.closeNote = "";
+  app.connection.closeSeat(session.id, session.ref);
 }
 
 /** Opens a role's start panel. */
