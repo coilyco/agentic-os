@@ -50,6 +50,9 @@ func isLoopbackHost(hostport string) bool {
 type accessPolicy struct {
 	admit  func(*http.Request) error
 	origin func(*http.Request, *url.URL) bool
+	// remote counts every peer as a remote device, whatever its source address, since a
+	// local process dialing the node's tailnet address would skip the passkey (COI-3498).
+	remote bool
 }
 
 // loopbackPolicy refuses a Host that is not loopback, which is how a rebound
@@ -107,16 +110,16 @@ func (d *daemon) handler(policy accessPolicy) http.Handler {
 			return
 		}
 		ws.SetReadLimit(maxFrame)
-		d.serveConn(newWebsocketConn(r.Context(), ws), d.webPeer(r))
+		d.serveConn(newWebsocketConn(r.Context(), ws), d.webPeer(r, policy))
 	})
 }
 
 // webPeer stands for an upgraded request's other end. A browser on this host is
 // named by the socket table and walked like a unix peer. An unnamed one counts as under.
-func (d *daemon) webPeer(r *http.Request) peerStanding {
+func (d *daemon) webPeer(r *http.Request, policy accessPolicy) peerStanding {
 	// A proxy's socket is loopback and its pid is the proxy, so the walk below
 	// would call every device behind it a browser on this host.
-	if forwarded(r) {
+	if policy.remote || forwarded(r) {
 		return peerStanding{web: true, remote: true}
 	}
 	remote, err := net.ResolveTCPAddr("tcp", r.RemoteAddr)

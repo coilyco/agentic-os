@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/json"
 	"errors"
 	"io"
 	"math/big"
@@ -426,4 +427,74 @@ func tailnetTestCert(t *testing.T) tls.Certificate {
 		t.Fatal(err)
 	}
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key}
+}
+
+// spawnAnswer dials the tailnet handler as a browser would, sends hello and then a spawn
+// of a seat that writes marker, and returns the daemon's answer to the spawn.
+func spawnAnswer(t *testing.T, base string, client *http.Client, marker string) frame {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	ws, _, err := websocket.Dial(ctx, "wss"+strings.TrimPrefix(base, "https")+"/", &websocket.DialOptions{
+		HTTPClient: client, HTTPHeader: http.Header{"Origin": {"https://coilyco.dev"}},
+	})
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer ws.CloseNow()
+	ws.SetReadLimit(maxFrame)
+	send := func(message frame) {
+		raw, _ := json.Marshal(message)
+		if err := ws.Write(ctx, websocket.MessageText, raw); err != nil {
+			t.Fatalf("write %s: %v", message.Type, err)
+		}
+	}
+	send(frame{Type: "hello", Format: daemonFormat, Version: "test", ID: "h"})
+	send(frame{Type: "spawn", ID: "s", Session: "probe-seat", Role: "probe", Argv: []string{"/bin/sh", "-c", "touch " + marker}, Rows: 24, Cols: 80})
+	for {
+		_, raw, err := ws.Read(ctx)
+		if err != nil {
+			t.Fatalf("read: %v", err)
+		}
+		var reply frame
+		if err := json.Unmarshal(raw, &reply); err == nil && reply.ID == "s" {
+			return reply
+		}
+	}
+}
+
+// A peer on this host that dials the node's own tailnet name has a local source address,
+// which once made it count as a browser on this host and skip the passkey (COI-3498).
+func TestTailnetPeerOnThisHostCannotSpawnWithoutUnlocking(t *testing.T) {
+	base, client, _ := tailnetServer(t, func(string) (tailnetPeer, error) { return peerWith("kai@example.com"), nil })
+	marker := filepath.Join(t.TempDir(), "ran")
+	reply := spawnAnswer(t, base, client, marker)
+	if reply.Type != "error" || reply.Reason != reasonPasskeyRequired {
+		t.Fatalf("an admitted but locked peer must get passkey_required, got %+v", reply)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("the refused spawn still ran its argv")
+	}
+}
+
+// Without the policy's remote flag the same peer gets past the lock, so the test above
+// fails if that flag is ever dropped.
+func TestTailnetPolicyWithoutRemoteLetsALocalPeerPastTheLock(t *testing.T) {
+	d := newDaemon(func(string, ...any) {})
+	node := tailnetNode{FQDN: testFQDN, IPv4: "127.0.0.1", Owner: "kai@example.com"}
+	policy := tailnetPolicy(node, []string{"tag:physical"}, nil, []string{"https://coilyco.dev"}, func(string) (tailnetPeer, error) { return peerWith("kai@example.com"), nil })
+	policy.remote = false
+	server := httptest.NewTLSServer(d.handler(policy))
+	t.Cleanup(server.Close)
+	_, port, _ := net.SplitHostPort(server.Listener.Addr().String())
+	trusted := server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
+	trusted.ServerName = "example.com"
+	client := &http.Client{Transport: &http.Transport{TLSClientConfig: trusted, DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, network, server.Listener.Addr().String())
+	}}}
+	reply := spawnAnswer(t, "https://"+testFQDN+":"+port, client, filepath.Join(t.TempDir(), "ran"))
+	if reply.Reason == reasonPasskeyRequired {
+		t.Fatalf("a local peer with remote off should not meet the passkey lock, got %+v", reply)
+	}
 }
