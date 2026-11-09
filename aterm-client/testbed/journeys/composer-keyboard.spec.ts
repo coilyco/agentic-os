@@ -25,6 +25,7 @@ test("type to a seat with the keyboard up", async ({ bed }, info) => {
   expect(box.y + box.height, "the composer sits below the keyboard's edge").toBeLessThanOrEqual(size.height - keyboard);
   const terminal = (await bed.screen().boundingBox())!;
   expect(terminal.height, "pixels of the seat's text left above the composer").toBeGreaterThanOrEqual(120);
-  await composer.press("Enter");
+  // On touch the return key is a newline (COI-3514), so Send sends.
+  await bed.page.locator("form.composer button.primary").tap();
   await expect.poll(() => bed.mock.typed(SEATS.imp.id).join("")).toContain("run the gate again");
 });

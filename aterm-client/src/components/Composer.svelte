@@ -83,12 +83,19 @@
   });
   // The long hint wraps to four lines at 320px and, since the field sizes to its placeholder, takes the terminal's room. Its keys are no use on a touch screen.
   let narrow = $state(typeof matchMedia === "function" && matchMedia("(max-width: 720px)").matches);
+  // Touch is how a phone is told, not width: a narrow desktop window keeps Enter to send (COI-3514).
+  let touch = $state(typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches);
   onMount(() => {
     const query = matchMedia("(max-width: 720px)");
     const read = () => (narrow = query.matches);
+    const coarse = matchMedia("(pointer: coarse)");
+    const readTouch = () => (touch = coarse.matches);
     read();
+    readTouch();
     query.addEventListener("change", read);
+    coarse.addEventListener("change", readTouch);
     return () => {
+      coarse.removeEventListener("change", readTouch);
       query.removeEventListener("change", read);
       onfocuschange?.(false);
       for (const chip of chips) URL.revokeObjectURL(chip.url);
@@ -346,7 +353,8 @@
         return;
       }
     }
-    if (event.key === "Enter" && !event.shiftKey) {
+    // On touch the return key is for a newline and the Send button sends.
+    if (event.key === "Enter" && !event.shiftKey && !touch) {
       event.preventDefault();
       void send();
     }
@@ -447,7 +455,7 @@
         onfocuschange?.(true);
       }}
       onblur={() => onfocuschange?.(false)}
-      enterkeyhint="send"
+      enterkeyhint={touch ? "enter" : "send"}
       aria-autocomplete="list"
       aria-controls={open ? "composer-mentions" : undefined}
       aria-activedescendant={open ? `mention-${current}` : undefined}
