@@ -4,7 +4,7 @@
   import { detectCue, SETTLE_MS } from "../lib/attention";
   import { unlock } from "../lib/chime";
   import { closeSeatNotifications } from "../lib/push";
-  import { openSeatFromNotification, settleSeat, syncPush, takeLaunchSeat } from "../lib/push.svelte";
+  import { handleNotify, openSeatFromNotification, settleSeat, syncPush, takeLaunchSeat } from "../lib/push.svelte";
 
   let known: Set<string> | null = null;
   let attachedFor: string | null = null;
@@ -23,6 +23,12 @@
     const result = detectCue(settling ? null : known, ids, open);
     known = result.known;
     if (result.fire) playCue();
+  });
+
+  // The coordinator seat's ping sounds and shows once per id (COI-3517).
+  $effect(() => {
+    const note = app.notify;
+    if (note) void handleNotify(note);
   });
 
   // The switch reads the browser's subscription again whenever the host it belongs to changes.
@@ -57,8 +63,10 @@
     // addEventListener does not start the message queue the way onmessage does.
     worker?.startMessages();
     const visibility = () => (app.pageVisible = document.visibilityState === "visible");
+    // Audio stays shut until the first touch, so a page with Sound on wakes it once, then stops asking.
+    let awake = false;
     const touch = () => {
-      if (app.alerts.sound && app.alerts.soundBlocked) void unlock();
+      if (app.alerts.sound && !awake) void unlock().then((running) => (awake = running));
     };
     document.addEventListener("visibilitychange", visibility);
     window.addEventListener("pointerdown", touch);

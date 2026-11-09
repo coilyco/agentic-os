@@ -2,7 +2,7 @@ import { nextUnseen } from "./activity";
 import { EXTERNAL, PLACE, type Place } from "./build";
 import { bridge } from "./device-key";
 import { type AttentionSettings, loadAttention, storeAttention } from "./attention";
-import { chime, isBlocked, unlock, watchBlocked } from "./chime";
+import { chime, unlock, watchBlocked } from "./chime";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
 import { discover, listedAddresses, newFoundHosts, staleFoundHosts } from "./discovery";
 import { upsertMessage } from "./messages";
@@ -13,7 +13,7 @@ import { Recheck } from "./recheck";
 import type { View } from "./mcp-apps";
 import type { SharedBrowser } from "./screencast";
 import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
-import type { Ask, Host, HostConnection, LaunchState, Link, PeerMessage, SeatArtifact, Session } from "./protocol";
+import type { Ask, Host, HostConnection, LaunchState, Link, Notify, PeerMessage, SeatArtifact, Session } from "./protocol";
 import { seatsNeedingKai, type NeedsKai } from "./needs-kai";
 import { closedWords, fullyIdle } from "./idle-close";
 import type { ResumeState } from "./resume";
@@ -81,6 +81,8 @@ export const app = $state({
   /** The control asking "Close it?" (row:id or view:id), and the last result. */
   closing: null as string | null,
   closeNote: "",
+  // The latest coordinator ping. Attention turns it into a chime and a notice.
+  notify: null as Notify | null,
   /** Pages seats put on her desk, by id. One marked waiting is a seat that needs her. */
   artifacts: {} as Record<string, SeatArtifact>,
   /** Bumped when a person opens a seat with an ask, so its card takes the keyboard. */
@@ -414,6 +416,7 @@ export function selectHost(host: Host): void {
     else if (event.type === "resume") app.resume = event.state;
     else if (event.type === "notice") app.notice = event.text;
     else if (event.type === "open_url") offerPage(event.session, event.url);
+    else if (event.type === "notify") app.notify = event.notify;
     else if (event.type === "input_refused") app.inputNotice = event.text;
     else if (event.type === "ask") app.asks[event.ask.id] = event.ask;
     else if (event.type === "asked") delete app.asks[event.id];
@@ -679,8 +682,6 @@ export function glowSeats(): { sessionId: string; color: string }[] {
 }
 
 watchBlocked((blocked) => (app.alerts.soundBlocked = app.alerts.sound && blocked));
-// A reload with Sound on starts with audio shut until the first touch of the page.
-if (app.alerts.sound) app.alerts.soundBlocked = isBlocked();
 
 /** Flips a cue. Turning Sound on wakes audio and plays the cue once to prove it. */
 export async function setAlert(key: keyof AttentionSettings, on: boolean): Promise<void> {

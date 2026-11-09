@@ -140,6 +140,8 @@ interface Frame {
   data?: string;
   /** The absolute file an `image_uploaded` names. */
   path?: string;
+  /** A coordinator seat's ping, on the sessions channel. */
+  notify?: { id?: string; session?: string; role?: string; identity?: string; title?: string; body?: string; at?: string };
   /** Answers a `last_reply` request. */
   reply?: { session?: string; text?: string; truncated?: boolean; at?: string };
   sessions?: SessionView[];
@@ -973,6 +975,14 @@ export class DaemonHost implements HostConnection {
         if (call && frame.id) {
           this.calls.delete(frame.id);
           call.resolve(frame);
+        }
+        return;
+      }
+      case "notify": {
+        // An older daemon sends none, and one without the feature is not trusted to.
+        const note = frame.notify;
+        if (this.features.has("notify") && note?.id && note.session && note.title) {
+          this.emit({ type: "notify", notify: { id: note.id, session: note.session, role: note.role ?? "", identity: note.identity ?? "", title: note.title, body: note.body ?? "", at: Date.parse(note.at ?? "") || Date.now() } });
         }
         return;
       }

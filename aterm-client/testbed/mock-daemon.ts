@@ -14,7 +14,7 @@ const HERE = fileURLToPath(new URL(".", import.meta.url));
 const DIST = process.env.ATERM_TESTBED_DIST ?? join(HERE, "..", "dist");
 const ROSTER = join(HERE, "..", "src", "lib", "fixtures", "roster.json");
 /** What the real daemon offers on a loopback page, so the client takes its real paths. */
-const FEATURES = ["pty-size", "terminals", "terminal-label", "browser", "open-url", "last-reply"];
+const FEATURES = ["pty-size", "terminals", "terminal-label", "browser", "open-url", "last-reply", "notify"];
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",

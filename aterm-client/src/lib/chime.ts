@@ -12,6 +12,7 @@ export function watchBlocked(listener: Listener): void {
 
 function ensure(): AudioContext | null {
   if (context) return context;
+  if (typeof window === "undefined") return null;
   const Ctor = window.AudioContext ?? (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!Ctor) return null;
   context = new Ctor();

@@ -1,4 +1,7 @@
-import { app, openByPerson, placeNow, selectHost } from "./app.svelte";
+import { app, openByPerson, openSeat, placeNow, selectHost } from "./app.svelte";
+import { chime } from "./chime";
+import { noticeFor, SeenIds, wantsDesktopNotice } from "./notify";
+import type { Notify } from "./protocol";
 import { disablePush, enablePush, liveBrowser, loadPushHosts, lockedMessage, PushError, pushIsOn, pushUnavailable, resolveSeat, seatFromLocation, storePushHosts, type PendingSeat } from "./push";
 import { needsPasskey } from "./typing";
 
@@ -90,4 +93,30 @@ export function takeLaunchSeat(): void {
   if (!seat) return;
   history.replaceState(null, "", location.pathname + location.hash);
   openSeatFromNotification(seat);
+}
+
+const seenNotes = new SeenIds();
+
+/** A coordinator ping: the chime if Sound is on, and a notice if the browser allows. */
+ * The tap opens the sending seat, as a Web Push does. Each id is handled once. */
+export async function handleNotify(note: Notify): Promise<void> {
+  if (!seenNotes.first(note.id)) return;
+  if (app.alerts.sound) chime();
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  if (!wantsDesktopNotice({ focused: typeof document !== "undefined" && document.hasFocus(), openSeat: openSeat() }, note)) return;
+  const { title, options } = noticeFor(note);
+  try {
+    const registration = await navigator.serviceWorker?.getRegistration();
+    if (registration) {
+      await registration.showNotification(title, options);
+      return;
+    }
+    const shown = new Notification(title, options);
+    shown.onclick = () => {
+      window.focus();
+      openSeatFromNotification(note.session);
+    };
+  } catch {
+    // A refused notice leaves the chime, which already played.
+  }
 }
