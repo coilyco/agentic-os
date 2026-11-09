@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import AttentionSwitches from "./AttentionSwitches.svelte";
+  import CloseSeat from "./CloseSeat.svelte";
   import Creature from "./Creature.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
   import TapTraceSwitch from "./TapTraceSwitch.svelte";
-  import { app, askLineFor, asksShownOn, colorOf, glowSeats, layout, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
+  import { app, askLineFor, asksShownOn, colorOf, glowSeats, layout, needsKaiIds, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
   import { stateWithAge } from "../lib/age";
@@ -92,6 +93,7 @@
   }
   const hidePreview = () => (hover = null);
   // A finished seat is not counted as waiting, but its row still previews its last reply.
+  const needs = $derived(needsKaiIds());
   const previewing = $derived.by(() => {
     if (!hover) return undefined;
     const id = hover.id;
@@ -160,6 +162,7 @@
   {@const code = sessionCode(session)}
   {@const asking = askLineFor(session.id)}
   {@const stop = group.some((each) => each.id === app.selectedSession) ? selected : session === group[0]}
+  <div class="seat-row" class:stacked={narrow} role="presentation">
   <button
     role="tab"
     id={`tab-session-${session.id}`}
@@ -204,6 +207,8 @@
       {/if}
     </span>
   </button>
+  <CloseSeat {session} needsKai={needs.has(session.id)} where="row" compact={narrow} />
+  </div>
 {/snippet}
 
 {#snippet hostsGroup()}
@@ -230,6 +235,7 @@
 
 {#snippet runningGroup()}
   <h2 id="sessions-label">Running <span class="count">{live.running.length}</span></h2>
+  {#if app.closeNote}<p class="waiting" role="status">{app.closeNote}</p>{/if}
   {#if live.running.length === 0}
     <p class="waiting">{narrow ? "Nothing running yet." : "Nothing running on this host. Start a seat below."}</p>
   {:else}
@@ -355,6 +361,11 @@
   .mark { font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: 0.08em; color: var(--brand); padding: 4px 10px 12px; }
   h2 { margin: 14px 10px 4px; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
   [role="tablist"] { display: flex; flex-direction: column; gap: 2px; }
+  .seat-row { display: flex; align-items: center; gap: 6px; }
+  .seat-row .tab { flex: 1; min-width: 0; width: auto; }
+  /* Beside a 320px row the button leaves no room for the name, so it goes under. */
+  .seat-row.stacked { flex: none; flex-direction: column; align-items: stretch; gap: 4px; }
+  .seat-row.stacked .tab { flex: 1 0 auto; width: auto; }
   .tab { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: none; border-radius: 8px; background: transparent; color: var(--text); text-align: left; }
   .tab:hover { background: #171a21; }
   .tab[aria-selected="true"] { background: #1d1729; box-shadow: inset 0 0 0 1px #3a3350; }

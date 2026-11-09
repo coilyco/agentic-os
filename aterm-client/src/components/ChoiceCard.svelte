@@ -75,6 +75,11 @@
   const shown = (index: number): number => choice.options[index]?.number ?? index + 1 - (next !== -1 && next < index ? 1 : 0);
   const rows = $derived(choice.options.flatMap((_, index) => (index === next ? [] : [index])));
 
+  // A press on a button takes focus from the composer, the keyboard closes and the card moves under the tap (COI-3500).
+  function holdComposer(event: MouseEvent): void {
+    if (document.activeElement?.id === "composer-input" && (event.target as Element).closest("button")) event.preventDefault();
+  }
+
   function pick(index: number): void {
     if (choice.multi) {
       memo.picked = memo.picked.includes(index) ? memo.picked.filter((each) => each !== index) : [...memo.picked, index];
@@ -132,7 +137,8 @@
   }
 </script>
 
-<section class="card" class:folded aria-labelledby="choice-question" data-writing={memo.writing !== -1} bind:this={card}>
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<section class="card" class:folded aria-labelledby="choice-question" data-writing={memo.writing !== -1} bind:this={card} onmousedown={holdComposer}>
   <div class="body">
     <p class="asker">
       <span>{identity} is asking{#if choice.header}<span class="chip">{choice.header}</span>{/if}{#if locked}<span class="chip">{lockedLabel}</span>{/if}</span>

@@ -35,10 +35,12 @@ A seat drives one live Android emulator running the real Treehouse app, beside t
 
 ## Reaching a daemon
 
-**Loopback types with no passkey** ([tailnet-access.md](tailnet-access.md)), and a device key cannot be enrolled from an emulator, so a guest that reaches a daemon as loopback is the route. An emulator host with its own test daemon is reached at `10.0.2.2`. Never `reverse` to a daemon that holds real seats, since every process in the guest could then type into them.
+**Loopback types with no passkey** ([tailnet-access.md](tailnet-access.md)), and a device key cannot be enrolled from an emulator, so the guest must reach a **test daemon** as loopback. Never `reverse` to a daemon that holds real seats, since every process in the guest could then type into them. The Android page is https, so `ws://` to `10.0.2.2` should be mixed content: expect `adb reverse` to the daemon's `ATERM_DAEMON_WS` port and a host of `localhost`. Unconfirmed until the first boot.
+
+**A fixture seat is a `spawn` frame whose argv is a shell loop, with no agent harness.** The daemon gives it a fresh `ATERM_SESSION_TOKEN`, so `aterm ask` inside it raises a stamped choice card on every attached client and returns the pick. `just aterm-fixture-seats up|status|down` spawns `fixture-cards` (a three-option card, asked again after each answer) and `fixture-quiet` (a heartbeat line). It needs `ATERM_DAEMON_SOCKET` or `--socket` and refuses the default socket, which holds real seats. The test daemon runs `aterm daemon --tailnet-port ""` with a 0700 socket directory and `aterm` on the seats' PATH, from `aos-v0.540.0` (the `ask` frame is older, `aos-v0.376.0`, and the app origin is `aos-v0.462.0`).
 
 ## Not verified yet
 
 * An APK installed and opened in the emulator, and `devtools` reading the DOM.
 * The COI-3334 one-tap check in the real app.
-* A seat attached to a daemon from the emulator. The test daemon is an open decision on COI-3494.
+* A seat attached to a daemon from the emulator, and the `adb reverse` expectation above.

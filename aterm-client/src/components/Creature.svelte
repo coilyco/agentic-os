@@ -9,10 +9,10 @@
 {#if src}
   <img class="creature" {src} alt="" width={size} height={size} style:--accent={color} />
 {:else}
-  <span class="swatch" style:--accent={color} style:width={`${size}px`} style:height={`${size}px`} aria-hidden="true"></span>
+  <span class="swatch" style:--accent={color} style:width={`${size}px`} style:height={`${size}px`} style:font-size={`${Math.round(size * 0.5)}px`} aria-hidden="true">{role.charAt(0).toUpperCase()}</span>
 {/if}
 
 <style>
   .creature { flex: none; border-radius: 22%; background: color-mix(in srgb, var(--accent) 18%, var(--ground)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); object-fit: contain; }
-  .swatch { flex: none; border-radius: 22%; background: color-mix(in srgb, var(--accent) 45%, var(--ground)); box-shadow: inset 0 0 0 1px var(--accent); }
+  .swatch { flex: none; display: inline-flex; align-items: center; justify-content: center; font: 600 1em/1 var(--font-display, sans-serif); color: var(--accent); border-radius: 22%; background: color-mix(in srgb, var(--accent) 45%, var(--ground)); box-shadow: inset 0 0 0 1px var(--accent); }
 </style>
