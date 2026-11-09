@@ -263,6 +263,12 @@
   .body:has(+ .actions:not(:empty)) { padding-bottom: 10px; }
   .keys { margin: 0; font: 12px var(--font-mono); color: var(--muted); }
   button:disabled { opacity: 0.5; cursor: default; }
+  /* Short screens, a keyboard up: two lines for the question, one per description. The full text stays for a screen reader. */
+  @media (max-height: 560px) {
+    h2:not(.peek), .description { flex: none; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+    h2:not(.peek) { -webkit-line-clamp: 2; line-clamp: 2; }
+    .description { -webkit-line-clamp: 1; line-clamp: 1; }
+  }
   /* A phone's terminal is a few hundred pixels, so every row gives back what it can and stays a 44px target. */
   @media (max-width: 480px) {
     .card { margin: 0 8px; }
