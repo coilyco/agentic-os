@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import socket
 import stat
 import subprocess
 import sys
@@ -59,7 +60,7 @@ def device(tmp_path: Path) -> Path:
     return tmp_path
 
 
-def verb(device: Path, *args: str, holder: str = "seat-a", **env: str) -> subprocess.CompletedProcess[str]:
+def verb(device: Path, *args: str, holder: str = "seat-a", timeout: int = 60, **env: str) -> subprocess.CompletedProcess[str]:
     base = {
         "PATH": os.environ["PATH"],
         "HOME": str(device),
@@ -67,7 +68,7 @@ def verb(device: Path, *args: str, holder: str = "seat-a", **env: str) -> subpro
         "TREEHOUSE_EMULATOR_ADB": str(device / "adb"),
         "TREEHOUSE_EMULATOR_HOLDER": holder,
     }
-    return subprocess.run([sys.executable, str(VERB), *args], env=base | env, capture_output=True, text=True, check=False)
+    return subprocess.run([sys.executable, str(VERB), *args], env=base | env, capture_output=True, text=True, check=False, timeout=timeout)
 
 
 def test_a_second_seat_is_refused_and_told_who_holds_it(device: Path) -> None:
@@ -141,3 +142,36 @@ def test_a_build_with_no_devtools_socket_says_to_install_the_debug_apk(device: P
     done = verb(device, "devtools", FAKE_SOCKETS="@chrome_devtools_remote")
     assert done.returncode == 8
     assert "release build has no WebView DevTools" in done.stderr
+
+
+# A fake ssh that, like ssh -f, leaves a child holding its pipes, and opens the port.
+FAKE_SSH = """#!/bin/sh
+python3 -c "
+import socket, time
+s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(('127.0.0.1', $FAKE_PORT)); s.listen(5); time.sleep(20)
+" &
+echo $! > "$FAKE_DEVICE/ssh.pid"
+exit 0
+"""
+
+
+def test_a_tunnel_started_with_ssh_f_does_not_hang_the_verb(device: Path) -> None:
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    port = probe.getsockname()[1]
+    probe.close()
+    ssh = device / "bin" / "ssh"
+    ssh.write_text(FAKE_SSH, encoding="utf-8")
+    ssh.chmod(ssh.stat().st_mode | stat.S_IXUSR)
+    try:
+        done = verb(
+            device, "tunnel", timeout=10, PATH=f"{device / 'bin'}:{os.environ['PATH']}", FAKE_PORT=str(port),
+            TREEHOUSE_EMULATOR_SSH="user@host", TREEHOUSE_EMULATOR_ADB_PORT=str(port),
+        )
+    finally:
+        pid = (device / "ssh.pid").read_text(encoding="utf-8").strip() if (device / "ssh.pid").exists() else ""
+        if pid:
+            subprocess.run(["kill", pid], check=False)
+    assert done.returncode == 0, done.stderr
+    assert "tunnel to user@host ready" in done.stdout

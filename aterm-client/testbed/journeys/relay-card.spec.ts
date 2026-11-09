@@ -38,7 +38,8 @@ test("the worker's own pane says where its question is, and goes there", async (
   const notice = bed.page.getByRole("status").filter({ hasText: /question is on Griffin-Goose/ });
   await expect(notice).toBeVisible();
   await expect(card(bed.page), "the card shows on the worker's pane too").toBeHidden();
-  await bed.step("on-the-askers-pane");
+  // The text size button shows at 320px and is not what this step is about.
+  await bed.step("on-the-askers-pane", { hide: [".size"] });
   await bed.page.getByRole("button", { name: /Open Griffin-Goose/ }).click();
   await expect(card(bed.page)).toBeVisible();
   await expect(card(bed.page)).toContainText("Beetle-Ox is asking");
