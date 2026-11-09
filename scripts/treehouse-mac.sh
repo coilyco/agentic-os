@@ -52,6 +52,10 @@ login_items() {
   osascript -e 'tell application "System Events" to get the name of every login item'
 }
 
+has_item() {
+  login_items | tr ',' '\n' | sed 's/^ *//' | grep -Fxq "$1"
+}
+
 remove_item() {
   osascript -e "tell application \"System Events\" to delete (every login item whose name is \"$1\")" >/dev/null
 }
@@ -60,19 +64,27 @@ add_item() {
   osascript -e "tell application \"System Events\" to make login item at end with properties {path:\"$1\", hidden:false}" >/dev/null
 }
 
-# on: Treehouse opens at login and the old item does not. off puts the old one back.
+# on adds Treehouse before it removes the old item, and puts back what it can if the
+# removal fails, so a failed run leaves one startup item and never two or none.
 login() {
   case "${1:-status}" in
     on)
       [ -d "$installed" ] || fail "$installed is not installed, run the install verb first"
-      remove_item "$replaces"
-      remove_item "$app_name"
-      add_item "$installed"
+      login_items >/dev/null || fail "System Events refused the login item list"
+      if has_item "$app_name" && ! has_item "$replaces"; then
+        echo "login: unchanged"
+      else
+        has_item "$app_name" || add_item "$installed"
+        if has_item "$replaces" && ! remove_item "$replaces"; then
+          remove_item "$app_name" || true
+          fail "could not remove the $replaces login item, so $app_name was taken off again"
+        fi
+        echo "login: changed"
+      fi
       ;;
     off)
+      [ ! -d "$replaces_path" ] || has_item "$replaces" || add_item "$replaces_path"
       remove_item "$app_name"
-      remove_item "$replaces"
-      [ -d "$replaces_path" ] && add_item "$replaces_path"
       ;;
     status) ;;
     *) fail "login takes on, off or status" ;;
