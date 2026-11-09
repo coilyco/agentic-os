@@ -26,7 +26,7 @@ const panBar = (page: import("@playwright/test").Page) =>
 
 test("a PTY wider than the pane shows arrows and a position bar, and the rest can be reached", async ({ bed }) => {
   await bed.openSeat(SEATS.imp);
-  bed.mock.holdWide(SEATS.imp.id, 220);
+  bed.mock.holdWide(SEATS.imp.id, 340);
   bed.mock.setScene(SEATS.imp.id, wideScene);
   await expect(bed.screen()).toContainText("daemon-host.ts");
   await expect(bed.page.locator(".edge.right"), "an arrow that more text lies to the right").toHaveClass(/\bon\b/);
