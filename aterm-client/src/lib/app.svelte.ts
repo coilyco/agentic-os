@@ -99,6 +99,8 @@ export const app = $state({
   browsers: {} as Record<string, SharedBrowser>,
   /** Plain shells the host holds, tagged with the seat each sits beside. */
   terminals: [] as TerminalEntry[],
+  /** Whether the host's welcome lists `web-push`, so the Web Push switch shows. */
+  webPush: false,
   /** Whether the host's welcome lists the terminal feature. Unknown until it arrives. */
   terminalSupport: "unknown" as Support,
   /** Terminal id to the seat it was opened beside. The host does not say. */
@@ -384,6 +386,7 @@ export function selectHost(host: Host): void {
   app.browsers = {};
   app.terminals = [];
   app.terminalSupport = "unknown";
+  app.webPush = false;
   app.terminalsLoaded = false;
   for (const label of Object.keys(app.terminalOpening)) settleOpen(label);
   app.terminalRefusals = {};
@@ -429,7 +432,10 @@ export function selectHost(host: Host): void {
     else if (event.type === "browser") app.browsers[event.browser.session] = event.browser;
     else if (event.type === "passkey") app.passkeyAvailable = event.available;
     else if (event.type === "device_key") app.deviceKeyAvailable = event.available && bridge() !== null;
-    else if (event.type === "features") app.terminalSupport = event.terminals ? "yes" : "no";
+    else if (event.type === "features") {
+      app.terminalSupport = event.terminals ? "yes" : "no";
+      app.webPush = event.webPush === true;
+    }
     else if (event.type === "terminals") {
       app.terminals = applyList(app.terminals, event.terminals, app.terminalSeats, dismissed);
       app.terminalsLoaded = true;
