@@ -16,6 +16,8 @@ BUILD_TOOLS=36.0.0
 NDK_VERSION=28.2.13676358
 RUST_TARGET=aarch64-linux-android
 APP_ID=dev.coilyco.treehouse
+# The launcher label, Tauri's productName. Short on purpose, a launcher truncates.
+APP_LABEL=Treehouse
 KEY_ALIAS=aterm
 UPLOAD_ALIAS=upload
 # Play's bundle tool, a pinned release jar. Audit and why: references/android.md.
@@ -177,6 +179,7 @@ verify() {
   fi
   badging=$(aapt2 dump badging "$apk")
   printf '%s\n' "$badging" | grep -q "^package: name='$APP_ID' " || fail "package name is not $APP_ID"
+  printf '%s\n' "$badging" | grep -q "^application-label:'$APP_LABEL'$" || fail "the launcher label is not $APP_LABEL"
   printf '%s\n' "$badging" | grep -q "^native-code: 'arm64-v8a'$" || fail "native code is not arm64-v8a only"
   printf '%s\n' "$badging" | grep -E "^(package:|sdkVersion:|targetSdkVersion:|application-label:)"
   work=$(mktemp -d)
@@ -191,6 +194,39 @@ verify() {
   done
   rm -rf "$work"
   echo "signer SHA-256: $cert"
+}
+
+# same-app PREV NEW: Android updates in place on the same package, the same signer, and a
+# versionCode that rises. Anything else needs an uninstall, which drops the device key.
+same_app() {
+  local prev="${1:?usage: same-app PREV NEW}" new="${2:?usage: same-app PREV NEW}" apk head cert
+  local -a pkg=() code=() signer=()
+  use_java
+  for apk in "$prev" "$new"; do
+    head=$(aapt2 dump badging "$apk" | sed -n 1p)
+    pkg+=("$(printf '%s' "$head" | sed -n "s/^package: name='\([^']*\)'.*/\1/p")")
+    code+=("$(printf '%s' "$head" | sed -n "s/.* versionCode='\([0-9]*\)'.*/\1/p")")
+    cert=$(apksigner verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+    signer+=("$cert")
+  done
+  [ -n "${pkg[0]}" ] && [ "${pkg[0]}" = "${pkg[1]}" ] || fail "package ${pkg[1]:-none} is not the previous ${pkg[0]:-none}"
+  [ -n "${signer[0]}" ] && [ "${signer[0]}" = "${signer[1]}" ] || fail "signer ${signer[1]:-none} is not the previous ${signer[0]:-none}"
+  [ -n "${code[0]}" ] && [ "${code[1]:-0}" -gt "${code[0]}" ] || fail "versionCode ${code[1]:-none} does not rise above ${code[0]:-none}"
+  echo "installs over the previous build: package ${pkg[1]}, signer ${signer[1]}, versionCode ${code[0]} to ${code[1]}"
+}
+
+# against-release TAG NEW: same-app against the APK published on release TAG. A build
+# signed with a throwaway key cannot match a real release, so it is skipped, loudly.
+against_release() {
+  local tag="${1:?usage: against-release TAG NEW}" new="${2:?usage: against-release TAG NEW}" work
+  if [ -z "${ATERM_ANDROID_KEYSTORE_B64:-}" ]; then
+    echo "no signing keystore in the environment: not comparing with $tag" >&2
+    return 0
+  fi
+  work=$(mktemp -d)
+  trap "rm -rf '$work'" EXIT
+  gh release download "$tag" --pattern aterm.apk --dir "$work"
+  same_app "$work/aterm.apk" "$new"
 }
 
 # build-debug ABI OUT: a debuggable APK for one emulator ABI (x86_64 or aarch64), signed
@@ -300,10 +336,12 @@ cmd="${1:-}"
 [ $# -gt 0 ] && shift
 case "$cmd" in
   toolchain | build | sign | verify | bundle) "$cmd" "$@" ;;
+  same-app) same_app "$@" ;;
+  against-release) against_release "$@" ;;
   build-debug) build_debug "$@" ;;
   version-code) version_code "$@" ;;
   sign-bundle) sign_bundle "$@" ;;
   verify-bundle) verify_bundle "$@" ;;
   app-id) echo "$APP_ID" ;;
-  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | sign IN OUT | verify APK | bundle VERSION OUT | build-debug ABI OUT | sign-bundle IN OUT | verify-bundle AAB | version-code [EPOCH] | app-id" ;;
+  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | sign IN OUT | verify APK | same-app PREV NEW | against-release TAG NEW | bundle VERSION OUT | build-debug ABI OUT | sign-bundle IN OUT | verify-bundle AAB | version-code [EPOCH] | app-id" ;;
 esac

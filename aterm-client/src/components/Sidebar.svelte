@@ -338,7 +338,7 @@
       </div>
     {/if}
   {:else}
-    <div class="mark">ATERM</div>
+    <div class="mark">TREEHOUSE</div>
     {@render hostsGroup()}
     {#if app.attachedHostId}
       {@render runningGroup()}
