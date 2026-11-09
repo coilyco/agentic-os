@@ -63,3 +63,16 @@ test("one tap answers a card while the keyboard is up", async ({ bed }) => {
   await card(bed.page).getByRole("button", { name: /Behind a button/ }).tap();
   await expect.poll(() => bed.mock.answers, "the first tap did not answer").toEqual([{ ask_id: "tap-1", picks: [1] }]);
 });
+
+// COI-3500: a press takes focus, the keyboard closes and the layout moves under the tap.
+test("a tap on an option leaves focus in the composer, so the keyboard stays", async ({ bed }) => {
+  test.skip(kindOf(test.info()) !== "phone", "an on-screen keyboard is a phone thing");
+  await bed.openSeat(SEATS.imp);
+  await bed.page.locator("#composer-input").focus();
+  bed.mock.push(ask);
+  await expect(card(bed.page)).toBeVisible();
+  await bed.page.locator("#composer-input").focus();
+  await card(bed.page).getByRole("button", { name: /Behind a button/ }).tap();
+  await expect.poll(() => bed.mock.answers).toHaveLength(1);
+  expect(await bed.page.evaluate(() => document.activeElement?.id), "the tap took focus").toBe("composer-input");
+});
