@@ -9,6 +9,8 @@ const seat = (name: string, identity: string, extra: Record<string, unknown>) =>
 const FRESH = seat("eng-platform-fresh-ox", "Fresh-Ox", { activity: LONG, activity_age_seconds: 40 });
 const STALE = seat("eng-platform-stale-ox", "Stale-Ox", { activity: "Waiting for the daemon to come back", activity_age_seconds: 3 * 3600 });
 const NONE = seat("eng-platform-none-ox", "None-Ox", {});
+// Its line was set two minutes ago and its state began half a minute ago.
+const MOVED = seat("eng-platform-moved-ox", "Moved-Ox", { activity: "Running the gate", activity_age_seconds: 120, state_seconds: 30 });
 
 const open = async (bed: import("../harness.ts").Bed, name: string) => {
   await bed.page.goto("/");
@@ -18,7 +20,7 @@ const open = async (bed: import("../harness.ts").Bed, name: string) => {
 };
 
 test.describe("the activity line in the top bar", () => {
-  test.use({ mockOptions: { sessions: [FRESH, STALE, NONE, { ...seat(SEATS.imp.id, SEATS.imp.name, { role: "frontend-eng" }) }] } });
+  test.use({ mockOptions: { sessions: [FRESH, STALE, NONE, MOVED, { ...seat(SEATS.imp.id, SEATS.imp.name, { role: "frontend-eng" }) }] } });
 
   test("a fresh line sits under the name on one line, whole on hover, and follows the seat", async ({ bed }, info) => {
     await open(bed, "Fresh-Ox");
@@ -46,6 +48,10 @@ test.describe("the activity line in the top bar", () => {
     await expect(stale).toHaveAttribute("data-stale", "true");
     await expect(stale.locator(".age")).toHaveText("3h ago");
     await expect(stale).toHaveAttribute("title", /\(set 3h ago\)/);
+    await open(bed, "Moved-Ox");
+    const moved = bed.page.locator("header .name-block .activity");
+    await expect(moved, "a line from before the present state is not current").toHaveAttribute("data-stale", "true");
+    await expect(moved.locator(".age")).toHaveText("2m ago");
     await open(bed, "None-Ox");
     await expect(bed.page.locator("header .name-block .activity"), "no line, no box").toHaveCount(0);
     const h1 = await bed.page.getByRole("heading", { name: "None-Ox", level: 1 }).boundingBox();

@@ -43,6 +43,8 @@ export interface SessionSpec {
   last_reply?: string;
   /** Seconds since the seat last wrote, as the daemon's session view carries it. */
   quiet_seconds?: number;
+  /** How long the daemon has seen the present state. */
+  state_seconds?: number;
   /** The seat's "what I'm doing" line and how long ago it set it, in seconds. */
   activity?: string;
   activity_age_seconds?: number;

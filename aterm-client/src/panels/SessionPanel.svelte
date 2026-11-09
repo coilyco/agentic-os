@@ -188,7 +188,7 @@
     <div class="name-block">
       <h1 class:visually-hidden={phone}>{session.identity}</h1>
       {#if !phone && session.activity}
-        {@const flag = activityFlag(session.activity, now)}
+        {@const flag = activityFlag(session.activity, now, session.stateSince)}
         <p class="activity" data-stale={flag !== ""} title={flag ? `${session.activity.text} (set ${flag})` : session.activity.text}>
           <span class="line">{session.activity.text}</span>
           {#if flag}<span class="age">{flag}</span>{/if}
