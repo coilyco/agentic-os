@@ -302,11 +302,25 @@ func awaitSession(watch *conn, state peerMessage, limit time.Duration) peerMessa
 // launchRole opens the role through this binary, so the roster check is the
 // ordinary one. Headless, since nobody is at a launch the daemon starts.
 func launchRole(role, seat string) error {
+	return runSelf(launchRoleArgs(role, seat))
+}
+
+// reopenSeat resumes a closed claude seat's conversation through this binary, the
+// launch `aterm resume --headless` makes, in bypass like `aterm bypass`.
+func reopenSeat(entry ledgerEntry) error {
+	args, err := resumeArgs(entry, true, false)
+	if err != nil {
+		return err
+	}
+	return runSelf(append(args, harnessArgs(defaultPermissionMode, nil)...))
+}
+
+func runSelf(args []string) error {
 	self, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	command := exec.Command(self, launchRoleArgs(role, seat)...)
+	command := exec.Command(self, args...)
 	// The daemon and a shadow seat both launch from an environment whose home
 	// is not the projects root's, so the child starts on the canonical one.
 	if environ := canonicalEnviron(os.Environ(), readCanonicalLaunch()); environ != nil {

@@ -13,13 +13,15 @@
   // `offline` is the host not answering: the draft stays editable and Send waits, since a frame typed into a dead link is lost.
   // `draft` and `ondraft` keep the text outside this component, so a seat change or a remount does not take it. `onsent` says a send left.
   // `dialogOpen` is a dialog open on the seat: typed text would answer it or dismiss it, so Send waits and the message stays as a draft (COI-3322).
-  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, draft = "", ondraft, onsent, onfocuschange, place, working = false }: {
+  // `reading` is a phone on its side, where height is scarce: the composer is one row (COI-3371).
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, reading = false, draft = "", ondraft, onsent, onfocuschange, place, working = false }: {
     connection: HostConnection;
     session: Session;
     sessions?: readonly Session[];
     typing?: Typing;
     offline?: boolean;
     dialogOpen?: boolean;
+    reading?: boolean;
     draft?: string;
     ondraft?: (text: string) => void;
     onsent?: () => void;
@@ -192,6 +194,9 @@
   // A program in bracketed-paste mode takes the text as one paste, then the
   // Enter a beat later so it submits instead of landing as a newline.
   // Images upload first, one after another, and only then does anything reach the seat: a failed upload sends nothing and keeps the draft.
+  // A press on a button takes focus from the field, the keyboard closes, the layout moves and the tap is lost (COI-3500).
+  const keepFocus = (event: MouseEvent): void => event.preventDefault();
+
   async function send(): Promise<void> {
     const typed = text.trim();
     if (!typed && chips.length === 0) return;
@@ -362,6 +367,7 @@
 <form
   class="composer"
   class:dropping
+  data-reading={reading}
   onsubmit={(event) => { event.preventDefault(); void send(); }}
   ondragover={dragOver}
   ondragleave={dragLeave}
@@ -384,7 +390,7 @@
             <li class="chip">
               <img src={chip.url} alt="" />
               <span class="chip-label">{chipLabel(index, chip.file.size)}</span>
-              <button class="chip-remove" type="button" aria-label={`Remove image ${index + 1}`} disabled={uploading !== null} onclick={() => removeChip(chip.id)}>
+              <button class="chip-remove" type="button" aria-label={`Remove image ${index + 1}`} disabled={uploading !== null} onmousedown={keepFocus} onclick={() => removeChip(chip.id)}>
                 <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
               </button>
             </li>
@@ -399,7 +405,7 @@
   {#if connection.images}
     <!-- The button is the way a phone adds an image, and the way to one with no clipboard image. -->
     <input bind:this={picker} hidden type="file" accept={IMAGE_TYPES.join(",")} multiple onchange={picked} />
-    <button class="add-image" type="button" aria-label="Add image" title="Add image" disabled={uploading !== null || resizing || offline} onclick={() => picker?.click()}>
+    <button class="add-image" type="button" aria-label="Add image" title="Add image" disabled={uploading !== null || resizing || offline} onmousedown={keepFocus} onclick={() => picker?.click()}>
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8" /><circle cx="9" cy="10" r="1.6" fill="currentColor" /><path d="M4.5 17.5l4.5-4.5 3.5 3.5 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg>
     </button>
   {/if}
@@ -446,7 +452,7 @@
       aria-controls={open ? "composer-mentions" : undefined}
       aria-activedescendant={open ? `mention-${current}` : undefined}
       rows="1"
-      placeholder={narrow ? `Message ${session.identity}` : `Type or dictate to ${session.identity}. Enter sends, Shift+Enter for a new line, @ names a session.${connection.images ? " Paste or drop an image to attach it." : ""}`}
+      placeholder={narrow || reading ? `Message ${session.identity}` : `Type or dictate to ${session.identity}. Enter sends, Shift+Enter for a new line, @ names a session.${connection.images ? " Paste or drop an image to attach it." : ""}`}
       autocomplete="off"
       spellcheck="true"
     ></textarea>
@@ -468,7 +474,7 @@
       onkeydown={stopKey}
     >Stop</button>
   {:else}
-    <button class="button primary" type="submit" disabled={(!text.trim() && chips.length === 0) || offline || dialogOpen || uploading !== null || resizing}>{offline ? "Waits for host" : dialogOpen && (text.trim() || chips.length) ? "Waits for answer" : uploading ? "Uploading" : sentFlash && !text.trim() && chips.length === 0 ? "Sent" : "Send"}</button>
+    <button class="button primary" type="submit" onmousedown={keepFocus} disabled={(!text.trim() && chips.length === 0) || offline || dialogOpen || uploading !== null || resizing}>{offline ? "Waits for host" : dialogOpen && (text.trim() || chips.length) ? "Waits for answer" : uploading ? "Uploading" : sentFlash && !text.trim() && chips.length === 0 ? "Sent" : "Send"}</button>
   {/if}
   <p class="visually-hidden" role="status">{note}</p>
 </form>
@@ -533,4 +539,7 @@
     .chip-remove::after { content: ""; position: absolute; inset: -8px; }
     textarea { padding: 9px 12px; max-height: 112px; }
   }
+  /* A phone on its side is wider than 720px, so the rules above miss it. Add, field and Send share one 44px row, and the field grows only while it holds text. */
+  .composer[data-reading="true"] { gap: 8px; padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left)); }
+  .composer[data-reading="true"] textarea { min-height: 44px; max-height: min(112px, 40vh); padding: 9px 12px; font-size: 15px; }
 </style>

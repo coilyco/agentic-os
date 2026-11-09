@@ -49,6 +49,8 @@ const (
 	reasonPasskeyRequired   = "passkey_required"
 	// A remote device cannot open a shell until COI-2488's gating exists.
 	reasonRemoteTerminal = "remote_terminal"
+	// A close refused because the seat's checkouts hold work no remote has.
+	reasonUnpushedWork = "unpushed_work"
 )
 
 // typingStanding says whether a peer may type, and if not why.
