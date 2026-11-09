@@ -57,6 +57,8 @@ interface Live {
   boxes: Map<WebSocket, { rows: number; cols: number }>;
   /** Columns a wider client holds the PTY at, by the daemon's largest-client rule. */
   wideCols?: number;
+  /** Rows a raw client caps the PTY at, however many rows another client asks for. */
+  capRows?: number;
 }
 
 export interface Mock {
@@ -77,6 +79,8 @@ export interface Mock {
   sceneOf(session: string): Scene | undefined;
   /** Size a seat's PTY to at least this many columns, as a wider client does. */
   holdWide(session: string, cols: number): void;
+  /** Hold a seat's PTY to at most this many rows, as a raw client's window does. */
+  capRows(session: string, rows: number): void;
   /** Replace a seat's scene and redraw it on every client attached. */
   setScene(session: string, scene: Scene): void;
   /** Send one daemon frame to every client, as the daemon would push it. */
@@ -175,7 +179,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const draw = (seat: Live, socket: WebSocket, attach = false): void => {
     const own = seat.boxes.get(socket);
     if (!own) return;
-    const box = { rows: own.rows, cols: Math.max(own.cols, seat.wideCols ?? 0) };
+    const box = { rows: Math.min(own.rows, seat.capRows ?? own.rows), cols: Math.max(own.cols, seat.wideCols ?? 0) };
     send(socket, { type: "size", session: seat.spec.name, rows: box.rows, cols: box.cols });
     const text = attach && seat.scene.history ? seat.scene.history(box.cols, box.rows) : paint(seat.scene.render(box.cols, box.rows));
     send(socket, { type: "output", session: seat.spec.name, data: encode(text) });
@@ -350,6 +354,12 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
       const seat = live.get(session);
       if (!seat) throw new Error(`no seat named ${session}`);
       seat.wideCols = cols;
+      redraw(seat);
+    },
+    capRows(session, rows) {
+      const seat = live.get(session);
+      if (!seat) throw new Error(`no seat named ${session}`);
+      seat.capRows = rows;
       redraw(seat);
     },
     setScene(session, scene) {
