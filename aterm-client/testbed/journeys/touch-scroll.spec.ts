@@ -24,13 +24,16 @@ test("a finger swipe scrolls the seat's history up, and Jump to latest brings it
 
   const host = (await bed.page.locator(".term-host").boundingBox())!;
   const client = await bed.page.context().newCDPSession(bed.page);
-  await client.send("Input.synthesizeScrollGesture", {
-    x: Math.round(host.x + host.width / 2),
-    y: Math.round(host.y + host.height / 2),
-    yDistance: 600,
-    gestureSourceType: "touch",
-    speed: 800,
-  });
+  // A finger put down, dragged down in small steps, and lifted, as a screen sends it.
+  const x = Math.round(host.x + host.width / 2);
+  const y0 = Math.round(host.y + host.height / 3);
+  const touch = (type: string, y?: number) => client.send("Input.dispatchTouchEvent", { type, touchPoints: y === undefined ? [] : [{ x, y }] });
+  await touch("touchStart", y0);
+  for (let step = 1; step <= 20; step++) {
+    await touch("touchMove", y0 + step * 20);
+    await bed.page.waitForTimeout(16);
+  }
+  await touch("touchEnd");
   await expect.poll(() => topLine(bed.page), "a swipe down shows earlier lines").toBeLessThan(before - 5);
   await bed.step("scrolled-up", { compare: false });
 
