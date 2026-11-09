@@ -46,6 +46,12 @@ export interface SessionSpec {
   /** The seat's "what I'm doing" line and how long ago it set it, in seconds. */
   activity?: string;
   activity_age_seconds?: number;
+  /** The screen reading, the `ref` a close takes, and background tasks running. */
+  state?: "starting" | "busy" | "idle" | "prompt";
+  ref?: string;
+  background?: number;
+  /** The daemon refuses a close with this text, as it does for a held draft. */
+  refuse_close?: string;
   /** Which scene draws it: a name from scenes.ts. */
   scene: string;
 }
@@ -57,6 +63,8 @@ interface Live {
   boxes: Map<WebSocket, { rows: number; cols: number }>;
   /** Columns a wider client holds the PTY at, by the daemon's largest-client rule. */
   wideCols?: number;
+  /** Rows a raw client caps the PTY at, however many rows another client asks for. */
+  capRows?: number;
 }
 
 export interface Mock {
@@ -71,12 +79,16 @@ export interface Mock {
   /** Every `answer` and `cancel_ask` the client sent. */
   answers: { ask_id: string; picks?: number[]; text?: string; cancelled?: boolean }[];
   launches: { role: string; seat: string }[];
+  /** Every `close` target the client sent, as `name@ref`. */
+  closes: string[];
   /** Every `browser_*` frame and `subscribe` the client sent about a page, in order. */
   browserCalls: { type: string; session?: string; take?: boolean; url?: string; channel?: string }[];
   /** The scene a seat runs, to read what a native dialog received. */
   sceneOf(session: string): Scene | undefined;
   /** Size a seat's PTY to at least this many columns, as a wider client does. */
   holdWide(session: string, cols: number): void;
+  /** Hold a seat's PTY to at most this many rows, as a raw client's window does. */
+  capRows(session: string, rows: number): void;
   /** Replace a seat's scene and redraw it on every client attached. */
   setScene(session: string, scene: Scene): void;
   /** Send one daemon frame to every client, as the daemon would push it. */
@@ -138,7 +150,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const heard: string[] = [];
   let lastFrameAt = Date.now();
   const lastBox = new Map<string, { rows: number; cols: number }>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], browserCalls: [] as Mock["browserCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], browserCalls: [] as Mock["browserCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"] };
   // A seat's browser: the agent drives until a screen takes control.
   // `client` is the name each connection was given.
   const pages = new Map<string, { holder: WebSocket | null; url: string }>();
@@ -177,7 +189,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const draw = (seat: Live, socket: WebSocket, attach = false): void => {
     const own = seat.boxes.get(socket);
     if (!own) return;
-    const box = { rows: own.rows, cols: Math.max(own.cols, seat.wideCols ?? 0) };
+    const box = { rows: Math.min(own.rows, seat.capRows ?? own.rows), cols: Math.max(own.cols, seat.wideCols ?? 0) };
     send(socket, { type: "size", session: seat.spec.name, rows: box.rows, cols: box.cols });
     const text = attach && seat.scene.history ? seat.scene.history(box.cols, box.rows) : paint(seat.scene.render(box.cols, box.rows));
     send(socket, { type: "output", session: seat.spec.name, data: encode(text) });
@@ -312,6 +324,18 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           }, options.launchDelayMs ?? 400);
           return;
         }
+        case "close": {
+          const target = String(frame.target);
+          mock.closes.push(target);
+          const [name, ref] = target.split("@");
+          const seat = live.get(name ?? "");
+          if (!seat || seat.spec.ref !== ref) return void send(socket, { type: "error", id: frame.id, error: `${target} names no live session` });
+          if (seat.spec.refuse_close) return void send(socket, { type: "error", id: frame.id, error: seat.spec.refuse_close });
+          live.delete(seat.spec.name);
+          broadcast(sessionsFrame());
+          send(socket, { type: "closed", id: frame.id, session: seat.spec.name, code: 0 });
+          return;
+        }
         case "answer":
           mock.answers.push({ ask_id: String(frame.ask_id), picks: frame.picks as number[], ...(frame.text ? { text: String(frame.text) } : {}) });
           broadcast({ type: "asked", ask_id: frame.ask_id, state: "answered" });
@@ -352,12 +376,19 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     idleMs: () => Date.now() - lastFrameAt,
     answers: mock.answers,
     launches: mock.launches,
+    closes: mock.closes,
     browserCalls: mock.browserCalls,
     sceneOf: (session) => live.get(session)?.scene,
     holdWide(session, cols) {
       const seat = live.get(session);
       if (!seat) throw new Error(`no seat named ${session}`);
       seat.wideCols = cols;
+      redraw(seat);
+    },
+    capRows(session, rows) {
+      const seat = live.get(session);
+      if (!seat) throw new Error(`no seat named ${session}`);
+      seat.capRows = rows;
       redraw(seat);
     },
     setScene(session, scene) {

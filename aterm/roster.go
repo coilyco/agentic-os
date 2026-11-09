@@ -23,6 +23,8 @@ type listedRole struct {
 	Identity      rosterIdentity `json:"identity"`
 	Launchable    bool           `json:"launchable"`
 	Seats         []rosterSeat   `json:"seats"`
+	// PinnedByDefault says a client starts the role's seats pinned. Absent reads false.
+	PinnedByDefault bool `json:"pinned_by_default,omitempty"`
 }
 
 type listedRoster struct {
@@ -60,6 +62,8 @@ type rosterRole struct {
 	// An archived role arrives fully populated, native seats included, so this
 	// flag is all that separates it from a live one.
 	Archived bool `json:"archived,omitempty"`
+	// PinnedByDefault is agent-compose's role attribute, relayed as it is.
+	PinnedByDefault bool `json:"pinned_by_default,omitempty"`
 }
 
 type rosterDocument struct {
@@ -119,13 +123,14 @@ func listRoster(document rosterDocument) listedRoster {
 	for _, item := range document.Items {
 		seats := item.nativeSeats()
 		roles = append(roles, listedRole{
-			Slug:          item.Slug,
-			DisplayName:   item.DisplayName,
-			Purpose:       item.Purpose,
-			FavoriteColor: item.FavoriteColor,
-			Identity:      item.Identity,
-			Launchable:    len(seats) > 0,
-			Seats:         seats,
+			Slug:            item.Slug,
+			DisplayName:     item.DisplayName,
+			Purpose:         item.Purpose,
+			FavoriteColor:   item.FavoriteColor,
+			Identity:        item.Identity,
+			Launchable:      len(seats) > 0,
+			Seats:           seats,
+			PinnedByDefault: item.PinnedByDefault,
 		})
 	}
 	return listedRoster{Format: rosterFormat, Roles: roles}
