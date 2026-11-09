@@ -5,12 +5,16 @@ import { sceneFor } from "../scenes.ts";
 
 test.beforeEach(({}, info) => test.skip(kindOf(info) === "landscape", "landscape is its own journey"));
 
+// The button shows while the terminal is under 360px wide, the 34 columns of the record.
+const wide = (info: import("@playwright/test").TestInfo) => info.project.name !== "phone-320";
+
 const KEY = "aterm.terminal-text-size.v1";
 
 const fontOf = (page: import("@playwright/test").Page) =>
   page.evaluate(() => getComputedStyle(document.querySelector(".xterm-rows")!).fontSize);
 
-test("the size starts at 14px, and a smaller one fits more columns in the box", async ({ bed }) => {
+test("the size starts at 14px, and a smaller one fits more columns in the box", async ({ bed }, info) => {
+  test.skip(wide(info), "the button shows only in a narrow terminal");
   await bed.openSeat(SEATS.imp);
   bed.mock.setScene(SEATS.imp.id, sceneFor("claude-fresh", {} as never));
   await expect(bed.screen()).toContainText("Hello. What should I work on?");
@@ -32,7 +36,8 @@ test("the size starts at 14px, and a smaller one fits more columns in the box", 
   await bed.step("smaller", { compare: false });
 });
 
-test("the choice survives a reload, and the terminal comes back at it", async ({ bed }) => {
+test("the choice survives a reload, and the terminal comes back at it", async ({ bed }, info) => {
+  test.skip(wide(info), "the button shows only in a narrow terminal");
   await bed.openSeat(SEATS.imp);
   await bed.page.getByRole("button", { name: "Text size" }).click();
   await bed.page.getByRole("button", { name: "Smaller text" }).click();
@@ -45,13 +50,23 @@ test("the choice survives a reload, and the terminal comes back at it", async ({
   await expect.poll(() => bed.cols(SEATS.imp)).toBeGreaterThanOrEqual(narrow);
 });
 
+test("a wide box shows no button at 14px, and one at any other size so the way back stays", async ({ bed }, info) => {
+  test.skip(!wide(info), "a narrow terminal always shows it");
+  await bed.openSeat(SEATS.imp);
+  await expect(bed.page.getByRole("button", { name: "Text size" })).toHaveCount(0);
+  await bed.page.evaluate((key) => localStorage.setItem(key, "12"), KEY);
+  await bed.page.reload();
+  await expect(bed.page.getByRole("button", { name: "Text size" })).toBeVisible();
+});
+
 test("a stored size that is not a step is ignored", async ({ bed }) => {
   await bed.page.addInitScript((key) => localStorage.setItem(key, "15"), KEY);
   await bed.openSeat(SEATS.imp);
   await expect.poll(() => fontOf(bed.page)).toBe("14px");
 });
 
-test("by keyboard: open, step, and Escape closes", async ({ bed }) => {
+test("by keyboard: open, step, and Escape closes", async ({ bed }, info) => {
+  test.skip(wide(info), "the button shows only in a narrow terminal");
   await bed.openSeat(SEATS.imp);
   const opener = bed.page.getByRole("button", { name: "Text size" });
   await opener.focus();
