@@ -224,10 +224,11 @@ class Journey:
         page.tap("()=>document.querySelector('[aria-label=\"Add image\"]')")
         deadline = time.monotonic() + 20
         while time.monotonic() < deadline:
-            if "documentsui" in self.focus():
+            # Android 13 and later answers GET_CONTENT for images with its Photo Picker.
+            if any(name in self.focus() for name in ("documentsui", "photopicker", "providers.media")):
                 return
             time.sleep(0.5)
-        raise Fail(f"no documentsui window in front. focus: {self.focus() or 'none'}")
+        raise Fail(f"no system picker in front. focus: {self.focus() or 'none'}")
 
     def pick_image(self) -> None:
         deadline = time.monotonic() + 30
@@ -235,7 +236,7 @@ class Journey:
             # uiautomator's dump from the emulator this job started, not untrusted XML.
             tree = ET.fromstring(self.ui_xml() or "<hierarchy/>")
             for node in tree.iter("node"):
-                if PNG_NAME in (node.get("text", "") + node.get("content-desc", "")) or node.get("resource-id", "").endswith(("icon_thumb", "item_root")):
+                if PNG_NAME in (node.get("text", "") + node.get("content-desc", "")) or node.get("resource-id", "").endswith(("icon_thumb", "icon_thumbnail", "item_root")):
                     x0, y0, x1, y1 = map(int, re.findall(r"\d+", node.get("bounds", "0,0,0,0")))
                     adb("shell", "input", "tap", str((x0 + x1) // 2), str((y0 + y1) // 2))
                     return
