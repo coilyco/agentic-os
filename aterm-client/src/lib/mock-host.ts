@@ -235,6 +235,12 @@ export class MockHost implements HostConnection {
     this.emit({ type: "sessions", sessions: this.sessions });
   }
 
+  closeSeat(session: string): void {
+    this.sessions = this.sessions.filter((each) => each.id !== session);
+    this.emit({ type: "seat_closed", session });
+    this.emit({ type: "sessions", sessions: this.sessions });
+  }
+
   close(): void {
     this.timers.forEach(clearTimeout);
     this.listeners.clear();
