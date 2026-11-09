@@ -15,6 +15,8 @@ ANDROID_PLATFORM=android-37.0
 BUILD_TOOLS=36.0.0
 NDK_VERSION=28.2.13676358
 RUST_TARGET=aarch64-linux-android
+# The emulator job runs on an x86_64 runner, so its debug build targets x86_64.
+DEBUG_RUST_TARGET=x86_64-linux-android
 APP_ID=dev.coilyco.treehouse
 KEY_ALIAS=aterm
 UPLOAD_ALIAS=upload
@@ -133,6 +135,26 @@ build() {
   fi
   cp "$(find_unsigned)" "$out"
   echo "unsigned APK: $out"
+}
+
+# build-debug OUT: a debug x86_64 APK for the CI emulator (COI-3485), never shipped.
+# Debug allows cleartext ws:// and a debuggable WebView. Why: references/android.md.
+build_debug() {
+  local out="${1:?usage: build-debug OUT}" code apk
+  code=$(resolve_code)
+  use_java
+  cd "$repo_root"
+  just aterm-client-install
+  VITE_ATERM_APP=1 just aterm-client-build
+  just aterm-android-install
+  rustup target add "$DEBUG_RUST_TARGET"
+  rm -rf "$android_dir/src-tauri/gen/android"
+  just aterm-android-tauri android init --ci
+  just aterm-android-tauri android build --debug --apk --target x86_64 --ci --config "$(tauri_config 0.0.0 "$code")"
+  apk=$(find "$android_dir/src-tauri/gen/android/app/build/outputs/apk" -name '*-debug.apk')
+  [ "$(printf '%s\n' "$apk" | grep -c .)" -eq 1 ] || fail "expected one debug APK, found: ${apk:-none}"
+  cp "$apk" "$out"
+  echo "debug APK: $out"
 }
 
 # Keystore and password come from ATERM_ANDROID_KEYSTORE_* env. Unset: a throwaway key,
@@ -270,9 +292,10 @@ cmd="${1:-}"
 [ $# -gt 0 ] && shift
 case "$cmd" in
   toolchain | build | sign | verify | bundle) "$cmd" "$@" ;;
+  build-debug) build_debug "$@" ;;
   version-code) version_code "$@" ;;
   sign-bundle) sign_bundle "$@" ;;
   verify-bundle) verify_bundle "$@" ;;
   app-id) echo "$APP_ID" ;;
-  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | sign IN OUT | verify APK | bundle VERSION OUT | sign-bundle IN OUT | verify-bundle AAB | version-code [EPOCH] | app-id" ;;
+  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | build-debug OUT | sign IN OUT | verify APK | bundle VERSION OUT | sign-bundle IN OUT | verify-bundle AAB | version-code [EPOCH] | app-id" ;;
 esac
