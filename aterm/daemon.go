@@ -44,8 +44,10 @@ type daemon struct {
 	// notifyLast is when each seat last notified, so a notify holds one per notifyGap.
 	notifyMu   sync.Mutex
 	notifyLast map[string]time.Time
-	tokens     map[string]*ptySession
-	orphans    []*pendingSend
+	// coordinators is the last roster read for the push gate. daemon_gate.go
+	coordinators coordinatorCache
+	tokens       map[string]*ptySession
+	orphans      []*pendingSend
 	// seen is what each seat last listed, name to ref, and retired when each ended name
 	// left the pool. See daemon_names.go.
 	seen       map[string]map[string]string
