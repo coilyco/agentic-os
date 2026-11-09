@@ -405,7 +405,7 @@ sweep-documentation-layout *ARGS:
 sweep-precommit *ARGS:
     @uv run python scripts/sweep-precommit.py "$@"
 
-# Sync GitHub Actions secrets from their SSM sources of truth: the coilyco-ops App id and key, the Sentry fleet DSN on every workflow repo, and a few per-repo keys. Values flow SSM -> `gh secret set` in-process, never disk or argv. `--dry-run` previews the plan, `--check` lists the secret names GitHub holds, `--repo` and `--secret` narrow it. See docs/aos-cli.md.
+# Sync GitHub Actions secrets from their SSM sources of truth: the coilyco-ops App id and key, the Sentry fleet DSN on every workflow repo, a few per-repo keys, and the org-level coilyco-read pair. Values flow SSM -> `gh secret set` in-process, never disk or argv. `--dry-run` previews the plan, `--check` lists the secret names GitHub holds, `--repo` and `--secret` narrow it. See docs/aos-cli.md.
 sync-actions-secrets *ARGS:
     @uv run python scripts/sync-actions-secrets.py "$@"
 

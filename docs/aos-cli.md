@@ -54,9 +54,11 @@ Workflow dispatch accepts an existing or explicit `aos-v*` tag, or the operator 
 - `--repo OWNER/REPO` (repeatable) limits the plan to one repo, because a coilyco-ops App installation token covers one. `--secret NAME` (repeatable) limits it to those names.
 - `--dry-run` prints the `owner/repo: NAME <- ssm /path` plan and a count. `--check` lists, per repo, whether every planned name is present. It reads names, never values.
 
-The plan carries `SENTRY_CI_DSN` on every repo, since the GitHub org plan tier is unverified. It carries `COILYCO_OPS_APP_ID` and `COILYCO_OPS_APP_PRIVATE_KEY_BASE64` on `agentic-os`, `umbra` and `agent-compose`, the repos whose workflows push to the tap, the bucket or a release. A workflow decodes the key and mints a short-lived installation token, so no long-lived token is stored.
+The plan carries `SENTRY_CI_DSN` on every repo, since the GitHub org plan tier is unverified. It carries `COILYCO_OPS_APP_ID` and `COILYCO_OPS_APP_PRIVATE_KEY_BASE64` on `agentic-os`, `umbra` and `agent-compose`, the repos whose workflows push to the tap, the bucket or a release.
 
-The Forgejo-era PATs (`CI_RELEASE_TOKEN`, `TAP_WRITE_TOKEN`, `SCOOP_WRITE_TOKEN`, `DEPLOY_PUSH_TOKEN`, `REGISTRY_READ_TOKEN`) were never copied to GitHub and left the mapping with the Forgejo target. Secrets with no GitHub source yet (`REGISTRY_*`, `ECO_MOD_PACKAGE_TOKEN`, `MODIO_ACCESS_TOKEN`, `TEST_PYPI_TOKEN`, the Sentry browser DSNs) arrive with the repo that reads them.
+`ORG_SECRETS` holds org-level secrets with selected visibility, set by `gh secret set --org`. It carries the coilyco-read pair (`COILYCO_TREEHOUSE_READ_APP_ID`, `..._PRIVATE_KEY_BASE64`) for the private agent-compose fetch (COI-3302), base64-encoding the raw SSM PEM. A repo-level copy would shadow it, so `MAPPING` never lists the pair. `--repo` runs skip org secrets.
+
+The Forgejo-era PATs were never copied to GitHub. A secret with no GitHub source yet arrives with the repo that reads it.
 
 ## Local validation
 
