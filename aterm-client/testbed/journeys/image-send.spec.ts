@@ -17,7 +17,7 @@ for (const working of [false, true]) {
     await page.locator('form.composer input[type="file"]').setInputFiles({ name: "shot.png", mimeType: "image/png", buffer: PIXEL });
     await expect(page.getByRole("button", { name: "Remove image 1" })).toBeVisible();
     await page.locator("#composer-input").fill("found some missing icons");
-    await page.locator("#composer-input").press("Enter");
+    await page.locator("form.composer button.primary").click();
 
     await expect.poll(() => bed.mock.typed(SEATS.imp.id).at(-1)).toBe("\r");
     expect(bed.mock.uploads, "the host took the picture's own bytes").toHaveLength(1);
