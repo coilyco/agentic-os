@@ -227,6 +227,7 @@ func runDaemonSession(daemon *conn, options sessionOptions, name string, stdout,
 		Cwd:      cwd,
 		Rows:     rows,
 		Cols:     cols,
+		Origin:   originWindow,
 	})
 	if err != nil {
 		fmt.Fprintf(stderr, "\naterm: %v\n", err)
@@ -273,6 +274,7 @@ func runHeadlessSession(options sessionOptions, name string, stderr io.Writer) i
 		Cwd:      cwd,
 		Rows:     headlessRows,
 		Cols:     headlessCols,
+		Origin:   originHeadless,
 	})
 	if err != nil {
 		fmt.Fprintf(stderr, "aterm: %v\n", err)

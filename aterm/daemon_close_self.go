@@ -23,6 +23,23 @@ func closeHeld(s *ptySession, force bool) error {
 	return withExit(exitUsage, fmt.Errorf("%s holds %s, so it stays open unless forced", s.name, held))
 }
 
+// closeUnpushed refuses a close by target while the seat holds work no remote has, unless
+// forced. Not the self close. See references/seat-state.md.
+func closeUnpushed(s *ptySession, force bool) error {
+	if force {
+		return nil
+	}
+	s.mu.Lock()
+	cwd := s.cwd
+	s.mu.Unlock()
+	work := unpushedWork(cwd)
+	if work == "" {
+		return nil
+	}
+	return withReason(reasonUnpushedWork, withExit(exitUsage, fmt.Errorf(
+		"%s holds unpushed work in %s, so it stays open unless forced", s.name, work)))
+}
+
 // closeSelf ends the session the caller's token names, never a Target (COI-3403). The
 // caller runs inside it, so the reply goes first and the end follows selfCloseDelay on.
 func (d *daemon) closeSelf(cl *client, message frame) error {
