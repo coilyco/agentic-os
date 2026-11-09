@@ -4,6 +4,7 @@
   import LinkBanner from "./components/LinkBanner.svelte";
   import Sidebar from "./components/Sidebar.svelte";
   import SeatToast from "./components/SeatToast.svelte";
+  import ShareSheet from "./components/ShareSheet.svelte";
   import OpenedPageCard from "./components/OpenedPageCard.svelte";
   import { app, sessionById, waitingSeats } from "./lib/app.svelte";
   import { roleFor } from "./lib/sessions";
@@ -17,7 +18,7 @@
   // The title is what the Windows alt-tab switcher shows, so it names who is waiting.
   $effect(() => {
     const first = waiting[0];
-    document.title = first ? `(${waiting.length}) ${first.identity} ${first.kind === "asking" ? "asking" : "left a page"} // aterm` : "aterm";
+    document.title = first ? `(${waiting.length}) ${first.identity} ${first.kind === "asking" ? "asking" : "left a page"} // Treehouse` : "Treehouse";
     const badge = navigator as Navigator & { setAppBadge?: (count: number) => Promise<void>; clearAppBadge?: () => Promise<void> };
     if (waiting.length) void badge.setAppBadge?.(waiting.length).catch(() => {});
     else void badge.clearAppBadge?.().catch(() => {});
@@ -32,6 +33,7 @@
 <SeatToast />
 <OpenedPageCard />
 <FeedbackSheet />
+<ShareSheet />
 <div class="shell">
   <Sidebar />
   <main>

@@ -338,7 +338,7 @@
       </div>
     {/if}
   {:else}
-    <div class="mark">ATERM</div>
+    <div class="mark">TREEHOUSE</div>
     {@render hostsGroup()}
     {#if app.attachedHostId}
       {@render runningGroup()}
@@ -457,7 +457,7 @@
     .seats .harness { padding: 0; border: none; font-size: 11px; color: var(--muted); }
     .seats .code-inline { display: inline; }
     .scrim { position: fixed; inset: 0; z-index: -1; background: rgb(0 0 0 / 0.55); }
-    .menu[data-flow="sheet"] { position: absolute; top: 100%; left: 0; right: 0; max-height: calc(100dvh - 49px); overflow-y: auto; overscroll-behavior: contain; padding: 0 8px calc(12px + env(safe-area-inset-bottom)); background: var(--ground); border-bottom: 1px solid var(--line); box-shadow: 0 12px 16px rgb(0 0 0 / 0.4); }
+    .menu[data-flow="sheet"] { position: absolute; top: 100%; left: 0; right: 0; max-height: calc(100dvh - 49px); overflow-y: auto; overscroll-behavior: contain; padding: 0 8px calc(12px + var(--bottom-clear)); background: var(--ground); border-bottom: 1px solid var(--line); box-shadow: 0 12px 16px rgb(0 0 0 / 0.4); }
     /* With no seat on screen the lists are the page: today's rows, tight, above the host's own panel. */
     .menu[data-flow="page"] { padding: 4px 0; display: flex; flex-direction: column; gap: 4px; }
     .menu[data-flow="page"] h2, .menu[data-flow="page"] .detail { display: none; }

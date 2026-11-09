@@ -14,7 +14,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var mcpToolNames = []string{"add_artifact", "ask_choice", "clear_session", "close_session", "list_agents", "read_messages", "remove_artifact", "send_message", "send_user_question", "session_status", "set_artifact_waiting", "stage_command"}
+var mcpToolNames = []string{"add_artifact", "ask_choice", "clear_session", "close_session", "list_agents", "notify_kai", "read_messages", "remove_artifact", "send_message", "send_user_question", "session_status", "set_artifact_waiting", "stage_command"}
 
 func fakeBackend() mcpBackend {
 	return mcpBackend{
@@ -60,6 +60,12 @@ func fakeBackend() mcpBackend {
 				return frame{}, errors.New("no artifact \"missing\"")
 			}
 			return frame{}, nil
+		},
+		notify: func(title, body string) (notifyResult, error) {
+			if title == "refused" {
+				return notifyResult{}, errors.New("not_coordinator: only a coordinator role may notify Kai")
+			}
+			return notifyResult{ID: "n1", Session: "prod-director-griffin-goose", Delivered: 2}, nil
 		},
 		inbox: func(all bool) ([]inboxMessage, error) {
 			if all {
@@ -168,6 +174,7 @@ func TestMCPCallsEveryTool(t *testing.T) {
 		{"clear_session", map[string]any{"to": "ox"}, "typed /clear into ox"},
 		{"close_session", map[string]any{"to": "ox", "force": true}, "closed ox (exit 0)"},
 		{"stage_command", map[string]any{"command": "ls", "note": "check"}, "staged in terminal-abc. Nothing ran"},
+		{"notify_kai", map[string]any{"title": "Decision", "body": "Ship it?"}, `"id": "n1"`},
 		{"add_artifact", map[string]any{"url": "https://claude.ai/artifact/abc", "title": "T", "source": "/x/y.html"}, "added abc, shown to 2 clients"},
 		{"set_artifact_waiting", map[string]any{"artifact": "abc", "waiting": true}, "waiting true"},
 		{"remove_artifact", map[string]any{"artifact": "abc"}, "removed"},
@@ -192,6 +199,7 @@ func TestMCPReportsToolFailuresAsOutputNotProtocolErrors(t *testing.T) {
 		arguments map[string]any
 		want      string
 	}{
+		{"a refusal keeps its reason", "notify_kai", map[string]any{"title": "refused", "body": "x"}, "not_coordinator: only a coordinator"},
 		{"backend error", "send_message", map[string]any{"to": "nobody", "message": "hi"}, "no live session answers to nobody"},
 		{"failed delivery", "send_message", map[string]any{"to": "ox", "message": "fail"}, "failed m1 to ox"},
 		{"inbox error", "read_messages", map[string]any{"all": true}, "inbox of all"},

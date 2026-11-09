@@ -36,6 +36,7 @@ type mcpBackend struct {
 	artifact    func(frame) (frame, error)
 	ask         func(choiceAsk) (choiceAnswer, error)
 	inbox       func(all bool) ([]inboxMessage, error)
+	notify      func(title, body string) (notifyResult, error)
 }
 
 var liveBackend = mcpBackend{
@@ -49,6 +50,7 @@ var liveBackend = mcpBackend{
 	artifact:    artifactCall,
 	ask:         askChoice,
 	inbox:       readInbox,
+	notify:      notifyKai,
 }
 
 type askOptionInput struct {
@@ -105,6 +107,11 @@ type addArtifactInput struct {
 	Source   string `json:"source" jsonschema:"the artifact's HTML source file, under your working directory or scratchpad, at most 2 MiB"`
 	Waiting  bool   `json:"waiting,omitempty" jsonschema:"mark it as waiting on Kai"`
 	Standing bool   `json:"standing,omitempty" jsonschema:"keep it after your session ends and across a daemon restart"`
+}
+
+type notifyKaiInput struct {
+	Title string `json:"title" jsonschema:"what happened, one line, at most 60 characters"`
+	Body  string `json:"body" jsonschema:"what Kai needs to decide or know, at most 140 characters"`
 }
 
 type artifactRefInput struct {
@@ -172,6 +179,21 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 		ask.Relay = true
 		return backend.ask(ask)
 	}))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "notify_kai",
+		Description: "Ping Kai on her aterm client: a chime and a desktop notification, and a push on her phone " +
+			"when the app is closed. Only a coordinator seat may call it, and any other is refused. Use it " +
+			"for a real decision or a result that needs her, never for routine status, progress, or a step " +
+			"that finished. One per ten seconds per seat. Tapping it opens your seat. Give a `title` of at " +
+			"most 60 characters and a `body` of at most 140. Returns the notify id and how many clients were offered it.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, input notifyKaiInput) (*mcp.CallToolResult, any, error) {
+		result, err := backend.notify(input.Title, input.Body)
+		if err != nil {
+			return textResult(err.Error(), true)
+		}
+		return jsonResult(result)
+	})
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name: "list_agents",

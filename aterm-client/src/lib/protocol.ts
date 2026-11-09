@@ -64,6 +64,8 @@ export interface Session {
   context?: ContextReading;
   /** First line of its last finished reply. Absent until read or from an old daemon. */
   lastReply?: string;
+  /** When that reply ended, in ms. Absent from a daemon without `last-reply`. */
+  lastReplyAt?: number;
   /** When it last wrote, in ms. Absent from a daemon that predates `quiet_seconds`. */
   quietSince?: number;
   /** When the daemon first saw its present state, in ms. Absent from an old daemon. */
@@ -193,6 +195,12 @@ export interface TerminalChannel {
   close(id: string): void;
 }
 
+/** A seat's whole last reply. The session view carries only its first line (COI-3253). */
+export interface LastReplyChannel {
+  /** Resolves the text. `truncated` says the host cut it. Rejects in words. */
+  fetch(sessionId: string): Promise<{ text: string; truncated: boolean }>;
+}
+
 /** Images for a seat (COI-3240). No daemon has one yet (COI-3239). */
 export interface ImageChannel {
   /** The host's own limit in bytes, so the client never guesses one. */
@@ -262,6 +270,8 @@ export interface HostConnection {
   readonly browser?: BrowserChannel;
   readonly terminals?: TerminalChannel;
   readonly images?: ImageChannel;
+  /** Only a daemon with `last-reply` has one. */
+  readonly lastReplies?: LastReplyChannel;
   readonly feedback?: FeedbackChannel;
   subscribe(listener: (event: HostEvent) => void): () => void;
   /** Dial now, skipping the backoff. Only a connection that redials has it. */

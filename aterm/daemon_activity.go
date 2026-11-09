@@ -18,7 +18,10 @@ const activityFeature = "activity"
 
 // cleanActivity is the stored form of a seat's line: unsafe characters dropped, white
 // space read as one space, then cut to maxActivityRunes. See references/seat-state.md.
-func cleanActivity(text string) string {
+func cleanActivity(text string) string { return cleanLine(text, maxActivityRunes) }
+
+// cleanLine is cleanActivity at any width, which a notify's title and body share.
+func cleanLine(text string, limit int) string {
 	text = strings.ToValidUTF8(text, "")
 	var b strings.Builder
 	space := false
@@ -36,10 +39,10 @@ func cleanActivity(text string) string {
 		}
 	}
 	out := b.String()
-	if utf8.RuneCountInString(out) <= maxActivityRunes {
+	if utf8.RuneCountInString(out) <= limit {
 		return out
 	}
-	return strings.TrimRight(string([]rune(out)[:maxActivityRunes]), " ")
+	return strings.TrimRight(string([]rune(out)[:limit]), " ")
 }
 
 // setActivity stores a seat's own line and when it was set. A repeat of the same

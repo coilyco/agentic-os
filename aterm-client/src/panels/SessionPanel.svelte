@@ -4,6 +4,7 @@
   import ChoiceCard from "../components/ChoiceCard.svelte";
   import CloseSeat from "../components/CloseSeat.svelte";
   import Composer from "../components/Composer.svelte";
+  import LastReply from "../components/LastReply.svelte";
   import RelayNotice from "../components/RelayNotice.svelte";
   import SidePanel from "../components/SidePanel.svelte";
   import SplitHandle from "../components/SplitHandle.svelte";
@@ -286,6 +287,8 @@
             place={placeNow()}
             working={session.state === "working" && !blank}
           />
+          <!-- Gives way to the keyboard, so the pin never takes the terminal's last lines. -->
+          {#if narrow && !layout.reading}<LastReply {session} connection={app.connection} hidden={app.composing} />{/if}
         {/key}
       {/if}
     </div>

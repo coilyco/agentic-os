@@ -185,9 +185,12 @@ type frame struct {
 
 	// browser_*. State, Reason, Force and Data carry the shared fields above.
 	// Params, shared with the MCP Apps frames, is declared below.
-	Driver   string          `json:"driver,omitempty"`
-	URL      string          `json:"url,omitempty"`
-	Title    string          `json:"title,omitempty"`
+	Driver string `json:"driver,omitempty"`
+	URL    string `json:"url,omitempty"`
+	Title  string `json:"title,omitempty"`
+	// Notify is a `notify` event for clients, and NotifyID the id a `notified` reply names.
+	Notify   *notifyEvent    `json:"notify,omitempty"`
+	NotifyID string          `json:"notify_id,omitempty"`
 	Holder   string          `json:"holder,omitempty"`
 	Tab      int             `json:"tab,omitempty"`
 	Tabs     int             `json:"tabs,omitempty"`
@@ -352,6 +355,10 @@ const (
 
 // originFeature is how a client knows a view may carry `origin`.
 const originFeature = "origin"
+
+// notifyFeature is how a client knows the daemon sends `notify` events and answers a
+// `notify` frame from a coordinator seat.
+const notifyFeature = "notify"
 
 // reopenFeature is how a client knows the daemon answers a reopen frame.
 const reopenFeature = "reopen"
