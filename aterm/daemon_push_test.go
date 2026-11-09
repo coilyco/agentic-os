@@ -237,6 +237,7 @@ func standInPushService(t *testing.T) <-chan []byte {
 }
 
 func TestDaemonPushesAnAskToASubscribedBrowserThatIsNotConnected(t *testing.T) {
+	notifyRoster(t, "eng-platform")
 	t.Setenv(stateDirEnv, t.TempDir())
 	bodies := standInPushService(t)
 	key := mustKey(t)
@@ -358,6 +359,7 @@ func mustKey(t *testing.T) string {
 }
 
 func TestWatchWaitingPushesWhenALiveSeatEndsItsTurn(t *testing.T) {
+	notifyRoster(t, "eng-platform")
 	d := newDaemon(func(string, ...any) {})
 	store, _ := loadPushStore("")
 	if err := d.local().setupPush(mustKey(t), store); err != nil {
