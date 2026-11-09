@@ -126,6 +126,17 @@ export interface SeatArtifact {
   seatEnded: boolean;
 }
 
+/** What the daemon sends for a coordinator seat's ping. Web Push has the same words. */
+export interface Notify {
+  id: string;
+  session: string;
+  role: string;
+  identity: string;
+  title: string;
+  body: string;
+  at: number;
+}
+
 export type HostEvent =
   | { type: "roster"; roles: Role[] }
   | { type: "sessions"; sessions: Session[] }
@@ -134,6 +145,8 @@ export type HostEvent =
   | { type: "notice"; text: string }
   // A seat asked to open a page. Its name is the label, and the daemon names no pane.
   | { type: "open_url"; session: string; url: string }
+  // The coordinator seat pinged Kai with its notify tool (COI-3517). Played once per id.
+  | { type: "notify"; notify: Notify }
   // Typed input not taken for a reason the lock does not show, or lost to a dead socket.
   | { type: "input_refused"; text: string }
   | { type: "ask"; ask: Ask }
