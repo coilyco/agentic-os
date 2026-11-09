@@ -4,6 +4,7 @@
   import Creature from "./Creature.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
+  import TapTraceSwitch from "./TapTraceSwitch.svelte";
   import { app, askLineFor, asksShownOn, colorOf, glowSeats, layout, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
@@ -320,6 +321,7 @@
           <AttentionSwitches compact />
         {/if}
         <div class="feedback"><FeedbackEntry onopen={closeMenu} /></div>
+        <TapTraceSwitch />
       </div>
     {/if}
   {:else}
@@ -332,6 +334,7 @@
     {/if}
     <AttentionSwitches />
     <div class="feedback"><FeedbackEntry /></div>
+    <TapTraceSwitch />
   {/if}
 </nav>
 {#if hover && preview}
