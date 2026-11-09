@@ -44,6 +44,8 @@ plan() {
     workflow_dispatch)
       build=true
       if [ "${DRY_RUN:-false}" = true ]; then publish=false; else publish=true; fi
+      # A debug dispatch builds one debuggable APK in its own job and nothing else.
+      case "${DEBUG_ABI:-none}" in none | "") ;; *) build=false publish=false ;; esac
       ;;
     *) build=true publish=false ;;
   esac
