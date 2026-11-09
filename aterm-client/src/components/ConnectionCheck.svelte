@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { checkHops, type HopReport, type HopStatus, LIMITS, reportText, TITLES } from "../lib/hops";
+  import { openLink } from "../lib/link-notice.svelte";
+  import { inApp } from "../lib/open-external";
   import type { Host } from "../lib/protocol";
 
   let { host, auto = false }: { host: Host; auto?: boolean } = $props();
@@ -94,7 +96,7 @@
     <div class="actions">
       <button class="button primary" type="button" onclick={send}>Copy report for prod-director</button>
       {#if broken && report.page}
-        <a class="button" href={report.page} target="_blank" rel="noopener">Open {host.label} in a tab</a>
+        <a class="button" href={report.page} target="_blank" rel="noopener" onclick={(event) => { if (inApp() && report?.page) { event.preventDefault(); void openLink(report.page); } }}>Open {host.label} in a tab</a>
       {/if}
     </div>
     <p class="note" role="status">{copy === "done" ? "Copied. Paste it to prod-director." : copy === "failed" ? "This page cannot write the clipboard. The report is selected below, so copy it by hand." : ""}</p>
