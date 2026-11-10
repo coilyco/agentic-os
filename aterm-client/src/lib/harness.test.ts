@@ -20,6 +20,19 @@ describe("harnessInputRows", () => {
     expect(harnessInputRows(screen)).toBe(5);
   });
 
+  it("finds a box with a notice under the rule, which is one row taller (COI-3576)", () => {
+    const notice = "* No checker is installed, or the one you named in `checker` is missing";
+    const screen = [...text(6), "─".repeat(60) + " seat ─", "❯ ", rule, notice, "", "  ⏵⏵ bypass permissions on (shift+tab to cycle) · ← 1 agent"];
+    expect(harnessInputRows(screen)).toBe(6);
+    expect(harnessBox(screen)).toEqual({ top: 6, height: 6 });
+  });
+
+  it("does not read a frame with no bottom rule as the box, which the client holds through (COI-3576)", () => {
+    const notice = "* No checker is installed, or the one you named in `checker` is missing";
+    const screen = [...text(6), "─".repeat(60) + " seat ─", "❯ █", "", notice, "──⏵⏵─bypass─permissions─on─(shift+tab─to─cycle)─· ← 1 agent"];
+    expect(harnessInputRows(screen)).toBe(0);
+  });
+
   it("finds opencode's left-rail box, with its hint row and the path row under it", () => {
     // A real opencode 1.18 start screen. Its box has no rules.
     const screen = [

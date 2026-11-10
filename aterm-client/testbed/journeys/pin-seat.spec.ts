@@ -48,6 +48,19 @@ test.describe("pin a seat", () => {
   });
 });
 
+// COI-3562: the pin takes row width, so the harness tag gives way before the name.
+test("a long seat name shows whole beside the pin", async ({ bed }, info) => {
+  const phone = kindOf(info) === "phone";
+  await bed.openSeat(SEATS.imp);
+  await openList(bed.page, phone);
+  for (const identity of ["Imp-Dragonfly", "Griffin-Goose"]) {
+    const name = bed.page.locator(".seat-row").filter({ hasText: identity }).locator(".name").first();
+    await expect(name).toHaveText(identity);
+    const cut = await name.evaluate((el) => el.scrollWidth > el.clientWidth);
+    expect(cut, `${identity} is cut with an ellipsis`).toBe(false);
+  }
+});
+
 test.describe("pinned by default", () => {
   test.use({ mockOptions: { pinnedRoles: ["prod-director"] } });
 

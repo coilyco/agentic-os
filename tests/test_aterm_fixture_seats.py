@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import shutil
@@ -15,6 +16,17 @@ from pathlib import Path
 import pytest
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "aterm_fixture_seats.py"
+
+def _load():
+    spec = importlib.util.spec_from_file_location("fixture_seats", SCRIPT)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["fixture_seats"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+fixtures = _load()
 needs_aterm = pytest.mark.skipif(shutil.which("aterm") is None, reason="needs the aterm binary on PATH")
 
 
@@ -52,22 +64,93 @@ def daemon():
     shutil.rmtree(root, ignore_errors=True)
 
 
+class Watcher:
+    """A client on the daemon's unix socket that keeps what the sessions channel pushes."""
+
+    def __init__(self, path: str):
+        self.sock = socket.socket(socket.AF_UNIX)
+        self.sock.settimeout(40)
+        self.sock.connect(path)
+        self.wire = self.sock.makefile("rw", buffering=1)
+        self.send({"type": "hello", "format": "aterm.daemon.v1", "version": "test"})
+        self.welcome = json.loads(self.wire.readline())
+        self.send({"type": "subscribe", "id": "s", "channel": "sessions"})
+
+    def send(self, frame: dict) -> None:
+        self.wire.write(json.dumps(frame) + "\n")
+
+    def frames(self):
+        while True:
+            line = self.wire.readline()
+            if not line:
+                return
+            yield json.loads(line)
+
+
 @needs_aterm
 def test_up_raises_a_stamped_card_and_down_removes_the_seats(daemon) -> None:
     path, env = daemon
-    assert script("up", "--socket", path, env=env).stdout.count("spawned") == 2
-    assert script("up", "--socket", path, env=env).stdout.count("already up") == 2
-    watcher = socket.socket(socket.AF_UNIX)
-    watcher.settimeout(20)
-    watcher.connect(path)
-    wire = watcher.makefile("rw", buffering=1)
-    wire.write(json.dumps({"type": "hello", "format": "aterm.daemon.v1", "version": "test"}) + "\n")
-    wire.readline()
-    wire.write(json.dumps({"type": "subscribe", "id": "s", "channel": "sessions"}) + "\n")
-    ask = None
-    while ask is None:
-        frame = json.loads(wire.readline())
-        ask = frame.get("ask") if frame.get("type") == "ask" else None
-    assert ask["from"] == "fixture Cards" and [o["label"] for o in ask["options"]] == ["red", "green", "blue"]
+    count = len(fixtures.SEATS)
+    assert script("up", "--socket", path, env=env).stdout.count("spawned") == count
+    assert script("up", "--socket", path, env=env).stdout.count("already up") == count
+    ask = next(f["ask"] for f in Watcher(path).frames() if f.get("type") == "ask" and f["ask"]["from"] == "fixture Cards")
+    assert [o["label"] for o in ask["options"]] == ["red", "green", "blue"]
     assert "closed" in script("down", "--socket", path, env=env).stdout
-    assert script("status", "--socket", path, env=env).stdout.count("not up") == 2
+    assert script("status", "--socket", path, env=env).stdout.count("not up") == count + 1
+
+
+@needs_aterm
+def test_the_free_text_card_allows_other_and_the_seat_prints_beside_it(daemon) -> None:
+    path, env = daemon
+    script("up", "--socket", path, env=env)
+    ask = next(f["ask"] for f in Watcher(path).frames() if f.get("type") == "ask" and f["ask"]["from"] == "fixture Free text")
+    assert ask.get("allowOther") or ask.get("allow_other"), ask
+    status = subprocess.run(["aterm", "status", "fixture-free"], env=env, capture_output=True, text=True, check=False, timeout=20)
+    assert "output while the card is open" in status.stdout
+
+
+@needs_aterm
+def test_a_toggler_raises_its_card_and_then_ends_it_on_its_own(daemon) -> None:
+    path, env = daemon
+    script("up", "--socket", path, env=env)
+    asked: dict[str, str] = {}
+    for f in Watcher(path).frames():
+        if f.get("type") == "ask" and f["ask"]["from"] == "fixture Flip A":
+            asked[f["ask"]["id"]] = "open"
+        if f.get("type") == "asked" and f.get("ask_id") in asked and f.get("state") == "cancelled":
+            return
+    raise AssertionError("the card never ended by itself")
+
+
+@needs_aterm
+def test_the_reply_seat_publishes_last_reply_and_the_others_do_not(daemon) -> None:
+    path, env = daemon
+    script("up", "--socket", path, env=env)
+    watcher = Watcher(path)
+    if "last-reply" not in watcher.welcome.get("features", []):
+        pytest.skip("this aterm daemon predates last_reply")
+    seen: dict[str, str] = {}
+    for f in watcher.frames():
+        for row in f.get("sessions") or []:
+            seen[row["name"]] = row.get("last_reply", "")
+        if seen.get("fixture-reply"):
+            break
+    assert seen["fixture-reply"] == "Fixture reply: the build is green."
+    assert not seen.get("fixture-quiet")
+    watcher.send({"type": "last_reply", "id": "r", "target": "fixture-reply"})
+    reply = next(f for f in watcher.frames() if f.get("type") == "last_reply")
+    assert "second paragraph" in reply["reply"]["text"]
+
+
+@needs_aterm
+def test_the_wide_client_holds_the_wide_seat_at_its_columns_until_down(daemon) -> None:
+    path, env = daemon
+    script("up", "--socket", path, env=env)
+    assert "wide client up" in script("status", "--socket", path, env=env).stdout
+    # A phone-sized client attaches, and the daemon says the largest client's size.
+    phone = Watcher(path)
+    phone.send({"type": "attach", "id": "p", "session": fixtures.WIDE_SEAT, "rows": 24, "cols": 40, "scales": True})
+    size = next(f for f in phone.frames() if f.get("type") == "size")
+    assert size["cols"] == fixtures.WIDE_COLS, size
+    assert "wide client stopped" in script("down", "--socket", path, env=env).stdout
+    assert "wide client not up" in script("status", "--socket", path, env=env).stdout
