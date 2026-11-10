@@ -1,6 +1,6 @@
 # The Focus, Default and Verbose views
 
-A seat on a host whose welcome lists `transcript` shows three views of it, read from the transcript the daemon takes from the seat's own harness files (claude, codex, opencode). COI-3532. Kai chose the three stops, Focus as the phone default, and one release behind the daemon read. The frame belongs to the daemon, so the daemon's own `transcript.md` reference is the contract. This page is the client half.
+A seat on a host whose welcome lists `transcript` shows three views of it, read from the transcript the daemon takes from the seat's own harness files (claude, codex, opencode). COI-3532. Kai chose the three stops, Focus as the phone default, and one release behind the daemon read. The frame belongs to the daemon, so [transcript.md](transcript.md) is the contract. This page is the client half.
 
 ## The rule
 
