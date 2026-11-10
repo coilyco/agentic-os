@@ -64,6 +64,7 @@ func (d *daemon) transcript(cl *client, message frame) error {
 	if err != nil {
 		return withReason(reasonNoTranscript, fmt.Errorf("%s has no ledger record to find its transcript by: %w", s.name, errNoTranscript))
 	}
+	entry = withLiveCwd(entry, s.pid)
 	reply, err := transcriptOf(entry, recorded, transcriptRequest{Limit: message.Limit, Before: message.Before, Since: message.Since})
 	if err != nil {
 		return err
