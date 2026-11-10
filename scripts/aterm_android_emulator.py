@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["websockets==15.0.1"]
+# dependencies = []
 # ///
 """Drive one Android emulator running the real Treehouse app, for a Frontend seat.
 
@@ -22,6 +22,8 @@ import time
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
+
+import aterm_devtools
 
 EXIT_USAGE, EXIT_FAIL, EXIT_LOCK, EXIT_PRESSURE, EXIT_NO_DEVICE = 2, 1, 6, 7, 8
 LOCK_DIR = "/data/local/tmp/treehouse-emulator.lock"
@@ -319,30 +321,21 @@ class Emulator:
         self.adb("forward", f"tcp:{remote}", f"localabstract:{want}")
         return f"http://127.0.0.1:{c.devtools_port}"
 
-    def page(self) -> tuple[str, str]:
+    def page(self) -> str:
+        """The debugger URL of the app's page, on the local end of the DevTools forward."""
         base = self.devtools()
         with urllib.request.urlopen(f"{base}/json/list", timeout=10) as resp:
-            pages = json.load(resp)
-        pages = [p for p in pages if p.get("type") == "page"]
-        ours = [p for p in pages if p.get("url", "").startswith("https://tauri.localhost")] or pages
-        if not ours:
+            url = aterm_devtools.choose_page(json.load(resp), self.cfg.devtools_port)
+        if not url:
             raise Refused("the app's WebView has no page yet", EXIT_NO_DEVICE)
-        port = base.rsplit(":", 1)[1]
-        return base, re.sub(r"ws://[^/]+", f"ws://127.0.0.1:{port}", ours[0]["webSocketDebuggerUrl"])
+        return url
 
     def evaluate(self, expression: str):
-        from websockets.sync.client import connect
-
-        _, url = self.page()
-        with connect(url, max_size=None) as sock:
-            sock.send(json.dumps({"id": 1, "method": "Runtime.evaluate", "params": {"expression": expression, "returnByValue": True, "awaitPromise": True}}))
-            while True:
-                reply = json.loads(sock.recv(timeout=20))
-                if reply.get("id") == 1:
-                    break
-        if "exceptionDetails" in reply.get("result", {}):
-            raise Refused(f"the page threw: {reply['result']['exceptionDetails'].get('text')}")
-        return reply["result"]["result"].get("value")
+        try:
+            with aterm_devtools.Page(self.page()) as page:
+                return page.js(expression)
+        except aterm_devtools.DevToolsError as err:
+            raise Refused(str(err)) from err
 
     def webview_bounds(self) -> tuple[int, int]:
         """The WebView's top-left on screen, from the UI tree, in device pixels."""
