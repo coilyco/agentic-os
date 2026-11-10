@@ -75,6 +75,11 @@
   let overflows = $state(false);
   const canWrap = $derived((handheld && overflows) || wrapping);
   const showSize = $derived(narrow || sizing || textSize !== DEFAULT_TEXT_SIZE);
+  // A card overlays the terminal, and on a short screen it reaches the top where these controls sit, over its Hide question (COI-3574).
+  // A new size also resizes the PTY, which makes the harness redraw the menu the card was read from, so they wait for the card.
+  $effect(() => {
+    if (covered) sizing = false;
+  });
   let refit = () => {};
   let finding = $state(false);
   let findSeed = $state("");
@@ -649,7 +654,7 @@
   <span class="edge left" class:on={past.left} aria-hidden="true">‹</span>
   <span class="edge right" class:on={past.right} aria-hidden="true">›</span>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  {#if showSize || canWrap}
+  {#if (showSize || canWrap) && !covered}
   <div class="size" onkeydown={(event) => event.key === "Escape" && (sizing = false)}>
     {#if canWrap}
       <button type="button" class="wrap" aria-pressed={wrapping} aria-label="Wrap long lines" onclick={() => setWrap(!wrapping)}>Wrap</button>
