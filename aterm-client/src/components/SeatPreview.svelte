@@ -14,7 +14,7 @@
 </div>
 
 <style>
-  .preview { position: fixed; z-index: 70; width: 320px; max-width: calc(100vw - 24px); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--accent); border-left-width: 4px; background: var(--surface); color: var(--text); box-shadow: 0 6px 24px #000a; pointer-events: none; }
+  .preview { position: fixed; z-index: 70; width: 320px; max-width: calc(100vw - 24px); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--accent); border-left-width: 4px; background: var(--surface); color: var(--text); box-shadow: 0 6px 24px var(--shade); pointer-events: none; }
   p { margin: 0; }
   .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
   .name { font-family: var(--font-display); font-weight: 600; font-size: 15px; }

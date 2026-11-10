@@ -28,9 +28,22 @@ export function findColours(accent: string, ground: string) {
   };
 }
 
-/** The token's current value, with the shipped green when the page has none to read. */
-export function readToken(name: string, fallback: string): string {
-  if (typeof document === "undefined") return fallback;
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return HEX.test(value) ? value : fallback;
+/** A computed colour as #rrggbb. A derived one computes to `color(srgb ...)`. */
+export function hexOfComputed(painted: string): string | undefined {
+  const parts = /^(rgba?|color)\(\s*(?:srgb\s+)?([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)/.exec(painted);
+  if (!parts) return undefined;
+  const scale = parts[1] === "color" ? 255 : 1;
+  const channels = parts.slice(2, 5).map((part) => Math.min(255, Math.round(Number(part) * scale)));
+  return `#${channels.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Any CSS colour, `var(--token)` included, as #rrggbb for hex-only painters. */
+export function resolveColour(value: string): string {
+  if (typeof document === "undefined") return value;
+  const probe = document.createElement("span");
+  probe.style.color = value;
+  document.documentElement.append(probe);
+  const painted = getComputedStyle(probe).color;
+  probe.remove();
+  return hexOfComputed(painted) ?? value;
 }

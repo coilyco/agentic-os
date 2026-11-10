@@ -9,6 +9,7 @@
   import { AT_END, jumpLabel, linesAbove, scrolled, wrote, type Follow } from "../lib/follow";
   import { envelopeRows } from "../lib/messages";
   import { harnessBox } from "../lib/harness";
+  import { resolveColour } from "../lib/brand";
   import { openLink } from "../lib/link-notice.svelte";
   import { boxToReport, nextTall } from "../lib/pty-size";
   import { detectChoice } from "../lib/choices";
@@ -202,7 +203,7 @@
       lineHeight: LINE_HEIGHT,
       scrollback: SCROLLBACK,
       allowProposedApi: true,
-      theme: { background: "#101216", foreground: "#d4d8e0", cursor: accent, selectionBackground: `${accent}55` },
+      theme: { background: resolveColour("var(--terminal)"), foreground: resolveColour("var(--text-soft)"), cursor: resolveColour(accent), selectionBackground: `${resolveColour(accent)}55` },
     });
     term = terminal;
     // The seat's own window answers terminal queries. A reply from here would be
@@ -632,18 +633,18 @@
   .term-host { touch-action: pan-x pinch-zoom; }
   .term-host.panning { overflow: auto; }
   .term-host.panning :global(.xterm) { width: max-content; }
-  .jump { position: absolute; z-index: 3; right: 28px; bottom: 16px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px #000a; }
+  .jump { position: absolute; z-index: 3; right: 28px; bottom: 16px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px var(--shade); }
   .count { min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: var(--brand-ink); font: 700 12px/22px var(--font-body); text-align: center; }
   .edge { display: flex; position: absolute; z-index: 2; top: 0; bottom: 0; width: 28px; align-items: center; color: var(--text); font: 600 22px var(--font-body); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
-  .edge.left { left: 0; justify-content: flex-start; padding-left: 4px; background: linear-gradient(to right, #101216dd, transparent); }
-  .edge.right { right: 0; justify-content: flex-end; padding-right: 4px; background: linear-gradient(to left, #101216dd, transparent); }
+  .edge.left { left: 0; justify-content: flex-start; padding-left: 4px; background: linear-gradient(to right, var(--terminal-veil), transparent); }
+  .edge.right { right: 0; justify-content: flex-end; padding-right: 4px; background: linear-gradient(to left, var(--terminal-veil), transparent); }
   .edge.on { opacity: 1; }
   .size { position: absolute; z-index: 3; top: 12px; right: 28px; display: flex; align-items: center; gap: 6px; }
-  .size-row { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 12px; border: 1px solid var(--control-line); background: var(--surface); box-shadow: 0 6px 24px #000a; }
+  .size-row { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 12px; border: 1px solid var(--control-line); background: var(--surface); box-shadow: 0 6px 24px var(--shade); }
   .size button { min-width: 44px; min-height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--control-line); background: var(--surface); color: var(--text); font: 600 15px var(--font-body); }
   .size button:disabled { opacity: 0.4; }
   .size output { min-width: 44px; text-align: center; color: var(--muted); font: 600 13px var(--font-body); }
-  .pan { position: absolute; z-index: 2; left: 16px; right: 16px; bottom: 3px; height: 4px; border-radius: 2px; background: #ffffff1f; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+  .pan { position: absolute; z-index: 2; left: 16px; right: 16px; bottom: 3px; height: 4px; border-radius: 2px; background: var(--track); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
   .pan.on { opacity: 1; }
   .pan i { position: absolute; top: 0; bottom: 0; min-width: 12px; border-radius: 2px; background: var(--brand); }
   .size button:focus-visible, .jump:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }

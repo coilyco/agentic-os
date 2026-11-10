@@ -215,13 +215,13 @@
 
 <style>
   /* The question and options scroll inside the card, the buttons never do: the overlay bounds the height. */
-  .card { margin: 0 12px; border-radius: 12px; border: 1px solid var(--brand); background: #17131f; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .card { margin: 0 12px; border-radius: 12px; border: 1px solid var(--brand); background: var(--raised); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
   .body {
     flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
     /* Shadows that show only on the side with more to scroll to. */
     background:
-      linear-gradient(#17131f 30%, transparent) top / 100% 24px local no-repeat,
-      linear-gradient(transparent, #17131f 70%) bottom / 100% 24px local no-repeat,
+      linear-gradient(var(--raised) 30%, transparent) top / 100% 24px local no-repeat,
+      linear-gradient(transparent, var(--raised) 70%) bottom / 100% 24px local no-repeat,
       radial-gradient(farthest-side at 50% 0, rgb(0 0 0 / 0.55), transparent) top / 100% 10px scroll no-repeat,
       radial-gradient(farthest-side at 50% 100%, rgb(0 0 0 / 0.55), transparent) bottom / 100% 10px scroll no-repeat;
   }
@@ -232,25 +232,25 @@
   .progress { margin: 0; font-size: 12px; color: var(--muted); }
   .tabrow { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
   .tab { flex: none; min-height: 36px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 13px var(--font-body); }
-  .tab.current { border-color: var(--brand); background: #1d1729; }
+  .tab.current { border-color: var(--brand); background: var(--selected); }
   .tab:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .done { color: var(--brand); }
   @media (pointer: coarse) { .tab { min-height: 44px; } }
   .card.folded .body { padding: 6px 12px 10px; gap: 2px; overflow: hidden; background: none; }
   .peek { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
-  .chip { margin-left: 10px; padding: 2px 8px; border-radius: 999px; border: 1px solid #3a3350; color: var(--text-soft); text-transform: none; letter-spacing: 0; }
+  .chip { margin-left: 10px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--chip-line); color: var(--text-soft); text-transform: none; letter-spacing: 0; }
   h2 { margin: 0; font-size: 15px; font-weight: 500; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere; }
   .hint { margin: 0; font-size: 13px; color: var(--muted); }
-  .notice { margin: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid #3a3350; font-size: 13px; color: var(--text-soft); }
+  .notice { margin: 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--chip-line); font-size: 13px; color: var(--text-soft); }
   ol[hidden], .keys[hidden] { display: none; }
   ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
   .option { width: 100%; min-height: 44px; display: flex; gap: 12px; align-items: flex-start; text-align: left; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--control-line); background: var(--surface); color: var(--text); }
-  .option[aria-pressed="true"] { border-color: var(--brand); background: #1d1729; }
+  .option[aria-pressed="true"] { border-color: var(--brand); background: var(--selected); }
   /* A touch screen keeps :hover on the last thing tapped, so only a pointer that can hover paints it (COI-3334). */
-  @media (hover: hover) { .option:hover { border-color: var(--brand); background: #1d1729; } }
+  @media (hover: hover) { .option:hover { border-color: var(--brand); background: var(--selected); } }
   /* Plain :focus too, since focus set by script may not count as visible. */
-  .option:focus { outline: 2px solid var(--brand); outline-offset: 2px; border-color: var(--brand); background: #1d1729; }
-  .number { flex: none; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font: 12px var(--font-mono); color: var(--brand); border: 1px solid #3a3350; }
+  .option:focus { outline: 2px solid var(--brand); outline-offset: 2px; border-color: var(--brand); background: var(--selected); }
+  .number { flex: none; width: 22px; height: 22px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font: 12px var(--font-mono); color: var(--brand); border: 1px solid var(--chip-line); }
   [aria-pressed="true"] .number { background: var(--brand); color: var(--brand-ink); }
   .text { display: flex; flex-direction: column; gap: 2px; }
   .label { font-weight: 600; }

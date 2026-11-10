@@ -388,8 +388,8 @@
   .seat-row.stacked { flex: none; flex-direction: column; align-items: stretch; gap: 4px; }
   .seat-row.stacked .tab { flex: 1 0 auto; width: auto; }
   .tab { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: none; border-radius: 8px; background: transparent; color: var(--text); text-align: left; }
-  .tab:hover { background: #171a21; }
-  .tab[aria-selected="true"] { background: #1d1729; box-shadow: inset 0 0 0 1px #3a3350; }
+  .tab:hover { background: var(--hover); }
+  .tab[aria-selected="true"] { background: var(--selected); box-shadow: inset 0 0 0 1px var(--chip-line); }
   .seat[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--ground)); box-shadow: inset 0 0 0 1px var(--accent); }
   /* A waiting seat is a faint tint and a thin rail. The "?" or dot on the avatar and the brand-coloured name do the telling. */
   .seat[data-glow="true"] { background: color-mix(in srgb, var(--accent) 9%, var(--ground)); box-shadow: inset 2px 0 0 var(--accent); }
@@ -449,7 +449,7 @@
   .start :global(.creature) { opacity: 0.7; }
   .start[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--ground)); box-shadow: inset 0 0 0 1px var(--accent); }
   .detail { font-size: 12px; color: var(--muted); }
-  [data-kind="unreachable"] .detail, [data-state="failed"] .detail { color: #ff9aa5; }
+  [data-kind="unreachable"] .detail, [data-state="failed"] .detail { color: var(--danger-detail); }
   .detail, .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .waiting { margin: 0 10px; color: var(--muted); font-size: 14px; }
 
@@ -459,7 +459,7 @@
     .bar { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 4px 8px 4px 12px; background: var(--ground); }
     .bar.on-seat { min-height: 48px; padding: 2px 8px; }
     .switcher { flex: 1; min-width: 0; min-height: 44px; padding: 0 10px; display: flex; align-items: center; gap: 10px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font-weight: 600; text-align: left; }
-    .switcher[aria-expanded="true"] { border-color: var(--accent, var(--brand)); background: #1d1729; }
+    .switcher[aria-expanded="true"] { border-color: var(--accent, var(--brand)); background: var(--selected); }
     .switcher .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-display); font-size: 16px; }
     .switcher .state { flex: none; font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--accent, var(--line)); color: var(--text-soft); font-weight: 400; }
     .elsewhere { flex: none; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--brand); color: var(--brand-ink); }
@@ -514,7 +514,7 @@
   .sidebar[data-mode="reading"] { width: 52px; flex: none; position: relative; z-index: 7; padding: 0; gap: 0; overflow: visible; border-right: 1px solid var(--line); border-bottom: none; }
   .sidebar[data-mode="reading"] .bar { flex-direction: column; align-items: center; min-height: 0; height: 100%; padding: 4px; }
   .sidebar[data-mode="reading"] .switcher { flex: none; width: 44px; min-height: 44px; padding: 0; justify-content: center; position: relative; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; }
-  .sidebar[data-mode="reading"] .switcher[aria-expanded="true"] { border-color: var(--accent, var(--brand)); background: #1d1729; }
+  .sidebar[data-mode="reading"] .switcher[aria-expanded="true"] { border-color: var(--accent, var(--brand)); background: var(--selected); }
   .sidebar[data-mode="reading"] :is(.who, .state, .chevron, .elsewhere .word) { display: none; }
   .sidebar[data-mode="reading"] .elsewhere { position: absolute; top: -4px; right: -4px; min-width: 18px; padding: 0 4px; font-size: 11px; line-height: 18px; text-align: center; border-radius: 9px; background: var(--brand); color: var(--brand-ink); }
   .sidebar[data-mode="reading"] .scrim { position: fixed; inset: 0; z-index: -1; background: rgb(0 0 0 / 0.55); }

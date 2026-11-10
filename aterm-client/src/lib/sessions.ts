@@ -24,7 +24,7 @@ export function roleFor(session: Pick<Session, "role" | "identity" | "seat">, ro
       slug: session.role,
       displayName: session.role,
       purpose: "",
-      color: "#a4abb9",
+      color: "var(--muted)",
       identity: session.identity,
       launchable: false,
       seats: [],
