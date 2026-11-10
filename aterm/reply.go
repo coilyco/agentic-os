@@ -204,7 +204,7 @@ func ownCandidate(entry ledgerEntry, peers []ledgerEntry, cands []candidate) (ca
 	}
 	if len(own) != 1 {
 		return candidate{}, withExit(exitOffRoster, fmt.Errorf(
-			"%s shares %s with %d other seat(s), so which session is its own cannot be told: %w", entry.Name, entry.Cwd, len(peers), errNoTranscript))
+			"%s shares %s with %d other seat(s), so which session is its own cannot be told: %w: %w", entry.Name, entry.Cwd, len(peers), errAmbiguousSession, errNoTranscript))
 	}
 	return own[0], nil
 }
