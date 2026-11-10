@@ -98,15 +98,15 @@ describe("peer messages", () => {
 
   it("leaves a peer message out at every level, with the replies and steps that answer it", () => {
     for (const level of ["focus", "default", "verbose"] as const) {
-      expect(rowsFor(peer, level).map((row) => row.key), level).toEqual(["1", "2", "6", "7"]);
+      expect(rowsFor(peer, level, "codex").map((row) => row.key), level).toEqual(["1", "2", "6", "7"]);
     }
   });
 
   it("never drops the person's own turns", () => {
-    expect(withoutPeers(peer).filter((item) => item.kind === "prompt").map((item) => item.id)).toEqual(["1", "6"]);
+    expect(withoutPeers(peer, "claude").filter((item) => item.kind === "prompt").map((item) => item.id)).toEqual(["1", "6"]);
   });
 
-  it("trusts a daemon that tags answers, so a peer message in the middle of the person's turn costs the turn nothing", () => {
+  it("trusts `for` for claude, so a peer message in the middle of the person's turn costs the turn nothing", () => {
     const mid: TranscriptItem[] = [
       { id: "1", kind: "prompt", text: "Refactor it." },
       { id: "2", kind: "tool", tool: { name: "Edit", class: "edit", summary: "Edited a.ts +3 -1" } },
@@ -114,12 +114,25 @@ describe("peer messages", () => {
       { id: "4", kind: "reply", text: "pong", for: "3" },
       { id: "5", kind: "reply", text: "Refactor done.", complete: true },
     ];
-    expect(withoutPeers(mid).map((item) => item.id)).toEqual(["1", "2", "5"]);
+    expect(withoutPeers(mid, "claude").map((item) => item.id)).toEqual(["1", "2", "5"]);
+    expect(withoutPeers(mid, "opencode").map((item) => item.id)).toEqual(["1", "2", "5"]);
   });
 
-  it("reads an untagged peer turn as running to the next prompt", () => {
-    const untagged: TranscriptItem[] = [{ id: "1", kind: "peer", text: "[from x y] hi" }, { id: "2", kind: "reply", text: "hello" }];
-    expect(withoutPeers(untagged)).toEqual([]);
+  it("reads an absent `for` as unknown for codex, so the peer's turn runs to the next prompt", () => {
+    const codex: TranscriptItem[] = [
+      { id: "1", kind: "prompt", text: "Refactor it." },
+      { id: "2", kind: "peer", text: "[from x y] ping" },
+      { id: "3", kind: "reply", text: "pong" },
+      { id: "4", kind: "prompt", text: "Carry on." },
+      { id: "5", kind: "reply", text: "Carrying on." },
+    ];
+    expect(withoutPeers(codex, "codex").map((item) => item.id)).toEqual(["1", "4", "5"]);
+    expect(withoutPeers(codex).map((item) => item.id), "an unnamed reader is read the same way").toEqual(["1", "4", "5"]);
+  });
+
+  it("drops a reply tagged for a peer whatever the reader", () => {
+    const tagged: TranscriptItem[] = [{ id: "1", kind: "peer", text: "x" }, { id: "2", kind: "reply", text: "y", for: "1" }, { id: "3", kind: "prompt", text: "z" }];
+    for (const reader of ["claude", "opencode", "codex", ""]) expect(withoutPeers(tagged, reader).map((item) => item.id), reader).toEqual(["3"]);
   });
 
   it("decodes the peer kind and the answer link", () => {

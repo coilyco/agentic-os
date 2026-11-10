@@ -140,15 +140,17 @@ export function mergeItems(held: readonly TranscriptItem[], next: readonly Trans
   return out;
 }
 
-// Peer messages and the replies that answer them leave the view. A daemon that tags
-// answers with `for` is trusted. Untagged, a peer's turn runs to the next prompt.
-export function withoutPeers(items: readonly TranscriptItem[]): TranscriptItem[] {
-  const tagged = items.some((item) => item.for !== undefined);
+// Peer messages and the replies to them leave the view. For claude and opencode `for` is
+// exact. Elsewhere an absent one is unknown, so a peer's turn runs to the next prompt.
+const EXACT_FOR = ["claude", "opencode"];
+
+export function withoutPeers(items: readonly TranscriptItem[], reader = ""): TranscriptItem[] {
+  const exact = EXACT_FOR.includes(reader);
   let inPeerTurn = false;
   const kept: TranscriptItem[] = [];
   for (const item of items) {
     if (item.kind === "peer") {
-      inPeerTurn = !tagged;
+      inPeerTurn = !exact;
       continue;
     }
     if (item.kind === "prompt") inPeerTurn = false;
@@ -168,8 +170,8 @@ export const DEFAULT_OUTPUT_LINES = 3;
 
 // Claude Code's viewMode: Focus is a turn's prompt, a line per tool and its final reply.
 // Default keeps every reply and a few lines of each result. Verbose keeps everything.
-export function rowsFor(all: readonly TranscriptItem[], level: Level): Row[] {
-  const items = withoutPeers(all);
+export function rowsFor(all: readonly TranscriptItem[], level: Level, reader = ""): Row[] {
+  const items = withoutPeers(all, reader);
   const rows: Row[] = [];
   const lastReply = new Map<number, string>();
   let turn = 0;

@@ -13,6 +13,7 @@
   const POLL_MS = 2000;
   let items = $state<TranscriptItem[]>([]);
   let cursor = "";
+  let reader = $state("");
   let phase = $state<"loading" | "ready">("loading");
   let stale = $state(false);
   let updatedAt = $state<number | undefined>();
@@ -20,7 +21,7 @@
   let list = $state<HTMLDivElement>();
   // Whether the view sits at the newest line, so arriving text follows and a person's place is kept.
   let pinned = $state(true);
-  const rows = $derived(rowsFor(items, level));
+  const rows = $derived(rowsFor(items, level, reader));
   const age = $derived(replyAge(updatedAt, now));
 
   const atEnd = () => !list || list.scrollHeight - list.scrollTop - list.clientHeight < 4;
@@ -35,6 +36,7 @@
   async function newest(): Promise<void> {
     const reply = await channel.read(sessionId, { limit: PAGE });
     items = reply.items;
+    reader = reply.reader;
     cursor = reply.cursor;
     updatedAt = Date.now();
     phase = "ready";

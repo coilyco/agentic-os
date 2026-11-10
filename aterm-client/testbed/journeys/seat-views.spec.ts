@@ -14,7 +14,8 @@ const transcript = [
   { id: "t2", kind: "tool", tool: { name: "Bash", class: "shell", summary: "Ran just aterm-client-gate", output: OUTPUT, ok: false } },
   { id: "r2", kind: "reply", text: "The stripe was placed by row number, which a folded row breaks.", complete: true, model: "claude-opus" },
   { id: "x1", kind: "peer", text: "[from eng-platform Beetle-Ox] Is the frame fixed?", from: { role: "eng-platform", identity: "Beetle-Ox" } },
-  { id: "x2", kind: "reply", text: "Yes, the frame is fixed.", complete: true },
+  { id: "x3", kind: "tool", tool: { name: "Bash", class: "shell", summary: "Ran git log" }, for: "x1" },
+  { id: "x2", kind: "reply", text: "Yes, the frame is fixed.", complete: true, for: "x1" },
   { id: "p2", kind: "prompt", text: "Thanks, carry on." },
   { id: "r3", kind: "reply", text: "Carrying on.", complete: true },
 ];
@@ -50,6 +51,7 @@ test.describe("on a phone", () => {
     await expect(view(bed), "no result text in Focus").not.toContainText("gate line 1");
     await expect(view(bed), "a peer message is not here").not.toContainText("Is the frame fixed");
     await expect(view(bed), "nor the reply that answers it").not.toContainText("Yes, the frame is fixed.");
+    await expect(view(bed), "nor the tool step that answers it").not.toContainText("Ran git log");
     await expect(view(bed)).toContainText("Carrying on.");
     await expect(view(bed).locator(".source")).toContainText("From the transcript");
     await bed.step("focus", { compare: false });
