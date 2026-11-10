@@ -90,53 +90,42 @@ describe("peer messages", () => {
     { id: "1", kind: "prompt", text: "Run the gate." },
     { id: "2", kind: "reply", text: "Gate is green.", complete: true },
     { id: "3", kind: "peer", text: "[from eng-platform Beetle-Ox] Is the frame fixed?" },
-    { id: "4", kind: "tool", tool: { name: "Bash", class: "shell", summary: "Ran git log" } },
-    { id: "5", kind: "reply", text: "Yes, it is fixed.", complete: true },
+    { id: "4", kind: "tool", tool: { name: "Bash", class: "shell", summary: "Ran git log" }, for: "3" },
+    { id: "5", kind: "reply", text: "Yes, it is fixed.", complete: true, for: "3" },
     { id: "6", kind: "prompt", text: "Thanks." },
     { id: "7", kind: "reply", text: "Welcome.", complete: true },
   ];
 
-  it("leaves a peer message out at every level, with the replies and steps that answer it", () => {
+  it("leaves a peer message out at every level, with the replies and steps tagged to it", () => {
     for (const level of ["focus", "default", "verbose"] as const) {
-      expect(rowsFor(peer, level, "codex").map((row) => row.key), level).toEqual(["1", "2", "6", "7"]);
+      expect(rowsFor(peer, level).map((row) => row.key), level).toEqual(["1", "2", "6", "7"]);
     }
   });
 
   it("never drops the person's own turns", () => {
-    expect(withoutPeers(peer, "claude").filter((item) => item.kind === "prompt").map((item) => item.id)).toEqual(["1", "6"]);
+    expect(withoutPeers(peer).filter((item) => item.kind === "prompt").map((item) => item.id)).toEqual(["1", "6"]);
   });
 
-  it("trusts `for` for claude, so a peer message in the middle of the person's turn costs the turn nothing", () => {
+  it("reads an item with no `for` as answering nobody, whatever the harness, so it shows", () => {
+    const untagged: TranscriptItem[] = [{ id: "1", kind: "prompt", text: "Go." }, { id: "2", kind: "peer", text: "[from x y] hi" }, { id: "3", kind: "reply", text: "Working on it." }];
+    expect(withoutPeers(untagged).map((item) => item.id)).toEqual(["1", "3"]);
+  });
+
+  it("keeps an item the daemon calls shared and marks it, since it may be the person's own work", () => {
     const mid: TranscriptItem[] = [
       { id: "1", kind: "prompt", text: "Refactor it." },
       { id: "2", kind: "tool", tool: { name: "Edit", class: "edit", summary: "Edited a.ts +3 -1" } },
       { id: "3", kind: "peer", text: "[from eng-platform Beetle-Ox] ping" },
-      { id: "4", kind: "reply", text: "pong", for: "3" },
-      { id: "5", kind: "reply", text: "Refactor done.", complete: true },
+      { id: "4", kind: "reply", text: "Refactor done.", complete: true, for: "3", shared: true },
     ];
-    expect(withoutPeers(mid, "claude").map((item) => item.id)).toEqual(["1", "2", "5"]);
-    expect(withoutPeers(mid, "opencode").map((item) => item.id)).toEqual(["1", "2", "5"]);
+    const rows = rowsFor(mid, "focus");
+    expect(rows.map((row) => row.key)).toEqual(["1", "2", "4"]);
+    expect(rows.map((row) => row.maybePeer)).toEqual([false, false, true]);
   });
 
-  it("reads an absent `for` as unknown for codex, so the peer's turn runs to the next prompt", () => {
-    const codex: TranscriptItem[] = [
-      { id: "1", kind: "prompt", text: "Refactor it." },
-      { id: "2", kind: "peer", text: "[from x y] ping" },
-      { id: "3", kind: "reply", text: "pong" },
-      { id: "4", kind: "prompt", text: "Carry on." },
-      { id: "5", kind: "reply", text: "Carrying on." },
-    ];
-    expect(withoutPeers(codex, "codex").map((item) => item.id)).toEqual(["1", "4", "5"]);
-    expect(withoutPeers(codex).map((item) => item.id), "an unnamed reader is read the same way").toEqual(["1", "4", "5"]);
-  });
-
-  it("drops a reply tagged for a peer whatever the reader", () => {
-    const tagged: TranscriptItem[] = [{ id: "1", kind: "peer", text: "x" }, { id: "2", kind: "reply", text: "y", for: "1" }, { id: "3", kind: "prompt", text: "z" }];
-    for (const reader of ["claude", "opencode", "codex", ""]) expect(withoutPeers(tagged, reader).map((item) => item.id), reader).toEqual(["3"]);
-  });
-
-  it("decodes the peer kind and the answer link", () => {
+  it("decodes the peer kind, the answer link and the shared mark", () => {
     expect(decodeItem({ id: "3", kind: "peer", text: "x" })).toMatchObject({ kind: "peer" });
-    expect(decodeItem({ id: "4", kind: "reply", text: "y", for: "3" })).toMatchObject({ for: "3" });
+    expect(decodeItem({ id: "4", kind: "reply", text: "y", for: "3", shared: true })).toMatchObject({ for: "3", shared: true });
+    expect(decodeItem({ id: "4", kind: "reply", text: "y", shared: "yes" })?.shared).toBeUndefined();
   });
 });

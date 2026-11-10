@@ -36,6 +36,8 @@ export interface TranscriptItem {
   from?: { role: string; identity: string };
   /** The peer item this one answers, when the daemon can tell. */
   for?: string;
+  /** A peer landed mid-turn, so this may also continue the person's own task. */
+  shared?: boolean;
   tool?: ToolStep;
 }
 
@@ -97,6 +99,7 @@ export function decodeItem(raw: unknown): TranscriptItem | null {
     ...(str(item.model) ? { model: str(item.model) } : {}),
     ...(typeof item.complete === "boolean" ? { complete: item.complete } : {}),
     ...(str(item.for) ? { for: str(item.for) } : {}),
+    ...(item.shared === true ? { shared: true } : {}),
     ...(from && str(from.role) && str(from.identity) ? { from: { role: str(from.role) as string, identity: str(from.identity) as string } } : {}),
     ...(tool && name
       ? {
@@ -140,38 +143,24 @@ export function mergeItems(held: readonly TranscriptItem[], next: readonly Trans
   return out;
 }
 
-// Peer messages and the replies to them leave the view. For claude and opencode `for` is
-// exact. Elsewhere an absent one is unknown, so a peer's turn runs to the next prompt.
-const EXACT_FOR = ["claude", "opencode"];
-
-export function withoutPeers(items: readonly TranscriptItem[], reader = ""): TranscriptItem[] {
-  const exact = EXACT_FOR.includes(reader);
-  let inPeerTurn = false;
-  const kept: TranscriptItem[] = [];
-  for (const item of items) {
-    if (item.kind === "peer") {
-      inPeerTurn = !exact;
-      continue;
-    }
-    if (item.kind === "prompt") inPeerTurn = false;
-    if (item.for !== undefined || inPeerTurn) continue;
-    kept.push(item);
-  }
-  return kept;
+// A peer message and the replies tagged to it leave the view. A tagged item the daemon
+// calls shared may also be the person's own work, so it stays and says so (Kai decides).
+export function withoutPeers(items: readonly TranscriptItem[]): TranscriptItem[] {
+  return items.filter((item) => item.kind !== "peer" && (item.for === undefined || item.shared === true));
 }
 
 /** A row the view draws. */
 export type Row =
-  | { key: string; kind: "prompt" | "reply" | "note"; text: string; at?: number; model?: string }
-  | { key: string; kind: "tool"; name: string; summary: string; lines: string[]; hidden: number; ok: boolean | undefined; cut: boolean };
+  | { key: string; kind: "prompt" | "reply" | "note"; text: string; at?: number; model?: string; maybePeer: boolean }
+  | { key: string; kind: "tool"; name: string; summary: string; lines: string[]; hidden: number; ok: boolean | undefined; cut: boolean; maybePeer: boolean };
 
 /** Lines of a result Default shows before saying how many more there are. */
 export const DEFAULT_OUTPUT_LINES = 3;
 
 // Claude Code's viewMode: Focus is a turn's prompt, a line per tool and its final reply.
 // Default keeps every reply and a few lines of each result. Verbose keeps everything.
-export function rowsFor(all: readonly TranscriptItem[], level: Level, reader = ""): Row[] {
-  const items = withoutPeers(all, reader);
+export function rowsFor(all: readonly TranscriptItem[], level: Level): Row[] {
+  const items = withoutPeers(all);
   const rows: Row[] = [];
   const lastReply = new Map<number, string>();
   let turn = 0;
@@ -183,11 +172,11 @@ export function rowsFor(all: readonly TranscriptItem[], level: Level, reader = "
   for (const item of items) {
     if (item.kind === "prompt") {
       turn += 1;
-      if (item.text) rows.push({ key: item.id, kind: "prompt", text: item.text, ...(item.at ? { at: item.at } : {}) });
+      if (item.text) rows.push({ key: item.id, kind: "prompt", text: item.text, maybePeer: item.shared === true, ...(item.at ? { at: item.at } : {}) });
     } else if (item.kind === "reply") {
       if (!item.text) continue;
       if (level === "focus" && lastReply.get(turn) !== item.id) continue;
-      rows.push({ key: item.id, kind: "reply", text: item.text, ...(item.at ? { at: item.at } : {}), ...(item.model ? { model: item.model } : {}) });
+      rows.push({ key: item.id, kind: "reply", text: item.text, maybePeer: item.shared === true, ...(item.at ? { at: item.at } : {}), ...(item.model ? { model: item.model } : {}) });
     } else if (item.kind === "tool" && item.tool) {
       const all = level === "focus" || !item.tool.output ? [] : item.tool.output.replace(/\n+$/, "").split("\n");
       const shown = level === "verbose" ? all : all.slice(0, DEFAULT_OUTPUT_LINES);
@@ -200,9 +189,10 @@ export function rowsFor(all: readonly TranscriptItem[], level: Level, reader = "
         hidden: all.length - shown.length,
         ok: item.tool.ok,
         cut: item.tool.truncated === true,
+        maybePeer: item.shared === true,
       });
     } else if (item.kind === "note" && level !== "focus" && item.text) {
-      rows.push({ key: item.id, kind: "note", text: item.text });
+      rows.push({ key: item.id, kind: "note", text: item.text, maybePeer: item.shared === true });
     }
   }
   return rows;

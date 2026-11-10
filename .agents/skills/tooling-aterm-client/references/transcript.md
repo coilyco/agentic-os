@@ -11,7 +11,7 @@ A seat on a host whose welcome lists `transcript` shows three views of it, read 
 Named from Claude Code's `viewMode`. **Focus** is each turn's prompt, one line per tool call and the turn's last reply. **Default** keeps every reply and three lines of each result, and says how many more there are. **Verbose** keeps all of it, and a Raw screen button inside it brings up the seat's own screen. The client cuts the output for Focus and Default, and the daemon sends it whole, to 64 KiB.
 
 * **Opens to** Focus on a phone and the raw screen on a desktop, which is today's look. The choice is per seat on this device (`seat-view.ts`).
-* **Peer messages** and the replies that answer them never show, at any level. They stay in the Messages panel. A peer item is `kind: peer`, and `for` links an answer to it. For claude and opencode `for` is exact. For codex an absent `for` is unknown, so a peer's turn runs to the next prompt (`withoutPeers`).
+* **Peer messages** and the replies that answer them never show, at any level. They stay in the Messages panel. A peer item is `kind: peer`, and `for` links an answer to it. An item with no `for` answers nobody. When the peer landed mid-turn the daemon also sets `shared`, since the file cannot tell an answer from the person's own work, and the view keeps those items and says they may answer another seat (`withoutPeers`). Whether to keep, drop or mark them is Kai's to settle.
 * **No transcript** (a refusal such as `unreadable_format`) opens the raw screen with one line saying why. Picking a stop asks again. A host without the feature shows no control at all.
 * **It polls** `since` the last cursor every 2 seconds while open, paused while the page is hidden, and refetches the newest page on `bad_cursor`.
 

@@ -13,7 +13,6 @@
   const POLL_MS = 2000;
   let items = $state<TranscriptItem[]>([]);
   let cursor = "";
-  let reader = $state("");
   let phase = $state<"loading" | "ready">("loading");
   let stale = $state(false);
   let updatedAt = $state<number | undefined>();
@@ -21,7 +20,7 @@
   let list = $state<HTMLDivElement>();
   // Whether the view sits at the newest line, so arriving text follows and a person's place is kept.
   let pinned = $state(true);
-  const rows = $derived(rowsFor(items, level, reader));
+  const rows = $derived(rowsFor(items, level));
   const age = $derived(replyAge(updatedAt, now));
 
   const atEnd = () => !list || list.scrollHeight - list.scrollTop - list.clientHeight < 4;
@@ -36,7 +35,6 @@
   async function newest(): Promise<void> {
     const reply = await channel.read(sessionId, { limit: PAGE });
     items = reply.items;
-    reader = reply.reader;
     cursor = reply.cursor;
     updatedAt = Date.now();
     phase = "ready";
@@ -98,13 +96,14 @@
       {#if row.kind === "prompt"}
         <div class="turn me"><span class="who">You</span><p class="plain">{row.text}</p></div>
       {:else if row.kind === "reply"}
-        <div class="turn"><Markdown source={row.text} onlink={open} /></div>
+        <div class="turn"><Markdown source={row.text} onlink={open} />{#if row.maybePeer}<p class="maybe">May answer another seat's message.</p>{/if}</div>
       {:else if row.kind === "tool"}
         <div class="step" data-failed={row.ok === false}>
           <p class="line">{row.summary}{#if row.ok === false}<span class="bad">failed</span>{/if}</p>
           {#if row.lines.length}<pre>{row.lines.join("\n")}</pre>{/if}
           {#if row.hidden}<p class="more">{row.hidden} more {row.hidden === 1 ? "line" : "lines"}. Verbose shows them.</p>{/if}
           {#if row.cut}<p class="more">The host cut this output.</p>{/if}
+          {#if row.maybePeer}<p class="more">May answer another seat's message.</p>{/if}
         </div>
       {:else}
         <p class="note">{row.text}</p>
@@ -130,7 +129,7 @@
   .line { margin: 0; overflow-wrap: anywhere; color: var(--text-soft); }
   .bad { margin-left: 0.6em; color: var(--danger-text); font-weight: 600; }
   pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; color: var(--muted); }
-  .more { margin: 4px 0 0; font: 400 12px var(--font-body); }
+  .more, .turn .maybe { margin: 4px 0 0; font: 400 12px var(--font-body); color: var(--muted); }
   .note, .status { margin: 0; font: 400 13px var(--font-body); color: var(--muted); }
   .source { flex: none; margin: 0; padding: 6px 16px; border-top: 1px solid var(--line); font: 400 12px var(--font-body); color: var(--muted); min-height: 30px; }
   .jump { position: absolute; right: 12px; bottom: 44px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px #000a; }

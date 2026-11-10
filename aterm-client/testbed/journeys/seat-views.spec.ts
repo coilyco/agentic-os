@@ -117,6 +117,19 @@ test.describe("on a phone", () => {
     expect(bed.mock.transcriptCalls.some((call) => call.since !== undefined), "it asked since a cursor").toBe(true);
   });
 
+  test("an item the host calls shared stays and says it may answer another seat", async ({ bed }) => {
+    bed.mock.setTranscript(imp, [
+      { id: "p1", kind: "prompt", text: "Refactor it." },
+      { id: "x1", kind: "peer", text: "[from eng-platform Beetle-Ox] ping", from: { role: "eng-platform", identity: "Beetle-Ox" } },
+      { id: "r1", kind: "reply", text: "Refactor done.", complete: true, for: "x1", shared: true },
+    ]);
+    await bed.openSeat(SEATS.imp);
+    await expect(view(bed)).toContainText("Refactor done.");
+    await expect(view(bed)).toContainText("May answer another seat's message.");
+    await expect(view(bed)).not.toContainText("[from eng-platform");
+    await bed.step("shared", { compare: false });
+  });
+
   test("a peer message shows in the Messages panel and not in the view", async ({ bed }) => {
     await open(bed);
     bed.mock.push({ type: "message", message: { id: "m1", from: "eng-platform Beetle-Ox", target: "frontend-eng", session: imp, state: "delivered", text: "Is the frame fixed?" } });
