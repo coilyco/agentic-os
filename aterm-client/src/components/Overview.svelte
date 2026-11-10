@@ -74,6 +74,8 @@
     <button type="button" class="settings" onclick={openSettings}>Settings</button>
   </header>
 
+  {#if app.notice}<p class="note" role="status">{app.notice}</p>{/if}
+
   {#if groups.length === 0}
     <p class="empty" role="status">Nothing is running on {host?.label ?? "this host"}. Start a seat from the roles in the list.</p>
   {/if}
@@ -113,6 +115,7 @@
   .logo { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--control-line); background: transparent; }
   .settings { flex: none; min-height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 14px var(--font-body); }
   .logo:focus-visible, .settings:focus-visible, .open:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .note { margin: 0; color: var(--text-soft); font-size: 14px; }
   .empty { margin: 8px 0; color: var(--muted); font-size: 16px; }
   .group { display: flex; flex-direction: column; gap: 6px; }
   h2 { margin: 0 4px; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }

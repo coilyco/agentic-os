@@ -135,7 +135,7 @@ export function reconnecting(): boolean {
 }
 
 /** Whether the main panel is the seat overview: a healthy host, nothing else on screen.
- * A fault, a lock or a notice shows the host's full page instead. */
+ * A fault or a lock shows the host's full page. A notice is a line above the overview. */
 export function overviewShown(): boolean {
   const host = selectedHost();
   return (
@@ -144,7 +144,6 @@ export function overviewShown(): boolean {
     host.status.kind === "online" &&
     !reconnecting() &&
     app.typing.allowed &&
-    !app.notice &&
     !host.found &&
     !app.selectedSession &&
     !app.selectedRole &&

@@ -13,7 +13,7 @@
   const host = $derived(selectedHost());
   const silent = $derived(app.hosts.filter((candidate) => candidate.status.kind === "unreachable"));
   const running = $derived(splitSessions(app.sessions).running.length);
-  // A healthy attached host with no seat open rests on the seat overview, or on the logo alone when asked. A fault, a lock or a notice shows the full page.
+  // A healthy attached host with no seat open rests on the seat overview, or on the logo alone when asked. A fault or a lock shows the full page.
   const home = $derived(overviewShown());
 
   let draft = $state("");

@@ -9,7 +9,7 @@
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
   import TapTraceSwitch from "./TapTraceSwitch.svelte";
-  import { app, askLineFor, asksShownOn, colorOf, closeAnyway, dismissCloseNote, glowSeats, layout, needsKaiIds, overviewShown, reopenClosed, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
+  import { app, askLineFor, asksShownOn, colorOf, closeAnyway, dismissCloseNote, glowSeats, layout, needsKaiIds, reopenClosed, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
   import { stateWithAge } from "../lib/age";
@@ -295,8 +295,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <nav class="sidebar" aria-label="Hosts and sessions" data-link={app.link.state} data-mode={reading ? "reading" : narrow ? "narrow" : "wide"} onkeydown={escape}>
   {#if narrow || reading}
-    <!-- With the overview on screen it is the seat list, so the bar does not list them twice. -->
-    {#if onScreen || (app.attachedHostId && !overviewShown())}
+    {#if onScreen || app.attachedHostId}
       <div class="bar" class:on-seat={onScreen}>
         {#if onScreen}
           <button
