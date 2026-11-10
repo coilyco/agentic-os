@@ -20,20 +20,23 @@ const mediaFeature = "media"
 
 const (
 	reasonMediaUnknown = "media_unknown"
-	// maxMediaBytes is one file, and the seat's ring holds at most maxMediaItems of them
-	// within maxMediaSeatBytes, the oldest evicted to make room.
-	maxMediaBytes     = 64 << 20
-	maxMediaItems     = 32
-	maxMediaSeatBytes = 256 << 20
+	maxMediaBytes      = 64 << 20
 	// maxMediaChunk is one media_data. Base64 makes it 4/3 larger, under the 4 MiB frame.
 	maxMediaChunk = 2_000_000
 	maxMediaName  = 200
-	// Each show copies a file, so a loop cannot churn the disk.
-	maxShowsPerWindow = 30
+	// Each show copies a file, so a loop cannot churn the disk. A camera is a few a second.
+	maxShowsPerWindow = 240
 	showWindow        = time.Minute
 	mediaFilePerm     = 0o600
 	mediaIDBytes      = 8
 	mediaSniffBytes   = 512
+)
+
+// A seat's ring holds at most this many items within this many bytes, the oldest evicted
+// to make room. Variables so a test can lower them.
+var (
+	maxMediaItems     = 32
+	maxMediaSeatBytes = int64(256 << 20)
 )
 
 // mediaGuard is the refusal a client that may not type gets, since a seat's files
@@ -130,6 +133,9 @@ func openMediaSource(s *ptySession, path string) (*os.File, error) {
 	}
 	if before.Size() > maxMediaBytes {
 		return nil, withReason(reasonTooLarge, fmt.Errorf("the file is over %d bytes", maxMediaBytes))
+	}
+	if before.Size() == 0 {
+		return nil, withReason(reasonBadPath, errors.New("the file is empty"))
 	}
 	// O_NONBLOCK so a file swapped for a FIFO after the stat cannot hold the daemon.
 	file, err := os.OpenFile(real, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)

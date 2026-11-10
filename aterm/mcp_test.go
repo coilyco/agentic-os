@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -54,6 +55,12 @@ func fakeBackend() mcpBackend {
 				return frame{}, errors.New("an artifact address is exactly https://claude.ai/artifact/<id>")
 			}
 			return frame{ArtifactID: "abc", Delivered: 2}, nil
+		},
+		showMedia: func(path, title string) (frame, error) {
+			if strings.HasPrefix(path, "/outside") {
+				return frame{}, errors.New("the file must be under this seat's working directory or scratchpad")
+			}
+			return frame{Media: &mediaView{Kind: "image", Name: filepath.Base(path), Size: 2048}, Delivered: 2}, nil
 		},
 		artifact: func(request frame) (frame, error) {
 			if request.ArtifactID == "missing" {
@@ -176,6 +183,7 @@ func TestMCPCallsEveryTool(t *testing.T) {
 		{"stage_command", map[string]any{"command": "ls", "note": "check"}, "staged in terminal-abc. Nothing ran"},
 		{"notify_kai", map[string]any{"title": "Decision", "body": "Ship it?"}, `"id": "n1"`},
 		{"add_artifact", map[string]any{"url": "https://claude.ai/artifact/abc", "title": "T", "source": "/x/y.html"}, "added abc, shown to 2 clients"},
+		{"show_media", map[string]any{"path": "/work/frame.png", "title": "T"}, `image "frame.png", 2048 bytes, shown to 2 clients`},
 		{"set_artifact_waiting", map[string]any{"artifact": "abc", "waiting": true}, "waiting true"},
 		{"remove_artifact", map[string]any{"artifact": "abc"}, "removed"},
 		{"ask_choice", map[string]any{"question": "Ship?", "options": []map[string]any{{"label": "yes"}}},
@@ -210,6 +218,8 @@ func TestMCPReportsToolFailuresAsOutputNotProtocolErrors(t *testing.T) {
 			"questions": []map[string]any{{"question": "y", "options": []map[string]any{{"label": "b"}}}}},
 			"give either question or questions, not both"},
 		{"bad artifact address", "add_artifact", map[string]any{"url": "https://example.com/x", "title": "T", "source": "/x"}, "an artifact address is exactly"},
+		{"show outside the roots", "show_media", map[string]any{"path": "/outside/x.png"}, "the file must be under this seat's working directory"},
+		{"show needs a path", "show_media", map[string]any{"title": "T"}, "path"},
 		{"unknown artifact", "remove_artifact", map[string]any{"artifact": "missing"}, `no artifact "missing"`},
 		{"refused stage", "stage_command", map[string]any{"command": "ls\nrm x"}, "refused: the command may not carry U+000A"},
 		{"missing required field", "send_message", map[string]any{"message": "hi"}, "to"},
