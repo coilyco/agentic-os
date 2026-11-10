@@ -13,7 +13,7 @@ const SELECTION_ALPHA = 0x55 / 255;
 const channels = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
 const rgb = (hex: string) => `rgb(${channels(hex).join(", ")})`;
 // xterm paints a translucent selection as its blend over the background.
-const blended = channels(BACKGROUND).map((under, i) => Math.round(under + (channels(ACCENT)[i] - under) * SELECTION_ALPHA));
+const blended = channels(BACKGROUND).map((under, i) => Math.round(under + ((channels(ACCENT)[i] ?? 0) - under) * SELECTION_ALPHA));
 const parts = (css: string) => (css.match(/\d+/g) ?? []).slice(0, 3).map(Number);
 
 test("the terminal paints the background, text, cursor, and selection colours it always had", async ({ bed }) => {
@@ -50,5 +50,5 @@ test("the terminal paints the background, text, cursor, and selection colours it
   await expect(selection, "a selection is drawn").toBeVisible();
   const painted = parts(await selection.evaluate((node) => getComputedStyle(node).backgroundColor));
   // One level of rounding either way is xterm's blend, two is a different colour.
-  painted.forEach((value, i) => expect(Math.abs(value - blended[i]), `selection channel ${i}: ${painted} vs ${blended}`).toBeLessThanOrEqual(1));
+  painted.forEach((value, i) => expect(Math.abs(value - (blended[i] ?? 0)), `selection channel ${i}: ${painted} vs ${blended}`).toBeLessThanOrEqual(1));
 });
