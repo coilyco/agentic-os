@@ -85,6 +85,7 @@ test.describe("on a phone", () => {
     await expect(bed.page.getByRole("button", { name: "Wrap long lines" }), "still on after a reload").toHaveAttribute("aria-pressed", "true");
     expect((await reading(bed.page)).wrapping).toBe(true);
     await bed.switchSeat(SEATS.beetle);
+    bed.mock.holdWide(SEATS.beetle.id, WIDE);
     await expect(bed.page.getByRole("button", { name: "Wrap long lines" }), "another seat is its own").toHaveAttribute("aria-pressed", "false");
   });
 

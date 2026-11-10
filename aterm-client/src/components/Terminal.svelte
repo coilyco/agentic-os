@@ -69,9 +69,11 @@
   const NARROW_PX = 360;
   // Long lines fold to the screen's width in this client alone. The daemon is told nothing, so no other view of the seat moves (COI-3544).
   let wrapping = $state(false);
-  // Offered where dragging sideways is the tedious part: a touch screen or a narrow window. A desktop pane scrolls its long lines.
+  // Offered where dragging sideways is the tedious part: a touch screen or a narrow window, and only while the
+  // PTY is wider than the box or the switch is on. A desktop pane scrolls its long lines.
   let handheld = $state(false);
-  const canWrap = $derived(handheld || wrapping);
+  let overflows = $state(false);
+  const canWrap = $derived((handheld && overflows) || wrapping);
   const showSize = $derived(narrow || sizing || textSize !== DEFAULT_TEXT_SIZE);
   let refit = () => {};
   let finding = $state(false);
@@ -160,6 +162,7 @@
     measuring = requestAnimationFrame(() => {
       measuring = 0;
       if (!host) return;
+      overflows = host.scrollWidth > host.clientWidth + 2;
       const left = host.scrollLeft > 2;
       const right = host.scrollLeft + host.clientWidth < host.scrollWidth - 2;
       if (left !== past.left || right !== past.right) past = { left, right };
@@ -255,6 +258,15 @@
     terminal.onScroll(trackView);
     host.addEventListener("scroll", trackView);
     host.addEventListener("scroll", edges);
+    // Folded rows change the screen's height as text arrives, so a view at the newest line follows it down.
+    let pinned = true;
+    const onPin = () => (pinned = atBottom());
+    host.addEventListener("scroll", onPin);
+    const grown = new ResizeObserver(() => {
+      if (wrapping && pinned) host.scrollTop = lastTop();
+    });
+    const drawn = host.querySelector(".xterm-screen");
+    if (drawn) grown.observe(drawn);
     // A finger's vertical drag scrolls the history: xterm reads wheels and keys, not touch (COI-3253).
     const rowPx = () => (host.querySelector<HTMLElement>(".xterm-screen")?.clientHeight ?? 0) / Math.max(terminal.rows, 1);
     let fingerY = 0;
@@ -521,11 +533,8 @@
         // New lines are counted from xterm's own rows, which cost no layout read.
         const counting = latest.away;
         const before = linesAbove(terminal.buffer.active);
-        // Wrapped rows change the height, so a view at the newest line is put back there once xterm has drawn.
-        const follow = wrapping && atBottom();
         terminal.write(event.data, () => {
           afterWrite();
-          if (follow) afterSize(true);
           if (counting && latest.away) latest = wrote(latest, before, linesAbove(terminal.buffer.active));
           trackView();
         });
@@ -571,6 +580,8 @@
       cancelAnimationFrame(tracking);
       clearTimeout(marking);
       host.removeEventListener("scroll", edges);
+      host.removeEventListener("scroll", onPin);
+      grown.disconnect();
       host.removeEventListener("touchstart", onTouchStart);
       host.removeEventListener("touchmove", onTouchMove);
       host.removeEventListener("touchend", onTouchEnd);
@@ -685,7 +696,8 @@
   /* A blank row keeps one line's height. */
   .term-host.wrapping :global(.xterm-rows > div::after) { content: "\200b"; }
   .term-host.wrapping :global(.xterm-rows span) { display: inline !important; height: auto !important; }
-  /* xterm parks the input at the cursor's cell, which lies off the right edge on a folded screen and would scroll the box to it. */
+  /* xterm parks the input at the cursor's cell, which lies off the right edge on a folded screen and would scroll the box to it. The box's foot is where a pinned view already looks. */
+  .term-host.wrapping :global(.xterm-helpers) { position: static; }
   .term-host.wrapping :global(.xterm-helper-textarea) { left: 0 !important; top: auto !important; bottom: 0; }
   /* Stripes are placed by row number, which a folded row breaks. */
   .term-host.wrapping :global(.xterm-decoration-container) { display: none; }
