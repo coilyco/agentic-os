@@ -5,13 +5,14 @@ Major shipped capabilities, not files.
 ## Inventory
 
 - [Shell and secrets](install.md) - shared shells, SSM, and GPG.
-- [Branded agent terminal](aterm.md) - `aterm` opens an agent session in kitty, with a macOS `.app` per [role bundle](aterm-bundles.md) and a [creature](aterm-creature.md). `aterm pane` [splits it](aterm-pane.md). [`aterm stage`](aterm-pane.md#aterm-stage) types a command into the terminal beside a seat, for Kai to run with one Enter. A [host daemon](aterm-daemon.md) owns sessions across restarts and routes `aterm send`. A [web client and Android app](../aterm-android/README.md) attaches, with [MCP Apps](../.agents/skills/tooling-aterm-client/references/mcp-apps-gateway.md), a browser, and [Web Push](../.agents/skills/tooling-aterm-client/references/web-push.md) to a closed client. Mac and Linux.
+- [Branded agent terminal](aterm.md) - `aterm` opens an agent session in kitty, with a macOS `.app` per [role bundle](aterm-bundles.md) and a [creature](aterm-creature.md). `aterm pane` [splits it](aterm-pane.md). [`aterm stage`](aterm-pane.md#aterm-stage) types a command beside a seat. A [host daemon](aterm-daemon.md) owns sessions across restarts and routes `aterm send`. A [web client and Android app](../aterm-android/README.md) attaches, with [MCP Apps](../.agents/skills/tooling-aterm-client/references/mcp-apps-gateway.md), a browser, and [Web Push](../.agents/skills/tooling-aterm-client/references/web-push.md) to a closed client. Mac and Linux.
 - [Android emulator for Frontend seats](../.agents/skills/tooling-aterm-client/references/android-emulator.md) - `just aterm-android-emulator` drives one emulator running the real Treehouse app, with a seat lock and DevTools.
-- [Treehouse dictation](../.agents/skills/tooling-aterm-client/references/android-dictation.md) - a composer mic on Android, text to edit before Send.
+- [Treehouse dictation](../.agents/skills/tooling-aterm-client/references/android-dictation.md) - a composer mic on Android.
 - [Signed macOS aterm](aos-cli.md#signed-macos-aterm) - the Mac release wraps `aterm` in a bundle signed on the Linux release job with `rcodesign` and one stable certificate, so Kai's privacy grants survive an upgrade.
-- [Treehouse for the Mac](../.agents/skills/tooling-aterm-client/references/desktop.md) - a windowed Tauri app around the aterm client that opens on this Mac's daemon and its director seat, with `just treehouse-mac-*` verbs to build, install and log in with it.
-- [aterm client test bed](../.agents/skills/tooling-aterm-client/references/testbed.md) - Playwright journeys drive the real client against a mock daemon at desktop and phone sizes, with baselines and quirks.
-- [aterm screen feedback](../.agents/skills/tooling-aterm-client/references/feedback.md#the-daemon-half) - the daemon keeps a screenshot and note sent from the client as a record on the host's disk and hands it to a frontend-eng seat.
+- [Treehouse for the Mac](../.agents/skills/tooling-aterm-client/references/desktop.md) - a windowed Tauri app around the aterm client, with `just treehouse-mac-*` verbs to build, install and log in with it.
+- [A seat shows a file](../.agents/skills/tooling-aterm-client/references/media-daemon.md) - `aterm show <path>` hands a client an image, video or file, read in chunks.
+- [aterm client test bed](../.agents/skills/tooling-aterm-client/references/testbed.md) - Playwright journeys drive the real client against a mock daemon at two sizes, with baselines.
+- [aterm screen feedback](../.agents/skills/tooling-aterm-client/references/feedback.md#the-daemon-half) - the daemon keeps a screenshot and note sent from the client as a record on the host's disk for a frontend-eng seat.
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.
 - [Disk guard](install.md) - launchd job prunes Docker build cache under 15 GiB free.
 - [Agents and sessions](features-agents.md) - self-name, composition

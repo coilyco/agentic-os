@@ -1,19 +1,20 @@
 <script lang="ts">
-  import { addHost, app, checkHost, placeNow, reconnecting, removeHost, saveFoundHost, selectHost, selectedHost } from "../lib/app.svelte";
+  import { addHost, app, checkHost, overviewShown, placeNow, reconnecting, removeHost, saveFoundHost, selectHost, selectedHost } from "../lib/app.svelte";
   import Unlock from "../components/Unlock.svelte";
   import { CAN_PASSKEY, EXTERNAL } from "../lib/build";
   import type { Host } from "../lib/protocol";
   import { typingNotice } from "../lib/typing";
   import { splitSessions } from "../lib/sessions";
   import Home from "../components/Home.svelte";
+  import Overview from "../components/Overview.svelte";
   import InstallCard from "../components/InstallCard.svelte";
   import ConnectionCheck from "../components/ConnectionCheck.svelte";
 
   const host = $derived(selectedHost());
   const silent = $derived(app.hosts.filter((candidate) => candidate.status.kind === "unreachable"));
   const running = $derived(splitSessions(app.sessions).running.length);
-  // A healthy attached host with no seat open is just the logo. A fault, a lock or a notice shows the full page.
-  const home = $derived(!!host && host.id === app.attachedHostId && host.status.kind === "online" && !reconnecting() && app.typing.allowed && !app.notice && !host.found);
+  // A healthy attached host with no seat open rests on the seat overview, or on the logo alone when asked. A fault or a lock shows the full page.
+  const home = $derived(overviewShown());
 
   let draft = $state("");
   let draftError = $state("");
@@ -44,7 +45,7 @@
 </script>
 
 {#if home}
-  <Home seats={running} />
+  {#if app.logoHome}<Home />{:else}<Overview />{/if}
 {:else}
 <section class="panel">
   {#if !host}

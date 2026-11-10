@@ -243,6 +243,7 @@ func newCommand(deps commandDeps) *cli.Command {
 			newActivityCommand(),
 			newOpenCommand(),
 			newArtifactCommand(),
+			newShowCommand(),
 			newPasskeyCommand(),
 			newTreehouseCommand(),
 			newAskCommand(),

@@ -34,6 +34,7 @@ type mcpBackend struct {
 	// artifactAdd registers a page, and artifact changes or removes one by request.
 	artifactAdd func(address, title, source string, waiting, standing bool) (frame, error)
 	artifact    func(frame) (frame, error)
+	showMedia   func(path, title string) (frame, error)
 	ask         func(choiceAsk) (choiceAnswer, error)
 	inbox       func(all bool) ([]inboxMessage, error)
 	notify      func(title, body string) (notifyResult, error)
@@ -48,6 +49,7 @@ var liveBackend = mcpBackend{
 	stage:       stageCommand,
 	artifactAdd: addArtifact,
 	artifact:    artifactCall,
+	showMedia:   showMedia,
 	ask:         askChoice,
 	inbox:       readInbox,
 	notify:      notifyKai,
@@ -112,6 +114,11 @@ type addArtifactInput struct {
 type notifyKaiInput struct {
 	Title string `json:"title" jsonschema:"what happened, one line, at most 60 characters"`
 	Body  string `json:"body" jsonschema:"what Kai needs to decide or know, at most 140 characters"`
+}
+
+type showMediaInput struct {
+	Path  string `json:"path" jsonschema:"an image, a video or any file under your working directory or scratchpad, at most 64 MiB"`
+	Title string `json:"title,omitempty" jsonschema:"a name to show with it, the file's own name when unset"`
 }
 
 type artifactRefInput struct {
@@ -316,6 +323,21 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 			return nil, nil, err
 		}
 		return textResult(fmt.Sprintf("added %s, shown to %d clients", reply.ArtifactID, reply.Delivered), false)
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "show_media",
+		Description: "Show an image, a video or a file in Kai's aterm client, labeled with your session, so she can look " +
+			"at it where the conversation is. The daemon copies the file, reads its type from the bytes (image, video, or " +
+			"file for anything else), and keeps your last 32 items within 256 MiB. The path must be under your working " +
+			"directory or scratchpad, at most 64 MiB. Call it again for each new frame, and a file you overwrite is a new " +
+			"item. Returns the kind and how many clients show it.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, input showMediaInput) (*mcp.CallToolResult, any, error) {
+		reply, err := backend.showMedia(input.Path, input.Title)
+		if err != nil {
+			return nil, nil, err
+		}
+		return textResult(describeShown(reply), false)
 	})
 
 	mcp.AddTool(server, &mcp.Tool{

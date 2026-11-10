@@ -2,23 +2,28 @@
 import { expect, SEATS, test, type Bed } from "../harness.ts";
 
 const field = (bed: Bed) => bed.page.getByRole("textbox", { name: /^Message / });
+// A reload rests on the seat overview, so the seat is opened again by its tab (COI-3518).
+const reopen = async (bed: Bed) => {
+  await bed.page.reload();
+  await bed.page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first().click();
+};
 
 test("words typed to a seat are still there after the page is reopened", async ({ bed }) => {
   await bed.openSeat(SEATS.imp);
   await field(bed).fill("Ask Beetle-Ox whether the gate is green");
-  await bed.page.reload();
+  await reopen(bed);
   await expect(bed.page.getByRole("heading", { name: SEATS.imp.name, level: 1 })).toBeAttached();
-  await expect(field(bed), "the draft comes back with no tap").toHaveValue("Ask Beetle-Ox whether the gate is green");
+  await expect(field(bed), "the draft is waiting in its seat").toHaveValue("Ask Beetle-Ox whether the gate is green");
   await bed.step("draft-back", { compare: false });
 });
 
 test("a draft belongs to its seat, and an emptied box stays empty", async ({ bed }) => {
   await bed.openSeat(SEATS.imp);
   await field(bed).fill("for Imp only");
-  await bed.page.reload();
+  await reopen(bed);
   await expect(field(bed)).toHaveValue("for Imp only");
   await field(bed).fill("");
-  await bed.page.reload();
+  await reopen(bed);
   await expect(field(bed), "an emptied box is not brought back").toHaveValue("");
   await field(bed).fill("still for Imp");
   await bed.switchSeat(SEATS.beetle);

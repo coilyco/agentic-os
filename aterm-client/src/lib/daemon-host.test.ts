@@ -1304,3 +1304,78 @@ describe("a seat's open_url", () => {
     host.close();
   });
 });
+
+describe("a seat's shared files", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const subscriptions = (socket: StubSocket) => socket.sent.map((line) => JSON.parse(line)).filter((frame) => frame.type === "subscribe" && frame.channel === "media").length;
+  const welcome = { type: "welcome", format: "aterm.daemon.v1", features: ["media"] };
+
+  it("subscribes only when the host lists the feature", () => {
+    const withIt = connect();
+    withIt.socket.receive(welcome);
+    expect(subscriptions(withIt.socket)).toBe(1);
+    expect(withIt.host.media).toBeDefined();
+    withIt.host.close();
+    const without = connect();
+    without.socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: [] });
+    expect(subscriptions(without.socket)).toBe(0);
+    expect(without.host.media).toBeUndefined();
+    without.host.close();
+  });
+
+  it("subscribes again when typing turns allowed, since a client that may not type is refused", () => {
+    const { host, socket } = connect();
+    socket.receive({ ...welcome, typing: { allowed: false, reason: "passkey_required" } });
+    expect(subscriptions(socket)).toBe(1);
+    socket.receive({ type: "typing", typing: { allowed: true } });
+    expect(subscriptions(socket)).toBe(2);
+    socket.receive({ type: "typing", typing: { allowed: true } });
+    expect(subscriptions(socket), "no third while it stays allowed").toBe(2);
+    host.close();
+  });
+
+  it("turns a push into an event and ignores one that is not a file", () => {
+    const { host, events, socket } = connect();
+    socket.receive(welcome);
+    socket.receive({ type: "media", session: "s1", media: { id: "m1", name: "frame.jpg", mime: "image/jpeg", kind: "image", size: 117000, at: "2026-11-10T21:00:00Z" } });
+    socket.receive({ type: "media", session: "s1", media: { id: "m2", kind: "pdf" } });
+    socket.receive({ type: "media", media: { id: "m3", name: "x", kind: "file" } });
+    expect(events.filter((event) => event.type === "media")).toEqual([{ type: "media", item: { id: "m1", session: "s1", name: "frame.jpg", mime: "image/jpeg", kind: "image", size: 117000, at: Date.parse("2026-11-10T21:00:00Z") } }]);
+    socket.receive({ type: "media_closed", session: "s1", media_id: "m1" });
+    expect(events.filter((event) => event.type === "media_closed")).toEqual([{ type: "media_closed", session: "s1", id: "m1" }]);
+    host.close();
+  });
+
+  it("reads a file in chunks until the host says it is done", async () => {
+    const { host, socket } = connect();
+    socket.receive(welcome);
+    const item = { id: "m1", session: "s1", name: "a.bin", mime: "application/octet-stream", kind: "file" as const, size: 5 };
+    const progress: number[] = [];
+    const read = host.media!.read(item, (bytes) => progress.push(bytes));
+    const ask = () => socket.sent.map((line) => JSON.parse(line)).filter((frame) => frame.type === "media_read");
+    await vi.waitFor(() => expect(ask()).toHaveLength(1));
+    expect(ask()[0]).toMatchObject({ media_id: "m1", offset: 0, length: 2_000_000 });
+    socket.receive({ type: "media_data", id: ask()[0].id, media_id: "m1", size: 5, eof: false, data: btoa("abc") });
+    await vi.waitFor(() => expect(ask()).toHaveLength(2));
+    expect(ask()[1]).toMatchObject({ offset: 3 });
+    socket.receive({ type: "media_data", id: ask()[1].id, media_id: "m1", size: 5, eof: true, offset: 3, data: btoa("de") });
+    const blob = await read;
+    expect(await blob.text()).toBe("abcde");
+    expect(progress).toEqual([3, 5]);
+    host.close();
+  });
+
+  it("says a file the host dropped in words", async () => {
+    const { host, socket } = connect();
+    socket.receive(welcome);
+    const read = host.media!.read({ id: "gone", session: "s1", name: "a", mime: "image/png", kind: "image", size: 1 });
+    await vi.waitFor(() => expect(socket.sent.some((line) => JSON.parse(line).type === "media_read")).toBe(true));
+    const sent = socket.sent.map((line) => JSON.parse(line)).find((frame) => frame.type === "media_read");
+    socket.receive({ type: "error", id: sent.id, reason: "media_unknown", error: "no such file" });
+    await expect(read).rejects.toThrow("The host no longer has that file.");
+    host.close();
+  });
+});
