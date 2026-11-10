@@ -177,9 +177,10 @@ func opencodeHeldCursor(keys []string, openKey string) string {
 func opencodeItems(rows []opencodePartRow, assistants []opencodeAssistant) ([]transcriptItem, []string, string) {
 	var items []transcriptItem
 	var keys []string
-	peers := map[string]bool{}  // user message id to whether it is a peer message
-	shared := map[string]bool{} // user message id to whether it landed mid-turn
-	userAt := map[string]int{}  // user message id to its item index
+	peers := map[string]bool{}     // user message id to whether it is a peer message
+	answers := map[string]string{} // a mid-turn peer to the assistant message that first answered it
+	shared := map[string]bool{}    // user message id to whether it landed mid-turn
+	userAt := map[string]int{}     // user message id to its item index
 	openKey := ""
 	for _, row := range rows {
 		key := opencodeCursor(row)
@@ -214,12 +215,12 @@ func opencodeItems(rows []opencodePartRow, assistants []opencodeAssistant) ([]tr
 				item.Complete = boolPtr(true)
 			}
 			item.setText(text)
-			opencodeTag(&item, row, peers, shared)
+			opencodeTag(&item, row, peers, shared, answers)
 			items = append(items, item)
 			keys = append(keys, key)
 		case row.PartType == "tool":
 			item := transcriptItem{ID: row.PartID, Kind: transcriptKindTool, At: at, Model: row.Model, Tool: opencodeTool(row)}
-			opencodeTag(&item, row, peers, shared)
+			opencodeTag(&item, row, peers, shared, answers)
 			if item.Tool.OK == nil && openKey == "" {
 				openKey = key
 			}
@@ -235,11 +236,21 @@ func opencodeItems(rows []opencodePartRow, assistants []opencodeAssistant) ([]tr
 	return items, keys, openKey
 }
 
-// opencodeTag says an answer is for a peer message, by the user message it answers.
-func opencodeTag(item *transcriptItem, row opencodePartRow, peers, shared map[string]bool) {
-	if row.Parent != "" && peers[row.Parent] {
-		item.For, item.Shared = row.Parent, shared[row.Parent]
+// opencodeTag says an answer is for a peer message, by the user message it answers. A
+// peer that landed mid-turn is answered only by the first assistant message after it.
+func opencodeTag(item *transcriptItem, row opencodePartRow, peers, shared map[string]bool, answers map[string]string) {
+	if row.Parent == "" || !peers[row.Parent] {
+		return
 	}
+	if shared[row.Parent] {
+		if answers[row.Parent] == "" {
+			answers[row.Parent] = row.Message
+		}
+		if answers[row.Parent] != row.Message {
+			return
+		}
+	}
+	item.For, item.Shared = row.Parent, shared[row.Parent]
 }
 
 // opencodeQueued says whether an assistant message was still running when a user message

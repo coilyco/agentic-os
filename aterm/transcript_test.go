@@ -138,6 +138,11 @@ func TestClaudeTranscriptTagsEveryPathAPeerMessageTakes(t *testing.T) {
 	if reply := items["msg_G"]; reply.For != queued || !reply.Shared {
 		t.Fatalf("the answer to a mid-turn peer must be for it and shared: %+v", reply)
 	}
+	// Only the immediate response is tagged. The work that follows in the chain is the
+	// task's.
+	if reply := items["msg_G2"]; reply.For != "" || reply.Shared {
+		t.Fatalf("a later message in the same chain is not the peer's: %+v", reply)
+	}
 	// What was already running before it landed answers Kai, not the peer.
 	if tool := items["toolu_4"]; tool.For != "" || tool.Shared {
 		t.Fatalf("a call made before the peer landed is not for it: %+v", tool)
@@ -293,6 +298,11 @@ func TestCodexTranscriptUsesTheTypedItemsAndTurnsOrderAPeer(t *testing.T) {
 	if reply := items["a5"]; reply.For != "u4" || !reply.Shared {
 		t.Fatalf("the answer after a mid-turn peer is for it and shared: %+v", reply)
 	}
+	for _, id := range []string{"exec-3", "a6"} {
+		if items[id].For != "" || items[id].Shared {
+			t.Fatalf("%s follows the immediate response and is the task's: %+v", id, items[id])
+		}
+	}
 	if items["u3"].Kind != "prompt" || items["cc1"].Kind != "note" {
 		t.Fatalf("prompt and note kinds: %+v %+v", items["u3"], items["cc1"])
 	}
@@ -341,6 +351,9 @@ func TestOpencodeTranscriptReadsPartsAndTagsPeersByParent(t *testing.T) {
 	}
 	if reply := items["prt_t4"]; reply.For != "msg_u4" || !reply.Shared {
 		t.Fatalf("answer to a mid-turn peer = %+v", reply)
+	}
+	if reply := items["prt_t5"]; reply.For != "" || reply.Shared {
+		t.Fatalf("a later message with the same parent is the task's: %+v", reply)
 	}
 	if items["msg_u3"].Kind != "prompt" || items["prt_c1"].Kind != "note" {
 		t.Fatalf("prompt and note: %+v %+v", items["msg_u3"], items["prt_c1"])
