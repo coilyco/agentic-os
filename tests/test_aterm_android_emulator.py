@@ -34,6 +34,7 @@ case "$cmd" in
     fi
     echo Success ;;
   connect | forward | reverse) echo ok ;;
+  push) cp "$1" "$dev/tmp/pushed-$(basename "$2")" ;;
   shell)
     case "$1" in
       "getprop sys.boot_completed") [ "${FAKE_BOOTED:-1}" = 1 ] && echo 1 ;;
@@ -52,6 +53,13 @@ exec /usr/bin/stat "$@"
 """
 
 
+# MediaStore answers a query only when the test says the row exists.
+FAKE_CONTENT = """#!/bin/sh
+[ "$1" = query ] && [ -n "$FAKE_MEDIA_ROW" ] && echo "Row: 0 _id=$FAKE_MEDIA_ROW, _display_name=fx"
+exit 0
+"""
+
+
 FAKE_INPUT = """#!/bin/sh
 echo "input $*" >>"$FAKE_DEVICE/input.log"
 """
@@ -61,7 +69,7 @@ echo "input $*" >>"$FAKE_DEVICE/input.log"
 def device(tmp_path: Path) -> Path:
     (tmp_path / "tmp").mkdir()
     (tmp_path / "bin").mkdir()
-    for path, body in ((tmp_path / "adb", FAKE_ADB), (tmp_path / "bin" / "stat", FAKE_STAT), (tmp_path / "bin" / "input", FAKE_INPUT)):
+    for path, body in ((tmp_path / "adb", FAKE_ADB), (tmp_path / "bin" / "stat", FAKE_STAT), (tmp_path / "bin" / "input", FAKE_INPUT), (tmp_path / "bin" / "content", FAKE_CONTENT)):
         path.write_text(body, encoding="utf-8")
         path.chmod(path.stat().st_mode | stat.S_IXUSR)
     return tmp_path
@@ -191,3 +199,29 @@ def test_an_install_over_another_signing_key_says_to_reinstall(device: Path, tmp
     refused = verb(device, "install", str(apk), FAKE_INCOMPATIBLE="1")
     assert refused.returncode == 1 and "install --reinstall" in refused.stderr
     assert verb(device, "install", str(apk), "--reinstall", FAKE_INCOMPATIBLE="1").stdout.startswith("installed")
+
+
+def test_photo_pushes_a_png_and_names_the_row_mediastore_lists(device: Path) -> None:
+    verb(device, "acquire")
+    done = verb(device, "photo", "--name", "fx.png", FAKE_MEDIA_ROW="77")
+    assert done.returncode == 0, done.stderr
+    assert "content://media/external/images/media/77" in done.stdout
+    assert (device / "tmp" / "pushed-fx.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert "push" in (device / "adb.log").read_text() and "/sdcard/Pictures/fx.png" in (device / "adb.log").read_text()
+
+
+def test_photo_says_what_it_tried_when_mediastore_never_lists_it(device: Path) -> None:
+    verb(device, "acquire")
+    done = verb(device, "photo", TREEHOUSE_EMULATOR_MEDIA_WAIT="0")
+    assert done.returncode == 1
+    assert "never listed" in done.stderr and "scan-file" in done.stderr and "scan-volume" in done.stderr
+
+
+def test_photo_refuses_a_name_that_is_not_a_plain_png_file_name(device: Path) -> None:
+    verb(device, "acquire")
+    for name in ("a b.png", "x;rm.png", "x.jpg", "../x.png"):
+        assert verb(device, "photo", "--name", name).returncode == 2, name
+
+
+def test_photo_needs_the_lock(device: Path) -> None:
+    assert verb(device, "photo").returncode == 6

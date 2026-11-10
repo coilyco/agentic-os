@@ -9,6 +9,7 @@
   import { AT_END, jumpLabel, linesAbove, scrolled, wrote, type Follow } from "../lib/follow";
   import { envelopeRows } from "../lib/messages";
   import { harnessBox } from "../lib/harness";
+  import { NO_BOX, steadyBox } from "../lib/box-rows";
   import { resolveColour } from "../lib/brand";
   import { openLink } from "../lib/link-notice.svelte";
   import { boxToReport, nextTall } from "../lib/pty-size";
@@ -60,6 +61,8 @@
   // Said in the pane while it has drawn nothing and the host is being asked again. Empty otherwise.
   let waiting = $state("");
   const HIDE_SETTLE_MS = 350;
+  // How long a screen that does not read as the harness box is given before the box counts as gone.
+  const BOX_GRACE_MS = 3000;
   // Rows must touch, or box-drawing characters break into dashes.
   const LINE_HEIGHT = 1;
   const SCROLLBACK = 10000;
@@ -77,6 +80,11 @@
   let overflows = $state(false);
   const canWrap = $derived((handheld && overflows) || wrapping);
   const showSize = $derived(narrow || sizing || textSize !== DEFAULT_TEXT_SIZE);
+  // A card overlays the terminal, and on a short screen it reaches the top where these controls sit, over its Hide question (COI-3574).
+  // A new size also resizes the PTY, which makes the harness redraw the menu the card was read from, so they wait for the card.
+  $effect(() => {
+    if (covered) sizing = false;
+  });
   let refit = () => {};
   let finding = $state(false);
   let findSeed = $state("");
@@ -495,19 +503,30 @@
     observer.observe(host);
     // A pause lets a redraw finish, so a half-drawn box does not count as a box that left.
     let settle: ReturnType<typeof setTimeout> | undefined;
+    let steady = NO_BOX;
+    let boxSeenAt = 0;
+    const checkHarness = () => {
+      const rows = screenRows(terminal.buffer.active, terminal.rows);
+      const found = harnessBox(rows);
+      const now = performance.now();
+      if (found) boxSeenAt = now;
+      // A frame the harness is still drawing is not the box leaving. A menu is, and lets go at once (COI-3576).
+      else if (hidden > 0 && now - boxSeenAt < BOX_GRACE_MS && detectChoice(rows) === null) {
+        settle = setTimeout(checkHarness, BOX_GRACE_MS - (now - boxSeenAt) + HIDE_SETTLE_MS);
+        return;
+      }
+      steady = found ? steadyBox(steady, found.height, now) : NO_BOX;
+      const next = found ? rows.length - found.top : 0;
+      if (next === hidden && steady.asked === boxRows) return;
+      hidden = next;
+      boxRows = steady.asked;
+      layout();
+      anchor(true);
+    };
     watchHarness = () => {
       if (!cropping()) return;
       clearTimeout(settle);
-      settle = setTimeout(() => {
-        const rows = screenRows(terminal.buffer.active, terminal.rows);
-        const found = harnessBox(rows);
-        const next = found ? rows.length - found.top : 0;
-        if (next === hidden && (found?.height ?? 0) === boxRows) return;
-        hidden = next;
-        boxRows = found?.height ?? 0;
-        layout();
-        anchor(true);
-      }, HIDE_SETTLE_MS);
+      settle = setTimeout(checkHarness, HIDE_SETTLE_MS);
     };
     // Throttled, since a redraw is many writes. It re-arms while rows are held, to let them go.
     const TALL_SETTLE_MS = 350;
@@ -719,7 +738,7 @@
   <span class="edge left" class:on={past.left} aria-hidden="true">‹</span>
   <span class="edge right" class:on={past.right} aria-hidden="true">›</span>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  {#if showSize || canWrap}
+  {#if (showSize || canWrap) && !covered}
   <div class="size" onkeydown={(event) => event.key === "Escape" && (sizing = false)}>
     {#if canWrap}
       <button type="button" class="wrap" aria-pressed={wrapping} aria-label="Wrap long lines" onclick={() => setWrap(!wrapping)}>Wrap</button>
