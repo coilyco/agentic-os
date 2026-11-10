@@ -1,0 +1,71 @@
+# Emulator journeys for the aterm app's image flow (COI-3485), steps in scripts/ci/.
+# Dispatch and aterm-android paths only, since Actions minutes are watched (COI-3249).
+name: aterm-android-emulator
+
+on:
+  pull_request:
+    paths:
+      - "aterm-android/**"
+      - "scripts/ci/aterm-android.sh"
+      - "scripts/ci/aterm-android-emulator.sh"
+      - "scripts/ci/aterm_android_*.py"
+      - ".github/workflows/aterm-android-emulator.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: aterm-android-emulator-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+
+jobs:
+  journeys:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: aterm-client/.node-version
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: aterm/go.mod
+      - uses: ./actions/setup-ci
+        with:
+          tools: just
+      - name: Let the runner use KVM
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" kvm
+      - name: Install the Android toolchain
+        run: mkdir -p "$GITHUB_WORKSPACE/aterm-emulator-out" && bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" toolchain
+      - name: Build the debug x86_64 APK
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" build-debug x86_64 "$GITHUB_WORKSPACE/aterm-emulator-out/aterm-debug.apk"
+      - name: Make the emulator image
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" avd
+      - name: Boot the emulator
+        timeout-minutes: 10
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" boot
+      - name: Start a real daemon with a stub seat
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" daemon
+      - name: Run the journeys
+        timeout-minutes: 20
+        env:
+          ATERM_JOURNEY_B: optional
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" journey "$GITHUB_WORKSPACE/aterm-emulator-out/aterm-debug.apk"
+      - name: Collect the final logs
+        if: ${{ always() }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" collect
+      - name: Keep the screenshots and logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: aterm-android-emulator-${{ github.run_id }}
+          path: |
+            ${{ github.workspace }}/aterm-emulator-out/screens
+            ${{ github.workspace }}/aterm-emulator-out/daemon.log
+            ${{ github.workspace }}/aterm-emulator-out/relay.log
+            ${{ github.workspace }}/aterm-emulator-out/emulator.log
+          retention-days: 14
