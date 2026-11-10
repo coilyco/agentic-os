@@ -21,7 +21,7 @@ import type { Role } from "./roster";
 import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
 import { TYPING_OPEN, type Typing } from "./typing";
 import { offer, pageLabel, type OpenedPage } from "./pages";
-import { loadLastOpen, seatToRestore, storeLastOpen, type LastOpen } from "./last-open";
+import { loadLastOpen, storeLastOpen, type LastOpen } from "./last-open";
 import { beginLaunch, newSeatFor, type PendingLaunch } from "./launch-follow";
 
 /** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
@@ -85,6 +85,8 @@ export const app = $state({
   closeAction: null as { kind: "force" | "reopen"; session: string; ref: string } | null,
   // Settings replaces the main panel until a seat, host or role is picked (COI-3521).
   settingsOpen: false,
+  // The logo-only screen, reached from the overview's logo (COI-3518).
+  logoHome: false,
   // The latest coordinator ping. Attention turns it into a chime and a notice.
   notify: null as Notify | null,
   /** Pages seats put on her desk, by id. One marked waiting is a seat that needs her. */
@@ -132,10 +134,37 @@ export function reconnecting(): boolean {
   return app.link.state === "reconnecting" || app.link.state === "resting";
 }
 
+/** Whether the main panel is the seat overview: a healthy host, nothing else on screen.
+ * A fault, a lock or a notice shows the host's full page instead. */
+export function overviewShown(): boolean {
+  const host = selectedHost();
+  return (
+    !!host &&
+    host.id === app.attachedHostId &&
+    host.status.kind === "online" &&
+    !reconnecting() &&
+    app.typing.allowed &&
+    !app.notice &&
+    !host.found &&
+    !app.selectedSession &&
+    !app.selectedRole &&
+    !app.settingsOpen
+  );
+}
+
 /** Brings the attached host's own panel forward, where its connection check is. */
 /** Puts the Settings page in the main panel. Picking a seat, host or role closes it. */
 export function openSettings(): void {
   app.settingsOpen = true;
+  app.logoHome = false;
+}
+
+export function showLogo(): void {
+  app.logoHome = true;
+}
+
+export function hideLogo(): void {
+  app.logoHome = false;
 }
 
 export function closeSettings(): void {
@@ -145,6 +174,7 @@ export function closeSettings(): void {
 export function showHost(): void {
   restoring = null;
   app.settingsOpen = false;
+  app.logoHome = false;
   launching = null;
   if (app.attachedHostId) storeLastOpen({ host: app.attachedHostId });
   app.selectedSession = null;
@@ -358,23 +388,14 @@ function restoreFor(host: Host): void {
   } finally {
     restoringNow = false;
   }
-}
-
-function restoreSeat(last: LastOpen, listed: readonly Session[]): void {
-  const step = seatToRestore(last, listed);
-  if (!step) return;
-  restoringNow = true;
-  try {
-    if ("open" in step) selectSession(step.open);
-    else app.notice = `${step.gone} is not running any more. Pick a seat from the list.`;
-  } finally {
-    restoringNow = false;
-  }
+  // The host comes back and the seat does not: the app rests on the overview (COI-3518).
+  restoring = null;
 }
 
 export function selectHost(host: Host): void {
   if (!restoringNow) restoring = null;
   app.settingsOpen = false;
+  app.logoHome = false;
   launching = null;
   storeLastOpen({ host: host.id });
   app.selectedHostId = host.id;
@@ -415,11 +436,6 @@ export function selectHost(host: Host): void {
     else if (event.type === "sessions") {
       app.unseen = nextUnseen(app.sessions, event.sessions, viewingSession(), app.unseen);
       app.sessions = event.sessions;
-      if (restoring?.host === host.id) {
-        const last = restoring;
-        restoring = null;
-        restoreSeat(last, event.sessions);
-      }
       const arrived = launching ? newSeatFor(launching, event.sessions, Date.now()) : null;
       if (arrived) selectSession(arrived);
     }
@@ -535,10 +551,9 @@ export function selectHost(host: Host): void {
 export function selectSession(id: string): void {
   if (!restoringNow) restoring = null;
   app.settingsOpen = false;
+  app.logoHome = false;
   app.closing = null;
   launching = null;
-  const seat = sessionById(id);
-  if (seat && app.attachedHostId) storeLastOpen({ host: app.attachedHostId, seat: { id, who: seat.identity } });
   app.selectedSession = id;
   app.selectedRole = null;
   delete app.unseen[id];
@@ -592,6 +607,7 @@ export function dismissCloseNote(): void {
 export function selectRole(slug: string): void {
   restoring = null;
   app.settingsOpen = false;
+  app.logoHome = false;
   launching = null;
   app.selectedRole = slug;
   app.selectedSession = null;
