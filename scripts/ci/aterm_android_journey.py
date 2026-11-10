@@ -442,7 +442,11 @@ class Journey:
         self.end_dictation()
         page = self.page
         assert page
-        self.shot("settled")
+        # The field stays focused, so the keyboard covers the composer. Hide it.
+        if "mInputShown=true" in adb("shell", "dumpsys input_method | grep -m1 mInputShown", check=False):
+            adb("shell", "input", "keyevent", "4")
+            time.sleep(1)
+        self.shot("composer-after-dictation")
         settled = str(page.js("document.querySelector('#composer-input').value"))
         if settled != heard and not settled.startswith("run the gate"):
             raise Fail(f"journey G: the composer changed after the session ended: {settled!r}")
