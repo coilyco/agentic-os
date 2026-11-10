@@ -93,6 +93,8 @@ type claudeNode struct {
 	marker string
 	peer   bool
 	shared bool
+	// answer is the message that first answered a mid-turn peer.
+	answer string
 }
 
 // claudeTranscript reads a claude seat's transcript file.
@@ -135,10 +137,21 @@ func parseClaude(lines []jsonLine, all []ledgerEntry) parsedLines {
 		}
 		return nil
 	}
-	tag := func(item *transcriptItem, uuid string) {
-		if node := rootOf(uuid); node != nil && node.peer {
-			item.For, item.Shared = node.marker, node.shared
+	tag := func(item *transcriptItem, uuid, message string) {
+		node := rootOf(uuid)
+		if node == nil || !node.peer {
+			return
 		}
+		if node.shared {
+			// Only the model's immediate response to a mid-turn peer is tagged.
+			if node.answer == "" {
+				node.answer = message
+			}
+			if node.answer != message {
+				return
+			}
+		}
+		item.For, item.Shared = node.marker, node.shared
 	}
 
 	for _, line := range lines {
@@ -235,7 +248,7 @@ func parseClaude(lines []jsonLine, all []ledgerEntry) parsedLines {
 						item := transcriptItem{ID: claudeReplyID(entry.Message.ID, replyCount[entry.Message.ID]), Kind: transcriptKindReply,
 							At: entry.Timestamp, Model: entry.Message.Model, pos: line.pos}
 						item.setText(text)
-						tag(&item, entry.ParentUUID)
+						tag(&item, entry.ParentUUID, entry.Message.ID)
 						items = append(items, item)
 						lastReply = len(items) - 1
 						replyAt[entry.Message.ID] = lastReply
@@ -245,7 +258,7 @@ func parseClaude(lines []jsonLine, all []ledgerEntry) parsedLines {
 					}
 				case "tool_use":
 					item := claudeToolItem(block, entry, line.pos)
-					tag(&item, entry.ParentUUID)
+					tag(&item, entry.ParentUUID, entry.Message.ID)
 					byTool[block.ID] = len(items)
 					items = append(items, item)
 					lastReply = -1

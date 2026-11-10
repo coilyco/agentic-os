@@ -24,3 +24,5 @@ INSERT INTO part VALUES ('prt_u4', 'msg_u4', 'ses_demo', 1794000033000, '{"type"
 INSERT INTO message VALUES ('msg_a5', 'ses_demo', 1794000034000, '{"role":"assistant","parentID":"msg_u4","modelID":"model-test","finish":"stop","time":{"created":1794000034000,"completed":1794000035000}}');
 INSERT INTO part VALUES ('prt_t4', 'msg_a5', 'ses_demo', 1794000035000, '{"type":"text","text":"Docs updated, and I will merge on green."}');
 INSERT INTO part VALUES ('prt_c1', 'msg_a5', 'ses_demo', 1794000036000, '{"type":"compaction"}');
+INSERT INTO message VALUES ('msg_a6', 'ses_demo', 1794000037000, '{"role":"assistant","parentID":"msg_u4","modelID":"model-test","finish":"stop","time":{"created":1794000037000,"completed":1794000038000}}');
+INSERT INTO part VALUES ('prt_t5', 'msg_a6', 'ses_demo', 1794000038000, '{"type":"text","text":"Then I merged it."}');

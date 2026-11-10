@@ -32,9 +32,10 @@
 Anything another seat sent is `kind: "peer"` with `from: {role, identity}`, and never belongs in a seat's main view. **Unstamped input is Kai's** and stays a `prompt`.
 
 * **What marks one** - the stamp `[from <role> <identity>]` that the daemon builds in `envelope()` for every line it types into a seat (aterm send, MCP `send_message`, daemon notices and relays, feedback), and that a body cannot forge. Claude's own cross-session message carries a structured `origin.kind: "peer"`, resolved to a role through the ledger, with the bare name as `identity` when the ledger does not know it. A message queued while a Claude turn ran is a `queued_command` attachment and is read the same way.
-* **`for`** - on a reply, tool or note that descends from a peer message: that peer item's id. Absent means the item answers nobody.
-* **`shared`** - set only with `for`, when the peer landed inside a running turn. The files cannot separate what answers the peer from what continues Kai's earlier task, so the items from that peer to the next prompt carry `shared: true`. The client decides what to do with them.
-* **How `for` is derived** - Claude follows `parentUuid`, opencode follows the assistant message's `parentID`, Codex follows `turn_id`. All three give `for` exactly when a peer starts its own turn, and `shared` when it does not.
+* **`for`** - on a reply, tool or note that answers a peer message: that peer item's id. Absent means the item answers nobody.
+* **A peer that starts its own turn** (the seat was idle) is answered by the whole turn, so every item until the next prompt carries `for`.
+* **`shared`** - set only with `for`, when the peer landed inside a running turn. The files cannot separate what answers it from what continues Kai's earlier task, so only the model's **immediate response** to it carries `for` and `shared: true`, and the work after that carries neither. Tagging everything until the next prompt marked 146 of 159 peer-tagged items on a busy seat, which told the client nothing.
+* **How it is derived** - Claude follows `parentUuid` (a queued message is a `queued_command` attachment), opencode follows the assistant message's `parentID`, Codex follows `turn_id` and the order of items in the turn.
 
 ## How each harness records a tool step
 
