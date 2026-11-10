@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Drive the debug aterm app on the CI emulator through the image journeys (COI-3485).
 
-A: pick a PNG and Send. B: fire a SEND with a MediaStore URI, cold and warm. Both end with
-the daemon's file hashing equal to the PNG (aterm_android_seat.py). D: observe Open in
-browser. E: the relay stub refuses a send, and the page says so. C: stop the daemon. The
-page is driven over scripts/aterm_devtools.py, the picker through uiautomator.
-Design: tooling-aterm-client references/android.md. Standard library only.
+A: the picker opens, a PNG goes in by the file input, Send. B: fire a SEND with a
+MediaStore URI, cold and warm. Both end with the daemon's file hashing equal to the PNG
+(aterm_android_seat.py). D: observe Open in browser. E: the relay stub refuses a send.
+Picker: a real pick, warning only (COI-3580). C: stop the daemon. The page is driven
+over scripts/aterm_devtools.py, the picker through uiautomator. Standard library only.
+Design: tooling-aterm-client references/android.md.
 """
 from __future__ import annotations
 
@@ -160,6 +161,16 @@ class Journey:
             time.sleep(0.5)
         raise Fail(f"no system picker in front. focus: {self.focus() or 'none'}")
 
+    def dismiss_picker(self) -> None:
+        """Back out of the system picker, so the page gets its file input's cancel and the app is in front."""
+        adb("shell", "input", "keyevent", "4")
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            if APP in self.focus() and not any(name in self.focus() for name in ("documentsui", "photopicker", "providers.media")):
+                return
+            time.sleep(0.5)
+        raise Fail(f"the picker did not close. focus: {self.focus() or 'none'}")
+
     def tap_node(self, wanted, wait: float) -> bool:
         """Tap the centre of the first uiautomator node `wanted` accepts, within wait seconds."""
         deadline = time.monotonic() + wait
@@ -174,16 +185,17 @@ class Journey:
             time.sleep(1)
         return False
 
-    def pick_image(self) -> None:
-        """Pick the seeded PNG: a Photo Picker thumbnail if it lists one, else Browse to the file."""
+    def pick_image(self, mode: str = "browse") -> None:
+        """Pick the seeded PNG: `browse` goes through the file browser, `thumb` takes the Photo Picker's own."""
         def thumb(node: ET.Element) -> bool:
             named = PNG_NAME in (node.get("text", "") + node.get("content-desc", ""))
             return named or node.get("resource-id", "").endswith(("icon_thumb", "icon_thumbnail", "item_root"))
-        if self.tap_node(thumb, 12):
+        if mode == "thumb":
+            if not self.tap_node(thumb, 25):
+                raise Fail("the Photo Picker listed no image to take")
             # The app's input allows several files, so the picker waits for Add (1).
             self.tap_node(lambda n: n.get("resource-id", "").endswith("button_add"), 8)
             return
-        print("the Photo Picker lists no image, so browsing to the file")
         if not self.tap_node(lambda n: n.get("content-desc") == "More options", 10):
             raise Fail("no More options in the picker, ui.xml has what it did show")
         if not self.tap_node(lambda n: n.get("text", "").startswith("Browse"), 10):
@@ -383,12 +395,46 @@ class Journey:
             time.sleep(0.5)
         raise Fail(f"{label}: the page never matched {pattern!r}. page text: {page.text()[:400]!r}")
 
+    def record_picker(self, label: str) -> None:
+        """What Android holds for the app around a pick: grants, activity lifecycle, and related log lines."""
+        grants = [line for line in adb_all("shell", "dumpsys", "activity", "permissions", timeout=60).splitlines() if "treehouse" in line or "picker" in line]
+        events = [line for line in adb_all("logcat", "-b", "events", "-d", "-v", "time", timeout=60).splitlines() if "treehouse" in line and "wm_" in line]
+        log = [line for line in adb_all("logcat", "-d", "-t", "1500", "-v", "time", timeout=60).splitlines() if re.search(r"chromium|FileChooser|Permission Denial|UriGrants|photopicker|NotReadable", line, re.I)]
+        body = ["== uri grants", *grants[:60], "== activity events (wm_*)", *events[-40:], "== log", *log[-60:]]
+        (self.out / f"picker-{label}.txt").write_text("\n".join(body) + "\n")
+
+    def journey_picker(self, mode: str) -> None:
+        """A real pick through the system picker, then Send: does the page read what it hands back (COI-3580)?"""
+        page = self.page
+        assert page
+        before = Path(self.args.seat_log).read_text(errors="replace").count("\n")
+        self.open_picker()
+        self.pick_image(mode)
+        page.wait_selector(CHIP)
+        self.record_picker(f"{mode}-after-pick")
+        page.tap(f"()=>document.querySelector({json.dumps(SEND)})")
+        deadline = time.monotonic() + 20
+        said = ""
+        while time.monotonic() < deadline:
+            found = re.search(r"Not sent\.[^\n]*", page.text())
+            said = found.group(0) if found else ""
+            if said or Path(self.args.seat_log).read_text(errors="replace").count("\n") > before:
+                break
+            time.sleep(0.5)
+        self.record_picker(f"{mode}-after-send")
+        if said:
+            if page.js(f"!!document.querySelector({json.dumps(CHIP)})"):
+                page.tap(f"()=>document.querySelector({json.dumps(CHIP)})")
+            raise Fail(f"the page could not send the {mode} pick: {said!r}")
+        if Path(self.args.seat_log).read_text(errors="replace").count("\n") <= before:
+            raise Fail("nothing reached the seat and the page said nothing")
+        print(f"journey {mode}: the picked image reached the seat")
+
     def journey_c_daemon_down(self) -> None:
         """Evidence only: the failure copy is the client's to specify (COI-3485)."""
         page = self.page
         assert page
-        self.open_picker()
-        self.pick_image()
+        self.add_image_without_picker()
         page.wait_selector(CHIP)
         subprocess.run(["pkill", "-f", f"aterm daemon --socket {self.args.socket}"], check=False)
         time.sleep(1)
@@ -407,7 +453,8 @@ class Journey:
         self.step("attach-devtools", self.attach_page)
         self.step("add-host-and-open-seat", self.add_host_and_open_seat)
         self.step("tap-add-image-picker-opens", self.open_picker)
-        self.step("pick-the-seeded-png", self.pick_image)
+        self.step("dismiss-the-picker", self.dismiss_picker)
+        self.step("add-the-seeded-png", self.add_image_without_picker)
         self.step("chip-then-send", self.chip_then_send)
         self.step("daemon-received-the-bytes", self.daemon_got_the_bytes)
         print("journey A: passed")
@@ -430,6 +477,13 @@ class Journey:
             print("::warning::journey D saw no artifact card (COI-3520), see its FAILED screenshot")
             self.recover()
         self.step("journey-e-refusals", self.journey_e_refusals)
+        for mode in ("thumb", "browse"):
+            try:
+                self.step(f"journey-picker-{mode}", lambda: self.journey_picker(mode))
+            except SystemExit:
+                # COI-3580's evidence is in picker-<mode>-*.txt, so this only warns.
+                print(f"::warning::journey picker {mode} failed, see picker-{mode}-*.txt (COI-3580)")
+                self.recover()
         self.step("journey-c-daemon-down", self.journey_c_daemon_down)
         self.evidence()
 
