@@ -55,7 +55,7 @@ CLIs, and full-only gates in the full Dockerfile, so changing them reuses cached
 payloads rather than rebuilding toolchains. Every pin is manual, and only the
 agent-compose pin is [watched](build-file-headers.md) against upstream.
 Each other pin is only as current as the last person who checked it. The image owns this deployment's
-Git identity, without redefining AOSguard policy or agent-compose source data.
+Git identity, without redefining AOSguard policy or agent-compose source data. The full image fetches agent-compose from the private treehouse-servers release (COI-3302): `actions/dev-base-read-token` mints a one-hour read token right before the build, it arrives as the BuildKit secret `treehouse_read_token`, and `fetch-private-release.sh` checks each asset against `SHA256SUMS` with the token in no layer, argv or redirect target. A fork or Dependabot run gets no secrets and fails at the mint. Locally, export `TREEHOUSE_READ_TOKEN="$(gh auth token)"`.
 ## dev-base build cache
 
 Every multi-architecture payload and full-image build reuses a persistent Buildx

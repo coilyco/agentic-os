@@ -63,6 +63,9 @@ target "full" {
   platforms  = [PLATFORM]
   tags       = ["agentic-os:${TAG}"]
   output     = ["type=docker"]
+  # The private agent-compose release the full stage fetches, read from the caller's
+  # environment and never from a file (COI-3302).
+  secret = ["id=treehouse_read_token,env=TREEHOUSE_READ_TOKEN"]
   args = {
     RUST_PINNED_VERSIONS = RUST_PINNED_VERSIONS
     BASE_IMAGE        = "agentic-os:lang-rust-${TAG}"

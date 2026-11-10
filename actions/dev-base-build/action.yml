@@ -23,6 +23,9 @@ inputs:
     description: "docker buildx plugin version installed on the bare runner."
     required: false
     default: "v0.34.1"
+  treehouse-read-token:
+    description: "Read token for the private agent-compose release, from actions/dev-base-read-token."
+    required: true
 
 runs:
   using: "composite"
@@ -50,6 +53,7 @@ runs:
         BUILD_TIMEOUT: ${{ inputs.build-timeout }}
         PLATFORM: ${{ inputs.platform }}
         TAG: ${{ inputs.tag }}
+        TREEHOUSE_READ_TOKEN: ${{ inputs.treehouse-read-token }}
       run: bash "${GITHUB_ACTION_PATH}/scripts/build.sh"
 
     - name: Verify the local full development surface
