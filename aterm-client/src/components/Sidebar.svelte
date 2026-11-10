@@ -490,7 +490,7 @@
     /* A chip grows to carry the line, and no further, so the next chip still shows at the edge. */
     .seats .activity { max-width: 190px; }
     /* Name over harness and code, so a chip is narrow enough to leave the next one showing at its edge. */
-    .seats .name-row { display: grid; grid-template-columns: auto auto 1fr; column-gap: 6px; align-items: baseline; max-height: none; overflow: visible; }
+    .seats .name-row { display: grid; grid-template-columns: auto auto 1fr; column-gap: 6px; align-items: baseline; row-gap: 0; max-height: none; overflow: visible; }
     .seats .name { grid-column: 1 / -1; font-size: 14px; line-height: 1.2; }
     .seats .harness { padding: 0; border: none; font-size: 11px; color: var(--muted); }
     .seats .code-inline { display: inline; }
