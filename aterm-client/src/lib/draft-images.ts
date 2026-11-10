@@ -14,7 +14,8 @@ export interface Row {
   key: string;
   at: number;
   bytes: number;
-  files: { name: string; type: string; lastModified: number; blob: Blob }[];
+  // Bytes, not a Blob: WebKit will not store a Blob in a private session.
+  files: { name: string; type: string; lastModified: number; data: ArrayBuffer }[];
 }
 
 /** The keys to drop: the stale ones, then the oldest until the rest fit the budget. */
@@ -60,12 +61,14 @@ export async function saveDraftImages(key: string, files: File[], now = Date.now
   try {
     const bytes = files.reduce((sum, file) => sum + file.size, 0);
     const fits = bytes <= MAX_BYTES;
+    // Read first: a transaction ends while it waits on anything but its own requests.
+    const data = fits ? await Promise.all(files.map((file) => file.arrayBuffer())) : [];
     await inStore("readwrite", async (store) => {
       if (files.length === 0 || !fits) {
         await wrap(store.delete(key));
         return;
       }
-      const row: Row = { key, at: now, bytes, files: files.map((file) => ({ name: file.name, type: file.type, lastModified: file.lastModified, blob: file })) };
+      const row: Row = { key, at: now, bytes, files: files.map((file, i) => ({ name: file.name, type: file.type, lastModified: file.lastModified, data: data[i] as ArrayBuffer })) };
       await wrap(store.put(row));
       const rows = (await wrap(store.getAll())) as Row[];
       for (const old of planPrune(rows, key, now)) await wrap(store.delete(old));
@@ -80,7 +83,7 @@ export async function loadDraftImages(key: string, now = Date.now()): Promise<Fi
   try {
     const row = await inStore("readonly", (store) => wrap(store.get(key) as IDBRequest<Row | undefined>));
     if (!row || now - row.at > KEEP_MS) return [];
-    return row.files.map((each) => new File([each.blob], each.name, { type: each.type, lastModified: each.lastModified }));
+    return row.files.map((each) => new File([each.data], each.name, { type: each.type, lastModified: each.lastModified }));
   } catch {
     return [];
   }
