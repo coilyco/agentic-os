@@ -117,6 +117,10 @@ func parseCodex(lines []jsonLine) parsedLines {
 		}
 		if out.Kind != transcriptKindPrompt && out.Kind != transcriptKindPeer && turn.rootPeer {
 			out.For, out.Shared = turn.root, turn.shared
+			// A mid-turn peer is answered by the next reply, and what follows is the task's.
+			if turn.shared && out.Kind == transcriptKindReply {
+				turn.rootPeer = false
+			}
 		}
 		turn.items++
 		items = append(items, out)

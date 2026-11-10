@@ -123,20 +123,38 @@
     {
       "id": "a5",
       "kind": "reply",
-      "text": "Docs updated, and I will merge on green.",
+      "text": "Merging once the docs check is done.",
       "at": "2026-11-10T21:00:34.000Z",
       "model": "gpt-test",
-      "complete": true,
       "for": "u4",
       "shared": true
+    },
+    {
+      "id": "exec-3",
+      "kind": "tool",
+      "at": "2026-11-10T21:00:34.500Z",
+      "model": "gpt-test",
+      "tool": {
+        "name": "exec",
+        "class": "shell",
+        "summary": "Ran git merge --no-edit main",
+        "ok": true,
+        "output": "Already up to date.\n"
+      }
+    },
+    {
+      "id": "a6",
+      "kind": "reply",
+      "text": "Docs updated and merged.",
+      "at": "2026-11-10T21:00:34.800Z",
+      "model": "gpt-test",
+      "complete": true
     },
     {
       "id": "cc1",
       "kind": "note",
       "text": "Context compacted",
-      "at": "2026-11-10T21:00:35.000Z",
-      "for": "u4",
-      "shared": true
+      "at": "2026-11-10T21:00:35.000Z"
     }
   ],
   "more": false
