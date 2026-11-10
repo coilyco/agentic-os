@@ -54,8 +54,8 @@
   .messages { flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
   ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
   li { padding: 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); min-width: 0; }
-  li[data-state="queued"], li[data-state="held"], li[data-state="launching"] { border-color: #4a3d25; background: var(--warn-fill); }
-  li[data-state="failed"] { border-color: #5a3a41; background: var(--danger-fill); }
+  li[data-state="queued"], li[data-state="held"], li[data-state="launching"] { border-color: var(--warn-line); background: var(--warn-fill); }
+  li[data-state="failed"] { border-color: var(--danger-line); background: var(--danger-fill); }
   .row { display: block; width: 100%; min-height: 44px; margin: -12px; padding: 12px; box-sizing: content-box; border: 0; border-radius: 10px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
   .row:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .meta { display: flex; align-items: center; gap: 8px; font-size: 13px; flex-wrap: wrap; }

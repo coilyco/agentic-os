@@ -115,6 +115,100 @@ test.describe("on a phone", () => {
   });
 });
 
+test.describe("on a phone, links and stripes", () => {
+  test.beforeEach(({}, info) => test.skip(kindOf(info) !== "phone", "a phone's narrow box"));
+
+  const LINK = "https://code.claude.com/docs/en/permission-modes-and-the-rest-of-it";
+  const linkScene: Scene = {
+    render(cols, rows) {
+      const tail = [`see ${LINK} for the modes`.slice(0, cols), "", "❯ "];
+      return [...Array(Math.max(0, rows - tail.length)).fill(""), ...tail];
+    },
+  };
+
+  // The middle of a piece of text, where a finger would land, in page pixels.
+  const centreOf = (page: import("@playwright/test").Page, piece: string) =>
+    page.evaluate((needle) => {
+      const walker = document.createTreeWalker(document.querySelector(".xterm-rows")!, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const at = node.textContent?.indexOf(needle) ?? -1;
+        if (at < 0) continue;
+        const range = document.createRange();
+        range.setStart(node, at);
+        range.setEnd(node, at + needle.length);
+        const box = range.getClientRects()[0]!;
+        return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      }
+      return null;
+    }, piece);
+
+  async function openFolded(bed: import("../harness.ts").Bed) {
+    await bed.openSeat(SEATS.imp);
+    await bed.page.evaluate(() => {
+      const w = window as unknown as { __opened: string[] };
+      w.__opened = [];
+      window.open = (url) => (w.__opened.push(String(url)), null);
+    });
+    bed.mock.holdWide(SEATS.imp.id, WIDE);
+    bed.mock.setScene(SEATS.imp.id, linkScene);
+    await expect(bed.screen()).toContainText("permission-modes");
+    await bed.page.getByRole("button", { name: "Wrap long lines" }).click();
+    await expect.poll(async () => (await reading(bed.page)).wrapping).toBe(true);
+    await bed.page.waitForTimeout(500);
+  }
+  const opened = (page: import("@playwright/test").Page) => page.evaluate(() => (window as unknown as { __opened: string[] }).__opened);
+
+  test("a tap on a link in a folded row opens it, from either part of the address", async ({ bed }) => {
+    await openFolded(bed);
+    const rest = await centreOf(bed.page, "the-rest-of-it");
+    expect(rest, "the tail of the address is on screen").not.toBeNull();
+    const head = await centreOf(bed.page, "code.claude");
+    expect(head!.y, "the address folds onto more than one visual line").toBeLessThan(rest!.y);
+    await bed.page.touchscreen.tap(rest!.x, rest!.y);
+    await expect.poll(() => opened(bed.page)).toEqual([LINK]);
+    await bed.page.touchscreen.tap(head!.x, head!.y);
+    await expect.poll(() => opened(bed.page)).toEqual([LINK, LINK]);
+    await bed.step("link-folded", { compare: false });
+  });
+
+  test("a tap on text that is not a link opens nothing", async ({ bed }) => {
+    await openFolded(bed);
+    const word = await centreOf(bed.page, "the modes");
+    expect(word, "the words after the address are on screen").not.toBeNull();
+    await bed.page.touchscreen.tap(word!.x, word!.y);
+    await bed.page.waitForTimeout(400);
+    expect(await opened(bed.page)).toEqual([]);
+  });
+
+  test("an envelope's stripe runs down the whole folded row, and goes with the switch", async ({ bed }) => {
+    await bed.openSeat(SEATS.imp);
+    bed.mock.push({
+      type: "message",
+      message: { id: "env-1", from: "eng-platform Beetle-Ox", target: "frontend-eng", session: SEATS.imp.id, state: "delivered", text: "Run the gate." },
+    });
+    const envelope = "[from eng-platform Beetle-Ox] Run the gate, read what it says, and tell the person which step is next.";
+    bed.mock.holdWide(SEATS.imp.id, WIDE);
+    bed.mock.setScene(SEATS.imp.id, { render: (cols, rows) => [...Array(Math.max(0, rows - 3)).fill(""), envelope.slice(0, cols), "", "❯ "] });
+    await expect(bed.screen()).toContainText("tell the person");
+    const stripe = () =>
+      bed.page.evaluate(() => {
+        const row = [...document.querySelectorAll<HTMLElement>(".xterm-rows > div")].find((r) => r.textContent?.includes("[from eng-platform"));
+        if (!row) return null;
+        const bar = getComputedStyle(row, "::before");
+        return { marked: "stripe" in row.dataset, width: bar.width, tall: row.getBoundingClientRect().height, background: row.style.background };
+      });
+    await bed.page.getByRole("button", { name: "Wrap long lines" }).click();
+    await expect.poll(async () => (await stripe())?.marked, "the row carries a stripe").toBe(true);
+    const on = (await stripe())!;
+    expect(on.width, "a 4px bar").toBe("4px");
+    expect(on.tall, "the bar spans every folded line of the row").toBeGreaterThan(40);
+    expect(on.background).toContain("color-mix");
+    await bed.step("stripe-folded", { compare: false });
+    await bed.page.getByRole("button", { name: "Wrap long lines" }).click();
+    await expect.poll(async () => (await stripe())?.marked, "the stripe leaves with the switch").toBe(false);
+  });
+});
+
 test.describe("on a desktop", () => {
   test.beforeEach(({}, info) => test.skip(kindOf(info) !== "desktop", "a desktop pane"));
 

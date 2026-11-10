@@ -277,9 +277,9 @@
   .empty { margin: 0; color: var(--muted); font-size: 13px; }
   .bar { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
   .bar[data-driver="person"] { border-color: var(--brand); }
-  .bar[data-driver="elsewhere"] { border-color: #4a3d25; background: var(--warn-fill); }
+  .bar[data-driver="elsewhere"] { border-color: var(--warn-line); background: var(--warn-fill); }
   .note { margin: 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
-  .bar[data-driver="closed"] { border-color: #5a3a41; background: var(--danger-fill); }
+  .bar[data-driver="closed"] { border-color: var(--danger-line); background: var(--danger-fill); }
   .who { margin: 0; flex: 1 1 160px; font-size: 14px; }
   .bar .button[aria-disabled="true"] { opacity: 0.6; cursor: progress; }
   .bar[data-driver="closed"] .who { color: var(--danger-text); }

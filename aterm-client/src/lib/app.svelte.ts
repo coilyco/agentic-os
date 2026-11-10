@@ -385,8 +385,9 @@ let restoring: LastOpen | null = loadLastOpen();
 let launching: PendingLaunch | null = null;
 let restoringNow = false;
 
+// A host down at launch is selected too, since a recheck attaches only a selected one.
 function restoreFor(host: Host): void {
-  if (restoring?.host !== host.id || app.selectedHostId || host.status.kind !== "online") return;
+  if (restoring?.host !== host.id || app.selectedHostId || host.status.kind === "checking") return;
   restoringNow = true;
   try {
     selectHost(host);
@@ -654,7 +655,7 @@ export function failedLaunchOf(slug: string): Session | undefined {
 }
 
 export function colorOf(slug: string): string {
-  return app.roles.find((role) => role.slug === slug)?.color ?? "#a4abb9";
+  return app.roles.find((role) => role.slug === slug)?.color ?? "var(--muted)";
 }
 
 /** Messages to or from one session. A target may name its role, identity, or session. */

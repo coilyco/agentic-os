@@ -122,6 +122,22 @@ test("a cold start whose first dial fails attaches on its own within the first b
   await page.screenshot({ path: info.outputPath("2-attached.png") });
 });
 
+// COI-3352, found on the emulator: a launch has the host remembered and no tap.
+// The tests above click the host first, which hid a down host never being selected.
+test("a launch with the remembered host down attaches on its own when it comes up, with no tap", async ({ bed, mock }, info) => {
+  const { page } = bed;
+  await page.addInitScript(() => localStorage.setItem("aterm.last-open.v1", JSON.stringify({ host: "local" })));
+  mock.dials("refuse");
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: /is not answering/ }), "the host is on screen, not Pick a host").toBeVisible();
+  await page.screenshot({ path: info.outputPath("1-launch-down.png") });
+  await page.clock.pauseAt(new Date(Date.now() + 5000));
+  mock.dials("ok");
+  const seat = page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first();
+  expect(await advanceUntil(page, 150 * 1000, () => seat.isVisible()), "the host stayed unattached until a tap").toBe(true);
+  await page.screenshot({ path: info.outputPath("2-attached.png") });
+});
+
 test("a cold start whose attach dial fails, after the page-load probe passed, attaches on its own", async ({ bed, mock }, info) => {
   const { page } = bed;
   await page.goto("/");
