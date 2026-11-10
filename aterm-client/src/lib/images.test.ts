@@ -62,7 +62,7 @@ describe("screenImages", () => {
   it("says the host cannot take images, rather than dropping them, when it has no channel", () => {
     const out = screenImages([file("a.png", "image/png")], 0, undefined);
     expect(out.accepted).toEqual([]);
-    expect(out.refusal).toBe("This host cannot take images, so nothing was added. It needs a newer aterm daemon.");
+    expect(out.refusal).toBe("This host cannot take images, so nothing was added. It needs a newer Treehouse.");
   });
 
   it("refuses a file that is not an image by name, and keeps the good one", () => {

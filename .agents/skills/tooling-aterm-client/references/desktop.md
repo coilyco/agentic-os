@@ -29,5 +29,5 @@ The loopback daemon accepts the webview's `tauri://localhost` origin, since its 
 
 * **The signature is ad-hoc.** A rebuild is a new identity to macOS, so a grant would not survive it. `TREEHOUSE_SIGN_IDENTITY` takes a keychain identity once one exists for the app (COI-3338).
 * **The seed writes the client's storage keys** from outside it. A build-time local host and an open-this-role setting in the client would replace it.
-* **The executable is still `aterm-app`**, so the process list and `ps` say that.
+* **The Cargo package is still `aterm-app`**, a code name nobody reads. The executable inside the bundle is `Treehouse` (`mainBinaryName` in `tauri.macos.conf.json`), so the process list says that (COI-3550).
 * **The Android build was not re-run** after the `cfg(desktop)` split in `lib.rs`. Its next scheduled run is the check.
