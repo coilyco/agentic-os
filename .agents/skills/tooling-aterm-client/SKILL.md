@@ -61,6 +61,7 @@ than editing it by hand.
 * [feedback.md](references/feedback.md) - the Feedback sheet, and the daemon's `feedback` frames that keep its note and screenshots as a durable record handed to a frontend-eng seat.
 * [choices.md](references/choices.md) - native choice cards, `ask_choice` and `send_user_question`.
 * [seat-state.md](references/seat-state.md) - how long a seat has been in its state, and its last reply.
+* [transcript.md](references/transcript.md) - the daemon's `transcript` read: a seat's prompts, replies and tool steps from its harness files, the frame, peer messages, and how each harness records a tool step.
 * [session-names.md](references/session-names.md) - session refs, name@ref, and why a close by stale name is refused.
 * [grants.md](references/grants.md) - approval grants: one Kai decision carried to the executing seats, and the daemon's refusals.
 * [passkey.md](references/passkey.md) - the passkey unlock a remote device needs before it types.
