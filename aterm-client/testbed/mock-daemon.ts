@@ -139,6 +139,12 @@ export interface Mock {
   refuseTranscript(session: string, reason: string | null): void;
   /** Every `transcript` request the client sent, in order. */
   transcriptCalls: { session: string; since?: string; before?: string; limit?: number }[];
+  /** A seat shares a file. The mock keeps its bytes and pushes the descriptor. */
+  shareMedia(session: string, file: { name: string; mime: string; kind: "image" | "video" | "file"; bytes: Buffer; unreadable?: boolean }): string;
+  /** The host drops a shared file, as it does when a seat's shelf is full. */
+  closeMedia(session: string, id: string): void;
+  /** Every `media_read` the client sent: the file and where in it. */
+  mediaReads: { media: string; offset: number; length: number }[];
   /** The resume window passes: every proof the daemon issued stops holding. */
   endResumeWindow(): void;
   stop(): Promise<void>;
@@ -159,7 +165,7 @@ export function loadSessions(): SessionSpec[] {
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
  * `images`: Add image shows. `webPush`: Notify when closed shows. */
-export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; transcript?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[] };
+export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; transcript?: boolean; media?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[] };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   if (!existsSync(join(DIST, "index.html"))) {
     throw new Error("The mock daemon serves aterm-client/dist, which is not built. Run `just aterm-client-testbed`, which builds it first.");
@@ -180,7 +186,12 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   let lastFrameAt = Date.now();
   const lastBox = new Map<string, { rows: number; cols: number }>();
   const closed = new Map<string, SessionSpec>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], transcriptCalls: [] as Mock["transcriptCalls"] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"] };
+  const shared = new Map<string, { session: string; name: string; mime: string; kind: string; bytes: Buffer; at: number; unreadable?: boolean }>();
+  const mediaFrame = (id: string) => {
+    const file = shared.get(id)!;
+    return { type: "media", session: file.session, media: { id, name: file.name, mime: file.mime, kind: file.kind, size: file.bytes.length, at: new Date(file.at).toISOString() } };
+  };
   const transcripts = new Map<string, unknown[]>();
   const transcriptRefusals = new Map<string, string>();
   // A seat's browser: the agent drives until a screen takes control.
@@ -251,7 +262,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           if (options.lock) {
             send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...unlockedFeatures, ...pushFeature], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
           } else {
-            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...(options.images ? ["image-upload"] : []), ...(options.transcript ? ["transcript"] : []), ...pushFeature], typing: { allowed: true } });
+            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...(options.images ? ["image-upload"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.media ? ["media"] : []), ...pushFeature], typing: { allowed: true } });
           }
           return;
         case "device_assert_begin":
@@ -274,6 +285,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
         }
         case "subscribe":
           if (frame.channel === "sessions") send(socket, sessionsFrame());
+          if (frame.channel === "media") for (const id of shared.keys()) send(socket, mediaFrame(id));
           if (frame.channel === "open_url") {
             mock.browserCalls.push({ type: "subscribe", channel: "open_url" });
             send(socket, { type: "subscribed", id: frame.id, channel: "open_url" });
@@ -346,6 +358,17 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
             return;
           }
           send(socket, { type: "transcript", id: frame.id, session, reader: "claude", items: all.slice(from, to), cursor: String(all.length), ...(from > 0 ? { older: String(from) } : {}), more: from > 0, updated_at: new Date().toISOString() });
+          return;
+        }
+        case "media_read": {
+          const id = String(frame.media_id);
+          const file = shared.get(id);
+          const offset = Number(frame.offset ?? 0);
+          const length = Number(frame.length ?? 0);
+          mock.mediaReads.push({ media: id, offset, length });
+          if (!file || file.unreadable) return void send(socket, { type: "error", id: frame.id, reason: "media_unknown", error: "no such file" });
+          const slice = file.bytes.subarray(offset, offset + length);
+          send(socket, { type: "media_data", id: frame.id, media_id: id, offset, size: file.bytes.length, eof: offset + slice.length >= file.bytes.length, data: slice.toString("base64") });
           return;
         }
         case "roster":
@@ -522,6 +545,17 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     setTranscript: (session, items) => void transcripts.set(session, items),
     appendTranscript: (session, items) => void transcripts.set(session, [...(transcripts.get(session) ?? []), ...items]),
     refuseTranscript: (session, reason) => void (reason ? transcriptRefusals.set(session, reason) : transcriptRefusals.delete(session)),
+    mediaReads: mock.mediaReads,
+    shareMedia(session, file) {
+      const id = `media-${shared.size + 1}`;
+      shared.set(id, { session, ...file, at: Date.now() });
+      for (const socket of clients) send(socket, mediaFrame(id));
+      return id;
+    },
+    closeMedia(session, id) {
+      shared.delete(id);
+      for (const socket of clients) send(socket, { type: "media_closed", session, media_id: id });
+    },
     refuseUploads(reason) {
       uploadRefusal = reason;
     },
