@@ -4,7 +4,9 @@ import rosterJson from "./fixtures/roster.json";
 import { envelope } from "./messages";
 import { FEEDBACK_TEXT_MAX, feedbackRefusal } from "./feedback";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
-import type { Ask, ContextReading, HostConnection, FeedbackChannel, HostEvent, ImageChannel, PeerMessage, Session, TerminalChannel } from "./protocol";
+import { DEMO_FILES } from "./fixtures/demo-media";
+import { mediaRefusal } from "./media";
+import type { Ask, ContextReading, HostConnection, FeedbackChannel, HostEvent, ImageChannel, MediaChannel, PeerMessage, Session, TerminalChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import { CLAUDE_BOX, CLAUDE_DIALOG, drawHarness, type Frame } from "./demo-harness";
 import { runShellLine, SHELL_PROMPT, type ShellStep } from "./demo-shell";
@@ -45,8 +47,30 @@ function isImage(head: Uint8Array): boolean {
   return starts(0x89, 0x50, 0x4e, 0x47) || starts(0xff, 0xd8, 0xff) || starts(0x47, 0x49, 0x46, 0x38) || (starts(0x52, 0x49, 0x46, 0x46) && head[8] === 0x57 && head[9] === 0x45);
 }
 
+// The seat the demo's shared files come from.
+const MEDIA_SEAT = "frontend-eng-imp-dragonfly-dj99";
+
+function demoMediaOn(): boolean {
+  try {
+    return localStorage.getItem("aterm.demo-media") === "1";
+  } catch {
+    return false;
+  }
+}
+
 export class MockHost implements HostConnection {
   readonly canLaunch = true;
+  // Off unless asked for: no daemon shares files yet, and this host scripts what one has.
+  readonly media?: MediaChannel = demoMediaOn()
+    ? {
+        read: async (item) => {
+          const file = DEMO_FILES.find((each) => each.id === item.id);
+          if (!file) throw new Error(mediaRefusal("media_unknown"));
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          return new Blob([Uint8Array.from(atob(file.base64), (char) => char.charCodeAt(0))], { type: file.mime });
+        },
+      }
+    : undefined;
   readonly terminals?: TerminalChannel;
   // The daemon's rules (references/image-upload.md): bytes set the type, 3 MB, 16 a seat.
   readonly images: ImageChannel = {
@@ -180,6 +204,7 @@ export class MockHost implements HostConnection {
     for (const ask of this.asks) listener({ type: "ask", ask });
     if (this.terminalMode === "locked") listener({ type: "typing", typing: { allowed: false, reason: "peer_unread" } });
     listener({ type: "features", terminals: this.terminals !== undefined });
+    if (this.media) for (const file of DEMO_FILES) listener({ type: "media", item: { id: file.id, session: MEDIA_SEAT, name: file.name, mime: file.mime, kind: file.kind, size: Math.floor((file.base64.length * 3) / 4) } });
     if (this.terminals && this.terminalMode !== "mute") listener({ type: "terminals", terminals: this.listShells() });
     return () => this.listeners.delete(listener);
   }

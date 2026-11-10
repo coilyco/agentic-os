@@ -9,7 +9,7 @@ Major shipped capabilities, not files.
 - [Android emulator for Frontend seats](../.agents/skills/tooling-aterm-client/references/android-emulator.md) - `just aterm-android-emulator` drives one emulator running the real Treehouse app, with a seat lock and DevTools.
 - [Signed macOS aterm](aos-cli.md#signed-macos-aterm) - the Mac release wraps `aterm` in a bundle signed on the Linux release job with `rcodesign` and one stable certificate, so Kai's privacy grants survive an upgrade.
 - [Treehouse for the Mac](../.agents/skills/tooling-aterm-client/references/desktop.md) - a windowed Tauri app around the aterm client, with `just treehouse-mac-*` verbs to build, install and make it the login item. Mac.
-- [A seat shows a file](../.agents/skills/tooling-aterm-client/references/media.md) - `aterm show <path>` hands a client an image, video or file, read in chunks.
+- [A seat shows a file](../.agents/skills/tooling-aterm-client/references/media-daemon.md) - `aterm show <path>` hands a client an image, video or file, read in chunks.
 - [aterm client test bed](../.agents/skills/tooling-aterm-client/references/testbed.md) - Playwright journeys drive the real client against a mock `aterm.daemon.v1` daemon at desktop and phone sizes, with baselines, diffs, and reported quirks that go green as fixes land.
 - [aterm screen feedback](../.agents/skills/tooling-aterm-client/references/feedback.md#the-daemon-half) - the daemon keeps a screenshot and note sent from the client as a durable record on the host's disk and hands it to a frontend-eng seat to file.
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.

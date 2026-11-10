@@ -61,12 +61,14 @@ than editing it by hand.
 * [feedback.md](references/feedback.md) - the Feedback sheet, and the daemon's `feedback` frames that keep its note and screenshots as a durable record handed to a frontend-eng seat.
 * [choices.md](references/choices.md) - native choice cards, `ask_choice` and `send_user_question`.
 * [seat-state.md](references/seat-state.md) - how long a seat has been in its state, and its last reply.
+* [transcript.md](references/transcript.md) - the daemon's `transcript` read: a seat's prompts, replies and tool steps from its harness files, the frame, peer messages, and how each harness records a tool step.
 * [session-names.md](references/session-names.md) - session refs, name@ref, and why a close by stale name is refused.
 * [grants.md](references/grants.md) - approval grants: one Kai decision carried to the executing seats, and the daemon's refusals.
 * [passkey.md](references/passkey.md) - the passkey unlock a remote device needs before it types.
 * [tailnet-access.md](references/tailnet-access.md) - which tailnet devices attach, owner logins on a tagged node, and why a Tailscale Serve front is never loopback.
 * [linux-seat.md](references/linux-seat.md) - what the listeners allow a seat user on Linux, and the probe that checks it (COI-3498).
 * [reach.md](references/reach.md) - why a device cannot reach the daemon, the layers the client names, what the daemon logs, and the six-hop connection check with what a page can and cannot see.
+* [media.md](references/media.md) - the viewer for images, video and files a seat shares, the sequence, the file fallback, and trying it with no daemon that shares files.
 * [sizing.md](references/sizing.md) - how a session's PTY is sized when clients of different sizes attach, the `size` frame, and `pty-size`.
 * [desktop.md](references/desktop.md) - the windowed Treehouse app for the Mac: its identity, what it does at launch, and the verbs that build and install it.
 * [android-opener.md](references/android-opener.md) - why a window does nothing for window.open, and how an artifact or link opens in the device's own browser.
@@ -79,7 +81,7 @@ than editing it by hand.
 * [browser.md](references/browser.md) - the daemon's streamed Chromium and its `browser_*` frames.
 * [web-push.md](references/web-push.md) - the daemon's Web Push to a closed browser, the frames, and what the service worker builds against.
 * [image-upload.md](references/image-upload.md) - the `image_upload` frame: a pasted image becomes a file on the host, where it lives, the cap, and the guards.
-* [media.md](references/media.md) - `aterm show`, the `media` channel and `media_read`: a seat's image, video or file reaches a client, and the guards.
+* [media-daemon.md](references/media-daemon.md) - `aterm show`, the `media` channel and `media_read`: the daemon half, and its guards.
 * [open-url.md](references/open-url.md) - `aterm open`, the `open_url` frame, the shims every seat launches with, and the native fallback.
 * [artifacts.md](references/artifacts.md) - `aterm artifact`, the `artifact` frames on the views channel, the path and size limits, and what a standing page does when its seat ends.
 * [terminal-split.md](references/terminal-split.md) - the Terminal tab, the split, and the side panel's default tab by role.

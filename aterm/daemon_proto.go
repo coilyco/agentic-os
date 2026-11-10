@@ -145,6 +145,16 @@ type frame struct {
 	Status *sessionStatus `json:"status,omitempty"`
 	// Reply answers a last_reply request, which carries a target.
 	Reply *lastReplyView `json:"reply,omitempty"`
+	// transcript asks with Limit, Before and Since, and answers with the rest.
+	Limit     int              `json:"limit,omitempty"`
+	Before    string           `json:"before,omitempty"`
+	Since     string           `json:"since,omitempty"`
+	Reader    string           `json:"reader,omitempty"`
+	Items     []transcriptItem `json:"items,omitempty"`
+	Cursor    string           `json:"cursor,omitempty"`
+	Older     string           `json:"older,omitempty"`
+	More      bool             `json:"more,omitempty"`
+	UpdatedAt string           `json:"updated_at,omitempty"`
 	// ask_choice
 	Ask    *choiceAsk    `json:"ask,omitempty"`
 	AskID  string        `json:"ask_id,omitempty"`

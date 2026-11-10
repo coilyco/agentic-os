@@ -5,6 +5,7 @@ import { type AttentionSettings, loadAttention, storeAttention } from "./attenti
 import { chime, unlock, watchBlocked } from "./chime";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
 import { discover, listedAddresses, newFoundHosts, staleFoundHosts } from "./discovery";
+import { addToShelf, removeFromShelf, unseenCount, type MediaItem } from "./media";
 import { upsertMessage } from "./messages";
 import { askerLine, cardSeatOf } from "./relay";
 import { MockHost, terminalModeFrom } from "./mock-host";
@@ -95,6 +96,9 @@ export const app = $state({
   notify: null as Notify | null,
   /** Pages seats put on her desk, by id. One marked waiting is a seat that needs her. */
   artifacts: {} as Record<string, SeatArtifact>,
+  /** What each seat shared, oldest first, and the last one looked at (COI-3458). */
+  media: {} as Record<string, MediaItem[]>,
+  mediaSeen: {} as Record<string, string | undefined>,
   /** Bumped when a person opens a seat with an ask, so its card takes the keyboard. */
   focusCard: 0,
   /** The seat whose card was asked for the keyboard. Spent once it has it. */
@@ -406,6 +410,8 @@ export function selectHost(host: Host): void {
   app.messages = [];
   app.asks = {};
   app.artifacts = {};
+  app.media = {};
+  app.mediaSeen = {};
   app.views = {};
   app.browsers = {};
   app.terminals = [];
@@ -448,6 +454,8 @@ export function selectHost(host: Host): void {
       if (page) Object.assign(page, { waiting: event.waiting ?? page.waiting, seatEnded: event.seatEnded ?? page.seatEnded });
     }
     else if (event.type === "artifact_closed") delete app.artifacts[event.id];
+    else if (event.type === "media") app.media[event.item.session] = addToShelf(app.media[event.item.session] ?? [], event.item);
+    else if (event.type === "media_closed") app.media[event.session] = removeFromShelf(app.media[event.session] ?? [], event.id);
     else if (event.type === "view") app.views[event.view.id] = event.view;
     else if (event.type === "view_update") {
       const view = app.views[event.id];
@@ -517,6 +525,8 @@ export function selectHost(host: Host): void {
       // The new connection re-sends pending asks. The old ones belong to a dead daemon.
       app.asks = {};
       app.artifacts = {};
+      // The daemon replays each shelf on the new connection.
+      app.media = {};
       app.link = { state: "restored" };
       clearTimeout(restoredTimer);
       restoredTimer = setTimeout(() => {
@@ -777,4 +787,14 @@ export async function setAlert(key: keyof AttentionSettings, on: boolean): Promi
 /** Where this page unlocks from, for the words a locked device shows. */
 export function placeNow(): Place {
   return app.deviceKeyAvailable ? "app-key" : PLACE;
+}
+
+/** What a seat has shared, oldest first. */
+export const mediaOf = (sessionId: string): MediaItem[] => app.media[sessionId] ?? [];
+
+export const unseenMedia = (sessionId: string): number => unseenCount(mediaOf(sessionId), app.mediaSeen[sessionId]);
+
+/** The person has looked at everything the seat has shared so far. */
+export function markMediaSeen(sessionId: string): void {
+  app.mediaSeen[sessionId] = mediaOf(sessionId).at(-1)?.id;
 }
