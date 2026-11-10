@@ -393,13 +393,19 @@ class Journey:
         adb("shell", "am", "start", "-n", f"{APP}/.MainActivity")
 
     def recover(self) -> None:
-        """Bring the app back to the seat after a failed share, so the journeys after it can run."""
+        """Bring the app back after a failed step, best effort, so the journeys after it can run."""
         adb("shell", "am", "force-stop", APP, check=False)
         adb("shell", "am", "start", "-n", f"{APP}/.MainActivity", check=False)
         self.page = None
         self.attach_page()
-        self.page.tap("()=>document.querySelector('[id^=tab-host-]')")  # type: ignore[union-attr]
-        self.page.tap(by_text("frontend-eng", "nav button"))  # type: ignore[union-attr]
+        page = self.page
+        assert page
+        # The page may already be on a seat view with the nav collapsed, so try briefly.
+        for finder in ("()=>document.querySelector('[id^=tab-host-]')", by_text("frontend-eng", "nav button")):
+            try:
+                page.tap(finder, wait=5)
+            except Fail:
+                print("recover: nothing to tap, carrying on with the page as it is")
 
     def journey_c_daemon_down(self) -> None:
         """Evidence only: the failure copy is the client's to specify (COI-3485)."""
