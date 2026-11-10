@@ -1,6 +1,6 @@
 // COI-3481: a text size control for the terminal. A smaller size fits more columns in
 // a phone, and the choice is the device's, so it outlives a reload.
-import { expect, kindOf, SEATS, test } from "../harness.ts";
+import { card, expect, kindOf, quirk, SEATS, test } from "../harness.ts";
 import { sceneFor } from "../scenes.ts";
 
 test.beforeEach(({}, info) => test.skip(kindOf(info) === "landscape", "landscape is its own journey"));
@@ -79,4 +79,40 @@ test("by keyboard: open, step, and Escape closes", async ({ bed }, info) => {
   await bed.page.keyboard.press("Escape");
   await expect(opener).toHaveAttribute("aria-expanded", "false");
   await expect(bed.page.getByRole("group", { name: "Text size" })).toHaveCount(0);
+});
+
+// COI-3574: at 320x420 a card reaches the terminal's top, where the control sat on it.
+// The control resizes the PTY, which a card must never do, so it waits for the card.
+test("with a card open the size control steps aside and the card's own buttons are the ones tapped", quirk("COI-3574"), async ({ bed }, info) => {
+  test.skip(wide(info), "the button shows only in a narrow terminal");
+  await bed.openSeat(SEATS.imp);
+  const opener = bed.page.getByRole("button", { name: "Text size" });
+  await expect(opener).toBeVisible();
+  await bed.page.setViewportSize({ width: 320, height: 420 });
+  await expect.poll(() => bed.mock.idleMs(), { timeout: 15000 }).toBeGreaterThan(1500);
+  bed.mock.push({
+    type: "ask",
+    ask: {
+      id: "size-1",
+      session: SEATS.imp.id,
+      header: "Accent",
+      question: "Which accent color should the client use for the active seat?",
+      options: ["Purple", "Teal", "Black", "Gold"].map((label) => ({ label, description: "A description that wraps." })),
+      allow_other: true,
+      multi: false,
+    },
+  });
+  await expect(card(bed.page)).toBeVisible();
+  await expect(opener, "the size control is still over the card").toHaveCount(0);
+  const fold = card(bed.page).getByRole("button", { name: "Hide question" });
+  const box = (await fold.boundingBox())!;
+  const topmost = await bed.page.evaluate(
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.textContent?.trim() ?? null,
+    { x: box.x + box.width - 6, y: box.y + box.height / 2 },
+  );
+  expect(topmost, "the right end of Hide question is covered by another control").toBe("Hide question");
+  await bed.step("card-covers-size", { compare: false });
+  await card(bed.page).getByRole("button", { name: "Cancel" }).click();
+  await expect(card(bed.page)).toHaveCount(0);
+  await expect(opener, "the size control does not come back after the card").toBeVisible();
 });
