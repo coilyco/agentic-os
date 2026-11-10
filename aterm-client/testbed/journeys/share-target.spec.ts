@@ -135,7 +135,7 @@ test.describe("a host that cannot take images", () => {
     await bed.page.goto("/");
     const sheet = bed.page.getByRole("dialog", { name: "Send to a seat" });
     await expect(sheet.getByRole("alert").first()).toContainText("This host cannot take images");
-    await expect(sheet.getByRole("button", { name: /^Send to/ })).toBeDisabled();
+    await expect(sheet.getByRole("button", { name: /^(Send to|Pick a seat)/ })).toBeDisabled();
     await bed.step("host-cannot", { compare: false });
   });
 });

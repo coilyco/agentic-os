@@ -3,6 +3,7 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "../harness.ts";
 
+const overview = (page: Page) => page.getByRole("region", { name: "Seats", exact: true });
 const notify = (page: Page) => page.getByRole("switch", { name: "Notify when closed" });
 
 // Phones show Alerts on the host page and desktops in the sidebar.
@@ -10,16 +11,16 @@ async function openAlerts(page: Page): Promise<void> {
   await page.goto("/");
   await page.getByRole("tab", { name: /this Mac/ }).click();
   await expect(page.getByRole("switch", { name: "Sound" }).first()).toBeVisible();
-  // A healthy attached host shows the logo home screen, which has no timer-driven card,
-  // so the picture is the same whenever it is taken (COI-3510).
-  await expect(page.getByRole("region", { name: "Treehouse" })).toBeVisible();
+  // A healthy attached host shows the seat overview, whose ages move with time, so the
+  // steps below mask it (COI-3518).
+  await expect(overview(page)).toBeVisible();
 }
 
 test.describe("a host with no push key", () => {
   test("offers no switch, and nothing about notifications", async ({ bed }) => {
     await openAlerts(bed.page);
     await expect(notify(bed.page)).toHaveCount(0);
-    await bed.step("no-switch", { mask: [bed.page.locator("section.panel")] });
+    await bed.step("no-switch", { mask: [overview(bed.page)] });
   });
 });
 
@@ -37,7 +38,7 @@ test.describe("a host with a push key", () => {
     } else {
       await expect(notify(bed.page).first()).toBeEnabled();
     }
-    await bed.step("off", { mask: [bed.page.locator("section.panel")] });
+    await bed.step("off", { mask: [overview(bed.page)] });
   });
 
   // Headless Chromium reports notifications denied. A failed subscribe: push.test.ts.
@@ -49,7 +50,7 @@ test.describe("a host with a push key", () => {
     await expect(notify(bed.page).first()).not.toBeChecked();
     // Permission goes first, so the daemon heard nothing.
     expect(bed.mock.pushCalls).toEqual([]);
-    await bed.step("notifications-blocked", { mask: [bed.page.locator("section.panel")] });
+    await bed.step("notifications-blocked", { mask: [overview(bed.page)] });
   });
 });
 
@@ -63,6 +64,6 @@ test.describe("a locked device on a host with a push key", () => {
     await expect(bed.page.getByRole("alert").filter({ hasText: /coilyco\.dev/ })).toBeVisible();
     await expect(notify(bed.page).first()).not.toBeChecked();
     expect(bed.mock.pushCalls).toEqual([]);
-    await bed.step("locked", { mask: [bed.page.locator("section.panel")] });
+    await bed.step("locked", { mask: [overview(bed.page)] });
   });
 });

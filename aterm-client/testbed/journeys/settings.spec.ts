@@ -7,7 +7,7 @@ test("Settings opens from home, changes take effect, and Back returns", async ({
   await page.goto("/");
   await loadFonts(page);
   await page.getByRole("tab", { name: /this Mac/ }).click();
-  const home = page.getByRole("region", { name: "Treehouse" });
+  const home = page.getByRole("region", { name: "Seats", exact: true });
   await home.getByRole("button", { name: "Settings" }).click();
 
   const settings = page.getByRole("region", { name: "Settings" });
