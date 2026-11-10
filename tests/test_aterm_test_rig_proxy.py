@@ -11,6 +11,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -254,3 +255,108 @@ def test_other_origins_stay_refused_and_a_request_with_a_body_or_repeated_header
     assert body.recv(512) == b""
     twice = request(relay_port, extra="Upgrade: websocket\r\n")
     assert twice.recv(512) == b""
+
+
+@pytest.fixture
+def stub_rig(tmp_path):
+    """The relay in front of a fake upstream that only records the frame types it is sent, with a stub control file."""
+    upstream = socket.socket()
+    upstream.bind(("127.0.0.1", 0))
+    upstream.listen(4)
+    seen: list[str] = []
+
+    def serve() -> None:
+        while True:
+            try:
+                conn, _ = upstream.accept()
+            except OSError:
+                return
+            threading.Thread(target=_record, args=(conn, seen), daemon=True).start()
+
+    threading.Thread(target=serve, daemon=True).start()
+    control = tmp_path / "refuse"
+    relay_port = free_port()
+    relay = subprocess.Popen(
+        [sys.executable, str(SCRIPT), "--listen", f"127.0.0.1:{relay_port}", "--upstream", f"127.0.0.1:{upstream.getsockname()[1]}", "--refuse-uploads-file", str(control)],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    for _ in range(50):
+        try:
+            socket.create_connection(("127.0.0.1", relay_port), timeout=1).close()
+            break
+        except OSError:
+            time.sleep(0.1)
+    yield relay_port, control, seen
+    relay.terminate()
+    relay.wait(timeout=10)
+    upstream.close()
+
+
+def _record(conn: socket.socket, seen: list[str]) -> None:
+    with conn:
+        head = b""
+        while b"\r\n\r\n" not in head:
+            head += conn.recv(1)
+        conn.sendall(b"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n")
+        try:
+            while True:
+                _, b1 = conn.recv(2)
+                size = b1 & 0x7F
+                size = struct.unpack(">H", conn.recv(2))[0] if size == 126 else size
+                key = conn.recv(4)
+                data = b""
+                while len(data) < size:
+                    data += conn.recv(size - len(data))
+                frame = json.loads(bytes(b ^ key[i % 4] for i, b in enumerate(data)))
+                seen.append(next(v for k, v in frame.items() if k.casefold() == "type"))
+        except (ValueError, OSError):
+            return
+
+
+def _wait_for(seen: list[str], expected: list[str]) -> None:
+    for _ in range(50):
+        if seen == expected:
+            return
+        time.sleep(0.1)
+    assert seen == expected
+
+
+def test_an_upload_is_answered_with_the_daemons_refusal_and_never_forwarded_while_the_file_names_one(stub_rig) -> None:
+    relay_port, control, seen = stub_rig
+    wire = Wire(relay_port)
+    for reason, words in (("too_large", "3 MB"), ("not_an_image", "not a PNG")):
+        control.write_text(reason + "\n")
+        wire.send({"type": "image_upload", "id": f"u-{reason}", "session": "s", "data": "AAAA"})
+        refused = wire.receive("error")
+        assert (refused["id"], refused["reason"], refused["code"]) == (f"u-{reason}", reason, 1)
+        assert words in refused["error"]
+    wire.send({"type": "list", "id": "after"})
+    _wait_for(seen, ["list"])
+
+
+def test_an_upload_is_forwarded_when_the_file_is_absent_empty_or_names_nothing_known(stub_rig) -> None:
+    relay_port, control, seen = stub_rig
+    wire = Wire(relay_port)
+    wire.send({"type": "image_upload", "id": "a", "session": "s", "data": "AAAA"})
+    control.write_text("")
+    wire.send({"type": "image_upload", "id": "b", "session": "s", "data": "AAAA"})
+    control.write_text("rig_refused")
+    wire.send({"Type": "IMAGE_UPLOAD", "id": "c", "session": "s", "data": "AAAA"})
+    _wait_for(seen, ["image_upload", "image_upload", "IMAGE_UPLOAD"])
+
+
+def test_the_stub_changes_nothing_for_other_frames_and_spawn_is_still_refused(stub_rig) -> None:
+    relay_port, control, seen = stub_rig
+    control.write_text("too_large")
+    wire = Wire(relay_port)
+    wire.send({"type": "spawn", "id": "x", "kind": "terminal"})
+    assert wire.receive("error")["reason"] == "rig_refused"
+    wire.send({"type": "attach", "id": "y", "session": "s"})
+    _wait_for(seen, ["attach"])
+
+
+def test_upload_refusal_reads_only_a_known_reason() -> None:
+    proxy = load()
+    assert proxy.upload_refusal(None) is None
+    assert proxy.upload_refusal("/nonexistent/control") is None
+    assert set(proxy.UPLOAD_REFUSALS) == {"not_an_image", "too_large", "too_many", "session_unknown"}
