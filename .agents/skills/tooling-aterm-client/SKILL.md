@@ -67,6 +67,7 @@ than editing it by hand.
 * [tailnet-access.md](references/tailnet-access.md) - which tailnet devices attach, owner logins on a tagged node, and why a Tailscale Serve front is never loopback.
 * [linux-seat.md](references/linux-seat.md) - what the listeners allow a seat user on Linux, and the probe that checks it (COI-3498).
 * [reach.md](references/reach.md) - why a device cannot reach the daemon, the layers the client names, what the daemon logs, and the six-hop connection check with what a page can and cannot see.
+* [transcript.md](references/transcript.md) - the Focus, Default and Verbose views of a seat read from the daemon transcript, the peer rule, and what a refusal does.
 * [sizing.md](references/sizing.md) - how a session's PTY is sized when clients of different sizes attach, the `size` frame, and `pty-size`.
 * [desktop.md](references/desktop.md) - the windowed Treehouse app for the Mac: its identity, what it does at launch, and the verbs that build and install it.
 * [android-opener.md](references/android-opener.md) - why a window does nothing for window.open, and how an artifact or link opens in the device's own browser.

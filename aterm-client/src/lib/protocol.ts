@@ -1,5 +1,6 @@
 // The client's view of a host. `DaemonHost` maps aterm.daemon.v1 onto it,
 // and `MockHost` scripts it for the demo. Why: the architecture reference.
+import type { TranscriptReply } from "./transcript";
 import type { KeyStatus } from "./device-key";
 import type { ToolResult, View } from "./mcp-apps";
 import type { ResumeState } from "./resume";
@@ -219,6 +220,12 @@ export interface LastReplyChannel {
   fetch(sessionId: string): Promise<{ text: string; truncated: boolean }>;
 }
 
+/** A seat's transcript (COI-3532). Only a host listing `transcript` has one. */
+export interface TranscriptChannel {
+  /** Newest page first, or what came `since` a cursor. Rejects with TranscriptRefused. */
+  read(sessionId: string, options?: { limit?: number; before?: string; since?: string }): Promise<TranscriptReply>;
+}
+
 /** Images for a seat (COI-3240). No daemon has one yet (COI-3239). */
 export interface ImageChannel {
   /** The host's own limit in bytes, so the client never guesses one. */
@@ -291,6 +298,8 @@ export interface HostConnection {
   readonly images?: ImageChannel;
   /** Only a daemon with `last-reply` has one. */
   readonly lastReplies?: LastReplyChannel;
+  /** The seat's transcript, which the Focus, Default and Verbose views read. */
+  readonly transcripts?: TranscriptChannel;
   readonly feedback?: FeedbackChannel;
   subscribe(listener: (event: HostEvent) => void): () => void;
   /** Dial now, skipping the backoff. Only a connection that redials has it. */

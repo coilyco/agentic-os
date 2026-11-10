@@ -131,6 +131,14 @@ export interface Mock {
   uploads: { session: string; bytes: Buffer }[];
   /** The daemon refuses every `image_upload` with this reason, until set back to null. */
   refuseUploads(reason: string | null): void;
+  /** What a seat's transcript holds. The mock answers `transcript` from it. */
+  setTranscript(session: string, items: unknown[]): void;
+  /** Items written to a seat's transcript after the client's last read. */
+  appendTranscript(session: string, items: unknown[]): void;
+  /** The daemon refuses a seat's `transcript` with this reason, until set to null. */
+  refuseTranscript(session: string, reason: string | null): void;
+  /** Every `transcript` request the client sent, in order. */
+  transcriptCalls: { session: string; since?: string; before?: string; limit?: number }[];
   /** The resume window passes: every proof the daemon issued stops holding. */
   endResumeWindow(): void;
   stop(): Promise<void>;
@@ -151,7 +159,7 @@ export function loadSessions(): SessionSpec[] {
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
  * `images`: Add image shows. `webPush`: Notify when closed shows. */
-export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[] };
+export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; transcript?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[] };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   if (!existsSync(join(DIST, "index.html"))) {
     throw new Error("The mock daemon serves aterm-client/dist, which is not built. Run `just aterm-client-testbed`, which builds it first.");
@@ -172,7 +180,9 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   let lastFrameAt = Date.now();
   const lastBox = new Map<string, { rows: number; cols: number }>();
   const closed = new Map<string, SessionSpec>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], transcriptCalls: [] as Mock["transcriptCalls"] };
+  const transcripts = new Map<string, unknown[]>();
+  const transcriptRefusals = new Map<string, string>();
   // A seat's browser: the agent drives until a screen takes control.
   // `client` is the name each connection was given.
   const pages = new Map<string, { holder: WebSocket | null; url: string }>();
@@ -241,7 +251,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           if (options.lock) {
             send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...unlockedFeatures, ...pushFeature], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
           } else {
-            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...(options.images ? ["image-upload"] : []), ...pushFeature], typing: { allowed: true } });
+            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...(options.images ? ["image-upload"] : []), ...(options.transcript ? ["transcript"] : []), ...pushFeature], typing: { allowed: true } });
           }
           return;
         case "device_assert_begin":
@@ -313,6 +323,26 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           const spec = live.get(String(frame.target))?.spec;
           const reply = spec?.last_reply_text === undefined ? { session: String(frame.target), text: "" } : { session: spec.name, text: spec.last_reply_text, truncated: spec.last_reply_truncated === true, at: new Date(Date.now() - (spec.last_reply_age_seconds ?? 0) * 1000).toISOString() };
           send(socket, { type: "last_reply", id: frame.id, session: reply.session, reply });
+          return;
+        }
+        case "transcript": {
+          const session = String(frame.session);
+          const since = typeof frame.since === "string" ? frame.since : undefined;
+          const limit = typeof frame.limit === "number" ? frame.limit : undefined;
+          mock.transcriptCalls.push({ session, ...(since ? { since } : {}), ...(limit ? { limit } : {}) });
+          const reason = transcriptRefusals.get(session);
+          if (reason) {
+            send(socket, { type: "error", id: frame.id, session, reason, error: `no transcript: ${reason}` });
+            return;
+          }
+          const all = transcripts.get(session) ?? [];
+          // The cursor is an index here. The client never reads one.
+          const from = since === undefined ? Math.max(0, all.length - (limit ?? 50)) : Number(since);
+          if (since !== undefined && !Number.isInteger(from)) {
+            send(socket, { type: "error", id: frame.id, session, reason: "bad_cursor", error: "bad cursor" });
+            return;
+          }
+          send(socket, { type: "transcript", id: frame.id, session, reader: "claude", items: all.slice(from), cursor: String(all.length), more: from > 0, updated_at: new Date().toISOString() });
           return;
         }
         case "roster":
@@ -485,6 +515,10 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     heard,
     resumes: mock.resumes,
     uploads: mock.uploads,
+    transcriptCalls: mock.transcriptCalls,
+    setTranscript: (session, items) => void transcripts.set(session, items),
+    appendTranscript: (session, items) => void transcripts.set(session, [...(transcripts.get(session) ?? []), ...items]),
+    refuseTranscript: (session, reason) => void (reason ? transcriptRefusals.set(session, reason) : transcriptRefusals.delete(session)),
     refuseUploads(reason) {
       uploadRefusal = reason;
     },

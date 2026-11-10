@@ -7,7 +7,8 @@ import { safely } from "./pane-watch";
 import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, ViewChannel } from "./protocol";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, ViewChannel } from "./protocol";
+import { decodeReply, REFUSALS, TranscriptRefused } from "./transcript";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
 import { bridge, DeviceKeyError, type Invoke, enrollKey, keyStatus, KEY_CODE_SPENT, mayEnroll, signChallenge, biometricNotice } from "./device-key";
@@ -146,6 +147,12 @@ interface Frame {
   notify?: { id?: string; session?: string; role?: string; identity?: string; title?: string; body?: string; at?: string };
   /** Answers a `last_reply` request. */
   reply?: { session?: string; text?: string; truncated?: boolean; at?: string };
+  /** Answers a `transcript` request. See the transcript reference. */
+  items?: unknown;
+  cursor?: string;
+  more?: boolean;
+  reader?: string;
+  updated_at?: string;
   sessions?: SessionView[];
   message?: MessageView;
   roster?: unknown;
@@ -585,6 +592,18 @@ export class DaemonHost implements HostConnection {
     return this.features.has("last-reply") ? this.lastReplyChannel : undefined;
   }
 
+  /** Only a welcome listing `transcript` answers for a seat's transcript. */
+  get transcripts(): TranscriptChannel | undefined {
+    return this.features.has("transcript") ? this.transcriptChannel : undefined;
+  }
+
+  private transcriptChannel: TranscriptChannel = {
+    read: async (sessionId, options = {}) => {
+      const frame = await this.exchange({ type: "transcript", session: sessionId, ...options });
+      return decodeReply(sessionId, frame as unknown as Record<string, unknown>);
+    },
+  };
+
   private lastReplyChannel: LastReplyChannel = {
     fetch: async (sessionId) => {
       const frame = await this.exchange({ type: "last_reply", target: sessionId });
@@ -970,6 +989,7 @@ export class DaemonHost implements HostConnection {
         return;
       case "view_result":
       case "last_reply":
+      case "transcript":
       case "image_uploaded":
       case "passkey_enroll_options":
       case "passkey_enrolled":
@@ -1081,7 +1101,8 @@ export class DaemonHost implements HostConnection {
         if (call && frame.id) {
           this.calls.delete(frame.id);
           const imageWords = refused ? null : imageRefusal(frame.reason);
-          if (frame.reason === RESUME_ENDED_REASON) call.reject(new ResumeEndedError());
+          if (typeof frame.reason === "string" && Object.hasOwn(REFUSALS, frame.reason)) call.reject(new TranscriptRefused(frame.reason));
+          else if (frame.reason === RESUME_ENDED_REASON) call.reject(new ResumeEndedError());
           else if (frame.reason === KEY_UNKNOWN_REASON) call.reject(new DeviceKeyError(KEY_UNKNOWN, KEY_UNKNOWN_REASON));
           else if (imageWords) call.reject(new Error(imageWords));
           else call.reject(new Refusal(refused ? typingNotice(refused) : (frame.error ?? "The daemon refused the request."), refused?.allowed === false ? refused.reason : undefined));

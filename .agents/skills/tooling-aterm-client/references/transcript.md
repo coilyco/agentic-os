@@ -1,0 +1,20 @@
+# The transcript views: Focus, Default and Verbose
+
+A seat on a host whose welcome lists `transcript` shows three views of it, read from the transcript the daemon takes from the seat's own harness files (claude, codex, opencode). COI-3532. Kai chose the three stops, Focus as the phone default, and one release behind the daemon read. The frame belongs to the daemon and is agreed on the COI-3532 record, so the daemon's own reference is the contract. This page is the client half.
+
+## The rule
+
+**The seat's PTY is the seat.** The views are a read-only lens. They never type for the seat, never answer a dialog, and the screen stays mounted under them so a dialog card still reads from it. A choice of level changes only what Treehouse shows, and never sends `/focus` to the seat.
+
+## The three stops
+
+Named from Claude Code's `viewMode`. **Focus** is each turn's prompt, one line per tool call and the turn's last reply. **Default** keeps every reply and three lines of each result, and says how many more there are. **Verbose** keeps all of it, and a Raw screen button inside it brings up the seat's own screen. The client cuts the output for Focus and Default, and the daemon sends it whole, to 64 KiB.
+
+* **Opens to** Focus on a phone and the raw screen on a desktop, which is today's look. The choice is per seat on this device (`seat-view.ts`).
+* **Peer messages** and the replies that answer them never show, at any level. They stay in the Messages panel. A peer item is `kind: peer`, and `for` links an answer to it when the daemon can tell. Without `for`, a peer's turn runs to the next prompt (`withoutPeers`).
+* **No transcript** (a refusal such as `unreadable_format`) opens the raw screen with one line saying why. Picking a stop asks again. A host without the feature shows no control at all.
+* **It polls** `since` the last cursor every 2 seconds while open, paused while the page is hidden, and refetches the newest page on `bad_cursor`.
+
+## Where it lives
+
+`src/lib/transcript.ts` (types, decoder, `rowsFor`), `src/lib/seat-view.ts`, `src/components/SeatViews.svelte` (the radio group, arrow keys, 44px stops), `src/components/Transcript.svelte`, and the host channel `transcripts` in `daemon-host.ts`. The journey is `seat-views`, and the bed's mock answers `transcript` from `setTranscript`.

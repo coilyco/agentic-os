@@ -60,6 +60,13 @@ export const REFUSALS: Record<string, string> = {
   bad_cursor: "The transcript moved on while it was being read.",
 };
 
+/** The host refused a transcript read, with the reason it named. */
+export class TranscriptRefused extends Error {
+  constructor(readonly reason: string) {
+    super(refusalText(reason));
+  }
+}
+
 export function refusalText(reason: string | undefined): string {
   return (reason && REFUSALS[reason]) || "The host would not send this seat's transcript.";
 }
