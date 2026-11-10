@@ -56,7 +56,7 @@ jobs:
         timeout-minutes: 20
         env:
           ATERM_JOURNEY_B: optional
-          ATERM_JOURNEY_DICTATION: optional
+          ATERM_JOURNEY_DICTATION: required
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" journey "$GITHUB_WORKSPACE/aterm-emulator-out/aterm-debug.apk"
       - name: Collect the final logs
         if: ${{ always() }}

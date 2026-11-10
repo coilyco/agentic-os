@@ -68,6 +68,9 @@ audio() {
   mkdir -p "$out" "$pulse_dir"
   sudo apt-get update -qq
   sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pulseaudio pulseaudio-utils espeak-ng
+  # The emulator finds pulse through XDG_RUNTIME_DIR, so both share this one.
+  chmod 700 "$pulse_dir"
+  export XDG_RUNTIME_DIR="$pulse_dir"
   pulseaudio -D --exit-idle-time=-1 --load="module-native-protocol-unix auth-anonymous=1 socket=$pulse_dir/native" --load="module-null-sink sink_name=virt_mic"
   export PULSE_SERVER="unix:$pulse_dir/native"
   pactl set-default-source virt_mic.monitor
@@ -83,7 +86,7 @@ boot() {
   # With the virtual mic set up, the emulator gets host audio. Without it, none.
   local sound=(-no-audio)
   if [ -S "$pulse_dir/native" ]; then
-    export PULSE_SERVER="unix:$pulse_dir/native"
+    export XDG_RUNTIME_DIR="$pulse_dir" PULSE_SERVER="unix:$pulse_dir/native"
     sound=(-allow-host-audio)
   fi
   nohup emulator -avd "$AVD" -no-window "${sound[@]}" -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel on >"$out/emulator.log" 2>&1 &
@@ -124,7 +127,7 @@ daemon() {
 journey() {
   use_sdk
   local apk="${1:?usage: journey APK}"
-  [ -S "$pulse_dir/native" ] && export PULSE_SERVER="unix:$pulse_dir/native" ATERM_SPEECH_WAV="$out/speech.wav"
+  [ -S "$pulse_dir/native" ] && export XDG_RUNTIME_DIR="$pulse_dir" PULSE_SERVER="unix:$pulse_dir/native" ATERM_SPEECH_WAV="$out/speech.wav"
   python3 -I "$repo_root/scripts/ci/aterm_android_journey.py" --apk "$apk" --out "$out/screens" \
     --socket "$state/d.sock" --seat "$SEAT" --seat-log "$state/seat.log" --refuse-file "$state/refuse-upload"
 }
