@@ -1,6 +1,7 @@
 {
   "productName": "Treehouse",
   "identifier": "dev.coilyco.treehouse.desktop",
+  "mainBinaryName": "Treehouse",
   "app": {
     "windows": []
   },

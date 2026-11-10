@@ -11,7 +11,7 @@ export type FeedbackAvailability = { ok: true } | { ok: false; reason: string };
 /** Whether Send can work from here, and in words why not. */
 export function feedbackAvailability(): FeedbackAvailability {
   if (!app.connection) return { ok: false, reason: "Connect to a host first." };
-  if (!app.connection.feedback) return { ok: false, reason: "This host needs a newer aterm daemon." };
+  if (!app.connection.feedback) return { ok: false, reason: "This host needs a newer Treehouse." };
   return { ok: true };
 }
 

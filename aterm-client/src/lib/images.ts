@@ -63,7 +63,7 @@ export interface Screened {
 // A still image over the limit is taken here and shrunk by `fitImage`. A GIF is refused.
 export function screenImages(files: readonly File[], waiting: number, channel: Pick<ImageChannel, "maxBytes"> | undefined): Screened {
   if (files.length === 0) return { accepted: [], refusal: null };
-  if (!channel) return { accepted: [], refusal: "This host cannot take images, so nothing was added. It needs a newer aterm daemon." };
+  if (!channel) return { accepted: [], refusal: "This host cannot take images, so nothing was added. It needs a newer Treehouse." };
   const accepted: File[] = [];
   let refusal: string | null = null;
   for (const file of files) {
