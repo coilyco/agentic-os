@@ -142,3 +142,16 @@ test("its controls are 44px targets that fit the screen", async ({ bed }) => {
     expect(box.x + box.width, `${name} stays on screen`).toBeLessThanOrEqual(width);
   }
 });
+
+test("inside the app, where a download is dropped, it says so and offers none", async ({ bed }) => {
+  await bed.page.addInitScript(() => {
+    (window as unknown as { __TAURI__: unknown }).__TAURI__ = { core: { invoke: async () => undefined } };
+  });
+  await bed.openSeat(SEATS.imp);
+  bed.mock.shareMedia(imp, { name: "print-log.gcode", mime: "text/plain", kind: "file", bytes: Buffer.from("G28\n") });
+  await chip(bed).click();
+  await expect(viewer(bed)).toContainText("This app cannot save files yet. Open Treehouse in a browser on this device to download it.");
+  await expect(viewer(bed).getByRole("button", { name: "Download" }), "no button that does nothing").toHaveCount(0);
+  await expect(viewer(bed)).not.toContainText("Download it to open it elsewhere.");
+  await bed.step("in-app-file", { compare: false });
+});
