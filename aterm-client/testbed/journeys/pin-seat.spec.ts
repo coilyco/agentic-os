@@ -21,7 +21,7 @@ test.describe("pin a seat", () => {
     await bed.openSeat(SEATS.imp);
     await openList(bed.page, phone);
     expect(await first(bed.page), "roster order before any pin").toBe(SEATS.beetle.id);
-    const pin = bed.page.locator(".seat-row").getByRole("button", { name: "Pin Griffin-Goose" });
+    const pin = bed.page.locator(".seat-row").filter({ hasText: "Griffin-Goose" }).getByRole("button", { name: "Pin to the top" });
     await expect(pin).toHaveAttribute("aria-pressed", "false");
     await pin.click();
     await expect(pin).toHaveAttribute("aria-pressed", "true");
@@ -34,7 +34,7 @@ test.describe("pin a seat", () => {
   test("the open seat's header pins and unpins it too", async ({ bed }, info) => {
     const phone = kindOf(info) === "phone";
     await bed.openSeat(SEATS.imp);
-    const own = phone ? undefined : bed.page.locator("header").getByRole("button", { name: "Pin Imp-Dragonfly" });
+    const own = phone ? undefined : bed.page.locator("header").getByRole("button", { name: "Pin to the top" });
     if (own) {
       await own.click();
       await expect(own).toHaveAttribute("aria-pressed", "true");
@@ -42,7 +42,7 @@ test.describe("pin a seat", () => {
       await expect(own).toHaveAttribute("aria-pressed", "false");
     }
     await openList(bed.page, phone);
-    const row = bed.page.locator(".seat-row").getByRole("button", { name: "Pin Imp-Dragonfly" });
+    const row = bed.page.locator(".seat-row").filter({ hasText: "Imp-Dragonfly" }).getByRole("button", { name: "Pin to the top" });
     await row.click();
     await expect.poll(() => first(bed.page)).toBe(SEATS.imp.id);
   });
@@ -56,7 +56,7 @@ test.describe("pinned by default", () => {
     await bed.openSeat(SEATS.imp);
     await openList(bed.page, phone);
     expect(await first(bed.page), "the coordinator is pinned with no tap").toBe(SEATS.griffin.id);
-    const pin = bed.page.locator(".seat-row").getByRole("button", { name: "Pin Griffin-Goose" });
+    const pin = bed.page.locator(".seat-row").filter({ hasText: "Griffin-Goose" }).getByRole("button", { name: "Pin to the top" });
     await expect(pin).toHaveAttribute("aria-pressed", "true");
     await pin.click();
     await expect.poll(() => first(bed.page)).toBe(SEATS.beetle.id);

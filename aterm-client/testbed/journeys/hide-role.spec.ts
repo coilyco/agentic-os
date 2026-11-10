@@ -65,7 +65,7 @@ test.describe("hide a role", () => {
     const phone = kindOf(info) === "phone";
     await bed.openSeat(SEATS.imp);
     await openMenu(bed.page, phone);
-    await bed.page.locator(".seat-row").getByRole("button", { name: "Pin Eng-3" }).click();
+    await bed.page.locator(".seat-row").filter({ hasText: "Eng-3" }).getByRole("button", { name: "Pin to the top" }).click();
     await bed.page.getByRole("switch", { name: /Platform Engineer/ }).uncheck();
     await expect(bed.page.getByRole("status").filter({ hasText: "11 seats are hidden." })).toBeVisible();
     expect(await ids(bed.page)).toContain("eng-platform-e03");
