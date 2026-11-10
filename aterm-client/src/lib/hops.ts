@@ -155,7 +155,7 @@ function fromReach(hops: Hop[], reach: Reach, timeoutMs: number): boolean {
     }
     case "other":
       passThrough(hops, "http");
-      set(hops, "http", "fail", "seen", `HTTP ${reach.status} in ${reach.ms} ms, which is not the daemon's answer.`, "Something answered this address that is not an aterm daemon, or an older build of one.");
+      set(hops, "http", "fail", "seen", `HTTP ${reach.status} in ${reach.ms} ms, which is not the daemon's answer.`, "Something answered this address that is not a Treehouse host, or an older build of one.");
       return false;
     case "opaque":
       passThrough(hops, "http");
@@ -196,7 +196,7 @@ function fromSocket(hops: Hop[], socket: Socket): void {
       break;
     case "no-welcome":
       set(hops, "socket", "pass", "seen", "Upgraded and open.");
-      set(hops, "admit", "fail", "seen", "The socket opened and the daemon never sent its welcome.", "The daemon may be stuck, or something other than an aterm daemon answers on this port.");
+      set(hops, "admit", "fail", "seen", "The socket opened and the daemon never sent its welcome.", "The daemon may be stuck, or something other than a Treehouse host answers on this port.");
       break;
   }
 }

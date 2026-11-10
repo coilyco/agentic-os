@@ -63,7 +63,7 @@ type passkeyStore struct {
 // newPasskeyStore loads path when set. An empty path keeps credentials in memory only.
 func newPasskeyStore(path, rpID string, origins []string) (*passkeyStore, error) {
 	rp, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: "aterm",
+		RPDisplayName: "Treehouse",
 		RPID:          rpID,
 		RPOrigins:     origins,
 		// Assertion without user verification would be possession of the device alone.

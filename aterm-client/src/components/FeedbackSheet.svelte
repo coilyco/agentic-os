@@ -149,7 +149,7 @@
         {#if phase === "sending"}{sendingLine(progress.done, progress.total)}{:else if preparing}Getting your screenshot ready.{:else if info}{info}{/if}
       </div>
       {#if note}<p class="refusal" role="alert">{note}</p>{/if}
-      {#if !channel}<p class="refusal" role="alert">{app.connection ? "This host needs a newer aterm daemon to take feedback." : "Connect to a host to send feedback."}</p>{/if}
+      {#if !channel}<p class="refusal" role="alert">{app.connection ? "This host needs a newer Treehouse to take feedback." : "Connect to a host to send feedback."}</p>{/if}
       <div class="actions">
         <button class="button" type="button" onclick={() => (sheet.open = false)}>Close</button>
         <button class="button primary" type="submit" disabled={!channel || phase === "sending" || preparing || !canSend(text, chips.length)}>{phase === "sending" ? "Sending" : "Send"}</button>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { coastRows, takeRows } from "./touch-scroll";
+import { coastRows, swipeGoesTo, takeRows } from "./touch-scroll";
 
 describe("takeRows", () => {
   it("holds a drag shorter than a row for the next move", () => {
@@ -21,4 +21,17 @@ describe("coastRows", () => {
     expect(coastRows(2, 20)).toBeGreaterThan(coastRows(1, 20));
     expect(coastRows(-1, 20)).toBeLessThan(0);
   });
+});
+
+describe("swipeGoesTo", () => {
+  it("reads the history on the normal screen, with the mouse reported or not", () => {
+    expect(swipeGoesTo("normal", 300, "none")).toBe("history");
+    expect(swipeGoesTo("normal", 300, "vt200")).toBe("history");
+  });
+  it("hands a full-screen app the wheel, since it has no history here", () => {
+    expect(swipeGoesTo("alternate", 0, "none")).toBe("app");
+    expect(swipeGoesTo("alternate", 0, "vt200")).toBe("app");
+  });
+  it("hands the wheel to an app that reports the mouse before any history exists", () => expect(swipeGoesTo("normal", 0, "any")).toBe("app"));
+  it("sends nothing at a bare prompt, where a wheel would become arrow keys", () => expect(swipeGoesTo("normal", 0, "none")).toBe("nothing"));
 });
