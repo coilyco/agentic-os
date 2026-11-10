@@ -332,7 +332,7 @@
   .input-notice { margin: 0; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; border-top: 1px solid var(--danger); background: var(--danger-fill); color: var(--danger-text); font-size: 14px; }
   .input-notice button { min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--danger); background: transparent; color: var(--danger-text); }
   .starting { position: absolute; inset: 0; margin: 0; padding: 24px; display: grid; place-content: center; text-align: center; color: var(--muted); pointer-events: none; }
-  .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(in srgb to top, var(--terminal) 70%, transparent); }
+  .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
   .body { --side: 360px; --strip: calc(44px + env(safe-area-inset-bottom)); flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--side); min-height: 0; }
   .body.wide { --side: minmax(360px, 50%); }
   .body.away { grid-template-columns: minmax(0, 1fr); }

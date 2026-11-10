@@ -220,8 +220,8 @@
     flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
     /* Shadows that show only on the side with more to scroll to. */
     background:
-      linear-gradient(in srgb, var(--raised) 30%, transparent) top / 100% 24px local no-repeat,
-      linear-gradient(in srgb, transparent, var(--raised) 70%) bottom / 100% 24px local no-repeat,
+      linear-gradient(var(--raised) 30%, transparent) top / 100% 24px local no-repeat,
+      linear-gradient(transparent, var(--raised) 70%) bottom / 100% 24px local no-repeat,
       radial-gradient(farthest-side at 50% 0, rgb(0 0 0 / 0.55), transparent) top / 100% 10px scroll no-repeat,
       radial-gradient(farthest-side at 50% 100%, rgb(0 0 0 / 0.55), transparent) bottom / 100% 10px scroll no-repeat;
   }

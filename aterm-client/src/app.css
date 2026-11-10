@@ -5,19 +5,18 @@
 @import "@fontsource/jetbrains-mono/400.css";
 
 :root {
-  /* Each tier is --ground plus a step, so one retune repaints every surface (COI-3549).
-     The build reads --ground and --plate, as #rrggbb, for the OS chrome. */
+  /* Every surface colour is a token here, and the build reads --ground and --plate. */
   --ground: #0b0c10;
   --plate: #080711;
-  --terminal: rgb(from var(--ground) calc(r + 5) calc(g + 6) calc(b + 6));
-  --terminal-veil: rgb(from var(--terminal) r g b / 0.8667);
-  --surface: rgb(from var(--ground) calc(r + 8) calc(g + 9) calc(b + 11));
-  --hover: rgb(from var(--ground) calc(r + 12) calc(g + 14) calc(b + 17));
-  --raised: rgb(from var(--ground) calc(r + 12) calc(g + 7) calc(b + 15));
-  --selected: rgb(from var(--ground) calc(r + 18) calc(g + 11) calc(b + 25));
-  --line: rgb(from var(--ground) calc(r + 31) calc(g + 35) calc(b + 42));
-  --control-line: rgb(from var(--ground) calc(r + 47) calc(g + 51) calc(b + 59));
-  --chip-line: rgb(from var(--ground) calc(r + 47) calc(g + 39) calc(b + 64));
+  --terminal: #101216;
+  --terminal-veil: #101216dd;
+  --surface: #13151b;
+  --hover: #171a21;
+  --raised: #17131f;
+  --selected: #1d1729;
+  --line: #2a2f3a;
+  --control-line: #3a3f4b;
+  --chip-line: #3a3350;
   --shade: #000a;
   --track: #ffffff1f;
   --text: #f5f7fa;
@@ -30,13 +29,13 @@
   --ok: #5ee6a8;
   --warn: #ffb454;
   --warn-text: #ffc98a;
-  --warn-fill: rgb(from var(--ground) calc(r + 15) calc(g + 11) calc(b + 2));
-  --warn-line: rgb(from var(--ground) calc(r + 63) calc(g + 49) calc(b + 21));
+  --warn-fill: #1a1712;
+  --warn-line: #4a3d25;
   --danger: #ff6b7a;
   --danger-text: #ffc2c8;
   --danger-detail: #ff9aa5;
-  --danger-fill: rgb(from var(--ground) calc(r + 31) calc(g + 8) calc(b + 9));
-  --danger-line: rgb(from var(--ground) calc(r + 79) calc(g + 46) calc(b + 49));
+  --danger-fill: #2a1419;
+  --danger-line: #5a3a41;
   --font-display: "Chakra Petch", sans-serif;
   --font-body: "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;

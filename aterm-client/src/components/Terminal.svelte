@@ -636,8 +636,8 @@
   .jump { position: absolute; z-index: 3; right: 28px; bottom: 16px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px var(--shade); }
   .count { min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: var(--brand-ink); font: 700 12px/22px var(--font-body); text-align: center; }
   .edge { display: flex; position: absolute; z-index: 2; top: 0; bottom: 0; width: 28px; align-items: center; color: var(--text); font: 600 22px var(--font-body); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
-  .edge.left { left: 0; justify-content: flex-start; padding-left: 4px; background: linear-gradient(in srgb to right, var(--terminal-veil), transparent); }
-  .edge.right { right: 0; justify-content: flex-end; padding-right: 4px; background: linear-gradient(in srgb to left, var(--terminal-veil), transparent); }
+  .edge.left { left: 0; justify-content: flex-start; padding-left: 4px; background: linear-gradient(to right, var(--terminal-veil), transparent); }
+  .edge.right { right: 0; justify-content: flex-end; padding-right: 4px; background: linear-gradient(to left, var(--terminal-veil), transparent); }
   .edge.on { opacity: 1; }
   .size { position: absolute; z-index: 3; top: 12px; right: 28px; display: flex; align-items: center; gap: 6px; }
   .size-row { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 12px; border: 1px solid var(--control-line); background: var(--surface); box-shadow: 0 6px 24px var(--shade); }
