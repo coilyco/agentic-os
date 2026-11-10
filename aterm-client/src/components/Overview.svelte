@@ -3,8 +3,9 @@
   import canopy from "../assets/treehouse-canopy.svg?url";
   import CloseSeat from "./CloseSeat.svelte";
   import Creature from "./Creature.svelte";
-  import { app, askLineFor, needsKaiIds, openByPerson, openSettings, selectedHost, showLogo } from "../lib/app.svelte";
+  import { app, askLineFor, needsKaiIds, openByPerson, openSettings, pinnedNow, selectedHost, showAllRoles, showLogo } from "../lib/app.svelte";
   import { ageText } from "../lib/age";
+  import { splitHidden } from "../lib/hidden-roles";
   import { groupSeats, type GroupKey } from "../lib/overview";
   import type { Session } from "../lib/protocol";
   import { activityFlag } from "../lib/seat-activity";
@@ -13,8 +14,9 @@
   // Where the app rests (COI-3518): every seat, sorted by what it wants of Kai. The host is a label.
   const host = $derived(selectedHost());
   const needs = $derived(needsKaiIds());
-  const seats = $derived(orderSessions(app.sessions, app.roles));
-  const groups = $derived(groupSeats(seats, { needs, unseen: app.unseen }));
+  // A hidden role's quiet seats stay off the screen, as they do in the list. A pinned one stays, and pins sort first.
+  const split = $derived(splitHidden(orderSessions(app.sessions, app.roles, pinnedNow), app.hiddenRoles, (seat) => seat.state === "failed" || pinnedNow(seat) || needs.has(seat.id)));
+  const groups = $derived(groupSeats(split.shown, { needs, unseen: app.unseen }));
   const running = $derived(splitSessions(app.sessions).running.length);
   // The stylesheet's own breakpoint, as the list tracks it, since Close stacks under a row on a phone.
   let narrow = $state(typeof matchMedia === "function" && matchMedia("(max-width: 720px)").matches);
@@ -76,7 +78,7 @@
 
   {#if app.notice}<p class="note" role="status">{app.notice}</p>{/if}
 
-  {#if groups.length === 0}
+  {#if groups.length === 0 && split.hidden.length === 0}
     <p class="empty" role="status">Nothing is running on {host?.label ?? "this host"}. Start a seat from the roles in the list.</p>
   {/if}
 
@@ -104,6 +106,9 @@
       </ul>
     </section>
   {/each}
+  {#if split.hidden.length}
+    <p class="hidden-note" role="status">{split.hidden.length} {split.hidden.length === 1 ? "seat is" : "seats are"} hidden. <button type="button" class="show" onclick={showAllRoles}>Show them</button></p>
+  {/if}
 </section>
 
 <style>
@@ -116,6 +121,9 @@
   .settings { flex: none; min-height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 14px var(--font-body); }
   .logo:focus-visible, .settings:focus-visible, .open:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .note { margin: 0; color: var(--text-soft); font-size: 14px; }
+  .hidden-note { margin: 0; font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .show { min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 13px var(--font-body); }
+  .show:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .empty { margin: 8px 0; color: var(--muted); font-size: 16px; }
   .group { display: flex; flex-direction: column; gap: 6px; }
   h2 { margin: 0 4px; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }

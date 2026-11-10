@@ -6,7 +6,7 @@ test("a host with no seat open shows the seats by what they want of you, and a s
   await page.goto("/");
   await loadFonts(page);
   await page.getByRole("tab", { name: /this Mac/ }).click();
-  const overview = page.getByRole("region", { name: "Seats" });
+  const overview = page.getByRole("region", { name: "Seats", exact: true });
   await expect(overview, "the overview").toBeVisible();
   // Every group heading present is one of the three, in order.
   const headings = await overview.getByRole("heading", { level: 2 }).allTextContents();
@@ -72,7 +72,7 @@ test.describe("seats in all three states", () => {
     await page.goto("/");
     await loadFonts(page);
     await page.getByRole("tab", { name: /this Mac/ }).click();
-    const overview = page.getByRole("region", { name: "Seats" });
+    const overview = page.getByRole("region", { name: "Seats", exact: true });
     await expect(overview.getByRole("heading", { level: 2 })).toHaveText([/^Working/, /^Done/]);
     mock.push({
       type: "ask",

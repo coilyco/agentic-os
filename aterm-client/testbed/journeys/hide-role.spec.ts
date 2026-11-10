@@ -52,12 +52,16 @@ test.describe("hide a role", () => {
     await bed.page.getByRole("switch", { name: /Platform Engineer/ }).uncheck();
     await expect(bed.page.getByRole("status").filter({ hasText: "12 seats are hidden." })).toBeVisible();
     await bed.page.reload();
-    await expect(bed.page.locator(".xterm-rows")).toBeVisible();
-    await openMenu(bed.page, phone);
-    await expect(bed.page.getByRole("status").filter({ hasText: "12 seats are hidden." }), "still hidden after a reload").toBeVisible();
-    await expect(bed.page.getByRole("switch", { name: /Platform Engineer/ })).not.toBeChecked();
-    await bed.page.getByRole("button", { name: "Show them" }).click();
+    await expect(bed.page.getByRole("heading", { name: "Seats", level: 1 })).toBeVisible();
+    await expect(bed.page.getByRole("status").filter({ hasText: "12 seats are hidden." }).first(), "still hidden after a reload").toBeVisible();
+    // A phone's role switches sit in a seat's sheet, so read them with a seat open.
+    if (!phone) await expect(bed.page.getByRole("switch", { name: /Platform Engineer/ })).not.toBeChecked();
+    await bed.page.getByRole("button", { name: "Show them" }).first().click();
     await expect.poll(async () => hiddenEngineers(await ids(bed.page)).length).toBe(0);
+    if (phone) {
+      await bed.openSeat(SEATS.imp);
+      await openMenu(bed.page, phone);
+    }
     await expect(bed.page.getByRole("switch", { name: /Platform Engineer/ })).toBeChecked();
   });
 
