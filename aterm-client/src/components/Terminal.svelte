@@ -14,6 +14,7 @@
   import { detectChoice } from "../lib/choices";
   import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
   import { coastRows, swipeGoesTo, takeRows } from "../lib/touch-scroll";
+  import { loadWrap, storeWrap } from "../lib/wrap";
   import { DEFAULT_TEXT_SIZE, loadTextSize, stepTextSize, storeTextSize, TEXT_SIZES } from "../lib/text-size";
   import { isBlank, screenRows, tabBarReading, type TabBarCells } from "../lib/screen";
   import { afterQueued, safely, watchDelay } from "../lib/pane-watch";
@@ -66,6 +67,12 @@
   // Measured in pixels, not columns: a smaller size adds columns and must not take its own button away.
   let narrow = $state(false);
   const NARROW_PX = 360;
+  // Long lines fold to the screen's width in this client alone. The daemon is told nothing, so no other view of the seat moves (COI-3544).
+  let wrapping = $state(false);
+  // Offered where dragging sideways is the tedious part: a touch screen or a narrow window. A desktop pane scrolls its long lines.
+  let handheld = $state(false);
+  const canWrap = $derived(handheld || wrapping);
+  const showSize = $derived(narrow || sizing || textSize !== DEFAULT_TEXT_SIZE);
   let refit = () => {};
   let finding = $state(false);
   let findSeed = $state("");
@@ -195,6 +202,11 @@
 
   onMount(() => {
     const phone = matchMedia("(max-width: 720px)");
+    wrapping = loadWrap(sessionId);
+    const handheldQuery = matchMedia("(max-width: 720px), (pointer: coarse)");
+    handheld = handheldQuery.matches;
+    const onHandheld = () => (handheld = handheldQuery.matches);
+    handheldQuery.addEventListener("change", onHandheld);
     const terminal = new Terminal({
       cursorBlink: true,
       fontFamily: '"JetBrains Mono", ui-monospace, monospace',
@@ -252,7 +264,17 @@
     let fingerX = 0;
     let coasting = 0;
     // A full-screen app has no history here, so it gets a wheel as a mouse would send it.
-    const move = (rows: number) => {
+    // A wrapped screen can be taller than the box, so a drag moves the box first and the history after it.
+    const scrollBox = (rows: number) => {
+      const px = rowPx();
+      if (!px) return rows;
+      const before = host.scrollTop;
+      host.scrollTop = Math.min(lastTop(), Math.max(0, before + rows * px));
+      return rows - Math.round((host.scrollTop - before) / px);
+    };
+    const move = (taken: number) => {
+      const rows = wrapping ? scrollBox(taken) : taken;
+      if (!rows) return;
       const active = terminal.buffer.active;
       const where = swipeGoesTo(active.type, active.baseY, terminal.modes.mouseTrackingMode);
       if (where === "history") terminal.scrollLines(rows);
@@ -327,7 +349,12 @@
     const asking = () => (cropping() ? boxRows : 0);
     const cell = () => (host.querySelector<HTMLElement>(".xterm-screen")?.clientHeight ?? 0) / Math.max(terminal.rows, 1);
     // The window ends at the last shown row, not at the padding below it, which would show a sliver of the box.
-    hiddenPx = () => (extra() > 0 ? extra() * cell() + parseFloat(getComputedStyle(host).paddingBottom) : 0);
+    // A wrapped row is taller than a cell, so the cropped rows are measured.
+    const tailPx = (rows: number) =>
+      wrapping
+        ? [...host.querySelectorAll<HTMLElement>(".xterm-rows > div")].slice(-rows).reduce((sum, row) => sum + row.getBoundingClientRect().height, 0)
+        : rows * cell();
+    hiddenPx = () => (extra() > 0 ? tailPx(extra()) + parseFloat(getComputedStyle(host).paddingBottom) : 0);
     // This client's capacity is what its box can hold, which is not what xterm currently is.
     const own = () => ({ rows: terminal.rows, cols: terminal.cols });
     let reported: { rows: number; cols: number } | undefined;
@@ -352,7 +379,7 @@
       remark();
       // Cut at a row, whatever the box height, so no sliver of the hidden box shows.
       requestAnimationFrame(() => {
-        if (terminal.element) terminal.element.style.clipPath = more > 0 ? `inset(0 0 ${more * cell()}px 0)` : "";
+        if (terminal.element) terminal.element.style.clipPath = more > 0 ? `inset(0 0 ${tailPx(more)}px 0)` : "";
         if (more > 0) anchor(true);
       });
     }
@@ -494,8 +521,11 @@
         // New lines are counted from xterm's own rows, which cost no layout read.
         const counting = latest.away;
         const before = linesAbove(terminal.buffer.active);
+        // Wrapped rows change the height, so a view at the newest line is put back there once xterm has drawn.
+        const follow = wrapping && atBottom();
         terminal.write(event.data, () => {
           afterWrite();
+          if (follow) afterSize(true);
           if (counting && latest.away) latest = wrote(latest, before, linesAbove(terminal.buffer.active));
           trackView();
         });
@@ -531,6 +561,7 @@
       window.removeEventListener("focus", wake);
       clearTimeout(watching);
       phone.removeEventListener("change", shapeForPhone);
+      handheldQuery.removeEventListener("change", onHandheld);
       clearTimeout(settle);
       clearTimeout(tallTimer);
       unsubscribe();
@@ -578,6 +609,14 @@
     refit();
   }
 
+  function setWrap(next: boolean): void {
+    wrapping = next;
+    storeWrap(sessionId, next);
+    // The sideways pan has no use while lines fold, and a pan left behind would hide column 0.
+    if (next && host) host.scrollLeft = 0;
+    refit();
+  }
+
   function closeFind(): void {
     finding = false;
     term?.focus();
@@ -593,14 +632,17 @@
 </script>
 
 <div class="term-frame">
-  <div class="term-host" class:panning role="region" aria-label={`Terminal for ${label}`} bind:this={host}>
+  <div class="term-host" class:panning class:wrapping role="region" aria-label={`Terminal for ${label}`} bind:this={host}>
     <p class="waiting" role="status">{waiting}</p>
   </div>
   <span class="edge left" class:on={past.left} aria-hidden="true">‹</span>
   <span class="edge right" class:on={past.right} aria-hidden="true">›</span>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  {#if narrow || sizing || textSize !== DEFAULT_TEXT_SIZE}
+  {#if showSize || canWrap}
   <div class="size" onkeydown={(event) => event.key === "Escape" && (sizing = false)}>
+    {#if canWrap}
+      <button type="button" class="wrap" aria-pressed={wrapping} aria-label="Wrap long lines" onclick={() => setWrap(!wrapping)}>Wrap</button>
+    {/if}
     {#if sizing}
       <div class="size-row" role="group" aria-label="Text size">
         <button type="button" aria-label="Smaller text" disabled={textSize === TEXT_SIZES[0]} onclick={() => setTextSize(stepTextSize(textSize, -1))}>A−</button>
@@ -608,7 +650,9 @@
         <button type="button" aria-label="Larger text" disabled={textSize === TEXT_SIZES[TEXT_SIZES.length - 1]} onclick={() => setTextSize(stepTextSize(textSize, 1))}>A+</button>
       </div>
     {/if}
-    <button type="button" class="size-open" aria-label="Text size" aria-expanded={sizing} onclick={() => (sizing = !sizing)}>Aa</button>
+    {#if showSize}
+      <button type="button" class="size-open" aria-label="Text size" aria-expanded={sizing} onclick={() => (sizing = !sizing)}>Aa</button>
+    {/if}
   </div>
   {/if}
   <span class="pan" class:on={past.left || past.right} aria-hidden="true"><i style:left={`${thumb.x}%`} style:width={`${thumb.w}%`}></i></span>
@@ -632,6 +676,20 @@
   .term-host { touch-action: pan-x pinch-zoom; }
   .term-host.panning { overflow: auto; }
   .term-host.panning :global(.xterm) { width: max-content; }
+  /* Rows fold at the box's width. Inline styles carry xterm's fixed sizes, so these override them. */
+  .term-host.wrapping { overflow-x: hidden; }
+  .term-host.wrapping :global(.xterm) { width: 100%; }
+  .term-host.wrapping :global(.xterm-screen) { width: 100% !important; height: auto !important; }
+  .term-host.wrapping :global(.xterm-rows) { position: static !important; width: 100%; white-space: pre-wrap !important; overflow-wrap: anywhere; }
+  .term-host.wrapping :global(.xterm-rows > div) { width: auto !important; height: auto !important; overflow: visible !important; }
+  /* A blank row keeps one line's height. */
+  .term-host.wrapping :global(.xterm-rows > div::after) { content: "\200b"; }
+  .term-host.wrapping :global(.xterm-rows span) { display: inline !important; height: auto !important; }
+  /* xterm parks the input at the cursor's cell, which lies off the right edge on a folded screen and would scroll the box to it. */
+  .term-host.wrapping :global(.xterm-helper-textarea) { left: 0 !important; top: auto !important; bottom: 0; }
+  /* Stripes are placed by row number, which a folded row breaks. */
+  .term-host.wrapping :global(.xterm-decoration-container) { display: none; }
+  .size .wrap[aria-pressed="true"] { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 22%, var(--surface)); }
   .jump { position: absolute; z-index: 3; right: 28px; bottom: 16px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px #000a; }
   .count { min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: var(--brand-ink); font: 700 12px/22px var(--font-body); text-align: center; }
   .edge { display: flex; position: absolute; z-index: 2; top: 0; bottom: 0; width: 28px; align-items: center; color: var(--text); font: 600 22px var(--font-body); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
