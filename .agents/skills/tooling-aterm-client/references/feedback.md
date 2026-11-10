@@ -2,7 +2,7 @@
 
 A person takes a screenshot of the aterm client, taps one button, and sends it with a note. The host keeps both as a record and a frontend-eng seat files it. Kai asked for it on 2026-11-04 after about a dozen cases in an hour on the Android app.
 
-**The sheet is the client half, and the daemon's `feedback` frames are the other (COI-3345, see [the daemon half](#the-daemon-half)).** The sheet shows only where the connection has a `FeedbackChannel`, which `DaemonHost` gets once the daemon lists the `feedback` feature. Until then a real host's menu entry reads "This host needs a newer aterm daemon", and only the Demo host sends.
+**The sheet is the client half, and the daemon's `feedback` frames are the other (COI-3345, see [the daemon half](#the-daemon-half)).** The sheet shows only where the connection has a `FeedbackChannel`, which `DaemonHost` gets once the daemon lists the `feedback` feature. Until then a real host's menu entry reads "This host needs a newer Treehouse to take feedback.", and only the Demo host sends.
 
 ## What a person sees
 

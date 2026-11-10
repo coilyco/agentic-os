@@ -30,7 +30,7 @@
       : reconnecting()
         ? "The host is reconnecting. Send works again when it is back."
         : !channel
-          ? "This host cannot take images. It needs a newer aterm daemon."
+          ? "This host cannot take images. It needs a newer Treehouse."
           : !app.typing.allowed
             ? typingNotice(app.typing)
             : seats.length === 0
