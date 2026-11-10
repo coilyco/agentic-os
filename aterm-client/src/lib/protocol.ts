@@ -1,5 +1,6 @@
 // The client's view of a host. `DaemonHost` maps aterm.daemon.v1 onto it,
 // and `MockHost` scripts it for the demo. Why: the architecture reference.
+import type { MediaItem } from "./media";
 import type { KeyStatus } from "./device-key";
 import type { ToolResult, View } from "./mcp-apps";
 import type { ResumeState } from "./resume";
@@ -147,6 +148,8 @@ export type HostEvent =
   | { type: "notice"; text: string }
   // A seat asked to open a page. Its name is the label, and the daemon names no pane.
   | { type: "open_url"; session: string; url: string }
+  | { type: "media"; item: MediaItem }
+  | { type: "media_closed"; session: string; id: string }
   // The coordinator seat pinged Kai with its notify tool (COI-3517). Played once per id.
   | { type: "notify"; notify: Notify }
   // Typed input not taken for a reason the lock does not show, or lost to a dead socket.
@@ -217,6 +220,12 @@ export interface TerminalChannel {
 export interface LastReplyChannel {
   /** Resolves the text. `truncated` says the host cut it. Rejects in words. */
   fetch(sessionId: string): Promise<{ text: string; truncated: boolean }>;
+}
+
+/** Files a seat shares (COI-3458). Only a host whose welcome lists `media` has one. */
+export interface MediaChannel {
+  /** The whole file, in chunks. `onProgress` gets the bytes so far. Rejects in words. */
+  read(item: MediaItem, onProgress?: (bytes: number) => void): Promise<Blob>;
 }
 
 /** Images for a seat (COI-3240). No daemon has one yet (COI-3239). */
@@ -291,6 +300,8 @@ export interface HostConnection {
   readonly images?: ImageChannel;
   /** Only a daemon with `last-reply` has one. */
   readonly lastReplies?: LastReplyChannel;
+  /** Files a seat has shared, which the viewer reads. */
+  readonly media?: MediaChannel;
   readonly feedback?: FeedbackChannel;
   subscribe(listener: (event: HostEvent) => void): () => void;
   /** Dial now, skipping the backoff. Only a connection that redials has it. */

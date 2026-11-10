@@ -7,11 +7,13 @@
   import PinSeat from "../components/PinSeat.svelte";
   import Composer from "../components/Composer.svelte";
   import LastReply from "../components/LastReply.svelte";
+  import MediaChip from "../components/MediaChip.svelte";
+  import MediaViewer from "../components/MediaViewer.svelte";
   import RelayNotice from "../components/RelayNotice.svelte";
   import SidePanel from "../components/SidePanel.svelte";
   import SplitHandle from "../components/SplitHandle.svelte";
   import Terminal from "../components/Terminal.svelte";
-  import { app, asksShownOn, colorOf, layout, messagesFor, needsKaiIds, placeNow, reconnecting, relayedTo } from "../lib/app.svelte";
+  import { app, asksShownOn, colorOf, layout, markMediaSeen, mediaOf, messagesFor, needsKaiIds, placeNow, reconnecting, relayedTo, unseenMedia } from "../lib/app.svelte";
   import { readTabs, tabKeys, type TabReading } from "../lib/dialog-tabs";
   import type { TabBarCells } from "../lib/screen";
   import { askScope, cardMemo, forgetCardMemos, memoKey, screenScope, tickedRows } from "../lib/card-memo.svelte";
@@ -62,6 +64,9 @@
     return () => clearInterval(timer);
   });
   const messages = $derived(messagesFor(session));
+  // Files this seat shared. The chip says so and the viewer opens over the seat (COI-3458).
+  const shared = $derived(app.connection?.media ? mediaOf(session.id) : []);
+  let viewing = $state(false);
   let seatTerminal = $state<{ openFind: () => void }>();
   const findChord = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "Cmd+F" : "Ctrl+Shift+F";
   // Cmd+F from the composer or the card finds in the seat's output, as it does from the terminal.
@@ -274,6 +279,12 @@
             {/if}
           </div>
           {#if relayed}<RelayNotice seat={relayed} />{/if}
+          {#if shared.length > 0}
+            <MediaChip seat={session.identity} count={shared.length} unseen={unseenMedia(session.id)} onopen={() => (viewing = true)} />
+          {/if}
+          {#if viewing && app.connection?.media}
+            <MediaViewer channel={app.connection.media} items={shared} seat={session.identity} onclose={() => (viewing = false)} onseen={() => markMediaSeen(session.id)} />
+          {/if}
           {#if app.inputNotice}
             <p class="input-notice" role="alert">
               <span>{app.inputNotice}</span>

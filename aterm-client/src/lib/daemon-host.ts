@@ -7,7 +7,8 @@ import { safely } from "./pane-watch";
 import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, ViewChannel } from "./protocol";
+import { CHUNK_BYTES, decodeMedia, mediaRefusal } from "./media";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, ViewChannel } from "./protocol";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
 import { bridge, DeviceKeyError, type Invoke, enrollKey, keyStatus, KEY_CODE_SPENT, mayEnroll, signChallenge, biometricNotice } from "./device-key";
@@ -146,6 +147,12 @@ interface Frame {
   notify?: { id?: string; session?: string; role?: string; identity?: string; title?: string; body?: string; at?: string };
   /** Answers a `last_reply` request. */
   reply?: { session?: string; text?: string; truncated?: boolean; at?: string };
+  /** A shared file's descriptor on `media`, and the chunk's place on `media_data`. */
+  media?: unknown;
+  media_id?: string;
+  offset?: number;
+  size?: number;
+  eof?: boolean;
   sessions?: SessionView[];
   message?: MessageView;
   roster?: unknown;
@@ -585,6 +592,27 @@ export class DaemonHost implements HostConnection {
     return this.features.has("last-reply") ? this.lastReplyChannel : undefined;
   }
 
+  /** Only a welcome listing `media` sends the files a seat shares. */
+  get media(): MediaChannel | undefined {
+    return this.features.has("media") ? this.mediaChannel : undefined;
+  }
+
+  private mediaChannel: MediaChannel = {
+    read: async (item, onProgress) => {
+      const parts: Uint8Array[] = [];
+      let offset = 0;
+      for (;;) {
+        const frame = await this.exchange({ type: "media_read", media_id: item.id, offset, length: CHUNK_BYTES });
+        const bytes = frame.data ? decode(frame.data) : new Uint8Array();
+        parts.push(bytes);
+        offset += bytes.length;
+        onProgress?.(offset);
+        if (frame.eof === true || bytes.length === 0) break;
+      }
+      return new Blob(parts as BlobPart[], { type: item.mime });
+    },
+  };
+
   private lastReplyChannel: LastReplyChannel = {
     fetch: async (sessionId) => {
       const frame = await this.exchange({ type: "last_reply", target: sessionId });
@@ -918,6 +946,8 @@ export class DaemonHost implements HostConnection {
         // Subscribers are the clients that can show a page. With no browser, stay out,
         // and the host opens its own.
         if (this.features.has(OPEN_URL_FEATURE) && this.features.has(BROWSER_FEATURE)) this.request({ type: "subscribe", channel: "open_url" });
+        // The daemon replays each seat's shelf on subscribe, so a reconnect restores it.
+        if (this.features.has("media")) this.request({ type: "subscribe", channel: "media" });
         for (const line of this.outbox.splice(0)) this.socket.send(this.ptySize ? withScales(line) : line);
         return;
       }
@@ -970,6 +1000,7 @@ export class DaemonHost implements HostConnection {
         return;
       case "view_result":
       case "last_reply":
+      case "media_data":
       case "image_uploaded":
       case "passkey_enroll_options":
       case "passkey_enrolled":
@@ -1002,6 +1033,14 @@ export class DaemonHost implements HostConnection {
       }
       case "open_url":
         if (frame.session && frame.url) this.emit({ type: "open_url", session: frame.session, url: frame.url });
+        return;
+      case "media": {
+        const item = frame.session ? decodeMedia(frame.session, frame.media) : null;
+        if (item) this.emit({ type: "media", item });
+        return;
+      }
+      case "media_closed":
+        if (frame.session && frame.media_id) this.emit({ type: "media_closed", session: frame.session, id: frame.media_id });
         return;
       case "typing":
         this.setTyping(parseTyping(frame.typing));
@@ -1081,7 +1120,8 @@ export class DaemonHost implements HostConnection {
         if (call && frame.id) {
           this.calls.delete(frame.id);
           const imageWords = refused ? null : imageRefusal(frame.reason);
-          if (frame.reason === RESUME_ENDED_REASON) call.reject(new ResumeEndedError());
+          if (frame.reason === "media_unknown") call.reject(new Error(mediaRefusal(frame.reason)));
+          else if (frame.reason === RESUME_ENDED_REASON) call.reject(new ResumeEndedError());
           else if (frame.reason === KEY_UNKNOWN_REASON) call.reject(new DeviceKeyError(KEY_UNKNOWN, KEY_UNKNOWN_REASON));
           else if (imageWords) call.reject(new Error(imageWords));
           else call.reject(new Refusal(refused ? typingNotice(refused) : (frame.error ?? "The daemon refused the request."), refused?.allowed === false ? refused.reason : undefined));
