@@ -1,6 +1,6 @@
 # Files a seat shares: the media viewer
 
-A seat's images, video and other files open in a viewer over the seat (COI-3458). The daemon half is a contract proposed on the COI-3458 record and queued with the platform seat, and the daemon owns it, so this page names only what the client does and relies on.
+A seat's images, video and other files open in a viewer over the seat (COI-3458). The daemon half is [media-daemon.md](media-daemon.md), so this page names only what the client does and relies on.
 
 ## What a person sees
 

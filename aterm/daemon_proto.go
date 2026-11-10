@@ -83,6 +83,14 @@ type frame struct {
 	// Delivered is how many clients an opened reply says took the address.
 	Delivered int `json:"delivered,omitempty"`
 
+	// Media: Media is one kept file, MediaID names one, and Length, Size and EOF answer a
+	// media_read. EOF is a pointer so a false still rides every chunk. See daemon_media.go.
+	Media   *mediaView `json:"media,omitempty"`
+	MediaID string     `json:"media_id,omitempty"`
+	Length  int        `json:"length,omitempty"`
+	Size    int64      `json:"size,omitempty"`
+	EOF     *bool      `json:"eof,omitempty"`
+
 	// Artifacts: Artifact is a whole page pushed to the views channel, ArtifactID names
 	// one, and Waiting and SeatEnded are set only when they changed. See daemon_artifact.go.
 	Artifact   *artifactView `json:"artifact,omitempty"`
