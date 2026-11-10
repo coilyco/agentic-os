@@ -25,6 +25,7 @@
   import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
   import { loadSide, loadSideOpen, storeSide, storeSideOpen } from "../lib/split";
   import { activityFlag } from "../lib/seat-activity";
+  import { draftKey, loadDraft, storeDraft } from "../lib/draft-store";
   import { mark } from "../lib/tap-trace";
   import { wantsFind } from "../lib/terminal-extras";
 
@@ -288,8 +289,12 @@
             offline={reconnecting()}
             {dialogOpen}
             reading={layout.reading}
-            draft={app.drafts[session.id] ?? ""}
-            ondraft={(text) => (text ? (app.drafts[session.id] = text) : delete app.drafts[session.id])}
+            draft={app.drafts[session.id] ?? loadDraft(draftKey(app.selectedHostId ?? "", session.id))}
+            ondraft={(text) => {
+              if (text) app.drafts[session.id] = text;
+              else delete app.drafts[session.id];
+              storeDraft(draftKey(app.selectedHostId ?? "", session.id), text);
+            }}
             onsent={() => (app.inputNotice = "")}
             onfocuschange={(focused) => (app.composing = focused)}
             place={placeNow()}
