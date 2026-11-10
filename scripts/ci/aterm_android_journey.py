@@ -393,6 +393,37 @@ class Journey:
             raise Fail(f"the page did not say {words!r}")
         print("journey C: chip kept; failure words " + ("asserted" if words else "captured in journey-c-page.txt, not asserted"))
 
+    def journey_f_dictation(self) -> None:
+        """The mic taps, a spoken phrase plays into the virtual mic, and text lands in the composer (COI-3460)."""
+        page = self.page
+        assert page
+        mic = '[aria-label="Dictate"]'
+        stop = '[aria-label="Stop dictating"]'
+        field = "document.querySelector('#composer-input')"
+        wav = os.environ.get("ATERM_SPEECH_WAV")
+        if not wav or not Path(wav).exists():
+            raise Fail("no speech file, so the virtual mic was never set up (ATERM_SPEECH_WAV)")
+        page.js(f"(()=>{{const f={field};f.value='';f.dispatchEvent(new Event('input',{{bubbles:true}}))}})()")
+        page.wait_selector(mic, 20)
+        page.tap(f"()=>document.querySelector({json.dumps(mic)})")
+        page.wait_selector(stop, 20)
+        time.sleep(2)
+        subprocess.run(["paplay", "--device=virt_mic", wav], check=False, timeout=60)
+        deadline = time.monotonic() + 45
+        heard = ""
+        while time.monotonic() < deadline and not re.search(r"hello", heard, re.IGNORECASE):
+            time.sleep(1)
+            heard = str(page.js(f"{field}.value"))
+        (self.out / "journey-f-composer.txt").write_text(heard)
+        logs = [line for line in adb("logcat", "-d", "-t", "6000", check=False).splitlines() if re.search(r"speech|recogni|dictation|SpeechRecognizer", line, re.IGNORECASE)]
+        (self.out / "journey-f-logcat.txt").write_text("\n".join(logs[-300:]))
+        if not re.search(r"hello", heard, re.IGNORECASE):
+            raise Fail(f"no words reached the composer from the spoken phrase. composer: {heard!r}. page notes: {page.text()[:300]!r}")
+        if page.js(f"!!document.querySelector({json.dumps(stop)})"):
+            page.tap(f"()=>document.querySelector({json.dumps(stop)})")
+            page.wait_selector(mic, 20)
+        print(f"journey F: the composer holds {str(page.js(f'{field}.value'))!r}")
+
     def run(self) -> None:
         self.step("install-and-launch", self.install_and_launch)
         self.step("attach-devtools", self.attach_page)
@@ -421,6 +452,14 @@ class Journey:
             print("::warning::journey D saw no artifact card (COI-3520), see its FAILED screenshot")
             self.recover()
         self.step("journey-e-refusals", self.journey_e_refusals)
+        if os.environ.get("ATERM_JOURNEY_DICTATION"):
+            try:
+                self.step("journey-f-dictation", self.journey_f_dictation)
+            except SystemExit:
+                if os.environ["ATERM_JOURNEY_DICTATION"] != "optional":
+                    raise
+                print("::warning::journey F failed and is optional (COI-3460), see its FAILED screenshot")
+                self.recover()
         self.step("journey-c-daemon-down", self.journey_c_daemon_down)
         self.evidence()
 

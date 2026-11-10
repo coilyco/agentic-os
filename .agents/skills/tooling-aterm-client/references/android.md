@@ -8,7 +8,7 @@ The [aterm web client](../../../../aterm-client/README.md) wrapped as an Android
 
 **The app origin is `https://tauri.localhost`.** `useHttpsScheme` makes the webview serve the bundle from there, and the daemon's origin check refuses any non-https origin, so `https://tauri.localhost` goes in `ATERM_DAEMON_ALLOW_ORIGINS` on every host the phone dials.
 
-**The app registers three plugins, the [device key](android-devicekey.md), the [share target](android-sharetarget.md) and the official [opener](android-opener.md), and no IPC commands of its own. `csp` is null like the web build.** `withGlobalTauri` exposes the plugins to the page, and the one capability grants the `main` window `devicekey:default`, `sharetarget:default` and `opener:allow-open-url` for web addresses, and nothing else, so the page otherwise talks to the daemon over its own websocket. Tauri is pinned at 2.12.1. GHSA-7gmj-67g7-phm9 (CVE-2026-42184, origin confusion that lets a remote page invoke local-only IPC on Android) is fixed from 2.11.1.
+**The app registers four plugins, the [device key](android-devicekey.md), [dictation](android-dictation.md), the [share target](android-sharetarget.md) and the official [opener](android-opener.md), and no IPC commands of its own. `csp` is null like the web build.** `withGlobalTauri` exposes the plugins to the page, and the one capability grants the `main` window `devicekey:default`, `dictation:default`, `sharetarget:default` and `opener:allow-open-url` for web addresses, and nothing else, so the page otherwise talks to the daemon over its own websocket. Tauri is pinned at 2.12.1. GHSA-7gmj-67g7-phm9 (CVE-2026-42184, origin confusion that lets a remote page invoke local-only IPC on Android) is fixed from 2.11.1.
 
 ## Build
 
@@ -47,6 +47,7 @@ The scripted steps are [`scripts/ci/aterm-android.sh`](../../../../scripts/ci/at
 * An APK installed and opened on a phone.
 * Add image's picker on a real phone. A CI emulator run (Android 15, debug x86_64, 2026-11-09, COI-3485) opened the Photo Picker (`PhotoPickerGetContentActivity`, not a `documentsui` package), so `onShowFileChooser` works there. Picking a file and the send on the emulator, and any run on a phone, are not yet observed.
 * The share target: the merged manifest filters, Treehouse in the Share menu, and the sheet on a phone ([android-sharetarget.md](android-sharetarget.md)).
+* Dictation on a phone: the mic prompt, Google's recognizer, and a sentence into the composer ([android-dictation.md](android-dictation.md)).
 * Whether Android System WebView honours `interactive-widget=resizes-content` for the keyboard.
 * Gradle and Maven dependencies are not hash-verified. Tauri's generated project pulls the Android Gradle plugin and AndroidX from Google Maven and Maven Central with no dependency verification metadata.
 

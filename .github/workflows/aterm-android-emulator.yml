@@ -45,6 +45,8 @@ jobs:
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" build-debug x86_64 "$GITHUB_WORKSPACE/aterm-emulator-out/aterm-debug.apk"
       - name: Make the emulator image
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" avd
+      - name: Set up the virtual microphone
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" audio
       - name: Boot the emulator
         timeout-minutes: 10
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" boot
@@ -54,6 +56,7 @@ jobs:
         timeout-minutes: 20
         env:
           ATERM_JOURNEY_B: optional
+          ATERM_JOURNEY_DICTATION: optional
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" journey "$GITHUB_WORKSPACE/aterm-emulator-out/aterm-debug.apk"
       - name: Collect the final logs
         if: ${{ always() }}

@@ -7,6 +7,7 @@
   import Unlock from "./Unlock.svelte";
   import type { Place } from "../lib/build";
   import { typingNotice, type Typing } from "../lib/typing";
+  import { anchorAt, dictationAvailable, placeSpeech, startDictation, type Anchor, type Session as Dictation } from "../lib/dictation";
   import { IMAGE_TYPES, attachNote, chipLabel, fitImage, formatSize, pastedImages, pasteSteps, screenImages, withImagePaths } from "../lib/images";
 
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
@@ -101,6 +102,54 @@
       for (const chip of chips) URL.revokeObjectURL(chip.url);
     };
   });
+  // The mic shows only where the app has a speech recognizer. Speech lands in the draft at the caret and stays editable until Send (COI-3460).
+  let canDictate = $state(false);
+  let dictating = $state(false);
+  let dictation: Dictation | null = null;
+  let dictAnchor: Anchor = { before: "", after: "" };
+  // Typing mid-dictation takes the keyboard's side: the words so far stay and later speech is dropped.
+  let dictDetached = false;
+  void dictationAvailable().then((ready) => (canDictate = ready));
+  onMount(() => () => void dictation?.cancel());
+
+  function speech(words: string): void {
+    if (dictDetached) return;
+    const placed = placeSpeech(dictAnchor, words);
+    text = placed.text;
+    caret = placed.caret;
+    void tick().then(() => field?.setSelectionRange(placed.caret, placed.caret));
+  }
+
+  async function toggleDictation(): Promise<void> {
+    if (dictating) {
+      status = "Finishing what you said.";
+      await dictation?.stop();
+      return;
+    }
+    const from = field?.selectionStart ?? text.length;
+    dictAnchor = anchorAt(text, from, field?.selectionEnd ?? from);
+    dictDetached = false;
+    imageNote = "";
+    status = "";
+    try {
+      dictating = true;
+      dictation = await startDictation({
+        onText: (words) => speech(words),
+        onEnd: (note) => {
+          dictating = false;
+          dictation = null;
+          status = note ?? "Dictation finished. Edit the text, then send.";
+          if (note) imageNote = note;
+          void tick().then(() => field?.focus());
+        },
+      });
+      status = "Listening. Tap the mic again to stop.";
+    } catch (error) {
+      dictating = false;
+      imageNote = error instanceof Error ? error.message : "Dictation would not start.";
+    }
+  }
+
   const HELD_NOTE = "Not sent. A question is waiting for your answer, and your message stays here until you answer it.";
   const PASTE_OPEN = "\x1b[200~";
   const PASTE_CLOSE = "\x1b[201~";
@@ -216,6 +265,11 @@
       status = HELD_NOTE;
       return;
     }
+    // Speech that lands after a send would bring the sent text back, so a send ends the session first.
+    if (dictating) {
+      dictDetached = true;
+      void dictation?.cancel();
+    }
     // The seat on screen may change while an upload is out, and this message still belongs to the one it was written for.
     const target = session;
     const sending = chips;
@@ -316,6 +370,10 @@
   }
 
   function typed(): void {
+    if (dictating) {
+      dictDetached = true;
+      void dictation?.stop();
+    }
     syncCaret();
     active = 0;
     dismissedAt = null;
@@ -410,6 +468,12 @@
   {#if dialogOpen && (text.trim() || chips.length)}
     <p class="hold" role="status">A question is waiting. Answer it, then send. Your message stays here.</p>
   {/if}
+  {#if canDictate}
+    <!-- Same box as Add image. The field keeps focus on a press, so the keyboard stays and the layout holds still. -->
+    <button class="add-image mic" class:listening={dictating} type="button" aria-label={dictating ? "Stop dictating" : "Dictate"} aria-pressed={dictating} title={dictating ? "Stop dictating" : "Dictate"} disabled={offline || uploading !== null} onmousedown={keepFocus} onclick={() => void toggleDictation()}>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><rect x="9" y="3.5" width="6" height="11" rx="3" fill="none" stroke="currentColor" stroke-width="1.8" /><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" /></svg>
+    </button>
+  {/if}
   {#if connection.images}
     <!-- The button is the way a phone adds an image, and the way to one with no clipboard image. -->
     <input bind:this={picker} hidden type="file" accept={IMAGE_TYPES.join(",")} multiple onchange={picked} />
@@ -500,6 +564,7 @@
   .composer.dropping { outline: 2px dashed var(--brand); outline-offset: -4px; }
   .add-image { flex: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--control-line); border-radius: 10px; background: var(--terminal); color: var(--text-soft); cursor: pointer; }
   .add-image:hover:not(:disabled) { color: var(--text); border-color: var(--brand); }
+  .add-image.listening { color: var(--brand-ink); background: var(--brand); border-color: var(--brand); }
   .add-image:focus-visible, .chip-remove:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .attachments { flex: 0 0 100%; min-width: 0; }
   .hold { flex: 0 0 100%; margin: 0; font-size: 14px; line-height: 1.4; color: var(--warn-text); }
