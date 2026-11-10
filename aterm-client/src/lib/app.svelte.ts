@@ -16,6 +16,8 @@ import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
 import type { Ask, Host, HostConnection, LaunchState, Link, Notify, PeerMessage, SeatArtifact, Session } from "./protocol";
 import { seatsNeedingKai, type NeedsKai } from "./needs-kai";
 import { closedWords, fullyIdle } from "./idle-close";
+import { flipHidden, loadHidden, storeHidden } from "./hidden-roles";
+import { flipPin, isPinned, loadPins, storePins } from "./pins";
 import type { ResumeState } from "./resume";
 import type { Role } from "./roster";
 import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
@@ -79,6 +81,10 @@ export const app = $state({
   /** ask_choice calls waiting on a person, by ask id. */
   asks: {} as Record<string, Ask>,
   /** The control asking "Close it?" (row:id or view:id), and the last result. */
+  /** Seats pinned and unpinned by a person on this device. */
+  pins: loadPins(),
+  /** Roles whose quiet seats this device keeps out of the list. */
+  hiddenRoles: loadHidden(),
   closing: null as string | null,
   closeNote: "",
   /** What the note offers: close it anyway, or reopen what was closed. */
@@ -556,6 +562,28 @@ export function selectSession(id: string): void {
   app.selectedSession = id;
   app.selectedRole = null;
   delete app.unseen[id];
+}
+
+/** Pinned by the person, or by the role's default when they never decided. */
+export function pinnedNow(session: Session): boolean {
+  return isPinned(session.id, app.pins, app.roles.find((role) => role.slug === session.role)?.pinnedByDefault === true);
+}
+
+export function togglePinned(session: Session): void {
+  app.pins = flipPin(session.id, pinnedNow(session), app.pins);
+  storePins(app.pins);
+}
+
+/** On shows a role's seats and off takes its quiet seats out of the list. */
+export function setRoleShown(role: string, shown: boolean): void {
+  if (shown === !app.hiddenRoles.includes(role)) return;
+  app.hiddenRoles = flipHidden(role, app.hiddenRoles);
+  storeHidden(app.hiddenRoles);
+}
+
+export function showAllRoles(): void {
+  app.hiddenRoles = [];
+  storeHidden(app.hiddenRoles);
 }
 
 let closePending: { id: string; ref: string; identity: string; role: string; roleName: string } | null = null;

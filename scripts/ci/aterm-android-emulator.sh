@@ -89,7 +89,7 @@ daemon() {
   chmod 700 "$state"
   (cd "$repo_root/aterm" && go build -o "$out/aterm" .)
   nohup "$out/aterm" daemon --socket "$state/d.sock" --websocket 127.0.0.1:7420 --tailnet-port "" --idle 0 >"$out/daemon.log" 2>&1 &
-  nohup python3 -I "$repo_root/scripts/aterm_test_rig_proxy.py" --listen 127.0.0.1:7419 --upstream 127.0.0.1:7420 >"$out/relay.log" 2>&1 &
+  nohup python3 -I "$repo_root/scripts/aterm_test_rig_proxy.py" --listen 127.0.0.1:7419 --upstream 127.0.0.1:7420 --refuse-uploads-file "$state/refuse-upload" >"$out/relay.log" 2>&1 &
   local waited=0
   until [ -S "$state/d.sock" ]; do
     [ "$waited" -lt 20 ] || { cat "$out/daemon.log" >&2; fail "the daemon never opened its socket"; }
@@ -103,7 +103,7 @@ journey() {
   use_sdk
   local apk="${1:?usage: journey APK}"
   python3 -I "$repo_root/scripts/ci/aterm_android_journey.py" --apk "$apk" --out "$out/screens" \
-    --socket "$state/d.sock" --seat "$SEAT" --seat-log "$state/seat.log"
+    --socket "$state/d.sock" --seat "$SEAT" --seat-log "$state/seat.log" --refuse-file "$state/refuse-upload"
 }
 
 # collect: the seat's log and the final logcat, for the artifact.

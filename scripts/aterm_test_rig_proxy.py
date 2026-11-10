@@ -6,10 +6,10 @@
 """Relay in front of a TEST aterm daemon, so the Android app reaches its loopback socket.
 
 The daemon's loopback listener serves only loopback page origins, and the app's page is
-https://tauri.localhost. This rewrites that one Origin on the upgrade request and speaks
-websocket frames both ways, so it can refuse client frames that run commands (spawn,
-launch) and drop a connection it cannot parse. It serves only `GET /_aterm/reach` and a
-websocket upgrade on `/`. Loopback only. Reference: tooling-aterm-client android-emulator.
+https://tauri.localhost. This rewrites that one Origin and speaks websocket frames both
+ways, refusing client frames that run commands (spawn, launch) and dropping a connection
+it cannot parse. `--refuse-uploads-file` is the CI journey's refusal stub (COI-3526).
+Loopback only. Reference: tooling-aterm-client android-emulator and android.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ import json
 import os
 import struct
 import sys
+from pathlib import Path
 
 APP_ORIGIN = "https://tauri.localhost"
 DENY_TYPES = ("spawn", "launch")
@@ -28,6 +29,13 @@ EXIT_USAGE = 2
 MAX_HEAD = 65536
 MAX_MESSAGE = 16 << 20
 TEXT, BINARY, CLOSE, PING, PONG, CONT = 0x1, 0x2, 0x8, 0x9, 0xA, 0x0
+# The refusals image_upload can carry, in the daemon's own words (aterm/daemon_image.go).
+UPLOAD_REFUSALS = {
+    "not_an_image": "the bytes are not a PNG, JPEG, GIF or WebP image",
+    "too_large": "the image is over 3000000 bytes (3 MB), the most one upload carries",
+    "too_many": "this seat already holds 16 images, which is the most a seat keeps",
+    "session_unknown": "not attached to a seat named by this upload",
+}
 
 
 class Drop(Exception):
@@ -124,11 +132,22 @@ def judge(message: bytes, deny: tuple[str, ...]) -> tuple[str, str]:
     return ("refuse" if kinds[0].casefold() in deny else "forward"), kinds[0]
 
 
-def refusal(message: bytes, kind: str) -> bytes:
+def refusal(message: bytes, kind: str, reason: str = "rig_refused", words: str = "") -> bytes:
     """A daemon-shaped error for the refused frame, echoing its id when it has one."""
     ident = next((v for k, v in json.loads(message, object_pairs_hook=list) if k.casefold() == "id"), "")
-    body = {"type": "error", "id": ident if isinstance(ident, str) else "", "error": f"the test rig refuses {kind} frames", "code": 1, "reason": "rig_refused"}
+    body = {"type": "error", "id": ident if isinstance(ident, str) else "", "error": words or f"the test rig refuses {kind} frames", "code": 1, "reason": reason}
     return encode_frame(TEXT, json.dumps(body).encode(), mask=False)
+
+
+def upload_refusal(path: str | None) -> str | None:
+    """The image refusal the control file names right now, or None. Read per frame so a journey can change it."""
+    if not path:
+        return None
+    try:
+        reason = Path(path).read_text().strip()
+    except OSError:
+        return None
+    return reason if reason in UPLOAD_REFUSALS else None
 
 
 async def read_head(reader: asyncio.StreamReader) -> bytes:
@@ -141,7 +160,7 @@ async def read_head(reader: asyncio.StreamReader) -> bytes:
     return head
 
 
-async def serve_frames(client_r, client_w, up_r, up_w, deny: tuple[str, ...]) -> None:
+async def serve_frames(client_r, client_w, up_r, up_w, deny: tuple[str, ...], refuse_file: str | None = None) -> None:
     lock = asyncio.Lock()
 
     async def to_client(data: bytes) -> None:
@@ -187,6 +206,11 @@ async def serve_frames(client_r, client_w, up_r, up_w, deny: tuple[str, ...]) ->
                 print(f"relay: refused a {kind} frame", flush=True)
                 await to_client(refusal(message, kind))
                 continue
+            stubbed = upload_refusal(refuse_file) if kind.casefold() == "image_upload" else None
+            if stubbed:
+                print(f"relay: answered an image_upload with {stubbed}", flush=True)
+                await to_client(refusal(message, kind, stubbed, UPLOAD_REFUSALS[stubbed]))
+                continue
             up_w.write(encode_frame(TEXT, message, mask=True))
             await up_w.drain()
 
@@ -205,7 +229,7 @@ def reply(status: str, text: str) -> bytes:
     return f"HTTP/1.1 {status}\r\nX-Aterm-Refusal: rig\r\nContent-Type: text/plain\r\nContent-Length: {len(body)}\r\nConnection: close\r\n\r\n".encode() + body
 
 
-async def handle(client_r, client_w, upstream, app_origin, as_origin, deny) -> None:
+async def handle(client_r, client_w, upstream, app_origin, as_origin, deny, refuse_file: str | None = None) -> None:
     up_w = None
     try:
         head = await read_head(client_r)
@@ -235,7 +259,7 @@ async def handle(client_r, client_w, upstream, app_origin, as_origin, deny) -> N
         if upgrade and response.startswith(b"HTTP/1.1 101"):
             if any(name == "sec-websocket-extensions" for name, _ in parse_head(response)[2]):
                 raise Drop("the daemon negotiated an extension")
-            await serve_frames(client_r, client_w, up_r, up_w, deny)
+            await serve_frames(client_r, client_w, up_r, up_w, deny, refuse_file)
         else:
             while chunk := await up_r.read(65536):
                 client_w.write(chunk)
@@ -257,8 +281,8 @@ def parse_addr(text: str) -> tuple[str, int]:
     return host, int(port)
 
 
-async def serve(listen, upstream, app_origin: str, as_origin: str, deny: tuple[str, ...]) -> None:
-    server = await asyncio.start_server(lambda r, w: handle(r, w, upstream, app_origin, as_origin, deny), *listen, limit=MAX_HEAD)
+async def serve(listen, upstream, app_origin: str, as_origin: str, deny: tuple[str, ...], refuse_file: str | None = None) -> None:
+    server = await asyncio.start_server(lambda r, w: handle(r, w, upstream, app_origin, as_origin, deny, refuse_file), *listen, limit=MAX_HEAD)
     print(f"relay: {listen[0]}:{listen[1]} to {upstream[0]}:{upstream[1]}, refusing {','.join(deny)} frames", flush=True)
     async with server:
         await server.serve_forever()
@@ -270,6 +294,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--upstream", type=parse_addr, required=True, help="the test daemon's loopback host:port")
     parser.add_argument("--app-origin", default=APP_ORIGIN)
     parser.add_argument("--as-origin", default="http://127.0.0.1", help="the loopback origin sent in its place")
+    parser.add_argument("--refuse-uploads-file", help="a file whose content, an image refusal reason, makes image_upload frames refused (CI journey stub)")
     parser.add_argument("--deny", default=",".join(DENY_TYPES), help="client frame types refused, comma separated")
     args = parser.parse_args(argv)
     for name, (host, _) in (("--listen", args.listen), ("--upstream", args.upstream)):
@@ -285,7 +310,7 @@ def main(argv: list[str] | None = None) -> int:
         print("aterm-test-rig-proxy: --deny must include spawn", file=sys.stderr)
         return EXIT_USAGE
     try:
-        asyncio.run(serve(args.listen, args.upstream, args.app_origin, args.as_origin, deny))
+        asyncio.run(serve(args.listen, args.upstream, args.app_origin, args.as_origin, deny, args.refuse_uploads_file))
     except KeyboardInterrupt:
         pass
     return 0
