@@ -1168,8 +1168,11 @@ export class DaemonHost implements HostConnection {
 
   private setTyping(typing: Typing | null): void {
     if (!typing) return;
+    const could = this.last.typing?.allowed === true;
     this.last.typing = keepStanding(typing, this.last.typing);
     this.emit({ type: "typing", typing: this.last.typing });
+    // A client that may not type is refused the media channel, so ask again.
+    if (!could && this.last.typing.allowed && this.features.has("media")) this.request({ type: "subscribe", channel: "media" });
   }
 
   // A listener that throws must not keep the others, a terminal included, from the frame.
