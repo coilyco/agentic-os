@@ -1,0 +1,19 @@
+# Throwaway COI-3460 probe, deleted with its branch. Steps in scripts/ci/.
+name: coi-3460-speech-probe
+
+on:
+  push:
+    branches:
+      - eng-platform/coi-3460-probe
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Probe the emulator image
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/coi-3460-speech-probe.sh"
