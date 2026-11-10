@@ -26,6 +26,7 @@
   import { loadSide, loadSideOpen, storeSide, storeSideOpen } from "../lib/split";
   import { activityFlag } from "../lib/seat-activity";
   import { draftKey, loadDraft, storeDraft } from "../lib/draft-store";
+  import { loadDraftImages, saveDraftImages } from "../lib/draft-images";
   import { mark } from "../lib/tap-trace";
   import { wantsFind } from "../lib/terminal-extras";
 
@@ -295,6 +296,8 @@
               else delete app.drafts[session.id];
               storeDraft(draftKey(app.selectedHostId ?? "", session.id), text);
             }}
+            savedimages={() => loadDraftImages(draftKey(app.selectedHostId ?? "", session.id))}
+            onimages={(files) => saveDraftImages(draftKey(app.selectedHostId ?? "", session.id), files)}
             onsent={() => (app.inputNotice = "")}
             onfocuschange={(focused) => (app.composing = focused)}
             place={placeNow()}

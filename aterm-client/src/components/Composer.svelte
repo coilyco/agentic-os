@@ -14,7 +14,8 @@
   // `draft` and `ondraft` keep the text outside this component, so a seat change or a remount does not take it. `onsent` says a send left.
   // `dialogOpen` is a dialog open on the seat: typed text would answer it or dismiss it, so Send waits and the message stays as a draft (COI-3322).
   // `reading` is a phone on its side, where height is scarce: the composer is one row (COI-3371).
-  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, reading = false, draft = "", ondraft, onsent, onfocuschange, place, working = false }: {
+  // `savedimages` reads the images kept for this draft once, and `onimages` hands over the chips each time they change (COI-3582).
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, reading = false, draft = "", ondraft, savedimages, onimages, onsent, onfocuschange, place, working = false }: {
     connection: HostConnection;
     session: Session;
     sessions?: readonly Session[];
@@ -24,6 +25,8 @@
     reading?: boolean;
     draft?: string;
     ondraft?: (text: string) => void;
+    savedimages?: () => Promise<File[]>;
+    onimages?: (files: File[]) => Promise<"kept" | "too_big" | "off">;
     onsent?: () => void;
     /** Whether the field has focus, for chrome that gives way to the keyboard. */
     onfocuschange?: (focused: boolean) => void;
@@ -42,6 +45,26 @@
   // Chips hold the files until Send. Nothing goes to the host for an image that is never sent.
   let chips = $state<{ id: number; file: File; url: string }[]>([]);
   let nextChip = 0;
+  const NOT_KEPT = "These images will not be kept if the page closes. They stay here until you send them.";
+  // Saving waits for the read, so an empty box at mount never clears what is about to come back.
+  let imagesRead = $state(false);
+  onMount(() => {
+    void (savedimages?.() ?? Promise.resolve<File[]>([])).then((files) => {
+      if (files.length) {
+        take(files);
+        status = `${files.length === 1 ? "An image" : `${files.length} images`} from your draft came back. ${chips.length} waiting.`;
+      }
+      imagesRead = true;
+    });
+  });
+  $effect(() => {
+    const files = chips.map((chip) => chip.file);
+    if (!imagesRead) return;
+    void onimages?.(files).then((kept) => {
+      if (kept !== "kept") imageInfo = NOT_KEPT;
+      else if (imageInfo === NOT_KEPT) imageInfo = "";
+    });
+  });
   // The reason an image was left out or an upload failed. It stays on screen, since a refused paste is otherwise silent.
   let imageNote = $state("");
   // Said, not refused: an image was shrunk to fit, or the seat's harness will not attach one.
