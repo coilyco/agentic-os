@@ -130,6 +130,25 @@ test.describe("on a phone", () => {
     await bed.step("shared", { compare: false });
   });
 
+  test("Show earlier reads the page before the first one and keeps the view where it was", async ({ bed }) => {
+    const long = Array.from({ length: 120 }, (_, index) => ({ id: `n${index}`, kind: index % 2 === 0 ? "prompt" : "reply", text: `message ${index}` }));
+    bed.mock.setTranscript(imp, long);
+    await bed.openSeat(SEATS.imp);
+    await stop(bed, "Default").click();
+    await expect(view(bed)).toContainText("message 119");
+    await expect(view(bed)).not.toContainText("message 69");
+    const earlier = view(bed).getByRole("button", { name: "Show earlier" });
+    await expect(earlier).toBeVisible();
+    await view(bed).locator(".feed").evaluate((feed) => (feed.scrollTop = 0));
+    const first = await view(bed).getByText("message 70", { exact: true }).boundingBox();
+    await earlier.click();
+    await expect(view(bed)).toContainText("message 20");
+    expect(bed.mock.transcriptCalls.some((call) => call.before !== undefined), "it asked for the page before").toBe(true);
+    const after = await view(bed).getByText("message 70", { exact: true }).boundingBox();
+    expect(Math.abs(after!.y - first!.y), "the message the person was reading did not move").toBeLessThan(80);
+    await expect(view(bed).getByRole("button", { name: "Show earlier" })).toBeVisible();
+  });
+
   test("a peer message shows in the Messages panel and not in the view", async ({ bed }) => {
     await open(bed);
     bed.mock.push({ type: "message", message: { id: "m1", from: "eng-platform Beetle-Ox", target: "frontend-eng", session: imp, state: "delivered", text: "Is the frame fixed?" } });

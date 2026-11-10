@@ -599,7 +599,7 @@ export class DaemonHost implements HostConnection {
 
   private transcriptChannel: TranscriptChannel = {
     read: async (sessionId, options = {}) => {
-      const frame = await this.exchange({ type: "transcript", session: sessionId, ...options });
+      const frame = await this.exchange({ type: "transcript", session: sessionId, ...options }, this.transcriptIds);
       return decodeReply(sessionId, frame as unknown as Record<string, unknown>);
     },
   };
@@ -702,11 +702,16 @@ export class DaemonHost implements HostConnection {
   };
 
   /** One request, settled by the reply or the `error` that echoes its id. */
-  private exchange(frame: Record<string, unknown>): Promise<Frame> {
+  private exchange(frame: Record<string, unknown>, track?: Set<string>): Promise<Frame> {
     return new Promise((resolve, reject) => {
-      this.calls.set(this.request(frame), { resolve, reject });
+      const id = this.request(frame);
+      track?.add(id);
+      this.calls.set(id, { resolve, reject });
     });
   }
+
+  /** Requests for a transcript, whose refusal reasons are this feature's own. */
+  private transcriptIds = new Set<string>();
 
   attach(sessionId: string, rows: number, cols: number): void {
     this.refs.set(sessionId, (this.refs.get(sessionId) ?? 0) + 1);
@@ -1008,6 +1013,7 @@ export class DaemonHost implements HostConnection {
         const call = frame.id ? this.calls.get(frame.id) : undefined;
         if (call && frame.id) {
           this.calls.delete(frame.id);
+          this.transcriptIds.delete(frame.id);
           call.resolve(frame);
         }
         return;
@@ -1101,7 +1107,7 @@ export class DaemonHost implements HostConnection {
         if (call && frame.id) {
           this.calls.delete(frame.id);
           const imageWords = refused ? null : imageRefusal(frame.reason);
-          if (typeof frame.reason === "string" && Object.hasOwn(REFUSALS, frame.reason)) call.reject(new TranscriptRefused(frame.reason));
+          if (frame.id && this.transcriptIds.delete(frame.id) && typeof frame.reason === "string" && Object.hasOwn(REFUSALS, frame.reason)) call.reject(new TranscriptRefused(frame.reason));
           else if (frame.reason === RESUME_ENDED_REASON) call.reject(new ResumeEndedError());
           else if (frame.reason === KEY_UNKNOWN_REASON) call.reject(new DeviceKeyError(KEY_UNKNOWN, KEY_UNKNOWN_REASON));
           else if (imageWords) call.reject(new Error(imageWords));

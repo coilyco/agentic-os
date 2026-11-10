@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HostEvent } from "./protocol";
+import { TranscriptRefused } from "./transcript";
 import { DaemonHost, daemonUrl, hostLabel, launchRefusal, toAsk, toMessage, toSession, toView } from "./daemon-host";
 
 describe("aterm.daemon.v1 mapping", () => {
@@ -1301,6 +1302,34 @@ describe("a seat's open_url", () => {
     socket.receive({ type: "open_url", url: "https://example.com/" });
     socket.receive({ type: "open_url", session: "s" });
     expect(events.filter((event) => event.type === "open_url")).toEqual([]);
+    host.close();
+  });
+});
+
+describe("a seat's transcript", () => {
+  const welcome = { type: "welcome", format: "aterm.daemon.v1", features: ["transcript"] };
+  const sent = (socket: StubSocket, type: string) => socket.sent.map((line) => JSON.parse(line)).filter((frame) => frame.type === type);
+
+  it("is offered only when the host lists the feature", () => {
+    const { host, socket } = connect();
+    expect(host.transcripts).toBeUndefined();
+    socket.receive(welcome);
+    expect(host.transcripts).toBeDefined();
+    host.close();
+  });
+
+  it("reads a reply with its cursors and takes a refusal as the transcript's own, including passkey_required", async () => {
+    const { host, socket } = connect();
+    socket.receive(welcome);
+    const read = host.transcripts!.read("s1", { limit: 50 });
+    await vi.waitFor(() => expect(sent(socket, "transcript")).toHaveLength(1));
+    socket.receive({ type: "transcript", id: sent(socket, "transcript")[0].id, session: "s1", reader: "claude", items: [{ id: "1", kind: "prompt", text: "hi" }], cursor: "c", older: "o", more: true });
+    expect(await read).toMatchObject({ reader: "claude", cursor: "c", older: "o", more: true, items: [{ id: "1" }] });
+    const refused = host.transcripts!.read("s1");
+    await vi.waitFor(() => expect(sent(socket, "transcript")).toHaveLength(2));
+    socket.receive({ type: "error", id: sent(socket, "transcript")[1].id, reason: "passkey_required", error: "unlock first" });
+    await expect(refused).rejects.toBeInstanceOf(TranscriptRefused);
+    await expect(refused).rejects.toMatchObject({ reason: "passkey_required" });
     host.close();
   });
 });

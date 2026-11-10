@@ -1,6 +1,6 @@
-# The transcript views: Focus, Default and Verbose
+# The Focus, Default and Verbose views
 
-A seat on a host whose welcome lists `transcript` shows three views of it, read from the transcript the daemon takes from the seat's own harness files (claude, codex, opencode). COI-3532. Kai chose the three stops, Focus as the phone default, and one release behind the daemon read. The frame belongs to the daemon and is agreed on the COI-3532 record, so the daemon's own reference is the contract. This page is the client half.
+A seat on a host whose welcome lists `transcript` shows three views of it, read from the transcript the daemon takes from the seat's own harness files (claude, codex, opencode). COI-3532. Kai chose the three stops, Focus as the phone default, and one release behind the daemon read. The frame belongs to the daemon, so the daemon's own `transcript.md` reference is the contract. This page is the client half.
 
 ## The rule
 
@@ -14,6 +14,7 @@ Named from Claude Code's `viewMode`. **Focus** is each turn's prompt, one line p
 * **Peer messages** and the replies that answer them never show, at any level. They stay in the Messages panel. A peer item is `kind: peer`, and `for` links an answer to it. An item with no `for` answers nobody. When the peer landed mid-turn the daemon also sets `shared`, since the file cannot tell an answer from the person's own work, and the view keeps those items and says they may answer another seat (`withoutPeers`). Whether to keep, drop or mark them is Kai's to settle.
 * **No transcript** (a refusal such as `unreadable_format`) opens the raw screen with one line saying why. Picking a stop asks again. A host without the feature shows no control at all.
 * **It polls** `since` the last cursor every 2 seconds while open, paused while the page is hidden, and refetches the newest page on `bad_cursor`.
+* **Show earlier** at the top asks for the page `before` the reply's `older` cursor and keeps the view where it was. Text the host cut says so under it. A device that must unlock first (`passkey_required`) gets the screen and the reason.
 
 ## Where it lives
 

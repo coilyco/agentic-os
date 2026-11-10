@@ -69,7 +69,8 @@ describe("reading a reply off the wire", () => {
   });
 
   it("decodes a reply and survives a missing items list", () => {
-    expect(decodeReply("s", { reader: "claude", items: [{ id: "1", kind: "prompt", text: "hi" }, { bad: true }], cursor: "c1", more: true })).toMatchObject({ reader: "claude", cursor: "c1", more: true, items: [{ id: "1" }] });
+    expect(decodeReply("s", { reader: "claude", items: [{ id: "1", kind: "prompt", text: "hi" }, { bad: true }], cursor: "c1", older: "o1", more: true })).toMatchObject({ reader: "claude", cursor: "c1", older: "o1", more: true, items: [{ id: "1" }] });
+    expect(decodeReply("s", { reader: "codex", items: [] }).older).toBeUndefined();
     expect(decodeReply("s", {}).items).toEqual([]);
   });
 
@@ -79,7 +80,7 @@ describe("reading a reply off the wire", () => {
   });
 
   it("says every refusal in words, and a reason it does not know in a plain sentence", () => {
-    for (const reason of ["no_transcript", "ambiguous", "unreadable_format", "unsupported_harness", "locked", "bad_cursor"]) expect(refusalText(reason)).not.toMatch(/_/);
+    for (const reason of ["no_transcript", "ambiguous", "unreadable_format", "unsupported_harness", "passkey_required", "bad_cursor"]) expect(refusalText(reason)).not.toMatch(/_/);
     expect(refusalText("something_new")).toBe("The host would not send this seat's transcript.");
     expect(refusalText(undefined)).toBe("The host would not send this seat's transcript.");
   });
@@ -127,5 +128,13 @@ describe("peer messages", () => {
     expect(decodeItem({ id: "3", kind: "peer", text: "x" })).toMatchObject({ kind: "peer" });
     expect(decodeItem({ id: "4", kind: "reply", text: "y", for: "3", shared: true })).toMatchObject({ for: "3", shared: true });
     expect(decodeItem({ id: "4", kind: "reply", text: "y", shared: "yes" })?.shared).toBeUndefined();
+  });
+});
+
+describe("text the host cut", () => {
+  it("carries the cut flag to the row, so the view can say so", () => {
+    const rows = rowsFor([{ id: "1", kind: "prompt", text: "a" }, { id: "2", kind: "reply", text: "b", truncated: true }], "verbose");
+    expect(rows.map((row) => (row.kind === "tool" ? false : row.cut))).toEqual([false, true]);
+    expect(decodeItem({ id: "2", kind: "reply", text: "b", truncated: true, text_bytes: 99 })).toMatchObject({ truncated: true });
   });
 });

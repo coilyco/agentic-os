@@ -13,6 +13,9 @@
   const POLL_MS = 2000;
   let items = $state<TranscriptItem[]>([]);
   let cursor = "";
+  // Sent back to ask for the page before the first item held.
+  let older = $state<string | undefined>();
+  let loadingOlder = $state(false);
   let phase = $state<"loading" | "ready">("loading");
   let stale = $state(false);
   let updatedAt = $state<number | undefined>();
@@ -35,6 +38,7 @@
   async function newest(): Promise<void> {
     const reply = await channel.read(sessionId, { limit: PAGE });
     items = reply.items;
+    older = reply.older;
     cursor = reply.cursor;
     updatedAt = Date.now();
     phase = "ready";
@@ -74,6 +78,24 @@
     };
   });
 
+  // The page before the first item, put above it with the view kept where it was.
+  async function earlier(): Promise<void> {
+    if (!older || loadingOlder || !list) return;
+    loadingOlder = true;
+    const before = list.scrollHeight - list.scrollTop;
+    try {
+      const reply = await channel.read(sessionId, { before: older, limit: PAGE });
+      items = mergeItems(reply.items, items);
+      older = reply.older;
+      await tick();
+      if (list) list.scrollTop = list.scrollHeight - before;
+    } catch (error) {
+      if (!refused(error)) stale = true;
+    } finally {
+      loadingOlder = false;
+    }
+  }
+
   function jump(): void {
     pinned = true;
     if (list) list.scrollTop = list.scrollHeight;
@@ -87,6 +109,9 @@
 
 <section class="transcript" aria-label="Transcript">
   <div class="feed" bind:this={list} onscroll={() => (pinned = atEnd())} tabindex="-1">
+    {#if older}
+      <button type="button" class="earlier" disabled={loadingOlder} onclick={() => void earlier()}>{loadingOlder ? "Reading earlier messages." : "Show earlier"}</button>
+    {/if}
     {#if phase === "loading"}
       <p class="status" role="status">Reading this seat's transcript.</p>
     {:else if rows.length === 0}
@@ -94,9 +119,9 @@
     {/if}
     {#each rows as row (row.key)}
       {#if row.kind === "prompt"}
-        <div class="turn me"><span class="who">You</span><p class="plain">{row.text}</p></div>
+        <div class="turn me"><span class="who">You</span><p class="plain">{row.text}</p>{#if row.cut}<p class="maybe">The host cut this message.</p>{/if}</div>
       {:else if row.kind === "reply"}
-        <div class="turn"><Markdown source={row.text} onlink={open} />{#if row.maybePeer}<p class="maybe">May answer another seat's message.</p>{/if}</div>
+        <div class="turn"><Markdown source={row.text} onlink={open} />{#if row.cut}<p class="maybe">The host cut this reply.</p>{/if}{#if row.maybePeer}<p class="maybe">May answer another seat's message.</p>{/if}</div>
       {:else if row.kind === "tool"}
         <div class="step" data-failed={row.ok === false}>
           <p class="line">{row.summary}{#if row.ok === false}<span class="bad">failed</span>{/if}</p>
@@ -132,6 +157,9 @@
   .more, .turn .maybe { margin: 4px 0 0; font: 400 12px var(--font-body); color: var(--muted); }
   .note, .status { margin: 0; font: 400 13px var(--font-body); color: var(--muted); }
   .source { flex: none; margin: 0; padding: 6px 16px; border-top: 1px solid var(--line); font: 400 12px var(--font-body); color: var(--muted); min-height: 30px; }
+  .earlier { flex: none; align-self: center; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--control-line); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); }
+  .earlier:disabled { opacity: 0.6; }
+  .earlier:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .jump { position: absolute; right: 12px; bottom: 44px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px #000a; }
   .jump:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .turn :global(p) { margin: 0 0 8px; }

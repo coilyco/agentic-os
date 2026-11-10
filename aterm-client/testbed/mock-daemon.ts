@@ -328,21 +328,24 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
         case "transcript": {
           const session = String(frame.session);
           const since = typeof frame.since === "string" ? frame.since : undefined;
+          const before = typeof frame.before === "string" ? frame.before : undefined;
           const limit = typeof frame.limit === "number" ? frame.limit : undefined;
-          mock.transcriptCalls.push({ session, ...(since ? { since } : {}), ...(limit ? { limit } : {}) });
+          mock.transcriptCalls.push({ session, ...(since ? { since } : {}), ...(before ? { before } : {}), ...(limit ? { limit } : {}) });
           const reason = transcriptRefusals.get(session);
           if (reason) {
             send(socket, { type: "error", id: frame.id, session, reason, error: `no transcript: ${reason}` });
             return;
           }
           const all = transcripts.get(session) ?? [];
-          // The cursor is an index here. The client never reads one.
-          const from = since === undefined ? Math.max(0, all.length - (limit ?? 50)) : Number(since);
-          if (since !== undefined && !Number.isInteger(from)) {
+          // A cursor is an index here. The client never reads one.
+          const size = limit ?? 50;
+          const to = before === undefined ? all.length : Number(before);
+          const from = since !== undefined ? Number(since) : Math.max(0, to - size);
+          if (!Number.isInteger(from) || !Number.isInteger(to)) {
             send(socket, { type: "error", id: frame.id, session, reason: "bad_cursor", error: "bad cursor" });
             return;
           }
-          send(socket, { type: "transcript", id: frame.id, session, reader: "claude", items: all.slice(from), cursor: String(all.length), more: from > 0, updated_at: new Date().toISOString() });
+          send(socket, { type: "transcript", id: frame.id, session, reader: "claude", items: all.slice(from, to), cursor: String(all.length), ...(from > 0 ? { older: String(from) } : {}), more: from > 0, updated_at: new Date().toISOString() });
           return;
         }
         case "roster":

@@ -32,6 +32,8 @@ export interface TranscriptItem {
   model?: string;
   /** For a reply: the turn ended on it. */
   complete?: boolean;
+  /** The host cut the text at its own cap. */
+  truncated?: boolean;
   /** For a peer item: who sent it. */
   from?: { role: string; identity: string };
   /** The peer item this one answers, when the daemon can tell. */
@@ -47,6 +49,8 @@ export interface TranscriptReply {
   items: TranscriptItem[];
   /** Opaque. Sent back to ask for what was written since. */
   cursor: string;
+  /** Sent back as `before` to ask for the page before the first item here. */
+  older?: string;
   /** Older items exist, before the first one here. */
   more: boolean;
   updatedAt?: number;
@@ -58,7 +62,7 @@ export const REFUSALS: Record<string, string> = {
   ambiguous: "More than one seat shares this seat's folder, so its transcript cannot be told apart.",
   unreadable_format: "This seat's transcript is in a format Treehouse does not read yet.",
   unsupported_harness: "This seat's program keeps no transcript Treehouse reads.",
-  locked: "This device may not read a transcript. It can read the screen.",
+  passkey_required: "This device must be unlocked before it can read a transcript. It can read the screen.",
   bad_cursor: "The transcript moved on while it was being read.",
 };
 
@@ -98,6 +102,7 @@ export function decodeItem(raw: unknown): TranscriptItem | null {
     ...(stamp(item.at) !== undefined ? { at: stamp(item.at) } : {}),
     ...(str(item.model) ? { model: str(item.model) } : {}),
     ...(typeof item.complete === "boolean" ? { complete: item.complete } : {}),
+    ...(item.truncated === true ? { truncated: true } : {}),
     ...(str(item.for) ? { for: str(item.for) } : {}),
     ...(item.shared === true ? { shared: true } : {}),
     ...(from && str(from.role) && str(from.identity) ? { from: { role: str(from.role) as string, identity: str(from.identity) as string } } : {}),
@@ -127,6 +132,7 @@ export function decodeReply(session: string, frame: Record<string, unknown>): Tr
     reader: str(frame.reader) ?? "",
     items,
     cursor: str(frame.cursor) ?? "",
+    ...(str(frame.older) ? { older: str(frame.older) } : {}),
     more: frame.more === true,
     ...(stamp(frame.updated_at) !== undefined ? { updatedAt: stamp(frame.updated_at) } : {}),
   };
@@ -151,7 +157,7 @@ export function withoutPeers(items: readonly TranscriptItem[]): TranscriptItem[]
 
 /** A row the view draws. */
 export type Row =
-  | { key: string; kind: "prompt" | "reply" | "note"; text: string; at?: number; model?: string; maybePeer: boolean }
+  | { key: string; kind: "prompt" | "reply" | "note"; text: string; at?: number; model?: string; maybePeer: boolean; cut: boolean }
   | { key: string; kind: "tool"; name: string; summary: string; lines: string[]; hidden: number; ok: boolean | undefined; cut: boolean; maybePeer: boolean };
 
 /** Lines of a result Default shows before saying how many more there are. */
@@ -172,11 +178,11 @@ export function rowsFor(all: readonly TranscriptItem[], level: Level): Row[] {
   for (const item of items) {
     if (item.kind === "prompt") {
       turn += 1;
-      if (item.text) rows.push({ key: item.id, kind: "prompt", text: item.text, maybePeer: item.shared === true, ...(item.at ? { at: item.at } : {}) });
+      if (item.text) rows.push({ key: item.id, kind: "prompt", text: item.text, maybePeer: item.shared === true, cut: item.truncated === true, ...(item.at ? { at: item.at } : {}) });
     } else if (item.kind === "reply") {
       if (!item.text) continue;
       if (level === "focus" && lastReply.get(turn) !== item.id) continue;
-      rows.push({ key: item.id, kind: "reply", text: item.text, maybePeer: item.shared === true, ...(item.at ? { at: item.at } : {}), ...(item.model ? { model: item.model } : {}) });
+      rows.push({ key: item.id, kind: "reply", text: item.text, maybePeer: item.shared === true, cut: item.truncated === true, ...(item.at ? { at: item.at } : {}), ...(item.model ? { model: item.model } : {}) });
     } else if (item.kind === "tool" && item.tool) {
       const all = level === "focus" || !item.tool.output ? [] : item.tool.output.replace(/\n+$/, "").split("\n");
       const shown = level === "verbose" ? all : all.slice(0, DEFAULT_OUTPUT_LINES);
@@ -192,7 +198,7 @@ export function rowsFor(all: readonly TranscriptItem[], level: Level): Row[] {
         maybePeer: item.shared === true,
       });
     } else if (item.kind === "note" && level !== "focus" && item.text) {
-      rows.push({ key: item.id, kind: "note", text: item.text, maybePeer: item.shared === true });
+      rows.push({ key: item.id, kind: "note", text: item.text, maybePeer: item.shared === true, cut: item.truncated === true });
     }
   }
   return rows;
