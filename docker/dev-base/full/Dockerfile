@@ -65,7 +65,7 @@ RUN set -eux; \
     rm -rf /tmp/aosguard-spec /tmp/aosguard-python; aosguard --version
 
 FROM ${BASE_IMAGE} AS dev-base-full
-ARG AGENT_COMPOSE_VERSION=2.219.0
+ARG AGENT_COMPOSE_VERSION=2.225.0
 ARG CLAUDE_VERSION=2.1.282
 ARG MCPORTER_VERSION=0.12.3
 ARG CODEX_VERSION=0.146.0
@@ -102,6 +102,8 @@ COPY --from=dev-base-lang-python-graft /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=dev-base-lang-python-graft /usr/local/bin/pipenv /usr/local/bin/pipenv
 COPY --from=dev-base-lang-python-graft /opt/uv /opt/uv
 RUN --mount=type=bind,source=install-common.sh,target=/tmp/install-common.sh \
+    --mount=type=bind,source=fetch-private-release.sh,target=/tmp/fetch-private-release.sh \
+    --mount=type=secret,id=treehouse_read_token \
     --mount=from=repo-lists,source=substrate-repos.txt,target=/tmp/substrate-repos.txt \
     bash /tmp/install-common.sh /tmp/substrate-repos.txt "${GIT_LFS_VERSION}" \
       "${GIT_LFS_SHA256_AMD64}" "${GIT_LFS_SHA256_ARM64}"

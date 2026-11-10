@@ -9,6 +9,7 @@
   import { AT_END, jumpLabel, linesAbove, scrolled, wrote, type Follow } from "../lib/follow";
   import { envelopeRows } from "../lib/messages";
   import { harnessBox } from "../lib/harness";
+  import { NO_BOX, steadyBox } from "../lib/box-rows";
   import { resolveColour } from "../lib/brand";
   import { openLink } from "../lib/link-notice.svelte";
   import { boxToReport, nextTall } from "../lib/pty-size";
@@ -16,6 +17,7 @@
   import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
   import { coastRows, swipeGoesTo, takeRows } from "../lib/touch-scroll";
   import { loadWrap, storeWrap } from "../lib/wrap";
+  import { lineChars, urlAtChain } from "../lib/wrap-links";
   import { DEFAULT_TEXT_SIZE, loadTextSize, stepTextSize, storeTextSize, TEXT_SIZES } from "../lib/text-size";
   import { isBlank, screenRows, tabBarReading, type TabBarCells } from "../lib/screen";
   import { afterQueued, safely, watchDelay } from "../lib/pane-watch";
@@ -59,6 +61,8 @@
   // Said in the pane while it has drawn nothing and the host is being asked again. Empty otherwise.
   let waiting = $state("");
   const HIDE_SETTLE_MS = 350;
+  // How long a screen that does not read as the harness box is given before the box counts as gone.
+  const BOX_GRACE_MS = 3000;
   // Rows must touch, or box-drawing characters break into dashes.
   const LINE_HEIGHT = 1;
   const SCROLLBACK = 10000;
@@ -76,6 +80,11 @@
   let overflows = $state(false);
   const canWrap = $derived((handheld && overflows) || wrapping);
   const showSize = $derived(narrow || sizing || textSize !== DEFAULT_TEXT_SIZE);
+  // A card overlays the terminal, and on a short screen it reaches the top where these controls sit, over its Hide question (COI-3574).
+  // A new size also resizes the PTY, which makes the harness redraw the menu the card was read from, so they wait for the card.
+  $effect(() => {
+    if (covered) sizing = false;
+  });
   let refit = () => {};
   let finding = $state(false);
   let findSeed = $state("");
@@ -102,12 +111,69 @@
     return lines;
   }
 
+  // Where each envelope sits, for the folded view, which paints its stripes on the rows themselves.
+  let stripes: { start: number; rows: number; color: string }[] = [];
+  let painted = false;
+  function paintStripes(): void {
+    if (!term || !host || (!wrapping && !painted)) return;
+    const first = term.buffer.active.viewportY;
+    host.querySelectorAll<HTMLElement>(".xterm-rows > div").forEach((row, index) => {
+      const at = wrapping ? stripes.find((stripe) => first + index >= stripe.start && first + index < stripe.start + stripe.rows) : undefined;
+      if (at) {
+        row.dataset.stripe = "";
+        row.style.setProperty("--stripe", at.color);
+        row.style.background = `color-mix(in srgb, ${at.color} 14%, transparent)`;
+      } else if ("stripe" in row.dataset) {
+        delete row.dataset.stripe;
+        row.style.removeProperty("--stripe");
+        row.style.background = "";
+      }
+    });
+    painted = wrapping;
+  }
+
+  // The address under a tap on a folded row. xterm maps a pointer by cell size, which a fold breaks.
+  function urlUnder(x: number, y: number): string | null {
+    const range = document.caretRangeFromPoint?.(x, y);
+    if (!term || !range) return null;
+    const node = range.startContainer;
+    const row = (node instanceof Element ? node : node.parentElement)?.closest<HTMLElement>(".xterm-rows > div");
+    if (!row?.parentElement) return null;
+    const upto = document.createRange();
+    upto.selectNodeContents(row);
+    upto.setEnd(node, range.startOffset);
+    const buffer = term.buffer.active;
+    const at = buffer.viewportY + [...row.parentElement.children].indexOf(row);
+    let start = at;
+    while (start > 0 && buffer.getLine(start)?.isWrapped) start--;
+    let end = at;
+    while (buffer.getLine(end + 1)?.isWrapped) end++;
+    const chain: string[] = [];
+    for (let line = start; line <= end; line++) {
+      const text = buffer.getLine(line);
+      chain.push(text ? lineChars(text) : "");
+    }
+    const offset = upto.toString().length;
+    // A caret at a character's far half lands one past it.
+    return urlAtChain(chain, at - start, offset) ?? urlAtChain(chain, at - start, offset - 1);
+  }
+
   // Stamp every envelope the harness has echoed so far with its sender's colour.
   function markEnvelopes(): void {
-    if (!term || messages.length === 0) return;
+    if (!term || messages.length === 0) {
+      stripes = [];
+      paintStripes();
+      return;
+    }
     const buffer = term.buffer.active;
     const lines = logicalLines(term);
-    for (const [index, message] of envelopeRows(lines.map((line) => line.text), messages)) {
+    const found = envelopeRows(lines.map((line) => line.text), messages);
+    stripes = [...found].flatMap(([index, message]) => {
+      const first = lines[index];
+      return first ? [{ start: first.start, rows: first.rows, color: colorOf(message.from.role) }] : [];
+    });
+    paintStripes();
+    for (const [index, message] of found) {
       const first = lines[index];
       if (!first || marked.has(first.start)) continue;
       const marker = term.registerMarker(first.start - (buffer.baseY + buffer.cursorY));
@@ -238,6 +304,8 @@
     terminal.loadAddon(
       new WebLinksAddon(
         (click, uri) => {
+          // A folded row opens its link from the tap handler, which reads the text under the finger.
+          if (wrapping) return;
           const href = linkTarget(uri);
           if (href && opensLink(click, touch.matches)) void openLink(href);
         },
@@ -257,6 +325,13 @@
       });
     };
     terminal.onScroll(trackView);
+    terminal.onRender(paintStripes);
+    const onTap = (event: MouseEvent) => {
+      if (!wrapping || event.defaultPrevented) return;
+      const href = linkTarget(urlUnder(event.clientX, event.clientY) ?? "");
+      if (href && opensLink(event, touch.matches)) void openLink(href);
+    };
+    host.addEventListener("click", onTap);
     host.addEventListener("scroll", trackView);
     host.addEventListener("scroll", edges);
     // Folded rows change the screen's height as text arrives, so a view at the newest line follows it down.
@@ -428,19 +503,30 @@
     observer.observe(host);
     // A pause lets a redraw finish, so a half-drawn box does not count as a box that left.
     let settle: ReturnType<typeof setTimeout> | undefined;
+    let steady = NO_BOX;
+    let boxSeenAt = 0;
+    const checkHarness = () => {
+      const rows = screenRows(terminal.buffer.active, terminal.rows);
+      const found = harnessBox(rows);
+      const now = performance.now();
+      if (found) boxSeenAt = now;
+      // A frame the harness is still drawing is not the box leaving. A menu is, and lets go at once (COI-3576).
+      else if (hidden > 0 && now - boxSeenAt < BOX_GRACE_MS && detectChoice(rows) === null) {
+        settle = setTimeout(checkHarness, BOX_GRACE_MS - (now - boxSeenAt) + HIDE_SETTLE_MS);
+        return;
+      }
+      steady = found ? steadyBox(steady, found.height, now) : NO_BOX;
+      const next = found ? rows.length - found.top : 0;
+      if (next === hidden && steady.asked === boxRows) return;
+      hidden = next;
+      boxRows = steady.asked;
+      layout();
+      anchor(true);
+    };
     watchHarness = () => {
       if (!cropping()) return;
       clearTimeout(settle);
-      settle = setTimeout(() => {
-        const rows = screenRows(terminal.buffer.active, terminal.rows);
-        const found = harnessBox(rows);
-        const next = found ? rows.length - found.top : 0;
-        if (next === hidden && (found?.height ?? 0) === boxRows) return;
-        hidden = next;
-        boxRows = found?.height ?? 0;
-        layout();
-        anchor(true);
-      }, HIDE_SETTLE_MS);
+      settle = setTimeout(checkHarness, HIDE_SETTLE_MS);
     };
     // Throttled, since a redraw is many writes. It re-arms while rows are held, to let them go.
     const TALL_SETTLE_MS = 350;
@@ -582,6 +668,7 @@
       clearTimeout(marking);
       host.removeEventListener("scroll", edges);
       host.removeEventListener("scroll", onPin);
+      host.removeEventListener("click", onTap);
       grown.disconnect();
       host.removeEventListener("touchstart", onTouchStart);
       host.removeEventListener("touchmove", onTouchMove);
@@ -626,6 +713,7 @@
     storeWrap(sessionId, next);
     // The sideways pan has no use while lines fold, and a pan left behind would hide column 0.
     if (next && host) host.scrollLeft = 0;
+    paintStripes();
     refit();
   }
 
@@ -650,7 +738,7 @@
   <span class="edge left" class:on={past.left} aria-hidden="true">‹</span>
   <span class="edge right" class:on={past.right} aria-hidden="true">›</span>
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  {#if showSize || canWrap}
+  {#if (showSize || canWrap) && !covered}
   <div class="size" onkeydown={(event) => event.key === "Escape" && (sizing = false)}>
     {#if canWrap}
       <button type="button" class="wrap" aria-pressed={wrapping} aria-label="Wrap long lines" onclick={() => setWrap(!wrapping)}>Wrap</button>
@@ -700,8 +788,10 @@
   /* xterm parks the input at the cursor's cell, which lies off the right edge on a folded screen and would scroll the box to it. The box's foot is where a pinned view already looks. */
   .term-host.wrapping :global(.xterm-helpers) { position: static; }
   .term-host.wrapping :global(.xterm-helper-textarea) { left: 0 !important; top: auto !important; bottom: 0; }
-  /* Stripes are placed by row number, which a folded row breaks. */
+  /* Stripes are placed by row number, which a folded row breaks, so they are painted on the rows instead. */
   .term-host.wrapping :global(.xterm-decoration-container) { display: none; }
+  .term-host.wrapping :global(.xterm-rows > div) { position: relative; }
+  .term-host.wrapping :global(.xterm-rows > div[data-stripe]::before) { content: ""; position: absolute; left: -12px; top: 0; bottom: 0; width: 4px; background: var(--stripe); }
   .size .wrap[aria-pressed="true"] { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 22%, var(--surface)); }
   .jump { position: absolute; z-index: 3; right: 28px; bottom: 16px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px var(--shade); }
   .count { min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: var(--brand-ink); font: 700 12px/22px var(--font-body); text-align: center; }

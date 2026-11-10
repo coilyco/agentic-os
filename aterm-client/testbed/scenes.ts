@@ -78,7 +78,7 @@ const TRANSCRIPT: string[] = [
   "  - docs: choices.md notes the wrapped row",
 ];
 
-export function claudeSession(options: { working: boolean; transcript?: string[]; label?: string; fresh?: boolean }): Scene {
+export function claudeSession(options: { working: boolean; transcript?: string[]; label?: string; fresh?: boolean; underRule?: string[] }): Scene {
   const { working, label = "seat" } = options;
   const transcript = options.transcript ?? TRANSCRIPT;
   return {
@@ -86,7 +86,7 @@ export function claudeSession(options: { working: boolean; transcript?: string[]
       const body: string[] = [];
       for (const paragraph of transcript) body.push(...(paragraph === "" ? [""] : wrap(paragraph, cols, paragraph.startsWith("⏺") ? 2 : paragraph.startsWith("  ") ? 5 : 0)));
       if (working) body.push("", `✻ Churning… (esc to interrupt)`);
-      const box = [rule(cols, label), "❯ ", rule(cols), "", "  ⏵⏵ accept edits on (shift+tab to cycle)"];
+      const box = [rule(cols, label), "❯ ", rule(cols), ...(options.underRule ?? [""]), "  ⏵⏵ accept edits on (shift+tab to cycle)"];
       const above = bottom(body, Math.max(0, rows - box.length));
       // A short conversation leaves blank rows under the box, as a fresh screen does.
       return options.fresh ? [...above, ...box] : anchored([...above, ...box], rows);

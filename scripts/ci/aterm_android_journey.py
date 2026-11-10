@@ -15,13 +15,11 @@ import importlib.util
 import json
 import os
 import re
-import struct
 import subprocess
 import sys
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
-import zlib
 from pathlib import Path
 
 APP = "dev.coilyco.treehouse"
@@ -34,16 +32,17 @@ SEND = "form.composer button.primary"
 REFUSAL_WORDS = {"too_large": r"over 3 MB", "not_an_image": r"PNG, JPEG, GIF or WebP"}
 
 
-def _shared_devtools():
-    """The seat verb's DevTools client, loaded by path because `python3 -I` drops this directory from sys.path."""
-    spec = importlib.util.spec_from_file_location("aterm_devtools", HERE.parent / "aterm_devtools.py")
+def _shared(name: str):
+    """A module the seat verb shares, loaded by path because `python3 -I` drops this directory from sys.path."""
+    spec = importlib.util.spec_from_file_location(name, HERE.parent / f"{name}.py")
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-devtools = _shared_devtools()
+devtools = _shared("aterm_devtools")
+media = _shared("aterm_android_media")
 Page = devtools.Page
 # One error type for the job and the shared client, so a step catches either the same way.
 Fail = devtools.DevToolsError
@@ -64,14 +63,7 @@ def adb_all(*args: str, stdin: Path | None = None, timeout: int = 60) -> str:
 
 
 def seed_png(path: Path, red: int = 220) -> None:
-    """A small PNG with a signature the daemon accepts, made here so no binary is tracked.
-
-    `red` makes each journey's file hash differ from the others.
-    """
-    def chunk(kind: bytes, body: bytes) -> bytes:
-        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
-    rows = b"".join(b"\x00" + bytes([red, 30, 30]) * 64 for _ in range(64))
-    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 64, 64, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+    path.write_bytes(media.png(red))
 
 
 def by_text(text: str, selector: str = "button,[role=tab],[role=button],a,li,[aria-label]") -> str:
@@ -220,8 +212,7 @@ class Journey:
         adb("push", str(png), f"/sdcard/Pictures/{name}")
         tried: list[str] = []
         attempts = (
-            ("scan-file", ("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", f"file:///sdcard/Pictures/{name}")),
-            ("scan-volume", ("shell", "content", "call", "--uri", "content://media/", "--method", "scan_volume", "--arg", "external_primary")),
+            *media.scan_attempts(name),
             ("insert", ("shell", "content", "insert", "--uri", "content://media/external/images/media", "--bind", f"_display_name:s:{name}", "--bind", "mime_type:s:image/png", "--bind", "relative_path:s:Pictures/ci")),
         )
         for label, command in attempts:
@@ -272,19 +263,37 @@ class Journey:
         if cold:
             adb("shell", "am", "force-stop", APP)
         uri = self.media_uri(name)
-        adb("shell", "am", "start", "-a", "android.intent.action.SEND", "-t", "image/png", "--eu", "android.intent.extra.STREAM", uri, "--grant-read-uri-permission", "-n", f"{APP}/.MainActivity")
-        if cold:
-            self.page = None
-            self.attach_page()
+        # `am` builds no ClipData, which carries a share's grant, so the URI is data too.
+        adb("shell", "am", "start", "-a", "android.intent.action.SEND", "-t", "image/png", "-d", uri, "--eu", "android.intent.extra.STREAM", uri, "--grant-read-uri-permission", "-n", f"{APP}/.MainActivity")
+        self.record_grants(name, uri)
+        for attempt in (1, 2):
+            try:
+                if cold or attempt == 2:
+                    self.page = None
+                    self.attach_page()
+                assert self.page
+                self.page.wait_text("Send to a seat", 30)
+                break
+            except Fail as err:
+                # The page reloads as the share lands, which can close the first socket.
+                if attempt == 2 or "closed the socket" not in str(err):
+                    raise
         page = self.page
         assert page
-        page.wait_text("Send to a seat", 30)
+        if "Nothing is left to send" in page.text():
+            raise Fail(f"the sheet took nothing from {uri}. page text: {page.text()[:500]!r}")
         page.js("(()=>{const t=document.querySelector('[role=dialog] textarea,[role=dialog] input[type=text]');if(t){t.value='look at this';t.dispatchEvent(new Event('input',{bubbles:true}))}})()")
         if "Pick a seat" in page.text():
             page.tap("()=>document.querySelector('[role=dialog] input[type=radio]')")
         page.tap(by_text("Send to ", "button"))
         self.shot(f"sheet-sent-{name}")
         self.daemon_got_the_bytes(name)
+
+    def record_grants(self, name: str, uri: str) -> None:
+        """Keep what Android says the app may read, so a share that took nothing can be told from one that was refused."""
+        dump = adb_all("shell", "dumpsys", "activity", "permissions", timeout=60)
+        seen = [line for line in dump.splitlines() if "treehouse" in line or uri.rsplit("/", 1)[-1] in line]
+        (self.out / f"share-{name}.grants.txt").write_text("\n".join(seen[:60]) or "no grant mentions the app or the row\n")
 
     def journey_d_open_in_browser(self) -> None:
         """Observe only: what a tap on an artifact card's Open in browser does on Android (COI-3520)."""

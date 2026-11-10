@@ -1,0 +1,36 @@
+name: "Mint the treehouse read token for the dev-base build"
+description: |
+  Mint a contents:read coilyco treehouse read App token scoped to treehouse-servers, which the
+  full dev-base image fetches the private agent-compose release with (COI-3302). The token
+  lives one hour, so mint it right before the build. A fork or Dependabot run gets no
+  secrets and fails here, loudly, rather than in the middle of the image build.
+
+inputs:
+  app_id:
+    description: "The App id, secret COILYCO_TREEHOUSE_READ_APP_ID."
+    required: true
+  private_key_base64:
+    description: "The base64 App key, secret COILYCO_TREEHOUSE_READ_APP_PRIVATE_KEY_BASE64."
+    required: true
+
+outputs:
+  token:
+    description: "Installation token, masked in logs and revoked when the job ends."
+    value: ${{ steps.mint.outputs.token }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: key
+      shell: bash
+      env:
+        APP_KEY_BASE64: ${{ inputs.private_key_base64 }}
+      run: bash "${GITHUB_ACTION_PATH}/../app-token/decode-key.sh"
+    - id: mint
+      uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+      with:
+        app-id: ${{ inputs.app_id }}
+        private-key: ${{ steps.key.outputs.pem }}
+        owner: coilyco
+        repositories: treehouse-servers
+        permission-contents: read

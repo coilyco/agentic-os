@@ -5,6 +5,7 @@
 !claude-managed-settings.json
 !fleet-precommit-hooks.yaml
 !install-common.sh
+!fetch-private-release.sh
 !session-name.sh
 !statusline.sh
 !statusline.d

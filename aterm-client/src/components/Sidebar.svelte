@@ -443,7 +443,8 @@
   .seat[data-state="failed"] :global(.creature) { box-shadow: inset 0 0 0 2px var(--danger); }
   .text { display: flex; flex-direction: column; min-width: 0; }
   .name { font-weight: 600; font-size: 15px; }
-  .name-row { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  /* The harness tag wraps onto a second line the cap clips, so a long name stays whole and the tag is what gives way (COI-3562). */
+  .name-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2em 6px; min-width: 0; max-height: 1.5em; overflow: hidden; }
   .harness { flex: none; font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--line)); color: var(--text-soft); }
   .code-inline { display: none; font-size: 11px; color: var(--muted); }
   .state-text { color: var(--text-soft); }
@@ -490,7 +491,7 @@
     /* A chip grows to carry the line, and no further, so the next chip still shows at the edge. */
     .seats .activity { max-width: 190px; }
     /* Name over harness and code, so a chip is narrow enough to leave the next one showing at its edge. */
-    .seats .name-row { display: grid; grid-template-columns: auto auto 1fr; column-gap: 6px; align-items: baseline; }
+    .seats .name-row { display: grid; grid-template-columns: auto auto 1fr; column-gap: 6px; align-items: baseline; row-gap: 6px; max-height: none; overflow: visible; }
     .seats .name { grid-column: 1 / -1; font-size: 14px; line-height: 1.2; }
     .seats .harness { padding: 0; border: none; font-size: 11px; color: var(--muted); }
     .seats .code-inline { display: inline; }

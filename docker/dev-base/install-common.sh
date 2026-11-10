@@ -107,31 +107,21 @@ chmod 0755 /usr/local/bin/goose
 rm /tmp/goose.tar.gz
 goose --version
 
+# agent-compose ships from the private treehouse-servers release (COI-3302). The read
+# token is a BuildKit secret, so it lands in no layer. docs/dev-base-image.md
 agent_compose_asset="agent-compose-linux-${GO_ARCH}"
-agent_compose_base="https://github.com/coilyco/agent-compose/releases/download/v${AGENT_COMPOSE_VERSION:?}"
-curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
-  "${agent_compose_base}/${agent_compose_asset}" \
-  -o "/tmp/${agent_compose_asset}"
-curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
-  "${agent_compose_base}/SHA256SUMS" \
-  -o /tmp/agent-compose-SHA256SUMS
-grep "[[:space:]]${agent_compose_asset}$" /tmp/agent-compose-SHA256SUMS \
-  | (cd /tmp && sha256sum -c -)
-install -m 0755 "/tmp/${agent_compose_asset}" /usr/local/bin/agent-compose
+bash /tmp/fetch-private-release.sh /run/secrets/treehouse_read_token \
+  coilyco/treehouse-servers "agent-compose-v${AGENT_COMPOSE_VERSION:?}" /tmp/agent-compose-release \
+  "${agent_compose_asset}" agent-compose-roster.tar.gz agent-compose-bundles.tar.gz
+install -m 0755 "/tmp/agent-compose-release/${agent_compose_asset}" /usr/local/bin/agent-compose
 ln -s agent-compose /usr/local/bin/acompose
 # Shipped data rather than compiled in since 2.x, so installing only the
 # binary leaves `agent-compose roster` with nothing to read.
 mkdir -p /usr/local/share/agent-compose
 for agent_compose_data in agent-compose-roster.tar.gz agent-compose-bundles.tar.gz; do
-  curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \
-    "${agent_compose_base}/${agent_compose_data}" \
-    -o "/tmp/${agent_compose_data}"
-  grep "[[:space:]]${agent_compose_data}$" /tmp/agent-compose-SHA256SUMS \
-    | (cd /tmp && sha256sum -c -)
-  tar -xzf "/tmp/${agent_compose_data}" -C /usr/local/share/agent-compose
-  rm "/tmp/${agent_compose_data}"
+  tar -xzf "/tmp/agent-compose-release/${agent_compose_data}" -C /usr/local/share/agent-compose
 done
-rm "/tmp/${agent_compose_asset}" /tmp/agent-compose-SHA256SUMS
+rm -rf /tmp/agent-compose-release
 agent-compose version
 
 curl --retry 5 --retry-all-errors --retry-delay 2 -fsSL \

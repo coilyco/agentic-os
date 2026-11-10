@@ -20,7 +20,13 @@ jobs:
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v7
+      - id: read-token
+        uses: ./actions/dev-base-read-token
+        with:
+          app_id: ${{ secrets.COILYCO_TREEHOUSE_READ_APP_ID }}
+          private_key_base64: ${{ secrets.COILYCO_TREEHOUSE_READ_APP_PRIVATE_KEY_BASE64 }}
       - name: Build and verify the complete dev-base family
         uses: ./actions/dev-base-build
         with:
           tag: pr-${{ github.run_id }}
+          treehouse-read-token: ${{ steps.read-token.outputs.token }}
