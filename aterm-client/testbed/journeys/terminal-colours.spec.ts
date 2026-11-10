@@ -1,12 +1,12 @@
 // COI-3549: the terminal reads its colours through a DOM probe, not a literal. This pins
-// the four xterm paints to the hex they had when Terminal.svelte hardcoded them, so a
-// retune that moves one is a deliberate edit here and not a silent drift.
+// the four xterm paints to Kai's Treehouse values (COI-3551), so a retune that moves one
+// is a deliberate edit here and not a silent drift.
 import { expect, SEATS, test } from "../harness.ts";
 
-// Shipped before the refactor: background and foreground, plus the seat's role colour
-// (frontend-eng in the roster fixture) as the cursor and, at alpha 0x55, the selection.
-const BACKGROUND = "#101216";
-const FOREGROUND = "#d4d8e0";
+// --terminal and --text-soft, plus the seat's role colour (frontend-eng in the roster
+// fixture) as the cursor and, at alpha 0x55, the selection.
+const BACKGROUND = "#271a0c";
+const FOREGROUND = "#ddd6cf";
 const ACCENT = "#ee7eea";
 const SELECTION_ALPHA = 0x55 / 255;
 
