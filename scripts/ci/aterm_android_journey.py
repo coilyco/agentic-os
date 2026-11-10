@@ -15,13 +15,11 @@ import importlib.util
 import json
 import os
 import re
-import struct
 import subprocess
 import sys
 import time
 import urllib.request
 import xml.etree.ElementTree as ET
-import zlib
 from pathlib import Path
 
 APP = "dev.coilyco.treehouse"
@@ -34,16 +32,17 @@ SEND = "form.composer button.primary"
 REFUSAL_WORDS = {"too_large": r"over 3 MB", "not_an_image": r"PNG, JPEG, GIF or WebP"}
 
 
-def _shared_devtools():
-    """The seat verb's DevTools client, loaded by path because `python3 -I` drops this directory from sys.path."""
-    spec = importlib.util.spec_from_file_location("aterm_devtools", HERE.parent / "aterm_devtools.py")
+def _shared(name: str):
+    """A module the seat verb shares, loaded by path because `python3 -I` drops this directory from sys.path."""
+    spec = importlib.util.spec_from_file_location(name, HERE.parent / f"{name}.py")
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
 
 
-devtools = _shared_devtools()
+devtools = _shared("aterm_devtools")
+media = _shared("aterm_android_media")
 Page = devtools.Page
 # One error type for the job and the shared client, so a step catches either the same way.
 Fail = devtools.DevToolsError
@@ -64,14 +63,7 @@ def adb_all(*args: str, stdin: Path | None = None, timeout: int = 60) -> str:
 
 
 def seed_png(path: Path, red: int = 220) -> None:
-    """A small PNG with a signature the daemon accepts, made here so no binary is tracked.
-
-    `red` makes each journey's file hash differ from the others.
-    """
-    def chunk(kind: bytes, body: bytes) -> bytes:
-        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
-    rows = b"".join(b"\x00" + bytes([red, 30, 30]) * 64 for _ in range(64))
-    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 64, 64, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+    path.write_bytes(media.png(red))
 
 
 def by_text(text: str, selector: str = "button,[role=tab],[role=button],a,li,[aria-label]") -> str:
@@ -220,8 +212,7 @@ class Journey:
         adb("push", str(png), f"/sdcard/Pictures/{name}")
         tried: list[str] = []
         attempts = (
-            ("scan-file", ("shell", "am", "broadcast", "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", f"file:///sdcard/Pictures/{name}")),
-            ("scan-volume", ("shell", "content", "call", "--uri", "content://media/", "--method", "scan_volume", "--arg", "external_primary")),
+            *media.scan_attempts(name),
             ("insert", ("shell", "content", "insert", "--uri", "content://media/external/images/media", "--bind", f"_display_name:s:{name}", "--bind", "mime_type:s:image/png", "--bind", "relative_path:s:Pictures/ci")),
         )
         for label, command in attempts:
