@@ -10,11 +10,11 @@ export function sessionCode(session: Pick<Session, "id" | "role" | "identity">):
   return session.id.startsWith(prefix) ? session.id.slice(prefix.length) : "";
 }
 
-/** Roster order first, so a role's instances sit together, then by name. */
-export function orderSessions(sessions: readonly Session[], roles: readonly Role[]): Session[] {
+/** Pinned first, then roster order so a role's instances sit together, then name. */
+export function orderSessions(sessions: readonly Session[], roles: readonly Role[], pinned: (session: Session) => boolean = () => false): Session[] {
   const rank = new Map(roles.map((role, index) => [role.slug, index]));
   const place = (session: Session) => rank.get(session.role) ?? roles.length;
-  return [...sessions].sort((a, b) => place(a) - place(b) || a.id.localeCompare(b.id));
+  return [...sessions].sort((a, b) => Number(pinned(b)) - Number(pinned(a)) || place(a) - place(b) || a.id.localeCompare(b.id));
 }
 
 /** A session whose role the roster does not list still gets a tab, drawn neutral. */

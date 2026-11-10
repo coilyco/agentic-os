@@ -12,7 +12,7 @@ Starting the whole rig and the card-tap recipe: [android-emulator-rig.md](androi
 * `acquire [--wait S]` and `release [--force]` - the lock. `status` and `tunnel` need none.
 * `install APK [--reinstall]`, `open`, `stop-app`, `clear-app` - the app, `dev.coilyco.treehouse`.
 * `tap X Y`, `type TEXT`, `key NAME`, `keyboard state|close`, `shot OUT.png` - input and screenshots. A tap is an `adb shell input` touch, so the page sees what a finger sends. Open the keyboard by tapping a field.
-* `devtools`, `eval JS`, `dom SELECTOR`, `tap-selector SELECTOR` - the app's WebView over DevTools. `tap-selector` reads the element's box over DevTools, finds the WebView on screen from the UI tree, and sends one real tap.
+* `devtools`, `eval JS`, `dom SELECTOR`, `tap-selector SELECTOR` - the app's WebView over DevTools, through `scripts/aterm_devtools.py`, the client the CI journey shares. `tap-selector` reads the element's box over DevTools, finds the WebView on screen from the UI tree, and sends one real tap.
 * `reverse PORT` - the guest's `localhost:PORT` reaches that port on the host running the adb server, as loopback.
 
 ## The lock
