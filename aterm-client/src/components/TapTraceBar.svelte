@@ -40,10 +40,10 @@
 
 <style>
   .bar { position: fixed; z-index: 2000; top: max(2px, env(safe-area-inset-top)); right: 2px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; max-width: calc(100vw - 4px); }
-  button { min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--brand); background: #17131f; color: var(--text); font: 600 13px var(--font-body); }
+  button { min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--brand); background: var(--raised); color: var(--text); font: 600 13px var(--font-body); }
   button:not(:disabled) { background: var(--brand); color: var(--brand-ink); }
   button:disabled { opacity: 0.5; }
-  .fallback { width: min(92vw, 420px); display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 10px; border: 1px solid var(--brand); background: #17131f; color: var(--text); font-size: 12px; }
+  .fallback { width: min(92vw, 420px); display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 10px; border: 1px solid var(--brand); background: var(--raised); color: var(--text); font-size: 12px; }
   .fallback p { margin: 0; }
   textarea { width: 100%; box-sizing: border-box; background: var(--terminal); color: var(--text); border: 1px solid var(--control-line); border-radius: 8px; font-size: 11px; }
 </style>

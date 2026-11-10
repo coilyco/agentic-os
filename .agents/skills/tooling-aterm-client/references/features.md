@@ -2,6 +2,7 @@
 
 A coarse inventory of what ships. Architecture: [architecture.md](architecture.md).
 
+* **Colour tokens (COI-3549)** - every colour in `src/` reads a token from the block in `src/app.css`, so a retune is one edit. The tokens are literal hex on purpose: a derived colour (`rgb(from var(--ground) ...)`) drifted one level in about 25 test bed screenshots, so a derivation belongs in a change that expects new pixels. xterm paints hex only, so `resolveColour` reads a token for it. The theme-color meta and the manifest are filled at build from `--ground` and `--plate`. The Android launcher ground is a resource file, so `os-chrome.test.ts` holds it to `--plate`.
 * **Sidebar tabs** - hosts, running sessions, and roles to start as tab lists with arrow keys. Below 720px a seat row and a Menu button hold the seat first and put hosts, alerts, and roles one tap away.
 * **Sessions as peers** - one tab per live session with its harness and code, so instances of a role on claude and codex sit side by side. A degraded startup names its skipped steps in the tab and header.
 * **Live daemon** - "this Mac" speaks `aterm.daemon.v1` over the daemon's loopback websocket: roster, live sessions, attach with replay, typing, resize, and message states. A Demo host keeps a scripted copy for working with no daemon.

@@ -5,11 +5,20 @@
 @import "@fontsource/jetbrains-mono/400.css";
 
 :root {
+  /* Every surface colour is a token here, and the build reads --ground and --plate. */
   --ground: #0b0c10;
+  --plate: #080711;
   --terminal: #101216;
+  --terminal-veil: #101216dd;
   --surface: #13151b;
+  --hover: #171a21;
+  --raised: #17131f;
+  --selected: #1d1729;
   --line: #2a2f3a;
   --control-line: #3a3f4b;
+  --chip-line: #3a3350;
+  --shade: #000a;
+  --track: #ffffff1f;
   --text: #f5f7fa;
   --text-soft: #d4d8e0;
   --muted: #a4abb9;
@@ -21,9 +30,12 @@
   --warn: #ffb454;
   --warn-text: #ffc98a;
   --warn-fill: #1a1712;
+  --warn-line: #4a3d25;
   --danger: #ff6b7a;
   --danger-text: #ffc2c8;
+  --danger-detail: #ff9aa5;
   --danger-fill: #2a1419;
+  --danger-line: #5a3a41;
   --font-display: "Chakra Petch", sans-serif;
   --font-body: "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
