@@ -23,6 +23,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import aterm_android_media
 import aterm_devtools
 
 EXIT_USAGE, EXIT_FAIL, EXIT_LOCK, EXIT_PRESSURE, EXIT_NO_DEVICE = 2, 1, 6, 7, 8
@@ -346,6 +347,34 @@ class Emulator:
             raise Refused("no android.webkit.WebView in the UI tree", EXIT_NO_DEVICE)
         return int(found.group(1)), int(found.group(2))
 
+    def media_uri(self, name: str, wait: float) -> str | None:
+        """The MediaStore row for a picture by its file name, once it is listed."""
+        query = f"content query --uri content://media/external/images/media --projection _id:_display_name --where \"_display_name='{name}'\""
+        deadline = time.monotonic() + wait
+        while True:
+            found = re.search(r"_id=(\d+)", self.shell(query, check=False))
+            if found:
+                return f"content://media/external/images/media/{found.group(1)}"
+            if time.monotonic() >= deadline:
+                return None
+            time.sleep(1)
+
+    def photo(self, name: str) -> str:
+        """Put a picture in the library so the Photo Picker lists it (COI-3573)."""
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+\.png", name):
+            raise Refused("a photo name is letters, digits, dot, dash and underscore, ending in .png", EXIT_USAGE)
+        wait = float(self.cfg.env.get("TREEHOUSE_EMULATOR_MEDIA_WAIT") or 12)
+        with tempfile.TemporaryDirectory() as folder:
+            local = Path(folder) / name
+            local.write_bytes(aterm_android_media.png(red=40, size=512))
+            self.adb("push", str(local), f"/sdcard/Pictures/{name}")
+        tried = []
+        for label, command in aterm_android_media.scan_attempts(name):
+            tried.append(f"{label}: {self.adb(*command, check=False).stdout.strip()[:120]!r}")
+            if uri := self.media_uri(name, wait):
+                return f"{name} is in the media library as {uri}, found by {label}"
+        raise Refused(f"MediaStore never listed {name}. " + " | ".join(tried))
+
     def tap_selector(self, selector: str) -> str:
         js = (
             "(() => { const e = document.querySelector(" + json.dumps(selector) + "); if (!e) return null;"
@@ -369,7 +398,7 @@ def build_parser() -> argparse.ArgumentParser:
         "status": [], "up": [], "down": [], "release": [], "open": [], "devtools": [], "dom": ["selector"],
         "install": ["apk"], "tap": ["x", "y"], "tap-selector": ["selector"], "type": ["text"],
         "key": ["name"], "keyboard": ["action"], "shot": ["out"], "eval": ["js"], "reverse": ["port"],
-        "acquire": [], "tunnel": [], "stop-app": [], "clear-app": [],
+        "acquire": [], "tunnel": [], "stop-app": [], "clear-app": [], "photo": [],
     }.items():
         p = sub.add_parser(name)
         for arg in args:
@@ -378,6 +407,8 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--wait", type=int, default=0, help="seconds to wait for the lock")
         if name == "release":
             p.add_argument("--force", action="store_true")
+        if name == "photo":
+            p.add_argument("--name", default="treehouse-fixture.png", help="the file name in /sdcard/Pictures")
         if name == "install":
             p.add_argument("--reinstall", action="store_true", help="uninstall first, which clears the app's data")
     return parser
@@ -435,6 +466,8 @@ def dispatch(emu: Emulator, args: argparse.Namespace) -> str:
         png = emu.adb("exec-out", "screencap", "-p", binary=True).stdout
         Path(args.out).write_bytes(png)
         return f"{args.out} {len(png)} bytes"
+    if cmd == "photo":
+        return emu.photo(args.name)
     if cmd == "reverse":
         emu.adb("reverse", f"tcp:{args.port}", f"tcp:{args.port}")
         return f"emulator localhost:{args.port} now reaches port {args.port} on the host running the adb server, as loopback"
