@@ -18,6 +18,7 @@
   --control-line: #554434;
   --chip-line: var(--control-line);
   --shade: #000a;
+  --backdrop: #0f0903;
   --track: #ffffff1f;
   --text: #f9f4f0;
   --text-soft: #ddd6cf;
