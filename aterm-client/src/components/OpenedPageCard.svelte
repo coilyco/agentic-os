@@ -45,7 +45,7 @@
 <style>
   /* Below the seat header so its controls stay reachable, and above the brief toast. It stays until answered. */
   .region { position: fixed; z-index: 61; top: calc(env(safe-area-inset-top, 0px) + 76px); right: calc(env(safe-area-inset-right, 0px) + 16px); width: min(380px, calc(100vw - 32px)); display: flex; flex-direction: column; align-items: flex-end; gap: 8px; pointer-events: none; }
-  .card { pointer-events: auto; width: 100%; display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); box-shadow: 0 6px 24px #000a; font-family: var(--font-display); }
+  .card { pointer-events: auto; width: 100%; display: flex; flex-direction: column; gap: 6px; padding: 12px 16px; border-radius: 10px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); box-shadow: 0 6px 24px var(--shade); font-family: var(--font-display); }
   .card.failed { border-color: var(--danger-text); }
   .who { margin: 0; font-weight: 600; font-size: 15px; }
   .url { margin: 0; font: 13px/1.4 var(--font-mono); color: var(--text-soft); overflow-wrap: anywhere; }

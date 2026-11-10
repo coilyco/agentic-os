@@ -45,7 +45,9 @@ if [ "$MODE" = build ]; then
       docker/dev-base
     )
   elif [ "$TIER" = full ]; then
+    : "${TREEHOUSE_READ_TOKEN:?the full tier fetches the private agent-compose release: mint a treehouse read token first}"
     command+=(
+      --secret "id=treehouse_read_token,env=TREEHOUSE_READ_TOKEN"
       --build-arg "RUST_PINNED_VERSIONS=${rust_pins}"
       --build-arg "BASE_IMAGE=${IMAGE_BASE}:lang-rust-${TAG}"
       --build-arg "LANG_NODE_IMAGE=${IMAGE_BASE}:lang-node-${TAG}"

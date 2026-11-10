@@ -71,7 +71,7 @@
 <style>
   /* At the top, under the seat bar, so it never covers the seats, the composer or the soft keyboard. */
   .region { position: fixed; z-index: 60; top: calc(env(safe-area-inset-top, 0px) + 64px); left: calc(env(safe-area-inset-left, 0px) + 12px); right: calc(env(safe-area-inset-right, 0px) + 12px); display: flex; justify-content: center; pointer-events: none; }
-  .toast { pointer-events: auto; min-height: 48px; max-width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 16px; border-radius: 10px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); text-align: left; font-family: var(--font-display); box-shadow: 0 6px 24px #000a; }
+  .toast { pointer-events: auto; min-height: 48px; max-width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 16px; border-radius: 10px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); text-align: left; font-family: var(--font-display); box-shadow: 0 6px 24px var(--shade); }
   .text { font-weight: 600; font-size: 15px; }
   .hint { font-size: 12px; color: var(--muted); }
   .toast:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }

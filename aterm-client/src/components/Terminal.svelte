@@ -9,12 +9,14 @@
   import { AT_END, jumpLabel, linesAbove, scrolled, wrote, type Follow } from "../lib/follow";
   import { envelopeRows } from "../lib/messages";
   import { harnessBox } from "../lib/harness";
+  import { resolveColour } from "../lib/brand";
   import { openLink } from "../lib/link-notice.svelte";
   import { boxToReport, nextTall } from "../lib/pty-size";
   import { detectChoice } from "../lib/choices";
   import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
   import { coastRows, swipeGoesTo, takeRows } from "../lib/touch-scroll";
   import { loadWrap, storeWrap } from "../lib/wrap";
+  import { lineChars, urlAtChain } from "../lib/wrap-links";
   import { DEFAULT_TEXT_SIZE, loadTextSize, stepTextSize, storeTextSize, TEXT_SIZES } from "../lib/text-size";
   import { isBlank, screenRows, tabBarReading, type TabBarCells } from "../lib/screen";
   import { afterQueued, safely, watchDelay } from "../lib/pane-watch";
@@ -106,12 +108,69 @@
     return lines;
   }
 
+  // Where each envelope sits, for the folded view, which paints its stripes on the rows themselves.
+  let stripes: { start: number; rows: number; color: string }[] = [];
+  let painted = false;
+  function paintStripes(): void {
+    if (!term || !host || (!wrapping && !painted)) return;
+    const first = term.buffer.active.viewportY;
+    host.querySelectorAll<HTMLElement>(".xterm-rows > div").forEach((row, index) => {
+      const at = wrapping ? stripes.find((stripe) => first + index >= stripe.start && first + index < stripe.start + stripe.rows) : undefined;
+      if (at) {
+        row.dataset.stripe = "";
+        row.style.setProperty("--stripe", at.color);
+        row.style.background = `color-mix(in srgb, ${at.color} 14%, transparent)`;
+      } else if ("stripe" in row.dataset) {
+        delete row.dataset.stripe;
+        row.style.removeProperty("--stripe");
+        row.style.background = "";
+      }
+    });
+    painted = wrapping;
+  }
+
+  // The address under a tap on a folded row. xterm maps a pointer by cell size, which a fold breaks.
+  function urlUnder(x: number, y: number): string | null {
+    const range = document.caretRangeFromPoint?.(x, y);
+    if (!term || !range) return null;
+    const node = range.startContainer;
+    const row = (node instanceof Element ? node : node.parentElement)?.closest<HTMLElement>(".xterm-rows > div");
+    if (!row?.parentElement) return null;
+    const upto = document.createRange();
+    upto.selectNodeContents(row);
+    upto.setEnd(node, range.startOffset);
+    const buffer = term.buffer.active;
+    const at = buffer.viewportY + [...row.parentElement.children].indexOf(row);
+    let start = at;
+    while (start > 0 && buffer.getLine(start)?.isWrapped) start--;
+    let end = at;
+    while (buffer.getLine(end + 1)?.isWrapped) end++;
+    const chain: string[] = [];
+    for (let line = start; line <= end; line++) {
+      const text = buffer.getLine(line);
+      chain.push(text ? lineChars(text) : "");
+    }
+    const offset = upto.toString().length;
+    // A caret at a character's far half lands one past it.
+    return urlAtChain(chain, at - start, offset) ?? urlAtChain(chain, at - start, offset - 1);
+  }
+
   // Stamp every envelope the harness has echoed so far with its sender's colour.
   function markEnvelopes(): void {
-    if (!term || messages.length === 0) return;
+    if (!term || messages.length === 0) {
+      stripes = [];
+      paintStripes();
+      return;
+    }
     const buffer = term.buffer.active;
     const lines = logicalLines(term);
-    for (const [index, message] of envelopeRows(lines.map((line) => line.text), messages)) {
+    const found = envelopeRows(lines.map((line) => line.text), messages);
+    stripes = [...found].flatMap(([index, message]) => {
+      const first = lines[index];
+      return first ? [{ start: first.start, rows: first.rows, color: colorOf(message.from.role) }] : [];
+    });
+    paintStripes();
+    for (const [index, message] of found) {
       const first = lines[index];
       if (!first || marked.has(first.start)) continue;
       const marker = term.registerMarker(first.start - (buffer.baseY + buffer.cursorY));
@@ -222,7 +281,7 @@
       lineHeight: LINE_HEIGHT,
       scrollback: SCROLLBACK,
       allowProposedApi: true,
-      theme: { background: "#101216", foreground: "#d4d8e0", cursor: accent, selectionBackground: `${accent}55` },
+      theme: { background: resolveColour("var(--terminal)"), foreground: resolveColour("var(--text-soft)"), cursor: resolveColour(accent), selectionBackground: `${resolveColour(accent)}55` },
     });
     term = terminal;
     // The seat's own window answers terminal queries. A reply from here would be
@@ -242,6 +301,8 @@
     terminal.loadAddon(
       new WebLinksAddon(
         (click, uri) => {
+          // A folded row opens its link from the tap handler, which reads the text under the finger.
+          if (wrapping) return;
           const href = linkTarget(uri);
           if (href && opensLink(click, touch.matches)) void openLink(href);
         },
@@ -261,6 +322,13 @@
       });
     };
     terminal.onScroll(trackView);
+    terminal.onRender(paintStripes);
+    const onTap = (event: MouseEvent) => {
+      if (!wrapping || event.defaultPrevented) return;
+      const href = linkTarget(urlUnder(event.clientX, event.clientY) ?? "");
+      if (href && opensLink(event, touch.matches)) void openLink(href);
+    };
+    host.addEventListener("click", onTap);
     host.addEventListener("scroll", trackView);
     host.addEventListener("scroll", edges);
     // Folded rows change the screen's height as text arrives, so a view at the newest line follows it down.
@@ -586,6 +654,7 @@
       clearTimeout(marking);
       host.removeEventListener("scroll", edges);
       host.removeEventListener("scroll", onPin);
+      host.removeEventListener("click", onTap);
       grown.disconnect();
       host.removeEventListener("touchstart", onTouchStart);
       host.removeEventListener("touchmove", onTouchMove);
@@ -630,6 +699,7 @@
     storeWrap(sessionId, next);
     // The sideways pan has no use while lines fold, and a pan left behind would hide column 0.
     if (next && host) host.scrollLeft = 0;
+    paintStripes();
     refit();
   }
 
@@ -704,21 +774,23 @@
   /* xterm parks the input at the cursor's cell, which lies off the right edge on a folded screen and would scroll the box to it. The box's foot is where a pinned view already looks. */
   .term-host.wrapping :global(.xterm-helpers) { position: static; }
   .term-host.wrapping :global(.xterm-helper-textarea) { left: 0 !important; top: auto !important; bottom: 0; }
-  /* Stripes are placed by row number, which a folded row breaks. */
+  /* Stripes are placed by row number, which a folded row breaks, so they are painted on the rows instead. */
   .term-host.wrapping :global(.xterm-decoration-container) { display: none; }
+  .term-host.wrapping :global(.xterm-rows > div) { position: relative; }
+  .term-host.wrapping :global(.xterm-rows > div[data-stripe]::before) { content: ""; position: absolute; left: -12px; top: 0; bottom: 0; width: 4px; background: var(--stripe); }
   .size .wrap[aria-pressed="true"] { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 22%, var(--surface)); }
-  .jump { position: absolute; z-index: 3; right: 28px; bottom: 16px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px #000a; }
+  .jump { position: absolute; z-index: 3; right: 28px; bottom: 16px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px var(--shade); }
   .count { min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: var(--brand-ink); font: 700 12px/22px var(--font-body); text-align: center; }
   .edge { display: flex; position: absolute; z-index: 2; top: 0; bottom: 0; width: 28px; align-items: center; color: var(--text); font: 600 22px var(--font-body); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
-  .edge.left { left: 0; justify-content: flex-start; padding-left: 4px; background: linear-gradient(to right, #101216dd, transparent); }
-  .edge.right { right: 0; justify-content: flex-end; padding-right: 4px; background: linear-gradient(to left, #101216dd, transparent); }
+  .edge.left { left: 0; justify-content: flex-start; padding-left: 4px; background: linear-gradient(to right, var(--terminal-veil), transparent); }
+  .edge.right { right: 0; justify-content: flex-end; padding-right: 4px; background: linear-gradient(to left, var(--terminal-veil), transparent); }
   .edge.on { opacity: 1; }
   .size { position: absolute; z-index: 3; top: 12px; right: 28px; display: flex; align-items: center; gap: 6px; }
-  .size-row { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 12px; border: 1px solid var(--control-line); background: var(--surface); box-shadow: 0 6px 24px #000a; }
+  .size-row { display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 12px; border: 1px solid var(--control-line); background: var(--surface); box-shadow: 0 6px 24px var(--shade); }
   .size button { min-width: 44px; min-height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--control-line); background: var(--surface); color: var(--text); font: 600 15px var(--font-body); }
   .size button:disabled { opacity: 0.4; }
   .size output { min-width: 44px; text-align: center; color: var(--muted); font: 600 13px var(--font-body); }
-  .pan { position: absolute; z-index: 2; left: 16px; right: 16px; bottom: 3px; height: 4px; border-radius: 2px; background: #ffffff1f; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+  .pan { position: absolute; z-index: 2; left: 16px; right: 16px; bottom: 3px; height: 4px; border-radius: 2px; background: var(--track); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
   .pan.on { opacity: 1; }
   .pan i { position: absolute; top: 0; bottom: 0; min-width: 12px; border-radius: 2px; background: var(--brand); }
   .size button:focus-visible, .jump:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
