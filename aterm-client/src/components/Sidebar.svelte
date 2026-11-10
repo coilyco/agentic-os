@@ -392,7 +392,7 @@
 <style>
   .sidebar { width: 280px; flex: none; border-right: 1px solid var(--line); padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
   .feedback { margin-top: 14px; padding: 0 2px; }
-  .mark { align-self: flex-start; margin: 4px 10px 12px; }
+  .mark { align-self: flex-start; margin: 2px 10px 4px; }
   h2 { margin: 14px 10px 4px; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
   [role="tablist"] { display: flex; flex-direction: column; gap: 2px; }
   .note-actions { display: flex; gap: 8px; margin: 4px 10px 8px; }
