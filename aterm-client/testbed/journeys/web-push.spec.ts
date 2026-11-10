@@ -7,13 +7,13 @@ const overview = (page: Page) => page.getByRole("region", { name: "Seats", exact
 const notify = (page: Page) => page.getByRole("switch", { name: "Notify when closed" });
 
 // Phones show Alerts on the host page and desktops in the sidebar.
-async function openAlerts(page: Page): Promise<void> {
+async function openAlerts(page: Page, locked = false): Promise<void> {
   await page.goto("/");
   await page.getByRole("tab", { name: /this Mac/ }).click();
   await expect(page.getByRole("switch", { name: "Sound" }).first()).toBeVisible();
-  // A healthy attached host shows the seat overview, whose ages move with time, so the
-  // steps below mask it (COI-3518).
-  await expect(overview(page)).toBeVisible();
+  // A healthy host shows the seat overview, whose ages move with time, so the steps below
+  // mask it. A locked device shows the host page instead (COI-3518).
+  if (!locked) await expect(overview(page)).toBeVisible();
 }
 
 test.describe("a host with no push key", () => {
@@ -59,7 +59,7 @@ test.describe("a locked device on a host with a push key", () => {
 
   test("is told why before the browser is asked for anything", async ({ bed }, info) => {
     test.skip(info.project.name.startsWith("iphone"), "Safari in a tab holds the switch back first, covered above.");
-    await openAlerts(bed.page);
+    await openAlerts(bed.page, true);
     await notify(bed.page).first().click();
     await expect(bed.page.getByRole("alert").filter({ hasText: /coilyco\.dev/ })).toBeVisible();
     await expect(notify(bed.page).first()).not.toBeChecked();
