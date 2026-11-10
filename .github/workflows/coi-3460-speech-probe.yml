@@ -4,7 +4,7 @@ name: coi-3460-speech-probe
 on:
   push:
     branches:
-      - eng-platform/coi-3460-probe
+      - eng-platform/coi-3460-probe2
 
 permissions:
   contents: read
