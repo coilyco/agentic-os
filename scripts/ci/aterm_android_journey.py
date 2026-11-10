@@ -272,19 +272,37 @@ class Journey:
         if cold:
             adb("shell", "am", "force-stop", APP)
         uri = self.media_uri(name)
-        adb("shell", "am", "start", "-a", "android.intent.action.SEND", "-t", "image/png", "--eu", "android.intent.extra.STREAM", uri, "--grant-read-uri-permission", "-n", f"{APP}/.MainActivity")
-        if cold:
-            self.page = None
-            self.attach_page()
+        # `am` builds no ClipData, which carries a share's grant, so the URI is data too.
+        adb("shell", "am", "start", "-a", "android.intent.action.SEND", "-t", "image/png", "-d", uri, "--eu", "android.intent.extra.STREAM", uri, "--grant-read-uri-permission", "-n", f"{APP}/.MainActivity")
+        self.record_grants(name, uri)
+        for attempt in (1, 2):
+            try:
+                if cold or attempt == 2:
+                    self.page = None
+                    self.attach_page()
+                assert self.page
+                self.page.wait_text("Send to a seat", 30)
+                break
+            except Fail as err:
+                # The page reloads as the share lands, which can close the first socket.
+                if attempt == 2 or "closed the socket" not in str(err):
+                    raise
         page = self.page
         assert page
-        page.wait_text("Send to a seat", 30)
+        if "Nothing is left to send" in page.text():
+            raise Fail(f"the sheet took nothing from {uri}. page text: {page.text()[:500]!r}")
         page.js("(()=>{const t=document.querySelector('[role=dialog] textarea,[role=dialog] input[type=text]');if(t){t.value='look at this';t.dispatchEvent(new Event('input',{bubbles:true}))}})()")
         if "Pick a seat" in page.text():
             page.tap("()=>document.querySelector('[role=dialog] input[type=radio]')")
         page.tap(by_text("Send to ", "button"))
         self.shot(f"sheet-sent-{name}")
         self.daemon_got_the_bytes(name)
+
+    def record_grants(self, name: str, uri: str) -> None:
+        """Keep what Android says the app may read, so a share that took nothing can be told from one that was refused."""
+        dump = adb_all("shell", "dumpsys", "activity", "permissions", timeout=60)
+        seen = [line for line in dump.splitlines() if "treehouse" in line or uri.rsplit("/", 1)[-1] in line]
+        (self.out / f"share-{name}.grants.txt").write_text("\n".join(seen[:60]) or "no grant mentions the app or the row\n")
 
     def journey_d_open_in_browser(self) -> None:
         """Observe only: what a tap on an artifact card's Open in browser does on Android (COI-3520)."""
