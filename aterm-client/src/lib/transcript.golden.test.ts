@@ -6,8 +6,11 @@ import { decodeReply, rowsFor, withoutPeers } from "./transcript";
 
 const dir = process.env.ATERM_TRANSCRIPT_GOLDEN ?? new URL("../../../aterm/testdata/transcript/", import.meta.url).pathname;
 
-describe.skipIf(!existsSync(`${dir}claude.golden.json`))("the daemon's golden replies", () => {
-  for (const reader of ["claude", "codex", "opencode"]) {
+const present = existsSync(`${dir}claude.golden.json`);
+
+describe.skipIf(!present)("the daemon's golden replies", () => {
+  // The suite body runs even when skipped, so nothing is read unless the files are there.
+  for (const reader of present ? ["claude", "codex", "opencode"] : []) {
     const raw = JSON.parse(readFileSync(`${dir}${reader}.golden.json`, "utf8")) as { items: Record<string, unknown>[] };
     const reply = decodeReply("s", raw as unknown as Record<string, unknown>);
 
@@ -45,7 +48,7 @@ describe.skipIf(!existsSync(`${dir}claude.golden.json`))("the daemon's golden re
       const rows = rowsFor(reply.items, "verbose");
       for (const item of shared) {
         const row = rows.find((each) => each.key === item.id);
-        if (row) expect(row.maybePeer, item.id).toBe(true);
+        if (row) expect(row.peer?.id, item.id).toBe(item.for);
       }
     });
   }

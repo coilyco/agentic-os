@@ -5,9 +5,9 @@
   import { openLink } from "../lib/link-notice.svelte";
   import type { TranscriptChannel } from "../lib/protocol";
   import { linkTarget } from "../lib/terminal-extras";
-  import { mergeItems, rowsFor, TranscriptRefused, type Level, type TranscriptItem } from "../lib/transcript";
+  import { mergeItems, rowsFor, TranscriptRefused, type Level, type PeerRef, type TranscriptItem } from "../lib/transcript";
 
-  let { channel, sessionId, level, onrefused }: { channel: TranscriptChannel; sessionId: string; level: Level; onrefused: (reason: string) => void } = $props();
+  let { channel, sessionId, level, onrefused, onpeer }: { channel: TranscriptChannel; sessionId: string; level: Level; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void } = $props();
 
   const PAGE = 50;
   const POLL_MS = 2000;
@@ -107,6 +107,11 @@
   }
 </script>
 
+<!-- A shared item may be the person's own work or an answer to a peer, so it stays and points at the message. -->
+{#snippet maybe(peer: PeerRef)}
+  <p class="maybe">May answer {peer.from ? `a message from ${peer.from.identity}` : "another seat's message"}. <button type="button" class="peer" onclick={() => onpeer(peer)}>Show the message</button></p>
+{/snippet}
+
 <section class="transcript" aria-label="Transcript">
   <div class="feed" bind:this={list} onscroll={() => (pinned = atEnd())} tabindex="-1">
     {#if older}
@@ -121,14 +126,14 @@
       {#if row.kind === "prompt"}
         <div class="turn me"><span class="who">You</span><p class="plain">{row.text}</p>{#if row.cut}<p class="maybe">The host cut this message.</p>{/if}</div>
       {:else if row.kind === "reply"}
-        <div class="turn"><Markdown source={row.text} onlink={open} />{#if row.cut}<p class="maybe">The host cut this reply.</p>{/if}{#if row.maybePeer}<p class="maybe">May answer another seat's message.</p>{/if}</div>
+        <div class="turn"><Markdown source={row.text} onlink={open} />{#if row.cut}<p class="maybe">The host cut this reply.</p>{/if}{#if row.peer}{@render maybe(row.peer)}{/if}</div>
       {:else if row.kind === "tool"}
         <div class="step" data-failed={row.ok === false}>
           <p class="line">{row.summary}{#if row.ok === false}<span class="bad">failed</span>{/if}</p>
           {#if row.lines.length}<pre>{row.lines.join("\n")}</pre>{/if}
           {#if row.hidden}<p class="more">{row.hidden} more {row.hidden === 1 ? "line" : "lines"}. Verbose shows them.</p>{/if}
           {#if row.cut}<p class="more">The host cut this output.</p>{/if}
-          {#if row.maybePeer}<p class="more">May answer another seat's message.</p>{/if}
+          {#if row.peer}{@render maybe(row.peer)}{/if}
         </div>
       {:else}
         <p class="note">{row.text}</p>
@@ -157,6 +162,8 @@
   .more, .turn .maybe { margin: 4px 0 0; font: 400 12px var(--font-body); color: var(--muted); }
   .note, .status { margin: 0; font: 400 13px var(--font-body); color: var(--muted); }
   .source { flex: none; margin: 0; padding: 6px 16px; border-top: 1px solid var(--line); font: 400 12px var(--font-body); color: var(--muted); min-height: 30px; }
+  .peer { min-height: 44px; padding: 0 10px; border: 0; background: none; color: var(--brand); font: 600 13px var(--font-body); text-decoration: underline; }
+  .peer:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .earlier { flex: none; align-self: center; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--control-line); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); }
   .earlier:disabled { opacity: 0.6; }
   .earlier:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }

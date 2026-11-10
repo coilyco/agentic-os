@@ -121,14 +121,22 @@ test.describe("on a phone", () => {
   test("an item the host calls shared stays and says it may answer another seat", async ({ bed }) => {
     bed.mock.setTranscript(imp, [
       { id: "p1", kind: "prompt", text: "Refactor it." },
-      { id: "x1", kind: "peer", text: "[from eng-platform Beetle-Ox] ping", from: { role: "eng-platform", identity: "Beetle-Ox" } },
+      { id: "x1", kind: "peer", text: "ping", from: { role: "eng-platform", identity: "Beetle-Ox" } },
       { id: "r1", kind: "reply", text: "Refactor done.", complete: true, for: "x1", shared: true },
     ]);
     await bed.openSeat(SEATS.imp);
     await expect(view(bed)).toContainText("Refactor done.");
-    await expect(view(bed)).toContainText("May answer another seat's message.");
+    await expect(view(bed)).toContainText("May answer a message from Beetle-Ox.");
     await expect(view(bed)).not.toContainText("[from eng-platform");
     await bed.step("shared", { compare: false });
+    // The marker points at the message, which only the Messages panel shows.
+    bed.mock.push({ type: "message", message: { id: "m9", from: "eng-platform Beetle-Ox", target: "frontend-eng", session: imp, state: "delivered", text: "ping" } });
+    await view(bed).getByRole("button", { name: "Show the message" }).click();
+    await expect(bed.page.getByRole("tab", { name: /^Messages/, selected: true })).toBeVisible();
+    const row = bed.page.locator("#message-row-m9");
+    await expect(row).toHaveAttribute("aria-expanded", "true");
+    await expect(bed.page.getByRole("region", { name: "Full text from Beetle-Ox" })).toContainText("ping");
+    await bed.step("shown", { compare: false });
   });
 
   test("Show earlier reads the page before the first one and keeps the view where it was", async ({ bed }) => {

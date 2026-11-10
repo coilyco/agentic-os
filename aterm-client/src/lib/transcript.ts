@@ -155,10 +155,17 @@ export function withoutPeers(items: readonly TranscriptItem[]): TranscriptItem[]
   return items.filter((item) => item.kind !== "peer" && (item.for === undefined || item.shared === true));
 }
 
+/** The peer message a shared item may answer. */
+export interface PeerRef {
+  id: string;
+  from?: { role: string; identity: string };
+  text?: string;
+}
+
 /** A row the view draws. */
 export type Row =
-  | { key: string; kind: "prompt" | "reply" | "note"; text: string; at?: number; model?: string; maybePeer: boolean; cut: boolean }
-  | { key: string; kind: "tool"; name: string; summary: string; lines: string[]; hidden: number; ok: boolean | undefined; cut: boolean; maybePeer: boolean };
+  | { key: string; kind: "prompt" | "reply" | "note"; text: string; at?: number; model?: string; peer?: PeerRef; cut: boolean }
+  | { key: string; kind: "tool"; name: string; summary: string; lines: string[]; hidden: number; ok: boolean | undefined; cut: boolean; peer?: PeerRef };
 
 /** Lines of a result Default shows before saying how many more there are. */
 export const DEFAULT_OUTPUT_LINES = 3;
@@ -167,6 +174,9 @@ export const DEFAULT_OUTPUT_LINES = 3;
 // Default keeps every reply and a few lines of each result. Verbose keeps everything.
 export function rowsFor(all: readonly TranscriptItem[], level: Level): Row[] {
   const items = withoutPeers(all);
+  const peers = new Map(all.filter((item) => item.kind === "peer").map((item) => [item.id, { id: item.id, ...(item.from ? { from: item.from } : {}), ...(item.text ? { text: item.text } : {}) } as PeerRef]));
+  // A shared item names the peer it may answer, even when only its id is known.
+  const peerOf = (item: TranscriptItem): { peer?: PeerRef } => (item.shared ? { peer: peers.get(item.for ?? "") ?? { id: item.for ?? "" } } : {});
   const rows: Row[] = [];
   const lastReply = new Map<number, string>();
   let turn = 0;
@@ -178,11 +188,11 @@ export function rowsFor(all: readonly TranscriptItem[], level: Level): Row[] {
   for (const item of items) {
     if (item.kind === "prompt") {
       turn += 1;
-      if (item.text) rows.push({ key: item.id, kind: "prompt", text: item.text, maybePeer: item.shared === true, cut: item.truncated === true, ...(item.at ? { at: item.at } : {}) });
+      if (item.text) rows.push({ key: item.id, kind: "prompt", text: item.text, cut: item.truncated === true, ...peerOf(item), ...(item.at ? { at: item.at } : {}) });
     } else if (item.kind === "reply") {
       if (!item.text) continue;
       if (level === "focus" && lastReply.get(turn) !== item.id) continue;
-      rows.push({ key: item.id, kind: "reply", text: item.text, maybePeer: item.shared === true, cut: item.truncated === true, ...(item.at ? { at: item.at } : {}), ...(item.model ? { model: item.model } : {}) });
+      rows.push({ key: item.id, kind: "reply", text: item.text, cut: item.truncated === true, ...peerOf(item), ...(item.at ? { at: item.at } : {}), ...(item.model ? { model: item.model } : {}) });
     } else if (item.kind === "tool" && item.tool) {
       const all = level === "focus" || !item.tool.output ? [] : item.tool.output.replace(/\n+$/, "").split("\n");
       const shown = level === "verbose" ? all : all.slice(0, DEFAULT_OUTPUT_LINES);
@@ -195,10 +205,10 @@ export function rowsFor(all: readonly TranscriptItem[], level: Level): Row[] {
         hidden: all.length - shown.length,
         ok: item.tool.ok,
         cut: item.tool.truncated === true,
-        maybePeer: item.shared === true,
+        ...peerOf(item),
       });
     } else if (item.kind === "note" && level !== "focus" && item.text) {
-      rows.push({ key: item.id, kind: "note", text: item.text, maybePeer: item.shared === true, cut: item.truncated === true });
+      rows.push({ key: item.id, kind: "note", text: item.text, cut: item.truncated === true, ...peerOf(item) });
     }
   }
   return rows;

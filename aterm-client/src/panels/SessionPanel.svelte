@@ -24,7 +24,8 @@
   import type { Role } from "../lib/roster";
   import { loadView, storeView } from "../lib/seat-view";
   import { sessionCode } from "../lib/sessions";
-  import { refusalText, type Level } from "../lib/transcript";
+  import { findPeerMessage } from "../lib/peer-link";
+  import { refusalText, type Level, type PeerRef } from "../lib/transcript";
   import { needsPasskey } from "../lib/typing";
   import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
   import { loadSide, loadSideOpen, storeSide, storeSideOpen } from "../lib/split";
@@ -73,6 +74,15 @@
   // The reason the host gave for no transcript. The screen shows instead, and a new pick asks again.
   let fallback = $state<string | null>(null);
   const showRaw = $derived(!transcripts || view.raw || fallback !== null);
+  // A shared item points at the message it may answer, which only the Messages panel shows.
+  let focusMessage = $state<{ id: string; n: number } | null>(null);
+  function showPeer(peer: PeerRef): void {
+    side = "messages";
+    sideOpen = true;
+    raised = true;
+    const found = findPeerMessage(messages, peer);
+    focusMessage = found ? { id: found.id, n: (focusMessage?.n ?? 0) + 1 } : null;
+  }
   function pick(level: Level): void {
     view = { level, raw: level === "verbose" ? view.raw : false };
     fallback = null;
@@ -263,7 +273,7 @@
                 <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice)} locked={!app.typing.allowed || reconnecting()} />
               </div>
               {#if transcripts && !showRaw}
-                <Transcript channel={transcripts} sessionId={session.id} level={view.level} onrefused={(reason) => (fallback = reason)} />
+                <Transcript channel={transcripts} sessionId={session.id} level={view.level} onrefused={(reason) => (fallback = reason)} onpeer={showPeer} />
               {/if}
             </div>
             {#if session.starting && blank}
@@ -333,7 +343,7 @@
     </div>
     {#if !split || sideOpen}
       <SplitHandle onchange={resize} onreset={() => resize(null)} />
-      <SidePanel {session} {messages} selfRole={role.slug} {colorOf} accent={role.color} bind:tab={side} bind:open={raised} onpick={(tab) => storeOverride(role.slug, tab)} />
+      <SidePanel {session} {messages} selfRole={role.slug} {colorOf} accent={role.color} bind:tab={side} bind:open={raised} onpick={(tab) => storeOverride(role.slug, tab)} {focusMessage} />
     {/if}
   </div>
 </section>

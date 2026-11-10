@@ -121,7 +121,8 @@ describe("peer messages", () => {
     ];
     const rows = rowsFor(mid, "focus");
     expect(rows.map((row) => row.key)).toEqual(["1", "2", "4"]);
-    expect(rows.map((row) => row.maybePeer)).toEqual([false, false, true]);
+    expect(rows.map((row) => row.peer?.id)).toEqual([undefined, undefined, "3"]);
+    expect(rows[2]!.peer).toEqual({ id: "3", text: "[from eng-platform Beetle-Ox] ping" });
   });
 
   it("decodes the peer kind, the answer link and the shared mark", () => {
