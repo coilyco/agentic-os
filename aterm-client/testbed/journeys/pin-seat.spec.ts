@@ -7,11 +7,10 @@ const order = (page: Page) => page.locator('[id^="tab-session-"]').evaluateAll((
 const openList = async (page: Page, phone: boolean) => {
   if (phone) await page.getByRole("button", { name: /Seats, starting a seat, hosts and alerts/ }).click();
 };
-// A reload returns to the last seat: the list is one tap away on a phone.
-const reload = async (page: Page, phone: boolean) => {
+// A reload rests on the seat overview, so the list is already on screen.
+const reload = async (page: Page) => {
   await page.reload();
-  await expect(page.locator(".xterm-rows")).toBeVisible();
-  await openList(page, phone);
+  await expect(page.getByRole("heading", { name: "Seats", level: 1 })).toBeVisible();
 };
 const first = (page: Page) => order(page).then((ids) => ids[0]);
 
@@ -27,7 +26,7 @@ test.describe("pin a seat", () => {
     await expect(pin).toHaveAttribute("aria-pressed", "true");
     await expect.poll(() => first(bed.page)).toBe(SEATS.griffin.id);
     await bed.step("pinned", { compare: false });
-    await reload(bed.page, phone);
+    await reload(bed.page);
     await expect.poll(() => first(bed.page)).toBe(SEATS.griffin.id);
   });
 
@@ -73,7 +72,7 @@ test.describe("pinned by default", () => {
     await expect(pin).toHaveAttribute("aria-pressed", "true");
     await pin.click();
     await expect.poll(() => first(bed.page)).toBe(SEATS.beetle.id);
-    await reload(bed.page, phone);
+    await reload(bed.page);
     await expect.poll(() => first(bed.page), "unpinned stays unpinned after a reload").toBe(SEATS.beetle.id);
   });
 });
