@@ -11,6 +11,8 @@ sudo apt-get update -qq
 sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libpulse0 libgl1 pulseaudio pulseaudio-utils sox
 export ANDROID_HOME=/usr/local/lib/android/sdk
 export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+export ANDROID_AVD_HOME="$HOME/.android/avd"
+mkdir -p "$ANDROID_AVD_HOME"
 IMG="system-images;android-34;google_apis;x86_64"
 yes | sdkmanager --licenses >/dev/null || true
 sdkmanager "emulator" "$IMG"
