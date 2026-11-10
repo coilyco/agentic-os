@@ -1,5 +1,6 @@
 // COI-3532: Focus, Default and Verbose views of a seat, read from its transcript.
 // Peer messages never show in them. The raw screen stays under them and in Verbose.
+import { existsSync, readFileSync } from "node:fs";
 import { expect, kindOf, SEATS, test, type Bed } from "../harness.ts";
 
 test.use({ mockOptions: { transcript: true } });
@@ -171,4 +172,30 @@ test.describe("on a desktop", () => {
     await expect(view(bed)).toContainText("The stripe was placed by row number");
     await bed.step("desktop-focus", { compare: false });
   });
+});
+
+// The daemon's own replies for its three fixtures, replayed as it would send them.
+const golden = process.env.ATERM_TRANSCRIPT_GOLDEN ?? new URL("../../../aterm/testdata/transcript/", import.meta.url).pathname;
+
+test.describe("the daemon's golden replies", () => {
+  test.skip(!existsSync(`${golden}claude.golden.json`), "the daemon's fixtures are not checked out");
+  test.beforeEach(({}, info) => test.skip(kindOf(info) !== "phone", "read on a phone"));
+
+  for (const reader of ["claude", "codex", "opencode"]) {
+    test(`${reader}: reads as prompts, replies and tool lines, and shows no peer message`, async ({ bed }) => {
+      const reply = JSON.parse(readFileSync(`${golden}${reader}.golden.json`, "utf8")) as { items: { kind: string; text?: string; tool?: { summary: string; ok?: boolean } }[] };
+      bed.mock.setTranscript(imp, reply.items);
+      await bed.openSeat(SEATS.imp);
+      await expect(view(bed)).toContainText(reply.items.find((item) => item.kind === "prompt")!.text!);
+      await bed.step(`${reader}-focus`, { compare: false });
+      await stop(bed, "Verbose").click();
+      const failed = reply.items.find((item) => item.tool?.ok === false)!;
+      await expect(view(bed)).toContainText(failed.tool!.summary);
+      await expect(view(bed)).toContainText("failed");
+      for (const peer of reply.items.filter((item) => item.kind === "peer")) {
+        await expect(view(bed), "a peer message is not drawn").not.toContainText(peer.text!.slice(0, 40));
+      }
+      await bed.step(`${reader}-verbose`, { compare: false });
+    });
+  }
 });
