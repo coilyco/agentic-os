@@ -14,3 +14,10 @@ export function coastRows(speedPxPerMs: number, rowPx: number): number {
   if (!(rowPx > 0) || Math.abs(speedPxPerMs) < 0.4) return 0;
   return Math.round((speedPxPerMs * 220) / rowPx);
 }
+
+/** Where a swipe goes: history, or the wheel an app takes from a mouse (COI-3537). */
+export function swipeGoesTo(screen: string, historyRows: number, mouse: string): "history" | "app" | "nothing" {
+  if (screen === "alternate") return "app";
+  if (historyRows > 0) return "history";
+  return mouse === "none" ? "nothing" : "app";
+}

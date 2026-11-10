@@ -13,7 +13,7 @@
   import { boxToReport, nextTall } from "../lib/pty-size";
   import { detectChoice } from "../lib/choices";
   import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
-  import { coastRows, takeRows } from "../lib/touch-scroll";
+  import { coastRows, swipeGoesTo, takeRows } from "../lib/touch-scroll";
   import { DEFAULT_TEXT_SIZE, loadTextSize, stepTextSize, storeTextSize, TEXT_SIZES } from "../lib/text-size";
   import { isBlank, screenRows, tabBarReading, type TabBarCells } from "../lib/screen";
   import { afterQueued, safely, watchDelay } from "../lib/pane-watch";
@@ -249,7 +249,19 @@
     let carry = 0;
     let speed = 0;
     let fingerAt = 0;
+    let fingerX = 0;
     let coasting = 0;
+    // A full-screen app has no history here, so it gets a wheel as a mouse would send it.
+    const move = (rows: number) => {
+      const active = terminal.buffer.active;
+      const where = swipeGoesTo(active.type, active.baseY, terminal.modes.mouseTrackingMode);
+      if (where === "history") terminal.scrollLines(rows);
+      if (where !== "app") return;
+      const screen = host.querySelector(".xterm-screen") ?? host;
+      for (let tick = 0; tick < Math.min(Math.abs(rows), 12); tick++) {
+        screen.dispatchEvent(new WheelEvent("wheel", { deltaY: Math.sign(rows), deltaMode: 1, clientX: fingerX, clientY: fingerY, bubbles: true, cancelable: true }));
+      }
+    };
     const stopCoast = () => {
       cancelAnimationFrame(coasting);
       coasting = 0;
@@ -258,6 +270,7 @@
       stopCoast();
       if (event.touches.length !== 1) return;
       fingerY = event.touches[0]!.clientY;
+      fingerX = event.touches[0]!.clientX;
       fingerAt = event.timeStamp;
       carry = 0;
       speed = 0;
@@ -272,14 +285,15 @@
       fingerAt = event.timeStamp;
       const taken = takeRows(carry, drag, rowPx());
       carry = taken.carry;
-      if (taken.rows) terminal.scrollLines(taken.rows);
+      fingerX = event.touches[0]!.clientX;
+      if (taken.rows) move(taken.rows);
     };
     const onTouchEnd = () => {
       let left = coastRows(speed, rowPx());
       const step = () => {
         const now = Math.sign(left) * Math.max(1, Math.round(Math.abs(left) / 8));
         if (!left) return;
-        terminal.scrollLines(now);
+        move(now);
         left -= now;
         coasting = requestAnimationFrame(step);
       };
