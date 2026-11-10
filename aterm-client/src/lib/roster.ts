@@ -12,6 +12,8 @@ export interface Role {
   color: string;
   identity: string;
   launchable: boolean;
+  /** The roster says a seat of this role starts pinned. Absent is false. */
+  pinnedByDefault?: boolean;
   seats: Seat[];
 }
 
@@ -52,6 +54,7 @@ export function parseRoster(input: unknown): Role[] {
       color: color.toLowerCase(),
       identity: text(record(role.identity, `${slug}.identity`).name, `${slug}.identity.name`),
       launchable: role.launchable === true,
+      ...(role.pinned_by_default === true ? { pinnedByDefault: true } : {}),
       seats: seats.map((rawSeat, seatIndex) => {
         const seat = record(rawSeat, `${slug}.seats[${seatIndex}]`);
         return {
