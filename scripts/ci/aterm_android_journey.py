@@ -10,6 +10,7 @@ Design: tooling-aterm-client references/android.md. Standard library only.
 from __future__ import annotations
 
 import argparse
+import base64
 import importlib.util
 import json
 import os
@@ -334,8 +335,7 @@ class Journey:
         assert page
         control = Path(self.args.refuse_file)
         typed_before = Path(self.args.seat_log).read_text(errors="replace")
-        self.open_picker()
-        self.pick_image()
+        self.add_image_without_picker()
         page.wait_selector(CHIP)
         try:
             for reason, words in REFUSAL_WORDS.items():
@@ -351,6 +351,18 @@ class Journey:
             raise Fail("a refused upload still typed something into the seat")
         page.tap(f"()=>document.querySelector({json.dumps(CHIP)})")
         print("journey E: both refusals said, picture kept, seat untouched")
+
+    def add_image_without_picker(self) -> None:
+        """Hand the composer's file input the seeded PNG. The Photo Picker URI a refusal test would pick is unreadable (run 42896175645)."""
+        page = self.page
+        assert page
+        data = base64.b64encode((self.out / PNG_NAME).read_bytes()).decode()
+        page.js(
+            "(()=>{const b=Uint8Array.from(atob(" + json.dumps(data) + "),c=>c.charCodeAt(0));"
+            "const t=new DataTransfer();t.items.add(new File([b],'ci-refusal.png',{type:'image/png'}));"
+            "const i=document.querySelector('form.composer input[type=file]');i.files=t.files;"
+            "i.dispatchEvent(new Event('change',{bubbles:true}))})()"
+        )
 
     def wait_words(self, pattern: str, wait: float, label: str) -> None:
         deadline = time.monotonic() + wait
