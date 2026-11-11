@@ -107,7 +107,11 @@ func TestNativeLaunchDrawsFreshWhenALiveLeaseHoldsTheRequestedID(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(runtime.SessionsRoot, "ab84"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	holder := nativeLease{Format: "agentic-os.native-lease.v1", ID: "ab84", Harness: "claude", PID: os.Getpid()}
+	start, err := processStartIdentity(os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	holder := nativeLease{Format: "agentic-os.native-lease.v1", ID: "ab84", Harness: "claude", PID: os.Getpid(), ProcessStart: start}
 	if err := writeNativeJSON(nativeStatePath(runtime, "leases", "ab84.json"), holder); err != nil {
 		t.Fatal(err)
 	}
@@ -158,6 +162,36 @@ func TestNativeLaunchReusesARequestedIDWhoseDirectoryAnEndedSessionLeftBehind(t 
 	}
 	if _, err := os.Stat(left); !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("the ended session's leftovers were kept: %v", err)
+	}
+}
+
+// The dead pod's lease survives on the volume for the dead-session grace, so a held
+// lease file alone must not keep the code taken.
+func TestNativeLaunchReusesARequestedIDWhoseLeaseOutlivedItsProcess(t *testing.T) {
+	root := t.TempDir()
+	createNativeTestRepository(t, root, "owner", "one")
+	runtime := nativeTestRuntime(t, root)
+	runtime.RequestedID = "ab84"
+	runtime.Random = bytes.NewReader([]byte{2, 2, 2, 2})
+	writeNativeTestPlan(t, runtime.PlanFile, "one")
+	writeNativeTestList(t, runtime.FleetFile, "owner")
+	if _, err := prepareNativeLaunch(runtime, "claude"); err != nil {
+		t.Fatal(err)
+	}
+	path, first := onlyNativeLease(t, runtime)
+	deadSince := runtime.Now
+	first.PID, first.ProcessStart, first.DeadSince = 0, "", &deadSince
+	if err := writeNativeJSON(path, first); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := prepareNativeLaunch(runtime, "claude"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, lease := onlyNativeLease(t, runtime)
+	if lease.ID != "ab84" || lease.DeadSince != nil || lease.PID != os.Getpid() {
+		t.Fatalf("lease = %+v, want a fresh live ab84", lease)
 	}
 }
 
