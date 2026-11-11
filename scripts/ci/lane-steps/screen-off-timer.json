@@ -1,0 +1,18 @@
+{
+  "name": "does a page timer run with the screen off (COI-3466)",
+  "start": "seat",
+  "steps": [
+    {"op": "eval", "js": "(window.__t0 = Date.now(), window.__n = 0, window.__iv = setInterval(() => { window.__n++ }, 1000), 'started')"},
+    {"op": "sleep", "seconds": 4},
+    {"op": "eval", "js": "JSON.stringify({n: window.__n, elapsed: Math.round((Date.now() - window.__t0) / 1000), state: document.visibilityState})", "save": "before"},
+    {"op": "adb", "args": ["shell", "input", "keyevent", "26"]},
+    {"op": "sleep", "seconds": 3},
+    {"op": "adb", "args": ["shell", "dumpsys power | grep -m2 -E 'mWakefulness=|Display Power'"]},
+    {"op": "sleep", "seconds": 30},
+    {"op": "eval", "js": "JSON.stringify({n: window.__n, elapsed: Math.round((Date.now() - window.__t0) / 1000), state: document.visibilityState})", "save": "asleep"},
+    {"op": "adb", "args": ["shell", "input", "keyevent", "224"]},
+    {"op": "sleep", "seconds": 2},
+    {"op": "eval", "js": "JSON.stringify({n: window.__n, elapsed: Math.round((Date.now() - window.__t0) / 1000), state: document.visibilityState})", "save": "awake"},
+    {"op": "shot", "name": "after-wake"}
+  ]
+}
