@@ -11,6 +11,7 @@
   import { harnessBox } from "../lib/harness";
   import { NO_BOX, steadyBox } from "../lib/box-rows";
   import { ansiTheme, resolveColour } from "../lib/brand";
+  import { theme } from "../lib/theme.svelte";
   import { openLink } from "../lib/link-notice.svelte";
   import { boxToReport, nextTall } from "../lib/pty-size";
   import { detectChoice } from "../lib/choices";
@@ -53,6 +54,12 @@
 
   let host: HTMLDivElement;
   let term: Terminal | undefined;
+  // xterm paints in hex, so it reads the tokens as they stand and is told again when the theme moves.
+  const terminalTheme = () => ({ background: resolveColour("var(--terminal)"), foreground: resolveColour("var(--text-soft)"), cursor: resolveColour(accent), selectionBackground: `${resolveColour(accent)}55`, ...ansiTheme() });
+  $effect(() => {
+    void theme.resolved;
+    if (term) term.options.theme = terminalTheme();
+  });
   // The box scrolls when the terminal is bigger than it: a PTY sized to a larger client, or a cropped harness box.
   let panning = $state(false);
   // Whether the view sits above the newest output, and how many lines came in while it did.
@@ -287,7 +294,7 @@
       lineHeight: LINE_HEIGHT,
       scrollback: SCROLLBACK,
       allowProposedApi: true,
-      theme: { background: resolveColour("var(--terminal)"), foreground: resolveColour("var(--text-soft)"), cursor: resolveColour(accent), selectionBackground: `${resolveColour(accent)}55`, ...ansiTheme() },
+      theme: terminalTheme(),
     });
     term = terminal;
     // The seat's own window answers terminal queries. A reply from here would be

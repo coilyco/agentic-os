@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import canopy from "../assets/treehouse-canopy.svg?url";
+  import { canopy } from "../lib/theme.svelte";
   import CloseSeat from "./CloseSeat.svelte";
   import Origin from "./Origin.svelte";
   import PinSeat from "./PinSeat.svelte";
@@ -362,7 +362,7 @@
       </div>
     {/if}
   {:else}
-    <img class="mark" src={canopy} alt="Treehouse" width="36" height="36" />
+    <img class="mark" src={canopy()} alt="Treehouse" width="36" height="36" />
     {@render hostsGroup()}
     {#if app.attachedHostId}
       {@render runningGroup()}

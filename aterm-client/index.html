@@ -9,6 +9,14 @@
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icon-192.png" />
     <title>Treehouse</title>
+    <!-- The theme before the first paint, so a light page never flashes dark. lib/theme.ts owns it. -->
+    <script>
+      try {
+        var t = localStorage.getItem("aterm.theme.v1");
+        var light = t === "light" || (t !== "dark" && matchMedia("(prefers-color-scheme: light)").matches);
+        document.documentElement.dataset.theme = light ? "light" : "dark";
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

@@ -23,3 +23,13 @@ Every ANSI foreground except black reads at 4.5:1 or better on `--terminal`, and
 ## The before and after
 
 The `colour-rule` journey builds one busy seat: a diff, test results, a link, and both 8-colour ramps. `ATERM_TESTBED_COMPARE=0 just aterm-client-testbed colour-rule --project desktop-1440` writes `01-busy-seat.png`. It compares no baseline, so a retune never churns one.
+
+## The light theme (COI-3554)
+
+The same roles on paper: `:root[data-theme="light"]` in `app.css` redefines every token but the plate. The brown steps run to cream, green, amber and red darken until they read as text, and the rule above holds unchanged. `ansi-palette.test.ts` holds the contrast on both grounds.
+
+* **Text** - `--text` 13.9:1, `--text-soft` 8.8:1 and `--muted` 6.5:1 on the ground, and 5.2:1 or better on the lowest step. Green as text is 5.8:1 on the ground and 4.7:1 on `--selected`, and its button ink reads 6.4:1.
+* **Signals** - amber text is 5.8:1 and red text 6.8:1 on the ground, and 5.8 and 6.6 on their own fills. `--warn` and `--danger` are marks, not text, at 3.9 and 4.7.
+* **Borders** - `--line` 1.4:1 and `--control-line` 2.0:1, the same soft edge the dark theme draws, so a control is found by its fill and label first.
+* **Terminal** - black is dark ink and white is the ground, so a harness that paints a white background draws no rectangle. Bright white is the strongest ink. Every other foreground reads 4.7:1 or better. A harness that draws plain white text for a dark ground shows it as the ground, as in any light terminal theme, and Dark is one tap away.
+* **Outside** - the Android shell tints its status and navigation icons from the theme. The web manifest's splash colour stays the brown, since a manifest holds one.
