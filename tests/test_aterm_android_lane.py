@@ -143,3 +143,10 @@ def test_a_round_number_reaches_fill_and_the_value_wait(tmp_path: Path) -> None:
     lane.op_fill({"selector": "#composer-input", "text": "draft number $i"})
     assert json.dumps("draft number 3") in lane.page.scripts[0]
     assert lane.op_wait_value({"selector": "#composer-input", "pattern": "draft number $i$", "timeout": 1}) == "draft number 3"
+
+
+def test_the_vosk_recognizer_names_its_missing_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    lane_mod, lane = _lane(tmp_path, FakePage())
+    monkeypatch.delenv("ATERM_VOSK_MODEL", raising=False)
+    with pytest.raises(lane_mod.J.Fail, match="no Vosk model"):
+        lane.op_recognizer({"service": "vosk"})
