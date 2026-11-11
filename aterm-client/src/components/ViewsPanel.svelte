@@ -1,9 +1,13 @@
 <script lang="ts">
-  import { app, viewsFor } from "../lib/app.svelte";
+  import PagesList from "./PagesList.svelte";
+  import { app, openPage, viewsFor } from "../lib/app.svelte";
+  import { pageRows } from "../lib/artifact-pages";
   import type { Session } from "../lib/protocol";
 
   let { session }: { session: Session } = $props();
   const views = $derived(viewsFor(session.id));
+  // Every seat's pages, not just this one's: they are for Kai, wherever she is.
+  const pages = $derived(pageRows(Object.values(app.artifacts), app.sessions));
 
   // AppView holds AppBridge and its peers (ext-apps, the MCP SDK, zod), which outweigh the rest of
   // the client, so it loads when a view first exists. The two empty states never pay for it.
@@ -11,6 +15,7 @@
 </script>
 
 <div class="views">
+  {#if pages.length}<PagesList rows={pages} onopen={openPage} headingId="views-pages" />{/if}
   {#if !app.connection?.views}
     <p class="empty">This host doesn't forward MCP App views yet. Once its daemon does, a tool that returns a view opens it here, next to the terminal.</p>
   {:else if !appView}

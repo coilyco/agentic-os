@@ -7,6 +7,7 @@ export interface ToastSeat {
   sessionId: string;
   identity: string;
   kind: "asking" | "artifact";
+  pageId?: string;
 }
 
 export interface Toast {
@@ -15,6 +16,8 @@ export interface Toast {
   /** Seats the toast stands for, so the count can be read without the words. */
   count: number;
   text: string;
+  /** For a page, the one a tap opens in the reader instead of the seat (COI-3330). */
+  pageId?: string;
 }
 
 /** Waiting seats but the one on screen, as one toast: first named, rest counted. */
@@ -24,5 +27,5 @@ export function toastFor(waiting: readonly ToastSeat[], open: string | null): To
   if (!first) return null;
   const said = first.kind === "asking" ? `${first.identity} is asking` : `${first.identity} left you a page`;
   const more = others.length - 1;
-  return { sessionId: first.sessionId, count: others.length, text: more > 0 ? `${said}, and ${more} more waiting` : said };
+  return { sessionId: first.sessionId, count: others.length, text: more > 0 ? `${said}, and ${more} more waiting` : said, ...(first.kind === "artifact" && first.pageId ? { pageId: first.pageId } : {}) };
 }

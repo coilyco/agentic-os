@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { app, openByPerson, openSeat, waitingSeats } from "../lib/app.svelte";
+  import { app, openByPerson, openPage, openSeat, waitingSeats } from "../lib/app.svelte";
   import { detectCue, SETTLE_MS } from "../lib/attention";
   import { TOAST_MS, toastFor } from "../lib/toast";
 
@@ -51,10 +51,13 @@
   function openFirst(): void {
     // Read before hiding: hiding empties the toast.
     const id = toast?.sessionId;
+    const pageId = toast?.pageId;
     if (!id) return;
     visible = false;
     clearTimeout(timer);
-    openByPerson(id);
+    // A page is what Kai came for, so a tap opens it, not the seat that left it.
+    if (pageId) openPage(pageId);
+    else openByPerson(id);
   }
 </script>
 

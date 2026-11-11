@@ -6,6 +6,7 @@
   import SeatToast from "./components/SeatToast.svelte";
   import ShareSheet from "./components/ShareSheet.svelte";
   import OpenedPageCard from "./components/OpenedPageCard.svelte";
+  import PageReader from "./components/PageReader.svelte";
   import { app, overviewShown, sessionById, waitingSeats } from "./lib/app.svelte";
   import { roleFor } from "./lib/sessions";
   import HostPanel from "./panels/HostPanel.svelte";
@@ -33,9 +34,11 @@
 <Attention />
 <SeatToast />
 <OpenedPageCard />
+<PageReader />
 <FeedbackSheet />
 <ShareSheet />
-<div class="shell" class:overview={overviewShown()}>
+<!-- The page behind the reader is inert, so Tab out of the sandboxed frame has nowhere to go but back into the reader. -->
+<div class="shell" class:overview={overviewShown()} inert={app.pageOpen !== null}>
   <Sidebar />
   <main>
     <LinkBanner />

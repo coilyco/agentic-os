@@ -26,3 +26,10 @@ describe("toastFor", () => {
     expect(TOAST_MS).toBeLessThanOrEqual(10_000);
   });
 });
+
+describe("a toast for a page", () => {
+  it("names the page a tap opens, and a question names none", () => {
+    expect(toastFor([{ ...page, pageId: "page-1" }], null)?.pageId).toBe("page-1");
+    expect(toastFor([{ sessionId: "a", identity: "Imp-Dragonfly", kind: "asking" }], null)?.pageId).toBeUndefined();
+  });
+});

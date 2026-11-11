@@ -98,6 +98,8 @@ export const app = $state({
   notify: null as Notify | null,
   /** Pages seats put on her desk, by id. One marked waiting is a seat that needs her. */
   artifacts: {} as Record<string, SeatArtifact>,
+  /** The page the reader has open, by id (COI-3330). Dropped with the host's pages. */
+  pageOpen: null as string | null,
   /** What each seat shared, oldest first, and the last one looked at (COI-3458). */
   media: {} as Record<string, MediaItem[]>,
   mediaSeen: {} as Record<string, string | undefined>,
@@ -178,6 +180,15 @@ export function hideLogo(): void {
 
 export function closeSettings(): void {
   app.settingsOpen = false;
+}
+
+/** Opens a seat's page in the reader, over whatever is on screen. */
+export function openPage(id: string): void {
+  app.pageOpen = id;
+}
+
+export function closePage(): void {
+  app.pageOpen = null;
 }
 
 export function showHost(): void {
@@ -430,6 +441,7 @@ export function selectHost(host: Host): void {
   app.messages = [];
   app.asks = {};
   app.artifacts = {};
+  app.pageOpen = null;
   app.media = {};
   app.mediaSeen = {};
   app.views = {};
@@ -540,6 +552,7 @@ export function selectHost(host: Host): void {
       // The new connection re-sends pending asks. The old ones belong to a dead daemon.
       app.asks = {};
       app.artifacts = {};
+      app.pageOpen = null;
       // The daemon replays each shelf on the new connection.
       app.media = {};
       app.link = { state: "restored" };
