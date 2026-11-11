@@ -255,6 +255,9 @@ build_debug() {
   printf '%s\n' "$badging" | grep -q "^package: name='$APP_ID' " || fail "package name is not $APP_ID"
   printf '%s\n' "$badging" | grep -q "^native-code: '$native'$" || fail "native code is not $native only"
   printf '%s\n' "$badging" | grep -q "^application-debuggable" || fail "the APK is not debuggable"
+  # wry builds the DevTools call only with debug_assertions or its devtools feature.
+  unzip -p "$found" "lib/$native/*.so" | strings -a | grep -q 'setWebContentsDebuggingEnabled' \
+    || fail "the debug APK's native library has no WebView DevTools call, so the emulator verbs cannot drive it"
   cp "$found" "$out"
   echo "debug APK ($abi): $out"
 }
