@@ -2408,6 +2408,9 @@ func reserveNativeSession(
 	for attempt := 0; attempt < nativeSessionIDAttempts; attempt++ {
 		id := requested
 		requested = ""
+		if id != "" && attempt == 0 {
+			reclaimRequestedSession(runtime, harness, id, repositories)
+		}
 		if id == "" {
 			var err error
 			if id, err = nativeSessionID(runtime); err != nil {
@@ -2465,6 +2468,26 @@ func reserveNativeSession(
 		leaseCollisions,
 		directoryCollisions,
 	)
+}
+
+// reclaimRequestedSession frees a requested code an ended session left behind, as a
+// deleted pod does. Only a leaseless remnant with nothing unpushed goes.
+func reclaimRequestedSession(runtime nativeRuntime, harness, id string, repositories []nativeRepository) {
+	if _, err := os.Lstat(nativeStatePath(runtime, "leases", id+".json")); !errors.Is(err, fs.ErrNotExist) {
+		return
+	}
+	sessionRoot := filepath.Join(runtime.SessionsRoot, id)
+	for _, repository := range repositories {
+		artifact := nativeArtifact{
+			Repository: repository.Path,
+			Worktree:   filepath.Join(sessionRoot, "projects", repository.Owner, repository.Name),
+			Branch:     "aos/" + harness + "/" + id,
+		}
+		if cleaned, err := cleanNativeArtifact(artifact); err != nil || !cleaned {
+			return
+		}
+	}
+	_ = os.RemoveAll(sessionRoot)
 }
 
 func nativeGitRefExists(directory, reference string) (bool, error) {
