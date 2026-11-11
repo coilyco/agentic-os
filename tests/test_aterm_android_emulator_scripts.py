@@ -109,3 +109,21 @@ def test_open_facts_name_an_open_that_never_reached_the_daemon(tmp_path: Path) -
     thread.join(5)
     assert "welcome features: []" in facts
     assert "no open_url was asked of the daemon" in facts
+
+
+def test_the_stub_seat_is_told_which_socket_its_daemon_listens_on(tmp_path: Path) -> None:
+    """The spawn frame carries ATERM_DAEMON_SOCKET, or the seat's `aterm open` misses this daemon (COI-3559)."""
+    seat = _load("aterm_android_seat")
+    sent: list[dict] = []
+
+    def fake_talk(_sock: str):
+        def send(frame: dict, reply: bool = True) -> dict:
+            sent.append(frame)
+            return {"type": "spawned", "session": frame["session"], "pid": 1}
+
+        return send, {}
+
+    seat.talk = fake_talk
+    args = argparse.Namespace(socket=str(tmp_path / "d.sock"), seat="seat", log=str(tmp_path / "seat.log"))
+    assert seat.start(args) == 0
+    assert sent[0]["env"] == [f"ATERM_DAEMON_SOCKET={tmp_path / 'd.sock'}"]
