@@ -195,7 +195,8 @@ class Lane(J.Journey):
         """Launch and attach, then open the host and the seat if the page is not already on one."""
         self.op_launch(spec)
         page = self.page_()
-        if page.js("!!document.querySelector('#composer-input')"):
+        # The composer can be mounted under the Seats overview, so visible is what counts.
+        if page.js("(()=>{const e=document.querySelector('#composer-input');return !!e&&e.getClientRects().length>0})()"):
             return
         try:
             page.tap("()=>document.querySelector('[id^=tab-host-]')", wait=spec.get("timeout", 8))
