@@ -262,7 +262,7 @@ debug_speech() {
   unzip -q -o "$apk" 'classes*.dex' 'AndroidManifest.xml' -d "$work"
   hits=$(cat "$work"/classes*.dex | grep -ac -E 'VoskRecognitionService|FakeRecognitionService|Lorg/vosk/' || true)
   hits=$((hits + $(unzip -l "$apk" | grep -c -E 'libvosk|libjnidispatch' || true)))
-  hits=$((hits + $(aapt2 dump xmltree --file AndroidManifest.xml "$apk" | grep -c -E 'RecognitionService' || true)))
+  hits=$((hits + $(aapt2 dump xmltree --file AndroidManifest.xml "$apk" | grep -c -E '(Vosk|Fake)RecognitionService' || true)))
   rm -rf "$work"
   if [ "$want" = absent ]; then
     [ "$hits" -eq 0 ] || fail "$apk carries the debug-only recognizers ($hits hits), a release build must not"

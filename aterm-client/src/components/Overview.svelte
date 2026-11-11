@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import canopy from "../assets/treehouse-canopy.svg?url";
+  import { canopy } from "../lib/theme.svelte";
   import CloseSeat from "./CloseSeat.svelte";
   import Creature from "./Creature.svelte";
   import PagesList from "./PagesList.svelte";
@@ -71,7 +71,7 @@
 
 <section class="overview" aria-labelledby="overview-title">
   <header>
-    <button type="button" class="logo" aria-label="Treehouse logo screen" onclick={showLogo}><img src={canopy} alt="" width="32" height="32" /></button>
+    <button type="button" class="logo" aria-label="Treehouse logo screen" onclick={showLogo}><img src={canopy()} alt="" width="32" height="32" /></button>
     <div class="who">
       <h1 id="overview-title">Seats</h1>
       <p class="host">{host?.label ?? ""} // {running} {running === 1 ? "seat" : "seats"}</p>

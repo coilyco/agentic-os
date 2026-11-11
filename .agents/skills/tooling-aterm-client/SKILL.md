@@ -78,6 +78,7 @@ than editing it by hand.
 * [demo-mode.md](references/demo-mode.md) - "Try the demo": a bundled host of made-up seats with no network and no real shell, for a store reviewer with no daemon.
 * [native-notify.md](references/native-notify.md) - the Mac and Android apps' system notification for a coordinator's notify, the one-time ask, and what a tap does.
 * [android-dictation.md](references/android-dictation.md) - the composer's mic on Android: the phone's own speech recognition, why that engine, and what is not yet checked on a phone.
+* [android-speak.md](references/android-speak.md) - read a reply aloud on Android: the `speak` plugin's four commands, what it does with focus, and what is measured.
 * [save-file.md](references/save-file.md) - the app's `savefile` plugin: what Download does inside the app, the five commands, and where a file lands.
 * [android-sharetarget.md](references/android-sharetarget.md) - Treehouse as an Android Share target for images: the sheet, the plugin, and what is not yet checked on a phone.
 * [device-key.md](references/device-key.md) - the Android app's unlock with the phone's own key, as a person sees it.

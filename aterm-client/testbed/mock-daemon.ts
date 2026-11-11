@@ -117,6 +117,8 @@ export interface Mock {
   closeArtifact(session: string, id: string): void;
   /** Add a seat to the roster list, as a launch does. */
   addSession(spec: SessionSpec): void;
+  /** Open a plain shell beside a seat, as `spawn` or a stage does. Returns its name. */
+  addTerminal(label: string, scene?: Scene): string;
   /** Close the websocket from the daemon's side, as a daemon restart does. */
   dropClients(): void;
   /** Open sockets go silent without closing, as a slept phone's link does.
@@ -241,7 +243,20 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const broadcast = (frame: Record<string, unknown>): void => {
     for (const socket of clients) send(socket, frame);
   };
-  const sessionsFrame = (): Record<string, unknown> => ({ type: "sessions", sessions: [...live.values()].map(({ spec }) => withoutScene(spec)), terminals: [] });
+  // Plain shells by name, each with its seat. Attached like a seat, listed apart.
+  const shells = new Map<string, string>();
+  const sessionsFrame = (): Record<string, unknown> => ({
+    type: "sessions",
+    sessions: [...live.values()].filter(({ spec }) => !shells.has(spec.name)).map(({ spec }) => withoutScene(spec)),
+    terminals: [...shells].map(([name, label]) => ({ name, label })),
+  });
+  const addShell = (label: string, scene?: Scene): string => {
+    const name = `terminal-${shells.size + 1}`;
+    shells.set(name, label);
+    add({ name, role: "terminal", identity: "shell", seat: "zsh", ready: true, bracketed_paste: true, kai_drafting: false, pending: 0, scene: "shell" });
+    if (scene) live.get(name)!.scene = scene;
+    return name;
+  };
 
   /** Draw a seat at the size its client asked for. A client of this one's size only. */
   const draw = (seat: Live, socket: WebSocket, attach = false): void => {
@@ -435,6 +450,13 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           if (seat.scene.input?.(text)) redraw(seat);
           return;
         }
+        case "spawn": {
+          if (frame.kind !== "terminal") return;
+          const name = addShell(String(frame.label ?? ""));
+          send(socket, { type: "spawned", id: frame.id, session: name });
+          broadcast(sessionsFrame());
+          return;
+        }
         case "launch": {
           const role = String(frame.role);
           const seatKey = String(frame.seat ?? "claude");
@@ -558,6 +580,11 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     addSession(spec) {
       add(spec);
       broadcast(sessionsFrame());
+    },
+    addTerminal(label, scene) {
+      const name = addShell(label, scene);
+      broadcast(sessionsFrame());
+      return name;
     },
     dropClients() {
       for (const socket of clients) socket.close();

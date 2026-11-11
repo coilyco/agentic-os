@@ -64,6 +64,56 @@
   color-scheme: dark;
 }
 
+/* The same roles on paper (COI-3554). lib/theme.ts sets it on <html>. The plate is the
+   icon's tile, so it keeps the brown. */
+:root[data-theme="light"] {
+  --ground: #f3ebe1;
+  --terminal: #fbf7f1;
+  --terminal-veil: #fbf7f1dd;
+  --surface: #ebe2d6;
+  --hover: #e5dacb;
+  --raised: #f6efe5;
+  --selected: #e0d4c3;
+  --line: #d6c8b6;
+  --control-line: #b5a590;
+  --shade: #2a1d1030;
+  --backdrop: #efe6da;
+  --track: #2a1d1026;
+  --text: #2a1d10;
+  --text-soft: #4d3d2c;
+  --muted: #625139;
+  --treehouse: #16682f;
+  --brand-ink: #fbf7f1;
+  --warn: #b45f06;
+  --warn-text: #8a4a00;
+  --warn-fill: #f8ead0;
+  --warn-line: #e2c791;
+  --danger: #c32f43;
+  --danger-text: #9b1c2f;
+  --danger-detail: #b02a3f;
+  --danger-fill: #f9e3e5;
+  --danger-line: #e6b8be;
+  /* White is the ground here, as black is on the dark one, so a white background draws
+     no rectangle. Bright white is the strongest ink, since it is text. */
+  --ansi-black: #2a1d10;
+  --ansi-red: #b3261e;
+  --ansi-green: #1e7a3a;
+  --ansi-yellow: #8a6100;
+  --ansi-blue: #1f5fbf;
+  --ansi-magenta: #9a3c9a;
+  --ansi-cyan: #0b7a73;
+  --ansi-white: #fbf7f1;
+  --ansi-bright-black: #625139;
+  --ansi-bright-red: #c92f25;
+  --ansi-bright-green: #17803a;
+  --ansi-bright-yellow: #7a5700;
+  --ansi-bright-blue: #2456c9;
+  --ansi-bright-magenta: #a63da6;
+  --ansi-bright-cyan: #087a72;
+  --ansi-bright-white: #1f1307;
+  color-scheme: light;
+}
+
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
 body { background: var(--ground); color: var(--text); font-family: var(--font-body); }

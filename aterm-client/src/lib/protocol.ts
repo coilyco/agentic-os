@@ -157,6 +157,8 @@ export type HostEvent =
   | { type: "notice"; text: string }
   // A seat asked to open a page. Its name is the label, and the daemon names no pane.
   | { type: "open_url"; session: string; url: string }
+  // A staged command: `label` is the seat, `session` the shell beside it (COI-3306).
+  | { type: "staged"; session: string; label: string; body: string; text: string }
   | { type: "media"; item: MediaItem }
   | { type: "media_closed"; session: string; id: string }
   // The coordinator seat pinged Kai with its notify tool (COI-3517). Played once per id.

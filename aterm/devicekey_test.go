@@ -433,14 +433,14 @@ func TestTheAppOriginMayOpenASocketBesideTheConfiguredPages(t *testing.T) {
 		defer cancel()
 		return websocket.Dial(ctx, address, &websocket.DialOptions{HTTPClient: client, HTTPHeader: http.Header{"Origin": {origin}}})
 	}
-	for _, origin := range []string{appOrigin, "https://coilyco.dev"} {
+	for _, origin := range []string{appOrigin, desktopOrigin, "https://coilyco.dev"} {
 		ws, _, err := dial(origin)
 		if err != nil {
 			t.Fatalf("origin %q must open a socket: %v", origin, err)
 		}
 		_ = ws.CloseNow()
 	}
-	for _, origin := range []string{"http://tauri.localhost", "https://tauri.localhost.evil.example", "https://evil.tauri.localhost", "https://localhost"} {
+	for _, origin := range []string{"http://tauri.localhost", "tauri://evil.example", "tauri://localhost.evil.example", "tauri://localhost:8443", "http://localhost", "https://tauri.localhost.evil.example", "https://evil.tauri.localhost", "https://localhost"} {
 		if ws, _, err := dial(origin); err == nil {
 			_ = ws.CloseNow()
 			t.Fatalf("origin %q must be refused", origin)

@@ -18,7 +18,7 @@ import {
   DEMO_PREFIX,
   DEMO_ROLES,
   MEDIA_SEAT,
-  MESSAGES,
+  messagesFor,
   runDemoLine,
   SEAT_PROMPT,
   SEAT_REPLIES,
@@ -190,7 +190,7 @@ export class DemoHost implements HostConnection {
   }
 
   private deliver(which: number): void {
-    const entry = MESSAGES.find((each) => each.after === which);
+    const entry = messagesFor((slug) => identityOf(this.roles, slug)).find((each) => each.after === which);
     if (!entry) return;
     this.messages = [...this.messages, entry.message];
     if (entry.typed && entry.message.session) this.write(entry.message.session, `\r\n${envelope(entry.message.from)} ${entry.typed}${SEAT_PROMPT}`);

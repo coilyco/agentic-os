@@ -99,6 +99,22 @@ func newDaemonCommand() *cli.Command {
 				Sources: cli.EnvVars("ATERM_TREEHOUSE_DIR"),
 			},
 			&cli.StringFlag{
+				Name:    "treehouse-provision-secret-file",
+				Usage:   "file holding the secret that lets this daemon claim its Treehouse certificate with no code typed, for a target Treehouse starts itself. Needs the three flags above",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_PROVISION_SECRET_FILE"),
+			},
+			&cli.StringFlag{
+				Name:    "treehouse-name",
+				Usage:   "this daemon's name in the client when it claims a certificate, the host name when empty",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_NAME"),
+			},
+			&cli.StringFlag{
+				Name:    "treehouse-substrate",
+				Value:   "other",
+				Usage:   "mac, microvm, gke or other, sent when this daemon claims a certificate",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_SUBSTRATE"),
+			},
+			&cli.StringFlag{
 				Name:    "treehouse-config-dir",
 				Usage:   "directory holding the Treehouse configuration snapshot, else AGENT_COMPOSE_CONFIG_DIR, else ~/.agent-compose/config. off reads none",
 				Sources: cli.EnvVars("ATERM_TREEHOUSE_CONFIG_DIR"),
@@ -141,6 +157,10 @@ func newDaemonCommand() *cli.Command {
 					Accounts:  cmd.String("treehouse-accounts"),
 					Dir:       cmd.String("treehouse-dir"),
 					ConfigDir: cmd.String("treehouse-config-dir"),
+
+					ProvisionSecretFile: cmd.String("treehouse-provision-secret-file"),
+					Name:                cmd.String("treehouse-name"),
+					Substrate:           cmd.String("treehouse-substrate"),
 				},
 			}, cmd.Root().ErrWriter)
 		},
