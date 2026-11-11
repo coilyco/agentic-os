@@ -11,6 +11,12 @@ export async function listedSeats(page: Page): Promise<string[]> {
   return tabs.length ? tabs : page.locator("[data-seat]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-seat")!));
 }
 
+/** Reloads, then opens the seat again: a launch rests on the overview, not on a seat. */
+export async function reopenSeat(page: Page, who: { name: string }): Promise<void> {
+  await page.reload();
+  await seatEntry(page, who.name).click();
+}
+
 /** A seat as found with none open: its tab on a desktop, else its overview row. */
 export function seatEntry(page: Page, who: string | RegExp): Locator {
   const name = typeof who === "string" ? new RegExp(who) : who;
