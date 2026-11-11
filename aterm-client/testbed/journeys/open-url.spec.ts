@@ -50,3 +50,16 @@ test("a second link from the same seat is one card, and two seats count behind t
   bed.mock.push({ type: "open_url", session: SEATS.turtle.id, url: "https://docs.example.com/" });
   await expect(card(bed)).toContainText("Turtle-Ox opened a page, and 1 more is waiting");
 });
+
+// COI-3328: a card nobody is looking at still pulls the eye, the way a seat asking does.
+test("a seat's page card is a waiting seat: the title says so and its row glows", async ({ bed }) => {
+  await bed.openSeat(SEATS.griffin);
+  await expect(bed.page).toHaveTitle("Treehouse");
+  bed.mock.push({ type: "open_url", session: SEATS.beetle.id, url: URL });
+  await expect(bed.page, "the tab title names who opened a page").toHaveTitle("(1) Beetle-Ox opened a page // Treehouse");
+  const phone = (bed.page.viewportSize()?.width ?? 0) < 900;
+  if (phone) await expect(bed.page.getByRole("status").filter({ hasText: "Beetle-Ox opened a page" }).first()).toBeVisible();
+  else await expect(bed.page.locator(`.seat[data-glow="true"]`, { hasText: "Beetle-Ox" }), "its row in the list glows and says what it did").toContainText("opened a page");
+  await card(bed).getByRole("button", { name: "Not now" }).click();
+  await expect(bed.page, "an answered card is no longer waiting").toHaveTitle("Treehouse");
+});

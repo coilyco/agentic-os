@@ -36,4 +36,13 @@ describe("seatsNeedingKai", () => {
     const found = seatsNeedingKai([ask("role-seat-5", { relay: true, cardSeat: "role-seat-0" })], [], twenty);
     expect(found.map((each) => each.sessionId)).toEqual(["role-seat-0"]);
   });
+
+  it("counts a seat with a page card waiting, after asks and pages, once (COI-3328)", () => {
+    const found = seatsNeedingKai([ask("role-seat-3")], [page("role-seat-9")], twenty, [{ sessionId: "role-seat-3" }, { sessionId: "role-seat-5" }]);
+    expect(found.map((each) => [each.identity, each.kind])).toEqual([["Seat-3", "asking"], ["Seat-9", "artifact"], ["Seat-5", "opened"]]);
+  });
+
+  it("leaves out a page card whose seat is not in the roster", () => {
+    expect(seatsNeedingKai([], [], twenty, [{ sessionId: "gone" }])).toEqual([]);
+  });
 });
