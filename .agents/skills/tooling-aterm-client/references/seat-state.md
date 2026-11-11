@@ -23,7 +23,7 @@ Daemon fields the seat rows and the pinned reply read (COI-3289, COI-3303, COI-3
 * `background` is how many background tasks the seat's footer counts (shells, monitors, read off the `⏵⏵` line of a claude seat, 2026-11-09). A seat waiting on CI reads `idle` and `background: 1`. Feature `background`.
 * **Absent means unknown, never zero.** Absent from an old daemon, from another harness, from a footer cut by the terminal width, and while a card or startup screen hides the footer. Offer one-tap close on `background: 0` alone.
 * A `close` of a seat whose checkouts hold commits on no remote or changed files is refused with `reason: "unpushed_work"` (feature `close-unpushed`). Show the error text, and send the close again with `force` only after a confirm. Names a checkout under the seat's directory, at most two levels down.
-* `{type: "reopen", target: "name@ref"}` resumes a closed claude seat headless, answered `reopened` with `role` and `seat`. It claims a fresh name, so find the seat in the next `sessions` push. Refused with no conversation on record, or while the name is live. Feature `reopen`.
+* `{type: "reopen", target: "name@ref"}` resumes a closed seat headless, whatever its harness, answered `reopened` with `role` and `seat`. It claims a fresh name, so find the seat in the next `sessions` push. Refused with no conversation on record, or while the name is live. Feature `reopen`.
 
 ## Notify
 

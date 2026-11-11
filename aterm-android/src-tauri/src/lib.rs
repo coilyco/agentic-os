@@ -7,6 +7,7 @@ pub fn run() {
     .plugin(tauri_plugin_devicekey::init())
     .plugin(tauri_plugin_dictation::init())
     .plugin(tauri_plugin_sharetarget::init())
+    .plugin(tauri_plugin_savefile::init())
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_notification::init());
   // The desktop config declares no window, so the window opens here with its seed.

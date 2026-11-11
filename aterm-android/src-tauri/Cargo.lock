@@ -190,6 +190,7 @@ dependencies = [
  "tauri-plugin-dictation",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
+ "tauri-plugin-savefile",
  "tauri-plugin-sharetarget",
 ]
 
@@ -3627,6 +3628,17 @@ dependencies = [
  "url",
  "windows",
  "zbus 5.19.0",
+]
+
+[[package]]
+name = "tauri-plugin-savefile"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "serde",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

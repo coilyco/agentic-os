@@ -186,7 +186,7 @@ func TestResumeNamesClaudeForTheGrantedPoolNameNotTheRecordedOne(t *testing.T) {
 			var spawns []recordedSpawn
 			deps := stubDeps(t, &spawns, true)
 			deps.claim = func(string, bool) string { return granted }
-			args, err := resumeArgs(entry, false, false)
+			args, err := resumeArgs(entry, nil, false, false)
 			if err != nil {
 				t.Fatal(err)
 			}

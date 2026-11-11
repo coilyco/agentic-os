@@ -62,12 +62,11 @@ func findResumable(entries []ledgerEntry, live map[string]bool, target string) (
 }
 
 // resumeArgs is the launch that reopens an entry's conversation, in its old directory
-// when that still exists. No --name, so the claim names claude. See docs/aterm.md.
-func resumeArgs(entry ledgerEntry, headless, dryRun bool) ([]string, error) {
-	if entry.Seat != "claude" || entry.Conversation == "" {
-		return nil, withExit(exitUsage, fmt.Errorf(
-			"%s has no conversation to resume: only a claude session minted with an id is recorded, and this one is %q",
-			entry.Name, entry.Seat))
+// when that still exists. `all` is the ledger, for peers when finding it. docs/aterm.md.
+func resumeArgs(entry ledgerEntry, all []ledgerEntry, headless, dryRun bool) ([]string, error) {
+	resume, err := resumeHarnessArgs(entry, all)
+	if err != nil {
+		return nil, err
 	}
 	var args []string
 	if headless {
@@ -79,7 +78,7 @@ func resumeArgs(entry ledgerEntry, headless, dryRun bool) ([]string, error) {
 	if info, err := os.Stat(entry.Cwd); err == nil && info.IsDir() {
 		args = append(args, "--working-directory", entry.Cwd)
 	}
-	return append(args, entry.Role, entry.Seat, "--", "--resume", entry.Conversation), nil
+	return append(append(args, entry.Role, entry.Seat, "--"), resume...), nil
 }
 
 // keepPermissionMode leaves the mode the conversation stored, which is claude's own rule.
@@ -87,9 +86,10 @@ const keepPermissionMode = "keep"
 
 // harnessArgs are what follows `--resume <id>`: the permission mode, unless the caller
 // named one or asked to keep the stored one, then the caller's own harness arguments.
-func harnessArgs(mode string, extra []string) []string {
+func harnessArgs(seat, mode string, extra []string) []string {
 	var args []string
-	if mode != "" && mode != keepPermissionMode && !callerSetsPermissions(extra) {
+	// A permission mode is claude's. Another harness would take it as an unknown flag.
+	if seat == "claude" && mode != "" && mode != keepPermissionMode && !callerSetsPermissions(extra) {
 		args = append(args, "--permission-mode", mode)
 	}
 	return append(args, extra...)
@@ -112,7 +112,9 @@ func newResumeCommand() *cli.Command {
 		ArgsUsage: "[session or role]",
 		Description: "The daemon records each session in " + stateDirEnv + " or ~/.local/state/aterm/sessions,\n" +
 			"never its environment. Resume relaunches the role with the harness's own resume of the\n" +
-			"recorded conversation, so the new session carries the old one's context.",
+			"recorded conversation, so the new session carries the old one's context. Claude's id is\n" +
+			"recorded at launch. A codex, goose or opencode conversation is found in that harness's\n" +
+			"own files, so it resumes only while they are still there.",
 		Flags: []cli.Flag{
 			&cli.BoolFlag{Name: "list", Usage: "list the sessions that can be resumed"},
 			&cli.BoolFlag{Name: "headless", Usage: "resume in the daemon with no window"},
@@ -136,11 +138,11 @@ func newResumeCommand() *cli.Command {
 			if err != nil {
 				return err
 			}
-			args, err := resumeArgs(entry, cmd.Bool("headless"), cmd.Bool("dry-run"))
+			args, err := resumeArgs(entry, entries, cmd.Bool("headless"), cmd.Bool("dry-run"))
 			if err != nil {
 				return err
 			}
-			args = append(args, harnessArgs(cmd.String("permission-mode"), cmd.Args().Tail())...)
+			args = append(args, harnessArgs(entry.Seat, cmd.String("permission-mode"), cmd.Args().Tail())...)
 			self, err := os.Executable()
 			if err != nil {
 				return err
@@ -148,6 +150,15 @@ func newResumeCommand() *cli.Command {
 			return resumeRun(self, args, cmd.Root().Writer, cmd.Root().ErrWriter)
 		},
 	}
+}
+
+// resumeCause keeps a long wrapped error to the part that names the cause.
+func resumeCause(text string) string {
+	text = firstLine(text)
+	if index := strings.LastIndex(text, ": "); index >= 0 && len(text) > 110 {
+		return text[index+2:]
+	}
+	return text
 }
 
 func listResumable(out io.Writer, entries []ledgerEntry, live map[string]bool) error {
@@ -160,8 +171,8 @@ func listResumable(out io.Writer, entries []ledgerEntry, live map[string]bool) e
 		if entry.Ended != nil {
 			state = "ended " + entry.Ended.Local().Format(time.DateTime)
 		}
-		if entry.Seat != "claude" || entry.Conversation == "" {
-			note = "  (not resumable: no conversation id)"
+		if _, err := resumeHarnessArgs(entry, entries); err != nil {
+			note = "  (not resumable: " + resumeCause(err.Error()) + ")"
 		}
 		fmt.Fprintf(out, "%s  %s  %s%s\n", entry.Name, entry.Role, state, note)
 		shown++
