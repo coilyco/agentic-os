@@ -1,4 +1,4 @@
-//! The desktop window: opens on this machine's daemon and its director seat.
+//! The desktop window: opens on this machine's daemon, with its director seat kept live.
 //! Why and how: tooling-aterm-client/references/desktop.md.
 
 use std::{process::Command, thread::sleep, time::Duration};
@@ -18,7 +18,9 @@ struct Roster {
   sessions: Vec<Seat>,
 }
 
+// The window no longer opens a seat, so only the tests read name and identity (COI-3579).
 #[derive(Deserialize, Debug, PartialEq)]
+#[cfg_attr(not(test), allow(dead_code))]
 pub struct Seat {
   pub name: String,
   pub role: String,
@@ -63,29 +65,27 @@ fn ensure_director() -> Option<Seat> {
   live_director()
 }
 
-/// Runs before the page's script on every load. It writes the client's own storage keys
-/// (saved-hosts.ts, last-open.ts) because an app build seeds neither. See desktop.md.
+/// Runs before the page's script on every load. It writes the client's storage keys
+/// (hosts, last-open: the host, no seat) since an app seeds none. See desktop.md.
 const SEED: &str = "try{const A=__ADDRESS__;let h=[];\
 try{h=JSON.parse(localStorage.getItem('aterm.hosts.v1')||'[]')}catch(e){}\
 if(!Array.isArray(h))h=[];\
 if(!h.some(x=>x&&x.address===A)){h.unshift({label:'this Mac',address:A});localStorage.setItem('aterm.hosts.v1',JSON.stringify(h))}\
-if(!sessionStorage.getItem('treehouse.seeded')){__OPEN__}}catch(e){}";
+if(!sessionStorage.getItem('treehouse.seeded')){sessionStorage.setItem('treehouse.seeded','1');\
+localStorage.setItem('aterm.last-open.v1',JSON.stringify({host:'saved:'+A}))}}catch(e){}";
 
-const OPEN: &str = "sessionStorage.setItem('treehouse.seeded','1');\
-localStorage.setItem('aterm.last-open.v1',JSON.stringify({host:'saved:'+A,seat:{id:__ID__,who:__WHO__}}));";
-
-pub fn seed_script(seat: Option<&Seat>) -> String {
+pub fn seed_script() -> String {
   let json = |text: &str| serde_json::to_string(text).unwrap_or_default();
-  let open = seat.map_or(String::new(), |seat| OPEN.replace("__ID__", &json(&seat.name)).replace("__WHO__", &json(&seat.identity)));
-  SEED.replace("__ADDRESS__", &json(LOCAL_DAEMON)).replace("__OPEN__", &open)
+  SEED.replace("__ADDRESS__", &json(LOCAL_DAEMON))
 }
 
 pub fn open(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
-  let seat = ensure_director();
+  // The director is kept live for the overview to list. No seat is opened on it.
+  ensure_director();
   WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
     .title("Treehouse")
     .inner_size(1280.0, 860.0)
-    .initialization_script(seed_script(seat.as_ref()))
+    .initialization_script(seed_script())
     .build()?;
   Ok(())
 }
@@ -116,18 +116,18 @@ mod tests {
   }
 
   #[test]
-  fn the_script_names_the_loopback_daemon_and_the_seat() {
-    let seat = Seat { name: "prod-director-griffin-goose".into(), role: "prod-director".into(), identity: "Griffin-Goose".into() };
-    let script = seed_script(Some(&seat));
+  fn the_script_names_the_loopback_daemon_and_the_host_to_rest_on() {
+    let script = seed_script();
     assert!(script.contains("ws://127.0.0.1:7419/"));
-    assert!(script.contains("\"prod-director-griffin-goose\""));
+    assert!(script.contains("aterm.hosts.v1"));
     assert!(script.contains("aterm.last-open.v1"));
+    assert!(script.contains("{host:'saved:'+A}"));
   }
 
   #[test]
-  fn with_no_seat_the_script_still_seeds_the_host_and_leaves_last_open_alone() {
-    let script = seed_script(None);
-    assert!(script.contains("aterm.hosts.v1"));
-    assert!(!script.contains("aterm.last-open.v1"));
+  fn the_script_opens_no_seat() {
+    let script = seed_script();
+    assert!(!script.contains("seat:"));
+    assert!(!script.contains("prod-director"));
   }
 }

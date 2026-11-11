@@ -12,7 +12,7 @@ A windowed Tauri 2 app around the same client bundle the [Android app](android.m
 
 * **It waits up to 30 seconds for the daemon**, since the daemon LaunchAgent and a Login Item start together, then asks `aterm agents --json` for a live `prod-director`.
 * **It opens one headless when there is none**, with `aterm --headless prod-director`. A live director is never duplicated.
-* **It opens the window with an initialization script** that adds `this Mac` (`ws://127.0.0.1:7419/`) to `aterm.hosts.v1` when absent, and on the first load of the window writes `aterm.last-open.v1`. The client keeps the host from it and ignores the seat, since the app rests on the seat overview and not on the director's terminal (COI-3518). A host the person added stays.
+* **It opens the window with an initialization script** that adds `this Mac` (`ws://127.0.0.1:7419/`) to `aterm.hosts.v1` when absent, and on the first load of the window writes `aterm.last-open.v1` with the host and no seat, so the app rests on the seat overview and not on the director's terminal (COI-3518, COI-3579). The director is still kept live for the overview to list. A host the person added stays.
 
 The loopback daemon accepts the webview's `tauri://localhost` origin, since its origin check reads the host and not the scheme. **A second target is a saved host**, typed in the host panel and kept on the device, so a cloud target needs no rebuild (COI-3469). Discovery, the broker and a `wss` host work as in any app build.
 

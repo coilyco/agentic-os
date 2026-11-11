@@ -154,3 +154,28 @@ def test_the_wide_client_holds_the_wide_seat_at_its_columns_until_down(daemon) -
     assert size["cols"] == fixtures.WIDE_COLS, size
     assert "wide client stopped" in script("down", "--socket", path, env=env).stdout
     assert "wide client not up" in script("status", "--socket", path, env=env).stdout
+
+
+def _screen(seat: str, env: dict[str, str], want: str) -> str:
+    for _ in range(20):
+        shown = subprocess.run(["aterm", "status", seat], env=env, capture_output=True, text=True, check=False, timeout=20).stdout
+        if want in shown:
+            return shown
+        time.sleep(0.5)
+    return shown
+
+
+@needs_aterm
+def test_the_alt_screen_seat_fills_its_screen_and_reads_the_wheel(daemon) -> None:
+    path, env = daemon
+    script("up", "--socket", path, env=env)
+    shown = _screen("fixture-alt", env, "wheel:none")
+    assert "alt row 20" in shown and "wheel:none" in shown, shown
+
+
+@needs_aterm
+def test_the_mouse_seat_keeps_a_long_history_on_the_normal_screen(daemon) -> None:
+    path, env = daemon
+    script("up", "--socket", path, env=env)
+    shown = _screen("fixture-mouse", env, "history line 200")
+    assert "history line 200" in shown, shown

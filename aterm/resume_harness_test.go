@@ -243,3 +243,75 @@ func TestResumeVerbRelaunchesAGooseAndACodexSeatWithNoPermissionModeAndListsTheO
 		}
 	}
 }
+
+// shadowArgv is the argv a seat leaves when `aos _native-shadow` runs it, as read from a
+// real ledger record on the Mac.
+func shadowArgv(id string) []string {
+	return []string{"/Users/kai/.local/bin/aos", "_native-shadow", "--harness", "goose", "--role", "prod-manager",
+		"--session-id", id, "--assigned-role", "--", "/opt/homebrew/bin/agent-compose", "launch", "prod-manager", "goose"}
+}
+
+func sqliteExec(t *testing.T, db, statements string) {
+	t.Helper()
+	command := exec.Command("sqlite3", db)
+	command.Stdin = strings.NewReader(statements)
+	if out, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("sqlite3: %v\n%s", err, out)
+	}
+}
+
+func TestAShadowSeatsConversationIsFoundInTheShadowDirectoryAndNotAnotherShadows(t *testing.T) {
+	const here, other = "/private/tmp/native/cf65/projects", "/private/tmp/native/zz99/projects"
+	goose := gooseSeat(t)
+	goose.Cwd, goose.Argv = "/launch/named/this", shadowArgv("cf65")
+	sqliteExec(t, gooseDB(goose), "UPDATE sessions SET working_dir = '"+here+"' WHERE id = '"+gooseSess+"';"+
+		"INSERT INTO sessions (id, name, working_dir, session_type, created_at) VALUES ('20261110_9', 'x', '"+other+"', 'user', '2026-11-10 21:00:40');"+
+		"INSERT INTO sessions (id, name, working_dir, session_type, created_at) VALUES ('20261110_10', 'x', '/private/tmp/native/cf65/projects-old', 'user', '2026-11-10 21:00:50');")
+	if got, err := resumeHarnessArgs(goose, nil); err != nil || !slices.Equal(got, []string{"session", "--resume", "--session-id", gooseSess}) {
+		t.Fatalf("goose: %v, %v", got, err)
+	}
+
+	opencode := opencodeSeat(t)
+	opencode.Cwd, opencode.Argv = "/launch/named/this", shadowArgv("cf65")
+	sqliteExec(t, opencodeDB(opencode), "UPDATE session SET directory = '"+here+"/coilyco/repo' WHERE id = '"+opencodeSess+"';")
+	if got, err := resumeHarnessArgs(opencode, nil); err != nil || !slices.Equal(got, []string{"--session", opencodeSess}) {
+		t.Fatalf("opencode, a repo under the shadow projects: %v, %v", got, err)
+	}
+
+	codex := codexSeat(t)
+	codex.Cwd, codex.Argv = "/launch/named/this", shadowArgv("cf65")
+	files, _ := filepath.Glob(filepath.Join(codex.Dirs["CODEX_HOME"], "sessions", "*", "*", "*", "rollout-*.jsonl"))
+	if len(files) != 1 {
+		t.Fatalf("rollout files: %v", files)
+	}
+	body, _ := os.ReadFile(files[0])
+	if err := os.WriteFile(files[0], []byte(strings.Replace(string(body), `"cwd":"/work/demo"`, `"cwd":"`+here+`"`, 1)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := resumeHarnessArgs(codex, nil); err != nil || !slices.Equal(got, []string{"resume", codexThread}) {
+		t.Fatalf("codex: %v, %v", got, err)
+	}
+
+	stranger := gooseSeat(t)
+	stranger.Cwd, stranger.Argv = "/launch/named/this", shadowArgv("ab12")
+	sqliteExec(t, gooseDB(stranger), "UPDATE sessions SET working_dir = '"+here+"' WHERE id = '"+gooseSess+"';")
+	if _, err := resumeHarnessArgs(stranger, nil); exitCodeFor(err) != exitOffRoster {
+		t.Fatalf("a session in cf65's shadow is not ab12's: %v", err)
+	}
+}
+
+func TestSeatsInTwoShadowsAreNotPeersEvenWhenTheyNamedOneDirectory(t *testing.T) {
+	a, b := ledgerEntry{Name: "a", Seat: "goose", Cwd: "/Users/kai/projects", Argv: shadowArgv("cf65"), Started: seatStart},
+		ledgerEntry{Name: "b", Seat: "goose", Cwd: "/Users/kai/projects", Argv: shadowArgv("bu95"), Started: seatStart.Add(time.Minute)}
+	same := func(ledgerEntry) string { return "db" }
+	if peers := peersOf(a, []ledgerEntry{a, b}, same); len(peers) != 0 {
+		t.Fatalf("two shadows are two stores of conversations, got %v", peers)
+	}
+	a.Argv, b.Argv = nil, nil
+	if peers := peersOf(a, []ledgerEntry{a, b}, same); len(peers) != 1 {
+		t.Fatalf("two seats with no shadow in one directory still are peers, got %v", peers)
+	}
+	if id := (ledgerEntry{Argv: []string{"x", "_native-shadow", "--", "--session-id", "cf65"}}).shadowID(); id != "" {
+		t.Fatalf("a --session-id after the harness's own `--` is not the shadow's: %q", id)
+	}
+}
