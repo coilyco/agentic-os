@@ -154,7 +154,7 @@ class Lane(J.Journey):
         """Launch and attach, then tap the host and the seat if the page is not already on one."""
         self.op_launch(spec)
         page = self.page_()
-        for finder in ("()=>document.querySelector('[id^=tab-host-]')", J.by_text("frontend-eng", "nav button")):
+        for finder in ("()=>document.querySelector('[id^=tab-host-]')", J.by_text("frontend-eng", "button")):
             try:
                 page.tap(finder, wait=spec.get("timeout", 8))
             except Fail:
