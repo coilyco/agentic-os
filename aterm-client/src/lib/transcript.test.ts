@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeItem, decodeReply, mergeItems, refusalText, rowsFor, withoutPeers, type TranscriptItem } from "./transcript";
+import { decodeItem, decodeReply, mergeItems, refusalText, rowsFor, withoutPeers, withoutThinking, type TranscriptItem } from "./transcript";
 
 const turn: TranscriptItem[] = [
   { id: "1", kind: "prompt", text: "Why does the wrapped row hide the stripe?" },
@@ -137,5 +137,23 @@ describe("text the host cut", () => {
     const rows = rowsFor([{ id: "1", kind: "prompt", text: "a" }, { id: "2", kind: "reply", text: "b", truncated: true }], "verbose");
     expect(rows.map((row) => (row.kind === "tool" ? false : row.cut))).toEqual([false, true]);
     expect(decodeItem({ id: "2", kind: "reply", text: "b", truncated: true, text_bytes: 99 })).toMatchObject({ truncated: true });
+  });
+});
+
+describe("a model's own reasoning in a reply", () => {
+  const think = (id: string, text: string): TranscriptItem => ({ id, kind: "reply", text, complete: true });
+  it("is cut out of the text, including one that was never closed", () => {
+    expect(withoutThinking("<think>plan the answer</think>Here it is.")).toBe("Here it is.");
+    expect(withoutThinking("Before <think>a</think> middle <think>b</think>after")).toBe("Before  middle after");
+    expect(withoutThinking("Answer<think>half a thought")).toBe("Answer");
+    expect(withoutThinking("<think>only thought</think>")).toBe("");
+  });
+
+  it("stays in Verbose and leaves Focus and Default, and a reply that was all thought draws nothing", () => {
+    const items: TranscriptItem[] = [{ id: "p", kind: "prompt", text: "Hi" }, think("a", "<think>hmm</think>Real answer."), think("b", "<think>only this</think>")];
+    expect(rowsFor(items, "verbose").filter((row) => row.kind === "reply").map((row) => (row as { text: string }).text)).toEqual(["<think>hmm</think>Real answer.", "<think>only this</think>"]);
+    for (const level of ["focus", "default"] as const) {
+      expect(rowsFor(items, level).filter((row) => row.kind === "reply").map((row) => (row as { text: string }).text), level).toEqual(["Real answer."]);
+    }
   });
 });

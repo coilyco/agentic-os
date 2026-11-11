@@ -1,5 +1,6 @@
 import { app, openByPerson, openSeat, placeNow, selectHost } from "./app.svelte";
 import { chime } from "./chime";
+import { askPermission, listenForTaps, nativeCore, permissionOf, showNative } from "./native-notify";
 import { noticeFor, SeenIds, wantsDesktopNotice } from "./notify";
 import type { Notify } from "./protocol";
 import { disablePush, enablePush, liveBrowser, loadPushHosts, lockedMessage, PushError, pushIsOn, pushUnavailable, resolveSeat, seatFromLocation, storePushHosts, type PendingSeat } from "./push";
@@ -97,11 +98,35 @@ export function takeLaunchSeat(): void {
 
 const seenNotes = new SeenIds();
 
+let askedNative = false;
+
+/** In the app, asks the system once per launch, from the foreground, where a prompt can
+ * show. Later pings show only what was allowed, and a no is not asked again. */
+export async function askNativeOnce(): Promise<void> {
+  const core = nativeCore();
+  if (!core || askedNative) return;
+  askedNative = true;
+  if ((await permissionOf(core)) === "ask") await askPermission(core);
+}
+
+/** In the app, a tap on a notification opens the seat it names. Returns how to stop. */
+export async function listenForNativeTaps(): Promise<() => void> {
+  const core = nativeCore();
+  return core ? listenForTaps(core, openSeatFromNotification) : () => {};
+}
+
 /** A coordinator ping: the chime if Sound is on, and a notice if the browser allows.
  * The tap opens the sending seat, as a Web Push does. Each id is handled once. */
 export async function handleNotify(note: Notify): Promise<void> {
   if (!seenNotes.first(note.id)) return;
   if (app.alerts.sound) chime();
+  const core = nativeCore();
+  if (core) {
+    // The app shows it through the system, only while the person is not on that seat.
+    const seen = { focused: typeof document !== "undefined" && document.hasFocus(), openSeat: openSeat() };
+    if (wantsDesktopNotice(seen, note) && (await permissionOf(core)) === "granted") await showNative(core, note);
+    return;
+  }
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   if (!wantsDesktopNotice({ focused: typeof document !== "undefined" && document.hasFocus(), openSeat: openSeat() }, note)) return;
   const { title, options } = noticeFor(note);

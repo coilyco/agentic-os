@@ -1,5 +1,5 @@
-// COI-3346: switch a role off and its quiet seats leave the list. A seat that asks, is
-// pinned or is open stays, a note counts the hidden, and a reload keeps the choice.
+// COI-3346: switch a role off in Settings and its quiet seats leave the list. A seat that
+// asks, is pinned or is open stays, a note counts the hidden, a reload keeps the choice.
 import type { Page } from "@playwright/test";
 import { expect, kindOf, SEATS, test, listedSeats } from "../harness.ts";
 import type { SessionSpec } from "../mock-daemon.ts";
@@ -19,11 +19,25 @@ const ask = {
 };
 
 const ids = (page: Page) => listedSeats(page);
-const openMenu = async (page: Page, phone: boolean) => {
+const settings = (page: Page) => page.getByRole("region", { name: "Settings" });
+const role = (page: Page) => settings(page).getByRole("switch", { name: /Platform Engineer/ });
+// A phone's list is a sheet over the seat, and Settings is its own page: Back returns.
+const openList = async (page: Page, phone: boolean) => {
+  if (phone) await page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ }).click();
+};
+const openSettings = async (page: Page, phone: boolean) => {
   if (phone) {
-    await page.getByRole("button", { name: /Seats, starting a seat, hosts and alerts/ }).click();
-    await page.getByText("Alerts and hosts").click();
+    if (!(await page.getByText("Hosts and settings").isVisible())) await openList(page, phone);
+    await page.getByText("Hosts and settings").click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+  } else {
+    await page.getByRole("navigation", { name: "Hosts and sessions" }).getByRole("button", { name: "Settings", exact: true }).click();
   }
+};
+const backToList = async (page: Page, phone: boolean) => {
+  if (!phone) return;
+  await settings(page).getByRole("button", { name: "Back" }).click();
+  await openList(page, phone);
 };
 const hiddenEngineers = (all: string[]) => engineers.filter((each) => !all.includes(each.name));
 
@@ -34,9 +48,9 @@ test.describe("hide a role", () => {
     const phone = kindOf(info) === "phone";
     await bed.openSeat(SEATS.imp);
     bed.mock.push(ask);
-    await openMenu(bed.page, phone);
-    await expect(bed.page.getByRole("tab", { name: /Eng-1,/ }).first()).toBeVisible();
-    await bed.page.getByRole("switch", { name: /Platform Engineer/ }).uncheck();
+    await openSettings(bed.page, phone);
+    await role(bed.page).uncheck();
+    await backToList(bed.page, phone);
     await expect(bed.page.getByRole("status").filter({ hasText: "11 seats are hidden." })).toBeVisible();
     const left = await ids(bed.page);
     expect(hiddenEngineers(left).length, "eleven engineers are out of the list").toBe(11);
@@ -48,29 +62,28 @@ test.describe("hide a role", () => {
   test("a reload keeps the choice, and Show them brings every engineer back", async ({ bed }, info) => {
     const phone = kindOf(info) === "phone";
     await bed.openSeat(SEATS.imp);
-    await openMenu(bed.page, phone);
-    await bed.page.getByRole("switch", { name: /Platform Engineer/ }).uncheck();
+    await openSettings(bed.page, phone);
+    await role(bed.page).uncheck();
+    await backToList(bed.page, phone);
     await expect(bed.page.getByRole("status").filter({ hasText: "12 seats are hidden." })).toBeVisible();
     await bed.page.reload();
     await expect(bed.page.getByRole("heading", { name: "Seats", level: 1 })).toBeVisible();
     await expect(bed.page.getByRole("status").filter({ hasText: "12 seats are hidden." }).first(), "still hidden after a reload").toBeVisible();
-    // A phone's role switches sit in a seat's sheet, so read them with a seat open.
-    if (!phone) await expect(bed.page.getByRole("switch", { name: /Platform Engineer/ })).not.toBeChecked();
     await bed.page.getByRole("button", { name: "Show them" }).first().click();
     await expect.poll(async () => hiddenEngineers(await ids(bed.page)).length).toBe(0);
-    if (phone) {
-      await bed.openSeat(SEATS.imp);
-      await openMenu(bed.page, phone);
-    }
-    await expect(bed.page.getByRole("switch", { name: /Platform Engineer/ })).toBeChecked();
+    // Settings holds the switch, and it follows the button.
+    await bed.page.getByRole("button", { name: "Settings", exact: true }).first().click();
+    await expect(role(bed.page), "the switch is back on").toBeChecked();
   });
 
   test("a pinned seat of a hidden role stays in the list", async ({ bed }, info) => {
     const phone = kindOf(info) === "phone";
     await bed.openSeat(SEATS.imp);
-    await openMenu(bed.page, phone);
+    await openList(bed.page, phone);
     await bed.page.locator(".seat-row").filter({ hasText: "Eng-3" }).getByRole("button", { name: "Pin to the top" }).click();
-    await bed.page.getByRole("switch", { name: /Platform Engineer/ }).uncheck();
+    await openSettings(bed.page, phone);
+    await role(bed.page).uncheck();
+    await backToList(bed.page, phone);
     await expect(bed.page.getByRole("status").filter({ hasText: "11 seats are hidden." })).toBeVisible();
     expect(await ids(bed.page)).toContain("eng-platform-e03");
   });

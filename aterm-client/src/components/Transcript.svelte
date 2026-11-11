@@ -6,11 +6,14 @@
   import type { TranscriptChannel } from "../lib/protocol";
   import { linkTarget } from "../lib/terminal-extras";
   import { mergeItems, rowsFor, TranscriptRefused, type Level, type PeerRef, type TranscriptItem } from "../lib/transcript";
+  import { cacheKey, catchUp, loadSnapshot, markerRow, saveSnapshot } from "../lib/transcript-cache";
 
-  let { channel, sessionId, level, onrefused, onpeer }: { channel: TranscriptChannel; sessionId: string; level: Level; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void } = $props();
+  // `restore` is false for a device that has not unlocked, which never shows a kept page.
+  let { channel, sessionId, hostId, restore, level, onrefused, onpeer }: { channel: TranscriptChannel; sessionId: string; hostId: string; restore: boolean; level: Level; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void } = $props();
 
   const PAGE = 50;
   const POLL_MS = 2000;
+  const MARKER_MS = 8000;
   let items = $state<TranscriptItem[]>([]);
   let cursor = "";
   // Sent back to ask for the page before the first item held.
@@ -19,11 +22,22 @@
   let phase = $state<"loading" | "ready">("loading");
   let stale = $state(false);
   let updatedAt = $state<number | undefined>();
+  // The page kept from last time is shown while the host is asked, and `catching` says so.
+  let catching = $state(false);
+  // The first item this device has not seen, from the catch-up on open. Live arrivals never set it.
+  let newFrom = $state<string | undefined>();
+  let heard = false;
+  // svelte-ignore state_referenced_locally
+  const key = cacheKey(hostId, sessionId);
+  // svelte-ignore state_referenced_locally
+  const kept = restore ? loadSnapshot(key) : Promise.resolve(null);
+  let firstRead = true;
   let now = $state(Date.now());
   let list = $state<HTMLDivElement>();
   // Whether the view sits at the newest line, so arriving text follows and a person's place is kept.
   let pinned = $state(true);
   const rows = $derived(rowsFor(items, level));
+  const markerKey = $derived(markerRow(items, rows.map((row) => row.key), newFrom));
   const age = $derived(replyAge(updatedAt, now));
 
   const atEnd = () => !list || list.scrollHeight - list.scrollTop - list.clientHeight < 4;
@@ -37,14 +51,45 @@
 
   async function newest(): Promise<void> {
     const reply = await channel.read(sessionId, { limit: PAGE });
-    items = reply.items;
-    older = reply.older;
+    const held = firstRead ? await kept : null;
+    firstRead = false;
+    const joined = held ? catchUp(held, reply.items, reply.older) : null;
+    items = joined ? joined.items : reply.items;
+    older = joined ? joined.older : reply.older;
+    newFrom = joined?.newFrom;
     cursor = reply.cursor;
     updatedAt = Date.now();
     phase = "ready";
     stale = false;
-    void follow();
+    catching = false;
+    heard = true;
+    if (newFrom) void showMarker();
+    else void follow();
+    keep();
   }
+
+  // Puts the first new line at the top, since the end of a long catch-up is not where the person left.
+  async function showMarker(): Promise<void> {
+    pinned = false;
+    await tick();
+    list?.querySelector("[data-since]")?.scrollIntoView({ block: "start" });
+    // A page that fits does not scroll, so no scroll event says whether the end is in view.
+    pinned = atEnd();
+  }
+
+  let saving: ReturnType<typeof setTimeout> | undefined;
+  function keep(): void {
+    clearTimeout(saving);
+    // A $state array is a proxy, which IndexedDB cannot clone, so a snapshot is stored.
+    saving = setTimeout(() => void saveSnapshot(key, $state.snapshot(items), older), 1000);
+  }
+
+  // The marker has done its job once the person has been at the newest line a while.
+  $effect(() => {
+    if (!newFrom || !pinned) return;
+    const timer = setTimeout(() => (newFrom = undefined), MARKER_MS);
+    return () => clearTimeout(timer);
+  });
 
   let busy = false;
   async function poll(): Promise<void> {
@@ -58,7 +103,7 @@
         cursor = reply.cursor || cursor;
         updatedAt = Date.now();
         stale = false;
-        if (reply.items.length) void follow();
+        if (reply.items.length) (void follow(), keep());
       }
     } catch (error) {
       if (error instanceof TranscriptRefused && error.reason === "bad_cursor") cursor = "";
@@ -70,11 +115,23 @@
 
   onMount(() => {
     void poll();
+    // A kept page paints at once if the host has not answered by the time it is read.
+    void kept.then((held) => {
+      if (!held || heard) return;
+      items = held.items;
+      older = held.older;
+      updatedAt = held.at;
+      phase = "ready";
+      catching = true;
+      void follow();
+    });
     const timer = setInterval(() => void poll(), POLL_MS);
     const tickAge = setInterval(() => (now = Date.now()), 10_000);
     return () => {
       clearInterval(timer);
       clearInterval(tickAge);
+      clearTimeout(saving);
+      if (heard) void saveSnapshot(key, $state.snapshot(items), older);
     };
   });
 
@@ -90,7 +147,9 @@
       await tick();
       if (list) list.scrollTop = list.scrollHeight - before;
     } catch (error) {
-      if (!refused(error)) stale = true;
+      // A pointer from an earlier visit may have gone stale. That ends the way back, not the view.
+      if (error instanceof TranscriptRefused && error.reason === "bad_cursor") older = undefined;
+      else if (!refused(error)) stale = true;
     } finally {
       loadingOlder = false;
     }
@@ -123,6 +182,7 @@
       <p class="status" role="status">No messages yet. Verbose has the raw screen.</p>
     {/if}
     {#each rows as row (row.key)}
+      {#if row.key === markerKey}<p class="since" role="separator" data-since>New since you were last here</p>{/if}
       {#if row.kind === "prompt"}
         <div class="turn me"><span class="who">You</span><p class="plain">{row.text}</p>{#if row.cut}<p class="maybe">The host cut this message.</p>{/if}</div>
       {:else if row.kind === "reply"}
@@ -143,7 +203,7 @@
   {#if !pinned}
     <button type="button" class="jump" onclick={jump}><span aria-hidden="true">↓</span> Jump to latest</button>
   {/if}
-  <p class="source" role="status">{stale ? "Not updating. The host did not answer." : phase === "ready" ? `From the transcript, ${age}.` : ""}</p>
+  <p class="source" role="status">{catching ? (stale ? `Showing what this device read ${age}. The host did not answer.` : `Showing what this device read ${age}. Catching up.`) : stale ? "Not updating. The host did not answer." : phase === "ready" ? `From the transcript, ${age}.` : ""}</p>
 </section>
 
 <style>
@@ -159,6 +219,7 @@
   .line { margin: 0; overflow-wrap: anywhere; color: var(--text-soft); }
   .bad { margin-left: 0.6em; color: var(--danger-text); font-weight: 600; }
   pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; color: var(--muted); }
+  .since { margin: 4px 0; padding-top: 8px; border-top: 2px solid var(--brand); font: 600 12px var(--font-body); letter-spacing: 0.04em; color: var(--brand); }
   .more, .turn .maybe { margin: 4px 0 0; font: 400 12px var(--font-body); color: var(--muted); }
   .note, .status { margin: 0; font: 400 13px var(--font-body); color: var(--muted); }
   .source { flex: none; margin: 0; padding: 6px 16px; border-top: 1px solid var(--line); font: 400 12px var(--font-body); color: var(--muted); min-height: 30px; }

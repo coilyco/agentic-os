@@ -117,10 +117,14 @@ test("the record holds no seat words, address or token, and one tap copies it", 
 // The app has no address bar, so a saved switch is its way in. A browser is offered none.
 test("a browser with no flag is offered no switch, and a saved one can turn the record off", async ({ bed }) => {
   test.skip(kindOf(test.info()) !== "desktop", "the sidebar");
+  // The switch lives in Settings (COI-3521), opened from the sidebar.
+  const openSettings = () => bed.page.getByRole("navigation", { name: "Hosts and sessions" }).getByRole("button", { name: "Settings", exact: true }).click();
   await openTraced(bed, "");
+  await openSettings();
   await expect(bed.page.getByRole("switch", { name: "Tap trace" })).toHaveCount(0);
   await bed.page.evaluate(() => localStorage.setItem("aterm.taptrace.v1", "1"));
   await Promise.all([bed.page.waitForEvent("load"), bed.page.reload()]);
+  await openSettings();
   const toggle = bed.page.getByRole("switch", { name: "Tap trace" });
   await expect(toggle).toBeChecked();
   expect(await trace(bed)).not.toBeNull();

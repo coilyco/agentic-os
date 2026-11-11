@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { defaultView, loadView, storeView } from "./seat-view";
+import { defaultView, loadView, loadViewDefault, storeView, storeViewDefault } from "./seat-view";
 
 const shelf = new Map<string, string>();
 beforeEach(() => {
@@ -37,5 +37,31 @@ describe("the view a seat opens to", () => {
     Object.defineProperty(globalThis, "localStorage", { configurable: true, value: { getItem: () => { throw new Error("off"); }, setItem: () => { throw new Error("off"); } } });
     expect(() => storeView("imp", { level: "default", raw: false })).not.toThrow();
     expect(loadView("imp", true).level).toBe("focus");
+  });
+});
+
+describe("the default a person sets for seats with no view of their own", () => {
+  it("is Auto until chosen, and a hand-edited value reads as Auto", () => {
+    expect(loadViewDefault()).toBe("auto");
+    for (const bad of ["", "huge", "{", "7"]) {
+      shelf.set("aterm.seat-view-default.v1", bad);
+      expect(loadViewDefault(), bad).toBe("auto");
+    }
+  });
+
+  it("changes where a seat opens on a phone and a desktop, and Auto puts it back", () => {
+    storeViewDefault("default");
+    expect(loadView("imp", true)).toEqual({ level: "default", raw: false });
+    expect(loadView("imp", false)).toEqual({ level: "default", raw: false });
+    storeViewDefault("auto");
+    expect(loadView("imp", true)).toEqual({ level: "focus", raw: false });
+    expect(loadView("imp", false)).toEqual({ level: "verbose", raw: true });
+  });
+
+  it("never overrides a view picked for that seat", () => {
+    storeView("imp", { level: "focus", raw: false });
+    storeViewDefault("verbose");
+    expect(loadView("imp", false)).toEqual({ level: "focus", raw: false });
+    expect(loadView("sprite", false)).toEqual({ level: "verbose", raw: false });
   });
 });

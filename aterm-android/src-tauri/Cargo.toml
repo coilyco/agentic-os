@@ -26,6 +26,9 @@ tauri-plugin-savefile = { path = "../plugins/tauri-plugin-savefile" }
 # The official opener plugin: Android ACTION_VIEW and macOS open. Reference:
 # .agents/skills/tooling-aterm-client/references/android-opener.md
 tauri-plugin-opener = "=2.7.2"
+# The official notification plugin: a coordinator's notify_kai shows as a system notification,
+# and on Android a tap comes back to the page. Reference: .agents/skills/tooling-aterm-client/references/native-notify.md
+tauri-plugin-notification = "=2.7.0"
 
 # The desktop shell reads the daemon's roster. Both are already in the tree through tauri.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]

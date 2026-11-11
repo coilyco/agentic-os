@@ -280,7 +280,7 @@
                 <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice)} locked={!app.typing.allowed || reconnecting()} />
               </div>
               {#if transcripts && !showRaw}
-                <Transcript channel={transcripts} sessionId={session.id} level={view.level} onrefused={(reason) => (fallback = reason)} onpeer={showPeer} />
+                <Transcript channel={transcripts} sessionId={session.id} hostId={app.selectedHostId ?? ""} restore={app.typing.allowed} level={view.level} onrefused={(reason) => (fallback = reason)} onpeer={showPeer} />
               {/if}
             </div>
             {#if session.starting && blank}
