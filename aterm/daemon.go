@@ -589,7 +589,9 @@ func (d *daemon) handle(cl *client, message frame) error {
 		if err := cl.c.write(frame{Type: "attached", ID: message.ID, Session: s.name, PID: s.pid}); err != nil {
 			return err
 		}
-		s.report(cl.c, message.Rows, message.Cols, &message.Scales)
+		if d.mayResize(cl) {
+			s.report(cl.c, message.Rows, message.Cols, &message.Scales)
+		}
 		if size, ok := s.sizeFrame(); ok {
 			if err := cl.c.write(size); err != nil {
 				return err
@@ -629,7 +631,7 @@ func (d *daemon) handle(cl *client, message frame) error {
 	case "artifact_waiting", "artifact_remove":
 		return d.artifactChange(cl, message)
 	case "resize":
-		if s := cl.attached[message.Session]; s != nil {
+		if s := cl.attached[message.Session]; s != nil && d.mayResize(cl) {
 			s.report(cl.c, message.Rows, message.Cols, nil)
 		}
 		return nil

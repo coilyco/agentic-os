@@ -12,7 +12,9 @@
   import RelayNotice from "../components/RelayNotice.svelte";
   import SidePanel from "../components/SidePanel.svelte";
   import SplitHandle from "../components/SplitHandle.svelte";
+  import SeatViews from "../components/SeatViews.svelte";
   import Terminal from "../components/Terminal.svelte";
+  import Transcript from "../components/Transcript.svelte";
   import { app, asksShownOn, colorOf, layout, markMediaSeen, mediaOf, messagesFor, needsKaiIds, placeNow, reconnecting, relayedTo, unseenMedia } from "../lib/app.svelte";
   import { readTabs, tabKeys, type TabReading } from "../lib/dialog-tabs";
   import type { TabBarCells } from "../lib/screen";
@@ -22,12 +24,16 @@
   import { isBlank } from "../lib/screen";
   import type { Session } from "../lib/protocol";
   import type { Role } from "../lib/roster";
+  import { loadView, storeView } from "../lib/seat-view";
   import { sessionCode } from "../lib/sessions";
+  import { findPeerMessage } from "../lib/peer-link";
+  import { refusalText, type Level, type PeerRef } from "../lib/transcript";
   import { needsPasskey } from "../lib/typing";
   import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
   import { loadSide, loadSideOpen, storeSide, storeSideOpen } from "../lib/split";
   import { activityFlag } from "../lib/seat-activity";
   import { draftKey, loadDraft, storeDraft } from "../lib/draft-store";
+  import { loadDraftImages, saveDraftImages } from "../lib/draft-images";
   import { mark } from "../lib/tap-trace";
   import { wantsFind } from "../lib/terminal-extras";
 
@@ -65,6 +71,31 @@
     return () => clearInterval(timer);
   });
   const messages = $derived(messagesFor(session));
+  // The seat's own screen stays mounted under the transcript, so dialog cards still read from it.
+  const transcripts = $derived(app.connection?.transcripts);
+  // svelte-ignore state_referenced_locally
+  let view = $state(loadView(session.id, narrow));
+  // The reason the host gave for no transcript. The screen shows instead, and a new pick asks again.
+  let fallback = $state<string | null>(null);
+  const showRaw = $derived(!transcripts || view.raw || fallback !== null);
+  // A shared item points at the message it may answer, which only the Messages panel shows.
+  let focusMessage = $state<{ id: string; n: number } | null>(null);
+  function showPeer(peer: PeerRef): void {
+    side = "messages";
+    sideOpen = true;
+    raised = true;
+    const found = findPeerMessage(messages, peer);
+    focusMessage = found ? { id: found.id, n: (focusMessage?.n ?? 0) + 1 } : null;
+  }
+  function pick(level: Level): void {
+    view = { level, raw: level === "verbose" ? view.raw : false };
+    fallback = null;
+    storeView(session.id, view);
+  }
+  function setRaw(raw: boolean): void {
+    view = { ...view, raw };
+    storeView(session.id, view);
+  }
   // Files this seat shared. The chip says so and the viewer opens over the seat (COI-3458).
   const shared = $derived(app.connection?.media ? mediaOf(session.id) : []);
   let viewing = $state(false);
@@ -240,7 +271,18 @@
         {#key session.id}
           <!-- The card overlays the terminal so it never resizes it, which would make the harness redraw its menu. -->
           <div class="screen" data-link={app.link.state}>
-            <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice)} locked={!app.typing.allowed || reconnecting()} />
+            {#if transcripts}
+              <SeatViews level={view.level} raw={showRaw} onlevel={pick} onraw={setRaw} />
+              {#if fallback}<p class="fallback" role="status">{refusalText(fallback)} Showing the screen.</p>{/if}
+            {/if}
+            <div class="stage">
+              <div class="rawscreen" inert={!showRaw} aria-hidden={!showRaw}>
+                <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice)} locked={!app.typing.allowed || reconnecting()} />
+              </div>
+              {#if transcripts && !showRaw}
+                <Transcript channel={transcripts} sessionId={session.id} level={view.level} onrefused={(reason) => (fallback = reason)} onpeer={showPeer} />
+              {/if}
+            </div>
             {#if session.starting && blank}
               <p class="starting" role="status">Starting {session.identity} on {session.seat}. Its first screen shows here as soon as {session.seat} has opened.</p>
             {/if}
@@ -306,19 +348,21 @@
               else delete app.drafts[session.id];
               storeDraft(draftKey(app.selectedHostId ?? "", session.id), text);
             }}
+            savedimages={() => loadDraftImages(draftKey(app.selectedHostId ?? "", session.id))}
+            onimages={(files) => saveDraftImages(draftKey(app.selectedHostId ?? "", session.id), files)}
             onsent={() => (app.inputNotice = "")}
             onfocuschange={(focused) => (app.composing = focused)}
             place={placeNow()}
             working={session.state === "working" && !blank}
           />
           <!-- Gives way to the keyboard, so the pin never takes the terminal's last lines. -->
-          {#if narrow && !layout.reading}<LastReply {session} connection={app.connection} hidden={app.composing} />{/if}
+          {#if narrow && !layout.reading && showRaw}<LastReply {session} connection={app.connection} hidden={app.composing} />{/if}
         {/key}
       {/if}
     </div>
     {#if !split || sideOpen}
       <SplitHandle onchange={resize} onreset={() => resize(null)} />
-      <SidePanel {session} {messages} selfRole={role.slug} {colorOf} accent={role.color} bind:tab={side} bind:open={raised} onpick={(tab) => storeOverride(role.slug, tab)} />
+      <SidePanel {session} {messages} selfRole={role.slug} {colorOf} accent={role.color} bind:tab={side} bind:open={raised} onpick={(tab) => storeOverride(role.slug, tab)} {focusMessage} />
     {/if}
   </div>
 </section>
@@ -346,11 +390,14 @@
   .bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--fill); background: var(--accent); }
   .work { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .screen { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+  .stage { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+  .rawscreen { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+  .fallback { margin: 0; padding: 6px 12px; border-bottom: 1px solid var(--warn-line); background: var(--warn-fill); color: var(--warn-text); font-size: 13px; }
   .screen[data-link="reconnecting"] :global(.xterm) { filter: grayscale(1); opacity: 0.7; }
   .input-notice { margin: 0; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; border-top: 1px solid var(--danger); background: var(--danger-fill); color: var(--danger-text); font-size: 14px; }
   .input-notice button { min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--danger); background: transparent; color: var(--danger-text); }
   .starting { position: absolute; inset: 0; margin: 0; padding: 24px; display: grid; place-content: center; text-align: center; color: var(--muted); pointer-events: none; }
-  .overlay { position: absolute; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
+  .overlay { position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
   .body { --side: 360px; --strip: calc(44px + env(safe-area-inset-bottom)); flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--side); min-height: 0; }
   .body.wide { --side: minmax(360px, 50%); }
   .body.away { grid-template-columns: minmax(0, 1fr); }
