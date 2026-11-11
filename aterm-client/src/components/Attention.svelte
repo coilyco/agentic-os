@@ -3,7 +3,7 @@
   import { app, openSeat } from "../lib/app.svelte";
   import { unlock } from "../lib/chime";
   import { closeSeatNotifications } from "../lib/push";
-  import { handleNotify, openSeatFromNotification, settleSeat, syncPush, takeLaunchSeat } from "../lib/push.svelte";
+  import { askNativeOnce, handleNotify, listenForNativeTaps, openSeatFromNotification, settleSeat, syncPush, takeLaunchSeat } from "../lib/push.svelte";
 
   // A seat that starts waiting makes no sound here, only the glow and list cues (COI-3517).
   // The coordinator's own ping arrives as a notify frame.
@@ -35,8 +35,15 @@
     if (open && app.pageVisible) void closeSeatNotifications(open);
   });
 
+  // The app asks the system for notifications once attached, while it is on screen.
+  $effect(() => {
+    if (app.attachedHostId && app.pageVisible) void askNativeOnce();
+  });
+
   onMount(() => {
     takeLaunchSeat();
+    let stopTaps = () => {};
+    void listenForNativeTaps().then((stop) => (stopTaps = stop));
     const tapped = (event: MessageEvent) => {
       const { type, session } = (event.data ?? {}) as { type?: unknown; session?: unknown };
       if (type === "aterm-open-seat" && typeof session === "string" && session) openSeatFromNotification(session);
@@ -55,6 +62,7 @@
     window.addEventListener("pointerdown", touch);
     window.addEventListener("keydown", touch);
     return () => {
+      stopTaps();
       worker?.removeEventListener("message", tapped);
       document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("pointerdown", touch);
