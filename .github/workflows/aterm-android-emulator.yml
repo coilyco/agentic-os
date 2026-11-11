@@ -11,6 +11,13 @@ on:
       - "scripts/ci/aterm_android_*.py"
       - ".github/workflows/aterm-android-emulator.yml"
   workflow_dispatch:
+    inputs:
+      image:
+        description: "The emulator system image. The rig runs Android 15."
+        required: false
+        default: "system-images;android-34;google_apis;x86_64"
+        type: choice
+        options: ["system-images;android-34;google_apis;x86_64", "system-images;android-35;google_apis;x86_64"]
 
 concurrency:
   group: aterm-android-emulator-${{ github.ref }}
@@ -44,6 +51,8 @@ jobs:
       - name: Build the debug x86_64 APK
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" build-debug x86_64 "$GITHUB_WORKSPACE/aterm-emulator-out/aterm-debug.apk"
       - name: Make the emulator image
+        env:
+          ATERM_EMULATOR_IMAGE: ${{ inputs.image }}
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" avd
       - name: Set up the virtual microphone
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-emulator.sh" audio
