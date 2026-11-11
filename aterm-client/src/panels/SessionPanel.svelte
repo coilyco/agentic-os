@@ -27,7 +27,7 @@
   import { loadView, storeView } from "../lib/seat-view";
   import { sessionCode } from "../lib/sessions";
   import { findPeerMessage } from "../lib/peer-link";
-  import { refusalText, type Level, type PeerRef } from "../lib/transcript";
+  import { mayClear, refusalText, type Level, type PeerRef } from "../lib/transcript";
   import { needsPasskey } from "../lib/typing";
   import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
   import { loadSide, loadSideOpen, storeSide, storeSideOpen } from "../lib/split";
@@ -81,6 +81,23 @@
   // The first read of this panel may mark what is new. A later view switch may not.
   let hasRead = $state(false);
   const showRaw = $derived(!transcripts || view.raw || fallback !== null);
+  const RETRY_MS = 5000;
+  // A refusal on open (a cold start races the unlock, a starting seat has no file yet) must not strand the seat on its screen (COI-3646).
+  $effect(() => {
+    const channel = transcripts;
+    const reason = fallback;
+    if (!channel || reason === null || !mayClear(reason)) return;
+    const again = () => {
+      if (document.visibilityState === "hidden") return;
+      channel.read(session.id, { limit: 1 }).then(
+        () => (fallback = null),
+        () => {},
+      );
+    };
+    if (reason === "passkey_required" && app.typing.allowed) again();
+    const timer = setInterval(again, RETRY_MS);
+    return () => clearInterval(timer);
+  });
   // A shared item points at the message it may answer, which only the Messages panel shows.
   let focusMessage = $state<{ id: string; n: number } | null>(null);
   function showPeer(peer: PeerRef): void {

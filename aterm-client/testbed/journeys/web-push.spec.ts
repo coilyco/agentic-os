@@ -10,6 +10,8 @@ const notify = (page: Page) => page.getByRole("switch", { name: "Notify when clo
 async function openAlerts(page: Page): Promise<void> {
   await page.goto("/");
   await page.getByRole("tab", { name: /this Mac/ }).click();
+  // A click scrolls the sidebar to a list the roster has not filled yet (COI-3642).
+  await expect(page.locator("button.tab.start").first()).toBeVisible();
   await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await expect(page.getByRole("switch", { name: "Sound" }).first()).toBeVisible();
   await expect(page.locator("section.install")).toBeVisible();

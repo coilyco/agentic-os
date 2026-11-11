@@ -66,6 +66,13 @@ export const REFUSALS: Record<string, string> = {
   bad_cursor: "The transcript moved on while it was being read.",
 };
 
+/** Refusals that asking again cannot change. Any other can clear. */
+const FINAL_REFUSALS = new Set(["unreadable_format", "unsupported_harness"]);
+
+export function mayClear(reason: string): boolean {
+  return !FINAL_REFUSALS.has(reason);
+}
+
 /** The host refused a transcript read, with the reason it named. */
 export class TranscriptRefused extends Error {
   constructor(readonly reason: string) {

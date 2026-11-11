@@ -1,0 +1,245 @@
+{
+  "name": "A Play reviewer's path through the demo, by taps only (COI-3313)",
+  "start": "launch",
+  "steps": [
+    {
+      "op": "wait",
+      "pattern": "Try the demo",
+      "timeout": 40
+    },
+    {
+      "op": "eval",
+      "js": "JSON.stringify({host:document.querySelector('#add-host')?!!document.querySelector('#add-host'):false})",
+      "save": "first_screen_has_host_form"
+    },
+    {
+      "op": "eval",
+      "js": "document.activeElement&&document.activeElement.blur();'ok'",
+      "expect": "ok"
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "shot",
+      "name": "1-first-screen"
+    },
+    {
+      "op": "tap-text",
+      "text": "Try the demo",
+      "within": "button"
+    },
+    {
+      "op": "wait",
+      "pattern": "nothing here is real",
+      "timeout": 30
+    },
+    {
+      "op": "assert",
+      "js": "!!document.querySelector('[aria-label=\"Demo mode\"]')",
+      "message": "no DEMO bar after Try the demo"
+    },
+    {
+      "op": "eval",
+      "js": "document.activeElement&&document.activeElement.blur();'ok'",
+      "expect": "ok"
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "shot",
+      "name": "2-first-seat"
+    },
+    {
+      "op": "tap",
+      "selector": ".switcher"
+    },
+    {
+      "op": "wait",
+      "pattern": "Frog-Ox",
+      "timeout": 15
+    },
+    {
+      "op": "eval",
+      "js": "document.activeElement&&document.activeElement.blur();'ok'",
+      "expect": "ok"
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "shot",
+      "name": "3-seat-menu"
+    },
+    {
+      "op": "tap-text",
+      "text": "Frog-Ox",
+      "within": "#sidebar-menu button"
+    },
+    {
+      "op": "wait",
+      "pattern": "Which routes should the latency sweep cover first",
+      "timeout": 30
+    },
+    {
+      "op": "eval",
+      "js": "document.activeElement&&document.activeElement.blur();'ok'",
+      "expect": "ok"
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "shot",
+      "name": "4-choice-card"
+    },
+    {
+      "op": "tap-text",
+      "text": "Local Qwen",
+      "within": "button"
+    },
+    {
+      "op": "tap-text",
+      "text": "Submit",
+      "within": "button"
+    },
+    {
+      "op": "wait",
+      "pattern": "answered",
+      "timeout": 30
+    },
+    {
+      "op": "eval",
+      "js": "document.body.innerText.slice(0,2000)",
+      "save": "after_answer"
+    },
+    {
+      "op": "eval",
+      "js": "document.activeElement&&document.activeElement.blur();'ok'",
+      "expect": "ok"
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "shot",
+      "name": "5-card-answered"
+    },
+    {
+      "op": "tap",
+      "selector": ".switcher"
+    },
+    {
+      "op": "tap-text",
+      "text": "Imp-Dragonfly",
+      "within": "#sidebar-menu button"
+    },
+    {
+      "op": "wait",
+      "pattern": "shared 3 files",
+      "timeout": 30
+    },
+    {
+      "op": "tap-text",
+      "text": "View",
+      "within": "button"
+    },
+    {
+      "op": "wait",
+      "pattern": "Rotate",
+      "timeout": 20
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "shot",
+      "name": "6-media-viewer"
+    },
+    {
+      "op": "tap-text",
+      "text": "Close",
+      "within": "[role=\"dialog\"] button"
+    },
+    {
+      "op": "sleep",
+      "seconds": 2
+    },
+    {
+      "op": "tap",
+      "selector": ".switcher"
+    },
+    {
+      "op": "tap-text",
+      "text": "Hosts and settings",
+      "within": "#sidebar-menu summary"
+    },
+    {
+      "op": "sleep",
+      "seconds": 1
+    },
+    {
+      "op": "shot",
+      "name": "6b-hosts-and-settings-open"
+    },
+    {
+      "op": "tap-text",
+      "text": "Settings",
+      "within": "#sidebar-menu button.link"
+    },
+    {
+      "op": "wait",
+      "pattern": "These apply to this device only",
+      "timeout": 20
+    },
+    {
+      "op": "eval",
+      "js": "document.activeElement&&document.activeElement.blur();'ok'",
+      "expect": "ok"
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "shot",
+      "name": "7-settings"
+    },
+    {
+      "op": "tap-text",
+      "text": "Leave",
+      "within": "button"
+    },
+    {
+      "op": "wait",
+      "pattern": "Pick a host",
+      "timeout": 20
+    },
+    {
+      "op": "eval",
+      "js": "document.activeElement&&document.activeElement.blur();'ok'",
+      "expect": "ok"
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "shot",
+      "name": "8-left-demo"
+    },
+    {
+      "op": "eval",
+      "js": "JSON.stringify(window.performance.getEntriesByType('resource').map((e)=>e.name).filter((n)=>!n.includes('tauri.localhost')))",
+      "expect": "^\\[\\]$",
+      "save": "offsite_requests"
+    }
+  ]
+}
