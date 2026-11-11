@@ -42,10 +42,11 @@ JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add
 * `logcat` - `name`, `pattern`. Matching logcat lines into `logcat-<name>.txt`.
 * `ui-dump` - `name`. The system UI's uiautomator tree as `ui-<name>.xml` and a text list `ui-<name>.txt`, for Android's own screens.
 * `tap-ui` - `pattern`, `timeout`. Taps the first system UI node whose text or description matches the regex.
+* `repeat` - `steps`, `times`, `save`. Runs the steps that many times and counts the passes in `saved`, never stopping the run. `$i` is the round number. For a rate.
 * `retry` - `steps`, `times`, `every`. Runs the steps again, `every` seconds apart, until they pass. For what needs a system to settle, such as Google's speech pack.
 * `sleep` - `seconds`.
 
-Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill` (settles 3 s first), `draft-kill-0s`, `-1s` and `-3s`, `draft-image-survives-kill`, `screen-off-timer` and `composer-above-keyboard`, which fails on a build where the keyboard covers the message box. Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.
+Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill` (settles 3 s first), `draft-kill-0s`, `-1s` and `-3s`, `draft-kill-rate` (5 rounds at each of 0.2, 1 and 3 s in one run), `draft-image-survives-kill`, `screen-off-timer` and `composer-above-keyboard`, which fails on a build where the keyboard covers the message box. Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.
 
 ## What comes back
 

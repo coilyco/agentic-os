@@ -72,6 +72,24 @@ class Lane(J.Journey):
         body = {"name": self.plan.get("name", ""), "failure": failure, "steps": self.results, "saved": self.saved}
         (self.out / "lane-result.json").write_text(json.dumps(body, indent=2))
 
+    def op_repeat(self, spec: dict) -> str:
+        """Run `steps` `times` times and count the passes, never stopping the run. `$i` is the round."""
+        times, passed, failures = spec.get("times", 5), 0, []
+        for round_ in range(1, times + 1):
+            self.saved["i"] = str(round_)
+            try:
+                for sub, inner in enumerate(spec["steps"], start=1):
+                    self.do(f"{round_}.{sub}", inner)
+                passed += 1
+            except Fail as err:
+                failures.append(f"round {round_}: {str(err)[:160]}")
+                print(f"repeat: round {round_} of {times} failed: {str(err)[:200]}", flush=True)
+        summary = f"{passed}/{times} passed"
+        self.saved[spec.get("save", "repeat")] = summary
+        if failures:
+            self.saved[spec.get("save", "repeat") + "_failures"] = " | ".join(failures)
+        return summary
+
     def op_retry(self, spec: dict) -> str:
         """Run `steps` up to `times` times, `every` seconds apart. For what needs a system to settle."""
         times, pause, last = spec.get("times", 5), spec.get("every", 30), None
