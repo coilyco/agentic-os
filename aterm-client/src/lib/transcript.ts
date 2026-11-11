@@ -162,6 +162,11 @@ export interface PeerRef {
   text?: string;
 }
 
+/** A model's own reasoning, which some harnesses write into a reply as `<think>`. */
+export function withoutThinking(text: string): string {
+  return text.replace(/<think>[\s\S]*?(<\/think>|$)/g, "").trim();
+}
+
 /** A row the view draws. */
 export type Row =
   | { key: string; kind: "prompt" | "reply" | "note"; text: string; at?: number; model?: string; peer?: PeerRef; cut: boolean }
@@ -169,6 +174,9 @@ export type Row =
 
 /** Lines of a result Default shows before saying how many more there are. */
 export const DEFAULT_OUTPUT_LINES = 3;
+
+// Focus and Default leave out a reply's `<think>` text. Verbose keeps it.
+const replyText = (item: TranscriptItem, level: Level): string => (level === "verbose" ? (item.text ?? "") : withoutThinking(item.text ?? ""));
 
 // Claude Code's viewMode: Focus is a turn's prompt, a line per tool and its final reply.
 // Default keeps every reply and a few lines of each result. Verbose keeps everything.
@@ -182,7 +190,7 @@ export function rowsFor(all: readonly TranscriptItem[], level: Level): Row[] {
   let turn = 0;
   items.forEach((item) => {
     if (item.kind === "prompt") turn += 1;
-    else if (item.kind === "reply") lastReply.set(turn, item.id);
+    else if (item.kind === "reply" && replyText(item, level)) lastReply.set(turn, item.id);
   });
   turn = 0;
   for (const item of items) {
@@ -190,9 +198,10 @@ export function rowsFor(all: readonly TranscriptItem[], level: Level): Row[] {
       turn += 1;
       if (item.text) rows.push({ key: item.id, kind: "prompt", text: item.text, cut: item.truncated === true, ...peerOf(item), ...(item.at ? { at: item.at } : {}) });
     } else if (item.kind === "reply") {
-      if (!item.text) continue;
+      const text = replyText(item, level);
+      if (!text) continue;
       if (level === "focus" && lastReply.get(turn) !== item.id) continue;
-      rows.push({ key: item.id, kind: "reply", text: item.text, cut: item.truncated === true, ...peerOf(item), ...(item.at ? { at: item.at } : {}), ...(item.model ? { model: item.model } : {}) });
+      rows.push({ key: item.id, kind: "reply", text, cut: item.truncated === true, ...peerOf(item), ...(item.at ? { at: item.at } : {}), ...(item.model ? { model: item.model } : {}) });
     } else if (item.kind === "tool" && item.tool) {
       const all = level === "focus" || !item.tool.output ? [] : item.tool.output.replace(/\n+$/, "").split("\n");
       const shown = level === "verbose" ? all : all.slice(0, DEFAULT_OUTPUT_LINES);
