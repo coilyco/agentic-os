@@ -160,7 +160,7 @@ type candidate struct {
 func peersOf(entry ledgerEntry, all []ledgerEntry, store func(ledgerEntry) string) []ledgerEntry {
 	var peers []ledgerEntry
 	for _, other := range all {
-		if other.Name != entry.Name && other.Seat == entry.Seat && other.Cwd == entry.Cwd &&
+		if other.Name != entry.Name && other.Seat == entry.Seat && other.workdirKey() == entry.workdirKey() &&
 			store(other) == store(entry) && overlaps(entry, other) {
 			peers = append(peers, other)
 		}
