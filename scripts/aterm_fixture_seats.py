@@ -30,6 +30,16 @@ CONVERSATION = "f1f1f1f1-0000-4000-8000-000000000001"
 REPLY = "Fixture reply: the build is green.\n\nThe second paragraph is here so the pinned reply has more than its first line to open.\n\n- one\n- two\n- three"
 WIDE_SEAT, WIDE_COLS = "fixture-wide", 160
 RULER = "0123456789" * 15
+# A full-screen program with the mouse on, as vim runs (COI-3596). A row per PTY row,
+# and prints the bytes of the last wheel it was sent on row 1.
+ALT = (
+    r"""stty -echo -icanon min 0 time 5; printf '\033[?1049h\033[?1000h\033[?1006h'; w=none; last=; """
+    r"""draw() { printf '\033[H\033[2J'; i=2; while [ $i -le ${last% *} ]; do printf '\033[%d;1Halt row %d' $i $i; i=$((i+1)); done; }; """
+    r"""while :; do s=$(stty size); [ "$s" != "$last" ] && { last=$s; draw; }; """
+    r"""b=$(dd bs=32 count=1 2>/dev/null | od -An -c | tr -s ' \n' ' '); [ -n "$b" ] && w=$b; printf '\033[1;1H\033[2Kwheel:%s' "$w"; done"""
+)
+# The normal screen, mouse on, long history: a swipe has to scroll that history.
+MOUSE = r"""printf '\033[?1000h\033[?1006h'; i=1; while [ $i -le 200 ]; do echo "history line $i"; i=$((i+1)); done; n=0; while :; do n=$((n+1)); echo "mouse seat $n"; sleep 5; done"""
 
 
 @dataclass(frozen=True)
@@ -55,6 +65,8 @@ SEATS = {
     "fixture-flip-a": Fixture("Flip A", flip(7)),
     "fixture-flip-b": Fixture("Flip B", flip(11)),
     "fixture-flip-c": Fixture("Flip C", flip(13)),
+    "fixture-alt": Fixture("Alt screen", ALT),
+    "fixture-mouse": Fixture("Mouse", MOUSE),
     WIDE_SEAT: Fixture("Wide", f'n=0; while :; do n=$((n+1)); echo "wide line $n {RULER}"; sleep 5; done'),
 }
 
