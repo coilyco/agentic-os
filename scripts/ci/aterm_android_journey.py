@@ -156,17 +156,18 @@ class Journey:
         self.open_seat()
 
     def open_seat(self) -> None:
-        """Tap the seat row, on the Seats overview or in the nav, until the composer shows."""
+        """Tap the seat's overview row, or its nav button, until the composer shows."""
         page = self.page
         assert page
-        for _ in range(3):
-            page.tap(by_text("frontend-eng on", "button"))
+        # The row moves groups as the seat settles and can swallow a tap, so tap again.
+        for _ in range(4):
+            page.tap(by_text("frontend-eng", ".overview button.open, nav button"))
             try:
-                page.wait_selector("#composer-input", 12)
+                page.wait_selector("#composer-input", wait=6)
                 return
             except Fail:
-                print("open_seat: the composer did not show, tapping the seat again")
-        raise Fail("the seat never opened: no composer after three taps on its row")
+                print("open_seat: the seat did not open, tapping its row again")
+        raise Fail("the seat never opened from its overview row")
 
     def open_picker(self) -> None:
         page = self.page
@@ -360,7 +361,7 @@ class Journey:
         page = self.page
         assert page
         # The page may already be on a seat view with the nav collapsed, so try briefly.
-        for finder in ("()=>document.querySelector('[id^=tab-host-]')", by_text("frontend-eng on", "button")):
+        for finder in ("()=>document.querySelector('[id^=tab-host-]')", by_text("frontend-eng", ".overview button.open, nav button")):
             try:
                 page.tap(finder, wait=5)
             except Fail:

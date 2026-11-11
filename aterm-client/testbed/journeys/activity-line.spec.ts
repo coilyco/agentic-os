@@ -26,7 +26,7 @@ test("a seat's line fits its row, an old one says how old, and none leaves the r
   bed.mock.addSession(seat("eng-platform-fresh-ox", "Fresh-Ox", { activity: LONG, activity_age_seconds: 40 }));
   bed.mock.addSession(seat("eng-platform-stale-ox", "Stale-Ox", { activity: OLD, activity_age_seconds: 3 * 3600 + 120 }));
   await bed.openSeat(SEATS.imp);
-  if (kindOf(info) !== "desktop") await bed.page.getByRole("button", { name: /Seats, starting a seat, hosts and alerts/ }).click();
+  if (kindOf(info) !== "desktop") await bed.page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ }).click();
 
   const fresh = bed.page.getByRole("tab", { name: /Fresh-Ox.*says Checking whether/ }).first();
   const line = fresh.locator(".activity .line");

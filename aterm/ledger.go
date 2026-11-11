@@ -29,8 +29,8 @@ type ledgerEntry struct {
 	Seat     string   `json:"seat"`
 	Cwd      string   `json:"cwd"`
 	Argv     []string `json:"argv"`
-	// Conversation is the harness conversation id a relaunch resumes, claude's
-	// today. Empty means this seat cannot be resumed.
+	// Conversation is the id a relaunch resumes: minted for claude, else set once the seat
+	// was resumed and found in the harness's own files before (resume_harness.go).
 	Conversation string `json:"conversation,omitempty"`
 	// Home is the HOME the seat was spawned with, a path and not the environment.
 	// A shadow moves it, and the harness keeps its transcript there.

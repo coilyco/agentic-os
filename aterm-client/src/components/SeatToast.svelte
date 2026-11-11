@@ -61,18 +61,19 @@
 <!-- Present from the first frame, since a status inserted with its text is not always announced. -->
 <div class="region" role="status" aria-live="polite" onfocusin={() => clearTimeout(timer)} onfocusout={arm}>
   {#if toast}
-    <button type="button" class="toast" onclick={openFirst}>
+    <div class="toast">
+      <button type="button" class="open" aria-label={`Open: ${toast.text}`} onclick={openFirst}>Open</button>
       <span class="text">{toast.text}</span>
-      <span class="hint" aria-hidden="true">Tap to open</span>
-    </button>
+    </div>
   {/if}
 </div>
 
 <style>
   /* At the top, under the seat bar, so it never covers the seats, the composer or the soft keyboard. */
   .region { position: fixed; z-index: 60; top: calc(env(safe-area-inset-top, 0px) + 64px); left: calc(env(safe-area-inset-left, 0px) + 12px); right: calc(env(safe-area-inset-right, 0px) + 12px); display: flex; justify-content: center; pointer-events: none; }
-  .toast { pointer-events: auto; min-height: 48px; max-width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 16px; border-radius: 10px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); text-align: left; font-family: var(--font-display); box-shadow: 0 6px 24px var(--shade); }
+  /* Taps pass through the words, so the controls under the banner keep working. Only Open takes one (COI-3589). */
+  .toast { pointer-events: none; min-height: 48px; max-width: 100%; display: flex; align-items: center; gap: 12px; padding: 2px 16px 2px 2px; border-radius: 10px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); text-align: left; font-family: var(--font-display); box-shadow: 0 6px 24px var(--shade); }
+  .open { pointer-events: auto; min-width: 44px; min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--control-line); background: var(--surface-2, var(--surface)); color: var(--text); font: 600 14px var(--font-body); }
   .text { font-weight: 600; font-size: 15px; }
-  .hint { font-size: 12px; color: var(--muted); }
-  .toast:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .open:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 </style>

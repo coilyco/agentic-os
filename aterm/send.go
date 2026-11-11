@@ -305,14 +305,14 @@ func launchRole(role, seat string) error {
 	return runSelf(launchRoleArgs(role, seat))
 }
 
-// reopenSeat resumes a closed claude seat's conversation through this binary, the
-// launch `aterm resume --headless` makes, in bypass like `aterm bypass`.
+// reopenSeat resumes a closed seat's conversation through this binary, the
+// launch `aterm resume --headless` makes, in bypass for claude like `aterm bypass`.
 func reopenSeat(entry ledgerEntry) error {
-	args, err := resumeArgs(entry, true, false)
+	args, err := resumeArgs(entry, readLedger(ledgerDir()), true, false)
 	if err != nil {
 		return err
 	}
-	return runSelf(append(args, harnessArgs(defaultPermissionMode, nil)...))
+	return runSelf(append(args, harnessArgs(entry.Seat, defaultPermissionMode, nil)...))
 }
 
 func runSelf(args []string) error {
