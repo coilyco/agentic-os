@@ -148,10 +148,13 @@ export function decodeReply(session: string, frame: Record<string, unknown>): Tr
 /** Joins items by id, so an item that changed replaces in place. */
 export function mergeItems(held: readonly TranscriptItem[], next: readonly TranscriptItem[]): TranscriptItem[] {
   const out = [...held];
+  const where = new Map(out.map((item, at) => [item.id, at]));
   for (const item of next) {
-    const at = out.findIndex((each) => each.id === item.id);
-    if (at === -1) out.push(item);
-    else out[at] = item;
+    const at = where.get(item.id);
+    if (at === undefined) {
+      where.set(item.id, out.length);
+      out.push(item);
+    } else out[at] = item;
   }
   return out;
 }

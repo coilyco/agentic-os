@@ -15,7 +15,8 @@ Named from Claude Code's `viewMode`. **Focus** is each turn's prompt, one line p
 * **Think text** - a reply's `<think>` block (opencode writes one into the reply from some models) is left out at Focus and Default, and a reply that was only thought draws nothing. Verbose keeps it (`withoutThinking`).
 * **No transcript** (a refusal such as `unreadable_format`) opens the raw screen with one line saying why. Picking a stop asks again. Every refusal but `unreadable_format` and `unsupported_harness` is also asked again every 5 seconds, and at once when a locked device unlocks, so a refusal on a cold start does not strand the seat on its screen (COI-3646, `mayClear`). A host without the feature shows no control at all.
 * **It polls** `since` the last cursor every 2 seconds while open, paused while the page is hidden, and refetches the newest page on `bad_cursor`.
-* **Show earlier** at the top asks for the page `before` the reply's `older` cursor and keeps the view where it was. Text the host cut says so under it. A device that must unlock first (`passkey_required`) gets the screen and the reason.
+* **A bounded window** (COI-3648) - a seat holds at most 400 items. Past that, a seat pinned to the newest line starts over from a fresh read of the newest page, and reading back past 400 drops the newest rows, stops the 2 second poll, and offers Jump to latest, which reads the newest page again. Held work no longer grows with how long a seat has run or been watched. The journey is `transcript-window`.
+* **Show earlier** at the top asks for the page `before` the reply's `older` cursor and keeps the oldest row on screen where it was. Text the host cut says so under it. A device that must unlock first (`passkey_required`) gets the screen and the reason.
 
 ## Opening on the last page (COI-3534)
 

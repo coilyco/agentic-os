@@ -60,7 +60,7 @@ To write or refresh the Linux baselines, run the workflow by hand with `update` 
 
 ## How many seats it holds
 
-`just aterm-client-scale 25,100,200` starts the mock daemon with that many seats, one in ten working, and prints per roster frame cost, burst long tasks, output streaming CPU, and seat switch times from a real Chromium. `SCALE_LIVE=<daemon page>` runs the real client against a real daemon, read only, and never opens a seat since attaching resizes live terminals. It is a measurement and not the gate.
+`just aterm-client-scale 25,100,200` starts the mock daemon with that many seats, one in ten working, and prints per roster frame cost, burst long tasks, output streaming CPU, and seat switch times from a real Chromium. `SCALE_LIVE=<daemon page>` runs the real client against a real daemon, read only, and never opens a seat since attaching resizes live terminals. `SCALE_HISTORY=200,2000,8000` measures the open seat by how many items it holds, with heap, nodes and long tasks per 10 second window. It is a measurement and not the gate.
 
 The gate holds two lines. `journeys/seat-scale.spec.ts` asserts 100 seats show no long task over 100 ms across seat switches and typing. `src/lib/app-scale.test.ts` asserts a pass over every row of a 3000 seat roster is cheap, which a per row rebuild of the seat set broke (COI-3363). Timing a whole page ratio was tried for the second and was too noisy to gate on.
 
