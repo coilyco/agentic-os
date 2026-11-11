@@ -87,7 +87,8 @@ test.describe("on a phone", () => {
     await open(bed);
     await stop(bed, "Default").click();
     await bed.page.reload();
-    await expect(bed.page.getByRole("heading", { name: SEATS.imp.name, level: 1 })).toBeAttached();
+    // The app now rests on the overview after a reload, so the seat is opened again.
+    await bed.openSeat(SEATS.imp);
     await expect(stop(bed, "Default")).toHaveAttribute("aria-checked", "true");
     await bed.switchSeat(SEATS.beetle);
     await expect(stop(bed, "Focus"), "another seat opens on Focus").toHaveAttribute("aria-checked", "true");
