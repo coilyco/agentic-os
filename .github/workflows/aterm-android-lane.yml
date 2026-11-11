@@ -3,6 +3,11 @@
 name: aterm-android-lane
 
 on:
+  pull_request:
+    paths:
+      - ".github/workflows/aterm-android-lane.yml"
+      - "scripts/ci/aterm_android_lane.py"
+      - "scripts/ci/lane-steps/**"
   workflow_dispatch:
     inputs:
       ref:
@@ -27,7 +32,7 @@ on:
         default: false
 
 concurrency:
-  group: aterm-android-lane-${{ github.run_id }}
+  group: aterm-android-lane-${{ github.ref }}-${{ github.run_id }}
 
 permissions:
   contents: read
@@ -35,9 +40,9 @@ permissions:
 
 env:
   COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
-  ATERM_LANE_STEPS: ${{ inputs.steps }}
+  ATERM_LANE_STEPS: ${{ inputs.steps || 'scripts/ci/lane-steps/smoke.json' }}
   ATERM_LANE_APK_RUN: ${{ inputs.apk_run }}
-  ATERM_EMULATOR_IMAGE: system-images;android-34;${{ inputs.image }};x86_64
+  ATERM_EMULATOR_IMAGE: system-images;android-34;${{ inputs.image || 'google_apis' }};x86_64
   GH_TOKEN: ${{ github.token }}
 
 jobs:
