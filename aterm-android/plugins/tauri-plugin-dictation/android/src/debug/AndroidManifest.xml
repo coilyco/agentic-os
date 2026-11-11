@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Debug builds only: a recognizer a test can name as the phone's default. -->
+    <queries>
+        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>
+    </queries>
     <application>
+        <receiver android:name="dev.coilyco.treehouse.dictation.ProbeTtsReceiver" android:exported="true">
+            <intent-filter><action android:name="dev.coilyco.treehouse.PROBE_TTS" /></intent-filter>
+        </receiver>
         <service android:name="dev.coilyco.treehouse.dictation.FakeRecognitionService" android:exported="true">
             <intent-filter>
                 <action android:name="android.speech.RecognitionService" />

@@ -1,0 +1,167 @@
+{
+ "name": "native text-to-speech probe: screen on, off, app in background (COI-3466)",
+ "start": "seat",
+ "steps": [
+  {
+   "op": "adb",
+   "args": [
+    "shell",
+    "dumpsys webview | grep -i -E 'current webview|version' | head -4; settings get secure tts_default_synth; pm list packages | grep -i -E 'tts|speech'"
+   ]
+  },
+  {
+   "op": "adb",
+   "args": [
+    "shell",
+    "am broadcast -a dev.coilyco.treehouse.PROBE_TTS -p dev.coilyco.treehouse --es mode file --es text 'Hello from the probe.'"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 8
+  },
+  {
+   "op": "adb",
+   "args": [
+    "shell",
+    "ls -l /data/data/dev.coilyco.treehouse/cache/ 2>&1 | grep probe; run-as dev.coilyco.treehouse ls -l cache 2>&1 | grep probe"
+   ]
+  },
+  {
+   "op": "logcat",
+   "name": "1-file-screen-on",
+   "pattern": "ProbeTts"
+  },
+  {
+   "op": "adb",
+   "args": [
+    "shell",
+    "am broadcast -a dev.coilyco.treehouse.PROBE_TTS -p dev.coilyco.treehouse --es mode speak --es text 'The seat is answering. This sentence is long enough to still be playing when the audio service is read, so that a player shows as started.'"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 3
+  },
+  {
+   "op": "adb",
+   "args": [
+    "shell",
+    "dumpsys audio | grep -i -A8 'players:'"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 10
+  },
+  {
+   "op": "logcat",
+   "name": "2-speak-screen-on",
+   "pattern": "ProbeTts"
+  },
+  {
+   "op": "adb",
+   "args": [
+    "shell",
+    "input",
+    "keyevent",
+    "26"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 3
+  },
+  {
+   "op": "adb",
+   "args": [
+    "shell",
+    "dumpsys power | grep -m2 -E 'mWakefulness=|Display Power'"
+   ]
+  },
+  {
+   "op": "adb",
+   "args": [
+    "shell",
+    "am broadcast -a dev.coilyco.treehouse.PROBE_TTS -p dev.coilyco.treehouse --es mode speak --es text 'The seat is answering. This sentence is long enough to still be playing when the audio service is read, so that a player shows as started.'"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 3
+  },
+  {
+   "op": "adb",
+   "args": [
+    "shell",
+    "dumpsys audio | grep -i -A8 'players:'"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 10
+  },
+  {
+   "op": "logcat",
+   "name": "3-speak-screen-off",
+   "pattern": "ProbeTts"
+  },
+  {
+   "op": "adb",
+   "args": [
+    "shell",
+    "input",
+    "keyevent",
+    "224"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 2
+  },
+  {
+   "op": "adb",
+   "args": [
+    "shell",
+    "input",
+    "keyevent",
+    "3"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 2
+  },
+  {
+   "op": "adb",
+   "args": [
+    "shell",
+    "am broadcast -a dev.coilyco.treehouse.PROBE_TTS -p dev.coilyco.treehouse --es mode speak --es text 'The seat is answering. This sentence is long enough to still be playing when the audio service is read, so that a player shows as started.'"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 3
+  },
+  {
+   "op": "adb",
+   "args": [
+    "shell",
+    "dumpsys audio | grep -i -A8 'players:'"
+   ]
+  },
+  {
+   "op": "sleep",
+   "seconds": 10
+  },
+  {
+   "op": "logcat",
+   "name": "4-speak-app-in-background",
+   "pattern": "ProbeTts"
+  },
+  {
+   "op": "shot",
+   "name": "end"
+  }
+ ]
+}
