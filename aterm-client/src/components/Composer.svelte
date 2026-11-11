@@ -15,8 +15,9 @@
   // `draft` and `ondraft` keep the text outside this component, so a seat change or a remount does not take it. `onsent` says a send left.
   // `dialogOpen` is a dialog open on the seat: typed text would answer it or dismiss it, so Send waits and the message stays as a draft (COI-3322).
   // `reading` is a phone on its side, where height is scarce: the composer is one row (COI-3371).
+  // `saveddraft` reads a newer copy of the words once, for a draft local storage lost (COI-3619).
   // `savedimages` reads the images kept for this draft once, and `onimages` hands over the chips each time they change (COI-3582).
-  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, reading = false, draft = "", ondraft, savedimages, onimages, onsent, onfocuschange, place, working = false }: {
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, reading = false, draft = "", ondraft, saveddraft, savedimages, onimages, onsent, onfocuschange, place, working = false }: {
     connection: HostConnection;
     session: Session;
     sessions?: readonly Session[];
@@ -26,6 +27,7 @@
     reading?: boolean;
     draft?: string;
     ondraft?: (text: string) => void;
+    saveddraft?: () => Promise<string | undefined>;
     savedimages?: () => Promise<File[]>;
     onimages?: (files: File[]) => Promise<"kept" | "too_big" | "off">;
     onsent?: () => void;
@@ -38,7 +40,11 @@
   } = $props();
 
   let text = $state(untrack(() => draft));
-  $effect(() => ondraft?.(text));
+  // Saving waits for the saved words, so an empty box at mount never clears their mirror (COI-3619).
+  let wordsRead = $state(!untrack(() => saveddraft));
+  $effect(() => {
+    if (wordsRead) ondraft?.(text);
+  });
   // Input has no reply, so a lock that follows a send moments later is that send refused, and its text comes back.
   let lastSent: { body: string; at: number } | null = null;
   // A refused send takes its images back with its text, since a screenshot may not be one to take twice.
@@ -50,6 +56,11 @@
   // Saving waits for the read, so an empty box at mount never clears what is about to come back.
   let imagesRead = $state(false);
   onMount(() => {
+    const first = text;
+    void (saveddraft?.() ?? Promise.resolve(undefined)).then((back) => {
+      if (back && text === first) text = back;
+      wordsRead = true;
+    });
     void (savedimages?.() ?? Promise.resolve<File[]>([])).then((files) => {
       if (files.length) {
         take(files);
