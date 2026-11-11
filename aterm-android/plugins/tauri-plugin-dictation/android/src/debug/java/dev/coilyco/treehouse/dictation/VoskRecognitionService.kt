@@ -50,7 +50,9 @@ class VoskRecognitionService : RecognitionService() {
             aborted = true
         }
 
-        private fun say(block: () -> Unit) = main.post { if (!aborted) block() }
+        private fun say(block: () -> Unit) {
+            main.post { if (!aborted) block() }
+        }
 
         private fun words(text: String) = Bundle().apply {
             putStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION, arrayListOf(text))
