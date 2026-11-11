@@ -48,3 +48,25 @@ func gooseSession(db string, entry ledgerEntry, all []ledgerEntry) (string, erro
 	own, err := ownCandidate(entry, peersOf(entry, all, gooseDB), cands)
 	return own.ref, err
 }
+
+// shadowDir is a native shadow's projects directory, which carries its code.
+var shadowDir = regexp.MustCompile(`/native/([0-9A-Za-z]{2,16})/projects$`)
+
+// gooseShadowCode is the shadow a goose session recorded as its directory, or "" when it
+// ran outside one. Only the id and working_dir columns are read.
+func gooseShadowCode(db, session string) string {
+	quoted, err := sqlQuote(session)
+	if err != nil {
+		return ""
+	}
+	var rows []struct {
+		Dir string `json:"working_dir"`
+	}
+	if sqliteJSON(db, "SELECT working_dir FROM sessions WHERE id = "+quoted, &rows) != nil || len(rows) != 1 {
+		return ""
+	}
+	if found := shadowDir.FindStringSubmatch(rows[0].Dir); found != nil {
+		return found[1]
+	}
+	return ""
+}

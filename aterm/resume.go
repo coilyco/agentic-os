@@ -78,6 +78,13 @@ func resumeArgs(entry ledgerEntry, all []ledgerEntry, headless, dryRun bool) ([]
 	if info, err := os.Stat(entry.Cwd); err == nil && info.IsDir() {
 		args = append(args, "--working-directory", entry.Cwd)
 	}
+	// Goose asks before resuming outside the directory it recorded, which a headless
+	// seat cannot answer, so a goose seat resumes in a shadow of the recorded code.
+	if entry.Seat == "goose" {
+		if id := gooseShadowCode(gooseDB(entry), resume[len(resume)-1]); id != "" {
+			args = append(args, "--shadow-id", id)
+		}
+	}
 	return append(append(args, entry.Role, entry.Seat, "--"), resume...), nil
 }
 
