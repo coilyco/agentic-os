@@ -47,7 +47,25 @@
     },
     {
       "op": "sleep",
-      "seconds": 30
+      "seconds": 12
+    },
+    {
+      "op": "logcat",
+      "name": "asleep-12s",
+      "pattern": "VoskDictation"
+    },
+    {
+      "op": "sleep",
+      "seconds": 12
+    },
+    {
+      "op": "logcat",
+      "name": "asleep-24s",
+      "pattern": "VoskDictation"
+    },
+    {
+      "op": "sleep",
+      "seconds": 6
     },
     {
       "op": "adb",
