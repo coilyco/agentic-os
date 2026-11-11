@@ -56,12 +56,14 @@ func pinnedRoots() *x509.CertPool {
 func (s *passkeyStore) deviceKeyEnrolled() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sync()
 	return len(s.user.DeviceKeys) > 0
 }
 
 func (s *passkeyStore) findDeviceKey(keyID string) (deviceKey, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sync()
 	for _, held := range s.user.DeviceKeys {
 		if held.KeyID == keyID {
 			return held, true
@@ -74,6 +76,9 @@ func (s *passkeyStore) findDeviceKey(keyID string) (deviceKey, bool) {
 func (s *passkeyStore) addDeviceKey(key deviceKey) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.follow != "" {
+		return errFollowing
+	}
 	for i, held := range s.user.DeviceKeys {
 		if held.KeyID == key.KeyID {
 			s.user.DeviceKeys[i] = key

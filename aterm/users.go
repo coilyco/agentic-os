@@ -96,7 +96,14 @@ func newLocalUsers(host userHost) *localUsers {
 func openLocalUsers(host userHost, options daemonOptions) *localUsers {
 	u := newLocalUsers(host)
 	var err error
-	if u.passkeys, err = newPasskeyStore(passkeyStatePath(), passkeyRPID, []string{passkeyOrigin}); err != nil {
+	if options.PasskeysFrom != "" {
+		if u.passkeys, err = newFollowingStore(options.PasskeysFrom, passkeyRPID, []string{passkeyOrigin}); err != nil {
+			host.logf("cannot follow passkeys from %s, so no remote device can type: %v", options.PasskeysFrom, err)
+			u.passkeys = defaultPasskeys()
+		} else {
+			host.logf("following the passkeys published in %s, read-only", options.PasskeysFrom)
+		}
+	} else if u.passkeys, err = newPasskeyStore(passkeyStatePath(), passkeyRPID, []string{passkeyOrigin}); err != nil {
 		host.logf("no stored passkeys, so no remote device can type: %v", err)
 		u.passkeys = defaultPasskeys()
 	}
