@@ -4,7 +4,7 @@
   import CloseSeat from "./CloseSeat.svelte";
   import Creature from "./Creature.svelte";
   import PagesList from "./PagesList.svelte";
-  import { app, askLineFor, needsKaiIds, openByPerson, openPage, openSettings, pinnedNow, selectedHost, showAllRoles, showLogo } from "../lib/app.svelte";
+  import { app, askLineFor, needsKaiIds, openByPerson, openConfiguration, openPage, openSettings, pinnedNow, selectedHost, showAllRoles, showLogo } from "../lib/app.svelte";
   import { pageRows } from "../lib/artifact-pages";
   import { ageText } from "../lib/age";
   import { splitHidden } from "../lib/hidden-roles";
@@ -78,6 +78,8 @@
     </div>
     <button type="button" class="settings" onclick={openSettings}>Settings</button>
   </header>
+  <!-- Under Settings and not beside it: the header is full at 320px. -->
+  <div class="entries"><button type="button" class="settings" onclick={openConfiguration}>Configuration</button></div>
 
   {#if app.notice}<p class="note" role="status">{app.notice}</p>{/if}
 
@@ -124,6 +126,7 @@
   .host { margin: 2px 0 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
   .logo { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--control-line); background: transparent; }
   .settings { flex: none; min-height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 14px var(--font-body); }
+  .entries { display: flex; justify-content: flex-end; margin-top: -4px; }
   .logo:focus-visible, .settings:focus-visible, .open:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .note { margin: 0; color: var(--text-soft); font-size: 14px; }
   .hidden-note { margin: 0; font-size: 14px; color: var(--muted); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
