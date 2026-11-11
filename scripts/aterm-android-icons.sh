@@ -63,6 +63,21 @@ for spec in mdpi:100 hdpi:150 xhdpi:200 xxhdpi:300 xxxhdpi:400; do
   done
 done
 
+# The status bar's small icon, drawn flat since Android keeps only its alpha: the client's
+# canopy at 40% alpha or more, white, trimmed to fill 20dp of a 24dp square (COI-3613).
+stat_src="$repo_root/aterm-client/src/assets/treehouse-canopy.svg"
+stat=$(mktemp -t canopy.XXXXXX)
+trap 'rm -f "$canopy_svg" "$canopy" "$stat"' EXIT
+rsvg-convert -w 512 -h 512 "$stat_src" -o "$stat"
+for spec in mdpi:100 hdpi:150 xhdpi:200 xxhdpi:300 xxxhdpi:400; do
+  dir="$icons/android/drawable-${spec%%:*}"
+  k=${spec##*:}
+  mkdir -p "$dir"
+  png "PNG32:$dir/ic_stat_treehouse.png" "$stat" -channel A -threshold 40% +channel -fill white -colorize 100 \
+    -trim +repage -filter Lanczos -resize "$((20 * k / 100))x$((20 * k / 100))" \
+    -background none -gravity center -extent "$((24 * k / 100))x$((24 * k / 100))"
+done
+
 mkdir -p "$icons/android/values"
 cat >"$icons/android/values/ic_launcher_background.xml" <<EOF
 <?xml version="1.0" encoding="utf-8"?>
