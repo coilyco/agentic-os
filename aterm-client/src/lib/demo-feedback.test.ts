@@ -16,4 +16,12 @@ describe("feedback in the demo", () => {
     app.leaveDemo();
     expect(feedback.feedbackAvailability()).toEqual({ ok: false, reason: "Connect to a host first." });
   });
+  it("leaves Settings behind when the demo is left from it", async () => {
+    const app = await import("./app.svelte");
+    app.enterDemo();
+    app.openSettings();
+    expect(app.app.settingsOpen).toBe(true);
+    app.leaveDemo();
+    expect(app.app.settingsOpen).toBe(false);
+  });
 });
