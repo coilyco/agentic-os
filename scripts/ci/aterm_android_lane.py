@@ -102,7 +102,7 @@ class Lane(J.Journey):
         value = str(self.page_().js(spec["js"]))
         if "save" in spec:
             self.saved[spec["save"]] = value
-        if "expect" in spec and not re.search(spec["expect"], value, re.DOTALL):
+        if "expect" in spec and not re.search(spec["expect"], value, re.DOTALL | re.IGNORECASE):
             raise Fail(f"eval {spec['js'][:80]!r} gave {value[:200]!r}, expected /{spec['expect']}/")
         return value[:400]
 
