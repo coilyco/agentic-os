@@ -57,6 +57,8 @@ type daemon struct {
 	askTimeout time.Duration
 	clientDir  string
 	clientFS   fs.FS
+	// socket is the path this daemon listens on, which a seat it spawns is told (COI-3559).
+	socket string
 	// holdDir is where each session's holder keeps its socket. A restarted
 	// daemon adopts what it finds there.
 	holdDir string
@@ -250,6 +252,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		fmt.Fprintf(stderr, "%s aterm daemon: %s\n", time.Now().UTC().Format(time.RFC3339), fmt.Sprintf(format, args...))
 	}
 	d := newDaemon(logf)
+	d.socket = socket
 	if options.SentryDSN != "" {
 		if d.capture, err = newSentryCapture(options.SentryDSN, hostName(), version); err != nil {
 			logf("no Sentry error capture: %v", err)

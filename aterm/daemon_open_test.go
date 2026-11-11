@@ -295,3 +295,16 @@ func TestAskDaemonToOpenSpeaksAsTheSeatThroughARealDaemon(t *testing.T) {
 		t.Fatalf("%+v", pushed)
 	}
 }
+
+func TestASeatIsToldTheSocketItsDaemonListensOnAndNoOtherDaemonsReplacesIt(t *testing.T) {
+	d := newDaemon(func(string, ...any) {})
+	if got := d.withDaemonSocket([]string{"A=1"}); !slices.Equal(got, []string{"A=1"}) {
+		t.Fatalf("a daemon that does not know its socket changes nothing: %v", got)
+	}
+	d.socket = "/run/test-daemon/d.sock"
+	got := d.withDaemonSocket([]string{"ATERM_DAEMON_SOCKET=/tmp/aterm-1/daemon.sock", "A=1"})
+	want := []string{"A=1", "ATERM_DAEMON_SOCKET=/run/test-daemon/d.sock"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
