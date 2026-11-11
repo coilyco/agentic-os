@@ -27,7 +27,7 @@ on:
           - system-images;android-34;google_apis_playstore;x86_64
           - system-images;android-35;google_apis;x86_64
           - system-images;android-35;google_apis_playstore;x86_64
-        default: system-images;android-34;google_apis_playstore;x86_64
+        default: system-images;android-34;google_apis;x86_64
       audio:
         description: "A virtual microphone fed by a spoken phrase, for steps that use `speak`."
         type: boolean
@@ -42,9 +42,9 @@ permissions:
 
 env:
   COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
-  ATERM_LANE_STEPS: ${{ inputs.steps || 'scripts/ci/lane-steps/dictation-spoken.json' }}
+  ATERM_LANE_STEPS: ${{ inputs.steps || 'scripts/ci/lane-steps/smoke.json' }}
   ATERM_LANE_APK_RUN: ${{ inputs.apk_run }}
-  ATERM_EMULATOR_IMAGE: ${{ inputs.image || 'system-images;android-34;google_apis_playstore;x86_64' }}
+  ATERM_EMULATOR_IMAGE: ${{ inputs.image || 'system-images;android-34;google_apis;x86_64' }}
   GH_TOKEN: ${{ github.token }}
 
 jobs:
@@ -79,7 +79,7 @@ jobs:
       - name: Make the emulator image
         run: bash "$GITHUB_WORKSPACE/tooling/scripts/ci/aterm-android-emulator.sh" avd
       - name: Set up the virtual microphone
-        if: ${{ inputs.audio || github.event_name == 'pull_request' }}
+        if: ${{ inputs.audio }}
         run: bash "$GITHUB_WORKSPACE/tooling/scripts/ci/aterm-android-emulator.sh" audio
       - name: Boot the emulator
         timeout-minutes: 10

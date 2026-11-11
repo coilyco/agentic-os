@@ -11,14 +11,14 @@ A second way for a Frontend seat to prove something in the real Treehouse app, w
 * `ref` - the git ref to prove. Its debug x86_64 APK is built there, and the step file is read from it, so a PR branch carries its own proof. Default `main`.
 * `steps` - the step file, a path inside `ref`. Default `scripts/ci/lane-steps/smoke.json`.
 * `apk_run` - a run id holding an `aterm-android-debug-x86_64-<id>` artifact, to skip the 7 minute build. Empty builds from `ref`.
-* `image` - a system image: Android 14 or 15, `google_apis` or `google_apis_playstore` (the one with Google's speech app). Default is Android 14 playstore.
+* `image` - a system image: Android 14 or 15, `google_apis` or `google_apis_playstore` (the one with Google's speech app). Default is Android 14 `google_apis`.
 * `audio` - a spoken phrase the emulator's microphone can hear, for steps that use `speak`.
 
 The workflow file and the runner come from the ref you dispatch on, which is `main` unless you pass `--ref`. The proof runs against `ref`. Anyone who can dispatch can run any step file, so there are no secrets in the job.
 
 ## What the job has
 
-The chosen image (Android 14 playstore by default), the debug APK installed with every permission granted, a real `aterm daemon` on the runner behind the rig's relay, and one stub seat, `emulator-seat` (role `frontend-eng`), that asks no question. The app starts on a fresh install. A debug build is required, because DevTools is the way to read the page.
+The chosen image (Android 14 `google_apis` by default), the debug APK installed with every permission granted, a real `aterm daemon` on the runner behind the rig's relay, and one stub seat, `emulator-seat` (role `frontend-eng`), that asks no question. The app starts on a fresh install. A debug build is required, because DevTools is the way to read the page.
 
 ## The step file
 
@@ -38,6 +38,8 @@ JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add
 * `recognizer` - `service: fake` names the debug build's `FakeRecognitionService` the phone's recogniser, `system` puts back the image's own.
 * `speak` - feeds the spoken phrase to the emulator's microphone (needs `audio`).
 * `logcat` - `name`, `pattern`. Matching logcat lines into `logcat-<name>.txt`.
+* `ui-dump` - `name`. The system UI's uiautomator tree as `ui-<name>.xml` and a text list `ui-<name>.txt`, for Android's own screens.
+* `tap-ui` - `pattern`, `timeout`. Taps the first system UI node whose text or description matches the regex.
 * `sleep` - `seconds`.
 
 Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill` and `draft-image-survives-kill`. Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.

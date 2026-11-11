@@ -176,6 +176,24 @@ class Lane(J.Journey):
     def op_speak(self, spec: dict) -> None:
         self.speak()
 
+    def op_ui_dump(self, spec: dict) -> None:
+        """The system UI as uiautomator sees it, for steps that drive Android's own screens."""
+        xml = self.ui_xml()
+        (self.out / f"ui-{spec['name']}.xml").write_text(xml)
+        tree = J.ET.fromstring(xml or "<hierarchy/>")
+        words = [f"{n.get('text') or ''} | {n.get('content-desc') or ''} | {n.get('resource-id') or ''}" for n in tree.iter("node")]
+        (self.out / f"ui-{spec['name']}.txt").write_text("\n".join(w for w in words if w.strip(" |")))
+
+    def op_tap_ui(self, spec: dict) -> None:
+        """Tap the first system UI node whose text or description matches the regex `pattern`."""
+        pattern = re.compile(spec["pattern"], re.IGNORECASE)
+
+        def wanted(node) -> bool:
+            return bool(pattern.search(node.get("text") or "") or pattern.search(node.get("content-desc") or ""))
+
+        if not self.tap_node(wanted, spec.get("timeout", 20)):
+            raise Fail(f"no system UI node matched /{spec['pattern']}/")
+
     def op_logcat(self, spec: dict) -> None:
         lines = [line for line in adb("logcat", "-d", "-t", "10000", check=False).splitlines() if re.search(spec["pattern"], line, re.IGNORECASE)]
         (self.out / f"logcat-{spec['name']}.txt").write_text("\n".join(lines[-400:]))
