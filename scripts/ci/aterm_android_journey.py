@@ -337,7 +337,7 @@ class Journey:
         """What the daemon offered and did for the open, so a missing card says which half failed (COI-3559)."""
         seat = HERE / "aterm_android_seat.py"
         done = subprocess.run([sys.executable, "-I", str(seat), "features", self.args.socket], capture_output=True, text=True, check=False)
-        log = Path(self.args.out) / "daemon.log"
+        log = Path(self.args.out).parent / "daemon.log"
         asked = [line for line in log.read_text(errors="replace").splitlines() if "asked to open an address" in line] if log.exists() else []
         return f"welcome features: {done.stdout.strip() or done.stderr.strip()}\ndaemon open log: {asked[-1] if asked else 'no open_url was asked of the daemon'}\n"
 

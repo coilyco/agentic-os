@@ -93,7 +93,7 @@ def test_open_facts_say_what_the_daemon_offered_and_whether_an_open_was_asked(tm
     sock = tmp_path / "d.sock"
     thread = _daemon(sock, ["image-upload", "open-url"])
     (tmp_path / "daemon.log").write_text("x asked to open an address, taken by 1 clients\n")
-    me = types.SimpleNamespace(args=argparse.Namespace(socket=str(sock), out=str(tmp_path)))
+    me = types.SimpleNamespace(args=argparse.Namespace(socket=str(sock), out=str(tmp_path / "screens")))
     facts = journey.Journey.open_facts(me)
     thread.join(5)
     assert 'welcome features: ["image-upload", "open-url"]' in facts
