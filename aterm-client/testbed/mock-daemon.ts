@@ -137,6 +137,8 @@ export interface Mock {
   appendTranscript(session: string, items: unknown[]): void;
   /** The daemon refuses a seat's `transcript` with this reason, until set to null. */
   refuseTranscript(session: string, reason: string | null): void;
+  /** Delays this seat's `transcript` answer by this many ms, 0 to stop. */
+  holdTranscript(session: string, ms: number): void;
   /** Every `transcript` request the client sent, in order. */
   transcriptCalls: { session: string; since?: string; before?: string; limit?: number }[];
   /** A seat shares a file. The mock keeps its bytes and pushes the descriptor. */
@@ -194,6 +196,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   };
   const transcripts = new Map<string, unknown[]>();
   const transcriptRefusals = new Map<string, string>();
+  const transcriptHolds = new Map<string, number>();
   // A seat's browser: the agent drives until a screen takes control.
   // `client` is the name each connection was given.
   const pages = new Map<string, { holder: WebSocket | null; url: string }>();
@@ -357,7 +360,10 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
             send(socket, { type: "error", id: frame.id, session, reason: "bad_cursor", error: "bad cursor" });
             return;
           }
-          send(socket, { type: "transcript", id: frame.id, session, reader: "claude", items: all.slice(from, to), cursor: String(all.length), ...(from > 0 ? { older: String(from) } : {}), more: from > 0, updated_at: new Date().toISOString() });
+          const answer = { type: "transcript", id: frame.id, session, reader: "claude", items: all.slice(from, to), cursor: String(all.length), ...(from > 0 ? { older: String(from) } : {}), more: from > 0, updated_at: new Date().toISOString() };
+          const hold = transcriptHolds.get(session) ?? 0;
+          if (hold > 0) setTimeout(() => send(socket, answer), hold);
+          else send(socket, answer);
           return;
         }
         case "media_read": {
@@ -545,6 +551,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     setTranscript: (session, items) => void transcripts.set(session, items),
     appendTranscript: (session, items) => void transcripts.set(session, [...(transcripts.get(session) ?? []), ...items]),
     refuseTranscript: (session, reason) => void (reason ? transcriptRefusals.set(session, reason) : transcriptRefusals.delete(session)),
+    holdTranscript: (session, ms) => void (ms > 0 ? transcriptHolds.set(session, ms) : transcriptHolds.delete(session)),
     mediaReads: mock.mediaReads,
     shareMedia(session, file) {
       const id = `media-${shared.size + 1}`;

@@ -16,6 +16,16 @@ Named from Claude Code's `viewMode`. **Focus** is each turn's prompt, one line p
 * **It polls** `since` the last cursor every 2 seconds while open, paused while the page is hidden, and refetches the newest page on `bad_cursor`.
 * **Show earlier** at the top asks for the page `before` the reply's `older` cursor and keeps the view where it was. Text the host cut says so under it. A device that must unlock first (`passkey_required`) gets the screen and the reason.
 
+## Opening on the last page (COI-3534)
+
+A seat opens on the transcript this device last read, then catches up. The measurement behind it (2026-11-10, six live seats on aos-v0.575.0): a terminal replay is one 1 MiB frame, so the cost on a phone is the transfer, and the client never sent the `offset` the daemon's `attach` accepts. This page of work covers the Messages and Focus views. A terminal that resumes from `offset` is a separate change.
+
+* **What is kept** - per host and seat in IndexedDB, the newest 60 items without any tool output, 12 seats at most, 24 hours (`transcript-cache.ts`). Output is left out because it is where a seat's secrets sit. Jev picked this over memory only (0.72, confidence 0.58), so it is a flag-sized change to drop it.
+* **When it shows** - only on a device that may type, so a device that must unlock first never paints a kept page.
+* **On open** - the kept page paints at once with `Showing what this device read 3 hours ago. Catching up.` The newest page is read in parallel and joined by item id, which brings a tool's output back. A host that does not answer leaves the kept page up and says so.
+* **The marker** - `New since you were last here` sits above the first item that was not on the kept page, at the first row drawn at this view, and scrolls there. It is set on open only, never for lines that arrive while watching, and clears after 8 seconds with the newest line in view. When the read shares no item with the kept page, the kept page is dropped, since a gap would read as nothing having happened, and everything shown is new.
+* **Journey** - `seat-open-instantly` on a phone, with the mock's `holdTranscript` to hold the host's answer.
+
 ## Where it lives
 
-`src/lib/transcript.ts` (types, decoder, `rowsFor`), `src/lib/seat-view.ts`, `src/components/SeatViews.svelte` (the radio group, arrow keys, 44px stops), `src/components/Transcript.svelte`, and the host channel `transcripts` in `daemon-host.ts`. The journey is `seat-views`, and the bed's mock answers `transcript` from `setTranscript`.
+`src/lib/transcript.ts` (types, decoder, `rowsFor`), `src/lib/seat-view.ts`, `src/components/SeatViews.svelte` (the radio group, arrow keys, 44px stops), `src/components/Transcript.svelte`, `src/lib/transcript-cache.ts`, and the host channel `transcripts` in `daemon-host.ts`. The journey is `seat-views`, and the bed's mock answers `transcript` from `setTranscript`.
