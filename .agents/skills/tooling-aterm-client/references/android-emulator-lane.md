@@ -58,6 +58,8 @@ The artifact `aterm-android-lane-<run id>` holds `screens/NN-name.png` for each 
 
 **Google's recognizer does not recognise it on a CI emulator.** The phrase reaches the app's `SpeechRecognizer`, and the answer is always `No words recognised`. On `google_apis_playstore` (Android 14 and 15) the en-US pack never installed: a 7 minute run of retries logged `Returning no LP, as MDD has not downloaded this pack yet` every time, with Google's background download tasks cancelled. On `google_apis` there is no pack and the online path answers 401. So the `dictation-spoken` step file fails on the lane, and **a spoken phrase becoming composer text is checked on a phone, not here.** The audio path itself is proven (the guest hears the phrase), and `dictation-fake` proves the plugin and page with a debug-only recognizer. A recognizer that works offline in debug builds would close the gap (COI-3586).
 
+**The status bar reads 3G.** The emulator's radio reports HSPA and the bar prints that as 3G whatever system UI demo mode sets. `datatype` values, a full mobile demo command and `adb emu network speed lte` changed nothing, and hiding the mobile group drops the signal bars. The `play-screenshots` set paints the glyph out afterwards: `magick in.png -fill "$(magick in.png -format '%[pixel:p{900,12}]' info:)" -draw "rectangle 866,22 932,78" -alpha off -define png:color-type=2 out.png`.
+
 ## Limits
 
 * A fresh emulator every run, so no state carries over. Use `kill-app` and `reopen` to test what survives a close.
