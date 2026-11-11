@@ -2,22 +2,76 @@
   "name": "dictation from a spoken phrase, heard by the debug build's Vosk recognizer",
   "start": "seat",
   "steps": [
-    {"op": "recognizer", "service": "vosk"},
+    {
+      "op": "recognizer",
+      "service": "vosk"
+    },
     {
       "op": "retry",
       "times": 5,
       "every": 30,
       "steps": [
-        {"op": "fill", "selector": "#composer-input", "text": ""},
-        {"op": "tap", "selector": "[aria-label=\"Dictate\"]"},
-        {"op": "sleep", "seconds": 3},
-        {"op": "speak"},
-        {"op": "wait-value", "selector": "#composer-input", "pattern": "hello world this is a test", "timeout": 20}
+        {
+          "op": "fill",
+          "selector": "#composer-input",
+          "text": ""
+        },
+        {
+          "op": "tap",
+          "selector": "[aria-label=\"Dictate\"]"
+        },
+        {
+          "op": "sleep",
+          "seconds": 8
+        },
+        {
+          "op": "adb",
+          "args": [
+            "shell",
+            "grep -E 'MemTotal|MemAvailable' /proc/meminfo; dumpsys meminfo dev.coilyco.treehouse | head -12"
+          ]
+        },
+        {
+          "op": "logcat",
+          "name": "vosk-listening",
+          "pattern": "vosk|AndroidRuntime|FATAL|lmkd|lowmem"
+        },
+        {
+          "op": "speak"
+        },
+        {
+          "op": "sleep",
+          "seconds": 6
+        },
+        {
+          "op": "logcat",
+          "name": "vosk-heard",
+          "pattern": "vosk|AndroidRuntime|FATAL|lmkd|lowmem"
+        },
+        {
+          "op": "wait-value",
+          "selector": "#composer-input",
+          "pattern": "hello world this is a test",
+          "timeout": 20
+        }
       ]
     },
-    {"op": "keyboard", "action": "close"},
-    {"op": "shot", "name": "composer-after-spoken-phrase"},
-    {"op": "recognizer", "service": "system"},
-    {"op": "logcat", "name": "speech", "pattern": "vosk|speech|recogni|dictation"}
+    {
+      "op": "keyboard",
+      "action": "close"
+    },
+    {
+      "op": "shot",
+      "name": "composer-after-spoken-phrase"
+    },
+    {
+      "op": "recognizer",
+      "service": "system"
+    },
+    {
+      "op": "logcat",
+      "name": "speech",
+      "pattern": "vosk|speech|recogni|dictation"
+    }
   ]
 }

@@ -50,7 +50,13 @@ Fail = devtools.DevToolsError
 
 
 def adb(*args: str, check: bool = True, timeout: int = 60) -> str:
-    done = subprocess.run(["adb", *args], capture_output=True, text=True, timeout=timeout, check=False)
+    try:
+        done = subprocess.run(["adb", *args], capture_output=True, text=True, timeout=timeout, check=False)
+    except subprocess.TimeoutExpired:
+        # A dead emulator hangs adb. Evidence must not mask the first failure.
+        if check:
+            raise
+        return ""
     if check and done.returncode != 0:
         raise Fail(f"adb {' '.join(args)} failed: {done.stderr.strip() or done.stdout.strip()}")
     return done.stdout
