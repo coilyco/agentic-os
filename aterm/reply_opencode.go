@@ -62,11 +62,11 @@ func opencodeDB(entry ledgerEntry) string {
 // opencodeSession finds a seat's top-level session in its directory that began no earlier
 // than the seat. A subagent session has a parent and is skipped.
 func opencodeSession(db string, entry ledgerEntry, all []ledgerEntry) (string, error) {
-	dir, err := sqlQuote(entry.Cwd)
+	dir, err := entry.dirClause("directory")
 	if err != nil {
 		return "", withExit(exitUsage, fmt.Errorf("%s: %v: %w", entry.Name, err, errNoTranscript))
 	}
-	query := fmt.Sprintf("SELECT id, time_created FROM session WHERE directory = %s AND parent_id IS NULL AND time_created >= %d",
+	query := fmt.Sprintf("SELECT id, time_created FROM session WHERE %s AND parent_id IS NULL AND time_created >= %d",
 		dir, entry.Started.Add(-5*time.Second).UnixMilli())
 	if entry.Ended != nil {
 		query += fmt.Sprintf(" AND time_created <= %d", entry.Ended.Add(5*time.Second).UnixMilli())
