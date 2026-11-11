@@ -1,5 +1,5 @@
 // Journey: open a seat that has run long, and scroll its history (COI-3422).
-import { expect, kindOf, loadFonts, pushOutput, SEATS, test } from "../harness.ts";
+import { expect, kindOf, loadFonts, pushOutput, SEATS, test, seatEntry } from "../harness.ts";
 import { longSeat } from "../scenes.ts";
 
 const HISTORY_BYTES = 1 << 20;
@@ -36,7 +36,7 @@ for (const run of RUNS) test(`a long seat opens fast and scrolls steadily (${run
   await page.goto("/");
   await loadFonts(page);
   await page.getByRole("tab", { name: /this Mac/ }).click();
-  const tab = page.getByRole("tab", { name: new RegExp(SEATS.beetle.name) }).first();
+  const tab = seatEntry(page, SEATS.beetle.name);
   await tab.waitFor();
   await page.evaluate(() => {
     const w = window as unknown as Record<string, unknown>;
