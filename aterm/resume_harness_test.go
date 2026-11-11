@@ -315,3 +315,20 @@ func TestSeatsInTwoShadowsAreNotPeersEvenWhenTheyNamedOneDirectory(t *testing.T)
 		t.Fatalf("a --session-id after the harness's own `--` is not the shadow's: %q", id)
 	}
 }
+
+func TestAClosedSeatsWALDatabaseIsReadableOnceNoProcessHoldsItOpen(t *testing.T) {
+	needSqlite(t)
+	db := filepath.Join(t.TempDir(), "sessions.db")
+	sqliteExec(t, db, "PRAGMA journal_mode=wal; CREATE TABLE sessions (id TEXT); INSERT INTO sessions VALUES ('20261111_1');")
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if err := os.Remove(db + suffix); err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+	}
+	var rows []struct {
+		ID string `json:"id"`
+	}
+	if err := sqliteJSON(db, "SELECT id FROM sessions", &rows); err != nil || len(rows) != 1 || rows[0].ID != "20261111_1" {
+		t.Fatalf("rows = %v, err = %v", rows, err)
+	}
+}
