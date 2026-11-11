@@ -16,7 +16,7 @@
   import { detectChoice } from "../lib/choices";
   import { linkTarget, opensLink, wantsFind } from "../lib/terminal-extras";
   import { coastRows, swipeGoesTo, takeRows } from "../lib/touch-scroll";
-  import { loadWrap, storeWrap } from "../lib/wrap";
+  import { loadWrap, loadWrapDefault, loadWrapPick, storeWrap, wrapsByDefault } from "../lib/wrap";
   import { lineChars, urlAtChain } from "../lib/wrap-links";
   import { DEFAULT_TEXT_SIZE, loadTextSize, stepTextSize, storeTextSize, TEXT_SIZES } from "../lib/text-size";
   import { isBlank, screenRows, tabBarReading, type TabBarCells } from "../lib/screen";
@@ -74,6 +74,8 @@
   const NARROW_PX = 360;
   // Long lines fold to the screen's width in this client alone. The daemon is told nothing, so no other view of the seat moves (COI-3544).
   let wrapping = $state(false);
+  // What a person chose with the button, or nothing. Without a choice the device default wraps a seat once it overflows (COI-3612).
+  let wrapPick = $state<boolean | undefined>(undefined);
   // Offered where dragging sideways is the tedious part: a touch screen or a narrow window, and only while the
   // PTY is wider than the box or the switch is on. A desktop pane scrolls its long lines.
   let handheld = $state(false);
@@ -273,6 +275,7 @@
   onMount(() => {
     const phone = matchMedia("(max-width: 720px)");
     wrapping = loadWrap(sessionId);
+    wrapPick = loadWrapPick(sessionId);
     const handheldQuery = matchMedia("(max-width: 720px), (pointer: coarse)");
     handheld = handheldQuery.matches;
     const onHandheld = () => (handheld = handheldQuery.matches);
@@ -708,9 +711,20 @@
     refit();
   }
 
+  // Latched on the first overflow, so wrapping a seat that now fits does not switch it back off.
+  $effect(() => {
+    if (wrapPick !== undefined || wrapping || !overflows || !wrapsByDefault(loadWrapDefault(), handheld)) return;
+    fold(true);
+  });
+
   function setWrap(next: boolean): void {
-    wrapping = next;
+    wrapPick = next;
     storeWrap(sessionId, next);
+    fold(next);
+  }
+
+  function fold(next: boolean): void {
+    wrapping = next;
     // The sideways pan has no use while lines fold, and a pan left behind would hide column 0.
     if (next && host) host.scrollLeft = 0;
     paintStripes();

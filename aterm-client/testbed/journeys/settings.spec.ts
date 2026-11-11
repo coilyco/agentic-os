@@ -82,3 +82,18 @@ test.describe("the view a seat opens in", () => {
     await expect(page.getByRole("radiogroup", { name: "Seat view" }).getByRole("radio", { name: "Focus" }), "the seat's own pick wins").toHaveAttribute("aria-checked", "true");
   });
 });
+
+test("Wrap long lines has a device default that is Auto until chosen and is kept at once", async ({ page }) => {
+  await page.goto("/");
+  await loadFonts(page);
+  await page.getByRole("tab", { name: /this Mac/ }).click();
+  await page.getByRole("region", { name: "Seats", exact: true }).getByRole("button", { name: "Settings", exact: true }).click();
+  const group = page.getByRole("region", { name: "Settings" }).getByRole("radiogroup", { name: "Wrap long lines" });
+  await expect(group.getByRole("radio", { name: "Auto" })).toHaveAttribute("aria-checked", "true");
+  await group.getByRole("radio", { name: "Off" }).click();
+  await expect(group.getByRole("radio", { name: "Off" })).toHaveAttribute("aria-checked", "true");
+  expect(await stored(page, "aterm.terminal-wrap-default.v1"), "stored without a reload").toBe("off");
+  await group.getByRole("radio", { name: "Off" }).press("ArrowLeft");
+  await expect(group.getByRole("radio", { name: "On" }), "arrows move between the stops").toHaveAttribute("aria-checked", "true");
+  expect(await stored(page, "aterm.terminal-wrap-default.v1")).toBe("on");
+});

@@ -5,6 +5,7 @@
   import TapTraceSwitch from "../components/TapTraceSwitch.svelte";
   import { app, closeSettings, removeHost } from "../lib/app.svelte";
   import { loadViewDefault, storeViewDefault, type ViewDefault } from "../lib/seat-view";
+  import { loadWrapDefault, storeWrapDefault, type WrapDefault } from "../lib/wrap";
   import { DEFAULT_TEXT_SIZE, loadTextSize, stepTextSize, storeTextSize, TEXT_SIZES } from "../lib/text-size";
 
   const OPENS: { value: ViewDefault; label: string }[] = [
@@ -18,13 +19,23 @@
     opens = next;
     storeViewDefault(next);
   }
+  const WRAPS: { value: WrapDefault; label: string }[] = [
+    { value: "auto", label: "Auto" },
+    { value: "on", label: "On" },
+    { value: "off", label: "Off" },
+  ];
+  let wraps = $state(loadWrapDefault());
+  function setWraps(next: WrapDefault): void {
+    wraps = next;
+    storeWrapDefault(next);
+  }
   // Arrows move between the stops as a radio group does, and focus follows.
-  function stops(event: KeyboardEvent): void {
+  function arrow<T extends string>(event: KeyboardEvent, list: { value: T }[], current: T, set: (next: T) => void): void {
     const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
     if (!step) return;
     event.preventDefault();
-    const next = OPENS[(OPENS.findIndex((each) => each.value === opens) + step + OPENS.length) % OPENS.length]!;
-    setOpens(next.value);
+    const next = list[(list.findIndex((each) => each.value === current) + step + list.length) % list.length]!;
+    set(next.value);
     queueMicrotask(() => (event.currentTarget as HTMLElement).querySelector<HTMLElement>('[aria-checked="true"]')?.focus());
   }
 
@@ -51,7 +62,7 @@
 
   <section class="group" aria-labelledby="opens-label">
     <h2 id="opens-label">New seats open in</h2>
-    <div class="stops" role="radiogroup" aria-labelledby="opens-label" tabindex="-1" onkeydown={stops}>
+    <div class="stops" role="radiogroup" aria-labelledby="opens-label" tabindex="-1" onkeydown={(event) => arrow(event, OPENS, opens, setOpens)}>
       {#each OPENS as each (each.value)}
         <button type="button" role="radio" aria-checked={opens === each.value} tabindex={opens === each.value ? 0 : -1} onclick={() => setOpens(each.value)}>{each.label}</button>
       {/each}
@@ -68,6 +79,16 @@
       <button type="button" disabled={size === DEFAULT_TEXT_SIZE} onclick={() => setSize(DEFAULT_TEXT_SIZE)}>Reset to {DEFAULT_TEXT_SIZE}px</button>
     </div>
     <p class="hint">The size of the text in every seat's terminal. A smaller size fits more characters on a narrow screen.</p>
+  </section>
+
+  <section class="group" aria-labelledby="wrap-label">
+    <h2 id="wrap-label">Wrap long lines</h2>
+    <div class="stops" role="radiogroup" aria-labelledby="wrap-label" tabindex="-1" onkeydown={(event) => arrow(event, WRAPS, wraps, setWraps)}>
+      {#each WRAPS as each (each.value)}
+        <button type="button" role="radio" aria-checked={wraps === each.value} tabindex={wraps === each.value ? 0 : -1} onclick={() => setWraps(each.value)}>{each.label}</button>
+      {/each}
+    </div>
+    <p class="hint">When a seat's screen is wider than yours, fold its long lines to fit. Auto does it on a phone or a narrow window and not on a desktop. The Wrap button in a seat's toolbar overrides this for that seat.</p>
   </section>
 
   <section class="group" aria-labelledby="hosts-label">
