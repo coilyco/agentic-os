@@ -15,7 +15,11 @@ const wideScene: Scene = {
   },
 };
 
-test.beforeEach(({}, info) => test.skip(kindOf(info) !== "phone", "a phone's narrow box"));
+// These journeys pan a wide line, so the Wrap default starts off (COI-3612).
+test.beforeEach(async ({ page }, info) => {
+  test.skip(kindOf(info) !== "phone", "a phone's narrow box");
+  await page.addInitScript(() => localStorage.setItem("aterm.terminal-wrap-default.v1", "off"));
+});
 
 const reach = (page: import("@playwright/test").Page) =>
   page.evaluate((tail) => {
