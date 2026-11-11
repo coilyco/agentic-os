@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -94,7 +96,7 @@ func TestNativeLaunchTakesTheRequestedSessionID(t *testing.T) {
 	}
 }
 
-func TestNativeLaunchDrawsFreshWhenTheRequestedIDIsTaken(t *testing.T) {
+func TestNativeLaunchDrawsFreshWhenALiveLeaseHoldsTheRequestedID(t *testing.T) {
 	root := t.TempDir()
 	createNativeTestRepository(t, root, "owner", "one")
 	runtime := nativeTestRuntime(t, root)
@@ -105,13 +107,91 @@ func TestNativeLaunchDrawsFreshWhenTheRequestedIDIsTaken(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(runtime.SessionsRoot, "ab84"), 0o700); err != nil {
 		t.Fatal(err)
 	}
+	holder := nativeLease{Format: "agentic-os.native-lease.v1", ID: "ab84", Harness: "claude", PID: os.Getpid()}
+	if err := writeNativeJSON(nativeStatePath(runtime, "leases", "ab84.json"), holder); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := prepareNativeLaunch(runtime, "claude"); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, lease := onlyNativeLease(t, runtime); lease.ID != "cc66" {
-		t.Fatalf("native session ID = %q, want a fresh cc66 past the taken ab84", lease.ID)
+	entries, err := os.ReadDir(nativeStatePath(runtime, "leases"))
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("leases = %v, err = %v, want the holder's and one fresh", entries, err)
+	}
+	var held nativeLease
+	if err := readNativeJSON(nativeStatePath(runtime, "leases", "ab84.json"), &held); err != nil || held.Harness != "claude" {
+		t.Fatalf("the holder's lease was rewritten: %+v, %v", held, err)
+	}
+}
+
+// A deleted pod never runs the shadow cleanup, so a resume finds its directory and
+// branch with no lease. The code is reused, which keeps the directory goose recorded.
+func TestNativeLaunchReusesARequestedIDWhoseDirectoryAnEndedSessionLeftBehind(t *testing.T) {
+	root := t.TempDir()
+	createNativeTestRepository(t, root, "owner", "one")
+	runtime := nativeTestRuntime(t, root)
+	runtime.RequestedID = "ab84"
+	runtime.Random = bytes.NewReader([]byte{2, 2, 2, 2})
+	writeNativeTestPlan(t, runtime.PlanFile, "one")
+	writeNativeTestList(t, runtime.FleetFile, "owner")
+	if _, err := prepareNativeLaunch(runtime, "claude"); err != nil {
+		t.Fatal(err)
+	}
+	path, first := onlyNativeLease(t, runtime)
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	left := filepath.Join(first.SessionRoot, "left-behind")
+	if err := os.WriteFile(left, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := prepareNativeLaunch(runtime, "claude"); err != nil {
+		t.Fatal(err)
+	}
+
+	_, lease := onlyNativeLease(t, runtime)
+	if lease.ID != "ab84" || lease.SessionRoot != first.SessionRoot {
+		t.Fatalf("lease = %s in %s, want ab84 in %s", lease.ID, lease.SessionRoot, first.SessionRoot)
+	}
+	if _, err := os.Stat(left); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("the ended session's leftovers were kept: %v", err)
+	}
+}
+
+func TestNativeLaunchKeepsAnEndedSessionsUnpushedWorkAndDrawsFreshInstead(t *testing.T) {
+	root := t.TempDir()
+	createNativeTestRepository(t, root, "owner", "one")
+	runtime := nativeTestRuntime(t, root)
+	runtime.RequestedID = "ab84"
+	runtime.Random = bytes.NewReader([]byte{2, 2, 2, 2})
+	writeNativeTestPlan(t, runtime.PlanFile, "one")
+	writeNativeTestList(t, runtime.FleetFile, "owner")
+	if _, err := prepareNativeLaunch(runtime, "claude"); err != nil {
+		t.Fatal(err)
+	}
+	path, first := onlyNativeLease(t, runtime)
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	worktree := first.Artifacts[0].Worktree
+	if err := os.WriteFile(filepath.Join(worktree, "work.txt"), []byte("mine\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	testGit(t, worktree, "add", "work.txt")
+	testGit(t, worktree, "commit", "-m", "unpushed")
+
+	if _, err := prepareNativeLaunch(runtime, "claude"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, lease := onlyNativeLease(t, runtime); lease.ID == "ab84" {
+		t.Fatalf("native session ID = %q, which would have discarded unpushed work", lease.ID)
+	}
+	if _, err := os.Stat(filepath.Join(worktree, "work.txt")); err != nil {
+		t.Fatalf("the unpushed work is gone: %v", err)
 	}
 }
 

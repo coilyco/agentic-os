@@ -3,11 +3,11 @@
 // is a deliberate edit here and not a silent drift.
 import { expect, SEATS, test } from "../harness.ts";
 
-// --terminal and --text-soft, plus the seat's role colour (frontend-eng in the roster
-// fixture) as the cursor and, at alpha 0x55, the selection.
+// --terminal and --text-soft, plus the one seat mark (COI-3621) as the cursor and, at
+// alpha 0x55, the selection.
 const BACKGROUND = "#271a0c";
 const FOREGROUND = "#ddd6cf";
-const ACCENT = "#ee7eea";
+const ACCENT = "#ddd6cf";
 const SELECTION_ALPHA = 0x55 / 255;
 
 const channels = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));

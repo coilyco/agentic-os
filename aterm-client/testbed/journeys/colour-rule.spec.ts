@@ -1,5 +1,6 @@
 // COI-3583: one busy seat with every colour a reader meets, for the colour rule's before
 // and after. It saves a picture and compares none, since the page shows it by eye.
+import { writeFileSync } from "node:fs";
 import { expect, SEATS, test } from "../harness.ts";
 
 const esc = (code: string, text: string) => `\x1b[${code}m${text}\x1b[0m`;
@@ -27,5 +28,16 @@ test("a busy seat shows its whole palette", async ({ bed }) => {
   await bed.openSeat(SEATS.imp);
   bed.mock.setScene(SEATS.imp.id, { render: () => screen.split("\r\n") });
   await expect(bed.screen()).toContainText("bright");
+  // Three other seats wait on a person, so the list shows a cue for each.
+  const waiting = [SEATS.griffin, SEATS.beetle, SEATS.turtle];
+  waiting.forEach((seat, n) => bed.mock.push({ type: "ask", ask: { id: `ask-${n}`, session: seat.id, header: "Scope", question: "Keep the alerts pinned?", options: [{ label: "Pinned", description: "Always visible." }, { label: "Behind a button", description: "One tap away." }], allow_other: false, multi: false } }));
+  // A phone keeps the list behind a button, so only a wide screen shows the cues.
+  if ((bed.page.viewportSize()?.width ?? 0) > 900) await expect(bed.page.locator('.seat[data-glow="true"]')).toHaveCount(waiting.length);
   await bed.step("busy-seat", { compare: false });
+  // Boxes the hue count leaves out: the terminal's own colours and the creature art.
+  const skip = await bed.page.evaluate(() => [...document.querySelectorAll(".xterm, img.creature, img.mark")].map((node) => {
+    const { x, y, width, height } = node.getBoundingClientRect();
+    return [x, y, width, height].map(Math.round);
+  }));
+  writeFileSync(test.info().outputPath("skip-boxes.json"), JSON.stringify(skip));
 });

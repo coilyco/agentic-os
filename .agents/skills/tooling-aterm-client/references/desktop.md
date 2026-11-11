@@ -21,13 +21,14 @@ The loopback daemon accepts the webview's `tauri://localhost` origin, since its 
 **A seat does not run the install or the login swap.** The umbra fs guard refuses a write under `~/Applications`, and a login item is Kai's. The infrastructure `treehouse-mac` role does both, and `just mac-converge apply` in infrastructure runs it outside the session with the real `HOME` (COI-3234). It rebuilds only when the `aterm-android/` or `aterm-client/` tree on main changed, defers the install while Treehouse is open, and prints `login: changed` or `login: unchanged`.
 
 * `just treehouse-mac-test` runs the shell's Rust tests.
-* `just treehouse-mac-build` builds the client for the app, builds the bundle, and signs it under the bundle id.
+* `just treehouse-mac-build` builds the client for the app, builds the bundle, and signs it under the bundle id. The version shown is the newest `aterm-android` release tag, or `TREEHOUSE_VERSION` where the tree has no tags.
+* `just treehouse-mac-sign-setup` imports the signing identity from SSM. Run it once, from a session with AWS access.
 * `just treehouse-mac-install` copies it to `~/Applications/Treehouse.app`. The role calls it.
 * `just treehouse-mac-login on` adds Treehouse, then removes Portfolio Director, and takes Treehouse off again if the removal fails, so there is one. `off` reverses both. `status` lists them. The role calls it.
 
 ## Not yet
 
-* **The signature is ad-hoc.** A rebuild is a new identity to macOS, so a grant would not survive it. `TREEHOUSE_SIGN_IDENTITY` takes a keychain identity once one exists for the app (COI-3338).
+* **The signing identity is COI-50's self-signed certificate** (`Coilyco Code Signing`, in SSM under `/coilysiren/codesign/`), imported once by `just treehouse-mac-sign-setup` into a keychain of its own, so an unattended build needs no AWS session. A rebuild keeps the same designated requirement, which `treehouse-mac.sh build` prints. Rotating the certificate expires every grant. With no identity the build fails, and `TREEHOUSE_SIGN_ADHOC=1` allows a throwaway ad-hoc one.
 * **The seed writes the client's storage keys** from outside it. A build-time local host and an open-this-role setting in the client would replace it.
 * **The Cargo package is still `aterm-app`**, a code name nobody reads. The executable inside the bundle is `Treehouse` (`mainBinaryName` in `tauri.macos.conf.json`), so the process list says that (COI-3550).
 * **The Android build was not re-run** after the `cfg(desktop)` split in `lib.rs`. Its next scheduled run is the check.
