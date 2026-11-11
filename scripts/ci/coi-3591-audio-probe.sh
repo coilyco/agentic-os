@@ -52,14 +52,15 @@ try() {
   adb shell 'tinycap /data/local/tmp/cap.wav -D 0 -d 0 -r 16000 -c 1 -b 16 -T 6' 2>&1 | tail -3
   adb pull /data/local/tmp/cap.wav /tmp/cap.wav 2>&1 | tail -1
   sox /tmp/cap.wav -n stat 2>&1 | grep -E "Maximum amplitude|Length|RMS"
+  cat "$HOME"/.android/avd/running/*.ini 2>/dev/null | sed 's/grpc.token=.*/grpc.token=<hidden>/' | head -12
   adb emu kill || kill "$pid"
   sleep 8
 }
 
-echo "== qemu pulse linkage"
-find "$ANDROID_HOME/emulator" -name 'libpulse*' | head
-QEMU=$(find "$ANDROID_HOME/emulator" -name 'qemu-system-x86_64*' -type f | head -1)
-echo "qemu: $QEMU"
-ldd "$QEMU" 2>&1 | grep -i -E "pulse|asound|sdl|not found" | head
-try ld-preload-system LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libpulse.so.0 PULSE_SERVER=unix:/tmp/pa/native XDG_RUNTIME_DIR=/tmp/pa || true
-try plain-root PULSE_SERVER=unix:/tmp/pa/native XDG_RUNTIME_DIR=/tmp/pa || true
+echo "== protos and discovery"
+find "$ANDROID_HOME" -name '*.proto' | head
+ls /usr/lib/x86_64-linux-gnu | grep -i pulse | head
+try base PULSE_SERVER=unix:/tmp/pa/native XDG_RUNTIME_DIR=/tmp/pa || true
+sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libpulse-dev
+ls /usr/lib/x86_64-linux-gnu | grep -i "libpulse\.so" | head
+try with-libpulse-dev PULSE_SERVER=unix:/tmp/pa/native XDG_RUNTIME_DIR=/tmp/pa || true
