@@ -6,6 +6,12 @@ test.use({ mockOptions: { images: true } });
 // A 1x1 PNG, enough for the picker to make a chip from.
 const PIXEL = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 
+// A reload rests on the seat overview, so the seat is opened again by its tab (COI-3518).
+const reopen = async (bed: Bed) => {
+  await bed.page.reload();
+  await bed.page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first().click();
+};
+
 const chips = (bed: Bed) => bed.page.locator("form.composer ul.chips li");
 const attach = (bed: Bed, name: string) => bed.page.locator('form.composer input[type="file"]').setInputFiles({ name, mimeType: "image/png", buffer: PIXEL });
 
@@ -28,7 +34,7 @@ test("an attached image is a chip again after the page is reopened", async ({ be
   await attach(bed, "shot-one.png");
   await expect(chips(bed)).toHaveCount(1);
   await expect.poll(() => stored(bed)).toBe(1);
-  await bed.page.reload();
+  await reopen(bed);
   await expect(bed.page.getByRole("heading", { name: SEATS.imp.name, level: 1 })).toBeAttached();
   await expect(chips(bed), "the chip is back with no tap").toHaveCount(1);
   await expect(bed.page.getByRole("status").filter({ hasText: "from your draft came back" })).toBeVisible();
@@ -41,17 +47,17 @@ test("a removed or sent image does not come back", async ({ bed }) => {
   await attach(bed, "shot-two.png");
   await expect(chips(bed)).toHaveCount(2);
   await expect.poll(() => stored(bed)).toBe(2);
-  await bed.page.reload();
+  await reopen(bed);
   await expect(chips(bed)).toHaveCount(2);
   await chips(bed).first().getByRole("button").click();
   await expect.poll(() => stored(bed)).toBe(1);
-  await bed.page.reload();
+  await reopen(bed);
   await expect(chips(bed), "the removed image stays removed").toHaveCount(1);
   await bed.page.locator("#composer-input").fill("with the picture");
   await bed.page.locator("form.composer button.primary").click();
   await expect(chips(bed)).toHaveCount(0);
   await expect.poll(() => stored(bed)).toBe(0);
-  await bed.page.reload();
+  await reopen(bed);
   await expect(bed.page.locator("#composer-input")).toBeVisible();
   await expect(chips(bed), "a sent image is not a draft").toHaveCount(0);
 });
