@@ -78,6 +78,7 @@ test.describe("on a phone", () => {
     await bed.page.keyboard.press("Enter");
     await expect(wrap).toHaveAttribute("aria-pressed", "true");
     await bed.page.reload();
+    await bed.page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first().click();
     await expect(bed.page.getByRole("heading", { name: SEATS.imp.name, level: 1 })).toBeAttached();
     bed.mock.holdWide(SEATS.imp.id, WIDE);
     bed.mock.setScene(SEATS.imp.id, wideScene);

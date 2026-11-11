@@ -44,6 +44,7 @@ test("the choice survives a reload, and the terminal comes back at it", async ({
   await expect.poll(() => bed.page.evaluate((key) => localStorage.getItem(key), KEY)).toBe("13");
   const narrow = bed.cols(SEATS.imp);
   await bed.page.reload();
+  await bed.page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first().click();
   await expect(bed.page.getByRole("heading", { name: SEATS.imp.name, level: 1 })).toBeAttached();
   await expect(bed.screen()).toBeVisible();
   await expect.poll(() => fontOf(bed.page)).toBe("13px");
@@ -56,6 +57,7 @@ test("a wide box shows no button at 14px, and one at any other size so the way b
   await expect(bed.page.getByRole("button", { name: "Text size" })).toHaveCount(0);
   await bed.page.evaluate((key) => localStorage.setItem(key, "12"), KEY);
   await bed.page.reload();
+  await bed.page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first().click();
   await expect(bed.page.getByRole("button", { name: "Text size" })).toBeVisible();
 });
 

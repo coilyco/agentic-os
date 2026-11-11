@@ -1,0 +1,5 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Lets the aterm window dictate with the phone's speech recognition and nothing else."
+permissions = ["allow-available", "allow-start", "allow-poll", "allow-stop", "allow-cancel"]

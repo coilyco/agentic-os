@@ -92,6 +92,15 @@ type ptySession struct {
 	imageMu      sync.Mutex
 	imagesClosed bool
 
+	// mediaMu guards the seat's kept files, which are copies in its own directory. See
+	// daemon_media.go. showMu guards shown, the times it asked to show one.
+	mediaMu     sync.Mutex
+	media       []mediaItem
+	mediaBytes  int64
+	mediaClosed bool
+	showMu      sync.Mutex
+	shown       []time.Time
+
 	// fileRoots are the directories the launch named besides its cwd, where a seat
 	// may register an artifact source from.
 	fileRoots []string

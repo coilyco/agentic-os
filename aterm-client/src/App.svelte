@@ -6,7 +6,7 @@
   import SeatToast from "./components/SeatToast.svelte";
   import ShareSheet from "./components/ShareSheet.svelte";
   import OpenedPageCard from "./components/OpenedPageCard.svelte";
-  import { app, sessionById, waitingSeats } from "./lib/app.svelte";
+  import { app, overviewShown, sessionById, waitingSeats } from "./lib/app.svelte";
   import { roleFor } from "./lib/sessions";
   import HostPanel from "./panels/HostPanel.svelte";
   import LaunchPanel from "./panels/LaunchPanel.svelte";
@@ -35,7 +35,7 @@
 <OpenedPageCard />
 <FeedbackSheet />
 <ShareSheet />
-<div class="shell">
+<div class="shell" class:overview={overviewShown()}>
   <Sidebar />
   <main>
     <LinkBanner />
@@ -64,6 +64,9 @@
   .panel-root.clear-bottom { padding-bottom: env(safe-area-inset-bottom); }
   @media (max-width: 720px) {
     .shell { flex-direction: column; }
+    /* The seat overview is where the app rests, so a phone shows it first and the hosts, roles and switches under it (COI-3518). */
+    .shell.overview { overflow-y: auto; }
+    .shell.overview main { order: -1; flex: none; overflow: visible; }
     /* A phone on its side keeps the row, with the sidebar as a rail. */
     .shell:has(:global(.sidebar[data-mode="reading"])) { flex-direction: row; }
   }

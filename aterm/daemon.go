@@ -63,6 +63,11 @@ type daemon struct {
 	// imageRoot holds each seat's uploaded images. Empty means this daemon takes
 	// none and does not offer image-upload.
 	imageRoot string
+	// mediaRoot holds each seat's shared files, beside the socket like imageRoot. Empty
+	// means this daemon keeps none and does not offer media.
+	mediaRoot string
+	// mediaWatchers are the clients subscribed to media, guarded by mu.
+	mediaWatchers map[*conn]*client
 	// artifactDir keeps standing artifacts across a restart, empty for none.
 	artifactDir string
 	// feedbackDir keeps each feedback report. It sits in the state directory and not
@@ -257,6 +262,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	d.holdDir = filepath.Join(dir, "hold")
 	// Beside the socket, the one directory every seat that reaches the daemon shares.
 	d.imageRoot = filepath.Join(dir, "images")
+	d.mediaRoot = filepath.Join(dir, "media")
 	d.installShims(filepath.Join(dir, shimDirName))
 	d.ledgerDir = ledgerDir()
 	if ledgerGuard == nil {
@@ -289,6 +295,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	}
 	d.adoptHolders()
 	d.sweepImages()
+	d.sweepMedia()
 	if d.ledgerDir != "" {
 		d.artifactDir = filepath.Join(filepath.Dir(d.ledgerDir), "artifacts")
 		d.feedbackDir = filepath.Join(filepath.Dir(d.ledgerDir), "feedback")
@@ -479,6 +486,9 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	if d.imageRoot != "" {
 		welcome.Features = append(welcome.Features, imageUploadFeature)
 	}
+	if d.mediaRoot != "" {
+		welcome.Features = append(welcome.Features, mediaFeature)
+	}
 	if d.feedbackDir != "" {
 		welcome.Features = append(welcome.Features, feedbackFeature)
 	}
@@ -512,6 +522,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		d.lastActive = time.Now()
 		delete(d.subscribers, c)
 		delete(d.openers, c)
+		delete(d.mediaWatchers, c)
 		d.mu.Unlock()
 		d.unwatchViews(c)
 		d.pushSessions()
@@ -578,7 +589,9 @@ func (d *daemon) handle(cl *client, message frame) error {
 		if err := cl.c.write(frame{Type: "attached", ID: message.ID, Session: s.name, PID: s.pid}); err != nil {
 			return err
 		}
-		s.report(cl.c, message.Rows, message.Cols, &message.Scales)
+		if d.mayResize(cl) {
+			s.report(cl.c, message.Rows, message.Cols, &message.Scales)
+		}
 		if size, ok := s.sizeFrame(); ok {
 			if err := cl.c.write(size); err != nil {
 				return err
@@ -618,7 +631,7 @@ func (d *daemon) handle(cl *client, message frame) error {
 	case "artifact_waiting", "artifact_remove":
 		return d.artifactChange(cl, message)
 	case "resize":
-		if s := cl.attached[message.Session]; s != nil {
+		if s := cl.attached[message.Session]; s != nil && d.mayResize(cl) {
 			s.report(cl.c, message.Rows, message.Cols, nil)
 		}
 		return nil
@@ -705,6 +718,9 @@ func (d *daemon) handle(cl *client, message frame) error {
 		if message.Channel == "open_url" {
 			return d.watchOpens(cl, message)
 		}
+		if message.Channel == "media" {
+			return d.watchMedia(cl, message)
+		}
 		if message.Channel != "sessions" {
 			return fmt.Errorf("no channel named %q", message.Channel)
 		}
@@ -720,6 +736,10 @@ func (d *daemon) handle(cl *client, message frame) error {
 			}
 		}
 		return nil
+	case "media_show":
+		return d.showMedia(cl, message)
+	case "media_read":
+		return d.readMedia(cl, message)
 	case "browser_watch":
 		return d.browserWatch(cl, message)
 	case "browser_unwatch":
@@ -954,6 +974,7 @@ func (d *daemon) forget(s *ptySession) {
 	d.browsers.end(s.name)
 	d.dropApps(s.name)
 	s.dropImages(d.imageRoot)
+	d.dropMedia(s)
 	d.endArtifacts(s)
 	if d.finishShadow != nil && s.pid > 0 {
 		d.finishShadow(s.pid)

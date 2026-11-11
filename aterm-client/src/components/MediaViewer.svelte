@@ -3,6 +3,7 @@
   import { describe, stepped, turned, type MediaItem } from "../lib/media";
   import type { MediaChannel } from "../lib/protocol";
   import { formatSize } from "../lib/images";
+  import { inApp } from "../lib/open-external";
 
   let { channel, items, startId, seat, onclose, onseen }: { channel: MediaChannel; items: MediaItem[]; startId?: string; seat: string; onclose: () => void; onseen: () => void } = $props();
 
@@ -105,6 +106,8 @@
     };
   });
 
+  // The app's WebView drops a download without a word (checked on Android), so it says so.
+  const canSave = !inApp();
   const load = $derived(current ? loads[current.id] : undefined);
   const turn = $derived(current ? (turns[current.id] ?? 0) : 0);
 </script>
@@ -141,7 +144,8 @@
         <div class="card">
           <p><strong>{current.name}</strong></p>
           <p>{describe(current)}</p>
-          <p>Treehouse cannot show this kind of file. Download it to open it elsewhere.</p>
+          <p>Treehouse cannot show this kind of file.{canSave ? " Download it to open it elsewhere." : ""}</p>
+          {#if !canSave}<p>This app cannot save files yet. Open Treehouse in a browser on this device to download it.</p>{/if}
         </div>
       {/if}
     </div>
@@ -150,7 +154,7 @@
       {#if current.kind === "image"}
         <button type="button" onclick={() => (turns[current.id] = turned(turn))}>Rotate</button>
       {/if}
-      <button type="button" onclick={() => void save(current)}>Download</button>
+      {#if canSave}<button type="button" onclick={() => void save(current)}>Download</button>{/if}
       <button type="button" onclick={() => go(1)} disabled={at === total - 1} aria-label="Next file">Next</button>
     </footer>
     <p class="note" role="status">{note}</p>
@@ -174,5 +178,5 @@
   button { min-height: 44px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--control-line); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); }
   button:disabled { opacity: 0.4; }
   button:focus-visible, video:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-  .note { flex: none; margin: 0; min-height: 22px; padding: 0 12px 8px; font: 400 12px var(--font-body); color: var(--muted); }
+  .note { flex: none; margin: 0; min-height: 22px; padding: 0 12px 24px; font: 400 12px var(--font-body); color: var(--muted); }
 </style>

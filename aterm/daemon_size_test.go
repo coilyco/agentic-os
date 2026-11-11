@@ -223,3 +223,54 @@ func TestAttachSizesTheRealPTYToTheLargestClient(t *testing.T) {
 		t.Fatalf("the PTY took the phone's size:\n%q", phone.output.String())
 	}
 }
+
+func TestALockedRemoteDeviceNeverChangesASeatsSize(t *testing.T) {
+	d := newDaemon(func(string, ...any) {})
+	holderConn, holder := pipeConn(t)
+	s := &ptySession{d: d, name: "claude-a", holder: holderConn, clients: map[*conn]bool{}, done: make(chan struct{}), forgotten: make(chan struct{})}
+	d.mu.Lock()
+	d.sessions["claude-a"] = s
+	d.mu.Unlock()
+	desktop, _ := pipeConn(t)
+	yes := true
+	s.attach(desktop, false, 0)
+	s.report(desktop, 50, 200, &yes)
+	holder.wait(t, "resize", 50, 200)
+
+	deviceConn, deviceSink := pipeConn(t)
+	device := &client{c: deviceConn, peerStanding: peerStanding{web: true, remote: true}, owned: map[string]bool{}, attached: map[string]*ptySession{}}
+	// Raw and small, so it would cap the PTY to 40 columns if it counted.
+	if err := d.handle(device, frame{Type: "attach", Session: "claude-a", Rows: 10, Cols: 40}); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.handle(device, frame{Type: "resize", Session: "claude-a", Rows: 5, Cols: 20}); err != nil {
+		t.Fatal(err)
+	}
+	if holder.count("resize") != 1 {
+		t.Fatalf("a locked device resized the PTY %d times, want only the desktop's", holder.count("resize"))
+	}
+	// It still watches: it is told the size the seat has.
+	deviceSink.wait(t, "size", 50, 200)
+	if frame, ok := s.sizeFrame(); !ok || frame.Rows != 50 || frame.Cols != 200 {
+		t.Fatalf("size = %+v", frame)
+	}
+
+	// The seat keeps its size when the only client that set it leaves, and the device
+	// never did.
+	s.detach(desktop)
+	if frame, _ := s.sizeFrame(); frame.Rows != 50 || frame.Cols != 200 {
+		t.Fatalf("size after the desktop left = %+v", frame)
+	}
+
+	// Once it unlocks, its box counts like any client's.
+	device.asserted = true
+	if err := d.handle(device, frame{Type: "resize", Session: "claude-a", Rows: 30, Cols: 100}); err != nil {
+		t.Fatal(err)
+	}
+	holder.wait(t, "resize", 30, 100)
+
+	// A local client is never held back.
+	if !d.mayResize(&client{}) {
+		t.Fatal("a local client's size counts")
+	}
+}

@@ -6,7 +6,8 @@ import { expect, SEATS, test } from "../harness.ts";
 const PIXEL_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 const PIXEL = Buffer.from(PIXEL_B64, "base64");
 
-/** The app as a share starts it: the last host remembered, and `take` answering once. */
+/** The app as a share starts it: last host kept, no seat open, `take` answers once. */
+
 async function shared(page: import("@playwright/test").Page, answer: object): Promise<void> {
   await page.addInitScript(
     ({ answer, last }) => {
@@ -23,8 +24,13 @@ async function shared(page: import("@playwright/test").Page, answer: object): Pr
         },
       };
     },
-    { answer, last: { host: "local", seat: { id: SEATS.imp.id, who: SEATS.imp.name } } },
+    { answer, last: { host: "local" } },
   );
+}
+
+/** The sheet leaves the seat to the person, so the journeys that send pick Imp first. */
+async function pickImp(sheet: import("@playwright/test").Locator): Promise<void> {
+  await sheet.getByRole("radio", { name: new RegExp(SEATS.imp.name) }).check();
 }
 
 test.describe("a host that takes images", () => {
@@ -45,7 +51,8 @@ test.describe("a host that takes images", () => {
     await expect(sheet.getByText("photo.heic is not an image the seat can read")).toBeVisible();
     await expect(sheet.getByText("clip.mp4 is not an image the seat can read")).toBeVisible();
     await expect(sheet.getByLabel("Words to go with it, if any")).toHaveValue("this broke after the update");
-    // The seat that was on screen is chosen, and Send names it.
+    // No seat is on screen, so Send waits on a choice and then names it.
+    await pickImp(sheet);
     const send = sheet.getByRole("button", { name: `Send to ${SEATS.imp.name}` });
     await expect(send).toBeEnabled();
     await expect(send, "Send is on screen without scrolling the sheet").toBeInViewport({ ratio: 1 });
@@ -63,6 +70,7 @@ test.describe("a host that takes images", () => {
     await shared(bed.page, { images: [{ name: "Screenshot_1.png", mime: "image/png", data: PIXEL_B64 }], skipped: [], text: "keep these words" });
     await bed.page.goto("/");
     const sheet = bed.page.getByRole("dialog", { name: "Send to a seat" });
+    await pickImp(sheet);
     const send = sheet.getByRole("button", { name: `Send to ${SEATS.imp.name}` });
     await expect(send).toBeEnabled();
     bed.mock.refuseUploads("too_large");
@@ -85,6 +93,7 @@ test.describe("a host that takes images", () => {
     await shared(bed.page, { images: [{ name: "Screenshot_1.png", mime: "image/png", data: PIXEL_B64 }], skipped: [], text: null });
     await bed.page.goto("/");
     const sheet = bed.page.getByRole("dialog", { name: "Send to a seat" });
+    await pickImp(sheet);
     await expect(sheet.getByRole("button", { name: `Send to ${SEATS.imp.name}` })).toBeEnabled();
     await sheet.getByRole("button", { name: "Discard" }).click();
     await expect(sheet).toBeHidden();
@@ -126,7 +135,7 @@ test.describe("a host that cannot take images", () => {
     await bed.page.goto("/");
     const sheet = bed.page.getByRole("dialog", { name: "Send to a seat" });
     await expect(sheet.getByRole("alert").first()).toContainText("This host cannot take images");
-    await expect(sheet.getByRole("button", { name: /^Send to/ })).toBeDisabled();
+    await expect(sheet.getByRole("button", { name: /^(Send to|Pick a seat)/ })).toBeDisabled();
     await bed.step("host-cannot", { compare: false });
   });
 });

@@ -1,6 +1,6 @@
 # Files a seat shares: the media viewer
 
-A seat's images, video and other files open in a viewer over the seat (COI-3458). The daemon half is a contract proposed on the COI-3458 record and queued with the platform seat, and the daemon owns it, so this page names only what the client does and relies on.
+A seat's images, video and other files open in a viewer over the seat (COI-3458). The daemon half is [media-daemon.md](media-daemon.md), so this page names only what the client does and relies on.
 
 ## What a person sees
 
@@ -16,8 +16,8 @@ A welcome listing `media`. The client subscribes to the `media` channel, which r
 
 ## Not in the first slice
 
-Zoom and pan, a PDF or 3D viewer, thumbnails, and any way for the person to send a file back. Download starts the device's own save, and the viewer says it asked and not that it saved, because a phone's browser may refuse it (checked on the emulator, see the PR).
+Zoom and pan, a PDF or 3D viewer, thumbnails, and any way for the person to send a file back. Download works in a browser. **In the Android app it saves nothing** (checked 2026-11-10: the Download folder stayed empty, and the WebView has no Web Share or save plugin), so inside the app the viewer shows no Download and says the app cannot save files yet. A native save is COI-3593.
 
 ## Trying it with no daemon that shares files
 
-The bed's mock scripts the frames (`shareMedia`). The Demo host shares five synthetic files from Imp-Dragonfly once `localStorage.setItem("aterm.demo-media", "1")` is set and the page is reloaded, which is how the real Android WebView shows the viewer before any daemon does. The journey is `media-viewer`.
+The bed's mock scripts the frames (`shareMedia`). The Demo host shares five synthetic files from Imp-Dragonfly once `localStorage.setItem("aterm.demo-media", "1")` is set and the page is reloaded, which is how the real Android WebView shows the viewer before any daemon does. Checked there on 2026-11-10 at 412px: the chip, a 320 by 180 image rotated twice and kept inside the stage, an H.264 clip that decodes and plays with the native controls, and the file card. The journey is `media-viewer`.

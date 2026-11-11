@@ -30,10 +30,10 @@ Starting the whole rig and the card-tap recipe: [android-emulator-rig.md](androi
 
 ## The debuggable APK
 
-**A release build has no WebView DevTools.** wry 0.57.0 compiles `setWebContentsDebuggingEnabled` only under `debug_assertions` or the `devtools` feature, and the release profile has neither. `devtools` says so when the app exposes no socket. Build a debug APK on GitHub, never on the Mac:
+**A release build may have no WebView DevTools.** wry 0.57.0 compiles `setWebContentsDebuggingEnabled` only under `debug_assertions` or the `devtools` feature. The 2026-11-09 release library had no such call, but the published v0.38.0 APK exposed a `webview_devtools_remote` socket and `eval` worked on 2026-11-10 (COI-2484), so run `devtools` before building anything. It says so when the app exposes no socket. For a debug APK, build it on GitHub, never on the Mac:
 
 * Dispatch `gh workflow run aterm-android.yml -f debug_abi=x86_64` (or `aarch64`) and take the `aterm-android-debug-<abi>-<run id>` artifact with `gh run download`. A debug dispatch builds that and nothing else, so nothing publishes.
-* **An x86_64 emulator needs an x86_64 build.** The app has no arch-specific native code (no `target_arch`, `abiFilters`, `jniLibs`, `ring` or `openssl` in `aterm-android`), so the same sources build for either ABI. The release path stays arm64-only.
+* **An x86_64 emulator needs an x86_64 build.** The app has no arch-specific native code (no `target_arch`, `abiFilters`, `jniLibs`, `ring` or `openssl` in `aterm-android`), so the same sources build for either ABI. The release path stays arm64-only, and the image's `ro.product.cpu.abilist` reads `x86_64,arm64-v8a`, so the arm64 release APK installs and runs by ARM translation (v0.38.0, `primaryCpuAbi=arm64-v8a`, COI-2484).
 * The debug APK is signed by Gradle's debug key and is not the Play or Obtainium build. Each GitHub debug build has its own signing key, so a newer one, or a release build, needs `install --reinstall`, which clears the app's data.
 
 ## Reaching a daemon
