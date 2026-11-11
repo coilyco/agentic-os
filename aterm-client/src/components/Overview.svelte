@@ -139,7 +139,7 @@
   .open { flex: 1; min-width: 0; min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--terminal); color: var(--text); text-align: left; font: inherit; }
   .open:hover { border-color: var(--brand); }
   /* The same faint tint and thin rail a waiting seat gets in the list, so the two read as one thing. */
-  .row[data-group="needs"] .open { background: color-mix(in srgb, var(--accent) 9%, var(--ground)); box-shadow: inset 2px 0 0 var(--accent); }
+  .row[data-group="needs"] .open { background: var(--warn-fill); box-shadow: inset 2px 0 0 var(--warn); }
   .text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
   .top { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
   .name { font-weight: 600; font-size: 15px; white-space: nowrap; }

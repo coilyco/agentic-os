@@ -400,8 +400,8 @@
   .tab:hover { background: var(--hover); }
   .tab[aria-selected="true"] { background: var(--selected); box-shadow: inset 0 0 0 1px var(--chip-line); }
   .seat[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 14%, var(--ground)); box-shadow: inset 0 0 0 1px var(--accent); }
-  /* A waiting seat is a faint tint and a thin rail. The "?" or dot on the avatar and the brand-coloured name do the telling. */
-  .seat[data-glow="true"] { background: color-mix(in srgb, var(--accent) 9%, var(--ground)); box-shadow: inset 2px 0 0 var(--accent); }
+  /* A waiting seat is a faint amber tint and a thin rail. The "?" on the avatar and the amber name do the telling. */
+  .seat[data-glow="true"] { background: var(--warn-fill); box-shadow: inset 2px 0 0 var(--warn); }
   .dot { width: 10px; height: 10px; border-radius: 5px; background: var(--ok); flex: none; }
   [data-kind="unreachable"] .dot { background: none; border: 2px solid var(--danger); }
   [data-kind="checking"] .dot { background: none; border: 2px solid var(--muted); }
@@ -419,12 +419,12 @@
   [data-activity="working"] .avatar :global(.creature) { position: relative; z-index: 1; }
   [data-activity="unseen"] .avatar::after {
     content: ""; position: absolute; top: -4px; right: -4px; width: 12px; height: 12px;
-    border-radius: 6px; background: var(--brand); box-shadow: 0 0 0 2px var(--ground);
+    border-radius: 6px; background: var(--text); box-shadow: 0 0 0 2px var(--ground);
   }
-  [data-activity="unseen"] .name, [data-activity="asking"] .name { color: var(--brand); }
+  [data-activity="asking"] .name { color: var(--warn-text); }
   [data-activity="asking"] .avatar::after {
     content: "?"; position: absolute; top: -6px; right: -6px; width: 18px; height: 18px;
-    border-radius: 9px; background: var(--brand); color: var(--brand-ink); box-shadow: 0 0 0 2px var(--ground);
+    border-radius: 9px; background: var(--warn); color: var(--ground); box-shadow: 0 0 0 2px var(--ground);
     font: 700 12px/18px var(--font-body); text-align: center;
   }
   @property --spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
@@ -440,7 +440,8 @@
   .harness { flex: none; font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--control-line); color: var(--text-soft); }
   .code-inline { display: none; font-size: 11px; color: var(--muted); }
   .state-text { color: var(--text-soft); }
-  [data-activity="unseen"] .state-text, [data-activity="asking"] .state-text { color: var(--brand); }
+  [data-activity="unseen"] .state-text { color: var(--text); }
+  [data-activity="asking"] .state-text { color: var(--warn-text); }
   .count { font-family: var(--font-body); letter-spacing: 0; color: var(--text-soft); }
   /* One line, cut with an ellipsis. Past a few minutes the text mutes and the age stays whole. */
   .activity { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: 12px; color: var(--text-soft); }
@@ -472,7 +473,7 @@
     .switcher[aria-expanded="true"] { border-color: var(--accent, var(--brand)); background: var(--selected); }
     .switcher .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-display); font-size: 16px; }
     .switcher .state { flex: none; font-size: 11px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--accent, var(--line)); color: var(--text-soft); font-weight: 400; }
-    .elsewhere { flex: none; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--brand); color: var(--brand-ink); }
+    .elsewhere { flex: none; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--warn); color: var(--ground); }
     .chevron { flex: none; color: var(--muted); }
     .seats { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; }
     .seats h2 { display: none; }
@@ -525,7 +526,7 @@
   .sidebar[data-mode="reading"] .switcher { flex: none; width: 44px; min-height: 44px; padding: 0; justify-content: center; position: relative; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; }
   .sidebar[data-mode="reading"] .switcher[aria-expanded="true"] { border-color: var(--accent, var(--brand)); background: var(--selected); }
   .sidebar[data-mode="reading"] :is(.who, .state, .chevron, .elsewhere .word) { display: none; }
-  .sidebar[data-mode="reading"] .elsewhere { position: absolute; top: -4px; right: -4px; min-width: 18px; padding: 0 4px; font-size: 11px; line-height: 18px; text-align: center; border-radius: 9px; background: var(--brand); color: var(--brand-ink); }
+  .sidebar[data-mode="reading"] .elsewhere { position: absolute; top: -4px; right: -4px; min-width: 18px; padding: 0 4px; font-size: 11px; line-height: 18px; text-align: center; border-radius: 9px; background: var(--warn); color: var(--ground); }
   .sidebar[data-mode="reading"] .scrim { position: fixed; inset: 0; z-index: -1; background: rgb(0 0 0 / 0.55); }
   .sidebar[data-mode="reading"] .menu[data-flow="sheet"] { position: fixed; top: 0; bottom: 0; left: calc(env(safe-area-inset-left) + 52px); right: auto; width: min(340px, 70vw); max-height: none; overflow-y: auto; padding: 0 8px calc(12px + env(safe-area-inset-bottom)); background: var(--ground); border-right: 1px solid var(--line); border-bottom: none; box-shadow: 8px 0 16px rgb(0 0 0 / 0.4); }
 </style>

@@ -23,6 +23,8 @@
   --text: #f9f4f0;
   --text-soft: #ddd6cf;
   --muted: #b4a99e;
+  /* The one mark every seat shares (COI-3621). The creature says which seat. */
+  --seat-mark: var(--text-soft);
   /* Treehouse green, the app's one accent. Retune its hue here and the accent follows. */
   --treehouse: #6cdc85;
   --brand: var(--treehouse);
