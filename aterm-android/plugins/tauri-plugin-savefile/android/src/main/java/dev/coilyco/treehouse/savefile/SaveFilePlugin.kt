@@ -5,7 +5,6 @@ import android.content.ContentValues
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
-import android.util.Base64
 import android.webkit.MimeTypeMap
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
@@ -71,7 +70,7 @@ class SaveFilePlugin(private val activity: Activity) : Plugin(activity) {
                 resolver.delete(uri, null, null)
                 throw e
             }
-            // The system numbers a taken name itself, so the name it kept is read back.
+            // Only a guess: a taken name is numbered when the row stops being pending.
             val kept = resolver.query(uri, arrayOf(MediaStore.Downloads.DISPLAY_NAME), null, null, null)?.use {
                 if (it.moveToFirst()) it.getString(0) else null
             } ?: SaveRules.safeName(args.name)
@@ -88,7 +87,7 @@ class SaveFilePlugin(private val activity: Activity) : Plugin(activity) {
     fun write(invoke: Invoke) = guarded(invoke) {
         val args = invoke.parseArgs(WriteArgs::class.java)
         val bytes = try {
-            Base64.decode(args.data ?: "", Base64.DEFAULT)
+            java.util.Base64.getDecoder().decode(args.data ?: "")
         } catch (e: IllegalArgumentException) {
             throw Failure("bad_data", "A piece of the file was not valid.")
         }
@@ -103,9 +102,14 @@ class SaveFilePlugin(private val activity: Activity) : Plugin(activity) {
             ?: throw Failure("unknown_save", "That save is not open.")
         file.stream.close()
         val done = ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }
-        activity.contentResolver.update(file.uri, done, null, null)
+        val resolver = activity.contentResolver
+        resolver.update(file.uri, done, null, null)
+        // A taken name is numbered when the row stops being pending, so read it now.
+        val kept = resolver.query(file.uri, arrayOf(MediaStore.Downloads.DISPLAY_NAME), null, null, null)?.use {
+            if (it.moveToFirst()) it.getString(0) else null
+        } ?: file.name
         invoke.resolve(JSObject().apply {
-            put("name", file.name)
+            put("name", kept)
             put("place", PLACE)
         })
     }

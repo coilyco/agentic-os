@@ -4,7 +4,7 @@ A Tauri WebView drops a blob download without a word, and has no Web Share (chec
 
 ## What a person sees
 
-* **In the app with the plugin** - Download on a file card writes it into Downloads and the line under the buttons says `Saved print-log.gcode to your Downloads folder.` A name already taken is numbered by the system, `print-log (1).gcode`, and the line names the saved one. Progress reads `Saving print-log.gcode, 40%.` and the button is off until it ends.
+* **In the app with the plugin** - Download on a file card writes it into Downloads and the line under the buttons says `Saved print-log.gcode to your Downloads folder.` A name already taken is numbered by the system, `print-log (1).gcode`, and the line names the saved one, read after the file is final. Progress reads `Saving print-log.gcode, 40%.` and the button is off until it ends.
 * **When a write fails** - `print-log.gcode (1 MB) was not saved: No space left on device. Nothing was left in Downloads.` The half file is cancelled and Download works again.
 * **In an app without the plugin** - the older card, with no button and the sentence that the app cannot save files yet. The page asks `available` once, so an old APK reads the same as before.
 * **In a browser** - unchanged, the `<a download>` path.
