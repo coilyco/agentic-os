@@ -12,7 +12,7 @@ A second way for a Frontend seat to prove something in the real Treehouse app, w
 * `steps` - the step file, a path inside `ref`. Default `scripts/ci/lane-steps/smoke.json`.
 * `apk_run` - a run id holding an `aterm-android-debug-x86_64-<id>` artifact, to skip the 7 minute build. Empty builds from `ref`.
 * `image` - `google_apis` (default) or `google_apis_playstore`, which carries Google's speech app.
-* `audio` - a virtual microphone fed from a spoken phrase, for steps that use `speak`.
+* `audio` - a spoken phrase the emulator's microphone can hear, for steps that use `speak`.
 
 The workflow file and the runner come from the ref you dispatch on, which is `main` unless you pass `--ref`. The proof runs against `ref`. Anyone who can dispatch can run any step file, so there are no secrets in the job.
 
@@ -35,7 +35,7 @@ JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add
 * `kill-app`, `clear-app`, `launch`, `reopen` - the app's life. `reopen` launches, attaches and re-opens the host and seat.
 * `adb` - `args`. Any adb call, output kept in the result file.
 * `recognizer` - `service: fake` names the debug build's `FakeRecognitionService` the phone's recogniser, `system` puts back the image's own.
-* `speak` - plays the spoken phrase into the virtual mic (needs `audio`).
+* `speak` - feeds the spoken phrase to the emulator's microphone (needs `audio`).
 * `logcat` - `name`, `pattern`. Matching logcat lines into `logcat-<name>.txt`.
 * `sleep` - `seconds`.
 
@@ -44,6 +44,10 @@ Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoke
 ## What comes back
 
 The artifact `aterm-android-lane-<run id>` holds `screens/NN-name.png` for each `shot` (numbered in order), `screens/lane-result.json` (each step, its output, `saved` values and the failure if any), logcat extracts, `daemon.log` and `emulator.log`. A failed run adds `FAILED.png`, `ui.xml`, `window.txt`, `page.txt` and a logcat. Put the screenshots on the Linear record, by name.
+
+## The microphone
+
+`audio` makes a phrase with espeak (`ATERM_LANE_PHRASE`, default `hello world this is a test`), converts it to 16 kHz mono and boots the emulator with `-grpc 8554` instead of `-no-audio`. `speak` streams it to the emulator's `EmulatorController/injectAudio` with `grpcurl`, which the emulator feeds to its virtual microphone. **Measured on 2026-11-10:** the guest's own `tinycap` heard it at 0.99 peak amplitude, against 0.0002 with nothing injected. **PulseAudio did not work.** The emulator printed `Could not init 'pa' audio driver` with a null sink, `PULSE_SERVER`, `XDG_RUNTIME_DIR` and `libpulse-dev` all tried, and the mic stayed silent. `aterm_audio_stream.py` builds the stream and `tests/test_aterm_audio_stream.py` pins its shape.
 
 ## Limits
 

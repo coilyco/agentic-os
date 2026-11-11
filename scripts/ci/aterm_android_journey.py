@@ -448,6 +448,17 @@ class Journey:
             raise Fail(f"the page did not say {words!r}")
         print("journey C: chip kept; failure words " + ("asserted" if words else "captured in journey-c-page.txt, not asserted"))
 
+    def speak(self) -> None:
+        """Feed the spoken phrase to the emulator's virtual mic over gRPC (aterm_audio_stream.py made it)."""
+        stream, grpcurl = os.environ.get("ATERM_SPEECH_JSONL"), os.environ.get("ATERM_GRPCURL")
+        if not stream or not grpcurl or not Path(stream).exists():
+            raise Fail("no phrase to speak: the job did not run its `audio` step (ATERM_SPEECH_JSONL)")
+        port = os.environ.get("ATERM_GRPC_PORT", "8554")
+        with open(stream, "rb") as feed:
+            done = subprocess.run([grpcurl, "-plaintext", "-d", "@", f"127.0.0.1:{port}", "android.emulation.control.EmulatorController/injectAudio"], stdin=feed, capture_output=True, text=True, timeout=90, check=False)
+        if done.returncode != 0:
+            raise Fail(f"injectAudio failed: {(done.stderr or done.stdout).strip()[:300]}")
+
     def dictate(self, label: str, pattern: str, wait: float, speak: bool) -> str:
         """Tap the mic, optionally play the spoken phrase into the virtual mic, and read the composer."""
         page = self.page
@@ -461,7 +472,7 @@ class Journey:
         page.wait_selector(stop, 20)
         if speak:
             time.sleep(2)
-            subprocess.run(["paplay", "--device=virt_mic", os.environ["ATERM_SPEECH_WAV"]], check=False, timeout=60)
+            self.speak()
         deadline = time.monotonic() + wait
         heard = ""
         while time.monotonic() < deadline and not re.search(pattern, heard, re.IGNORECASE):
@@ -484,8 +495,6 @@ class Journey:
 
     def journey_f_spoken_phrase(self) -> None:
         """The real route: a spoken phrase plays into the virtual mic and the phone's own recognizer hears it (COI-3460)."""
-        if not os.environ.get("ATERM_SPEECH_WAV"):
-            raise Fail("no speech file, so the virtual mic was never set up (ATERM_SPEECH_WAV)")
         heard = self.dictate("journey-f", r"hello", 45, speak=True)
         self.end_dictation()
         print(f"journey F: spoken phrase heard as {heard!r}")

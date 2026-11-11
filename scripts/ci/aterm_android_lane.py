@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
-import os
 import re
 import subprocess
 import sys
@@ -168,10 +167,7 @@ class Lane(J.Journey):
             adb("shell", "settings", "put", "secure", "voice_recognition_service", self.recognizer_before)
 
     def op_speak(self, spec: dict) -> None:
-        wav = spec.get("wav") or os.environ.get("ATERM_SPEECH_WAV")
-        if not wav or not Path(wav).exists():
-            raise Fail("no speech file: the lane was started without `audio`, so there is no virtual mic")
-        subprocess.run(["paplay", "--device=virt_mic", wav], check=False, timeout=90)
+        self.speak()
 
     def op_logcat(self, spec: dict) -> None:
         lines = [line for line in adb("logcat", "-d", "-t", "10000", check=False).splitlines() if re.search(spec["pattern"], line, re.IGNORECASE)]

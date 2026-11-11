@@ -12,8 +12,8 @@ SEAT=emulator-seat
 out="${ATERM_EMULATOR_OUT:-$repo_root/aterm-emulator-out}"
 # A unix socket path caps near 100 bytes, which a runner's workspace path can exceed.
 state="${ATERM_EMULATOR_STATE:-/tmp/aterm-emulator}"
-# The virtual mic: a PulseAudio null sink whose monitor the emulator records (COI-3460).
-pulse_dir=/tmp/aterm-pulse
+# The virtual mic: the emulator's gRPC injectAudio, on this port (COI-3591).
+grpc_port=8554
 
 fail() {
   echo "::error::$*" >&2
@@ -62,33 +62,25 @@ avd() {
   emulator -list-avds | grep -qx "$AVD" || fail "emulator does not list $AVD, AVD home is $ANDROID_AVD_HOME"
 }
 
-# audio: a virtual mic for the dictation journey, and the spoken phrase it plays. The
-# emulator reads the host's default source, so the sink's monitor is the mic.
+# audio: a spoken phrase, as a stream the emulator's gRPC injectAudio feeds its mic.
+# PulseAudio never started under the emulator (`Could not init pa`). gRPC avoids it.
 audio() {
-  mkdir -p "$out" "$pulse_dir"
+  mkdir -p "$out/bin"
   sudo apt-get update -qq
-  sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends pulseaudio pulseaudio-utils espeak-ng
-  # The emulator finds pulse through XDG_RUNTIME_DIR, so both share this one.
-  chmod 700 "$pulse_dir"
-  export XDG_RUNTIME_DIR="$pulse_dir"
-  pulseaudio -D --exit-idle-time=-1 --load="module-native-protocol-unix auth-anonymous=1 socket=$pulse_dir/native" --load="module-null-sink sink_name=virt_mic"
-  export PULSE_SERVER="unix:$pulse_dir/native"
-  pactl set-default-source virt_mic.monitor
-  pactl info | grep -E "Default Source|Server Name"
-  espeak-ng -s 130 -w "$out/speech.wav" "hello world this is a test"
-  ls -l "$out/speech.wav"
+  sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends espeak-ng sox
+  GOBIN="$out/bin" go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.9.1
+  espeak-ng -s 130 -w "$out/speech-raw.wav" "${ATERM_LANE_PHRASE:-hello world this is a test}"
+  sox "$out/speech-raw.wav" -r 16000 -c 1 -b 16 "$out/speech.wav"
+  python3 -I "$repo_root/scripts/ci/aterm_audio_stream.py" "$out/speech.wav" "$out/speech.jsonl"
 }
 
 boot() {
   use_sdk
   mkdir -p "$out"
   adb start-server
-  # With the virtual mic set up, the emulator gets host audio. Without it, none.
+  # With a phrase to inject, keep audio and open the gRPC port. Otherwise none.
   local sound=(-no-audio)
-  if [ -S "$pulse_dir/native" ]; then
-    export XDG_RUNTIME_DIR="$pulse_dir" PULSE_SERVER="unix:$pulse_dir/native"
-    sound=(-allow-host-audio)
-  fi
+  [ -s "$out/speech.jsonl" ] && sound=(-grpc "$grpc_port")
   nohup emulator -avd "$AVD" -no-window "${sound[@]}" -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel on >"$out/emulator.log" 2>&1 &
   local emu_pid=$! waited=0
   # Every wait is bounded and checks the emulator is alive, so a dead one fails fast.
@@ -124,10 +116,16 @@ daemon() {
   python3 -I "$repo_root/scripts/ci/aterm_android_seat.py" start "$state/d.sock" "$SEAT" "$state/seat.log"
 }
 
+# speech_env: where the phrase and grpcurl are, for the journey scripts, once `audio` ran.
+speech_env() {
+  [ -s "$out/speech.jsonl" ] || return 0
+  export ATERM_SPEECH_JSONL="$out/speech.jsonl" ATERM_GRPCURL="$out/bin/grpcurl" ATERM_GRPC_PORT="$grpc_port"
+}
+
 journey() {
   use_sdk
   local apk="${1:?usage: journey APK}"
-  [ -S "$pulse_dir/native" ] && export XDG_RUNTIME_DIR="$pulse_dir" PULSE_SERVER="unix:$pulse_dir/native" ATERM_SPEECH_WAV="$out/speech.wav"
+  speech_env
   python3 -I "$repo_root/scripts/ci/aterm_android_journey.py" --apk "$apk" --out "$out/screens" \
     --socket "$state/d.sock" --seat "$SEAT" --seat-log "$state/seat.log" --refuse-file "$state/refuse-upload"
 }
@@ -154,7 +152,7 @@ apk() {
 lane() {
   use_sdk
   local apk="${1:?usage: lane APK STEPS}" steps="${2:?usage: lane APK STEPS}"
-  [ -S "$pulse_dir/native" ] && export XDG_RUNTIME_DIR="$pulse_dir" PULSE_SERVER="unix:$pulse_dir/native" ATERM_SPEECH_WAV="$out/speech.wav"
+  speech_env
   python3 -I "$repo_root/scripts/ci/aterm_android_lane.py" --apk "$apk" --out "$out/screens" --steps "$steps" \
     --socket "$state/d.sock" --seat "$SEAT" --seat-log "$state/seat.log" --refuse-file "$state/refuse-upload"
 }
