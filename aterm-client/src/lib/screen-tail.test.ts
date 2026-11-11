@@ -67,6 +67,16 @@ describe("what a seat's terminal drew", () => {
     expect(tails.resume("s")).toBeNull();
   });
 
+  it("reads a first frame with no offset as the start of the stream, which is how the daemon sends 0", () => {
+    const tails = new ScreenTails();
+    tails.keep("s", "r");
+    tails.note("s", bytes("young seat"), undefined);
+    tails.note("s", bytes(" more"), 10);
+    const back = tails.resume("s")!;
+    expect(text(back.bytes)).toBe("young seat more");
+    expect(back.end).toBe(15);
+  });
+
   it("forgets a seat whose frame has no offset, since it cannot be joined", () => {
     const tails = new ScreenTails();
     tails.keep("s", "r");
