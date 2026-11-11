@@ -10,7 +10,7 @@
   import { cacheKey, catchUp, loadSnapshot, markerRow, saveSnapshot } from "../lib/transcript-cache";
 
   // `restore` is false for a device that has not unlocked, which never shows a kept page.
-  let { channel, sessionId, hostId, restore, level, onrefused, onpeer }: { channel: TranscriptChannel; sessionId: string; hostId: string; restore: boolean; level: Level; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void } = $props();
+  let { channel, sessionId, hostId, restore, level, marker, onread, onrefused, onpeer }: { channel: TranscriptChannel; sessionId: string; hostId: string; restore: boolean; level: Level; marker: boolean; onread: () => void; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void } = $props();
 
   // Read once: a demo keeps no page, and leaving it must not write one on the way out.
   const demo = inDemo();
@@ -59,13 +59,15 @@
     const joined = held ? catchUp(held, reply.items, reply.older) : null;
     items = joined ? joined.items : reply.items;
     older = joined ? joined.older : reply.older;
-    newFrom = joined?.newFrom;
+    // The marker is for opening a seat. Coming back from another view reads the page it kept a moment ago (COI-3647).
+    newFrom = marker ? joined?.newFrom : undefined;
     cursor = reply.cursor;
     updatedAt = Date.now();
     phase = "ready";
     stale = false;
     catching = false;
     heard = true;
+    onread();
     if (newFrom) void showMarker();
     else void follow();
     keep();
@@ -158,6 +160,13 @@
       loadingOlder = false;
     }
   }
+
+  // A new level re-derives every row under the same scroll offset, so it starts again at the newest line (COI-3647).
+  $effect(() => {
+    void level;
+    pinned = true;
+    void tick().then(() => list && (list.scrollTop = list.scrollHeight));
+  });
 
   function jump(): void {
     pinned = true;

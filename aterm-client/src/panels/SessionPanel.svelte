@@ -78,6 +78,8 @@
   let view = $state(loadView(session.id, narrow));
   // The reason the host gave for no transcript. The screen shows instead, and a new pick asks again.
   let fallback = $state<string | null>(null);
+  // The first read of this panel may mark what is new. A later view switch may not.
+  let hasRead = $state(false);
   const showRaw = $derived(!transcripts || view.raw || fallback !== null);
   const RETRY_MS = 5000;
   // A refusal on open (a cold start races the unlock, a starting seat has no file yet) must not strand the seat on its screen (COI-3646).
@@ -305,7 +307,7 @@
                 <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice)} locked={!app.typing.allowed || reconnecting()} />
               </div>
               {#if transcripts && !showRaw}
-                <Transcript channel={transcripts} sessionId={session.id} hostId={app.selectedHostId ?? ""} restore={app.typing.allowed} level={view.level} onrefused={(reason) => (fallback = reason)} onpeer={showPeer} />
+                <Transcript channel={transcripts} sessionId={session.id} hostId={app.selectedHostId ?? ""} restore={app.typing.allowed} level={view.level} marker={!hasRead} onread={() => (hasRead = true)} onrefused={(reason) => (fallback = reason)} onpeer={showPeer} />
               {/if}
             </div>
             {#if session.starting && blank}
