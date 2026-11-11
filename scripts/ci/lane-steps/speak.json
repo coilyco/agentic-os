@@ -1,0 +1,144 @@
+{
+  "name": "the speak plugin: read aloud, rate, stop, and a reply read with the screen off (COI-3466)",
+  "start": "seat",
+  "steps": [
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:speak|available').then(v=>JSON.stringify(v)).catch(e=>'REJECTED '+JSON.stringify(e))",
+      "save": "engine"
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "settings get secure tts_default_synth; cmd package list packages | grep -i -E 'tts|speech' | head -5"
+      ]
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:speak|speak',{\"id\": \"r1\", \"text\": \"Read it to me. This is a test of the speak plugin.\"}).then(v=>JSON.stringify(v)).catch(e=>'REJECTED '+JSON.stringify(e))",
+      "expect": "\"id\":\"r1\""
+    },
+    {
+      "op": "sleep",
+      "seconds": 9
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:speak|poll').then(v=>JSON.stringify(v)).catch(e=>'REJECTED '+JSON.stringify(e))",
+      "save": "first",
+      "expect": "\"phase\":\"done\""
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:speak|speak',{\"id\": \"r2\", \"text\": \"one two three four five six seven eight nine ten eleven twelve thirteen fourteen\", \"rate\": 1.0}).then(v=>JSON.stringify(v)).catch(e=>'REJECTED '+JSON.stringify(e))"
+    },
+    {
+      "op": "sleep",
+      "seconds": 12
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:speak|poll').then(v=>JSON.stringify(v)).catch(e=>'REJECTED '+JSON.stringify(e))",
+      "save": "slow",
+      "expect": "\"phase\":\"done\""
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:speak|speak',{\"id\": \"r3\", \"text\": \"one two three four five six seven eight nine ten eleven twelve thirteen fourteen\", \"rate\": 2.0}).then(v=>JSON.stringify(v)).catch(e=>'REJECTED '+JSON.stringify(e))"
+    },
+    {
+      "op": "sleep",
+      "seconds": 9
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:speak|poll').then(v=>JSON.stringify(v)).catch(e=>'REJECTED '+JSON.stringify(e))",
+      "save": "fast",
+      "expect": "\"phase\":\"done\""
+    },
+    {
+      "op": "assert",
+      "js": "JSON.parse('$fast').doneMs < JSON.parse('$slow').doneMs * 0.85",
+      "message": "rate 2.0 reads the same text faster than rate 1.0"
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:speak|speak',{\"id\": \"r4\", \"text\": \"This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. \"}).then(v=>JSON.stringify(v)).catch(e=>'REJECTED '+JSON.stringify(e))"
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:speak|poll').then(v=>JSON.stringify(v)).catch(e=>'REJECTED '+JSON.stringify(e))",
+      "expect": "\"phase\":\"speaking\""
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:speak|stop').then(v=>JSON.stringify(v)).catch(e=>'REJECTED '+JSON.stringify(e))"
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:speak|poll').then(v=>JSON.stringify(v)).catch(e=>'REJECTED '+JSON.stringify(e))",
+      "expect": "\"phase\":\"idle\""
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:speak|speak',{\"id\": \"r5\", \"text\": \"This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. This is a sentence for the screen off test. \"}).then(v=>JSON.stringify(v)).catch(e=>'REJECTED '+JSON.stringify(e))"
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "input",
+        "keyevent",
+        "26"
+      ]
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "dumpsys power | grep -m1 mWakefulness=; dumpsys audio | grep -i -E 'player.*(started|assist)' | head -5"
+      ]
+    },
+    {
+      "op": "sleep",
+      "seconds": 40
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "input",
+        "keyevent",
+        "224"
+      ]
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:speak|poll').then(v=>JSON.stringify(v)).catch(e=>'REJECTED '+JSON.stringify(e))",
+      "save": "asleep",
+      "expect": "\"phase\":\"done\""
+    },
+    {
+      "op": "logcat",
+      "name": "speak",
+      "pattern": "TreehouseSpeak"
+    }
+  ]
+}

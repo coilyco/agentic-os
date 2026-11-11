@@ -1,12 +1,13 @@
 {
   "identifier": "default",
-  "description": "The aterm window may call the device key, dictation, share target, save file, opener and notification plugins and nothing else. The opener opens web addresses only. The notification plugin may ask, show, list what shows and listen for a tap, not schedule or cancel.",
+  "description": "The aterm window may call the device key, dictation, speech, share target, save file, opener and notification plugins and nothing else. The opener opens web addresses only. The notification plugin may ask, show, list what shows and listen for a tap, not schedule or cancel.",
   "windows": [
     "main"
   ],
   "permissions": [
     "devicekey:default",
     "dictation:default",
+    "speak:default",
     "sharetarget:default",
     "savefile:default",
     "notification:allow-is-permission-granted",
