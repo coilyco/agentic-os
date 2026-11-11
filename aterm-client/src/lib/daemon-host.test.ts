@@ -573,6 +573,67 @@ describe("riding out a daemon restart", () => {
     host.close();
   });
 
+  describe("a seat's screen is kept to resume from", () => {
+    const text = (event: HostEvent) => (event.type === "output" && typeof event.data !== "string" ? new TextDecoder().decode(event.data) : "");
+    const outputs = (events: HostEvent[]) => events.flatMap((event) => (event.type === "output" ? [text(event)] : []));
+    const attaches = (socket: StubSocket) => sentFrames(socket).filter((frame) => frame.type === "attach" && frame.session === "s1");
+
+    it("asks a first open for the whole screen, then a reopen only for what came after, drawing what it held first", () => {
+      const { host, events, socket } = answering();
+      host.attach("s1", 30, 100);
+      expect(attaches(socket).at(-1)).not.toHaveProperty("offset");
+      socket.receive({ type: "output", session: "s1", data: btoa("screen one "), offset: 100 });
+      socket.receive({ type: "output", session: "s1", data: btoa("two"), offset: 111 });
+      host.detach("s1");
+      events.length = 0;
+      host.attach("s1", 30, 100);
+      expect(outputs(events), "the held screen is drawn before the host answers").toEqual(["screen one two"]);
+      expect(attaches(socket).at(-1)).toMatchObject({ replay: true, offset: 114 });
+      socket.receive({ type: "output", session: "s1", data: btoa(" three"), offset: 114 });
+      expect(outputs(events).at(-1)).toBe(" three");
+      host.close();
+    });
+
+    it("clears the screen when what the host sends does not join what was drawn", () => {
+      const { host, events, socket } = answering();
+      host.attach("s1", 30, 100);
+      socket.receive({ type: "output", session: "s1", data: btoa("old"), offset: 0 });
+      host.detach("s1");
+      host.attach("s1", 30, 100);
+      events.length = 0;
+      socket.receive({ type: "output", session: "s1", data: btoa("fresh"), offset: 9000 });
+      expect(events.map((event) => event.type)).toEqual(["output_reset", "output"]);
+      host.close();
+    });
+
+    it("starts over for a seat that restarted, and asks for the whole screen when the pane stayed blank", () => {
+      const { host, socket } = answering();
+      host.attach("s1", 30, 100);
+      socket.receive({ type: "output", session: "s1", data: btoa("x"), offset: 0 });
+      host.replay("s1");
+      expect(attaches(socket).at(-1)).not.toHaveProperty("offset");
+      host.detach("s1");
+      socket.receive({ type: "output", session: "s1", data: btoa("y"), offset: 5 });
+      socket.receive({ ...SEATS, sessions: SEATS.sessions.map((view) => (view.name === "s1" ? { ...view, started: "later", pid: 7 } : view)) });
+      host.attach("s1", 30, 100);
+      expect(attaches(socket).at(-1)).not.toHaveProperty("offset");
+      host.close();
+    });
+
+    it("resumes a reconnect from the offset too", () => {
+      const { host, socket } = answering();
+      host.attach("s1", 30, 100);
+      socket.receive({ type: "output", session: "s1", data: btoa("held"), offset: 40 });
+      socket.drop();
+      vi.advanceTimersByTime(1000);
+      const again = StubSocket.last;
+      again.receive({ ...WELCOME, version: "0.443.0" });
+      again.receive(SEATS);
+      expect(attaches(again).at(-1)).toMatchObject({ replay: true, offset: 44 });
+      host.close();
+    });
+  });
+
   it("attaches the open seat again with replay at its last size, and only watches the rest", () => {
     const { host, events, socket } = answering();
     host.attach("s1", 30, 100);
