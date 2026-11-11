@@ -1,9 +1,9 @@
 // COI-3346: anyone can pin a seat. Pinned seats lead the list, the pin outlives a reload,
 // and a role the roster marks pinned by default starts that way until a person unpins it.
 import type { Page } from "@playwright/test";
-import { expect, kindOf, SEATS, test } from "../harness.ts";
+import { expect, kindOf, listedSeats, SEATS, test } from "../harness.ts";
 
-const order = (page: Page) => page.locator('[id^="tab-session-"]').evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute("id")!.replace("tab-session-", "")));
+const order = (page: Page) => listedSeats(page);
 const openList = async (page: Page, phone: boolean) => {
   if (phone) await page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ }).click();
 };

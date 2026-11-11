@@ -1,7 +1,7 @@
 // COI-3488: a fully idle seat shows Close on its row and in its own view. A seat that
 // works, waits on background work, asks, holds a message or is silent about it does not.
 import type { Page } from "@playwright/test";
-import { expect, kindOf, SEATS, test } from "../harness.ts";
+import { expect, kindOf, SEATS, test, seatEntry } from "../harness.ts";
 import type { SessionSpec } from "../mock-daemon.ts";
 
 const seat = (n: string, identity: string, extra: Record<string, unknown> = {}) => ({
@@ -112,8 +112,7 @@ test.describe("close a fully idle seat", () => {
   test("in its own view a fully idle seat has the same Close", async ({ bed }, info) => {
     await bed.page.goto("/");
     await bed.page.getByRole("tab", { name: /this Mac/ }).click();
-    if (kindOf(info) === "phone") await bed.page.getByRole("tab", { name: /Calm-Ox/ }).first().click();
-    else await bed.page.getByRole("tab", { name: /Calm-Ox/ }).first().click();
+    await seatEntry(bed.page, /Calm-Ox/).click();
     await expect(bed.page.getByRole("heading", { name: "Calm-Ox", level: 1 })).toBeAttached();
     const own = bed.page.locator("header").getByRole("button", { name: "Close Calm-Ox" });
     await expect(own).toBeVisible();

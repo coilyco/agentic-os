@@ -5,6 +5,24 @@ import { startMock, type Mock, type MockOptions } from "./mock-daemon.ts";
 
 export { expect };
 
+/** The seats on screen in list order: a desktop's list tabs, else the overview's rows. */
+export async function listedSeats(page: Page): Promise<string[]> {
+  const tabs = await page.locator('[id^="tab-session-"]').evaluateAll((all) => all.map((tab) => tab.getAttribute("id")!.replace("tab-session-", "")));
+  return tabs.length ? tabs : page.locator("[data-seat]").evaluateAll((rows) => rows.map((row) => row.getAttribute("data-seat")!));
+}
+
+/** Reloads, then opens the seat again: a launch rests on the overview, not on a seat. */
+export async function reopenSeat(page: Page, who: { name: string }): Promise<void> {
+  await page.reload();
+  await seatEntry(page, who.name).click();
+}
+
+/** A seat as found with none open: its tab on a desktop, else its overview row. */
+export function seatEntry(page: Page, who: string | RegExp): Locator {
+  const name = typeof who === "string" ? new RegExp(who) : who;
+  return page.getByRole("tab", { name }).or(page.getByRole("region", { name: "Seats", exact: true }).getByRole("button", { name })).first();
+}
+
 export type Kind = "desktop" | "phone" | "landscape";
 
 export const kindOf = (info: TestInfo): Kind => info.project.metadata.kind as Kind;
@@ -53,7 +71,7 @@ export const test = base.extend<{ bed: Bed; mock: Mock; mockOptions: MockOptions
         await page.goto("/");
         await loadFonts(page);
         await page.getByRole("tab", { name: /this Mac/ }).click();
-        await page.getByRole("tab", { name: new RegExp(seat.name) }).first().click();
+        await seatEntry(page, seat.name).click();
         await expect(page.locator(".xterm-rows")).toBeVisible();
       },
       async switchSeat(seat) {

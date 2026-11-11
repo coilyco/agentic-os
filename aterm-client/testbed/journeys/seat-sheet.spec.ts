@@ -1,5 +1,5 @@
 // COI-3323 item 6: a phone's seat sheet. Start a seat is on screen, none under the strip.
-import { expect, kindOf, SEATS, test } from "../harness.ts";
+import { expect, kindOf, SEATS, test, seatEntry } from "../harness.ts";
 
 const opener = /Seats, starting a seat, hosts and settings/;
 
@@ -16,7 +16,7 @@ test("Start a seat is on screen with the seats listed, and the sheet is not unde
   const strip = await bed.page.locator(".panel").first().boundingBox();
   const end = (menu?.y ?? 0) + (menu?.height ?? 0);
   expect(end <= (strip?.y ?? height) || end >= height - 1, `the sheet ends at ${end}, neither above the strip nor at the edge`).toBe(true);
-  await expect(bed.page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first(), "a row says more than idle").toContainText(/\b\d+\s?(s|m|h)\b/);
+  await expect(seatEntry(bed.page, SEATS.imp.name), "a row says more than idle").toContainText(/\b\d+\s?(s|m|h)\b/);
   await bed.step("sheet");
 });
 

@@ -1,6 +1,6 @@
 // COI-3341: a phone on its side reads one seat edge to edge. The seat list
 // folds into a rail, the lists open beside it, and rotating back restores portrait.
-import { expect, SEATS, test } from "../harness.ts";
+import { expect, SEATS, test, seatEntry } from "../harness.ts";
 import type { Page } from "@playwright/test";
 
 const switcher = (page: Page) => page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ });
@@ -18,7 +18,7 @@ test("the seat list is a rail, and its lists open beside it", async ({ bed }) =>
   await bed.page.locator("#tab-role-frontend-eng").scrollIntoViewIfNeeded();
   await expect(bed.page.locator("#tab-role-frontend-eng"), "Start a seat is reachable").toBeInViewport();
   await bed.step("seat-list");
-  await bed.page.getByRole("tab", { name: new RegExp(SEATS.beetle.name) }).first().click();
+  await seatEntry(bed.page, SEATS.beetle.name).click();
   await expect(bed.page.getByRole("heading", { name: SEATS.beetle.name, level: 1 })).toBeAttached();
   await expect(bed.page.locator("#sidebar-menu"), "choosing a seat puts the lists away").toBeHidden();
   await expect(bed.screen()).toContainText("The gate is green");

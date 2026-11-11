@@ -1,5 +1,5 @@
 // COI-3582: images attached to an unsent message are chips again after a reopen.
-import { expect, SEATS, test, type Bed } from "../harness.ts";
+import { expect, SEATS, test, type Bed, reopenSeat } from "../harness.ts";
 
 test.use({ mockOptions: { images: true } });
 
@@ -28,7 +28,7 @@ test("an attached image is a chip again after the page is reopened", async ({ be
   await attach(bed, "shot-one.png");
   await expect(chips(bed)).toHaveCount(1);
   await expect.poll(() => stored(bed)).toBe(1);
-  await bed.page.reload();
+  await reopenSeat(bed.page, SEATS.imp);
   await expect(bed.page.getByRole("heading", { name: SEATS.imp.name, level: 1 })).toBeAttached();
   await expect(chips(bed), "the chip is back with no tap").toHaveCount(1);
   await expect(bed.page.getByRole("status").filter({ hasText: "from your draft came back" })).toBeVisible();
@@ -41,17 +41,17 @@ test("a removed or sent image does not come back", async ({ bed }) => {
   await attach(bed, "shot-two.png");
   await expect(chips(bed)).toHaveCount(2);
   await expect.poll(() => stored(bed)).toBe(2);
-  await bed.page.reload();
+  await reopenSeat(bed.page, SEATS.imp);
   await expect(chips(bed)).toHaveCount(2);
   await chips(bed).first().getByRole("button").click();
   await expect.poll(() => stored(bed)).toBe(1);
-  await bed.page.reload();
+  await reopenSeat(bed.page, SEATS.imp);
   await expect(chips(bed), "the removed image stays removed").toHaveCount(1);
   await bed.page.locator("#composer-input").fill("with the picture");
   await bed.page.locator("form.composer button.primary").click();
   await expect(chips(bed)).toHaveCount(0);
   await expect.poll(() => stored(bed)).toBe(0);
-  await bed.page.reload();
+  await reopenSeat(bed.page, SEATS.imp);
   await expect(bed.page.locator("#composer-input")).toBeVisible();
   await expect(chips(bed), "a sent image is not a draft").toHaveCount(0);
 });

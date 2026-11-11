@@ -1,6 +1,6 @@
 // COI-3340: the line a seat writes about what it is doing. Cut to the row,
 // flagged once old, and absent when the seat sent none.
-import { expect, kindOf, SEATS, test } from "../harness.ts";
+import { expect, kindOf, SEATS, test, seatEntry } from "../harness.ts";
 import type { Locator } from "@playwright/test";
 
 const LONG = "Checking whether a card's text box keeps focus on a phone"; // 57, the daemon's cap
@@ -41,20 +41,21 @@ test("a seat's line fits its row, an old one says how old, and none leaves the r
   await expect(stale.locator(".age"), "an old line says how old").toHaveText("3h ago");
   expect((await fits(stale.locator(".activity .line"))).inside).toBe(true);
 
-  const none = bed.page.getByRole("tab", { name: new RegExp(SEATS.beetle.name) }).first();
+  const none = seatEntry(bed.page, SEATS.beetle.name);
   await expect(none.locator(".activity"), "no field, no box").toHaveCount(0);
   await bed.step("rows");
 });
 
-test("a phone's seat chip carries the line and grows no further than 190px for it", async ({ bed }, info) => {
-  test.skip(kindOf(info) !== "phone", "chips are a phone's");
+test("a phone's overview row carries the line cut to the row, and nothing leaves the screen", async ({ bed }, info) => {
+  test.skip(kindOf(info) !== "phone", "the overview's rows are the phone's list");
   bed.mock.addSession(seat("eng-platform-fresh-ox", "Fresh-Ox", { activity: LONG, activity_age_seconds: 40 }));
   await bed.page.goto("/");
   await bed.page.getByRole("tab", { name: /this Mac/ }).click();
-  const chip = bed.page.locator(".seats").getByRole("tab", { name: /Fresh-Ox/ });
-  await expect(chip.locator(".activity .line")).toHaveText(LONG);
-  const box = await chip.locator(".activity").boundingBox();
-  expect(box?.width, "the chip grew past its 139 to 163px, to carry the line").toBeGreaterThan(170);
-  expect(box?.width, "and no further than 190px").toBeLessThanOrEqual(190);
-  await bed.step("chips");
+  const row = bed.page.getByRole("region", { name: "Seats", exact: true }).getByRole("button", { name: /Fresh-Ox/ });
+  await expect(row.locator(".said")).toHaveText(LONG);
+  const view = bed.page.viewportSize()!;
+  const box = (await row.boundingBox())!;
+  expect(box.x + box.width, "the row stays inside the screen").toBeLessThanOrEqual(view.width);
+  expect(await bed.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), "no sideways scroll").toBe(true);
+  await bed.step("overview-line", { compare: false });
 });
