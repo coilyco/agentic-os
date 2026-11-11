@@ -4,6 +4,8 @@
   import RoleSwitches from "../components/RoleSwitches.svelte";
   import TapTraceSwitch from "../components/TapTraceSwitch.svelte";
   import { app, closeSettings, removeHost } from "../lib/app.svelte";
+  import { THEME_CHOICES } from "../lib/theme";
+  import { setThemeChoice, theme } from "../lib/theme.svelte";
   import { loadViewDefault, storeViewDefault, type ViewDefault } from "../lib/seat-view";
   import { loadWrapDefault, storeWrapDefault, type WrapDefault } from "../lib/wrap";
   import { DEFAULT_TEXT_SIZE, loadTextSize, stepTextSize, storeTextSize, TEXT_SIZES } from "../lib/text-size";
@@ -55,6 +57,16 @@
     <h1 id="settings-title">Settings</h1>
   </header>
   <p class="lede">These apply to this device only. Each takes effect as soon as you change it.</p>
+
+  <section class="group" aria-labelledby="theme-label">
+    <h2 id="theme-label">Theme</h2>
+    <div class="stops" role="radiogroup" aria-labelledby="theme-label" tabindex="-1" onkeydown={(event) => arrow(event, THEME_CHOICES, theme.choice, setThemeChoice)}>
+      {#each THEME_CHOICES as each (each.value)}
+        <button type="button" role="radio" aria-checked={theme.choice === each.value} tabindex={theme.choice === each.value ? 0 : -1} onclick={() => setThemeChoice(each.value)}>{each.label}</button>
+      {/each}
+    </div>
+    <p class="hint">Light reads better in daylight and Dark in the dark. System follows the device{theme.choice === "system" ? `, which is ${theme.resolved} now` : ""}.</p>
+  </section>
 
   <AttentionSwitches />
 

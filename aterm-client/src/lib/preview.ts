@@ -4,7 +4,7 @@ import type { Ask } from "./protocol";
 
 export interface Preview {
   identity: string;
-  kind: "asking" | "done" | "artifact";
+  kind: "asking" | "done" | "artifact" | "opened";
   /** What the seat is doing to you, in the sidebar's own words. */
   heading: string;
   /** The question it asks, or for a finished seat the first line of its last reply. */
@@ -18,7 +18,8 @@ const oneLine = (text: string): string => {
   return line.length > DETAIL_CHARS ? `${line.slice(0, DETAIL_CHARS).trimEnd()}…` : line;
 };
 
-export function previewFor(seat: { identity: string; kind: "asking" | "done" | "artifact" }, ask: Ask | undefined, lastReply?: string): Preview {
+export function previewFor(seat: { identity: string; kind: "asking" | "done" | "artifact" | "opened" }, ask: Ask | undefined, lastReply?: string): Preview {
+  if (seat.kind === "opened") return { identity: seat.identity, kind: "opened", heading: "Opened a page", detail: null };
   if (seat.kind === "artifact") return { identity: seat.identity, kind: "artifact", heading: "Left you a page", detail: null };
   if (seat.kind === "asking") {
     return { identity: seat.identity, kind: "asking", heading: "Asking you", detail: oneLine(ask?.question ?? "") || null };

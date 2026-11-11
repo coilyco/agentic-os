@@ -183,6 +183,9 @@ interface Frame {
   rows?: number;
   cols?: number;
   label?: string;
+  /** A staged command, and the seat's note on it. */
+  body?: string;
+  text?: string;
   driver?: string;
   url?: string;
   title?: string;
@@ -1086,6 +1089,9 @@ export class DaemonHost implements HostConnection {
         }
         return;
       }
+      case "staged":
+        if (frame.session && frame.label && typeof frame.body === "string") this.emit({ type: "staged", session: frame.session, label: frame.label, body: frame.body, text: frame.text ?? "" });
+        return;
       case "open_url":
         if (frame.session && frame.url) this.emit({ type: "open_url", session: frame.session, url: frame.url });
         return;

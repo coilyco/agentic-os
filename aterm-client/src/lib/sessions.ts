@@ -1,5 +1,5 @@
 // Live sessions as peers: every instance on every harness gets its own tab,
-// so two Beetle-Ox sessions, or one on claude and one on codex, never fold into one.
+// so two sessions of one name, or one on claude and one on codex, never fold into one.
 import { originWords } from "./idle-close";
 import type { Host, Session } from "./protocol";
 import type { Role } from "./roster";
