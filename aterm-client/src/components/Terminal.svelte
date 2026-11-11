@@ -35,6 +35,7 @@
     locked = false,
     cropHarness = false,
     covered = false,
+    ontype,
   }: {
     connection: HostConnection;
     sessionId: string;
@@ -50,6 +51,8 @@
     cropHarness?: boolean;
     /** A card sits over the foot of the terminal, so the way back to the latest output waits. */
     covered?: boolean;
+    /** Every typed chunk this terminal sent, for the line a seat staged (COI-3306). */
+    ontype?: (data: string) => void;
   } = $props();
 
   let host: HTMLDivElement;
@@ -623,7 +626,9 @@
     document.addEventListener("visibilitychange", wake);
     window.addEventListener("focus", wake);
     const input = terminal.onData((data) => {
-      if (!locked) connection.input(sessionId, data);
+      if (locked) return;
+      connection.input(sessionId, data);
+      ontype?.(data);
     });
     const unsubscribe = connection.subscribe((event) => {
       if (event.type === "output" && event.sessionId === sessionId) {

@@ -138,6 +138,13 @@
     sideOpen = true;
     raised = true;
   });
+  // A command a seat staged for this seat brings its shell forward (COI-3306).
+  $effect(() => {
+    if (app.stageFocus?.seat !== session.id) return;
+    side = "terminal";
+    sideOpen = true;
+    raised = true;
+  });
   const page = $derived(app.browsers[session.id]);
   // The browser needs room to be read, so a page takes half the width. Its empty states do not.
   const wide = $derived(side === "browser" && page !== undefined && page.state !== "none");
