@@ -12,7 +12,7 @@
 
 **`aterm clear` types the harness's clear command, unstamped.** Only Kai's client and the `prod-director` role may, never on the caller's own session, a prompt, or a seat with no known command (claude only). Without `--force` it refuses a busy session, a draft, or queued messages.
 
-**A terminal is a login shell, not a seat.** `spawn` with `kind: "terminal"` and optional `cwd` runs `$SHELL -l` under a holder, named `terminal-<hex>`, with no token, and refuses every seat field, `argv` and `env`. It is absent from `sessions`, `aterm agents`, seat counts and every `send`, `status` and `clear` target. `list` and the `sessions` push carry `terminals`. A spawn `label` (feature `terminal-label`, up to 256 bytes) is opaque and kept by a restart. A seat refuses it. `attach`, `input`, `resize` and `close` take its name, an exiting shell ends it, a restart adopts it. A remote device gets `remote_terminal`, passkey or not.
+**A terminal is a login shell, not a seat.** `spawn` with `kind: "terminal"` and optional `cwd` runs `$SHELL -l` under a holder, named `terminal-<hex>`, with no token, and refuses every seat field, `argv` and `env`. It is absent from `sessions`, `aterm agents`, seat counts and every `send`, `status` and `clear` target. A spawn `label` (feature `terminal-label`, up to 256 bytes) is opaque and kept by a restart. `attach`, `input`, `resize` and `close` take its name, an exiting shell ends it, a restart adopts it.
 
 **A session outlives its window.** `aterm close` types the harness's exit at an idle prompt, then SIGTERM after 10s, SIGKILL 3s on.
 
@@ -58,3 +58,5 @@
 **Browsers get the embedded client at `/`, and a websocket there.** Loopback is `127.0.0.1:7419`, the tailnet HTTPS on this node's name, port 7419. `tailscale whois` admits a peer, never the request. [Tailnet access](../.agents/skills/tooling-aterm-client/references/tailnet-access.md) says who, and which pages open a socket.
 
 **Views** come from the [MCP Apps gateway](../.agents/skills/tooling-aterm-client/references/mcp-apps-gateway.md).
+
+**Before a restart**, run `just aterm-restart-guard`: it names each seat at a prompt or a Kai draft (COI-3615).

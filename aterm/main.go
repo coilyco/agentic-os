@@ -188,6 +188,10 @@ func newCommand(deps commandDeps) *cli.Command {
 				Name:  "identity",
 				Usage: "answer to this one of the role's names, not the first free one",
 			},
+			&cli.StringFlag{
+				Name:  "shadow-id",
+				Usage: "name the session shadow with this code, which a resume reuses to land in the old directory",
+			},
 			&cli.BoolFlag{
 				Name:  "hold",
 				Usage: "keep the window open after a clean exit (a failure always holds)",
@@ -343,6 +347,12 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 	group.Wait()
 	if err != nil {
 		return err
+	}
+	if reuse := strings.TrimSpace(cmd.String("shadow-id")); reuse != "" {
+		if !shadowSessionID.MatchString(reuse) {
+			return withExit(exitUsage, fmt.Errorf("--shadow-id %q is not a shadow code", reuse))
+		}
+		request.ShadowID = reuse
 	}
 	// Two instances of a role take two names from its pool, so a stamp says which
 	// sent it. An agent-compose too old to honor the name falls back to a slot.

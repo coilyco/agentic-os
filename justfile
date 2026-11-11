@@ -158,6 +158,10 @@ aterm-contract *ARGS:
 aterm-test *ARGS:
     @go test -C aterm ./... "$@"
 
+# Wait until no seat sits at a prompt or has a Kai draft, naming each blocker with its age, before an aterm daemon restart. Exits 0 when clear, 1 on timeout. See docs/aterm-daemon.md.
+aterm-restart-guard *ARGS:
+    @python3 scripts/aterm_restart_guard.py "$@"
+
 # Reconcile the branded session launcher's Go module metadata.
 aterm-tidy *ARGS:
     @go mod tidy -C aterm "$@"
