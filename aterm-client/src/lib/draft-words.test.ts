@@ -32,6 +32,12 @@ describe("newerWords", () => {
     expect(newerWords({ text: "stored", at: NOW + 1 }, mirrored(NOW))).toBeUndefined();
   });
 
+  it("brings back nothing when the box was emptied after the mirror was written", () => {
+    expect(newerWords(undefined, mirrored(NOW), NOW)).toBeUndefined();
+    expect(newerWords(undefined, mirrored(NOW), NOW + 1)).toBeUndefined();
+    expect(newerWords(undefined, mirrored(NOW + 1), NOW)).toBe("mirror");
+  });
+
   it("brings back nothing when there is no mirror or it is empty", () => {
     expect(newerWords({ text: "stored", at: NOW }, undefined)).toBeUndefined();
     expect(newerWords(undefined, mirrored(NOW, ""))).toBeUndefined();

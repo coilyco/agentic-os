@@ -56,3 +56,27 @@ test("an emptied box stays empty, so the mirror does not bring old words back", 
   await reopen(bed);
   await expect(field(bed)).toHaveValue("");
 });
+
+test("a mirror delete cut short by a reload does not bring emptied words back", async ({ bed }) => {
+  const key = `local/${SEATS.imp.id}`;
+  await bed.openSeat(SEATS.imp);
+  await field(bed).fill("to be cleared");
+  await expect.poll(() => mirrored(bed, key)).toBe("to be cleared");
+  await field(bed).fill("");
+  await expect.poll(() => mirrored(bed, key)).toBeUndefined();
+  // Put the old copy back, as if the reload had ended the delete before it committed.
+  await bed.page.evaluate(
+    ([id]) =>
+      new Promise<void>((done) => {
+        const open = indexedDB.open("aterm.draft-words.v1", 1);
+        open.onsuccess = () => {
+          const tx = open.result.transaction("words", "readwrite");
+          tx.objectStore("words").put({ key: id, text: "to be cleared", at: Date.now() - 1000 });
+          tx.oncomplete = () => done();
+        };
+      }),
+    [key] as const,
+  );
+  await reopen(bed);
+  await expect(field(bed), "stale words do not come back over an emptied box").toHaveValue("");
+});

@@ -19,10 +19,41 @@ export function planWordPrune(rows: Pick<Row, "key" | "at">[], now: number): str
   return [...drop, ...live.slice(MAX_DRAFTS).map((row) => row.key)];
 }
 
-/** The mirror's words when it is newer than the stored copy, else nothing. */
-export function newerWords(stored: { text: string; at: number } | undefined, mirrored: Row | undefined): string | undefined {
-  if (!mirrored?.text) return undefined;
+/** The mirror's words when newer than the stored copy and than the box last emptied. */
+export function newerWords(
+  stored: { text: string; at: number } | undefined,
+  mirrored: Row | undefined,
+  clearedAt = 0,
+): string | undefined {
+  if (!mirrored?.text || mirrored.at <= clearedAt) return undefined;
   return !stored || mirrored.at > stored.at ? mirrored.text : undefined;
+}
+
+// Emptying is written to local storage at once, since the mirror's delete can be cut
+// short by a reload, and stale words must not come back over an emptied box.
+const CLEARED_KEY = "aterm.drafts-cleared.v1";
+
+function readCleared(): Record<string, number> {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(CLEARED_KEY) ?? "{}");
+    return typeof raw === "object" && raw !== null ? (raw as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function noteCleared(key: string, now = Date.now()): void {
+  try {
+    const kept = Object.entries(readCleared()).filter(([, at]) => typeof at === "number" && now - at <= KEEP_MS);
+    localStorage.setItem(CLEARED_KEY, JSON.stringify(Object.fromEntries([...kept.filter(([k]) => k !== key), [key, now]])));
+  } catch {
+    // Storage can be off. The mirror's own delete is then the only guard.
+  }
+}
+
+export function clearedAt(key: string): number {
+  const at = readCleared()[key];
+  return typeof at === "number" ? at : 0;
 }
 
 const wrap = <T>(request: IDBRequest<T>): Promise<T> =>
