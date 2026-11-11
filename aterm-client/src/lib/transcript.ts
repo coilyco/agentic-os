@@ -66,6 +66,13 @@ export const REFUSALS: Record<string, string> = {
   bad_cursor: "The transcript moved on while it was being read.",
 };
 
+/** Refusals that asking again cannot change. Any other can clear. */
+const FINAL_REFUSALS = new Set(["unreadable_format", "unsupported_harness"]);
+
+export function mayClear(reason: string): boolean {
+  return !FINAL_REFUSALS.has(reason);
+}
+
 /** The host refused a transcript read, with the reason it named. */
 export class TranscriptRefused extends Error {
   constructor(readonly reason: string) {
@@ -141,10 +148,13 @@ export function decodeReply(session: string, frame: Record<string, unknown>): Tr
 /** Joins items by id, so an item that changed replaces in place. */
 export function mergeItems(held: readonly TranscriptItem[], next: readonly TranscriptItem[]): TranscriptItem[] {
   const out = [...held];
+  const where = new Map(out.map((item, at) => [item.id, at]));
   for (const item of next) {
-    const at = out.findIndex((each) => each.id === item.id);
-    if (at === -1) out.push(item);
-    else out[at] = item;
+    const at = where.get(item.id);
+    if (at === undefined) {
+      where.set(item.id, out.length);
+      out.push(item);
+    } else out[at] = item;
   }
   return out;
 }

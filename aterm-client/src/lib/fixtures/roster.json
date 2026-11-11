@@ -8,7 +8,12 @@
       "favorite_color": "#709b62",
       "identity": {
         "name": "Beetle-Ox",
-        "pronouns": ""
+        "pronouns": "",
+        "alternates": [
+          "Stag-Ox",
+          "Weevil-Ox",
+          "Cricket-Ox"
+        ]
       },
       "launchable": true,
       "seats": [
@@ -96,7 +101,12 @@
       "favorite_color": "#ee7eea",
       "identity": {
         "name": "Imp-Dragonfly",
-        "pronouns": ""
+        "pronouns": "",
+        "alternates": [
+          "Pixie-Dragonfly",
+          "Sprite-Dragonfly",
+          "Gnome-Dragonfly"
+        ]
       },
       "launchable": true,
       "seats": [
@@ -150,7 +160,12 @@
       "favorite_color": "#da656f",
       "identity": {
         "name": "Griffin-Goose",
-        "pronouns": ""
+        "pronouns": "",
+        "alternates": [
+          "Chimera-Goose",
+          "Sphinx-Goose",
+          "Wyvern-Goose"
+        ]
       },
       "launchable": true,
       "seats": [

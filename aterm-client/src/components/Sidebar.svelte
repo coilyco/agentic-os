@@ -6,6 +6,7 @@
   import PinSeat from "./PinSeat.svelte";
   import Creature from "./Creature.svelte";
   import ByCoilyco from "./ByCoilyco.svelte";
+  import ConfigurationLink from "./ConfigurationLink.svelte";
   import SettingsLink from "./SettingsLink.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
@@ -342,7 +343,7 @@
       <div class="scrim" onclick={closeMenu}></div>
     {/if}
     <!-- Settings is the page on a phone, so the host menu is not stacked above it. -->
-    {#if (!onScreen && !app.settingsOpen) || menuOpen}
+    {#if (!onScreen && !app.settingsOpen && !app.configurationOpen) || menuOpen}
       <div id="sidebar-menu" class="menu" data-flow={onScreen ? "sheet" : "page"}>
         <!-- Over a seat the menu is the seat switcher too, since the bar names only the one on screen. -->
         {#if onScreen}
@@ -353,6 +354,7 @@
               <svg class="chev" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </summary>
             {@render hostsGroup()}
+            <ConfigurationLink onopen={closeMenu} />
             <SettingsLink onopen={closeMenu} />
             <ByCoilyco />
           </details>
@@ -361,6 +363,7 @@
           {#if app.attachedHostId}{@render startGroup()}{/if}
         {/if}
         <div class="feedback"><FeedbackEntry onopen={closeMenu} /></div>
+        {#if !onScreen}<ConfigurationLink onopen={closeMenu} />{/if}
         {#if !onScreen}<SettingsLink onopen={closeMenu} />{/if}
         {#if !onScreen}<ByCoilyco />{/if}
       </div>
@@ -374,6 +377,7 @@
       {@render startGroup()}
     {/if}
     <div class="feedback foot"><FeedbackEntry /></div>
+    <ConfigurationLink />
     <SettingsLink />
     <ByCoilyco />
   {/if}

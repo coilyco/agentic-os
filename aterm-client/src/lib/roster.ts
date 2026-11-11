@@ -11,6 +11,8 @@ export interface Role {
   purpose: string;
   color: string;
   identity: string;
+  /** The names later seats of this role take once the first is in use. Absent is none. */
+  alternates?: string[];
   launchable: boolean;
   /** The roster says a seat of this role starts pinned. Absent is false. */
   pinnedByDefault?: boolean;
@@ -34,6 +36,13 @@ function text(value: unknown, where: string): string {
   return value;
 }
 
+/** The pool of later names, when listed. Anything that is not a name is left out. */
+function alternatesOf(identity: Record<string, unknown>): { alternates?: string[] } {
+  if (!Array.isArray(identity.alternates)) return {};
+  const names = identity.alternates.filter((name): name is string => typeof name === "string" && name !== "");
+  return names.length ? { alternates: names } : {};
+}
+
 /** Decodes `aterm --list --json`, refusing any other contract instead of guessing. */
 export function parseRoster(input: unknown): Role[] {
   const root = record(input, "roster");
@@ -53,6 +62,7 @@ export function parseRoster(input: unknown): Role[] {
       purpose: text(role.purpose ?? "", `${slug}.purpose`),
       color: color.toLowerCase(),
       identity: text(record(role.identity, `${slug}.identity`).name, `${slug}.identity.name`),
+      ...alternatesOf(record(role.identity, `${slug}.identity`)),
       launchable: role.launchable === true,
       ...(role.pinned_by_default === true ? { pinnedByDefault: true } : {}),
       seats: seats.map((rawSeat, seatIndex) => {
