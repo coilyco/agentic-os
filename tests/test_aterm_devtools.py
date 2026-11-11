@@ -125,6 +125,14 @@ def test_a_script_that_throws_raises_devtools_error_with_the_expression(server) 
             page.js("boom()")
 
 
+def test_a_thrown_error_says_what_it_was_when_the_page_describes_it(server) -> None:
+    details = {"text": "Uncaught", "exception": {"description": "TypeError: x is not a function\n    at <anonymous>:1:1"}}
+    server["handler"] = lambda m: [{"id": m["id"], "result": {"exceptionDetails": details, "result": {}}}]
+    with devtools.Page(server["url"]) as page:
+        with pytest.raises(devtools.DevToolsError, match=r"script threw: TypeError: x is not a function"):
+            page.js("boom()")
+
+
 def test_a_protocol_error_raises_devtools_error_naming_the_method(server) -> None:
     server["handler"] = lambda m: [{"id": m["id"], "error": {"code": -32601, "message": "no such method"}}]
     with devtools.Page(server["url"]) as page:
