@@ -1,7 +1,7 @@
 // Journey: a phone loses the daemon and gets it back with no tap (COI-3352), one test
 // per way the link was cut, on a faked clock so minutes cost seconds.
 import type { Page } from "@playwright/test";
-import { expect, SEATS, test } from "../harness.ts";
+import { expect, SEATS, test, seatEntry } from "../harness.ts";
 import type { Mock } from "../mock-daemon.ts";
 
 /** Moves fake time a second at a time until `done`. A second is under every client
@@ -99,7 +99,7 @@ test("a page opened while the daemon is unreachable attaches when it comes up", 
   await page.screenshot({ path: info.outputPath("1-not-answering.png") });
   await page.clock.pauseAt(new Date(Date.now() + 5000));
   mock.dials("ok");
-  const seat = page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first();
+  const seat = seatEntry(page, SEATS.imp.name);
   await advanceUntil(page, 150 * 1000, () => seat.isVisible());
   await expect(seat, "the host stayed unreachable until someone pressed Retry").toBeVisible();
   await page.screenshot({ path: info.outputPath("2-attached.png") });
@@ -116,7 +116,7 @@ test("a cold start whose first dial fails attaches on its own within the first b
   await page.getByRole("tab", { name: /this Mac/ }).click();
   await expect(page.getByRole("heading", { name: /is not answering/ })).toBeVisible();
   await page.screenshot({ path: info.outputPath("1-first-dial-failed.png") });
-  const seat = page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first();
+  const seat = seatEntry(page, SEATS.imp.name);
   // The first wait is 1 s, spread 20%. Three seconds covers it and the handshake.
   expect(await advanceUntil(page, 3000, () => seat.isVisible()), "one failed first dial stranded the page until Retry").toBe(true);
   await page.screenshot({ path: info.outputPath("2-attached.png") });
@@ -133,7 +133,7 @@ test("a launch with the remembered host down attaches on its own when it comes u
   await page.screenshot({ path: info.outputPath("1-launch-down.png") });
   await page.clock.pauseAt(new Date(Date.now() + 5000));
   mock.dials("ok");
-  const seat = page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first();
+  const seat = seatEntry(page, SEATS.imp.name);
   expect(await advanceUntil(page, 150 * 1000, () => seat.isVisible()), "the host stayed unattached until a tap").toBe(true);
   await page.screenshot({ path: info.outputPath("2-attached.png") });
 });
@@ -150,7 +150,7 @@ test("a cold start whose attach dial fails, after the page-load probe passed, at
   await expect(page.getByRole("heading", { name: /stopped answering/ })).toBeVisible();
   await page.screenshot({ path: info.outputPath("1-attach-dial-failed.png") });
   await page.clock.pauseAt(new Date(Date.now() + 5000));
-  const seat = page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first();
+  const seat = seatEntry(page, SEATS.imp.name);
   expect(await advanceUntil(page, 3000, () => seat.isVisible()), "a failed attach dial took the closed path and never redialed").toBe(true);
   await page.screenshot({ path: info.outputPath("2-attached.png") });
 });

@@ -1,7 +1,7 @@
 // Journey: a locked phone wakes and redials (COI-3305). Inside the resume window the
 // unlock holds, with no button and no prompt. After it the button and one prompt return.
 import { expect, test as base } from "@playwright/test";
-import { SEATS } from "../harness.ts";
+import { SEATS, seatEntry } from "../harness.ts";
 import { startMock, type Mock } from "../mock-daemon.ts";
 
 const test = base.extend<{ mock: Mock }>({
@@ -37,7 +37,7 @@ test("an unlock survives a redial inside the window and ends after it", async ({
 
   await page.goto("/");
   await page.getByRole("tab", { name: /this Mac/ }).click();
-  await page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first().click();
+  await seatEntry(page, SEATS.imp.name).click();
   // The seat's own lock. The host page shows an Unlock section even when unlocked.
   const readOnly = page.getByText("Read only.").first();
   const unlock = page.getByRole("button", { name: "Unlock with fingerprint" });

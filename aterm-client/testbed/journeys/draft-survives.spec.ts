@@ -1,11 +1,11 @@
 // COI-3533: the words in a seat's message box outlive a closed app, per seat, for a day.
-import { expect, SEATS, test, type Bed } from "../harness.ts";
+import { expect, SEATS, test, type Bed, seatEntry } from "../harness.ts";
 
 const field = (bed: Bed) => bed.page.getByRole("textbox", { name: /^Message / });
 // A reload rests on the seat overview, so the seat is opened again by its tab (COI-3518).
 const reopen = async (bed: Bed) => {
   await bed.page.reload();
-  await bed.page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first().click();
+  await seatEntry(bed.page, SEATS.imp.name).click();
 };
 
 test("words typed to a seat are still there after the page is reopened", async ({ bed }) => {

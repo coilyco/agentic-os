@@ -1,6 +1,6 @@
 // COI-3519: the open seat's top bar carries its activity line under its name on a screen
 // wide enough for it. A phone's bar keeps its one row, so the terminal keeps every row.
-import { expect, kindOf, SEATS, test } from "../harness.ts";
+import { expect, kindOf, SEATS, test, seatEntry } from "../harness.ts";
 import type { SessionSpec } from "../mock-daemon.ts";
 
 const LONG = "Checking whether a card's text box keeps focus on a phone";
@@ -15,7 +15,7 @@ const MOVED = seat("eng-platform-moved-ox", "Moved-Ox", { activity: "Running the
 const open = async (bed: import("../harness.ts").Bed, name: string) => {
   await bed.page.goto("/");
   await bed.page.getByRole("tab", { name: /this Mac/ }).click();
-  await bed.page.getByRole("tab", { name: new RegExp(name) }).first().click();
+  await seatEntry(bed.page, name).click();
   await expect(bed.page.getByRole("heading", { name, level: 1 })).toBeAttached();
 };
 

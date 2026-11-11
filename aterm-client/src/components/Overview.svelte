@@ -89,7 +89,7 @@
         {#each group.seats as session (session.id)}
           {@const role = roleFor(session, app.roles)}
           {@const said = line(session, group.key)}
-          <li class="row" data-group={group.key} style:--accent={role.color}>
+          <li class="row" data-group={group.key} data-seat={session.id} style:--accent={role.color}>
             <button type="button" class="open" aria-label={name(session, group.key, group.title)} onclick={() => openByPerson(session.id)}>
               <Creature role={role.slug} color={role.color} size={36} />
               <span class="text">
