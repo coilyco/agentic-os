@@ -23,7 +23,7 @@ The window opens fullscreen at font size 14.5, which `--start-as` and `--font-si
 
 **Tab completes from live state.** `aterm <TAB>` offers live slugs, `aterm sysadmin-senior <TAB>` only that role's launchable seats, so a turned-over slug stops completing. `aterm attach|send|status|close|clear <TAB>` offers the live sessions `aterm agents` lists. `shell/common.sh` registers bash and zsh through `aterm completion <shell>`, after `compinit` in zsh. A missing `agent-compose` or daemon yields silence, never a diagnostic mid-keystroke.
 
-**A failing launch stays on screen.** A terminal closes the window the moment its child exits, so a failure used to vanish before anyone read why. `aterm` runs the child through its own `_session` stage rather than handing the harness to kitty. That stage passes the exit code through and holds the window on any non-zero exit, and `--hold` holds after a clean one too. The launcher watches for a startup failure, so "no window appeared" names its cause. A claude seat runs `claude update` under the card animation, silent unless it fails.
+**A failing launch stays on screen.** `aterm` runs the child through its own `_session` stage rather than handing the harness to kitty. That stage passes the exit code through and holds the window on any non-zero exit, and `--hold` holds after a clean one too. The launcher watches for a startup failure, so "no window appeared" names its cause. A claude seat runs `claude update` under the card animation, silent unless it fails.
 
 **The title leads with what separates two windows.** A window manager truncates near 30 characters, so segments run workspace, task title, role, emblems and seat name, expression. The workspace is `repo@branch` for the checkout `--working-directory` names, left out when that is the default projects root.
 
@@ -31,7 +31,7 @@ The window opens fullscreen at font size 14.5, which `--start-as` and `--font-si
 
 **`aterm doctor` preflights the whole chain**, exits 1 on a broken link, and names the unleased-shadow case a launch makes silently. `--json` is `aterm.doctor.v1`.
 
-**The identity card is the seat name, its colour, and the creature, and nothing else.** It carried the seat, tier, expression, workspace, directory, shadow line, and a personality legend keyed by emoji. Kai cut all of it. The card the launch draws and the card `aterm card` re-renders are one renderer, so the two cannot drift.
+**The identity card is the seat name, its colour, and the creature, and nothing else.** The card the launch draws and the card `aterm card` re-renders are one renderer, so the two cannot drift.
 
 **`aterm card` re-renders the card for the session you are already inside.** The launch card loses the window to the harness on its first repaint and then leaves the terminal's history at the scrollback cap, which on a kitty at the 2000-line default is a few hours rather than 400ms. The verb reads `ATERM_CARD`, which `_session` sets on the harness it starts, so it re-renders the payload the launch already resolved rather than asking `agent-compose` again. That is what keeps it working from inside a session shadow, where re-resolving cannot (agentic-os#1460). Outside a session aterm opened, `ATERM_CARD` is unset and the verb exits 4.
 
@@ -50,7 +50,7 @@ Every window stands its role's own creature behind the session. See
 
 It routes every session. See [the aterm host daemon](aterm-daemon.md).
 
-**`aterm resume` reopens the conversation of a session that is no longer live.** The daemon records each session's role, seat, argv, directory, home and harness dirs, never its environment, under `~/.local/state/aterm/sessions` (`ATERM_STATE_DIR` overrides) and keeps an ended one 30 days. `aterm resume <session or role>` relaunches with `--resume <id>` and `--permission-mode bypassPermissions`, since claude restores the stored mode (COI-2739). Args after `--` reach claude, `--permission-mode keep` leaves the stored mode, and `--list` shows what can be resumed. **`aterm bypass`** reopens each idle live claude seat in bypass, keeping its conversation. It skips the caller, drafts and busy seats (`--busy` includes them).
+**`aterm resume` reopens the conversation of a session that is no longer live.** The daemon records each session's role, seat, argv, directory, home and harness dirs, never its environment, under `~/.local/state/aterm/sessions` (`ATERM_STATE_DIR` overrides) and keeps an ended one 30 days. `aterm resume <session or role>` relaunches the harness's own resume, found by the transcript finders (COI-3609): claude `--resume`, codex `resume`, opencode `--session`, goose `session --resume`. Only claude gets `--permission-mode bypassPermissions`, since it restores the stored mode (COI-2739). Args after `--` reach the harness, `--permission-mode keep` leaves the stored mode, and `--list` shows what can be resumed. **`aterm bypass`** reopens each idle live claude seat in bypass, keeping its conversation. It skips the caller, drafts and busy seats (`--busy` includes them).
 
 ## macOS app bundles
 

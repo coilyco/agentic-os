@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ type codexLine struct {
 		Phase            string          `json:"phase"`
 		Content          json.RawMessage `json:"content"`
 		LastAgentMessage string          `json:"last_agent_message"`
+		ID               string          `json:"id"`
 		Cwd              string          `json:"cwd"`
 		Timestamp        string          `json:"timestamp"`
 		ParentThreadID   string          `json:"parent_thread_id"`
@@ -100,6 +102,25 @@ func codexMeta(path string) (cwd string, started time.Time, ok bool) {
 	started, err = time.Parse(time.RFC3339Nano, line.Payload.Timestamp)
 	return line.Payload.Cwd, started, err == nil && line.Payload.Cwd != ""
 }
+
+// codexSessionID is the id `codex resume` takes, which a rollout names in its first line
+// and in its file name, `rollout-<time>-<id>.jsonl`.
+func codexSessionID(path string) (string, error) {
+	if file, err := os.Open(path); err == nil {
+		defer file.Close()
+		raw, _ := bufio.NewReaderSize(file, 1<<16).ReadBytes('\n')
+		var line codexLine
+		if json.Unmarshal(raw, &line) == nil && line.Type == "session_meta" && conversationFlag.MatchString(line.Payload.ID) {
+			return line.Payload.ID, nil
+		}
+	}
+	if found := codexFileID.FindString(filepath.Base(path)); found != "" {
+		return found, nil
+	}
+	return "", withExit(exitOffRoster, fmt.Errorf("%s names no codex session id: %w", filepath.Base(path), errNoTranscript))
+}
+
+var codexFileID = regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
 
 // codexHome is where a codex seat keeps its files, from its own spawn.
 func codexHome(entry ledgerEntry) string { return entry.dir("CODEX_HOME", ".codex") }
