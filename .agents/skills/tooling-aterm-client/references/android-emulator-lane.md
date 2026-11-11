@@ -1,0 +1,53 @@
+# The CI emulator lane
+
+A second way for a Frontend seat to prove something in the real Treehouse app, with no rig lock (COI-3591). The rig in [android-emulator.md](android-emulator.md) is one shared emulator on kai-server and four seats queued for it. The lane is a GitHub job any seat dispatches, so it costs no host memory and runs beside other lanes. It is not interactive. A seat hands it a ref, a step file and an image, and reads screenshots back.
+
+**When each fits.** The rig answers a tap while you watch and holds state between commands. The lane runs one script start to finish on a fresh emulator, in 15 to 30 minutes, and returns files. Use the lane for a proof with a before and after, and the rig to explore.
+
+## Dispatch
+
+`gh workflow run aterm-android-lane.yml --repo coilyco/agentic-os -f ref=<branch> -f steps=<path in that ref>`, then `gh run watch` and `gh run download <id> -n aterm-android-lane-<id>`.
+
+* `ref` - the git ref to prove. Its debug x86_64 APK is built there, and the step file is read from it, so a PR branch carries its own proof. Default `main`.
+* `steps` - the step file, a path inside `ref`. Default `scripts/ci/lane-steps/smoke.json`.
+* `apk_run` - a run id holding an `aterm-android-debug-x86_64-<id>` artifact, to skip the 7 minute build. Empty builds from `ref`.
+* `image` - `google_apis` (default) or `google_apis_playstore`, which carries Google's speech app.
+* `audio` - a virtual microphone fed from a spoken phrase, for steps that use `speak`.
+
+The workflow file and the runner come from the ref you dispatch on, which is `main` unless you pass `--ref`. The proof runs against `ref`. Anyone who can dispatch can run any step file, so there are no secrets in the job.
+
+## What the job has
+
+Android 14 on `google_apis` x86_64, the debug APK installed with every permission granted, a real `aterm daemon` on the runner behind the rig's relay, and one stub seat, `emulator-seat` (role `frontend-eng`), that asks no question. The app starts on a fresh install. A debug build is required, because DevTools is the way to read the page.
+
+## The step file
+
+JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add the host, open the seat, the default), `launch` (open the app and attach) or `none`. Every step has an `op`. A failed step stops the run after a `FAILED` screenshot.
+
+* `tap` - `selector`. A DevTools-measured tap at the element's centre.
+* `tap-text` - `text`, optionally `within`. The first element whose text or label holds it.
+* `fill` - `selector`, `text`. Sets the value and fires `input`.
+* `eval` - `js`, optionally `expect` (a regex on the result) and `save` (a name in the result file).
+* `wait` - `pattern`, `timeout`. Waits for the page text to match.
+* `wait-value` - `selector`, `pattern`, `timeout`, optionally `save`. Waits for a field's value, which is how a restored draft or speech shows.
+* `shot` - `name`. A named screenshot.
+* `keyboard` - `action: close`. Hides the soft keyboard, which covers the composer.
+* `kill-app`, `clear-app`, `launch`, `reopen` - the app's life. `reopen` launches, attaches and re-opens the host and seat.
+* `adb` - `args`. Any adb call, output kept in the result file.
+* `recognizer` - `service: fake` names the debug build's `FakeRecognitionService` the phone's recogniser, `system` puts back the image's own.
+* `speak` - plays the spoken phrase into the virtual mic (needs `audio`).
+* `logcat` - `name`, `pattern`. Matching logcat lines into `logcat-<name>.txt`.
+* `sleep` - `seconds`.
+
+Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill`. Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.
+
+## What comes back
+
+The artifact `aterm-android-lane-<run id>` holds `screens/NN-name.png` for each `shot` (numbered in order), `screens/lane-result.json` (each step, its output, `saved` values and the failure if any), logcat extracts, `daemon.log` and `emulator.log`. A failed run adds `FAILED.png`, `ui.xml`, `window.txt`, `page.txt` and a logcat. Put the screenshots on the Linear record, by name.
+
+## Limits
+
+* A fresh emulator every run, so no state carries over. Use `kill-app` and `reopen` to test what survives a close.
+* The seat is a fixture, not a harness. Native dialogs of a real agent are not exercised.
+* x86_64 only, an emulator and not Kai's phone, and the image's WebView, not hers.
+* Actions minutes are watched (COI-3249), so the lane is dispatch only.

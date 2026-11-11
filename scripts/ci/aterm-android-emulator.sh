@@ -6,7 +6,7 @@ set -euo pipefail
 
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/android-sdk}"
-IMAGE="system-images;android-34;google_apis;x86_64"
+IMAGE="${ATERM_EMULATOR_IMAGE:-system-images;android-34;google_apis;x86_64}"
 AVD=ci
 SEAT=emulator-seat
 out="${ATERM_EMULATOR_OUT:-$repo_root/aterm-emulator-out}"
@@ -132,6 +132,33 @@ journey() {
     --socket "$state/d.sock" --seat "$SEAT" --seat-log "$state/seat.log" --refuse-file "$state/refuse-upload"
 }
 
+# apk: the debug APK to prove, from a run's artifact or built from the app checkout.
+# ATERM_LANE_APP_DIR is the ref under test, ATERM_LANE_APK_RUN a run id or empty.
+apk() {
+  local dest="${1:?usage: apk DEST}" app="${ATERM_LANE_APP_DIR:-$repo_root}" run="${ATERM_LANE_APK_RUN:-}"
+  mkdir -p "$(dirname "$dest")"
+  # The emulator image step needs sdkmanager, so the toolchain goes in either way.
+  bash "$repo_root/scripts/ci/aterm-android.sh" toolchain
+  if [ -n "$run" ]; then
+    local tmp
+    tmp=$(mktemp -d)
+    gh run download "$run" --repo "$GITHUB_REPOSITORY" --name "aterm-android-debug-x86_64-$run" --dir "$tmp"
+    cp "$(find "$tmp" -name '*.apk' | head -n1)" "$dest"
+  else
+    bash "$app/scripts/ci/aterm-android.sh" build-debug x86_64 "$dest"
+  fi
+  ls -l "$dest"
+}
+
+# lane: a seat's step file, run by aterm_android_lane.py. It comes from the app checkout.
+lane() {
+  use_sdk
+  local apk="${1:?usage: lane APK STEPS}" steps="${2:?usage: lane APK STEPS}"
+  [ -S "$pulse_dir/native" ] && export XDG_RUNTIME_DIR="$pulse_dir" PULSE_SERVER="unix:$pulse_dir/native" ATERM_SPEECH_WAV="$out/speech.wav"
+  python3 -I "$repo_root/scripts/ci/aterm_android_lane.py" --apk "$apk" --out "$out/screens" --steps "$steps" \
+    --socket "$state/d.sock" --seat "$SEAT" --seat-log "$state/seat.log" --refuse-file "$state/refuse-upload"
+}
+
 # collect: the seat's log and the final logcat, for the artifact.
 collect() {
   use_sdk
@@ -144,6 +171,6 @@ collect() {
 cmd="${1:-}"
 [ $# -gt 0 ] && shift
 case "$cmd" in
-  kvm | avd | audio | boot | daemon | journey | collect) "$cmd" "$@" ;;
-  *) fail "usage: aterm-android-emulator.sh kvm | avd | audio | boot | daemon | journey APK | collect" ;;
+  kvm | avd | audio | boot | daemon | journey | apk | lane | collect) "$cmd" "$@" ;;
+  *) fail "usage: aterm-android-emulator.sh kvm | avd | audio | boot | daemon | journey APK | apk DEST | lane APK STEPS | collect" ;;
 esac

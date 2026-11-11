@@ -1,0 +1,97 @@
+# A seat's scripted proof on a CI emulator, no rig lock (COI-3591). Steps: scripts/ci/.
+# Guide: tooling-aterm-client references/android-emulator-lane.md.
+name: aterm-android-lane
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to prove: its APK is built, and its step file is read."
+        default: main
+      steps:
+        description: "Step file, a path inside that ref."
+        default: scripts/ci/lane-steps/smoke.json
+      apk_run:
+        description: "Run id with an aterm-android-debug-x86_64-<id> artifact. Empty builds the debug APK."
+        default: ""
+      image:
+        description: "Emulator image. The playstore one carries Google's speech app."
+        type: choice
+        options:
+          - google_apis
+          - google_apis_playstore
+        default: google_apis
+      audio:
+        description: "A virtual microphone fed by a spoken phrase, for steps that use `speak`."
+        type: boolean
+        default: false
+
+concurrency:
+  group: aterm-android-lane-${{ github.run_id }}
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+  ATERM_LANE_STEPS: ${{ inputs.steps }}
+  ATERM_LANE_APK_RUN: ${{ inputs.apk_run }}
+  ATERM_EMULATOR_IMAGE: system-images;android-34;${{ inputs.image }};x86_64
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  lane:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Check out the lane's own tooling
+        uses: actions/checkout@v7
+        with:
+          path: tooling
+      - name: Check out the ref to prove
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          path: app
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: app/aterm-client/.node-version
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: tooling/aterm/go.mod
+      - uses: ./tooling/actions/setup-ci
+        with:
+          tools: just
+      - name: Let the runner use KVM
+        run: bash "$GITHUB_WORKSPACE/tooling/scripts/ci/aterm-android-emulator.sh" kvm
+      - name: Get the debug APK
+        env:
+          ATERM_LANE_APP_DIR: ${{ github.workspace }}/app
+        run: mkdir -p "$GITHUB_WORKSPACE/tooling/aterm-emulator-out" && bash "$GITHUB_WORKSPACE/tooling/scripts/ci/aterm-android-emulator.sh" apk "$GITHUB_WORKSPACE/tooling/aterm-emulator-out/aterm-debug.apk"
+      - name: Make the emulator image
+        run: bash "$GITHUB_WORKSPACE/tooling/scripts/ci/aterm-android-emulator.sh" avd
+      - name: Set up the virtual microphone
+        if: ${{ inputs.audio }}
+        run: bash "$GITHUB_WORKSPACE/tooling/scripts/ci/aterm-android-emulator.sh" audio
+      - name: Boot the emulator
+        timeout-minutes: 10
+        run: bash "$GITHUB_WORKSPACE/tooling/scripts/ci/aterm-android-emulator.sh" boot
+      - name: Start a real daemon with a stub seat
+        run: bash "$GITHUB_WORKSPACE/tooling/scripts/ci/aterm-android-emulator.sh" daemon
+      - name: Run the step file
+        timeout-minutes: 30
+        run: bash "$GITHUB_WORKSPACE/tooling/scripts/ci/aterm-android-emulator.sh" lane "$GITHUB_WORKSPACE/tooling/aterm-emulator-out/aterm-debug.apk" "$GITHUB_WORKSPACE/app/$ATERM_LANE_STEPS"
+      - name: Collect the final logs
+        if: ${{ always() }}
+        run: bash "$GITHUB_WORKSPACE/tooling/scripts/ci/aterm-android-emulator.sh" collect
+      - name: Keep the screenshots and logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: aterm-android-lane-${{ github.run_id }}
+          path: |
+            ${{ github.workspace }}/tooling/aterm-emulator-out/screens
+            ${{ github.workspace }}/tooling/aterm-emulator-out/daemon.log
+            ${{ github.workspace }}/tooling/aterm-emulator-out/emulator.log
+          retention-days: 14

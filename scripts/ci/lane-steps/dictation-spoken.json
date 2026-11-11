@@ -1,0 +1,15 @@
+{
+  "name": "dictation from a spoken phrase through the virtual mic",
+  "start": "seat",
+  "steps": [
+    {"op": "recognizer", "service": "system"},
+    {"op": "fill", "selector": "#composer-input", "text": ""},
+    {"op": "tap", "selector": "[aria-label=\"Dictate\"]"},
+    {"op": "sleep", "seconds": 2},
+    {"op": "speak"},
+    {"op": "wait-value", "selector": "#composer-input", "pattern": "hello", "timeout": 60},
+    {"op": "keyboard", "action": "close"},
+    {"op": "shot", "name": "composer-after-spoken-phrase"},
+    {"op": "logcat", "name": "speech", "pattern": "speech|recogni|soda|dictation"}
+  ]
+}
