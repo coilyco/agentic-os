@@ -32,8 +32,14 @@ const reading = (page: import("@playwright/test").Page) =>
     };
   }, TAIL);
 
+// These journeys press the switch themselves, so the default starts off (COI-3612).
+const noDefault = (page: import("@playwright/test").Page) => page.addInitScript(() => localStorage.setItem("aterm.terminal-wrap-default.v1", "off"));
+
 test.describe("on a phone", () => {
-  test.beforeEach(({}, info) => test.skip(kindOf(info) !== "phone", "a phone's narrow box"));
+  test.beforeEach(async ({ page }, info) => {
+    test.skip(kindOf(info) !== "phone", "a phone's narrow box");
+    await noDefault(page);
+  });
 
   test("the switch wraps the long line to the screen and one tap undoes it", async ({ bed }) => {
     await bed.openSeat(SEATS.imp);
@@ -116,7 +122,10 @@ test.describe("on a phone", () => {
 });
 
 test.describe("on a phone, links and stripes", () => {
-  test.beforeEach(({}, info) => test.skip(kindOf(info) !== "phone", "a phone's narrow box"));
+  test.beforeEach(async ({ page }, info) => {
+    test.skip(kindOf(info) !== "phone", "a phone's narrow box");
+    await noDefault(page);
+  });
 
   const LINK = "https://code.claude.com/docs/en/permission-modes-and-the-rest-of-it";
   const linkScene: Scene = {
@@ -228,13 +237,12 @@ test.describe("on a desktop", () => {
     await bed.step("desktop-before", { compare: false });
     const before = await bed.page.screenshot();
 
-    // A phone attaches to the same seat and turns the switch on.
+    // A phone attaches to the same seat. Its Auto default folds the line with no tap.
     const phone = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true, baseURL });
     const page = await phone.newPage();
     await page.goto("/");
     await page.getByRole("tab", { name: /this Mac/ }).click();
     await seatEntry(page, SEATS.imp.name).click();
-    await page.getByRole("button", { name: "Wrap long lines" }).click();
     await expect.poll(async () => (await reading(page)).wrapping).toBe(true);
     await page.waitForTimeout(1000);
     expect((await reading(page)).overflow, "the phone's text lies inside its box").toBeLessThanOrEqual(1);
@@ -245,5 +253,45 @@ test.describe("on a desktop", () => {
     const after = await bed.page.screenshot();
     expect(after.equals(before), "the desktop's picture is the same bytes with the phone wrapping").toBe(true);
     await phone.close();
+  });
+});
+
+// COI-3612: Settings holds a device default, and a seat's own button overrides it.
+test.describe("the device default on a phone", () => {
+  test.use({ wrapDefault: "auto" });
+  test.beforeEach(({}, info) => test.skip(kindOf(info) !== "phone", "a phone's narrow box"));
+
+  const open = async (bed: import("../harness.ts").Bed, seat = SEATS.imp) => {
+    await bed.openSeat(seat);
+    bed.mock.holdWide(seat.id, WIDE);
+    bed.mock.setScene(seat.id, wideScene);
+    await expect(bed.screen()).toContainText(TAIL);
+  };
+  const button = (bed: import("../harness.ts").Bed) => bed.page.getByRole("button", { name: "Wrap long lines" });
+
+  test("Auto folds a seat that runs past the screen with no tap, and the button turns it off for good", async ({ bed }) => {
+    await open(bed);
+    await expect(button(bed), "folded by the default").toHaveAttribute("aria-pressed", "true");
+    await expect.poll(async () => (await reading(bed.page)).overflow, "no text lies past the edge").toBeLessThanOrEqual(1);
+    await button(bed).click();
+    await expect(button(bed)).toHaveAttribute("aria-pressed", "false");
+    await expect.poll(async () => (await reading(bed.page)).overflow, "panning is back").toBeGreaterThan(100);
+    await bed.page.reload();
+    await seatEntry(bed.page, SEATS.imp.name).click();
+    bed.mock.holdWide(SEATS.imp.id, WIDE);
+    bed.mock.setScene(SEATS.imp.id, wideScene);
+    await expect(bed.screen()).toContainText(TAIL);
+    await expect(button(bed), "the seat's own choice beats the default after a reload").toHaveAttribute("aria-pressed", "false");
+    await bed.switchSeat(SEATS.beetle);
+    bed.mock.holdWide(SEATS.beetle.id, WIDE);
+    bed.mock.setScene(SEATS.beetle.id, wideScene);
+    await expect(button(bed), "another seat still follows the default").toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("Off leaves a seat panning until its button is pressed", async ({ bed }) => {
+    await bed.page.addInitScript(() => localStorage.setItem("aterm.terminal-wrap-default.v1", "off"));
+    await open(bed);
+    await expect(button(bed)).toHaveAttribute("aria-pressed", "false");
+    expect((await reading(bed.page)).overflow, "sideways panning").toBeGreaterThan(100);
   });
 });

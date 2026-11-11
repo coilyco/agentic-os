@@ -50,9 +50,11 @@ export interface Bed {
   cols(seat: Seat): number;
 }
 
-export const test = base.extend<{ bed: Bed; mock: Mock; mockOptions: MockOptions }>({
+export const test = base.extend<{ bed: Bed; mock: Mock; mockOptions: MockOptions; wrapDefault: string }>({
   // A journey sets it with test.use({ mockOptions: { images: true } }).
   mockOptions: [{}, { option: true }],
+  // Off: Auto folds a wide seat after its frame settles, so the frame would flap.
+  wrapDefault: ["off", { option: true }],
   mock: async ({ mockOptions }, use) => {
     const mock = await startMock(mockOptions);
     await use(mock);
@@ -61,7 +63,15 @@ export const test = base.extend<{ bed: Bed; mock: Mock; mockOptions: MockOptions
   baseURL: async ({ mock }, use) => {
     await use(mock.url);
   },
-  bed: async ({ page, mock }, use, info) => {
+  bed: async ({ page, mock, wrapDefault }, use, info) => {
+    await page.addInitScript(
+      (value) => {
+        if (value !== "auto" && localStorage.getItem("aterm.terminal-wrap-default.v1") === null) {
+          localStorage.setItem("aterm.terminal-wrap-default.v1", value);
+        }
+      },
+      wrapDefault,
+    );
     let count = 0;
     const phone = kindOf(info) !== "desktop";
     const bed: Bed = {

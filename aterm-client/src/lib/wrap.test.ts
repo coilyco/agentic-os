@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { loadWrap, storeWrap } from "./wrap";
+import { loadWrap, loadWrapDefault, loadWrapPick, storeWrap, storeWrapDefault, wrapsByDefault } from "./wrap";
 
 const shelf = new Map<string, string>();
 beforeEach(() => {
@@ -44,5 +44,42 @@ describe("the remembered wrap switch", () => {
     });
     expect(() => storeWrap("imp", true)).not.toThrow();
     expect(loadWrap("imp")).toBe(false);
+  });
+});
+
+describe("a person's own pick for a seat", () => {
+  it("is nothing until the button is pressed, then on or off for that seat only", () => {
+    expect(loadWrapPick("imp")).toBeUndefined();
+    storeWrap("imp", true);
+    storeWrap("sprite", false);
+    expect([loadWrapPick("imp"), loadWrapPick("sprite"), loadWrapPick("beetle")]).toEqual([true, false, undefined]);
+  });
+
+  it("changes with each press, so the last one wins", () => {
+    storeWrap("imp", false);
+    storeWrap("imp", true);
+    expect(loadWrapPick("imp")).toBe(true);
+    storeWrap("imp", false);
+    expect(loadWrapPick("imp")).toBe(false);
+  });
+});
+
+describe("the device default", () => {
+  it("is Auto until chosen, and a hand-edited value reads as Auto", () => {
+    expect(loadWrapDefault()).toBe("auto");
+    for (const bad of ["", "maybe", "{", "7"]) {
+      shelf.set("aterm.terminal-wrap-default.v1", bad);
+      expect(loadWrapDefault(), bad).toBe("auto");
+    }
+    storeWrapDefault("on");
+    expect(loadWrapDefault()).toBe("on");
+    storeWrapDefault("off");
+    expect(loadWrapDefault()).toBe("off");
+  });
+
+  it("wraps on a phone or narrow window under Auto, never on a desktop, and On and Off ignore the screen", () => {
+    expect([wrapsByDefault("auto", true), wrapsByDefault("auto", false)]).toEqual([true, false]);
+    expect([wrapsByDefault("on", true), wrapsByDefault("on", false)]).toEqual([true, true]);
+    expect([wrapsByDefault("off", true), wrapsByDefault("off", false)]).toEqual([false, false]);
   });
 });
