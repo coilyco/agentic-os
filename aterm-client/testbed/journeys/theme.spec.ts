@@ -1,4 +1,6 @@
 // COI-3554: light, dark or the device's, chosen in Settings and kept on this device.
+// Its pictures are saved for a person to look at and compared to none, so another seat's
+// change to the seat list never moves a baseline here.
 import { expect, loadFonts, SEATS, test } from "../harness.ts";
 
 const esc = (code: string, text: string) => `\x1b[${code}m${text}\x1b[0m`;
@@ -66,14 +68,14 @@ test("the seats and a seat read in light, and an open terminal follows the devic
   await loadFonts(page);
   await page.getByRole("tab", { name: /this Mac/ }).click();
   await expect(seatsHome(page)).toBeVisible();
-  await bed.step("seats-light");
+  await bed.step("seats-light", { compare: false });
 
   await bed.openSeat(SEATS.imp);
   bed.mock.setScene(SEATS.imp.id, { render: () => screen });
   await expect(bed.screen()).toContainText("bright");
   const paint = () => page.evaluate(() => getComputedStyle(document.querySelector(".xterm-scrollable-element")!).backgroundColor);
   expect(await paint(), "the terminal on paper").toBe(LIGHT_TERMINAL);
-  await bed.step("seat-light");
+  await bed.step("seat-light", { compare: false });
 
   await page.emulateMedia({ colorScheme: "dark" });
   await expect.poll(paint, "the terminal repaints without a reload").toBe(DARK_TERMINAL);
