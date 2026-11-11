@@ -5,6 +5,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib.util
+import json
+import socket
+import threading
+import types
 from pathlib import Path
 
 CI = Path(__file__).resolve().parent.parent / "scripts" / "ci"
@@ -64,3 +68,62 @@ def test_the_seeded_png_has_the_signature_the_daemon_reads(tmp_path: Path) -> No
     png = tmp_path / "seed.png"
     journey.seed_png(png)
     assert png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+
+def _daemon(sock_path: Path, features: list[str]) -> threading.Thread:
+    """A stand-in daemon that answers one hello with a welcome listing these features."""
+    server = socket.socket(socket.AF_UNIX)
+    server.bind(str(sock_path))
+    server.listen(1)
+
+    def serve() -> None:
+        conn, _ = server.accept()
+        with conn, conn.makefile("rb") as reader:
+            reader.readline()
+            conn.sendall(json.dumps({"type": "welcome", "format": "aterm.daemon.v1", "features": features}).encode() + b"\n")
+        server.close()
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    return thread
+
+
+def test_open_facts_say_what_the_daemon_offered_and_whether_an_open_was_asked(tmp_path: Path) -> None:
+    journey = _load("aterm_android_journey")
+    sock = tmp_path / "d.sock"
+    thread = _daemon(sock, ["image-upload", "open-url"])
+    (tmp_path / "daemon.log").write_text("x asked to open an address, taken by 1 clients\n")
+    me = types.SimpleNamespace(args=argparse.Namespace(socket=str(sock), out=str(tmp_path / "screens")))
+    facts = journey.Journey.open_facts(me)
+    thread.join(5)
+    assert 'welcome features: ["image-upload", "open-url"]' in facts
+    assert "daemon open log: x asked to open an address, taken by 1 clients" in facts
+
+
+def test_open_facts_name_an_open_that_never_reached_the_daemon(tmp_path: Path) -> None:
+    journey = _load("aterm_android_journey")
+    sock = tmp_path / "d.sock"
+    thread = _daemon(sock, [])
+    me = types.SimpleNamespace(args=argparse.Namespace(socket=str(sock), out=str(tmp_path)))
+    facts = journey.Journey.open_facts(me)
+    thread.join(5)
+    assert "welcome features: []" in facts
+    assert "no open_url was asked of the daemon" in facts
+
+
+def test_the_stub_seat_is_told_which_socket_its_daemon_listens_on(tmp_path: Path) -> None:
+    """The spawn frame carries ATERM_DAEMON_SOCKET, or the seat's `aterm open` misses this daemon (COI-3559)."""
+    seat = _load("aterm_android_seat")
+    sent: list[dict] = []
+
+    def fake_talk(_sock: str):
+        def send(frame: dict, reply: bool = True) -> dict:
+            sent.append(frame)
+            return {"type": "spawned", "session": frame["session"], "pid": 1}
+
+        return send, {}
+
+    seat.talk = fake_talk
+    args = argparse.Namespace(socket=str(tmp_path / "d.sock"), seat="seat", log=str(tmp_path / "seat.log"))
+    assert seat.start(args) == 0
+    assert sent[0]["env"] == [f"ATERM_DAEMON_SOCKET={tmp_path / 'd.sock'}"]

@@ -60,7 +60,9 @@ def start(args: argparse.Namespace) -> int:
     trigger = f"{args.log}.open"
     watcher = f'while sleep 1; do [ -f "{trigger}" ] && {{ "$BROWSER" "$(cat "{trigger}")"; rm -f "{trigger}"; }}; done'
     script = f'({watcher}) & while IFS= read -r line; do printf "%s\\n" "$line" >> "{args.log}"; done'
-    reply = send({"type": "spawn", "session": args.seat, "role": ROLE, "argv": ["/bin/sh", "-c", script], "rows": 24, "cols": 80})
+    # `aterm open` finds a daemon on its own socket only through this variable (COI-3559).
+    env = [f"ATERM_DAEMON_SOCKET={args.socket}"]
+    reply = send({"type": "spawn", "session": args.seat, "role": ROLE, "argv": ["/bin/sh", "-c", script], "env": env, "rows": 24, "cols": 80})
     if reply.get("type") != "spawned":
         raise SystemExit(f"spawn refused: {reply}")
     print(f"seat {reply.get('session')} running as pid {reply.get('pid')}")
@@ -81,6 +83,13 @@ def upload(args: argparse.Namespace) -> int:
     if reply.get("type") != "image_uploaded":
         return 1
     send({"type": "input", "session": args.seat, "data": base64.b64encode((reply["path"] + "\n").encode()).decode()}, reply=False)
+    return 0
+
+
+def features(args: argparse.Namespace) -> int:
+    """Print the features this daemon's welcome lists, one JSON array, as a client would see them."""
+    _, welcome = talk(args.socket)
+    print(json.dumps(welcome.get("features") or []))
     return 0
 
 
@@ -123,6 +132,9 @@ def main() -> int:
         if name == "expect-image":
             verb.add_argument("--timeout", type=float, default=30)
         verb.set_defaults(fn=fn)
+    verb = sub.add_parser("features")
+    verb.add_argument("socket")
+    verb.set_defaults(fn=features)
     args = parser.parse_args()
     return args.fn(args)
 
