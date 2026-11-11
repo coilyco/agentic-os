@@ -45,7 +45,7 @@ JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add
 * `retry` - `steps`, `times`, `every`. Runs the steps again, `every` seconds apart, until they pass. For what needs a system to settle, such as Google's speech pack.
 * `sleep` - `seconds`.
 
-Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill`, `draft-image-survives-kill`, `screen-off-timer` and `composer-above-keyboard`, which fails on a build where the keyboard covers the message box. Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.
+Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill` (settles 3 s first), `draft-kill-0s`, `-1s` and `-3s`, `draft-image-survives-kill`, `screen-off-timer` and `composer-above-keyboard`, which fails on a build where the keyboard covers the message box. Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.
 
 ## What comes back
 
@@ -54,6 +54,8 @@ The artifact `aterm-android-lane-<run id>` holds `screens/NN-name.png` for each 
 ## The microphone
 
 `audio` makes a phrase with espeak (`ATERM_LANE_PHRASE`, default `hello world this is a test`), converts it to 16 kHz mono and boots the emulator with `-grpc 8554` instead of `-no-audio`. `speak` streams it to the emulator's `EmulatorController/injectAudio` with `grpcurl`, which the emulator feeds to its virtual microphone. **Measured on 2026-11-10:** the guest's own `tinycap` heard it at 0.99 peak amplitude, against 0.0002 with nothing injected. **PulseAudio did not work.** The emulator printed `Could not init 'pa' audio driver` with a null sink, `PULSE_SERVER`, `XDG_RUNTIME_DIR` and `libpulse-dev` all tried, and the mic stayed silent. `aterm_audio_stream.py` builds the stream and `tests/test_aterm_audio_stream.py` pins its shape.
+
+**Google's recognizer does not recognise it on a CI emulator.** The phrase reaches the app's `SpeechRecognizer`, and the answer is always `No words recognised`. On `google_apis_playstore` (Android 14 and 15) the en-US pack never installed: a 7 minute run of retries logged `Returning no LP, as MDD has not downloaded this pack yet` every time, with Google's background download tasks cancelled. On `google_apis` there is no pack and the online path answers 401. So the `dictation-spoken` step file fails on the lane, and **a spoken phrase becoming composer text is checked on a phone, not here.** The audio path itself is proven (the guest hears the phrase), and `dictation-fake` proves the plugin and page with a debug-only recognizer. A recognizer that works offline in debug builds would close the gap (COI-3586).
 
 ## Limits
 

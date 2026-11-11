@@ -1,0 +1,35 @@
+{
+  "name": "a words draft after 1 s, then the app is killed (COI-3533)",
+  "start": "seat",
+  "steps": [
+    {
+      "op": "fill",
+      "selector": "#composer-input",
+      "text": "a draft that outlives the app"
+    },
+    {
+      "op": "sleep",
+      "seconds": 1
+    },
+    {
+      "op": "shot",
+      "name": "draft-typed"
+    },
+    {
+      "op": "kill-app"
+    },
+    {
+      "op": "reopen"
+    },
+    {
+      "op": "wait-value",
+      "selector": "#composer-input",
+      "pattern": "a draft that outlives the app",
+      "timeout": 15
+    },
+    {
+      "op": "shot",
+      "name": "draft-after-kill"
+    }
+  ]
+}
