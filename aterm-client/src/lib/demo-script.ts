@@ -152,13 +152,13 @@ export const ASK: Ask = {
   multi: true,
 };
 
-/** Seat to seat, so the Messages tab has one delivered and one waiting. */
-export const MESSAGES: { after: number; message: PeerMessage; typed?: string }[] = [
+/** Seat to seat: one delivered, one waiting. Names come from the roster. */
+export const messagesFor = (nameOf: (role: string) => string): { after: number; message: PeerMessage; typed?: string }[] => [
   {
     after: 1,
     message: {
       id: `${DEMO_PREFIX}m-1`,
-      from: { role: "frontend-eng", identity: "Imp-Dragonfly" },
+      from: { role: "frontend-eng", identity: nameOf("frontend-eng") },
       target: "eng-platform",
       session: `${DEMO_PREFIX}eng-platform-1`,
       state: "delivered",
@@ -170,11 +170,11 @@ export const MESSAGES: { after: number; message: PeerMessage; typed?: string }[]
     after: 2,
     message: {
       id: `${DEMO_PREFIX}m-2`,
-      from: { role: "eng-platform", identity: "Beetle-Ox" },
+      from: { role: "eng-platform", identity: nameOf("eng-platform") },
       target: "frontend-eng",
       session: `${DEMO_PREFIX}frontend-eng-1`,
       state: "queued",
-      reason: "Imp-Dragonfly is mid-turn",
+      reason: `${nameOf("frontend-eng")} is mid-turn`,
     },
   },
 ];

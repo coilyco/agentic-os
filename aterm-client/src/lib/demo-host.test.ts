@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DemoHost } from "./demo-host";
-import { ASK, ASK_SEAT, COLUMNS, DEMO_PREFIX, runDemoLine, SEAT_REPLIES, SEATS, seatBanner, shellBanner, wrap } from "./demo-script";
+import { ASK, ASK_SEAT, COLUMNS, DEMO_PREFIX, messagesFor, runDemoLine, SEAT_REPLIES, SEATS, seatBanner, shellBanner, wrap } from "./demo-script";
 import type { HostEvent } from "./protocol";
 
 /** A wrapped line read as one: colour codes gone, a hang under the bullet closed up. */
@@ -244,5 +244,14 @@ describe("closing", () => {
     vi.advanceTimersByTime(10_000);
     expect(events.length).toBe(count);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("demo peer messages", () => {
+  it("name each sender and the queued reason from the roster, with no name of their own", () => {
+    const [delivered, queued] = messagesFor((role) => `<${role}>`);
+    expect(delivered?.message.from).toEqual({ role: "frontend-eng", identity: "<frontend-eng>" });
+    expect(queued?.message.from).toEqual({ role: "eng-platform", identity: "<eng-platform>" });
+    expect(queued?.message.reason).toBe("<frontend-eng> is mid-turn");
   });
 });
