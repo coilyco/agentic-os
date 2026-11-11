@@ -124,7 +124,9 @@ class Page:
         """Evaluate in the page and return the value. A promise is awaited."""
         out = self.call("Runtime.evaluate", expression=expression, returnByValue=True, awaitPromise=True, userGesture=True)
         if "exceptionDetails" in out:
-            raise DevToolsError(f"script threw: {out['exceptionDetails'].get('text')} in {expression[:80]}")
+            thrown = out["exceptionDetails"]
+            why = (thrown.get("exception") or {}).get("description") or thrown.get("text")
+            raise DevToolsError(f"script threw: {str(why)[:300]} in {expression[:80]}")
         return out["result"].get("value")
 
     def text(self) -> str:
