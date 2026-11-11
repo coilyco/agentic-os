@@ -121,11 +121,17 @@ export interface Ask {
 
 export type AskOutcome = "answered" | "cancelled" | "timed_out";
 
-/** A page a seat put on Kai's desk. Only whether it waits on her is read here. */
+/** A page a seat put on Kai's desk (COI-3329), with the source it was published from. */
 export interface SeatArtifact {
   id: string;
   /** The posting seat. It stays after the seat ends, so see `seatEnded`. */
   session: string;
+  title: string;
+  /** The claude.ai address, which the reader opens outside. */
+  url: string;
+  /** The source file the daemon read, drawn in a sandbox. Empty if none came. */
+  html: string;
+  standing: boolean;
   waiting: boolean;
   seatEnded: boolean;
 }

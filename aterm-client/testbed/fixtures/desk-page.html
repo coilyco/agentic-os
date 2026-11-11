@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Desk</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600&display=swap">
+<style>
+  :root { --bg: #f2f5f3; --fg: #14201a; --accent: #0e7a49; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 16px/1.5 "IBM Plex Sans", system-ui, sans-serif; }
+  h1 { margin: 0 0 8px; font-size: 1.6rem; }
+  ul { padding-left: 1.2em; }
+  .proof { margin-top: 16px; font: 13px ui-monospace, monospace; color: var(--accent); }
+</style>
+</head>
+<body>
+  <h1>Decisions for today</h1>
+  <p>Three things want you. The first is the oldest.</p>
+  <ul>
+    <li>Ship the reader as slice one.</li>
+    <li>Pick the host list for the frame.</li>
+    <li>Say whether one hop to Chrome is enough.</li>
+  </ul>
+  <p class="proof" id="ran">Script did not run</p>
+  <p class="proof" id="origin">Storage not probed</p>
+  <script>
+    document.getElementById("ran").textContent = "Script ran";
+    var storage = "open";
+    try { void window.localStorage.length; } catch (error) { storage = "blocked"; }
+    document.getElementById("origin").textContent = "Storage " + storage;
+  </script>
+</body>
+</html>

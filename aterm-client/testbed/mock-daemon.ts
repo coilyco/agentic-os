@@ -109,6 +109,10 @@ export interface Mock {
   setLastReply(session: string, reply: { text: string; ageSeconds?: number; truncated?: boolean }): void;
   /** Send one daemon frame to every client, as the daemon would push it. */
   push(frame: Record<string, unknown>): void;
+  /** A seat's page, as `aterm artifact add` registers it, replayed on subscribe. */
+  addArtifact(session: string, artifact: Record<string, unknown>): void;
+  /** The daemon closes a page, as a seat's remove or its end does. */
+  closeArtifact(session: string, id: string): void;
   /** Add a seat to the roster list, as a launch does. */
   addSession(spec: SessionSpec): void;
   /** Close the websocket from the daemon's side, as a daemon restart does. */
@@ -167,7 +171,7 @@ export function loadSessions(): SessionSpec[] {
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
  * `images`: Add image shows. `webPush`: Notify when closed shows. */
-export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; transcript?: boolean; media?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[] };
+export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; transcript?: boolean; media?: boolean; artifacts?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[] };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   if (!existsSync(join(DIST, "index.html"))) {
     throw new Error("The mock daemon serves aterm-client/dist, which is not built. Run `just aterm-client-testbed`, which builds it first.");
@@ -188,6 +192,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   let lastFrameAt = Date.now();
   const lastBox = new Map<string, { rows: number; cols: number }>();
   const closed = new Map<string, SessionSpec>();
+  const artifactFrames = new Map<string, Record<string, unknown>>();
   const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"] };
   const shared = new Map<string, { session: string; name: string; mime: string; kind: string; bytes: Buffer; at: number; unreadable?: boolean }>();
   const mediaFrame = (id: string) => {
@@ -265,7 +270,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           if (options.lock) {
             send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...unlockedFeatures, ...pushFeature], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
           } else {
-            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...(options.images ? ["image-upload"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.media ? ["media"] : []), ...pushFeature], typing: { allowed: true } });
+            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...(options.images ? ["image-upload"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.media ? ["media"] : []), ...(options.artifacts ? ["artifacts"] : []), ...pushFeature], typing: { allowed: true } });
           }
           return;
         case "device_assert_begin":
@@ -289,6 +294,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
         case "subscribe":
           if (frame.channel === "sessions") send(socket, sessionsFrame());
           if (frame.channel === "media") for (const id of shared.keys()) send(socket, mediaFrame(id));
+          if (frame.channel === "views") for (const page of artifactFrames.values()) send(socket, page);
           if (frame.channel === "open_url") {
             mock.browserCalls.push({ type: "subscribe", channel: "open_url" });
             send(socket, { type: "subscribed", id: frame.id, channel: "open_url" });
@@ -527,6 +533,15 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
       broadcast(sessionsFrame());
     },
     push: broadcast,
+    addArtifact(session, artifact) {
+      const frame = { type: "artifact", session, artifact };
+      artifactFrames.set(String(artifact.id), frame);
+      broadcast(frame);
+    },
+    closeArtifact(session, id) {
+      artifactFrames.delete(id);
+      broadcast({ type: "artifact_closed", session, artifact_id: id });
+    },
     addSession(spec) {
       add(spec);
       broadcast(sessionsFrame());

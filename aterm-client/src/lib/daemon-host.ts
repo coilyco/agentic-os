@@ -189,7 +189,7 @@ interface Frame {
   metadata?: Record<string, number>;
   view?: ViewFrame;
   view_id?: string;
-  artifact?: { id: string; waiting?: boolean; seat_ended?: boolean };
+  artifact?: { id: string; title?: string; url?: string; html?: string; standing?: boolean; waiting?: boolean; seat_ended?: boolean };
   artifact_id?: string;
   waiting?: boolean;
   seat_ended?: boolean;
@@ -1014,7 +1014,13 @@ export class DaemonHost implements HostConnection {
         if (frame.view_id) this.emit({ type: "view_closed", id: frame.view_id });
         return;
       case "artifact":
-        if (frame.artifact && frame.session) this.emit({ type: "artifact", artifact: { id: frame.artifact.id, session: frame.session, waiting: frame.artifact.waiting === true, seatEnded: frame.artifact.seat_ended === true } });
+        if (frame.artifact && frame.session) {
+          const page = frame.artifact;
+          this.emit({
+            type: "artifact",
+            artifact: { id: page.id, session: frame.session, title: page.title ?? "", url: page.url ?? "", html: page.html ?? "", standing: page.standing === true, waiting: page.waiting === true, seatEnded: page.seat_ended === true },
+          });
+        }
         return;
       case "artifact_update":
         if (frame.artifact_id) this.emit({ type: "artifact_update", id: frame.artifact_id, ...(frame.waiting === undefined ? {} : { waiting: frame.waiting }), ...(frame.seat_ended === undefined ? {} : { seatEnded: frame.seat_ended }) });
