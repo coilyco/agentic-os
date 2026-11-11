@@ -28,3 +28,9 @@ Observed on 2026-11-04 against a private daemon on this build, with a fake clien
 
 * **Which tab or pane the client uses is the client's call.** The frame carries the seat and the address and says nothing about showing it. Whether a page lands in the seat's own browser pane or a separate tab is for Kai to decide (COI-3258).
 * **A harness that opens a page without `PATH` or `BROWSER`** is not reached. An absolute `/usr/bin/open`, or a native library calling the system directly, opens the native browser as before.
+
+## Who subscribes (COI-3559)
+
+* **The browser client subscribes only when the host serves a browser**, since "Show here" needs one. With none it stays out and the host's own browser opens, which is on the same screen for a person at the host.
+* **The Android app subscribes whenever the host lists `open-url`.** A phone is never the screen the host's browser opens on, so with no subscriber the page opened on a machine nobody was looking at and the phone showed nothing. The card then says "Open in browser" and opens the page in the phone's own browser. The Mac app keeps the browser client's rule.
+* **The check is `inAndroidApp()`** in `open-external.ts`: the app bridge and an Android agent string. A journey, `open-external.spec.ts` on the `android` project, holds it against a mock host with no `browser` feature.

@@ -175,7 +175,7 @@ export function loadSessions(): SessionSpec[] {
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
  * `images`: Add image shows. `webPush`: Notify when closed shows. */
-export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; transcript?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[] };
+export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; transcript?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   if (!existsSync(join(DIST, "index.html"))) {
     throw new Error("The mock daemon serves aterm-client/dist, which is not built. Run `just aterm-client-testbed`, which builds it first.");
@@ -183,6 +183,8 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const roster = JSON.parse(readFileSync(ROSTER, "utf8")) as { roles: { slug: string; pinned_by_default?: boolean }[] };
   // Roles the roster marks pinned by default, as a daemon with the attribute would.
   for (const role of roster.roles) if (options.pinnedRoles?.includes(role.slug)) role.pinned_by_default = true;
+  // A daemon with no browser to stream does not list the feature.
+  const served = () => (options.noBrowser ? FEATURES.filter((feature) => feature !== "browser") : FEATURES);
   const live = new Map<string, Live>();
   const typedBy = new Map<string, string[]>();
   let uploadRefusal: string | null = null;
@@ -276,9 +278,9 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
       switch (frame.type) {
         case "hello":
           if (options.lock) {
-            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...unlockedFeatures, ...pushFeature], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
+            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...served(), ...unlockedFeatures, ...pushFeature], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
           } else {
-            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...FEATURES, ...(options.images ? ["image-upload"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.media ? ["media"] : []), ...(options.artifacts ? ["artifacts"] : []), ...pushFeature], typing: { allowed: true } });
+            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...served(), ...(options.images ? ["image-upload"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.media ? ["media"] : []), ...(options.artifacts ? ["artifacts"] : []), ...pushFeature], typing: { allowed: true } });
           }
           return;
         case "device_assert_begin":

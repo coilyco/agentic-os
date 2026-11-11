@@ -1349,6 +1349,29 @@ describe("a seat's open_url", () => {
     oldDaemon.host.close();
   });
 
+  it("subscribes in the Android app even with no host browser, since the host's own never opens on a phone", () => {
+    vi.stubGlobal("__TAURI__", { core: { invoke: vi.fn() } });
+    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36" });
+    const phone = connect();
+    phone.socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["open-url"] });
+    expect(subscribedTo(phone.socket, "open_url")).toBe(true);
+    phone.host.close();
+
+    const oldDaemon = connect();
+    oldDaemon.socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: [] });
+    expect(subscribedTo(oldDaemon.socket, "open_url"), "a daemon with no open-url has nothing to subscribe to").toBe(false);
+    oldDaemon.host.close();
+  });
+
+  it("stays out in the Mac app with no host browser, where the host's own browser is on the same screen", () => {
+    vi.stubGlobal("__TAURI__", { core: { invoke: vi.fn() } });
+    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15" });
+    const mac = connect();
+    mac.socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["open-url"] });
+    expect(subscribedTo(mac.socket, "open_url")).toBe(false);
+    mac.host.close();
+  });
+
   it("turns the push into an event naming the seat and the address", () => {
     const { host, events, socket } = connect();
     socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["open-url", "browser"] });
