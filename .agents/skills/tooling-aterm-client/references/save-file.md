@@ -15,6 +15,7 @@ Five commands over the page's `invoke`: `available`, `begin {name, mime}`, `writ
 
 * **Android** - `MediaStore.Downloads` with `IS_PENDING` set until `finish`, so a half file never shows in Files. It needs no storage permission on Android 10 and later, and the app's minSdk is 30.
 * **Mac** - the same commands write into `~/Downloads` with a created-new file, numbered on a clash.
+* **The type** - the Android writer stores the type the name's extension maps to, or plain bytes. MediaStore appends an extension to match a stored type, and the emulator turned `print-log.gcode` sent as text/plain into `print-log.gcode.txt`.
 * **The name** - `safe_name` in `rules.rs` and `SaveRules.kt` hold one rule: no folders, no control characters, no leading dots, never empty, 120 bytes with the extension kept. Both tests carry the same cases.
 * **Limits** - four saves open at once, then `busy`. Errors reach the page as `{code, message}`.
 

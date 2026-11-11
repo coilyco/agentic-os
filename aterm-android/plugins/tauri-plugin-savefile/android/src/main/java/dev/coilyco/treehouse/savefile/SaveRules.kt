@@ -51,6 +51,10 @@ object SaveRules {
 
     private fun bytes(text: String): Int = text.toByteArray(Charsets.UTF_8).size
 
-    /** The type to store: the page's, or a plain-bytes type when it sent none. */
-    fun mimeOrDefault(mime: String?): String = mime?.trim()?.takeIf { it.contains('/') } ?: FALLBACK_MIME
+    /** The name's own type, or plain bytes. MediaStore adds an extension otherwise. */
+    fun storedMime(typeOfExtension: String?): String = typeOfExtension?.takeIf { it.contains('/') } ?: FALLBACK_MIME
+
+    /** The part after the last dot, lower case, or null when there is none. */
+    fun extensionOf(name: String): String? =
+        name.substringAfterLast('.', "").lowercase().takeIf { it.isNotEmpty() && name.lastIndexOf('.') > 0 }
 }

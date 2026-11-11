@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Base64
+import android.webkit.MimeTypeMap
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
@@ -53,9 +54,11 @@ class SaveFilePlugin(private val activity: Activity) : Plugin(activity) {
         val args = invoke.parseArgs(BeginArgs::class.java)
         synchronized(open) {
             if (open.size >= SaveRules.MAX_OPEN) throw Failure("busy", "Too many saves are open at once.")
+            val name = SaveRules.safeName(args.name)
+            val byName = SaveRules.extensionOf(name)?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
             val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, SaveRules.safeName(args.name))
-                put(MediaStore.Downloads.MIME_TYPE, SaveRules.mimeOrDefault(args.mime))
+                put(MediaStore.Downloads.DISPLAY_NAME, name)
+                put(MediaStore.Downloads.MIME_TYPE, SaveRules.storedMime(byName))
                 put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
                 put(MediaStore.Downloads.IS_PENDING, 1)
             }

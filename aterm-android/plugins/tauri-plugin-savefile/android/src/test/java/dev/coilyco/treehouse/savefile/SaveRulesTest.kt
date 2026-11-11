@@ -36,9 +36,13 @@ class SaveRulesTest {
     }
 
     @Test
-    fun aMissingOrOddTypeBecomesPlainBytes() {
-        assertEquals("video/mp4", SaveRules.mimeOrDefault(" video/mp4 "))
-        assertEquals(SaveRules.FALLBACK_MIME, SaveRules.mimeOrDefault(null))
-        assertEquals(SaveRules.FALLBACK_MIME, SaveRules.mimeOrDefault("junk"))
+    fun theStoredTypeFollowsTheNameSoTheSystemKeepsIt() {
+        assertEquals("video/mp4", SaveRules.storedMime("video/mp4"))
+        assertEquals(SaveRules.FALLBACK_MIME, SaveRules.storedMime(null))
+        assertEquals(SaveRules.FALLBACK_MIME, SaveRules.storedMime("junk"))
+        assertEquals("gcode", SaveRules.extensionOf("print-log.GCODE"))
+        assertEquals("gz", SaveRules.extensionOf("archive.tar.gz"))
+        assertEquals(null, SaveRules.extensionOf("README"))
+        assertEquals(null, SaveRules.extensionOf("bashrc."))
     }
 }
