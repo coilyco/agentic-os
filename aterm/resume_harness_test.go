@@ -315,3 +315,22 @@ func TestSeatsInTwoShadowsAreNotPeersEvenWhenTheyNamedOneDirectory(t *testing.T)
 		t.Fatalf("a --session-id after the harness's own `--` is not the shadow's: %q", id)
 	}
 }
+
+func TestAGooseSeatResumesInTheShadowItsSessionRecordedAndOtherwiseInNone(t *testing.T) {
+	entry := gooseSeat(t)
+	sqliteExec(t, gooseDB(entry), "UPDATE sessions SET working_dir = '/private/tmp/native/cf65/projects' WHERE id = '"+gooseSess+"';")
+	entry.Cwd, entry.Argv = "/launch/named/this", shadowArgv("cf65")
+	want := []string{"--headless", "--shadow-id", "cf65", "prod-manager", "goose", "--", "session", "--resume", "--session-id", gooseSess}
+	if got, err := resumeArgs(entry, nil, true, false); err != nil || !slices.Equal(got, want) {
+		t.Fatalf("args = %v, err = %v, want %v", got, err, want)
+	}
+	// The argv now names the shadow the first resume made. The recorded directory decides.
+	entry.Argv, entry.Conversation = shadowArgv("ur85"), gooseSess
+	if got, err := resumeArgs(entry, nil, true, false); err != nil || !slices.Equal(got, want) {
+		t.Fatalf("second resume args = %v, err = %v, want %v", got, err, want)
+	}
+	sqliteExec(t, gooseDB(entry), "UPDATE sessions SET working_dir = '/work/demo' WHERE id = '"+gooseSess+"';")
+	if got, _ := resumeArgs(entry, nil, true, false); slices.Contains(got, "--shadow-id") {
+		t.Fatalf("a session outside a shadow must not name one: %v", got)
+	}
+}

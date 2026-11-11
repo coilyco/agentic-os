@@ -676,3 +676,22 @@ func TestLaunchesTheDaemonStartsAreHeadless(t *testing.T) {
 		t.Fatalf("launch args = %q", got)
 	}
 }
+
+func TestShadowIDNamesTheShadowAndABadCodeIsRefused(t *testing.T) {
+	var spawns []recordedSpawn
+	deps := stubDeps(t, &spawns, true)
+	out, err := runAterm(t, deps, "--dry-run", "--json", "--shadow-id", "cf65", "eng-platform", "claude")
+	if err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	var plan launchPlan
+	if err := json.Unmarshal([]byte(out), &plan); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(plan.Child, " "); !strings.Contains(got, "--session-id cf65 --assigned-role") {
+		t.Fatalf("the shadow was not named cf65: %s", got)
+	}
+	if _, err := runAterm(t, deps, "--dry-run", "--shadow-id", "../x", "eng-platform", "claude"); exitCodeFor(err) != exitUsage {
+		t.Fatalf("a path-shaped shadow code must refuse with usage: %v", err)
+	}
+}
