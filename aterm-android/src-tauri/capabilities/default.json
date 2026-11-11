@@ -1,6 +1,6 @@
 {
   "identifier": "default",
-  "description": "The aterm window may call the device key, dictation, share target and opener plugins and nothing else. The opener opens web addresses only.",
+  "description": "The aterm window may call the device key, dictation, share target, save file and opener plugins and nothing else. The opener opens web addresses only.",
   "windows": [
     "main"
   ],
@@ -8,6 +8,7 @@
     "devicekey:default",
     "dictation:default",
     "sharetarget:default",
+    "savefile:default",
     {
       "identifier": "opener:allow-open-url",
       "allow": [

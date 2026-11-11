@@ -4,6 +4,8 @@
   import type { MediaChannel } from "../lib/protocol";
   import { formatSize } from "../lib/images";
   import { inApp } from "../lib/open-external";
+  import { bridge } from "../lib/device-key";
+  import { saveAvailable, saveInApp } from "../lib/save-file";
 
   let { channel, items, startId, seat, onclose, onseen }: { channel: MediaChannel; items: MediaItem[]; startId?: string; seat: string; onclose: () => void; onseen: () => void } = $props();
 
@@ -29,6 +31,8 @@
   let closeButton = $state<HTMLButtonElement>();
   const urls: string[] = [];
   const asked = new Set<string>();
+  const blobs = new Map<string, Blob>();
+  let saving = $state(false);
 
   async function ensure(item: MediaItem): Promise<string | undefined> {
     const held = loads[item.id]?.url;
@@ -40,6 +44,7 @@
       const blob = await channel.read(item, (bytes) => (loads[item.id] = { bytes }));
       const url = URL.createObjectURL(blob);
       urls.push(url);
+      blobs.set(item.id, blob);
       loads[item.id] = { url };
       return url;
     } catch (error) {
@@ -67,6 +72,15 @@
     note = "";
     const url = await ensure(item);
     if (!url) return;
+    const invoke = bridge();
+    const blob = blobs.get(item.id);
+    if (invoke && blob) {
+      saving = true;
+      const result = await saveInApp(blob, item.name, invoke, (done, all) => (note = `Saving ${item.name}, ${Math.round((done / all) * 100)}%.`));
+      saving = false;
+      note = result.message;
+      return;
+    }
     const link = document.createElement("a");
     link.href = url;
     link.download = item.name;
@@ -106,8 +120,15 @@
     };
   });
 
-  // The app's WebView drops a download without a word (checked on Android), so it says so.
-  const canSave = !inApp();
+  // The app's WebView drops a download without a word (checked on Android), so inside the
+  // app Download goes through the savefile plugin. An app without it says so instead.
+  const inside = inApp();
+  let appCanSave = $state(false);
+  let probed = $state(!inside);
+  const canSave = $derived(!inside || appCanSave);
+  onMount(() => {
+    if (inside) void saveAvailable().then((place) => ((appCanSave = place !== null), (probed = true)));
+  });
   const load = $derived(current ? loads[current.id] : undefined);
   const turn = $derived(current ? (turns[current.id] ?? 0) : 0);
 </script>
@@ -145,7 +166,7 @@
           <p><strong>{current.name}</strong></p>
           <p>{describe(current)}</p>
           <p>Treehouse cannot show this kind of file.{canSave ? " Download it to open it elsewhere." : ""}</p>
-          {#if !canSave}<p>This app cannot save files yet. Open Treehouse in a browser on this device to download it.</p>{/if}
+          {#if probed && !canSave}<p>This app cannot save files yet. Open Treehouse in a browser on this device to download it.</p>{/if}
         </div>
       {/if}
     </div>
@@ -154,7 +175,7 @@
       {#if current.kind === "image"}
         <button type="button" onclick={() => (turns[current.id] = turned(turn))}>Rotate</button>
       {/if}
-      {#if canSave}<button type="button" onclick={() => void save(current)}>Download</button>{/if}
+      {#if canSave}<button type="button" onclick={() => void save(current)} disabled={saving}>Download</button>{/if}
       <button type="button" onclick={() => go(1)} disabled={at === total - 1} aria-label="Next file">Next</button>
     </footer>
     <p class="note" role="status">{note}</p>
