@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeItem, decodeReply, mergeItems, refusalText, rowsFor, withoutPeers, withoutThinking, type TranscriptItem } from "./transcript";
+import { decodeItem, decodeReply, mayClear, mergeItems, refusalText, rowsFor, withoutPeers, withoutThinking, type TranscriptItem } from "./transcript";
 
 const turn: TranscriptItem[] = [
   { id: "1", kind: "prompt", text: "Why does the wrapped row hide the stripe?" },
@@ -155,5 +155,14 @@ describe("a model's own reasoning in a reply", () => {
     for (const level of ["focus", "default"] as const) {
       expect(rowsFor(items, level).filter((row) => row.kind === "reply").map((row) => (row as { text: string }).text), level).toEqual(["Real answer."]);
     }
+  });
+});
+
+describe("mayClear", () => {
+  it("retries a refusal that can clear and gives up on a format it cannot read", () => {
+    expect(mayClear("passkey_required")).toBe(true);
+    expect(mayClear("no_transcript")).toBe(true);
+    expect(mayClear("unreadable_format")).toBe(false);
+    expect(mayClear("unsupported_harness")).toBe(false);
   });
 });
