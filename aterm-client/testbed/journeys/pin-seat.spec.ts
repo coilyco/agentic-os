@@ -5,7 +5,7 @@ import { expect, kindOf, SEATS, test } from "../harness.ts";
 
 const order = (page: Page) => page.locator('[id^="tab-session-"]').evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute("id")!.replace("tab-session-", "")));
 const openList = async (page: Page, phone: boolean) => {
-  if (phone) await page.getByRole("button", { name: /Seats, starting a seat, hosts and alerts/ }).click();
+  if (phone) await page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ }).click();
 };
 // A reload rests on the seat overview, so the list is already on screen.
 const reload = async (page: Page) => {

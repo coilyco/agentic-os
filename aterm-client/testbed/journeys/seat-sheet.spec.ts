@@ -1,7 +1,7 @@
 // COI-3323 item 6: a phone's seat sheet. Start a seat is on screen, none under the strip.
 import { expect, kindOf, SEATS, test } from "../harness.ts";
 
-const opener = /Seats, starting a seat, hosts and alerts/;
+const opener = /Seats, starting a seat, hosts and settings/;
 
 test.beforeEach(({}, info) => test.skip(kindOf(info) !== "phone", "the sheet is a phone's"));
 

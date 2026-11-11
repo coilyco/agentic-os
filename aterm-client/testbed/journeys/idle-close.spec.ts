@@ -39,7 +39,7 @@ const ask = {
 };
 
 const openSeats = async (page: Page, phone: boolean) => {
-  if (phone) await page.getByRole("button", { name: /Seats, starting a seat, hosts and alerts/ }).click();
+  if (phone) await page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ }).click();
 };
 const closeButtons = (page: Page) => page.getByRole("button", { name: /^Close [A-Z][a-z]+-Ox$/ });
 

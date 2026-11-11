@@ -57,7 +57,7 @@ export const test = base.extend<{ bed: Bed; mock: Mock; mockOptions: MockOptions
         await expect(page.locator(".xterm-rows")).toBeVisible();
       },
       async switchSeat(seat) {
-        if (phone) await page.getByRole("button", { name: /Seats, starting a seat, hosts and alerts/ }).click();
+        if (phone) await page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ }).click();
         await page.getByRole("tab", { name: new RegExp(seat.name) }).first().click();
       },
       screen: () => page.locator(".xterm-rows").first(),

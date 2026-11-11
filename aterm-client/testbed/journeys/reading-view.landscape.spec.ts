@@ -3,7 +3,7 @@
 import { expect, SEATS, test } from "../harness.ts";
 import type { Page } from "@playwright/test";
 
-const switcher = (page: Page) => page.getByRole("button", { name: /Seats, starting a seat, hosts and alerts/ });
+const switcher = (page: Page) => page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ });
 
 test("the seat list is a rail, and its lists open beside it", async ({ bed }) => {
   await bed.openSeat(SEATS.imp);

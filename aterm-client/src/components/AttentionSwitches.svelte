@@ -2,9 +2,6 @@
   import { app, setAlert } from "../lib/app.svelte";
   import { push, pushBlocked, setPush } from "../lib/push.svelte";
 
-  /** One tight row with no hints, for a page that is already full of lists. */
-  let { compact = false }: { compact?: boolean } = $props();
-
   // The browser, not the daemon, decides this: no worker, no push manager, an insecure page.
   const blocked = pushBlocked();
 
@@ -16,7 +13,7 @@
   }
 </script>
 
-<section class="alerts" class:compact aria-labelledby="alerts-label">
+<section class="alerts" aria-labelledby="alerts-label">
   <h2 id="alerts-label">Alerts</h2>
   <div class="switches">
     <label class="switch">
@@ -70,9 +67,4 @@
   #alerts-push-note:empty { margin: 0; }
   #alerts-push-note:empty::before { content: none; }
 
-  .compact { margin-top: 0; padding: 0 16px; border-top: none; display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
-  .compact h2, .compact .hint { display: none; }
-  .compact #alerts-push-note { display: block; flex-basis: 100%; margin: 0 0 4px; }
-  .compact .switches { flex-direction: row; flex-wrap: wrap; }
-  .compact .blocked { flex-basis: 100%; margin: 0 0 4px; }
 </style>

@@ -8,12 +8,14 @@ test("Settings opens from home, changes take effect, and Back returns", async ({
   await loadFonts(page);
   await page.getByRole("tab", { name: /this Mac/ }).click();
   const home = page.getByRole("region", { name: "Seats", exact: true });
-  await home.getByRole("button", { name: "Settings" }).click();
+  await home.getByRole("button", { name: "Settings", exact: true }).click();
 
   const settings = page.getByRole("region", { name: "Settings" });
   await expect(settings, "the page").toBeVisible();
   await expect(settings).toContainText("These apply to this device only.");
   await expect(settings.getByRole("heading", { name: "Alerts" })).toBeVisible();
+  await expect(settings.getByRole("heading", { name: "Seats by role" })).toBeVisible();
+  await expect(settings.getByRole("heading", { name: "New seats open in" })).toBeVisible();
   await expect(settings.getByRole("heading", { name: "Terminal text" })).toBeVisible();
   await expect(settings.getByRole("heading", { name: "Hosts on this device" })).toBeVisible();
   // The home screen replaced the host page, the install card's old place.
@@ -43,15 +45,41 @@ test("Settings opens from home, changes take effect, and Back returns", async ({
 test("Settings opens from a seat's menu, and picking a seat closes it", async ({ bed, page }, info) => {
   await bed.openSeat(SEATS.imp);
   if (kindOf(info) === "desktop") {
-    await page.getByRole("navigation", { name: "Hosts and sessions" }).getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("navigation", { name: "Hosts and sessions" }).getByRole("button", { name: "Settings", exact: true }).click();
   } else {
-    await page.getByRole("button", { name: /Seats, starting a seat, hosts and alerts/ }).click();
-    await page.getByText("Alerts and hosts").click();
-    await page.getByRole("button", { name: "Settings" }).click();
+    await page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ }).click();
+    await page.getByText("Hosts and settings").click();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
   }
   const settings = page.getByRole("region", { name: "Settings" });
   await expect(settings).toBeVisible();
   await bed.switchSeat(SEATS.beetle);
   await expect(settings, "picking a seat closes Settings").toHaveCount(0);
   await expect(page.locator(".xterm-rows")).toBeVisible();
+});
+
+test.describe("the view a seat opens in", () => {
+  test.use({ mockOptions: { transcript: true } });
+
+  test("a seat opens in the view chosen in Settings, and a seat keeps its own pick", async ({ page }) => {
+    await page.goto("/");
+    await loadFonts(page);
+    await page.getByRole("tab", { name: /this Mac/ }).click();
+    const home = page.getByRole("region", { name: "Seats", exact: true });
+    await home.getByRole("button", { name: "Settings", exact: true }).click();
+    const settings = page.getByRole("region", { name: "Settings" });
+    const opens = settings.getByRole("radiogroup", { name: "New seats open in" });
+    await expect(opens.getByRole("radio", { name: "Auto" }), "Auto until chosen").toHaveAttribute("aria-checked", "true");
+    await opens.getByRole("radio", { name: "Default" }).click();
+    await expect(opens.getByRole("radio", { name: "Default" })).toHaveAttribute("aria-checked", "true");
+    expect(await stored(page, "aterm.seat-view-default.v1"), "stored without a reload").toBe("default");
+    await settings.getByRole("button", { name: "Back" }).click();
+    await page.getByRole("tab", { name: new RegExp(SEATS.beetle.name) }).first().click();
+    const view = page.getByRole("radiogroup", { name: "Seat view" });
+    await expect(view.getByRole("radio", { name: "Default" }), "the seat opens in the chosen view").toHaveAttribute("aria-checked", "true");
+    await view.getByRole("radio", { name: "Focus" }).click();
+    await page.reload();
+    await page.getByRole("tab", { name: new RegExp(SEATS.beetle.name) }).first().click();
+    await expect(page.getByRole("radiogroup", { name: "Seat view" }).getByRole("radio", { name: "Focus" }), "the seat's own pick wins").toHaveAttribute("aria-checked", "true");
+  });
 });

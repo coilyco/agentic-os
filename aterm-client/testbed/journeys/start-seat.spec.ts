@@ -2,7 +2,7 @@
 // COI-3480: the client opens that seat itself, unless a person has gone elsewhere first.
 import { expect, kindOf, SEATS, test } from "../harness.ts";
 
-const SEATS_BUTTON = /Seats, starting a seat, hosts and alerts/;
+const SEATS_BUTTON = /Seats, starting a seat, hosts and settings/;
 
 async function toStartPanel(bed: Parameters<Parameters<typeof test>[2]>[0]["bed"], phone: boolean) {
   await bed.openSeat(SEATS.beetle);
