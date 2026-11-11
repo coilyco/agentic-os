@@ -76,6 +76,10 @@
       "timeout": 20
     },
     {
+      "op": "sleep",
+      "seconds": 4
+    },
+    {
       "op": "shot",
       "name": "demo-choice-card"
     },

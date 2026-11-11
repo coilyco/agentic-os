@@ -1,5 +1,5 @@
 // Whether the sheet is open and what it was opened over. The note lives in the sheet.
-import { app, sessionById } from "./app.svelte";
+import { app, inDemo, sessionById } from "./app.svelte";
 import { PLACE } from "./build";
 import { contextFor } from "./feedback";
 import type { FeedbackContext } from "./protocol";
@@ -11,6 +11,8 @@ export type FeedbackAvailability = { ok: true } | { ok: false; reason: string };
 /** Whether Send can work from here, and in words why not. */
 export function feedbackAvailability(): FeedbackAvailability {
   if (!app.connection) return { ok: false, reason: "Connect to a host first." };
+  // The demo has no host to send to, and says so rather than blaming the build.
+  if (inDemo()) return { ok: false, reason: "Feedback is off in the demo." };
   if (!app.connection.feedback) return { ok: false, reason: "This host needs a newer Treehouse." };
   return { ok: true };
 }
