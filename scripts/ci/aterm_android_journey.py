@@ -154,7 +154,15 @@ class Journey:
         page.tap(by_text("Add host", "button"))
         page.tap("()=>document.querySelector('[id^=tab-host-]')")
         # The seat is an overview row, named by role and state, with an empty name label.
-        page.tap(by_text("frontend-eng", ".overview button.open, nav button"))
+        # The row moves groups as the seat settles and can swallow a tap, so tap again.
+        for _ in range(4):
+            page.tap(by_text("frontend-eng", ".overview button.open, nav button"))
+            try:
+                page.wait_selector('[aria-label="Add image"]', wait=6)
+                return
+            except Fail:
+                print("add-host-and-open-seat: the seat did not open, tapping its row again")
+        raise Fail("the seat never opened from its overview row")
 
     def open_picker(self) -> None:
         page = self.page
