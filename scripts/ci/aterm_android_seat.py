@@ -84,6 +84,13 @@ def upload(args: argparse.Namespace) -> int:
     return 0
 
 
+def features(args: argparse.Namespace) -> int:
+    """Print the features this daemon's welcome lists, one JSON array, as a client would see them."""
+    _, welcome = talk(args.socket)
+    print(json.dumps(welcome.get("features") or []))
+    return 0
+
+
 def landed(socket_dir: Path, seat: str, digest: str) -> Path | None:
     """The file the daemon wrote for this seat whose bytes hash to digest, if any."""
     for path in sorted(socket_dir.glob(f"images/{seat}-*/*")):
@@ -123,6 +130,9 @@ def main() -> int:
         if name == "expect-image":
             verb.add_argument("--timeout", type=float, default=30)
         verb.set_defaults(fn=fn)
+    verb = sub.add_parser("features")
+    verb.add_argument("socket")
+    verb.set_defaults(fn=features)
     args = parser.parse_args()
     return args.fn(args)
 

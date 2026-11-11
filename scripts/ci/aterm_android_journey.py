@@ -333,6 +333,14 @@ class Journey:
         seen = [line for line in dump.splitlines() if "treehouse" in line or uri.rsplit("/", 1)[-1] in line]
         (self.out / f"share-{name}.grants.txt").write_text("\n".join(seen[:60]) or "no grant mentions the app or the row\n")
 
+    def open_facts(self) -> str:
+        """What the daemon offered and did for the open, so a missing card says which half failed (COI-3559)."""
+        seat = HERE / "aterm_android_seat.py"
+        done = subprocess.run([sys.executable, "-I", str(seat), "features", self.args.socket], capture_output=True, text=True, check=False)
+        log = Path(self.args.out) / "daemon.log"
+        asked = [line for line in log.read_text(errors="replace").splitlines() if "asked to open an address" in line] if log.exists() else []
+        return f"welcome features: {done.stdout.strip() or done.stderr.strip()}\ndaemon open log: {asked[-1] if asked else 'no open_url was asked of the daemon'}\n"
+
     def journey_d_open_in_browser(self) -> None:
         """Observe only: what a tap on an artifact card's Open in browser does on Android (COI-3520)."""
         page = self.page
@@ -342,7 +350,7 @@ class Journey:
         deadline = time.monotonic() + 30
         while not page.js(f"!!document.querySelector({json.dumps(card)})"):
             if time.monotonic() > deadline:
-                raise Fail(f"no artifact card appeared. page text: {page.text()[:300]!r}")
+                raise Fail(f"no artifact card appeared. {self.open_facts()}page text: {page.text()[:300]!r}")
             time.sleep(0.5)
         self.shot("card-before-tap")
         before = self.focus()
@@ -353,7 +361,7 @@ class Journey:
             href = page.js("location.href")
         except (Fail, OSError) as err:
             href = f"page not reachable: {err}"
-        report = f"focus before: {before}\nfocus after: {self.focus()}\nresumed: {resumed}\npage url after: {href}\n"
+        report = f"{self.open_facts()}focus before: {before}\nfocus after: {self.focus()}\nresumed: {resumed}\npage url after: {href}\n"
         (self.out / "journey-d.txt").write_text(report)
         print("journey D (observation only):\n" + report)
         adb("shell", "am", "start", "-n", f"{APP}/.MainActivity")
