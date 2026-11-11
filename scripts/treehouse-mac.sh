@@ -62,13 +62,27 @@ sign_app() {
   if [ -n "${TREEHOUSE_SIGN_IDENTITY:-}" ]; then
     codesign --force --deep --sign "$TREEHOUSE_SIGN_IDENTITY" --identifier "$bundle_id" "$1"
   elif identity_present; then
-    security unlock-keychain -p "" "$sign_keychain"
-    codesign --force --deep --keychain "$sign_keychain" --sign "$sign_name" --identifier "$bundle_id" "$1"
+    sign_from_keychain "$1"
   elif [ -n "${TREEHOUSE_SIGN_ADHOC:-}" ]; then
     codesign --force --deep --sign - --identifier "$bundle_id" "$1"
   else
     fail "no signing identity. Run the sign-setup verb, or set TREEHOUSE_SIGN_ADHOC=1 for a throwaway build"
   fi
+}
+
+# codesign finds an untrusted self-signed identity only through the search list, and a
+# --keychain path alone says no identity found. The list is put back when it is done.
+sign_from_keychain() {
+  local listed=() line status=0
+  while IFS= read -r line; do
+    line=${line#*\"}
+    listed+=("${line%\"*}")
+  done < <(security list-keychains -d user)
+  security unlock-keychain -p "" "$sign_keychain"
+  security list-keychains -d user -s ${listed[@]+"${listed[@]}"} "$sign_keychain"
+  codesign --force --deep --sign "$sign_name" --identifier "$bundle_id" "$1" || status=$?
+  security list-keychains -d user -s ${listed[@]+"${listed[@]}"}
+  return "$status"
 }
 
 # Reads the certificate and key from SSM once into a keychain of their own, so an
