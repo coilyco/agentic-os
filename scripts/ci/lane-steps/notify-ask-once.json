@@ -1,0 +1,113 @@
+{
+  "name": "the notification prompt is asked once, on a screen with no composer",
+  "start": "seat",
+  "steps": [
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "pm",
+        "revoke",
+        "dev.coilyco.treehouse",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
+    },
+    {
+      "op": "kill-app"
+    },
+    {
+      "op": "launch"
+    },
+    {
+      "op": "sleep",
+      "seconds": 10
+    },
+    {
+      "op": "assert",
+      "js": "!document.querySelector('#composer-input')",
+      "message": "the first ask lands on a screen with no composer"
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "dumpsys window | grep -E 'mCurrentFocus'"
+      ]
+    },
+    {
+      "op": "ui-dump",
+      "name": "first-launch"
+    },
+    {
+      "op": "shot",
+      "name": "first-launch-prompt-on-overview"
+    },
+    {
+      "op": "tap-ui",
+      "pattern": "^Don.?t allow$",
+      "timeout": 30
+    },
+    {
+      "op": "sleep",
+      "seconds": 2
+    },
+    {
+      "op": "shot",
+      "name": "after-dont-allow"
+    },
+    {
+      "op": "reopen"
+    },
+    {
+      "op": "assert",
+      "js": "!!document.querySelector('#composer-input')&&document.visibilityState==='visible'",
+      "message": "the seat opens with its composer after the answer, nothing in front of it"
+    },
+    {
+      "op": "shot",
+      "name": "seat-open-after-answer"
+    },
+    {
+      "op": "kill-app"
+    },
+    {
+      "op": "launch"
+    },
+    {
+      "op": "sleep",
+      "seconds": 15
+    },
+    {
+      "op": "assert",
+      "js": "document.visibilityState==='visible'",
+      "message": "the prompt came back on the second launch"
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "dumpsys window | grep -E 'mCurrentFocus'"
+      ]
+    },
+    {
+      "op": "ui-dump",
+      "name": "second-launch"
+    },
+    {
+      "op": "shot",
+      "name": "second-launch-no-prompt"
+    },
+    {
+      "op": "reopen"
+    },
+    {
+      "op": "assert",
+      "js": "!!document.querySelector('#composer-input')&&document.visibilityState==='visible'",
+      "message": "the seat opens on the second launch with nothing in front of it"
+    },
+    {
+      "op": "shot",
+      "name": "seat-open-second-launch"
+    }
+  ]
+}

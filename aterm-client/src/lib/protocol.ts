@@ -304,6 +304,8 @@ export interface DeviceKeyChannel {
 }
 
 export interface HostConnection {
+  /** The bundled demo: it dials nothing, and the page marks every surface as a demo. */
+  readonly demo?: boolean;
   readonly canLaunch: boolean;
   readonly canReopen?: boolean;
   readonly passkey?: PasskeyChannel;
