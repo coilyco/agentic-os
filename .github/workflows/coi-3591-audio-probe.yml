@@ -1,0 +1,19 @@
+# Throwaway COI-3591 probe, deleted with its branch. Steps in scripts/ci/.
+name: coi-3591-audio-probe
+
+on:
+  push:
+    branches:
+      - eng-platform/coi-3591-audio-probe
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+      - name: Probe the emulator mic
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/coi-3591-audio-probe.sh"
