@@ -138,7 +138,7 @@ def test_repeat_counts_passes_and_failures_without_stopping_the_run(tmp_path: Pa
 
 
 def test_a_round_number_reaches_fill_and_the_value_wait(tmp_path: Path) -> None:
-    _, lane = _lane(tmp_path, FakePage(["draft number 3"]))
+    _, lane = _lane(tmp_path, FakePage([None, "draft number 3"]))
     lane.saved["i"] = "3"
     lane.op_fill({"selector": "#composer-input", "text": "draft number $i"})
     assert json.dumps("draft number 3") in lane.page.scripts[0]
