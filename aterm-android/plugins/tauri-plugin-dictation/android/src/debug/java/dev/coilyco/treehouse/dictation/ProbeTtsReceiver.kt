@@ -29,7 +29,9 @@ private object Probe {
     private var queued: (() -> Unit)? = null
     private var t0 = 0L
 
-    private fun log(msg: String) = Log.i(TAG, "+${SystemClock.elapsedRealtime() - t0}ms $msg")
+    private fun log(msg: String) {
+        Log.i(TAG, "+${SystemClock.elapsedRealtime() - t0}ms $msg")
+    }
 
     fun run(context: Context, text: String, mode: String) {
         t0 = SystemClock.elapsedRealtime()
