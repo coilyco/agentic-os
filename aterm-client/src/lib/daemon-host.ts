@@ -8,7 +8,8 @@ import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
 import { CHUNK_BYTES, decodeMedia, mediaRefusal } from "./media";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, ViewChannel } from "./protocol";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, ViewChannel } from "./protocol";
+import { decodeReply, REFUSALS, TranscriptRefused } from "./transcript";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
 import { bridge, DeviceKeyError, type Invoke, enrollKey, keyStatus, KEY_CODE_SPENT, mayEnroll, signChallenge, biometricNotice } from "./device-key";
@@ -147,6 +148,12 @@ interface Frame {
   notify?: { id?: string; session?: string; role?: string; identity?: string; title?: string; body?: string; at?: string };
   /** Answers a `last_reply` request. */
   reply?: { session?: string; text?: string; truncated?: boolean; at?: string };
+  /** Answers a `transcript` request. See the transcript reference. */
+  items?: unknown;
+  cursor?: string;
+  more?: boolean;
+  reader?: string;
+  updated_at?: string;
   /** A shared file's descriptor on `media`, and the chunk's place on `media_data`. */
   media?: unknown;
   media_id?: string;
@@ -592,6 +599,18 @@ export class DaemonHost implements HostConnection {
     return this.features.has("last-reply") ? this.lastReplyChannel : undefined;
   }
 
+  /** Only a welcome listing `transcript` answers for a seat's transcript. */
+  get transcripts(): TranscriptChannel | undefined {
+    return this.features.has("transcript") ? this.transcriptChannel : undefined;
+  }
+
+  private transcriptChannel: TranscriptChannel = {
+    read: async (sessionId, options = {}) => {
+      const frame = await this.exchange({ type: "transcript", session: sessionId, ...options }, this.transcriptIds);
+      return decodeReply(sessionId, frame as unknown as Record<string, unknown>);
+    },
+  };
+
   /** Only a welcome listing `media` sends the files a seat shares. */
   get media(): MediaChannel | undefined {
     return this.features.has("media") ? this.mediaChannel : undefined;
@@ -711,11 +730,16 @@ export class DaemonHost implements HostConnection {
   };
 
   /** One request, settled by the reply or the `error` that echoes its id. */
-  private exchange(frame: Record<string, unknown>): Promise<Frame> {
+  private exchange(frame: Record<string, unknown>, track?: Set<string>): Promise<Frame> {
     return new Promise((resolve, reject) => {
-      this.calls.set(this.request(frame), { resolve, reject });
+      const id = this.request(frame);
+      track?.add(id);
+      this.calls.set(id, { resolve, reject });
     });
   }
+
+  /** Requests for a transcript, whose refusal reasons are this feature's own. */
+  private transcriptIds = new Set<string>();
 
   attach(sessionId: string, rows: number, cols: number): void {
     this.refs.set(sessionId, (this.refs.get(sessionId) ?? 0) + 1);
@@ -1000,6 +1024,7 @@ export class DaemonHost implements HostConnection {
         return;
       case "view_result":
       case "last_reply":
+      case "transcript":
       case "media_data":
       case "image_uploaded":
       case "passkey_enroll_options":
@@ -1019,6 +1044,7 @@ export class DaemonHost implements HostConnection {
         const call = frame.id ? this.calls.get(frame.id) : undefined;
         if (call && frame.id) {
           this.calls.delete(frame.id);
+          this.transcriptIds.delete(frame.id);
           call.resolve(frame);
         }
         return;
@@ -1120,7 +1146,8 @@ export class DaemonHost implements HostConnection {
         if (call && frame.id) {
           this.calls.delete(frame.id);
           const imageWords = refused ? null : imageRefusal(frame.reason);
-          if (frame.reason === "media_unknown") call.reject(new Error(mediaRefusal(frame.reason)));
+          if (frame.id && this.transcriptIds.delete(frame.id) && typeof frame.reason === "string" && Object.hasOwn(REFUSALS, frame.reason)) call.reject(new TranscriptRefused(frame.reason));
+          else if (frame.reason === "media_unknown") call.reject(new Error(mediaRefusal(frame.reason)));
           else if (frame.reason === RESUME_ENDED_REASON) call.reject(new ResumeEndedError());
           else if (frame.reason === KEY_UNKNOWN_REASON) call.reject(new DeviceKeyError(KEY_UNKNOWN, KEY_UNKNOWN_REASON));
           else if (imageWords) call.reject(new Error(imageWords));

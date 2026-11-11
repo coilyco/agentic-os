@@ -5,6 +5,7 @@ mod desktop;
 pub fn run() {
   let builder = tauri::Builder::default()
     .plugin(tauri_plugin_devicekey::init())
+    .plugin(tauri_plugin_dictation::init())
     .plugin(tauri_plugin_sharetarget::init())
     .plugin(tauri_plugin_opener::init())
     .plugin(tauri_plugin_notification::init());

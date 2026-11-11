@@ -1,12 +1,25 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import Creature from "./Creature.svelte";
   import { gist, stateLabel } from "../lib/messages";
   import type { PeerMessage } from "../lib/protocol";
 
-  let { messages, selfRole, colorOf }: { messages: PeerMessage[]; selfRole: string; colorOf: (role: string) => string } = $props();
+  let { messages, selfRole, colorOf, focus = null }: { messages: PeerMessage[]; selfRole: string; colorOf: (role: string) => string; focus?: { id: string; n: number } | null } = $props();
 
   // Opening a row only reads it. Nothing here answers a message or clears a waiting cue.
   let open = $state<Record<string, boolean>>({});
+
+  // A link from the transcript opens that message and brings it into view.
+  $effect(() => {
+    if (!focus) return;
+    const id = focus.id;
+    open[id] = true;
+    void tick().then(() => {
+      const row = document.getElementById(`message-row-${id}`);
+      row?.scrollIntoView({ block: "nearest" });
+      row?.focus();
+    });
+  });
 </script>
 
 <div class="messages">
@@ -19,7 +32,7 @@
         {@const expanded = open[message.id] === true}
         {@const preview = gist(message.text)}
         <li data-state={message.state}>
-          <button type="button" class="row" aria-expanded={expanded} aria-controls={`message-${message.id}`} onclick={() => (open[message.id] = !expanded)}>
+          <button type="button" class="row" id={`message-row-${message.id}`} aria-expanded={expanded} aria-controls={`message-${message.id}`} onclick={() => (open[message.id] = !expanded)}>
             <span class="meta">
               <!-- Art is keyed by role slug, and message.target is a session name. -->
               <Creature role={outgoing ? selfRole : message.from.role} color={colorOf(outgoing ? selfRole : message.from.role)} size={24} />

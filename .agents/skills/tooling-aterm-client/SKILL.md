@@ -68,11 +68,13 @@ than editing it by hand.
 * [tailnet-access.md](references/tailnet-access.md) - which tailnet devices attach, owner logins on a tagged node, and why a Tailscale Serve front is never loopback.
 * [linux-seat.md](references/linux-seat.md) - what the listeners allow a seat user on Linux, and the probe that checks it (COI-3498).
 * [reach.md](references/reach.md) - why a device cannot reach the daemon, the layers the client names, what the daemon logs, and the six-hop connection check with what a page can and cannot see.
+* [seat-views.md](references/seat-views.md) - the Focus, Default and Verbose views of a seat, the client half of the transcript read: the peer rule, paging, and what a refusal does.
 * [media.md](references/media.md) - the viewer for images, video and files a seat shares, the sequence, the file fallback, and trying it with no daemon that shares files.
 * [sizing.md](references/sizing.md) - how a session's PTY is sized when clients of different sizes attach, the `size` frame, and `pty-size`.
 * [desktop.md](references/desktop.md) - the windowed Treehouse app for the Mac: its identity, what it does at launch, and the verbs that build and install it.
 * [android-opener.md](references/android-opener.md) - why a window does nothing for window.open, and how an artifact or link opens in the device's own browser.
 * [native-notify.md](references/native-notify.md) - the Mac and Android apps' system notification for a coordinator's notify, the one-time ask, and what a tap does.
+* [android-dictation.md](references/android-dictation.md) - the composer's mic on Android: the phone's own speech recognition, why that engine, and what is not yet checked on a phone.
 * [android-sharetarget.md](references/android-sharetarget.md) - Treehouse as an Android Share target for images: the sheet, the plugin, and what is not yet checked on a phone.
 * [device-key.md](references/device-key.md) - the Android app's unlock with the phone's own key, as a person sees it.
 * [device-key-daemon.md](references/device-key-daemon.md) - the daemon half: the frames, the attestation checks, and the app origin.

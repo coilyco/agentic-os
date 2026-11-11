@@ -448,6 +448,65 @@ class Journey:
             raise Fail(f"the page did not say {words!r}")
         print("journey C: chip kept; failure words " + ("asserted" if words else "captured in journey-c-page.txt, not asserted"))
 
+    def dictate(self, label: str, pattern: str, wait: float, speak: bool) -> str:
+        """Tap the mic, optionally play the spoken phrase into the virtual mic, and read the composer."""
+        page = self.page
+        assert page
+        mic = '[aria-label="Dictate"]'
+        stop = '[aria-label="Stop dictating"]'
+        field = "document.querySelector('#composer-input')"
+        page.js(f"(()=>{{const f={field};f.value='';f.dispatchEvent(new Event('input',{{bubbles:true}}))}})()")
+        page.wait_selector(mic, 20)
+        page.tap(f"()=>document.querySelector({json.dumps(mic)})")
+        page.wait_selector(stop, 20)
+        if speak:
+            time.sleep(2)
+            subprocess.run(["paplay", "--device=virt_mic", os.environ["ATERM_SPEECH_WAV"]], check=False, timeout=60)
+        deadline = time.monotonic() + wait
+        heard = ""
+        while time.monotonic() < deadline and not re.search(pattern, heard, re.IGNORECASE):
+            time.sleep(0.5)
+            heard = str(page.js(f"{field}.value"))
+        (self.out / f"{label}-composer.txt").write_text(heard)
+        logs = [line for line in adb("logcat", "-d", "-t", "8000", check=False).splitlines() if re.search(r"speech|recogni|dictation|soda", line, re.IGNORECASE) and "Tauri/Plugin" not in line]
+        (self.out / f"{label}-logcat.txt").write_text("\n".join(logs[-300:]))
+        if not re.search(pattern, heard, re.IGNORECASE):
+            raise Fail(f"{label}: no words reached the composer. composer: {heard!r}. page notes: {page.text()[-300:]!r}")
+        return heard
+
+    def end_dictation(self) -> None:
+        page = self.page
+        assert page
+        stop = '[aria-label="Stop dictating"]'
+        if page.js(f"!!document.querySelector({json.dumps(stop)})"):
+            page.tap(f"()=>document.querySelector({json.dumps(stop)})")
+        page.wait_selector('[aria-label="Dictate"]', 20)
+
+    def journey_f_spoken_phrase(self) -> None:
+        """The real route: a spoken phrase plays into the virtual mic and the phone's own recognizer hears it (COI-3460)."""
+        if not os.environ.get("ATERM_SPEECH_WAV"):
+            raise Fail("no speech file, so the virtual mic was never set up (ATERM_SPEECH_WAV)")
+        heard = self.dictate("journey-f", r"hello", 45, speak=True)
+        self.end_dictation()
+        print(f"journey F: spoken phrase heard as {heard!r}")
+
+    def journey_g_fake_recognizer(self) -> None:
+        """The debug build's fake recognition service named as the default: the plugin and page run end to end without audio."""
+        adb("shell", "settings", "put", "secure", "voice_recognition_service", f"{APP}/{APP}.dictation.FakeRecognitionService")
+        heard = self.dictate("journey-g", r"run the gate and report back", 30, speak=False)
+        self.end_dictation()
+        page = self.page
+        assert page
+        # The field stays focused, so the keyboard covers the composer. Hide it.
+        if "mInputShown=true" in adb("shell", "dumpsys input_method | grep -m1 mInputShown", check=False):
+            adb("shell", "input", "keyevent", "4")
+            time.sleep(1)
+        self.shot("composer-after-dictation")
+        settled = str(page.js("document.querySelector('#composer-input').value"))
+        if settled != heard and not settled.startswith("run the gate"):
+            raise Fail(f"journey G: the composer changed after the session ended: {settled!r}")
+        print(f"journey G: composer holds {settled!r}")
+
     def run(self) -> None:
         self.step("install-and-launch", self.install_and_launch)
         self.step("attach-devtools", self.attach_page)
@@ -484,6 +543,14 @@ class Journey:
                 # COI-3580's evidence is in picker-<mode>-*.txt, so this only warns.
                 print(f"::warning::journey picker {mode} failed, see picker-{mode}-*.txt (COI-3580)")
                 self.recover()
+        if os.environ.get("ATERM_JOURNEY_DICTATION"):
+            try:
+                self.step("journey-f-spoken-phrase", self.journey_f_spoken_phrase)
+            except SystemExit:
+                # Observation: Google's recognizer on a CI image may lack a pack or a key.
+                print("::warning::journey F heard nothing and is optional (COI-3460), see its FAILED screenshot")
+                self.recover()
+            self.step("journey-g-fake-recognizer", self.journey_g_fake_recognizer)
         self.step("journey-c-daemon-down", self.journey_c_daemon_down)
         self.evidence()
 

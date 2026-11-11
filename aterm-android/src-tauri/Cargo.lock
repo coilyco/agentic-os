@@ -187,6 +187,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-devicekey",
+ "tauri-plugin-dictation",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-sharetarget",
@@ -3568,6 +3569,16 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-devicekey"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "tauri-plugin-dictation"
 version = "0.1.0"
 dependencies = [
  "serde",
