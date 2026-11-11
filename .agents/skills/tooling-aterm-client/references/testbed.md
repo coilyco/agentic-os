@@ -52,7 +52,7 @@ Journeys that hold today: `reconnect` (COI-3352: a restart ridden out, a silent 
 
 The `testbed` job in `.github/workflows/aterm-client.yml` runs on a GitHub-hosted Ubuntu runner whenever `aterm-client/**` changes. It gates on `--grep-invert @quirk`, so reported quirks do not fail a pull request, and it runs the `@quirk` set as a report that cannot fail the job. A missing baseline fails in CI. The report, results and diffs upload as the `testbed` artifact.
 
-To write or refresh the Linux baselines, run the workflow by hand with `update` on, download the `testbed` artifact, and commit `baselines/linux/`. Do the same after a change that moves pixels. Run it on a branch with an open pull request, never on `main`: a merge to `main` shares the workflow's concurrency group and cancels the dispatched run partway, and the artifact it still uploads is the baselines unchanged (seen on run 42705070292).
+To write or refresh the Linux baselines, run the workflow by hand with `update` on, download the `testbed` artifact, and commit `baselines/linux/`. Do the same after a change that moves pixels. Run it on a branch with an open pull request, since an update run on `main` would commit nothing. Only a pull request branch cancels its own stale run, and every `main` push keys on its commit so each gets a verdict. A red `main` run files or comments on a Linear record through the `alert` job (`scripts/file_main_red.py`, secret `LINEAR_ALERT_KEY`, COI-3606).
 
 ## Beside the drive
 
