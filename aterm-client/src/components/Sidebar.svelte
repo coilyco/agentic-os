@@ -437,7 +437,7 @@
   .name { font-weight: 600; font-size: 15px; }
   /* The harness tag wraps onto a second line the cap clips, so a long name stays whole and the tag is what gives way (COI-3562). */
   .name-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2em 6px; min-width: 0; max-height: 1.5em; overflow: hidden; }
-  .harness { flex: none; font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--line)); color: var(--text-soft); }
+  .harness { flex: none; font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--control-line); color: var(--text-soft); }
   .code-inline { display: none; font-size: 11px; color: var(--muted); }
   .state-text { color: var(--text-soft); }
   [data-activity="unseen"] .state-text, [data-activity="asking"] .state-text { color: var(--brand); }

@@ -27,7 +27,7 @@
   --treehouse: #6cdc85;
   --brand: var(--treehouse);
   --brand-ink: #0b1a10;
-  --ok: #5ee6a8;
+  --ok: var(--brand);
   --warn: #ffb454;
   --warn-text: #ffc98a;
   --warn-fill: #1a1712;
@@ -37,6 +37,23 @@
   --danger-detail: #ff9aa5;
   --danger-fill: #2a1419;
   --danger-line: #5a3a41;
+  /* The harness's palette on the --terminal ground. No chrome reads one. */
+  --ansi-black: #271a0c;
+  --ansi-red: #ee7769;
+  --ansi-green: #7ccf8a;
+  --ansi-yellow: #e2b95a;
+  --ansi-blue: #74a7ff;
+  --ansi-magenta: #d08fd0;
+  --ansi-cyan: #5cc9bd;
+  --ansi-white: #ddd6cf;
+  --ansi-bright-black: #9d8f80;
+  --ansi-bright-red: #ff9a8d;
+  --ansi-bright-green: #9be6a6;
+  --ansi-bright-yellow: #f2d27c;
+  --ansi-bright-blue: #9bc0ff;
+  --ansi-bright-magenta: #e5aee5;
+  --ansi-bright-cyan: #85e0d5;
+  --ansi-bright-white: #f9f4f0;
   --font-display: "Chakra Petch", sans-serif;
   --font-body: "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;

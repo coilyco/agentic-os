@@ -137,7 +137,7 @@
   ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
   .row { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .open { flex: 1; min-width: 0; min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--terminal); color: var(--text); text-align: left; font: inherit; }
-  .open:hover { border-color: var(--accent); }
+  .open:hover { border-color: var(--brand); }
   /* The same faint tint and thin rail a waiting seat gets in the list, so the two read as one thing. */
   .row[data-group="needs"] .open { background: color-mix(in srgb, var(--accent) 9%, var(--ground)); box-shadow: inset 2px 0 0 var(--accent); }
   .text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }

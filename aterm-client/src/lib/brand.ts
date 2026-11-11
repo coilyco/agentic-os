@@ -47,3 +47,15 @@ export function resolveColour(value: string): string {
   probe.remove();
   return hexOfComputed(painted) ?? value;
 }
+
+const ANSI = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"] as const;
+
+/** The 16 ANSI colours from the --ansi-* tokens, in the names xterm's theme takes. */
+export function ansiTheme(): Record<string, string> {
+  const theme: Record<string, string> = {};
+  for (const name of ANSI) {
+    theme[name] = resolveColour(`var(--ansi-${name})`);
+    theme[`bright${name[0]!.toUpperCase()}${name.slice(1)}`] = resolveColour(`var(--ansi-bright-${name})`);
+  }
+  return theme;
+}
