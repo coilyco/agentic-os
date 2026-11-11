@@ -18,6 +18,8 @@ The [aterm web client](../../../../aterm-client/README.md) wrapped as an Android
 
 The scripted steps are [`scripts/ci/aterm-android.sh`](../../../../scripts/ci/aterm-android.sh). Every Android pin is manual and lives at its top. `verify` and `build-debug` run `check-icon`, which fails when the APK's launcher icons are not the repo's (COI-3616).
 
+**A red release build does not merge (COI-3634).** The `apk` job runs the release build and its `verify` only on a PR that touches `aterm-android/**`, `scripts/ci/aterm-android*.sh` or its workflow, so it cannot be a required check itself. `aterm-android-gate.yml` runs on every PR. Its `android-release-gate` job passes at once when no such path changed, and otherwise waits for the `apk` job and passes only on success or skipped. A repository ruleset requires it. The script is `scripts/ci/aterm-android-gate.sh`, read from the base commit so a PR cannot loosen it.
+
 ## Stable channel
 
 **A push to main builds and uploads a workflow artifact, never a release (COI-3307).** [`aterm-android.yml`](../../../../.github/workflows/aterm-android.yml) publishes at 09:23 UTC daily when an app path changed since the last stable build, and on `workflow_dispatch` (`dry_run` builds and verifies without publishing). [`aterm-android-release.sh`](../../../../scripts/ci/aterm-android-release.sh) holds the plan, the notes and the publish.

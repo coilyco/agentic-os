@@ -4,11 +4,13 @@ import "./app.css";
 import { initCrashReporting } from "./lib/crash";
 import TapTraceBar from "./components/TapTraceBar.svelte";
 import { registerShellWorker } from "./lib/shell-worker";
+import { startTheme } from "./lib/theme.svelte";
 import { startTrace } from "./lib/tap-trace";
 
 // Baked in at build time; unset leaves Sentry off.
 initCrashReporting(import.meta.env.VITE_SENTRY_DSN);
 
+startTheme();
 registerShellWorker();
 
 const target = document.getElementById("app");

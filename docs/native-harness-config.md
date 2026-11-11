@@ -56,9 +56,8 @@ own load points in as `--add-dir`: [credentials](native-claude-credentials.md).
 
 ## Native Codex hook trust
 
-Assigned `acompose <role> codex` launches persist trust for the converged native
-Git attribution hook. This removes the repeated `/hooks` review after a new or
-changed attribution definition while keeping trust scoped to that one hook.
+Assigned `acompose <role> codex` launches trust the converged native Git
+attribution hook and only that one, so `/hooks` needs no repeat review.
 
 ## Trust flow
 
@@ -72,15 +71,18 @@ qualifies only when all of these properties match:
 * the command exactly matches the converged `agent-git-attribution` path
 
 For an untrusted or modified match, AOS writes Codex's reported hook key and
-current hash through `config/batchWrite`. This records the shadow-local source
-key that the new Codex process will use. The `hooks.state` edit uses an upsert,
-so unrelated trust entries remain unchanged. An already trusted definition
-needs no write.
+current hash through `config/batchWrite`, an upsert of `hooks.state`. A trusted
+definition needs no write.
 
 Missing Codex and missing attribution hooks are no-ops. App-server failures
 produce a launch warning and preserve Codex's normal interactive review path.
 AOS never uses `--dangerously-bypass-hook-trust` or edits Codex's private state
 directly.
+
+## Download quarantine
+
+Before a launch runs a harness, AOS clears `com.apple.quarantine` from its cask. A quarantined Developer ID CLI hangs at its first exec on
+a Gatekeeper prompt nobody sees, and the path stays hung (COI-3630).
 
 ## Role model profiles
 

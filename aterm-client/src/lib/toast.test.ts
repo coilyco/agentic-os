@@ -11,6 +11,10 @@ describe("toastFor", () => {
     expect(toastFor([page], null)?.text).toBe("Whale-Dragonfly left you a page");
   });
 
+  it("names a seat whose page card waits (COI-3328)", () => {
+    expect(toastFor([{ sessionId: "d", identity: "Beetle-Ox", kind: "opened" }], null)).toEqual({ sessionId: "d", count: 1, text: "Beetle-Ox opened a page" });
+  });
+
   it("stacks several waiting seats into one toast with a count, opening the first", () => {
     expect(toastFor([asking, page, another], null)).toEqual({ sessionId: "a", count: 3, text: "Imp-Dragonfly is asking, and 2 more waiting" });
   });

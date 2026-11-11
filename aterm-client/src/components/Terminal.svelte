@@ -11,6 +11,7 @@
   import { harnessBox } from "../lib/harness";
   import { NO_BOX, steadyBox } from "../lib/box-rows";
   import { ansiTheme, resolveColour } from "../lib/brand";
+  import { theme } from "../lib/theme.svelte";
   import { openLink } from "../lib/link-notice.svelte";
   import { boxToReport, nextTall } from "../lib/pty-size";
   import { detectChoice } from "../lib/choices";
@@ -34,6 +35,7 @@
     locked = false,
     cropHarness = false,
     covered = false,
+    ontype,
   }: {
     connection: HostConnection;
     sessionId: string;
@@ -49,10 +51,18 @@
     cropHarness?: boolean;
     /** A card sits over the foot of the terminal, so the way back to the latest output waits. */
     covered?: boolean;
+    /** Every typed chunk this terminal sent, for the line a seat staged (COI-3306). */
+    ontype?: (data: string) => void;
   } = $props();
 
   let host: HTMLDivElement;
   let term: Terminal | undefined;
+  // xterm paints in hex, so it reads the tokens as they stand and is told again when the theme moves.
+  const terminalTheme = () => ({ background: resolveColour("var(--terminal)"), foreground: resolveColour("var(--text-soft)"), cursor: resolveColour(accent), selectionBackground: `${resolveColour(accent)}55`, ...ansiTheme() });
+  $effect(() => {
+    void theme.resolved;
+    if (term) term.options.theme = terminalTheme();
+  });
   // The box scrolls when the terminal is bigger than it: a PTY sized to a larger client, or a cropped harness box.
   let panning = $state(false);
   // Whether the view sits above the newest output, and how many lines came in while it did.
@@ -287,7 +297,7 @@
       lineHeight: LINE_HEIGHT,
       scrollback: SCROLLBACK,
       allowProposedApi: true,
-      theme: { background: resolveColour("var(--terminal)"), foreground: resolveColour("var(--text-soft)"), cursor: resolveColour(accent), selectionBackground: `${resolveColour(accent)}55`, ...ansiTheme() },
+      theme: terminalTheme(),
     });
     term = terminal;
     // The seat's own window answers terminal queries. A reply from here would be
@@ -616,7 +626,9 @@
     document.addEventListener("visibilitychange", wake);
     window.addEventListener("focus", wake);
     const input = terminal.onData((data) => {
-      if (!locked) connection.input(sessionId, data);
+      if (locked) return;
+      connection.input(sessionId, data);
+      ontype?.(data);
     });
     const unsubscribe = connection.subscribe((event) => {
       if (event.type === "output" && event.sessionId === sessionId) {

@@ -1648,3 +1648,25 @@ describe("a seat's shared files", () => {
     host.close();
   });
 });
+
+describe("a seat's staged command (COI-3306)", () => {
+  it("reads the seat, the shell, the command and the note", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["stage"] });
+    socket.receive({ type: "staged", session: "terminal-2", label: "frontend-eng-imp-dragonfly", body: "git push origin main", text: "Push after the gate is green" });
+    expect(events.filter((event) => event.type === "staged")).toEqual([
+      { type: "staged", session: "terminal-2", label: "frontend-eng-imp-dragonfly", body: "git push origin main", text: "Push after the gate is green" },
+    ]);
+    host.close();
+  });
+
+  it("takes an empty note, and drops a frame that names no shell or seat", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1" });
+    socket.receive({ type: "staged", session: "terminal-2", label: "a-seat", body: "ls" });
+    socket.receive({ type: "staged", label: "a-seat", body: "ls" });
+    socket.receive({ type: "staged", session: "terminal-2", body: "ls" });
+    expect(events.filter((event) => event.type === "staged")).toEqual([{ type: "staged", session: "terminal-2", label: "a-seat", body: "ls", text: "" }]);
+    host.close();
+  });
+});

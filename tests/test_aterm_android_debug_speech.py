@@ -55,3 +55,8 @@ def test_the_debug_check_needs_the_recognizer_present(tmp_path: Path) -> None:
     assert _check(tmp_path, _apk(tmp_path, {"classes.dex": DEX_CLASS}), "present").returncode == 0
     done = _check(tmp_path, _apk(tmp_path, {"classes.dex": b"x"}), "present")
     assert done.returncode != 0 and "pass for nothing" in done.stderr
+
+
+def test_the_dictation_plugins_recognizer_query_is_not_a_debug_recognizer(tmp_path: Path) -> None:
+    query = "E: action (name=android.speech.RecognitionService)"
+    assert _check(tmp_path, _apk(tmp_path, {"classes.dex": b"x"}), "absent", query).returncode == 0
