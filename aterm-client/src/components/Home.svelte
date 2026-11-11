@@ -1,5 +1,5 @@
 <script lang="ts">
-  import canopy from "../assets/treehouse-canopy.svg?url";
+  import { canopy } from "../lib/theme.svelte";
 
   import { hideLogo } from "../lib/app.svelte";
 </script>
@@ -8,7 +8,7 @@
 <svelte:window onkeydown={(event) => event.key === "Escape" && hideLogo()} />
 <section class="home" aria-label="Treehouse">
   <button type="button" class="logo" aria-label="Treehouse. Back to the seats" onclick={hideLogo}>
-    <img src={canopy} alt="" width="168" height="168" />
+    <img src={canopy()} alt="" width="168" height="168" />
   </button>
 </section>
 

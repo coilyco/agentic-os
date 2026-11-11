@@ -6,7 +6,7 @@
 
   let { search, initial = "", onclose }: { search: SearchAddon; initial?: string; onclose: () => void } = $props();
 
-  // Hex only, since xterm paints these itself, so they come from the accent token. The fills stay dark.
+  // Hex only, since xterm paints these itself, so they come from the accent token.
   const options: ISearchOptions = {
     caseSensitive: false,
     decorations: findColours(resolveColour("var(--treehouse)"), resolveColour("var(--ground)")),
