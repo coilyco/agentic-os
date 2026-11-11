@@ -1,0 +1,26 @@
+{
+  "name": "page text-to-speech with the screen on, then off (COI-3466)",
+  "start": "seat",
+  "steps": [
+    {"op": "eval", "js": "JSON.stringify({has: 'speechSynthesis' in window, voices: speechSynthesis.getVoices().length, ua: navigator.userAgent.slice(-60)})", "save": "probe_first"},
+    {"op": "sleep", "seconds": 3},
+    {"op": "eval", "js": "JSON.stringify({voices: speechSynthesis.getVoices().map(v => v.lang + ':' + v.name + (v.localService ? ':local' : ':net')).slice(0, 6), n: speechSynthesis.getVoices().length})", "save": "probe_voices"},
+    {"op": "adb", "args": ["shell", "settings get secure tts_default_synth; pm list packages | grep -i -E 'tts|speech'"]},
+    {"op": "eval", "js": "(window.__ev = [], window.__t0 = performance.now(), window.__u = new SpeechSynthesisUtterance('The seat is answering. This sentence is long enough to still be playing when the audio service is read.'), ['start', 'end', 'error'].forEach(k => window.__u['on' + k] = e => window.__ev.push([k, Math.round(performance.now() - window.__t0), e.error || ''])), speechSynthesis.speak(window.__u), 'queued')"},
+    {"op": "sleep", "seconds": 2},
+    {"op": "adb", "args": ["shell", "dumpsys audio | grep -i -A6 'players:'"]},
+    {"op": "sleep", "seconds": 10},
+    {"op": "eval", "js": "JSON.stringify({ev: window.__ev, speaking: speechSynthesis.speaking})", "save": "screen_on"},
+    {"op": "adb", "args": ["shell", "input", "keyevent", "26"]},
+    {"op": "sleep", "seconds": 3},
+    {"op": "adb", "args": ["shell", "dumpsys power | grep -m2 -E 'mWakefulness=|Display Power'"]},
+    {"op": "eval", "js": "(window.__ev = [], window.__t0 = performance.now(), window.__u = new SpeechSynthesisUtterance('The seat is answering. This sentence is long enough to still be playing when the audio service is read.'), ['start', 'end', 'error'].forEach(k => window.__u['on' + k] = e => window.__ev.push([k, Math.round(performance.now() - window.__t0), e.error || ''])), speechSynthesis.speak(window.__u), 'queued')"},
+    {"op": "sleep", "seconds": 2},
+    {"op": "adb", "args": ["shell", "dumpsys audio | grep -i -A6 'players:'"]},
+    {"op": "sleep", "seconds": 10},
+    {"op": "eval", "js": "JSON.stringify({ev: window.__ev, speaking: speechSynthesis.speaking, state: document.visibilityState})", "save": "screen_off"},
+    {"op": "adb", "args": ["shell", "input", "keyevent", "224"]},
+    {"op": "sleep", "seconds": 2},
+    {"op": "shot", "name": "after-wake"}
+  ]
+}
