@@ -11,14 +11,14 @@ A second way for a Frontend seat to prove something in the real Treehouse app, w
 * `ref` - the git ref to prove. Its debug x86_64 APK is built there, and the step file is read from it, so a PR branch carries its own proof. Default `main`.
 * `steps` - the step file, a path inside `ref`. Default `scripts/ci/lane-steps/smoke.json`.
 * `apk_run` - a run id holding an `aterm-android-debug-x86_64-<id>` artifact, to skip the 7 minute build. Empty builds from `ref`.
-* `image` - a system image: Android 14 or 15, `google_apis` or `google_apis_playstore` (the one with Google's speech app). Default is Android 14 `google_apis`.
+* `image` - a system image: Android 14, 15 or 16, `google_apis`, or `google_apis_playstore` for 14 and 15 (the one with Google's speech app). **Default is Android 15**, because Android 14 predates edge-to-edge and cannot show a keyboard that covers the page (COI-3575).
 * `audio` - a spoken phrase the emulator's microphone can hear, for steps that use `speak`.
 
 The workflow file and the runner come from the ref you dispatch on, which is `main` unless you pass `--ref`. The proof runs against `ref`. Anyone who can dispatch can run any step file, so there are no secrets in the job.
 
 ## What the job has
 
-The chosen image (Android 14 `google_apis` by default), the debug APK installed with every permission granted, a real `aterm daemon` on the runner behind the rig's relay, and one stub seat, `emulator-seat` (role `frontend-eng`), that asks no question. The app starts on a fresh install. A debug build is required, because DevTools is the way to read the page.
+The chosen image (Android 15 `google_apis` by default), the debug APK installed with every permission granted, a real `aterm daemon` on the runner behind the rig's relay, and one stub seat, `emulator-seat` (role `frontend-eng`), that asks no question. The app starts on a fresh install. A debug build is required, because DevTools is the way to read the page.
 
 ## The step file
 
@@ -30,6 +30,8 @@ JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add
 * `attach-image` - gives the composer's file input the seeded PNG, the way a pick would.
 * `eval` - `js`, optionally `expect` (a regex on the result) and `save` (a name in the result file).
 * `wait` - `pattern`, `timeout`. Waits for the page text to match.
+* `assert` - `js`, `message`. A script that must be true, with `$name` for a value an earlier `eval` saved. `eval` takes `$name` too.
+* `wait-keyboard` - `state` (`shown` or `hidden`), `timeout`.
 * `wait-value` - `selector`, `pattern`, `timeout`, optionally `save`. Waits for a field's value, which is how a restored draft or speech shows.
 * `shot` - `name`. A named screenshot.
 * `keyboard` - `action: close`. Hides the soft keyboard, which covers the composer.
@@ -42,7 +44,7 @@ JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add
 * `tap-ui` - `pattern`, `timeout`. Taps the first system UI node whose text or description matches the regex.
 * `sleep` - `seconds`.
 
-Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill` and `draft-image-survives-kill`. Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.
+Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill`, `draft-image-survives-kill` and `composer-above-keyboard`, which fails on a build where the keyboard covers the message box. Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.
 
 ## What comes back
 

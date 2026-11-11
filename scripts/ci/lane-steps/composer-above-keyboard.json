@@ -1,0 +1,55 @@
+{
+  "name": "the composer stays above the open keyboard (COI-3575)",
+  "start": "seat",
+  "steps": [
+    {
+      "op": "eval",
+      "js": "innerHeight",
+      "save": "closed"
+    },
+    {
+      "op": "eval",
+      "js": "Math.round(document.querySelector('#composer-input').getBoundingClientRect().bottom)",
+      "save": "closed_bottom"
+    },
+    {
+      "op": "shot",
+      "name": "keyboard-closed"
+    },
+    {
+      "op": "tap",
+      "selector": "#composer-input"
+    },
+    {
+      "op": "wait-keyboard",
+      "state": "shown"
+    },
+    {
+      "op": "sleep",
+      "seconds": 2
+    },
+    {
+      "op": "shot",
+      "name": "keyboard-open"
+    },
+    {
+      "op": "eval",
+      "js": "JSON.stringify({inner:innerHeight,visual:Math.round(visualViewport.height),bottom:Math.round(document.querySelector('#composer-input').getBoundingClientRect().bottom)})"
+    },
+    {
+      "op": "assert",
+      "js": "innerHeight < $closed - 150",
+      "message": "the page did not shrink for the keyboard, so the composer sits under it"
+    },
+    {
+      "op": "assert",
+      "js": "document.querySelector('#composer-input').getBoundingClientRect().bottom <= visualViewport.height",
+      "message": "the composer's bottom edge is below the visible area"
+    },
+    {
+      "op": "assert",
+      "js": "document.querySelector('form.composer button.primary').getBoundingClientRect().bottom <= visualViewport.height",
+      "message": "Send is below the visible area"
+    }
+  ]
+}

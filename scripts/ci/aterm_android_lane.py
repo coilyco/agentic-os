@@ -103,12 +103,32 @@ class Lane(J.Journey):
         self.add_image_without_picker()
 
     def op_eval(self, spec: dict) -> str:
-        value = str(self.page_().js(spec["js"]))
+        value = str(self.page_().js(self.sub(spec["js"])))
         if "save" in spec:
             self.saved[spec["save"]] = value
         if "expect" in spec and not re.search(spec["expect"], value, re.DOTALL | re.IGNORECASE):
             raise Fail(f"eval {spec['js'][:80]!r} gave {value[:200]!r}, expected /{spec['expect']}/")
         return value[:400]
+
+    def sub(self, text: str) -> str:
+        """Put saved values into a script: `$name` becomes what an earlier step saved as `name`."""
+        return re.sub(r"\$(\w+)", lambda m: self.saved.get(m.group(1), m.group(0)), text)
+
+    def op_assert(self, spec: dict) -> str:
+        """A script over the page that must be true, with `$name` for saved values. `message` says why it matters."""
+        value = str(self.page_().js(self.sub(spec["js"])))
+        if value.lower() != "true":
+            raise Fail(f"{spec.get('message', 'assert')}: {self.sub(spec['js'])[:160]!r} gave {value!r}")
+        return value
+
+    def op_wait_keyboard(self, spec: dict) -> None:
+        want = spec.get("state", "shown") == "shown"
+        deadline = time.monotonic() + spec.get("timeout", 15)
+        while time.monotonic() < deadline:
+            if ("mInputShown=true" in adb("shell", "dumpsys input_method | grep -m1 mInputShown", check=False)) == want:
+                return
+            time.sleep(0.5)
+        raise Fail(f"the soft keyboard never became {spec.get('state', 'shown')}")
 
     def op_wait(self, spec: dict) -> None:
         self.wait_words(spec["pattern"], spec.get("timeout", 20), spec.get("name", "wait"))
