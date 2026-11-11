@@ -12,7 +12,9 @@ A windowed Tauri 2 app around the same client bundle the [Android app](android.m
 
 * **It waits up to 30 seconds for the daemon**, since the daemon LaunchAgent and a Login Item start together, then asks `aterm agents --json` for a live `prod-director`.
 * **It opens one headless when there is none**, with `aterm --headless prod-director`. A live director is never duplicated.
-* **It opens the window with an initialization script** that adds `this Mac` (`ws://127.0.0.1:7419/`) to `aterm.hosts.v1` when absent, and on the first load of the window writes `aterm.last-open.v1` with the host and no seat, so the app rests on the seat overview and not on the director's terminal (COI-3518, COI-3579). The director is still kept live for the overview to list. A host the person added stays.
+* **It opens the window and injects nothing.** The client names its own host at build time. `treehouse-mac.sh` builds it with `VITE_ATERM_LOCAL_HOST=ws://127.0.0.1:7419/` and `VITE_ATERM_LOCAL_LABEL="this Mac"`, so an empty profile lists `this Mac` first, writes nothing to storage, and rests on that host's seat overview and not on the director's terminal (COI-3518, COI-3476). The director is still kept live for the overview to list.
+* **A person's own choices win.** A stored host list is theirs, even an empty one, so a removed `this Mac` stays removed. A last-open host beats the build's, and a profile an older build seeded lists the host once. Only an app build reads the setting, and Android names none.
+* **There is no open-this-role setting.** The overview replaced it, since no launch opens a seat (COI-3518).
 
 The loopback daemon accepts the webview's `tauri://localhost` origin, since its origin check reads the host and not the scheme. **A second target is a saved host**, typed in the host panel and kept on the device, so a cloud target needs no rebuild (COI-3469). Discovery, the broker and a `wss` host work as in any app build.
 
@@ -28,6 +30,5 @@ The loopback daemon accepts the webview's `tauri://localhost` origin, since its 
 ## Not yet
 
 * **The signature is ad-hoc.** A rebuild is a new identity to macOS, so a grant would not survive it. `TREEHOUSE_SIGN_IDENTITY` takes a keychain identity once one exists for the app (COI-3338).
-* **The seed writes the client's storage keys** from outside it. A build-time local host and an open-this-role setting in the client would replace it.
 * **The Cargo package is still `aterm-app`**, a code name nobody reads. The executable inside the bundle is `Treehouse` (`mainBinaryName` in `tauri.macos.conf.json`), so the process list says that (COI-3550).
 * **The Android build was not re-run** after the `cfg(desktop)` split in `lib.rs`. Its next scheduled run is the check.

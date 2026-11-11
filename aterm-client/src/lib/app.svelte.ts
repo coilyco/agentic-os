@@ -1,5 +1,5 @@
 import { nextUnseen } from "./activity";
-import { EXTERNAL, PLACE, type Place } from "./build";
+import { BUILT_HOST, EXTERNAL, PLACE, type Place } from "./build";
 import { SEAT_MARK } from "./brand";
 import { bridge } from "./device-key";
 import { type AttentionSettings, loadAttention, storeAttention } from "./attention";
@@ -16,7 +16,7 @@ import { diagnose } from "./reach";
 import { Recheck } from "./recheck";
 import type { View } from "./mcp-apps";
 import type { SharedBrowser } from "./screencast";
-import { loadSavedHosts, parseHostInput, storeSavedHosts } from "./saved-hosts";
+import { parseHostInput, startingHosts, storeSavedHosts } from "./saved-hosts";
 import type { Ask, Host, HostConnection, LaunchState, Link, Notify, PeerMessage, SeatArtifact, Session } from "./protocol";
 import { seatsNeedingKai, type NeedsKai } from "./needs-kai";
 import { closedWords, fullyIdle } from "./idle-close";
@@ -45,7 +45,7 @@ if (typeof matchMedia === "function") matchMedia(READING).addEventListener("chan
 export const app = $state({
   hosts: [
     ...(EXTERNAL ? [] : [{ id: "local", label: hostLabel(location, import.meta.env.DEV), address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } } as Host]),
-    ...loadSavedHosts().map(savedHost),
+    ...startingHosts(BUILT_HOST).map(savedHost),
     { id: "demo", label: "Demo host", address: "scripted, no daemon", kind: "demo", status: { kind: "online", sessionCount: 4 } },
   ] as Host[],
   selectedHostId: null as string | null,
@@ -400,7 +400,7 @@ export function selectedHost(): Host | undefined {
 
 /** Selecting an online host attaches to it, so one tap reaches its seats. */
 // What this device last had open, until the restore uses it or a tap overtakes it.
-let restoring: LastOpen | null = loadLastOpen();
+let restoring: LastOpen | null = loadLastOpen() ?? (BUILT_HOST ? { host: `saved:${BUILT_HOST.address}` } : null);
 // A launch waiting for its seat to be listed. Any other pick by a person ends the wait.
 let launching: PendingLaunch | null = null;
 let restoringNow = false;
