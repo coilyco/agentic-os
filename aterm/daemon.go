@@ -214,6 +214,8 @@ type daemonOptions struct {
 	// connection, and ResumeUntilClose lifts the limit. Neither keeps it on one connection.
 	ResumeWindow     time.Duration
 	ResumeUntilClose bool
+	// PasskeysFrom makes this daemon a replica that follows a published passkey file.
+	PasskeysFrom string
 	// Treehouse turns on the brokered path. See treehouse_broker.go.
 	Treehouse treehouseOptions
 	// Stop ends the daemon when closed, as a signal does. A test's handle.
