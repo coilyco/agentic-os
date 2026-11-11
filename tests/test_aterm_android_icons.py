@@ -72,7 +72,7 @@ def test_an_apk_with_the_templates_icon_fails_the_guard_naming_the_file(tmp_path
     tree = _tree(tmp_path)
     done = _run(tree, "check-icon", str(_apk(tree, foreground={"xxxhdpi": b"tauri default"})))
     assert done.returncode != 0
-    assert "res/mipmap-xxxhdpi-v4/ic_launcher_foreground.png" in done.stderr
+    assert "xxxhdpi" in done.stderr
 
 
 def test_an_apk_missing_a_density_or_carrying_the_template_vector_fails_the_guard(tmp_path: Path) -> None:
@@ -80,7 +80,9 @@ def test_an_apk_missing_a_density_or_carrying_the_template_vector_fails_the_guar
     bare = tree / "bare.apk"
     with zipfile.ZipFile(bare, "w") as zf:
         zf.writestr("AndroidManifest.xml", b"x")
-    assert _run(tree, "check-icon", str(bare)).returncode != 0
+    missing = _run(tree, "check-icon", str(bare))
+    assert missing.returncode != 0
+    assert "no mdpi launcher foreground" in missing.stderr
     vector = _apk(tree, extra={"res/drawable-v24/ic_launcher_foreground.xml": b"<vector/>"})
     done = _run(tree, "check-icon", str(vector))
     assert done.returncode != 0

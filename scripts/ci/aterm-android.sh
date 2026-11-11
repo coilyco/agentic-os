@@ -158,15 +158,32 @@ icon_patch() {
   rm -f "$res/drawable-v24/ic_launcher_foreground.xml" "$res/drawable/ic_launcher_background.xml"
 }
 
+# icon_entry APK DENSITY: where the APK keeps that launcher foreground. A release build
+# shortens res/ paths, so the resource table is asked when the plain one is absent.
+icon_entry() {
+  local apk="$1" density="$2" plain="res/mipmap-$2-v4/ic_launcher_foreground.png"
+  if unzip -l "$apk" "$plain" >/dev/null 2>&1; then
+    echo "$plain"
+    return
+  fi
+  aapt2 dump resources "$apk" 2>/dev/null | awk -v d="($density" '
+    /resource .* mipmap\/ic_launcher_foreground$/ { on = 1; next }
+    /^ *resource / { on = 0 }
+    on && index($0, d) && /\(file\)/ { for (i = 1; i <= NF; i++) if ($i ~ /^res\//) { print $i; exit } }' || true
+}
+
 # check_icon APK: the launcher icon inside the APK is ours and not Tauri's template.
 check_icon() {
   local apk="${1:?usage: check-icon APK}" density work entry
   work=$(mktemp -d)
   for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-    entry="res/mipmap-$density-v4/ic_launcher_foreground.png"
-    unzip -q -o "$apk" "$entry" -d "$work" >/dev/null 2>&1 || fail "$apk has no $entry, so the launcher icon is not ours"
+    entry=$(icon_entry "$apk" "$density")
+    if [ -z "$entry" ] || ! unzip -q -o "$apk" "$entry" -d "$work" >/dev/null 2>&1; then
+      aapt2 dump resources "$apk" 2>/dev/null | grep -A8 'mipmap/ic_launcher_foreground' | head -n 24 >&2 || true
+      fail "$apk has no $density launcher foreground, so the launcher icon is not ours (COI-3616)"
+    fi
     cmp -s "$work/$entry" "$android_dir/src-tauri/icons/android/mipmap-$density/ic_launcher_foreground.png" \
-      || fail "$entry in $apk differs from the repo's, so the launcher icon is not ours (COI-3616)"
+      || fail "$entry in $apk ($(wc -c <"$work/$entry") bytes) differs from the repo's ($(wc -c <"$android_dir/src-tauri/icons/android/mipmap-$density/ic_launcher_foreground.png") bytes), so the launcher icon is not ours (COI-3616)"
   done
   if unzip -l "$apk" | grep -q 'res/drawable-v24/ic_launcher_foreground.xml'; then
     fail "$apk still carries the template's launcher foreground (COI-3616)"
