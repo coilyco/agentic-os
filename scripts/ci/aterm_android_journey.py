@@ -153,8 +153,8 @@ class Journey:
         page.js("(()=>{const i=document.querySelector('#add-host');i.value='ws://127.0.0.1:7419';i.dispatchEvent(new Event('input',{bubbles:true}))})()")
         page.tap(by_text("Add host", "button"))
         page.tap("()=>document.querySelector('[id^=tab-host-]')")
-        # The seat button is named by role and state, its own name label is empty.
-        page.tap(by_text("frontend-eng", "nav button"))
+        # The seat is an overview row, named by role and state, with an empty name label.
+        page.tap(by_text("frontend-eng", ".overview button.open, nav button"))
 
     def open_picker(self) -> None:
         page = self.page
@@ -348,7 +348,7 @@ class Journey:
         page = self.page
         assert page
         # The page may already be on a seat view with the nav collapsed, so try briefly.
-        for finder in ("()=>document.querySelector('[id^=tab-host-]')", by_text("frontend-eng", "nav button")):
+        for finder in ("()=>document.querySelector('[id^=tab-host-]')", by_text("frontend-eng", ".overview button.open, nav button")):
             try:
                 page.tap(finder, wait=5)
             except Fail:

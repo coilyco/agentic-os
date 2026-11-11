@@ -143,7 +143,7 @@ test("its controls are 44px targets that fit the screen", async ({ bed }) => {
   }
 });
 
-test("inside the app, where a download is dropped, it says so and offers none", async ({ bed }) => {
+test("inside an app without the save plugin, it says so and offers none", async ({ bed }) => {
   await bed.page.addInitScript(() => {
     (window as unknown as { __TAURI__: unknown }).__TAURI__ = { core: { invoke: async () => undefined } };
   });
@@ -154,4 +154,61 @@ test("inside the app, where a download is dropped, it says so and offers none", 
   await expect(viewer(bed).getByRole("button", { name: "Download" }), "no button that does nothing").toHaveCount(0);
   await expect(viewer(bed)).not.toContainText("Download it to open it elsewhere.");
   await bed.step("in-app-file", { compare: false });
+});
+
+/** The app's bridge with the savefile plugin. It can refuse the Nth write. */
+async function appWithSave(bed: Bed, refuseWrite = 0): Promise<void> {
+  await bed.page.addInitScript((refuse) => {
+    const w = window as unknown as { __TAURI__: unknown; saves: { commands: string[]; bytes: number; name: string } };
+    w.saves = { commands: [], bytes: 0, name: "" };
+    let writes = 0;
+    w.__TAURI__ = {
+      core: {
+        invoke: async (command: string, args?: { name?: string; data?: string }) => {
+          if (!command.startsWith("plugin:savefile|")) return null;
+          const verb = command.replace("plugin:savefile|", "");
+          w.saves.commands.push(verb);
+          if (verb === "available") return { place: "your Downloads folder" };
+          if (verb === "begin") return ((w.saves.name = args?.name ?? ""), { id: "1", name: "print-log (1).gcode" });
+          if (verb === "write") {
+            if (++writes === refuse) throw { code: "unwritable", message: "No space left on device" };
+            w.saves.bytes += atob(args?.data ?? "").length;
+            return null;
+          }
+          if (verb === "finish") return { name: "print-log (1).gcode", place: "your Downloads folder" };
+          return null;
+        },
+      },
+    };
+  }, refuseWrite);
+}
+const saves = (bed: Bed) => bed.page.evaluate(() => (window as unknown as { saves: { commands: string[]; bytes: number; name: string } }).saves);
+
+test("inside the app with the save plugin, Download writes the file to Downloads in pieces and says where", async ({ bed }) => {
+  await appWithSave(bed);
+  await bed.openSeat(SEATS.imp);
+  bed.mock.shareMedia(imp, { name: "print-log.gcode", mime: "text/plain", kind: "file", bytes: Buffer.alloc(1_000_000, 7) });
+  await chip(bed).click();
+  await expect(viewer(bed)).toContainText("Download it to open it elsewhere.");
+  await expect(viewer(bed)).not.toContainText("cannot save files");
+  await viewer(bed).getByRole("button", { name: "Download" }).click();
+  await expect(viewer(bed)).toContainText("Saved print-log (1).gcode to your Downloads folder.");
+  const done = await saves(bed);
+  expect(done.name).toBe("print-log.gcode");
+  expect(done.bytes, "every byte went over").toBe(1_000_000);
+  expect(done.commands.slice(0, 2)).toEqual(["available", "begin"]);
+  expect(done.commands.at(-1)).toBe("finish");
+  await bed.step("in-app-saved", { compare: false });
+});
+
+test("when the app cannot write the file the viewer says why, and it can be tried again", async ({ bed }) => {
+  await appWithSave(bed, 1);
+  await bed.openSeat(SEATS.imp);
+  bed.mock.shareMedia(imp, { name: "print-log.gcode", mime: "text/plain", kind: "file", bytes: Buffer.alloc(1_000_000, 7) });
+  await chip(bed).click();
+  await viewer(bed).getByRole("button", { name: "Download" }).click();
+  await expect(viewer(bed)).toContainText("print-log.gcode (1 MB) was not saved: No space left on device. Nothing was left in Downloads.");
+  expect((await saves(bed)).commands.at(-1), "what it opened was cancelled").toBe("cancel");
+  await expect(viewer(bed).getByRole("button", { name: "Download" })).toBeEnabled();
+  await bed.step("in-app-save-refused", { compare: false });
 });

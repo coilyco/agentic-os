@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- No permission: since Android 10 an app writes its own files to the Downloads
+         collection through MediaStore without one. -->
+</manifest>

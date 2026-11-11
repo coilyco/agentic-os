@@ -1,7 +1,7 @@
 // COI-3346: switch a role off and its quiet seats leave the list. A seat that asks, is
 // pinned or is open stays, a note counts the hidden, and a reload keeps the choice.
 import type { Page } from "@playwright/test";
-import { expect, kindOf, SEATS, test } from "../harness.ts";
+import { expect, kindOf, SEATS, test, listedSeats } from "../harness.ts";
 import type { SessionSpec } from "../mock-daemon.ts";
 
 const seat = (name: string, role: string, identity: string) =>
@@ -18,7 +18,7 @@ const ask = {
   ask: { id: "ask-1", session: "eng-platform-e05", header: "Scope", question: "Merge it?", options: [{ label: "Yes", description: "" }, { label: "No", description: "" }], allow_other: false, multi: false },
 };
 
-const ids = (page: Page) => page.locator('[id^="tab-session-"]').evaluateAll((tabs) => tabs.map((tab) => tab.getAttribute("id")!.replace("tab-session-", "")));
+const ids = (page: Page) => listedSeats(page);
 const openMenu = async (page: Page, phone: boolean) => {
   if (phone) {
     await page.getByRole("button", { name: /Seats, starting a seat, hosts and alerts/ }).click();

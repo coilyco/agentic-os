@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// reopenSession resumes a closed claude seat from its ledger entry. Target is `name` or
+// reopenSession resumes a closed seat from its ledger entry. Target is `name` or
 // `name@ref`. The seat claims a fresh name, so the reply names role and seat only.
 func (d *daemon) reopenSession(cl *client, message frame) error {
 	if cl.web {
@@ -23,7 +23,12 @@ func (d *daemon) reopenSession(cl *client, message frame) error {
 	entry, found := reopenable(d.entries(), target, ref)
 	if !found {
 		return withExit(exitUsage, fmt.Errorf(
-			"%s has no recorded claude conversation to resume: a new launch of its role is the only path", target))
+			"%s has no recorded seat to resume: a new launch of its role is the only path", target))
+	}
+	// A claude seat's id is in its record. Another harness's is in its own files, and a seat
+	// with none there is refused here, not after a launch that cannot resume it.
+	if _, err := resumeHarnessArgs(entry, d.entries()); err != nil {
+		return withExit(exitUsage, err)
 	}
 	if err := d.reopen(entry); err != nil {
 		return withExit(exitSpawn, err)
@@ -31,12 +36,12 @@ func (d *daemon) reopenSession(cl *client, message frame) error {
 	return cl.c.write(frame{Type: "reopened", ID: message.ID, Session: target, Role: entry.Role, Seat: entry.Seat})
 }
 
-// reopenable is the latest ledger entry of the name that has a conversation to resume,
-// narrowed to the launch `ref` names when one is given.
+// reopenable is the latest ledger entry of the name, narrowed to `ref` when given. Only a
+// claude seat with no id is skipped here, the other harnesses find theirs at resume.
 func reopenable(entries []ledgerEntry, name, ref string) (ledgerEntry, bool) {
 	for index := len(entries) - 1; index >= 0; index-- {
 		entry := entries[index]
-		if entry.Name != name || entry.Conversation == "" {
+		if entry.Name != name || (entry.Seat == "claude" && entry.Conversation == "") {
 			continue
 		}
 		if ref == "" || sessionRef(entry.Name, entry.Started) == ref {
