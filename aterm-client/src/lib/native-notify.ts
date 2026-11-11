@@ -34,18 +34,83 @@ export async function askPermission(core: Core): Promise<boolean> {
   }
 }
 
-/** The seat's own words, with the seat named in the extras so a tap can open it. */
-export function nativeNotice(note: Notify): { options: { title: string; body: string; extra: { session: string } } } {
-  return { options: { title: note.title, body: note.body, extra: { session: note.session } } };
+/** One notification per seat: a new one from the same seat replaces the old. */
+export function noticeId(session: string): number {
+  let hash = 2166136261;
+  for (const char of session) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
+  return (hash >>> 0) % 2147483646 + 1;
 }
 
-export async function showNative(core: Core, note: Notify): Promise<boolean> {
+export function nativeNotice(note: Notify): { options: { id: number; title: string; body: string; extra: { session: string } } } {
+  return { options: { id: noticeId(note.session), title: note.title, body: note.body, extra: { session: note.session } } };
+}
+
+/** What was raised and not yet tapped, by notification id. A tap carries no notification
+ * on Android (the plugin never fills it), so this is how a tap finds its seat. */
+export type Noted = Record<string, { session: string; at: number }>;
+
+const NOTED_KEY = "aterm.notified.v1";
+const NOTED_KEEP_MS = 24 * 60 * 60 * 1000;
+
+export function parseNoted(text: string | null, now: number): Noted {
+  try {
+    const raw: unknown = JSON.parse(text ?? "null");
+    if (typeof raw !== "object" || raw === null) return {};
+    const kept: Noted = {};
+    for (const [id, entry] of Object.entries(raw)) {
+      const { session, at } = (entry ?? {}) as { session?: unknown; at?: unknown };
+      if (typeof session === "string" && typeof at === "number" && now - at < NOTED_KEEP_MS) kept[id] = { session, at };
+    }
+    return kept;
+  } catch {
+    return {};
+  }
+}
+
+function loadNoted(now: number): Noted {
+  try {
+    return parseNoted(localStorage.getItem(NOTED_KEY), now);
+  } catch {
+    return {};
+  }
+}
+
+function storeNoted(noted: Noted): void {
+  try {
+    localStorage.setItem(NOTED_KEY, JSON.stringify(noted));
+  } catch {
+    // Storage can be off. A tap then opens nothing, and the app is in front.
+  }
+}
+
+/** The seat of the notification a tap dismissed: the newest one raised that is no longer
+ * showing, since the plugin dismisses the tapped one first. Null when none is missing. */
+export function tappedFromActive(noted: Noted, active: ReadonlySet<number>): { id: string; session: string } | null {
+  const gone = Object.entries(noted)
+    .filter(([id]) => !active.has(Number(id)))
+    .sort((a, b) => b[1].at - a[1].at)[0];
+  return gone ? { id: gone[0], session: gone[1].session } : null;
+}
+
+async function activeIds(core: Core): Promise<Set<number> | null> {
+  try {
+    const list = await core.invoke("plugin:notification|get_active");
+    return Array.isArray(list) ? new Set(list.map((each) => Number((each as { id?: unknown }).id))) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function showNative(core: Core, note: Notify, now = Date.now()): Promise<boolean> {
   try {
     await core.invoke("plugin:notification|notify", nativeNotice(note));
-    return true;
   } catch {
     return false;
   }
+  const noted = loadNoted(now);
+  noted[String(noticeId(note.session))] = { session: note.session, at: now };
+  storeNoted(noted);
+  return true;
 }
 
 /** The seat a tapped notification names. The plugin sends the tap as `actionPerformed`
@@ -55,13 +120,25 @@ export function tappedSeat(payload: unknown): string | null {
   return typeof extra?.session === "string" && extra.session !== "" ? extra.session : null;
 }
 
+/** The seat of a tap: the payload's, if the plugin fills it, else from the record. */
+export async function seatOfTap(core: Core, payload: unknown, now = Date.now()): Promise<string | null> {
+  const named = tappedSeat(payload);
+  if (named) return named;
+  const noted = loadNoted(now);
+  const active = await activeIds(core);
+  const found = active ? tappedFromActive(noted, active) : null;
+  if (!found) return null;
+  delete noted[found.id];
+  storeNoted(noted);
+  return found.session;
+}
+
 /** Calls `open` with the seat of each tapped notification. Returns how to stop. */
 export async function listenForTaps(core: Core, open: (session: string) => void): Promise<() => void> {
   if (!core.addPluginListener) return () => {};
   try {
     const listener = await core.addPluginListener("notification", "actionPerformed", (payload) => {
-      const session = tappedSeat(payload);
-      if (session) open(session);
+      void seatOfTap(core, payload).then((session) => session && open(session));
     });
     return () => void listener.unregister().catch(() => {});
   } catch {
