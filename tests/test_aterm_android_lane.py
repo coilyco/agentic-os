@@ -86,5 +86,35 @@ def test_every_op_in_every_sample_step_file_exists() -> None:
     for path in sorted((CI / "lane-steps").glob("*.json")):
         plan = json.loads(path.read_text())
         assert plan["start"] in ("seat", "launch", "none"), path.name
-        for step in plan["steps"]:
+        pending = list(plan["steps"])
+        while pending:
+            step = pending.pop()
+            pending.extend(step.get("steps", []))
             assert hasattr(lane_mod.Lane, f"op_{step['op'].replace('-', '_')}"), f"{path.name}: no op {step['op']!r}"
+
+
+def test_retry_runs_its_steps_again_until_they_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    lane_mod, lane = _lane(tmp_path, FakePage())
+    monkeypatch.setattr(lane_mod.time, "sleep", lambda _seconds: None)
+    calls: list[int] = []
+
+    def flaky(spec: dict) -> None:
+        calls.append(1)
+        if len(calls) < 3:
+            raise lane_mod.Fail("not yet")
+
+    monkeypatch.setattr(lane_mod.Lane, "op_flaky", lambda self, spec: flaky(spec), raising=False)
+    assert lane.op_retry({"times": 5, "every": 1, "steps": [{"op": "flaky"}]}) == "passed on attempt 3"
+    assert len(calls) == 3
+
+
+def test_retry_gives_up_after_its_attempts_and_says_the_last_reason(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    lane_mod, lane = _lane(tmp_path, FakePage())
+    monkeypatch.setattr(lane_mod.time, "sleep", lambda _seconds: None)
+
+    def never(self, spec: dict) -> None:
+        raise lane_mod.Fail("still no pack")
+
+    monkeypatch.setattr(lane_mod.Lane, "op_never", never, raising=False)
+    with pytest.raises(lane_mod.Fail, match="all 2 attempts failed, the last: still no pack"):
+        lane.op_retry({"times": 2, "every": 1, "steps": [{"op": "never"}]})

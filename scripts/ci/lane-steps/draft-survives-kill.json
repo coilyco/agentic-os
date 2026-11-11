@@ -8,10 +8,6 @@
       "text": "a draft that outlives the app"
     },
     {
-      "op": "keyboard",
-      "action": "close"
-    },
-    {
       "op": "shot",
       "name": "draft-typed"
     },
@@ -26,10 +22,6 @@
       "selector": "#composer-input",
       "pattern": "a draft that outlives the app",
       "timeout": 30
-    },
-    {
-      "op": "keyboard",
-      "action": "close"
     },
     {
       "op": "shot",

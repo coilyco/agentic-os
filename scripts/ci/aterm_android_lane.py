@@ -54,11 +54,14 @@ class Lane(J.Journey):
             if start == "seat":
                 self.add_host_and_open_seat()
             self.recognizer_before = adb("shell", "settings", "get", "secure", "voice_recognition_service", check=False).strip()
+            # A chatty system rolls the default log buffer in seconds.
+            adb("logcat", "-G", "16M", check=False)
             for index, spec in enumerate(steps, start=1):
                 self.do(index, spec)
         except (Fail, OSError, subprocess.TimeoutExpired, KeyError) as err:
             self.shot("FAILED")
             self.evidence()
+            self.op_logcat({"name": "speech", "pattern": "speech|recogni|soda|dictation|language pack|MDD"})
             self.finish(f"{err!r}")
             print(f"FAILED: {err}", file=sys.stderr)
             raise SystemExit(1) from err
@@ -69,7 +72,21 @@ class Lane(J.Journey):
         body = {"name": self.plan.get("name", ""), "failure": failure, "steps": self.results, "saved": self.saved}
         (self.out / "lane-result.json").write_text(json.dumps(body, indent=2))
 
-    def do(self, index: int, spec: dict) -> None:
+    def op_retry(self, spec: dict) -> str:
+        """Run `steps` up to `times` times, `every` seconds apart. For what needs a system to settle."""
+        times, pause, last = spec.get("times", 5), spec.get("every", 30), None
+        for attempt in range(1, times + 1):
+            try:
+                for sub, inner in enumerate(spec["steps"], start=1):
+                    self.do(f"{attempt}.{sub}", inner)
+                return f"passed on attempt {attempt}"
+            except Fail as err:
+                last = err
+                print(f"retry: attempt {attempt} of {times} failed: {str(err)[:200]}", flush=True)
+                time.sleep(pause)
+        raise Fail(f"all {times} attempts failed, the last: {last}")
+
+    def do(self, index: int | str, spec: dict) -> None:
         op = spec["op"]
         print(f"== {index} {op} {spec.get('name') or spec.get('selector') or spec.get('text') or ''}".rstrip(), flush=True)
         note = getattr(self, f"op_{op.replace('-', '_')}", None)
