@@ -2,13 +2,38 @@
   "name": "a message box draft survives a killed app (COI-3533)",
   "start": "seat",
   "steps": [
-    {"op": "fill", "selector": "#composer-input", "text": "a draft that outlives the app"},
-    {"op": "keyboard", "action": "close"},
-    {"op": "shot", "name": "draft-typed"},
-    {"op": "kill-app"},
-    {"op": "reopen"},
-    {"op": "wait-value", "selector": "#composer-input", "pattern": "a draft that outlives the app", "timeout": 30},
-    {"op": "keyboard", "action": "close"},
-    {"op": "shot", "name": "draft-after-kill"}
+    {
+      "op": "fill",
+      "selector": "#composer-input",
+      "text": "a draft that outlives the app"
+    },
+    {
+      "op": "keyboard",
+      "action": "close"
+    },
+    {
+      "op": "shot",
+      "name": "draft-typed"
+    },
+    {
+      "op": "kill-app"
+    },
+    {
+      "op": "reopen"
+    },
+    {
+      "op": "wait-value",
+      "selector": "#composer-input",
+      "pattern": "a draft that outlives the app",
+      "timeout": 30
+    },
+    {
+      "op": "keyboard",
+      "action": "close"
+    },
+    {
+      "op": "shot",
+      "name": "draft-after-kill"
+    }
   ]
 }

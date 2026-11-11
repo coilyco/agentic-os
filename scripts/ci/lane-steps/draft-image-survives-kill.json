@@ -1,0 +1,46 @@
+{
+  "name": "an image in a message box draft survives a killed app (COI-3582)",
+  "start": "seat",
+  "steps": [
+    {
+      "op": "attach-image"
+    },
+    {
+      "op": "eval",
+      "js": "document.querySelectorAll('form.composer ul.chips li').length",
+      "expect": "^1$"
+    },
+    {
+      "op": "sleep",
+      "seconds": 2
+    },
+    {
+      "op": "shot",
+      "name": "image-attached"
+    },
+    {
+      "op": "kill-app"
+    },
+    {
+      "op": "reopen"
+    },
+    {
+      "op": "eval",
+      "js": "document.querySelectorAll('form.composer ul.chips li').length",
+      "expect": "^1$"
+    },
+    {
+      "op": "wait",
+      "pattern": "from your draft came back",
+      "timeout": 30
+    },
+    {
+      "op": "keyboard",
+      "action": "close"
+    },
+    {
+      "op": "shot",
+      "name": "image-after-kill"
+    }
+  ]
+}

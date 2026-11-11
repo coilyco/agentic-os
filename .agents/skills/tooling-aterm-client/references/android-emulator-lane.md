@@ -26,7 +26,8 @@ JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add
 
 * `tap` - `selector`. A DevTools-measured tap at the element's centre.
 * `tap-text` - `text`, optionally `within`. The first element whose text or label holds it.
-* `fill` - `selector`, `text`. Sets the value and fires `input`.
+* `fill` - `selector`, `text`. Waits for the element, sets the value and fires `input`.
+* `attach-image` - gives the composer's file input the seeded PNG, the way a pick would.
 * `eval` - `js`, optionally `expect` (a regex on the result) and `save` (a name in the result file).
 * `wait` - `pattern`, `timeout`. Waits for the page text to match.
 * `wait-value` - `selector`, `pattern`, `timeout`, optionally `save`. Waits for a field's value, which is how a restored draft or speech shows.
@@ -39,7 +40,7 @@ JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add
 * `logcat` - `name`, `pattern`. Matching logcat lines into `logcat-<name>.txt`.
 * `sleep` - `seconds`.
 
-Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill`. Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.
+Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill` and `draft-image-survives-kill`. Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.
 
 ## What comes back
 

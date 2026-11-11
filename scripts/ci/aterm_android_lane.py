@@ -98,6 +98,10 @@ class Lane(J.Journey):
         )
         self.page_().js(js)
 
+    def op_attach_image(self, spec: dict) -> None:
+        """Give the composer's file input the seeded PNG, the way a pick would."""
+        self.add_image_without_picker()
+
     def op_eval(self, spec: dict) -> str:
         value = str(self.page_().js(spec["js"]))
         if "save" in spec:
