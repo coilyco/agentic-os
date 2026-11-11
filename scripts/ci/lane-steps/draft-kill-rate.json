@@ -1,0 +1,99 @@
+{
+  "name": "how often a words draft survives a kill after 0.2, 1 and 3 s, 5 rounds each (COI-3619)",
+  "start": "seat",
+  "steps": [
+    {
+      "op": "repeat",
+      "times": 5,
+      "save": "kill_0_2s",
+      "steps": [
+        {
+          "op": "reopen"
+        },
+        {
+          "op": "fill",
+          "selector": "#composer-input",
+          "text": "draft number $i"
+        },
+        {
+          "op": "sleep",
+          "seconds": 0.2
+        },
+        {
+          "op": "kill-app"
+        },
+        {
+          "op": "reopen"
+        },
+        {
+          "op": "wait-value",
+          "selector": "#composer-input",
+          "pattern": "draft number $i$",
+          "timeout": 8
+        }
+      ]
+    },
+    {
+      "op": "repeat",
+      "times": 5,
+      "save": "kill_1s",
+      "steps": [
+        {
+          "op": "reopen"
+        },
+        {
+          "op": "fill",
+          "selector": "#composer-input",
+          "text": "draft number $i"
+        },
+        {
+          "op": "sleep",
+          "seconds": 1
+        },
+        {
+          "op": "kill-app"
+        },
+        {
+          "op": "reopen"
+        },
+        {
+          "op": "wait-value",
+          "selector": "#composer-input",
+          "pattern": "draft number $i$",
+          "timeout": 8
+        }
+      ]
+    },
+    {
+      "op": "repeat",
+      "times": 5,
+      "save": "kill_3s",
+      "steps": [
+        {
+          "op": "reopen"
+        },
+        {
+          "op": "fill",
+          "selector": "#composer-input",
+          "text": "draft number $i"
+        },
+        {
+          "op": "sleep",
+          "seconds": 3
+        },
+        {
+          "op": "kill-app"
+        },
+        {
+          "op": "reopen"
+        },
+        {
+          "op": "wait-value",
+          "selector": "#composer-input",
+          "pattern": "draft number $i$",
+          "timeout": 8
+        }
+      ]
+    }
+  ]
+}

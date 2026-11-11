@@ -118,3 +118,20 @@ def test_retry_gives_up_after_its_attempts_and_says_the_last_reason(tmp_path: Pa
     monkeypatch.setattr(lane_mod.Lane, "op_never", never, raising=False)
     with pytest.raises(lane_mod.Fail, match="all 2 attempts failed, the last: still no pack"):
         lane.op_retry({"times": 2, "every": 1, "steps": [{"op": "never"}]})
+
+
+def test_repeat_counts_passes_and_failures_without_stopping_the_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    lane_mod, lane = _lane(tmp_path, FakePage())
+    seen: list[str] = []
+
+    def flaky(self, spec: dict) -> None:
+        seen.append(self.saved["i"])
+        if self.saved["i"] in ("2", "4"):
+            raise lane_mod.Fail("lost")
+
+    monkeypatch.setattr(lane_mod.Lane, "op_flaky", flaky, raising=False)
+    assert lane.op_repeat({"times": 5, "save": "rate", "steps": [{"op": "flaky"}]}) == "3/5 passed"
+    assert seen == ["1", "2", "3", "4", "5"]
+    assert lane.saved["rate"] == "3/5 passed"
+    assert "round 2: lost" in lane.saved["rate_failures"]
+    assert "round 4: lost" in lane.saved["rate_failures"]
