@@ -6,7 +6,7 @@ set -euo pipefail
 
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)
 export ANDROID_HOME="${ANDROID_HOME:-$HOME/android-sdk}"
-IMAGE="system-images;android-34;google_apis;x86_64"
+IMAGE="${ATERM_EMULATOR_IMAGE:-system-images;android-34;google_apis;x86_64}"
 AVD=ci
 SEAT=emulator-seat
 out="${ATERM_EMULATOR_OUT:-$repo_root/aterm-emulator-out}"

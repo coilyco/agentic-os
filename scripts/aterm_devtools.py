@@ -18,6 +18,21 @@ import struct
 import time
 
 
+def listed_sockets(unix_table: str) -> list[str]:
+    """Every WebView DevTools socket in /proc/net/unix, whichever app owns it."""
+    return re.findall(r"@(webview_devtools_remote_\d+)", unix_table)
+
+
+def app_socket(pids: list[str], unix_table: str) -> str | None:
+    """The DevTools socket of one of the app's own processes, never another app's (COI-3600).
+
+    A Google-APIs image runs other WebView hosts, such as the Google app, whose sockets can
+    sort first, so the socket is named by the app's pid and not taken from the list.
+    """
+    listed = set(listed_sockets(unix_table))
+    return next((f"webview_devtools_remote_{pid}" for pid in pids if f"webview_devtools_remote_{pid}" in listed), None)
+
+
 class DevToolsError(Exception):
     """A DevTools step that did not hold. Its text names what was expected and what was seen."""
 

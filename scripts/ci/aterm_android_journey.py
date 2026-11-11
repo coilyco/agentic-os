@@ -122,12 +122,19 @@ class Journey:
         self.seed(PNG_NAME, 220)
         adb("shell", "am", "start", "-n", f"{APP}/.MainActivity")
 
+    def devtools_state(self) -> str:
+        """The app's pids beside the DevTools sockets Android lists, which says which one is missing (COI-3600)."""
+        pids = adb("shell", "pidof", APP, check=False).strip() or "none"
+        sockets = devtools.listed_sockets(adb("shell", "cat", "/proc/net/unix", check=False))
+        return f"app pids: {pids}. DevTools sockets: {', '.join(sockets) or 'none'}"
+
     def attach_page(self) -> None:
         deadline = time.monotonic() + 60
         while time.monotonic() < deadline:
-            sockets = re.findall(r"@(webview_devtools_remote_\d+)", adb("shell", "cat", "/proc/net/unix", check=False))
-            if sockets:
-                adb("forward", "tcp:9222", f"localabstract:{sockets[0]}")
+            # By the app's pid, since a Google-APIs image has other WebView hosts.
+            socket_name = devtools.app_socket(adb("shell", "pidof", APP, check=False).split(), adb("shell", "cat", "/proc/net/unix", check=False))
+            if socket_name:
+                adb("forward", "tcp:9222", f"localabstract:{socket_name}")
                 try:
                     targets = json.load(urllib.request.urlopen("http://127.0.0.1:9222/json", timeout=5))
                 except OSError:
@@ -137,7 +144,7 @@ class Journey:
                     self.page = Page(url)
                     return
             time.sleep(1)
-        raise Fail("no debuggable page at tauri.localhost: the WebView is not debuggable or the app did not start")
+        raise Fail("no debuggable page at tauri.localhost: the WebView is not debuggable or the app did not start. " + self.devtools_state())
 
     def add_host_and_open_seat(self) -> None:
         page = self.page
