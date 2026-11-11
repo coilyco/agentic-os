@@ -19,4 +19,14 @@ describe("parseRoster", () => {
     const bad = { format: "aterm.roster.v1", roles: [{ slug: "x", display_name: "X", favorite_color: "pink", identity: { name: "Y" }, seats: [] }] };
     expect(() => parseRoster(bad)).toThrow(/favorite_color/);
   });
+
+  it("reads the pool of later names, and leaves out anything that is not a name", () => {
+    const roles = parseRoster(fixture);
+    expect(roles.find((role) => role.slug === "eng-platform")?.alternates).toEqual(["Stag-Ox", "Weevil-Ox", "Cricket-Ox"]);
+    expect(roles.find((role) => role.slug === "scientist")?.alternates).toBeUndefined();
+    const odd = { format: "aterm.roster.v1", roles: [{ slug: "x", display_name: "X", favorite_color: "#112233", identity: { name: "Y", alternates: ["A", 3, "", null, "B"] }, seats: [] }] };
+    expect(parseRoster(odd)[0]?.alternates).toEqual(["A", "B"]);
+    const none = { format: "aterm.roster.v1", roles: [{ slug: "x", display_name: "X", favorite_color: "#112233", identity: { name: "Y", alternates: [] }, seats: [] }] };
+    expect(parseRoster(none)[0]?.alternates).toBeUndefined();
+  });
 });

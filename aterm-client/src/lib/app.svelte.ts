@@ -100,6 +100,7 @@ export const app = $state({
   closeAction: null as { kind: "force" | "reopen"; session: string; ref: string } | null,
   // Settings replaces the main panel until a seat, host or role is picked (COI-3521).
   settingsOpen: false,
+  configurationOpen: false,
   // The logo-only screen, reached from the overview's logo (COI-3518).
   logoHome: false,
   // The latest coordinator ping. Attention turns it into a chime and a notice.
@@ -167,7 +168,8 @@ export function overviewShown(): boolean {
     !host.found &&
     !app.selectedSession &&
     !app.selectedRole &&
-    !app.settingsOpen
+    !app.settingsOpen &&
+    !app.configurationOpen
   );
 }
 
@@ -175,7 +177,19 @@ export function overviewShown(): boolean {
 /** Puts the Settings page in the main panel. Picking a seat, host or role closes it. */
 export function openSettings(): void {
   app.settingsOpen = true;
+  app.configurationOpen = false;
   app.logoHome = false;
+}
+
+/** Puts Configuration in the main panel. Picking a seat or host closes it. */
+export function openConfiguration(): void {
+  app.configurationOpen = true;
+  app.settingsOpen = false;
+  app.logoHome = false;
+}
+
+export function closeConfiguration(): void {
+  app.configurationOpen = false;
 }
 
 export function showLogo(): void {
@@ -202,6 +216,7 @@ export function closePage(): void {
 export function showHost(): void {
   restoring = null;
   app.settingsOpen = false;
+  app.configurationOpen = false;
   app.logoHome = false;
   launching = null;
   if (app.attachedHostId && !inDemo()) storeLastOpen({ host: app.attachedHostId });
@@ -426,6 +441,7 @@ function restoreFor(host: Host): void {
 export function selectHost(host: Host, given?: HostConnection): void {
   if (!restoringNow) restoring = null;
   app.settingsOpen = false;
+  app.configurationOpen = false;
   app.logoHome = false;
   launching = null;
   // The demo is not a place to come back to, so a restart lands on the connect screen.
@@ -645,6 +661,7 @@ function attach(host: Host, connection: HostConnection): void {
 export function selectSession(id: string): void {
   if (!restoringNow) restoring = null;
   app.settingsOpen = false;
+  app.configurationOpen = false;
   app.logoHome = false;
   app.closing = null;
   launching = null;
@@ -723,6 +740,7 @@ export function dismissCloseNote(): void {
 export function selectRole(slug: string): void {
   restoring = null;
   app.settingsOpen = false;
+  app.configurationOpen = false;
   app.logoHome = false;
   launching = null;
   app.selectedRole = slug;
