@@ -3,24 +3,23 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "../harness.ts";
 
-const overview = (page: Page) => page.getByRole("region", { name: "Seats", exact: true });
 const notify = (page: Page) => page.getByRole("switch", { name: "Notify when closed" });
 
-// Phones show Alerts on the host page and desktops in the sidebar.
-async function openAlerts(page: Page, locked = false): Promise<void> {
+// Alerts live in Settings (COI-3521), one tap from the host page or the sidebar. The
+// install card shows after a timer, so a step waits for it before a picture (COI-3525).
+async function openAlerts(page: Page): Promise<void> {
   await page.goto("/");
   await page.getByRole("tab", { name: /this Mac/ }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).first().click();
   await expect(page.getByRole("switch", { name: "Sound" }).first()).toBeVisible();
-  // A healthy host shows the seat overview, whose ages move with time, so the steps below
-  // mask it. A locked device shows the host page instead (COI-3518).
-  if (!locked) await expect(overview(page)).toBeVisible();
+  await expect(page.locator("section.install")).toBeVisible();
 }
 
 test.describe("a host with no push key", () => {
   test("offers no switch, and nothing about notifications", async ({ bed }) => {
     await openAlerts(bed.page);
     await expect(notify(bed.page)).toHaveCount(0);
-    await bed.step("no-switch", { mask: [overview(bed.page)] });
+    await bed.step("no-switch");
   });
 });
 
@@ -38,7 +37,7 @@ test.describe("a host with a push key", () => {
     } else {
       await expect(notify(bed.page).first()).toBeEnabled();
     }
-    await bed.step("off", { mask: [overview(bed.page)] });
+    await bed.step("off");
   });
 
   // Headless Chromium reports notifications denied. A failed subscribe: push.test.ts.
@@ -50,7 +49,7 @@ test.describe("a host with a push key", () => {
     await expect(notify(bed.page).first()).not.toBeChecked();
     // Permission goes first, so the daemon heard nothing.
     expect(bed.mock.pushCalls).toEqual([]);
-    await bed.step("notifications-blocked", { mask: [overview(bed.page)] });
+    await bed.step("notifications-blocked");
   });
 });
 
@@ -59,11 +58,11 @@ test.describe("a locked device on a host with a push key", () => {
 
   test("is told why before the browser is asked for anything", async ({ bed }, info) => {
     test.skip(info.project.name.startsWith("iphone"), "Safari in a tab holds the switch back first, covered above.");
-    await openAlerts(bed.page, true);
+    await openAlerts(bed.page);
     await notify(bed.page).first().click();
     await expect(bed.page.getByRole("alert").filter({ hasText: /coilyco\.dev/ })).toBeVisible();
     await expect(notify(bed.page).first()).not.toBeChecked();
     expect(bed.mock.pushCalls).toEqual([]);
-    await bed.step("locked", { mask: [overview(bed.page)] });
+    await bed.step("locked");
   });
 });

@@ -1,16 +1,13 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
-  import AttentionSwitches from "./AttentionSwitches.svelte";
   import CloseSeat from "./CloseSeat.svelte";
   import Origin from "./Origin.svelte";
   import PinSeat from "./PinSeat.svelte";
-  import RoleSwitches from "./RoleSwitches.svelte";
   import Creature from "./Creature.svelte";
   import ByCoilyco from "./ByCoilyco.svelte";
   import SettingsLink from "./SettingsLink.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
-  import TapTraceSwitch from "./TapTraceSwitch.svelte";
   import { app, askLineFor, asksShownOn, colorOf, closeAnyway, dismissCloseNote, glowSeats, layout, needsKaiIds, overviewShown, pinnedNow, reopenClosed, showAllRoles, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
@@ -47,7 +44,6 @@
 
   // Over a seat, a phone's menu is a sheet: seats, then roles to start, then alerts and hosts folded.
   const sheet = $derived((narrow || reading) && onScreen);
-  const alertsSaid = $derived(`Sound ${app.alerts.sound ? "on" : "off"}, highlight ${app.alerts.visual ? "on" : "off"}`);
 
   // On a phone the seat gets the screen, and hosts, roles and alerts sit behind this button.
   // With no seat on screen those lists are the page, so there is nothing to open.
@@ -319,7 +315,7 @@
             style:--accent={currentRole?.color}
             aria-expanded={menuOpen}
             aria-controls="sidebar-menu"
-            aria-label={`${current?.identity ?? `Start ${currentRole?.displayName ?? "a seat"}`}. Seats, starting a seat, hosts and alerts`}
+            aria-label={`${current?.identity ?? `Start ${currentRole?.displayName ?? "a seat"}`}. Seats, starting a seat, hosts and settings`}
             onclick={toggleMenu}
           >
             {#if currentRole}<Creature role={currentRole.slug} color={currentRole.color} size={28} />{/if}
@@ -340,19 +336,17 @@
       <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
       <div class="scrim" onclick={closeMenu}></div>
     {/if}
-    {#if !onScreen || menuOpen}
+    <!-- Settings is the page on a phone, so the host menu is not stacked above it. -->
+    {#if (!onScreen && !app.settingsOpen) || menuOpen}
       <div id="sidebar-menu" class="menu" data-flow={onScreen ? "sheet" : "page"}>
         <!-- Over a seat the menu is the seat switcher too, since the bar names only the one on screen. -->
         {#if onScreen}
           {#if app.attachedHostId}{@render runningGroup()}{@render failedGroup()}{@render startGroup()}{/if}
           <details class="more">
             <summary>
-              <span>Alerts and hosts</span>
-              <span class="said">{alertsSaid}</span>
+              <span>Hosts and settings</span>
               <svg class="chev" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </summary>
-            <RoleSwitches />
-            <AttentionSwitches />
             {@render hostsGroup()}
             <SettingsLink onopen={closeMenu} />
             <ByCoilyco />
@@ -360,11 +354,9 @@
         {:else}
           {@render hostsGroup()}
           {#if app.attachedHostId}{@render startGroup()}{/if}
-          <AttentionSwitches compact />
         {/if}
         <div class="feedback"><FeedbackEntry onopen={closeMenu} /></div>
         {#if !onScreen}<SettingsLink onopen={closeMenu} />{/if}
-        <TapTraceSwitch />
         {#if !onScreen}<ByCoilyco />{/if}
       </div>
     {/if}
@@ -376,11 +368,8 @@
       {@render failedGroup()}
       {@render startGroup()}
     {/if}
-    <RoleSwitches />
-    <AttentionSwitches />
-    <div class="feedback"><FeedbackEntry /></div>
+    <div class="feedback foot"><FeedbackEntry /></div>
     <SettingsLink />
-    <TapTraceSwitch />
     <ByCoilyco />
   {/if}
 </nav>
@@ -392,6 +381,8 @@
 <style>
   .sidebar { width: 280px; flex: none; border-right: 1px solid var(--line); padding: 16px 12px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
   .feedback { margin-top: 14px; padding: 0 2px; }
+  /* The footer sits at the bottom, where the Alerts block used to push it. */
+  .feedback.foot { margin-top: auto; padding-top: 14px; }
   .mark { font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: 0.08em; color: var(--brand); padding: 4px 10px 12px; }
   h2 { margin: 14px 10px 4px; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
   [role="tablist"] { display: flex; flex-direction: column; gap: 2px; }
@@ -524,7 +515,6 @@
   .more > summary::-webkit-details-marker { display: none; }
   .more > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; border-radius: 8px; }
   .more > summary > span:first-child { flex: 1; }
-  .more .said { order: 3; flex-basis: 100%; font: 400 12px var(--font-body); letter-spacing: 0; text-transform: none; }
   .more .chev { flex: none; }
   .more[open] .chev { transform: rotate(180deg); }
 

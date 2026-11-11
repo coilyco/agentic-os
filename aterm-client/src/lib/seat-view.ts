@@ -12,8 +12,34 @@ export interface SeatView {
   raw: boolean;
 }
 
-/** A phone reads Focus. A desktop keeps the screen it has always had. */
-export const defaultView = (phone: boolean): SeatView => (phone ? { level: "focus", raw: false } : { level: "verbose", raw: true });
+const DEFAULT_KEY = "aterm.seat-view-default.v1";
+
+/** Where a seat opens until a view is picked for it. Auto is the device's own default. */
+export type ViewDefault = "auto" | Level;
+
+export function loadViewDefault(): ViewDefault {
+  try {
+    const stored = localStorage.getItem(DEFAULT_KEY);
+    return LEVELS.includes(stored as Level) ? (stored as Level) : "auto";
+  } catch {
+    return "auto";
+  }
+}
+
+export function storeViewDefault(choice: ViewDefault): void {
+  try {
+    localStorage.setItem(DEFAULT_KEY, choice);
+  } catch {
+    // Storage can be off (a private window). The choice holds until reload.
+  }
+}
+
+/** Auto is Focus on a phone and a desktop's screen. A person's choice wins over both. */
+export function defaultView(phone: boolean): SeatView {
+  const chosen = loadViewDefault();
+  if (chosen !== "auto") return { level: chosen, raw: false };
+  return phone ? { level: "focus", raw: false } : { level: "verbose", raw: true };
+}
 
 function read(): [string, SeatView][] {
   try {

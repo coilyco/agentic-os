@@ -18,7 +18,7 @@ test.describe("where a seat started", () => {
 
   test("each row carries its icon with a label, and a seat with no field carries none", async ({ bed }, info) => {
     await bed.openSeat(SEATS.imp);
-    if (kindOf(info) === "phone") await bed.page.getByRole("button", { name: /Seats, starting a seat, hosts and alerts/ }).click();
+    if (kindOf(info) === "phone") await bed.page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ }).click();
     const row = (name: string) => bed.page.getByRole("tab", { name: new RegExp(name) }).first();
     await expect(row("Window-Ox")).toHaveAccessibleName(new RegExp(WINDOW));
     await expect(row("Headless-Ox")).toHaveAccessibleName(new RegExp(NONE));

@@ -1,9 +1,32 @@
 <script lang="ts">
   import AttentionSwitches from "../components/AttentionSwitches.svelte";
   import InstallCard from "../components/InstallCard.svelte";
+  import RoleSwitches from "../components/RoleSwitches.svelte";
   import TapTraceSwitch from "../components/TapTraceSwitch.svelte";
   import { app, closeSettings, removeHost } from "../lib/app.svelte";
+  import { loadViewDefault, storeViewDefault, type ViewDefault } from "../lib/seat-view";
   import { DEFAULT_TEXT_SIZE, loadTextSize, stepTextSize, storeTextSize, TEXT_SIZES } from "../lib/text-size";
+
+  const OPENS: { value: ViewDefault; label: string }[] = [
+    { value: "auto", label: "Auto" },
+    { value: "focus", label: "Focus" },
+    { value: "default", label: "Default" },
+    { value: "verbose", label: "Verbose" },
+  ];
+  let opens = $state(loadViewDefault());
+  function setOpens(next: ViewDefault): void {
+    opens = next;
+    storeViewDefault(next);
+  }
+  // Arrows move between the stops as a radio group does, and focus follows.
+  function stops(event: KeyboardEvent): void {
+    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    event.preventDefault();
+    const next = OPENS[(OPENS.findIndex((each) => each.value === opens) + step + OPENS.length) % OPENS.length]!;
+    setOpens(next.value);
+    queueMicrotask(() => (event.currentTarget as HTMLElement).querySelector<HTMLElement>('[aria-checked="true"]')?.focus());
+  }
 
   let size = $state(loadTextSize());
   // Hosts typed or saved here. The demo host and ones a daemon lists are not stored.
@@ -24,7 +47,17 @@
 
   <AttentionSwitches />
 
-  <InstallCard />
+  <RoleSwitches />
+
+  <section class="group" aria-labelledby="opens-label">
+    <h2 id="opens-label">New seats open in</h2>
+    <div class="stops" role="radiogroup" aria-labelledby="opens-label" tabindex="-1" onkeydown={stops}>
+      {#each OPENS as each (each.value)}
+        <button type="button" role="radio" aria-checked={opens === each.value} tabindex={opens === each.value ? 0 : -1} onclick={() => setOpens(each.value)}>{each.label}</button>
+      {/each}
+    </div>
+    <p class="hint">The view a seat shows the first time you open it here. Auto is Focus on a phone and the raw screen on a desktop. A seat keeps the view you pick for it.</p>
+  </section>
 
   <section class="group" aria-labelledby="text-label">
     <h2 id="text-label">Terminal text</h2>
@@ -54,6 +87,8 @@
     {/if}
   </section>
 
+  <InstallCard />
+
   <TapTraceSwitch />
 </section>
 
@@ -70,6 +105,11 @@
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   output { min-width: 56px; text-align: center; font: 600 15px var(--font-mono); }
   .hint { margin: 0; color: var(--muted); font-size: 13px; }
+  .stops { display: flex; border: 1px solid var(--control-line); border-radius: 10px; overflow: hidden; }
+  .stops button { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 0 8px; border: 0; background: transparent; color: var(--muted); font: 600 14px var(--font-body); }
+  .stops button + button { border-left: 1px solid var(--control-line); }
+  .stops button[aria-checked="true"] { background: color-mix(in srgb, var(--brand) 22%, var(--surface)); color: var(--text); }
+  .stops button:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
   ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
   li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
   .who { display: flex; flex-direction: column; min-width: 0; }
