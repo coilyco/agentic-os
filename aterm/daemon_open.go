@@ -143,6 +143,21 @@ func (d *daemon) installShims(dir string) {
 	d.shimDir = dir
 }
 
+// withDaemonSocket tells a seat which socket this daemon listens on, since `aterm` in the
+// seat dials the default one otherwise, which may be another daemon's or none (COI-3559).
+func (d *daemon) withDaemonSocket(environ []string) []string {
+	if d.socket == "" {
+		return environ
+	}
+	kept := make([]string, 0, len(environ)+1)
+	for _, entry := range environ {
+		if key, _, _ := strings.Cut(entry, "="); key != daemonSocketEnv {
+			kept = append(kept, entry)
+		}
+	}
+	return append(kept, daemonSocketEnv+"="+d.socket)
+}
+
 // withOpenShims sets BROWSER and leads PATH with the shims, so a seat's page-opening
 // runs `aterm open`. A daemon with no shims leaves the environment alone.
 func (d *daemon) withOpenShims(environ []string) []string {
