@@ -502,6 +502,8 @@ export function leaveDemo(): void {
   app.selectedSession = null;
   app.selectedRole = null;
   app.notice = "";
+  // Leave from Settings lands on Pick a host, not on Settings with no demo behind it.
+  app.settingsOpen = false;
 }
 
 function attach(host: Host, connection: HostConnection): void {
