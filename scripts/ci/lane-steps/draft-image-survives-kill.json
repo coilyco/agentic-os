@@ -25,14 +25,14 @@
       "op": "reopen"
     },
     {
-      "op": "eval",
-      "js": "document.querySelectorAll('form.composer ul.chips li').length",
-      "expect": "^1$"
-    },
-    {
       "op": "wait",
       "pattern": "from your draft came back",
       "timeout": 30
+    },
+    {
+      "op": "eval",
+      "js": "document.querySelectorAll('form.composer ul.chips li').length",
+      "expect": "^1$"
     },
     {
       "op": "keyboard",

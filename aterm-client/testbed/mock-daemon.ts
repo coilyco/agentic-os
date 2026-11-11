@@ -74,6 +74,8 @@ interface Live {
   wideCols?: number;
   /** Rows a raw client caps the PTY at, however many rows another client asks for. */
   capRows?: number;
+  /** Bytes sent to each socket so far, the stream offset when `offsets` is on. */
+  sent: Map<WebSocket, number>;
 }
 
 export interface Mock {
@@ -143,6 +145,8 @@ export interface Mock {
   refuseTranscript(session: string, reason: string | null): void;
   /** Delays this seat's `transcript` answer by this many ms, 0 to stop. */
   holdTranscript(session: string, ms: number): void;
+  /** Every `attach` the client sent, with the offset it named, in order. */
+  attachCalls: { session: string; replay: boolean; offset?: number }[];
   /** Every `transcript` request the client sent, in order. */
   transcriptCalls: { session: string; since?: string; before?: string; limit?: number }[];
   /** A seat shares a file. The mock keeps its bytes and pushes the descriptor. */
@@ -171,7 +175,7 @@ export function loadSessions(): SessionSpec[] {
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
  * `images`: Add image shows. `webPush`: Notify when closed shows. */
-export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; transcript?: boolean; media?: boolean; artifacts?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[] };
+export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; transcript?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[] };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   if (!existsSync(join(DIST, "index.html"))) {
     throw new Error("The mock daemon serves aterm-client/dist, which is not built. Run `just aterm-client-testbed`, which builds it first.");
@@ -193,7 +197,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const lastBox = new Map<string, { rows: number; cols: number }>();
   const closed = new Map<string, SessionSpec>();
   const artifactFrames = new Map<string, Record<string, unknown>>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"], attachCalls: [] as Mock["attachCalls"] };
   const shared = new Map<string, { session: string; name: string; mime: string; kind: string; bytes: Buffer; at: number; unreadable?: boolean }>();
   const mediaFrame = (id: string) => {
     const file = shared.get(id)!;
@@ -225,7 +229,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const pushFeature = options.webPush ? ["web-push"] : [];
 
   const add = (spec: SessionSpec): void => {
-    live.set(spec.name, { spec, scene: sceneFor(spec.scene, spec), boxes: new Map() });
+    live.set(spec.name, { spec, scene: sceneFor(spec.scene, spec), boxes: new Map(), sent: new Map() });
   };
   for (const spec of options.sessions ?? loadSessions()) add(spec);
 
@@ -244,7 +248,11 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     const box = { rows: Math.min(own.rows, seat.capRows ?? own.rows), cols: Math.max(own.cols, seat.wideCols ?? 0) };
     send(socket, { type: "size", session: seat.spec.name, rows: box.rows, cols: box.cols });
     const text = attach && seat.scene.history ? seat.scene.history(box.cols, box.rows) : paint(seat.scene.render(box.cols, box.rows));
-    send(socket, { type: "output", session: seat.spec.name, data: encode(text) });
+    const data = encode(text);
+    // With `offsets` the stream is counted as the daemon counts it.
+    const at = seat.sent.get(socket) ?? 0;
+    seat.sent.set(socket, at + Buffer.from(data, "base64").length);
+    send(socket, { type: "output", session: seat.spec.name, data, ...(options.offsets ? { offset: at } : {}) });
   };
   const redraw = (seat: Live): void => {
     for (const socket of seat.boxes.keys()) draw(seat, socket);
@@ -392,6 +400,9 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
             seat.boxes.set(socket, { rows: frame.rows, cols: frame.cols });
             lastBox.set(seat.spec.name, { rows: frame.rows, cols: frame.cols });
           }
+          mock.attachCalls.push({ session: seat.spec.name, replay: frame.replay === true, ...(typeof frame.offset === "number" ? { offset: frame.offset } : {}) });
+          // A client that names an offset it has drawn up to is owed nothing more.
+          if (options.offsets && typeof frame.offset === "number" && frame.offset >= (seat.sent.get(socket) ?? 0)) return;
           // A watch without a box (the activity monitor) takes no replay.
           if (frame.replay) draw(seat, socket, true);
           return;
@@ -562,6 +573,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     heard,
     resumes: mock.resumes,
     uploads: mock.uploads,
+    attachCalls: mock.attachCalls,
     transcriptCalls: mock.transcriptCalls,
     setTranscript: (session, items) => void transcripts.set(session, items),
     appendTranscript: (session, items) => void transcripts.set(session, [...(transcripts.get(session) ?? []), ...items]),
