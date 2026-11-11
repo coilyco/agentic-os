@@ -32,4 +32,12 @@ The split handle is a window splitter. Drag, Left and Right (Shift for larger st
 
 ## Left-sidebar terminal
 
+## A staged command (COI-3306)
+
+A seat's `stage_command` types a command on the input line of the shell beside it and sends every client a `staged` frame: `session` the shell, `label` the seat, `body` the command, `text` the note. The client keeps it in `app.staged` by seat. Source: `src/lib/staged.ts`, `TerminalPane.svelte`.
+
+* **For the seat on screen** the Terminal tab comes forward (raising the sheet below 1000px) and the cursor goes into the shell, so Enter is one key. A stage for another seat only waits: opening that seat's Terminal shows it.
+* **The note sits above the shell** with the command and the seat's words, amber because it waits on a person. It is never typed.
+* **It goes when the line does.** The daemon sends nothing when a line is run, so the client reads what it types: Enter, Ctrl-C or Ctrl-U, as the daemon counts a draft, and not a newline inside a paste. A closed or ended shell hides it.
+
 Not built, since Kai is undecided. A host terminal would be an entry with no seat label in `app.terminals`, shown by the same pane and `Terminal.svelte` with an id of its own. Only `terminalFor`, which finds a seat's shell by label, would need a sibling.

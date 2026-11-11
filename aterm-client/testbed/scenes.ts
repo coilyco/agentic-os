@@ -331,6 +331,8 @@ export function captured(name: string): Scene {
 /** A scene by its fixture name. */
 export function sceneFor(name: string, _spec: SessionSpec): Scene {
   switch (name) {
+    case "shell":
+      return { render: () => ["$ "] };
     case "claude-working":
       return claudeSession({ working: true });
     case "claude-fresh":

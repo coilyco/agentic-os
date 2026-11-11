@@ -19,6 +19,7 @@ import type { SharedBrowser } from "./screencast";
 import { parseHostInput, startingHosts, storeSavedHosts } from "./saved-hosts";
 import type { Ask, Host, HostConnection, LaunchState, Link, Notify, PeerMessage, SeatArtifact, Session } from "./protocol";
 import { seatsNeedingKai, type NeedsKai } from "./needs-kai";
+import type { StagedLine } from "./staged";
 import { closedWords, fullyIdle } from "./idle-close";
 import { flipHidden, loadHidden, storeHidden } from "./hidden-roles";
 import { flipPin, isPinned, loadPins, storePins } from "./pins";
@@ -75,6 +76,10 @@ export const app = $state({
   openedPages: [] as OpenedPage[],
   /** The page a click is loading into a seat's pane, until it holds control and loads. */
   pageToShow: null as { sessionId: string; url: string; since: number } | null,
+  /** The command each seat staged on its shell, until the line is run or cleared. */
+  staged: {} as Record<string, StagedLine>,
+  /** A stage for the seat on screen asks its Terminal tab forward, once. */
+  stageFocus: null as { seat: string; n: number } | null,
   launches: {} as Record<string, { state: LaunchState; text: string }>,
   /** Sessions that finished a turn while you were looking at another one. */
   unseen: {} as Record<string, boolean>,
@@ -456,6 +461,8 @@ function resetAttached(): void {
   app.messages = [];
   app.asks = {};
   app.artifacts = {};
+  app.staged = {};
+  app.stageFocus = null;
   app.pageOpen = null;
   app.media = {};
   app.mediaSeen = {};
@@ -524,6 +531,7 @@ function attach(host: Host, connection: HostConnection): void {
     else if (event.type === "resume") app.resume = event.state;
     else if (event.type === "notice") app.notice = event.text;
     else if (event.type === "open_url") offerPage(event.session, event.url);
+    else if (event.type === "staged") stageLine(event.label, { terminal: event.session, body: event.body, text: event.text });
     else if (event.type === "notify") app.notify = event.notify;
     else if (event.type === "input_refused") app.inputNotice = event.text;
     else if (event.type === "ask") app.asks[event.ask.id] = event.ask;
@@ -796,6 +804,19 @@ export type Waiting = NeedsKai;
 /** Seats that need you: the one list the title, badge, chip, toast and cues all read. */
 export function waitingSeats(): Waiting[] {
   return seatsNeedingKai(Object.values(app.asks), Object.values(app.artifacts), app.sessions);
+}
+
+let nextStage = 0;
+
+/** A seat staged a command. The seat Kai is looking at gets its shell brought forward. */
+function stageLine(seat: string, line: StagedLine): void {
+  app.staged[seat] = line;
+  if (seat === app.selectedSession) app.stageFocus = { seat, n: ++nextStage };
+}
+
+/** The line was run or cleared, so its note goes. */
+export function clearStaged(seat: string): void {
+  delete app.staged[seat];
 }
 
 let nextPage = 0;

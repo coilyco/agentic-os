@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount, tick, untrack } from "svelte";
   import Terminal from "./Terminal.svelte";
-  import { app, closeTerminal, colorOf, openTerminal } from "../lib/app.svelte";
+  import { app, clearStaged, closeTerminal, colorOf, openTerminal } from "../lib/app.svelte";
+  import { clearsLine } from "../lib/staged";
   import type { Session } from "../lib/protocol";
   import { exitText, paneState, paneText, shouldOpen, terminalFor } from "../lib/terminals";
 
@@ -26,6 +27,9 @@
     if (shouldOpen(view)) untrack(() => openTerminal(session.id));
   });
 
+  // A command this seat staged, while its line is still on the shell's input (COI-3306).
+  const staged = $derived(view.kind === "live" && app.staged[session.id]?.terminal === view.entry.id ? app.staged[session.id] : undefined);
+
   let pane: HTMLDivElement;
   let primary = $state<HTMLButtonElement>();
   // Focus follows a button Kai pressed, never a tab she only arrived on.
@@ -36,6 +40,17 @@
       focusShell = false;
       void tick().then(focusTerminal);
     }
+  });
+
+  // A stage for the seat on screen brings this tab forward and puts the cursor in the shell.
+  $effect(() => {
+    const ask = app.stageFocus;
+    if (ask?.seat !== session.id) return;
+    untrack(() => {
+      app.stageFocus = null;
+      if (view.kind === "live") void tick().then(focusTerminal);
+      else focusShell = true;
+    });
   });
 
   function focusTerminal(): void {
@@ -72,8 +87,15 @@
       <span class="name">Shell beside {session.identity}</span>
       <button type="button" class="quiet" onclick={dismiss}>Close</button>
     </div>
+    {#if staged}
+      <section class="staged" aria-label={`A command ${session.identity} staged`}>
+        <p class="who">{session.identity} staged this. Enter runs it, Ctrl+C clears it.</p>
+        <code class="mono">{staged.body}</code>
+        {#if staged.text}<p class="why">{staged.text}</p>{/if}
+      </section>
+    {/if}
     {#key view.entry.id}
-      <Terminal connection={app.connection!} sessionId={view.entry.id} label={`shell beside ${session.identity}`} {accent} messages={[]} {colorOf} locked={!app.typing.allowed || view.kind === "exited"} />
+      <Terminal connection={app.connection!} sessionId={view.entry.id} label={`shell beside ${session.identity}`} {accent} messages={[]} {colorOf} locked={!app.typing.allowed || view.kind === "exited"} ontype={(data) => clearsLine(data) && clearStaged(session.id)} />
     {/key}
     <p class="hint mono">Ctrl+Alt+Left returns to {session.identity}</p>
     <!-- Present from the first frame, since a status inserted at exit is not announced. -->
@@ -104,6 +126,10 @@
   .pane { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
   .bar { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 0 12px; border-bottom: 1px solid var(--line); }
   .name { font-family: var(--font-display); font-weight: 600; font-size: 14px; }
+  .staged { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--warn-line); background: var(--warn-fill); }
+  .staged .who { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 13px; color: var(--warn-text); }
+  .staged code { font-size: 13px; color: var(--text); overflow-wrap: anywhere; white-space: pre-wrap; }
+  .staged .why { margin: 0; font-size: 13px; color: var(--text-soft); }
   .hint { margin: 0; padding: 4px 12px; color: var(--muted); font-size: 11px; border-top: 1px solid var(--line); }
   button { min-height: 44px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--brand); background: transparent; color: var(--text); font-family: var(--font-display); font-weight: 600; font-size: 14px; }
   button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
