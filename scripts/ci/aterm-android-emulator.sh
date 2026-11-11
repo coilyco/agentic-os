@@ -73,8 +73,14 @@ audio() {
   sudo apt-get update -qq
   sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends espeak-ng sox
   GOBIN="$out/bin" go install github.com/fullstorydev/grpcurl/cmd/grpcurl@v1.9.1
-  espeak-ng -s 130 -w "$out/speech-raw.wav" "${ATERM_LANE_PHRASE:-hello world this is a test}"
+  local phrase="${ATERM_LANE_PHRASE:-hello world this is a test}"
+  espeak-ng -s 130 -w "$out/speech-raw.wav" "$phrase"
   sox "$out/speech-raw.wav" -r 16000 -c 1 -b 16 "$out/speech.wav"
+  # Voice variants for the Vosk step file to compare.
+  espeak-ng -s 100 -g 8 -w "$out/speech-raw2.wav" "$phrase"
+  sox "$out/speech-raw2.wav" -r 16000 -c 1 -b 16 "$out/speech-2.wav"
+  espeak-ng -v en-us+f3 -s 105 -p 55 -g 6 -w "$out/speech-raw3.wav" "$phrase"
+  sox "$out/speech-raw3.wav" -r 16000 -c 1 -b 16 "$out/speech-3.wav"
   python3 -I "$repo_root/scripts/ci/aterm_audio_stream.py" "$out/speech.wav" "$out/speech.jsonl"
   vosk_model
 }
