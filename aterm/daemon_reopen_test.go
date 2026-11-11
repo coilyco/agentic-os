@@ -56,7 +56,8 @@ func TestReopenWithARefPicksThatLaunchOfAReusedName(t *testing.T) {
 }
 
 func TestReopenRefusesASeatWithNothingToResume(t *testing.T) {
-	entries := []ledgerEntry{{Name: "codex-seat", Role: "eng-platform", Seat: "codex"}}
+	// A codex home of its own, so the finder reads no real one.
+	entries := []ledgerEntry{{Name: "codex-seat", Role: "eng-platform", Seat: "codex", Dirs: map[string]string{"CODEX_HOME": t.TempDir()}}}
 	_, c, reopened := reopenRig(t, entries)
 	for _, target := range []string{"codex-seat", "never-ran", ""} {
 		reply, err := c.request(frame{Type: "reopen", Target: target})

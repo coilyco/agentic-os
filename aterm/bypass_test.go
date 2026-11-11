@@ -24,8 +24,14 @@ func TestHarnessArgsAskForBypassUnlessTheCallerOrKeepSaysOtherwise(t *testing.T)
 		"another mode is passed as is": {"acceptEdits", nil, []string{"--permission-mode", "acceptEdits"}},
 	}
 	for name, c := range cases {
-		if got := harnessArgs(c.mode, c.extra); !slices.Equal(got, c.want) {
+		if got := harnessArgs("claude", c.mode, c.extra); !slices.Equal(got, c.want) {
 			t.Errorf("%s: got %v, want %v", name, got, c.want)
+		}
+		// A permission mode is claude's, so no other harness is handed one (COI-3609).
+		for _, seat := range []string{"codex", "goose", "opencode"} {
+			if got := harnessArgs(seat, c.mode, c.extra); !slices.Equal(got, c.extra) {
+				t.Errorf("%s on %s: got %v, want only the caller's %v", name, seat, got, c.extra)
+			}
 		}
 	}
 }

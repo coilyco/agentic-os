@@ -35,7 +35,7 @@ func sqliteJSON(db, query string, out any) error {
 	if err != nil {
 		var missing *exec.Error
 		if errors.As(err, &missing) {
-			return withExit(exitMissing, fmt.Errorf("opencode keeps sessions in SQLite and sqlite3 is not on PATH: %w", errNoTranscript))
+			return withExit(exitMissing, fmt.Errorf("this harness keeps sessions in SQLite and sqlite3 is not on PATH: %w", errNoTranscript))
 		}
 		return withExit(exitOffRoster, fmt.Errorf("could not read %s: %v: %w", db, err, errNoTranscript))
 	}

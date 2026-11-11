@@ -163,11 +163,11 @@ func newBypassCommand() *cli.Command {
 				self:        strings.TrimSpace(os.Getenv(sessionNameEnv)),
 				includeBusy: cmd.Bool("busy"),
 				relaunch: func(entry ledgerEntry) error {
-					args, err := resumeArgs(entry, true, false)
+					args, err := resumeArgs(entry, nil, true, false)
 					if err != nil {
 						return err
 					}
-					args = append(args, harnessArgs(defaultPermissionMode, nil)...)
+					args = append(args, harnessArgs(entry.Seat, defaultPermissionMode, nil)...)
 					return resumeRun(self, args, cmd.Root().Writer, cmd.Root().ErrWriter)
 				},
 			}

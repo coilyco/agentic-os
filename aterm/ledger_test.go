@@ -218,7 +218,7 @@ func TestResumeArgsReopenTheConversationAndLeaveTheNameToTheClaim(t *testing.T) 
 	id := newConversationID()
 	dir := t.TempDir()
 	entry := ledgerEntry{Name: "eng-platform-a-1111", Role: "eng-platform", Seat: "claude", Cwd: dir, Conversation: id}
-	got, err := resumeArgs(entry, true, true)
+	got, err := resumeArgs(entry, nil, true, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,14 +227,14 @@ func TestResumeArgsReopenTheConversationAndLeaveTheNameToTheClaim(t *testing.T) 
 		t.Fatalf("args = %v, want %v", got, want)
 	}
 	entry.Cwd = filepath.Join(dir, "gone")
-	if got, _ := resumeArgs(entry, false, false); slices.Contains(got, "--working-directory") {
+	if got, _ := resumeArgs(entry, nil, false, false); slices.Contains(got, "--working-directory") {
 		t.Fatalf("a directory that is gone must not be demanded: %v", got)
 	}
 	for _, unresumable := range []ledgerEntry{
-		{Name: "n", Role: "r", Seat: "codex", Conversation: id},
+		{Name: "n", Role: "r", Seat: "gemini", Conversation: id},
 		{Name: "n", Role: "r", Seat: "claude"},
 	} {
-		if _, err := resumeArgs(unresumable, false, false); exitCodeFor(err) != exitUsage {
+		if _, err := resumeArgs(unresumable, nil, false, false); exitCodeFor(err) != exitUsage {
 			t.Fatalf("%+v should refuse with usage: %v", unresumable, err)
 		}
 	}
@@ -248,7 +248,7 @@ func TestResumeVerbListsAndRelaunchesThroughTheNormalPath(t *testing.T) {
 	ended := time.Now().UTC()
 	for _, entry := range []ledgerEntry{
 		{Name: "eng-platform-a-1111", Role: "eng-platform", Seat: "claude", Cwd: "/", Conversation: id, Started: ended, Ended: &ended},
-		{Name: "scientist-b-2222", Role: "scientist", Seat: "codex", Cwd: "/", Started: ended, Ended: &ended},
+		{Name: "scientist-b-2222", Role: "scientist", Seat: "codex", Cwd: "/", Started: ended, Ended: &ended, Dirs: map[string]string{"CODEX_HOME": t.TempDir()}},
 	} {
 		if err := writeLedger(state, entry); err != nil {
 			t.Fatal(err)
@@ -295,8 +295,8 @@ func TestResumeVerbListsAndRelaunchesThroughTheNormalPath(t *testing.T) {
 	if want = []string{"--working-directory", "/", "eng-platform", "claude", "--", "--resume", id}; !slices.Equal(captured, want) {
 		t.Fatalf("keep must leave the stored mode alone: %v, want %v", captured, want)
 	}
-	if _, err := run("scientist"); exitCodeFor(err) != exitUsage {
-		t.Fatalf("a codex session is not resumable yet: %v", err)
+	if _, err := run("scientist"); exitCodeFor(err) != exitOffRoster || !strings.Contains(err.Error(), "no codex conversation to resume") {
+		t.Fatalf("a codex session whose files are gone says so: %v", err)
 	}
 	if _, err := run(); exitCodeFor(err) != exitUsage {
 		t.Fatalf("resume with no name is a usage error: %v", err)
