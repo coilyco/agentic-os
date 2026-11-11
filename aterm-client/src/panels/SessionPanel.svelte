@@ -32,7 +32,8 @@
   import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
   import { loadSide, loadSideOpen, storeSide, storeSideOpen } from "../lib/split";
   import { activityFlag } from "../lib/seat-activity";
-  import { draftKey, loadDraft, storeDraft } from "../lib/draft-store";
+  import { draftKey, loadDraft, loadDraftEntry, storeDraft } from "../lib/draft-store";
+  import { loadMirroredDraft, mirrorDraft, newerWords } from "../lib/draft-words";
   import { loadDraftImages, saveDraftImages } from "../lib/draft-images";
   import { mark } from "../lib/tap-trace";
   import { wantsFind } from "../lib/terminal-extras";
@@ -347,6 +348,12 @@
               if (text) app.drafts[session.id] = text;
               else delete app.drafts[session.id];
               storeDraft(draftKey(app.selectedHostId ?? "", session.id), text);
+              void mirrorDraft(draftKey(app.selectedHostId ?? "", session.id), text);
+            }}
+            saveddraft={async () => {
+              const key = draftKey(app.selectedHostId ?? "", session.id);
+              // Words kept in memory this page life are the newest there are.
+              return session.id in app.drafts ? undefined : newerWords(loadDraftEntry(key), await loadMirroredDraft(key));
             }}
             savedimages={() => loadDraftImages(draftKey(app.selectedHostId ?? "", session.id))}
             onimages={(files) => saveDraftImages(draftKey(app.selectedHostId ?? "", session.id), files)}
