@@ -42,7 +42,7 @@ JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add
 * `logcat` - `name`, `pattern`. Matching logcat lines into `logcat-<name>.txt`.
 * `ui-dump` - `name`. The system UI's uiautomator tree as `ui-<name>.xml` and a text list `ui-<name>.txt`, for Android's own screens.
 * `tap-ui` - `pattern`, `timeout`. Taps the first system UI node whose text or description matches the regex.
-* `repeat` - `steps`, `times`, `save`. Runs the steps that many times and counts the passes in `saved`, never stopping the run. `$i` is the round number. For a rate.
+* `repeat` - `steps`, `times`, `save`. Runs the steps that many times and counts the passes in `saved`, never stopping the run. `$i` is the round number, and `fill` text and `wait-value` patterns take it as `eval` does. For a rate.
 * `retry` - `steps`, `times`, `every`. Runs the steps again, `every` seconds apart, until they pass. For what needs a system to settle, such as Google's speech pack.
 * `sleep` - `seconds`.
 

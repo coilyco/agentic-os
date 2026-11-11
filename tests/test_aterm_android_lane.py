@@ -135,3 +135,11 @@ def test_repeat_counts_passes_and_failures_without_stopping_the_run(tmp_path: Pa
     assert lane.saved["rate"] == "3/5 passed"
     assert "round 2: lost" in lane.saved["rate_failures"]
     assert "round 4: lost" in lane.saved["rate_failures"]
+
+
+def test_a_round_number_reaches_fill_and_the_value_wait(tmp_path: Path) -> None:
+    _, lane = _lane(tmp_path, FakePage(["draft number 3"]))
+    lane.saved["i"] = "3"
+    lane.op_fill({"selector": "#composer-input", "text": "draft number $i"})
+    assert json.dumps("draft number 3") in lane.page.scripts[0]
+    assert lane.op_wait_value({"selector": "#composer-input", "pattern": "draft number $i$", "timeout": 1}) == "draft number 3"
