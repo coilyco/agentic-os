@@ -29,6 +29,22 @@
     {
       "op": "adb",
       "args": [
+        "emu",
+        "network",
+        "speed",
+        "lte"
+      ]
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "getprop gsm.network.type"
+      ]
+    },
+    {
+      "op": "adb",
+      "args": [
         "shell",
         "settings put global sysui_demo_allowed 1"
       ]
