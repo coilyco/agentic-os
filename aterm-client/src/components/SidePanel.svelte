@@ -24,6 +24,7 @@
     tab = $bindable("messages"),
     open = $bindable(false),
     onpick,
+    focusMessage = null,
   }: {
     session: Session;
     messages: PeerMessage[];
@@ -35,6 +36,8 @@
     open?: boolean;
     /** Fires for a tab a person picked, never for the one the role opened on. */
     onpick?: (tab: SideTab) => void;
+    /** A message the transcript pointed at. The Messages tab opens it. */
+    focusMessage?: { id: string; n: number } | null;
   } = $props();
 
   // Tracks the stylesheet's own breakpoint, so the sheet's controls exist exactly when the sheet does.
@@ -123,7 +126,7 @@
   </div>
   <div id="side-panel" class="content" data-tab={tab} role="tabpanel" aria-labelledby={`side-tab-${tab}`} tabindex="-1">
     {#if tab === "messages"}
-      <MessagesPanel {messages} {selfRole} {colorOf} />
+      <MessagesPanel {messages} {selfRole} {colorOf} focus={focusMessage} />
     {:else if tab === "views"}
       <ViewsPanel {session} />
     {:else if tab === "browser"}
