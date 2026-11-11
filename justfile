@@ -293,6 +293,10 @@ treehouse-mac-build:
 treehouse-mac-install:
     @bash scripts/treehouse-mac.sh install
 
+# Import the app's stable signing identity from SSM into its own keychain, once. Needs AWS access.
+treehouse-mac-sign-setup:
+    @bash scripts/treehouse-mac.sh sign-setup
+
 # Show, set (on) or undo (off) Treehouse as this Mac's login item, replacing Portfolio Director so there is one.
 treehouse-mac-login ACTION="status":
     @bash scripts/treehouse-mac.sh login "{{ACTION}}"

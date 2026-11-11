@@ -58,6 +58,9 @@ type passkeyStore struct {
 	expires  time.Time
 	failures int
 	now      func() time.Time
+
+	// follow is a file another daemon published, which makes this store read-only. COI-3542
+	follow, followed string
 }
 
 // newPasskeyStore loads path when set. An empty path keeps credentials in memory only.
@@ -92,13 +95,14 @@ func newPasskeyStore(path, rpID string, origins []string) (*passkeyStore, error)
 func (s *passkeyStore) enrolled() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sync()
 	return len(s.user.Credentials) > 0
 }
 
 // save writes the credentials through a rename, 0600, since a lost half-write
 // would lock Kai out of her own seats.
 func (s *passkeyStore) save() error {
-	if s.path == "" {
+	if s.path == "" || s.follow != "" {
 		return nil
 	}
 	raw, err := json.Marshal(&s.user)
@@ -117,6 +121,9 @@ func (s *passkeyStore) save() error {
 
 // mintCode issues the one live enrollment code, replacing any earlier one.
 func (s *passkeyStore) mintCode() (string, time.Duration, error) {
+	if s.follow != "" {
+		return "", 0, errFollowing
+	}
 	random := make([]byte, 8)
 	if _, err := rand.Read(random); err != nil {
 		return "", 0, err
@@ -156,6 +163,9 @@ func (s *passkeyStore) spendCode(given string) error {
 func (s *passkeyStore) beginEnroll() (*protocol.CredentialCreation, *webauthn.SessionData, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.follow != "" {
+		return nil, nil, errFollowing
+	}
 	if len(s.user.ID) == 0 {
 		s.user.ID = make([]byte, 64)
 		if _, err := rand.Read(s.user.ID); err != nil {
@@ -176,6 +186,9 @@ func (s *passkeyStore) finishEnroll(session webauthn.SessionData, raw []byte) er
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.follow != "" {
+		return errFollowing
+	}
 	credential, err := s.rp.CreateCredential(&s.user, session, parsed)
 	if err != nil {
 		return err
@@ -187,6 +200,7 @@ func (s *passkeyStore) finishEnroll(session webauthn.SessionData, raw []byte) er
 func (s *passkeyStore) beginAssert() (*protocol.CredentialAssertion, *webauthn.SessionData, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sync()
 	if len(s.user.Credentials) == 0 {
 		return nil, nil, errors.New("no passkey is enrolled, run `aterm passkey enroll` in a terminal")
 	}
@@ -202,6 +216,7 @@ func (s *passkeyStore) finishAssert(session webauthn.SessionData, raw []byte) er
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.sync()
 	credential, err := s.rp.ValidateLogin(&s.user, session, parsed)
 	if err != nil {
 		return err
@@ -218,6 +233,9 @@ func (s *passkeyStore) finishAssert(session webauthn.SessionData, raw []byte) er
 func (s *passkeyStore) revoke() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.follow != "" {
+		return errFollowing
+	}
 	s.user = passkeyUser{}
 	if s.path == "" {
 		return nil

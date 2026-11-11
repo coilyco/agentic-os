@@ -1,0 +1,51 @@
+{
+  "name": "dictation from a spoken phrase, recognised by the debug build's Vosk (voice 3, phrase played from a file)",
+  "start": "seat",
+  "steps": [
+    {
+      "op": "recognizer",
+      "service": "vosk",
+      "input": "file",
+      "variant": 3
+    },
+    {
+      "op": "retry",
+      "times": 2,
+      "every": 20,
+      "steps": [
+        {
+          "op": "fill",
+          "selector": "#composer-input",
+          "text": ""
+        },
+        {
+          "op": "tap",
+          "selector": "[aria-label=\"Dictate\"]"
+        },
+        {
+          "op": "wait-value",
+          "selector": "#composer-input",
+          "pattern": "world this is a",
+          "timeout": 30
+        }
+      ]
+    },
+    {
+      "op": "keyboard",
+      "action": "close"
+    },
+    {
+      "op": "shot",
+      "name": "composer-after-spoken-phrase"
+    },
+    {
+      "op": "recognizer",
+      "service": "system"
+    },
+    {
+      "op": "logcat",
+      "name": "speech",
+      "pattern": "vosk|speech|recogni|dictation"
+    }
+  ]
+}

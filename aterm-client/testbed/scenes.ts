@@ -337,6 +337,12 @@ export function sceneFor(name: string, _spec: SessionSpec): Scene {
       return claudeSession({ working: false, fresh: true, transcript: ["❯ hello", "", "⏺ Hello. What should I work on?"] });
     case "claude-idle":
       return claudeSession({ working: false });
+    case "recorded": {
+      // A real harness's pty bytes, replayed as the seat's history (COI-3552).
+      const screen = claudeSession({ working: false });
+      const file = process.env.RECORDED_FILE;
+      return { render: screen.render, history: file ? () => readFileSync(file, "utf8") : undefined };
+    }
     case "claude-ask-single":
       return new ClaudeAsk([ACCENT]);
     case "claude-ask-multi":

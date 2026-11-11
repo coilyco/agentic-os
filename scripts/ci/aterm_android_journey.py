@@ -50,7 +50,13 @@ Fail = devtools.DevToolsError
 
 
 def adb(*args: str, check: bool = True, timeout: int = 60) -> str:
-    done = subprocess.run(["adb", *args], capture_output=True, text=True, timeout=timeout, check=False)
+    try:
+        done = subprocess.run(["adb", *args], capture_output=True, text=True, timeout=timeout, check=False)
+    except subprocess.TimeoutExpired:
+        # A dead emulator hangs adb. Evidence must not mask the first failure.
+        if check:
+            raise
+        return ""
     if check and done.returncode != 0:
         raise Fail(f"adb {' '.join(args)} failed: {done.stderr.strip() or done.stdout.strip()}")
     return done.stdout
@@ -171,8 +177,19 @@ class Journey:
         page = self.page
         assert page
         # The row moves groups as the seat settles and can swallow a tap, so tap again.
-        for _ in range(4):
-            page.tap(by_text("frontend-eng", ".overview button.open, nav button"))
+        for attempt in range(4):
+            try:
+                page.tap(by_text("frontend-eng", ".overview button.open, nav button"))
+            except Fail:
+                # A slow cold start can rest on the host list with no seat row (COI-3622).
+                print(f"open_seat: no seat row, the page says {page.text()[:160]!r}")
+                if attempt == 3:
+                    raise
+                try:
+                    page.tap("()=>document.querySelector('[id^=tab-host-]')", wait=3)
+                except Fail:
+                    pass
+                continue
             deadline = time.monotonic() + 6
             while time.monotonic() < deadline:
                 if self.composer_visible():
@@ -494,10 +511,23 @@ class Journey:
         if not stream or not grpcurl or not Path(stream).exists():
             raise Fail("no phrase to speak: the job did not run its `audio` step (ATERM_SPEECH_JSONL)")
         port = os.environ.get("ATERM_GRPC_PORT", "8554")
-        with open(stream, "rb") as feed:
-            done = subprocess.run([grpcurl, "-plaintext", "-d", "@", f"127.0.0.1:{port}", "android.emulation.control.EmulatorController/injectAudio"], stdin=feed, capture_output=True, text=True, timeout=90, check=False)
-        if done.returncode != 0:
-            raise Fail(f"injectAudio failed: {(done.stderr or done.stdout).strip()[:300]}")
+        target = f"127.0.0.1:{port}"
+        proc = subprocess.Popen([grpcurl, "-plaintext", "-d", "@", target, "android.emulation.control.EmulatorController/injectAudio"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        assert proc.stdin
+        try:
+            # Real-time pacing. Sent at once, the emulator died on a later call.
+            for line in Path(stream).read_text().splitlines():
+                proc.stdin.write(line + "\n")
+                proc.stdin.flush()
+                time.sleep(0.1)
+            proc.stdin.close()
+            proc.wait(timeout=90)
+            out, err = proc.stdout.read(), proc.stderr.read()  # type: ignore[union-attr]
+        except (OSError, subprocess.TimeoutExpired) as err_:
+            proc.kill()
+            raise Fail(f"injectAudio did not finish: {err_!r}") from err_
+        if proc.returncode != 0:
+            raise Fail(f"injectAudio failed: {(err or out).strip()[:300]}")
 
     def dictate(self, label: str, pattern: str, wait: float, speak: bool) -> str:
         """Tap the mic, optionally play the spoken phrase into the virtual mic, and read the composer."""

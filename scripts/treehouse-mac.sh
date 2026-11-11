@@ -13,6 +13,9 @@ installed="$HOME/Applications/$app_name.app"
 # The login item the app replaces, so a Mac has one startup item and never two.
 replaces="${TREEHOUSE_REPLACES:-Portfolio Director}"
 replaces_path="$HOME/Applications/$replaces.app"
+# COI-50's stable identity: a self-signed certificate, so the requirement pins no build.
+sign_name="Coilyco Code Signing"
+sign_keychain="$HOME/Library/Keychains/treehouse-signing.keychain-db"
 
 fail() {
   echo "error: $*" >&2
@@ -25,17 +28,91 @@ test_shell() {
   (cd "$tauri_dir" && cargo test)
 }
 
-# The same client bundle the Android app ships, then the Tauri shell around it.
-# tauri.macos.conf.json is merged over tauri.conf.json on this OS only.
+# The Android app's client bundle, then the Tauri shell around it. The bundle lists this
+# Mac's loopback daemon from the build (COI-3476).
+local_host=ws://127.0.0.1:7419/
 build() {
-  (cd "$repo_root" && just aterm-client-install && VITE_ATERM_APP=1 just aterm-client-build && just aterm-android-install)
-  (cd "$repo_root/aterm-android" && pnpm exec tauri build --ci --bundles app)
+  (cd "$repo_root" && just aterm-client-install \
+    && VITE_ATERM_APP=1 VITE_ATERM_LOCAL_HOST="$local_host" VITE_ATERM_LOCAL_LABEL="this Mac" just aterm-client-build \
+    && just aterm-android-install)
+  local version config=()
+  version=$(app_version || true)
+  [ -z "$version" ] || config=(--config "{\"version\":\"$version\"}")
+  (cd "$repo_root/aterm-android" && pnpm exec tauri build --ci --bundles app ${config[@]+"${config[@]}"})
   [ -d "$built" ] || fail "no app at $built"
-  # Tauri leaves the linker's ad-hoc signature, with no Info.plist or resources sealed.
-  # Sign again under the bundle id. TREEHOUSE_SIGN_IDENTITY: desktop.md, Not yet.
-  codesign --force --deep --sign "${TREEHOUSE_SIGN_IDENTITY:--}" --identifier "$bundle_id" "$built"
+  sign_app "$built"
   codesign --verify --deep --strict "$built"
-  echo "built $built"
+  echo "built $built ${version:-with no release tag}"
+  codesign -d -r- "$built" 2>&1 | grep '^designated' || true
+}
+
+# The version the app shows is the client's: the newest aterm-android release tag, or
+# TREEHOUSE_VERSION where the tree carries no tags. Nothing prints when neither is there.
+app_version() {
+  local found=${TREEHOUSE_VERSION:-}
+  [ -n "$found" ] || found=$(git -C "$repo_root" tag --list 'aterm-android-v*' --sort=-v:refname 2>/dev/null | head -n1)
+  found=${found#aterm-android-v}
+  printf '%s' "$found" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' && printf '%s' "$found"
+}
+
+identity_present() {
+  [ -f "$sign_keychain" ] && security find-identity -p codesigning "$sign_keychain" | grep -Fq "$sign_name"
+}
+
+# Tauri leaves a linker signature that seals no Info.plist, so sign again under the bundle
+# id. Ad-hoc is a new identity per build to macOS, and its privacy grants do not survive.
+sign_app() {
+  if [ -n "${TREEHOUSE_SIGN_IDENTITY:-}" ]; then
+    codesign --force --deep --sign "$TREEHOUSE_SIGN_IDENTITY" --identifier "$bundle_id" "$1"
+  elif identity_present; then
+    sign_from_keychain "$1"
+  elif [ -n "${TREEHOUSE_SIGN_ADHOC:-}" ]; then
+    codesign --force --deep --sign - --identifier "$bundle_id" "$1"
+  else
+    fail "no signing identity. Run the sign-setup verb, or set TREEHOUSE_SIGN_ADHOC=1 for a throwaway build"
+  fi
+}
+
+# codesign finds an untrusted self-signed identity only through the search list, and a
+# --keychain path alone says no identity found. The list is put back when it is done.
+sign_from_keychain() {
+  local listed=() line status=0
+  while IFS= read -r line; do
+    line=${line#*\"}
+    listed+=("${line%\"*}")
+  done < <(security list-keychains -d user)
+  security unlock-keychain -p "" "$sign_keychain"
+  security list-keychains -d user -s ${listed[@]+"${listed[@]}"} "$sign_keychain"
+  codesign --force --deep --sign "$sign_name" --identifier "$bundle_id" "$1" || status=$?
+  security list-keychains -d user -s ${listed[@]+"${listed[@]}"}
+  return "$status"
+}
+
+# Reads the certificate and key from SSM once into a keychain of their own, so an
+# unattended build needs no AWS session. Mode 600 files, gone on exit, never echoed.
+sign_setup() {
+  if identity_present; then echo "sign-setup: unchanged"; return; fi
+  command -v aosguard >/dev/null || fail "aosguard is not on PATH"
+  (
+    umask 077
+    work=$(mktemp -d)
+    trap 'rm -rf "$work"' EXIT
+    for part in cert key; do
+      aosguard ops aws ssm get-parameter --name "/coilysiren/codesign/aterm-$part" --with-decryption \
+        --query Parameter.Value --output text > "$work/$part.pem" || fail "could not read the $part from SSM"
+    done
+    TREEHOUSE_P12_PASS=$(openssl rand -hex 16)
+    export TREEHOUSE_P12_PASS
+    openssl pkcs12 -export -inkey "$work/key.pem" -in "$work/cert.pem" -name "$sign_name" \
+      -passout env:TREEHOUSE_P12_PASS -out "$work/id.p12"
+    [ -f "$sign_keychain" ] || security create-keychain -p "" "$sign_keychain"
+    security set-keychain-settings "$sign_keychain"
+    security unlock-keychain -p "" "$sign_keychain"
+    security import "$work/id.p12" -k "$sign_keychain" -P "$TREEHOUSE_P12_PASS" -T /usr/bin/codesign >/dev/null
+    security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$sign_keychain" >/dev/null
+  )
+  identity_present || fail "the identity is not in $sign_keychain after the import"
+  echo "sign-setup: imported $sign_name"
 }
 
 install() {
@@ -95,7 +172,9 @@ login() {
 case "${1:-}" in
   test) test_shell ;;
   build) build ;;
+  version) app_version ;;
+  sign-setup) sign_setup ;;
   install) install ;;
   login) shift; login "${1:-status}" ;;
-  *) fail "usage: treehouse-mac.sh test|build|install|login [on|off|status]" ;;
+  *) fail "usage: treehouse-mac.sh test|build|version|sign-setup|install|login [on|off|status]" ;;
 esac

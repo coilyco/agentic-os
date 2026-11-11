@@ -6,6 +6,7 @@ A way into the client with no host to connect to (COI-3315). A Google Play revie
 
 * **The first screen** - on "Pick a host", a dashed amber card offers **Try the demo** above the host form. At 320px it is on screen without scrolling.
 * **Inside** - four made-up seats, a question from one of them (a choice card), two messages between seats, and a side Terminal tab. The first seat opens on its terminal.
+* **A seat in Focus** - the first seat has a made-up transcript read from memory, so Focus, Default and Verbose show, and it "shares" three drawn pictures that open in the viewer. Both live in [`demo-script.ts`](../../../../aterm-client/src/lib/demo-script.ts) and [`demo-frames.ts`](../../../../aterm-client/src/lib/fixtures/demo-frames.ts). The transcript keeps no page on the device.
 * **Marked everywhere** - an amber `DEMO` bar sits above the whole page, above the seat menu too, so no screen can pass for a real host. Each seat prints a `DEMO` line first, the side terminal does the same, and the tab title starts `DEMO //`.
 * **Leaving** - **Leave demo** returns to "Pick a host" with focus on **Try the demo**. Nothing of the demo stays.
 

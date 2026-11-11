@@ -78,11 +78,13 @@ than editing it by hand.
 * [demo-mode.md](references/demo-mode.md) - "Try the demo": a bundled host of made-up seats with no network and no real shell, for a store reviewer with no daemon.
 * [native-notify.md](references/native-notify.md) - the Mac and Android apps' system notification for a coordinator's notify, the one-time ask, and what a tap does.
 * [android-dictation.md](references/android-dictation.md) - the composer's mic on Android: the phone's own speech recognition, why that engine, and what is not yet checked on a phone.
+* [android-speak.md](references/android-speak.md) - read a reply aloud on Android: the `speak` plugin's four commands, what it does with focus, and what is measured.
 * [save-file.md](references/save-file.md) - the app's `savefile` plugin: what Download does inside the app, the five commands, and where a file lands.
 * [android-sharetarget.md](references/android-sharetarget.md) - Treehouse as an Android Share target for images: the sheet, the plugin, and what is not yet checked on a phone.
 * [device-key.md](references/device-key.md) - the Android app's unlock with the phone's own key, as a person sees it.
 * [device-key-daemon.md](references/device-key-daemon.md) - the daemon half: the frames, the attestation checks, and the app origin.
 * [resume.md](references/resume.md) - the unlock that survives a phone lock: the resume proof, the window setting, the gate it leaves closed, and the Pixel procedure.
+* [passkey-replica.md](references/passkey-replica.md) - one passkey enrollment unlocking every daemon of Kai's: the primary publishes to SSM, a replica follows it read-only.
 * [treehouse-broker.md](references/treehouse-broker.md) - the brokered path: the three settings, how a brokered channel unlocks with an accounts token, and what is not built yet.
 * [views-and-browser.md](references/views-and-browser.md) - MCP Apps views and the shared browser.
 * [browser.md](references/browser.md) - the daemon's streamed Chromium and its `browser_*` frames.

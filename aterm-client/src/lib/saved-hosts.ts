@@ -40,6 +40,18 @@ export function loadSavedHosts(): SavedHost[] {
   }
 }
 
+/** A fresh profile starts with the host its build names, listed first and written nowhere
+ *  until a person adds or removes one. A stored list, even an empty one, is theirs. */
+export function startingHosts(built: SavedHost | null): SavedHost[] {
+  let fresh = false;
+  try {
+    fresh = localStorage.getItem(KEY) === null;
+  } catch {
+    fresh = true;
+  }
+  return fresh && built ? [built] : loadSavedHosts();
+}
+
 export function storeSavedHosts(hosts: readonly SavedHost[]): void {
   try {
     localStorage.setItem(KEY, JSON.stringify(hosts));

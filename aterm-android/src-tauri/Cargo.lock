@@ -192,6 +192,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-savefile",
  "tauri-plugin-sharetarget",
+ "tauri-plugin-speak",
 ]
 
 [[package]]
@@ -3643,6 +3644,16 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-sharetarget"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "tauri-plugin-speak"
 version = "0.1.0"
 dependencies = [
  "serde",

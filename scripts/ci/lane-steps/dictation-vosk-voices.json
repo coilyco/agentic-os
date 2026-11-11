@@ -1,0 +1,91 @@
+{
+  "name": "which espeak voice does Vosk's small model recognise best (COI-3591)",
+  "start": "seat",
+  "steps": [
+    {
+      "op": "recognizer",
+      "service": "vosk",
+      "input": "file",
+      "variant": 1
+    },
+    {
+      "op": "fill",
+      "selector": "#composer-input",
+      "text": ""
+    },
+    {
+      "op": "tap",
+      "selector": "[aria-label=\"Dictate\"]"
+    },
+    {
+      "op": "sleep",
+      "seconds": 9
+    },
+    {
+      "op": "eval",
+      "js": "document.querySelector('#composer-input').value",
+      "save": "heard_1"
+    },
+    {
+      "op": "recognizer",
+      "service": "vosk",
+      "input": "file",
+      "variant": 2
+    },
+    {
+      "op": "fill",
+      "selector": "#composer-input",
+      "text": ""
+    },
+    {
+      "op": "tap",
+      "selector": "[aria-label=\"Dictate\"]"
+    },
+    {
+      "op": "sleep",
+      "seconds": 9
+    },
+    {
+      "op": "eval",
+      "js": "document.querySelector('#composer-input').value",
+      "save": "heard_2"
+    },
+    {
+      "op": "recognizer",
+      "service": "vosk",
+      "input": "file",
+      "variant": 3
+    },
+    {
+      "op": "fill",
+      "selector": "#composer-input",
+      "text": ""
+    },
+    {
+      "op": "tap",
+      "selector": "[aria-label=\"Dictate\"]"
+    },
+    {
+      "op": "sleep",
+      "seconds": 9
+    },
+    {
+      "op": "eval",
+      "js": "document.querySelector('#composer-input').value",
+      "save": "heard_3"
+    },
+    {
+      "op": "shot",
+      "name": "composer-last"
+    },
+    {
+      "op": "recognizer",
+      "service": "system"
+    },
+    {
+      "op": "logcat",
+      "name": "speech",
+      "pattern": "VoskDictation"
+    }
+  ]
+}
