@@ -1,6 +1,6 @@
 # A seat's artifact in the client
 
-A seat can put a claude.ai artifact in front of Kai without her leaving aterm. claude.ai refuses to be framed (`frame-ancestors 'self'`, measured in COI-3325), so the [host daemon](../../../../docs/aterm-daemon.md) pushes the seat's own source file and the client draws that, with a link out to the page. This page is the daemon half (COI-3329). The client half is COI-3330.
+A seat can put a claude.ai artifact in front of Kai without her leaving aterm. claude.ai refuses to be framed (`frame-ancestors 'self'`, measured in COI-3325), so the [host daemon](../../../../docs/aterm-daemon.md) pushes the seat's own source file and the client draws that, with a link out to the page. This page is the daemon half (COI-3329) and the client's reader (COI-3330).
 
 **`aterm artifact add --url <page> --title <name> --source <file> [--waiting] [--standing]` registers a page.** `aterm artifact waiting <url|id> [--off]` and `aterm artifact remove <url|id>` change it. The MCP tools are `add_artifact`, `set_artifact_waiting` and `remove_artifact`. The seat is named by its `ATERM_SESSION_TOKEN`, as `send` is.
 
@@ -27,3 +27,11 @@ Welcome feature `artifacts`. They ride the `views` channel, replayed on `subscri
 * **A restart keeps standing pages.** Pages are written to `artifacts/` beside the ledger (`~/.local/state/aterm/artifacts`, 0700 directory, 0600 files). After a restart a page whose seat was adopted comes back as posted, a standing page whose seat is gone comes back with `seat_ended`, and any other page is dropped. A file the daemon did not write is left alone.
 
 **The source and the path are never logged.** The daemon logs the seat and how many clients took the page.
+
+## The reader (COI-3330)
+
+* **A list, "Pages for you".** At the top of the seat overview and of every seat's Views tab, waiting pages first. A row is the title, who posted it (`from Imp-Dragonfly, seat ended` once that seat is gone) and a Waiting chip. A host with no pages shows none, and its Views tab is unchanged.
+* **A page opens in a full-screen reader** over whatever is on screen, drawn from the source the seat published it from. The frame is `sandbox="allow-scripts"` and never `allow-same-origin`, so a page runs with no origin and no access to this app's storage. The client pins a policy first that lets only the hosts the Artifact tool allows load (cdnjs, jsDelivr, unpkg, the Tailwind and jQuery CDNs, Google Fonts and its font files), with no network for the page itself. The daemon sends no policy. `artifact-pages.ts` holds the list and a test pins the sandbox word.
+* **Open on claude.ai is the first action** after Back. claude.ai refuses to be framed, so the real page opens in the device's own browser, where Kai is signed in. Measured on the Android app: the opener launches Chrome, and Back returns to Treehouse with its state kept. Only an address that is exactly a claude.ai artifact is offered.
+* **A page that calls `window.claude`** says "Answer on the page", since a copy here cannot save an answer. A page whose seat ended says so, and a page its seat closes says so and leaves the list. A page with no source says so and still offers the real page.
+* **Attention.** A waiting page already counted as needing Kai (COI-3342). Its toast now opens the page, not the seat that left it. Focus moves into the reader and back to its row, Escape closes it, and the page behind is inert while it is open.

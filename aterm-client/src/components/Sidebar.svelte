@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
+  import canopy from "../assets/treehouse-canopy.svg?url";
   import CloseSeat from "./CloseSeat.svelte";
   import Origin from "./Origin.svelte";
   import PinSeat from "./PinSeat.svelte";
@@ -361,7 +362,7 @@
       </div>
     {/if}
   {:else}
-    <div class="mark">TREEHOUSE</div>
+    <img class="mark" src={canopy} alt="Treehouse" width="36" height="36" />
     {@render hostsGroup()}
     {#if app.attachedHostId}
       {@render runningGroup()}
@@ -383,7 +384,7 @@
   .feedback { margin-top: 14px; padding: 0 2px; }
   /* The footer sits at the bottom, where the Alerts block used to push it. */
   .feedback.foot { margin-top: auto; padding-top: 14px; }
-  .mark { font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: 0.08em; color: var(--brand); padding: 4px 10px 12px; }
+  .mark { align-self: flex-start; margin: 2px 10px 4px; }
   h2 { margin: 14px 10px 4px; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
   [role="tablist"] { display: flex; flex-direction: column; gap: 2px; }
   .note-actions { display: flex; gap: 8px; margin: 4px 10px 8px; }
@@ -436,7 +437,7 @@
   .name { font-weight: 600; font-size: 15px; }
   /* The harness tag wraps onto a second line the cap clips, so a long name stays whole and the tag is what gives way (COI-3562). */
   .name-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2em 6px; min-width: 0; max-height: 1.5em; overflow: hidden; }
-  .harness { flex: none; font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--accent) 60%, var(--line)); color: var(--text-soft); }
+  .harness { flex: none; font-size: 11px; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--control-line); color: var(--text-soft); }
   .code-inline { display: none; font-size: 11px; color: var(--muted); }
   .state-text { color: var(--text-soft); }
   [data-activity="unseen"] .state-text, [data-activity="asking"] .state-text { color: var(--brand); }

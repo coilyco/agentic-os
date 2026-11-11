@@ -64,7 +64,7 @@
   .running p { margin: 0 0 6px; color: var(--muted); }
   .running ul { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
   .link { min-height: 44px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--text); font: inherit; }
-  .link:hover { border-color: var(--accent); }
+  .link:hover { border-color: var(--brand); }
   .launch-state { margin: 0; min-height: 1.4em; color: var(--muted); }
   .launch-state[data-state="failed"] { color: var(--danger-text); }
   button:disabled { opacity: 0.6; cursor: progress; }

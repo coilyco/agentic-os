@@ -183,7 +183,7 @@
 {/if}
 
 <style>
-  .viewer { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: #06070b; color: var(--text); padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .viewer { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--backdrop); color: var(--text); padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
   header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
   .who { min-width: 0; display: flex; flex-direction: column; }
   .who strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 15px var(--font-body); }

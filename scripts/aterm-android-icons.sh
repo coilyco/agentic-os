@@ -9,10 +9,10 @@ src="${1:?usage: aterm-android-icons.sh TREEHOUSE_DIR  (coilyco/website mark-exp
 repo_root=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 icons="$repo_root/aterm-android/src-tauri/icons"
 web="$repo_root/aterm-client/public"
-canopy="$src/treehouse-canopy-up-dark-512.png"
-canopy_svg="$src/treehouse-canopy-up-dark.svg"
-# The ink ground the canopy is drawn on, from its SVG's background rect.
-ink="#080711"
+export_svg="$src/treehouse-canopy-up-dark.svg"
+# The ink ground is --plate in the client token block, the one source the OS chrome reads.
+ink=$(sed -nE 's/^[[:space:]]*--plate:[[:space:]]*(#[0-9a-fA-F]{6});.*/\1/p' "$repo_root/aterm-client/src/app.css")
+[ -n "$ink" ] || { echo "no --plate as #rrggbb in aterm-client/src/app.css" >&2; exit 1; }
 # The canopy square's share of the 108dp adaptive canvas. Its mark is 57% wide, 71% tall
 # inside it, and the safe zone is a 66dp circle (61%), so 85% keeps all of it inside.
 fg_share=85
@@ -21,10 +21,18 @@ legacy_share=70
 # A maskable web icon keeps its content inside the central 80 percent.
 maskable_share=80
 
-for f in "$canopy" "$canopy_svg"; do
-  [ -f "$f" ] || { echo "missing $f" >&2; exit 1; }
-done
+[ -f "$export_svg" ] || { echo "missing $export_svg" >&2; exit 1; }
 command -v magick >/dev/null || { echo "ImageMagick (magick) is required" >&2; exit 1; }
+command -v rsvg-convert >/dev/null || { echo "rsvg-convert (librsvg) is required" >&2; exit 1; }
+
+# The export draws the mark on its own ground rect. Swap only that rect's fill for the ink
+# and render it, so the mark's paths stay as exported and the tile follows the token.
+canopy_svg=$(mktemp -t canopy.XXXXXX)
+canopy=$(mktemp -t canopy.XXXXXX)
+trap 'rm -f "$canopy_svg" "$canopy"' EXIT
+sed -E 's/(<rect x="-20" y="-20" width="140" height="140" fill=")#[0-9a-fA-F]{6}("\/>)/\1'"$ink"'\2/' "$export_svg" >"$canopy_svg"
+grep -q "fill=\"$ink\"/><g" "$canopy_svg" || { echo "no ground rect to retint in $export_svg" >&2; exit 1; }
+rsvg-convert -w 512 -h 512 "$canopy_svg" -o "$canopy"
 
 # png OUT ARGS...: a reproducible PNG, with no timestamp chunks to churn the diff.
 png() { local out=$1; shift; magick "$@" -strip -depth 8 -define png:exclude-chunks=date,time "$out"; }

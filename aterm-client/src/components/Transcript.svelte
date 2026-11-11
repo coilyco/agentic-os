@@ -228,7 +228,7 @@
   .earlier { flex: none; align-self: center; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--control-line); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); }
   .earlier:disabled { opacity: 0.6; }
   .earlier:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-  .jump { position: absolute; right: 12px; bottom: 44px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px #000a; }
+  .jump { position: absolute; right: 12px; bottom: 44px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px var(--shade); }
   .jump:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .turn :global(p) { margin: 0 0 8px; }
   .turn :global(p:last-child) { margin-bottom: 0; }

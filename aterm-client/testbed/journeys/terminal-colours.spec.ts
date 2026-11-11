@@ -1,12 +1,12 @@
 // COI-3549: the terminal reads its colours through a DOM probe, not a literal. This pins
-// the four xterm paints to the hex they had when Terminal.svelte hardcoded them, so a
-// retune that moves one is a deliberate edit here and not a silent drift.
+// the four xterm paints to Kai's Treehouse values (COI-3551), so a retune that moves one
+// is a deliberate edit here and not a silent drift.
 import { expect, SEATS, test } from "../harness.ts";
 
-// Shipped before the refactor: background and foreground, plus the seat's role colour
-// (frontend-eng in the roster fixture) as the cursor and, at alpha 0x55, the selection.
-const BACKGROUND = "#101216";
-const FOREGROUND = "#d4d8e0";
+// --terminal and --text-soft, plus the seat's role colour (frontend-eng in the roster
+// fixture) as the cursor and, at alpha 0x55, the selection.
+const BACKGROUND = "#271a0c";
+const FOREGROUND = "#ddd6cf";
 const ACCENT = "#ee7eea";
 const SELECTION_ALPHA = 0x55 / 255;
 
@@ -51,4 +51,17 @@ test("the terminal paints the background, text, cursor, and selection colours it
   const painted = parts(await selection.evaluate((node) => getComputedStyle(node).backgroundColor));
   // One level of rounding either way is xterm's blend, two is a different colour.
   painted.forEach((value, i) => expect(Math.abs(value - (blended[i] ?? 0)), `selection channel ${i}: ${painted} vs ${blended}`).toBeLessThanOrEqual(1));
+});
+
+// COI-3552: the 16 ANSI colours are tokens too, and an escape code picks them up.
+test("an escape code paints the palette chosen for the brown ground", async ({ bed }) => {
+  await bed.openSeat(SEATS.imp);
+  bed.mock.setScene(SEATS.imp.id, { render: () => ["\x1b[31mred \x1b[91mbright \x1b[0mplain"] });
+  await expect(bed.screen()).toContainText("red bright plain");
+  const painted = await bed.page.evaluate(() => {
+    const colour = (cls: string) => getComputedStyle(document.querySelector(`.xterm-rows .${cls}`)!).color;
+    return { red: colour("xterm-fg-1"), bright: colour("xterm-fg-9") };
+  });
+  expect(painted.red, "ANSI red").toBe(rgb("#ee7769"));
+  expect(painted.bright, "ANSI bright red").toBe(rgb("#ff9a8d"));
 });

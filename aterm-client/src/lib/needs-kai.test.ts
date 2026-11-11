@@ -4,7 +4,7 @@ import type { Ask, SeatArtifact } from "./protocol";
 
 const seat = (n: number) => ({ id: `role-seat-${n}`, role: "role", identity: `Seat-${n}` });
 const ask = (session: string, extra: Partial<Ask> = {}): Ask => ({ id: `ask-${session}`, session, header: "h", question: "q", options: [], allowOther: false, multi: false, ...extra });
-const page = (session: string, extra: Partial<SeatArtifact> = {}): SeatArtifact => ({ id: `page-${session}`, session, waiting: true, seatEnded: false, ...extra });
+const page = (session: string, extra: Partial<SeatArtifact> = {}): SeatArtifact => ({ id: `page-${session}`, session, title: "A page", url: "https://claude.ai/artifact/x", html: "<p>x</p>", standing: false, waiting: true, seatEnded: false, ...extra });
 
 describe("seatsNeedingKai", () => {
   const twenty = Array.from({ length: 20 }, (_, n) => seat(n));

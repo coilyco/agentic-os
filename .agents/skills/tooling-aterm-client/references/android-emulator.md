@@ -35,6 +35,8 @@ Starting the whole rig and the card-tap recipe: [android-emulator-rig.md](androi
 * Dispatch `gh workflow run aterm-android.yml -f debug_abi=x86_64` (or `aarch64`) and take the `aterm-android-debug-<abi>-<run id>` artifact with `gh run download`. A debug dispatch builds that and nothing else, so nothing publishes.
 * **An x86_64 emulator needs an x86_64 build.** The app has no arch-specific native code (no `target_arch`, `abiFilters`, `jniLibs`, `ring` or `openssl` in `aterm-android`), so the same sources build for either ABI. The release path stays arm64-only, and the image's `ro.product.cpu.abilist` reads `x86_64,arm64-v8a`, so the arm64 release APK installs and runs by ARM translation (v0.38.0, `primaryCpuAbi=arm64-v8a`, COI-2484).
 * The debug APK is signed by Gradle's debug key and is not the Play or Obtainium build. Each GitHub debug build has its own signing key, so a newer one, or a release build, needs `install --reinstall`, which clears the app's data.
+* **A fresh install asks for the notification permission**, and the dialog covers the app and swallows every tap (`tap-selector` then fails with exit 1 or 8). Tap Don't allow with `adb shell input tap`. It returns after any `wm density` change, which recreates the activity.
+* **Aa shows only under 360 CSS px**, and this phone is 412 wide. `adb shell wm density 540` makes it 320 and `wm density reset` undoes it. The seat's own screen is the Messages tab with a seat that keeps no transcript, and the Terminal tab spawns a host shell, which the rig refuses.
 
 ## Reaching a daemon
 

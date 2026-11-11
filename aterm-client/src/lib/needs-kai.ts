@@ -8,6 +8,8 @@ export interface NeedsKai {
   role: string;
   identity: string;
   kind: "asking" | "artifact";
+  /** The first waiting page of the seat, for an artifact entry. */
+  pageId?: string;
 }
 
 interface Seat {
@@ -21,15 +23,15 @@ export function seatsNeedingKai(asks: readonly Ask[], artifacts: readonly SeatAr
   const bySession = new Map(sessions.map((seat) => [seat.id, seat]));
   const live = new Set(bySession.keys());
   // A standing page outlives its seat. With no seat on screen there is nothing to open.
-  const pages = artifacts.filter((page) => page.waiting && !page.seatEnded).map((page) => ({ id: page.session, kind: "artifact" as const }));
-  const questions = asks.map((ask) => ({ id: cardSeatOf(ask, live), kind: "asking" as const }));
+  const pages = artifacts.filter((page) => page.waiting && !page.seatEnded).map((page) => ({ id: page.session, kind: "artifact" as const, pageId: page.id }));
+  const questions = asks.map((ask) => ({ id: cardSeatOf(ask, live), kind: "asking" as const, pageId: undefined }));
   const seen = new Set<string>();
   const found: NeedsKai[] = [];
-  for (const { id, kind } of [...questions, ...pages]) {
+  for (const { id, kind, pageId } of [...questions, ...pages]) {
     const seat = bySession.get(id);
     if (!seat || seen.has(id)) continue;
     seen.add(id);
-    found.push({ sessionId: id, role: seat.role, identity: seat.identity, kind });
+    found.push({ sessionId: id, role: seat.role, identity: seat.identity, kind, ...(pageId ? { pageId } : {}) });
   }
   return found;
 }

@@ -3,7 +3,9 @@
   import canopy from "../assets/treehouse-canopy.svg?url";
   import CloseSeat from "./CloseSeat.svelte";
   import Creature from "./Creature.svelte";
-  import { app, askLineFor, needsKaiIds, openByPerson, openSettings, pinnedNow, selectedHost, showAllRoles, showLogo } from "../lib/app.svelte";
+  import PagesList from "./PagesList.svelte";
+  import { app, askLineFor, needsKaiIds, openByPerson, openPage, openSettings, pinnedNow, selectedHost, showAllRoles, showLogo } from "../lib/app.svelte";
+  import { pageRows } from "../lib/artifact-pages";
   import { ageText } from "../lib/age";
   import { splitHidden } from "../lib/hidden-roles";
   import { groupSeats, type GroupKey } from "../lib/overview";
@@ -18,6 +20,7 @@
   const split = $derived(splitHidden(orderSessions(app.sessions, app.roles, pinnedNow), app.hiddenRoles, (seat) => seat.state === "failed" || pinnedNow(seat) || needs.has(seat.id)));
   const groups = $derived(groupSeats(split.shown, { needs, unseen: app.unseen }));
   const running = $derived(splitSessions(app.sessions).running.length);
+  const pages = $derived(pageRows(Object.values(app.artifacts), app.sessions));
   // The stylesheet's own breakpoint, as the list tracks it, since Close stacks under a row on a phone.
   let narrow = $state(typeof matchMedia === "function" && matchMedia("(max-width: 720px)").matches);
   onMount(() => {
@@ -78,6 +81,8 @@
 
   {#if app.notice}<p class="note" role="status">{app.notice}</p>{/if}
 
+  {#if pages.length}<PagesList rows={pages} onopen={openPage} headingId="overview-pages" />{/if}
+
   {#if groups.length === 0 && split.hidden.length === 0}
     <p class="empty" role="status">Nothing is running on {host?.label ?? "this host"}. Start a seat from the roles in the list.</p>
   {/if}
@@ -132,7 +137,7 @@
   ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
   .row { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .open { flex: 1; min-width: 0; min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--terminal); color: var(--text); text-align: left; font: inherit; }
-  .open:hover { border-color: var(--accent); }
+  .open:hover { border-color: var(--brand); }
   /* The same faint tint and thin rail a waiting seat gets in the list, so the two read as one thing. */
   .row[data-group="needs"] .open { background: color-mix(in srgb, var(--accent) 9%, var(--ground)); box-shadow: inset 2px 0 0 var(--accent); }
   .text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }

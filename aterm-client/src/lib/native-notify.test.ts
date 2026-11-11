@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { askPermission, listenForTaps, nativeCore, nativeNotice, permissionOf, showNative, tappedSeat } from "./native-notify";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { askPermission, listenForTaps, nativeCore, nativeNotice, noticeId, parseNoted, permissionOf, seatOfTap, showNative, tappedFromActive, tappedSeat } from "./native-notify";
 import type { Notify } from "./protocol";
 
 const note: Notify = { id: "n1", session: "prod-director-griffin-goose", role: "prod-director", identity: "Griffin-Goose", title: "Decision needed", body: "Pick the order", at: 1 };
@@ -39,7 +39,7 @@ describe("showNative", () => {
     const invoke = vi.fn(() => Promise.resolve(null));
     expect(await showNative(core(invoke), note)).toBe(true);
     expect(invoke).toHaveBeenCalledWith("plugin:notification|notify", nativeNotice(note));
-    expect(nativeNotice(note).options).toEqual({ title: "Decision needed", body: "Pick the order", extra: { session: "prod-director-griffin-goose" } });
+    expect(nativeNotice(note).options).toEqual({ id: noticeId(note.session), title: "Decision needed", body: "Pick the order", extra: { session: "prod-director-griffin-goose" } });
   });
   it("is false when the system refuses", async () => {
     expect(await showNative(core(() => Promise.reject(new Error("refused"))), note)).toBe(false);
@@ -72,7 +72,7 @@ describe("listenForTaps", () => {
     expect(add).toHaveBeenCalledWith("notification", "actionPerformed", expect.any(Function));
     deliver({ notification: { extra: { session: "s1" } } });
     deliver({ notification: {} });
-    expect(open).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(open).toHaveBeenCalledTimes(1));
     expect(open).toHaveBeenCalledWith("s1");
     stop();
     expect(unregister).toHaveBeenCalled();
@@ -82,5 +82,67 @@ describe("listenForTaps", () => {
     expect(() => stop()).not.toThrow();
     const failing = await listenForTaps({ invoke: () => Promise.resolve(null), addPluginListener: () => Promise.reject(new Error("x")) }, vi.fn());
     expect(() => failing()).not.toThrow();
+  });
+});
+
+const storage = () => {
+  const held = new Map<string, string>();
+  return { getItem: (key: string) => held.get(key) ?? null, setItem: (key: string, value: string) => void held.set(key, value) };
+};
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("noticeId", () => {
+  it("is one positive whole number per seat, and differs between seats", () => {
+    const id = noticeId("prod-director-griffin-goose");
+    expect(id).toBe(noticeId("prod-director-griffin-goose"));
+    expect(Number.isInteger(id) && id > 0 && id <= 2147483647).toBe(true);
+    expect(id).not.toBe(noticeId("eng-platform-beetle-ox"));
+  });
+});
+
+describe("parseNoted", () => {
+  const now = 10 * 24 * 3600 * 1000;
+  it("keeps what is under a day old and drops the rest, junk and wrong shapes", () => {
+    const text = JSON.stringify({ "1": { session: "a", at: now - 1000 }, "2": { session: "b", at: now - 25 * 3600 * 1000 }, "3": { session: 4, at: now }, "4": null });
+    expect(parseNoted(text, now)).toEqual({ "1": { session: "a", at: now - 1000 } });
+    expect(parseNoted(null, now)).toEqual({});
+    expect(parseNoted("not json", now)).toEqual({});
+  });
+});
+
+describe("tappedFromActive", () => {
+  const noted = { "10": { session: "old", at: 1 }, "20": { session: "new", at: 2 } };
+  it("is the newest raised notification that is no longer showing", () => {
+    expect(tappedFromActive(noted, new Set([10]))).toEqual({ id: "20", session: "new" });
+    expect(tappedFromActive(noted, new Set([20]))).toEqual({ id: "10", session: "old" });
+    expect(tappedFromActive(noted, new Set())).toEqual({ id: "20", session: "new" });
+  });
+  it("is none while every raised notification is still showing", () => {
+    expect(tappedFromActive(noted, new Set([10, 20]))).toBeNull();
+    expect(tappedFromActive({}, new Set())).toBeNull();
+  });
+});
+
+describe("a tap that names no seat", () => {
+  it("finds it from the record and what still shows, and forgets that notification", async () => {
+    vi.stubGlobal("localStorage", storage());
+    const sent = vi.fn(() => Promise.resolve(null));
+    await showNative(core(sent), note, 1000);
+    const active = vi.fn(() => Promise.resolve([] as unknown[]));
+    const asked = (command: string) => (command === "plugin:notification|get_active" ? active() : Promise.resolve(null));
+    expect(await seatOfTap(core(asked), { actionId: "tap" }, 2000)).toBe(note.session);
+    // The same tap seen again has nothing left to open.
+    expect(await seatOfTap(core(asked), { actionId: "tap" }, 3000)).toBeNull();
+  });
+  it("opens nothing when the notification is still showing, or the list cannot be read", async () => {
+    vi.stubGlobal("localStorage", storage());
+    await showNative(core(() => Promise.resolve(null)), note, 1000);
+    const showing = () => Promise.resolve([{ id: noticeId(note.session) }]);
+    expect(await seatOfTap(core(showing), { actionId: "tap" }, 2000)).toBeNull();
+    expect(await seatOfTap(core(() => Promise.reject(new Error("no"))), { actionId: "tap" }, 2000)).toBeNull();
+  });
+  it("prefers a seat the payload names", async () => {
+    expect(await seatOfTap(core(() => Promise.resolve(null)), { notification: { extra: { session: "named" } } })).toBe("named");
   });
 });

@@ -10,7 +10,7 @@
   import { envelopeRows } from "../lib/messages";
   import { harnessBox } from "../lib/harness";
   import { NO_BOX, steadyBox } from "../lib/box-rows";
-  import { resolveColour } from "../lib/brand";
+  import { ansiTheme, resolveColour } from "../lib/brand";
   import { openLink } from "../lib/link-notice.svelte";
   import { boxToReport, nextTall } from "../lib/pty-size";
   import { detectChoice } from "../lib/choices";
@@ -287,7 +287,7 @@
       lineHeight: LINE_HEIGHT,
       scrollback: SCROLLBACK,
       allowProposedApi: true,
-      theme: { background: resolveColour("var(--terminal)"), foreground: resolveColour("var(--text-soft)"), cursor: resolveColour(accent), selectionBackground: `${resolveColour(accent)}55` },
+      theme: { background: resolveColour("var(--terminal)"), foreground: resolveColour("var(--text-soft)"), cursor: resolveColour(accent), selectionBackground: `${resolveColour(accent)}55`, ...ansiTheme() },
     });
     term = terminal;
     // The seat's own window answers terminal queries. A reply from here would be

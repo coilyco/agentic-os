@@ -6,27 +6,28 @@
 
 :root {
   /* Every surface colour is a token here, and the build reads --ground and --plate. */
-  --ground: #0b0c10;
-  --plate: #080711;
-  --terminal: #101216;
-  --terminal-veil: #101216dd;
-  --surface: #13151b;
-  --hover: #171a21;
-  --raised: #17131f;
-  --selected: #1d1729;
-  --line: #2a2f3a;
-  --control-line: #3a3f4b;
-  --chip-line: #3a3350;
+  --ground: #1f1307;
+  --plate: #1f1307;
+  --terminal: #271a0c;
+  --terminal-veil: #271a0cdd;
+  --surface: #2e1f11;
+  --hover: #332314;
+  --raised: #2b1d0f;
+  --selected: #39291a;
+  --line: #453425;
+  --control-line: #554434;
+  --chip-line: var(--control-line);
   --shade: #000a;
+  --backdrop: #0f0903;
   --track: #ffffff1f;
-  --text: #f5f7fa;
-  --text-soft: #d4d8e0;
-  --muted: #a4abb9;
+  --text: #f9f4f0;
+  --text-soft: #ddd6cf;
+  --muted: #b4a99e;
   /* Treehouse green, the app's one accent. Retune its hue here and the accent follows. */
-  --treehouse: #66dd8a;
+  --treehouse: #6cdc85;
   --brand: var(--treehouse);
   --brand-ink: #0b1a10;
-  --ok: #5ee6a8;
+  --ok: var(--brand);
   --warn: #ffb454;
   --warn-text: #ffc98a;
   --warn-fill: #1a1712;
@@ -36,6 +37,23 @@
   --danger-detail: #ff9aa5;
   --danger-fill: #2a1419;
   --danger-line: #5a3a41;
+  /* The harness's palette on the --terminal ground. No chrome reads one. */
+  --ansi-black: #271a0c;
+  --ansi-red: #ee7769;
+  --ansi-green: #7ccf8a;
+  --ansi-yellow: #e2b95a;
+  --ansi-blue: #74a7ff;
+  --ansi-magenta: #d08fd0;
+  --ansi-cyan: #5cc9bd;
+  --ansi-white: #ddd6cf;
+  --ansi-bright-black: #9d8f80;
+  --ansi-bright-red: #ff9a8d;
+  --ansi-bright-green: #9be6a6;
+  --ansi-bright-yellow: #f2d27c;
+  --ansi-bright-blue: #9bc0ff;
+  --ansi-bright-magenta: #e5aee5;
+  --ansi-bright-cyan: #85e0d5;
+  --ansi-bright-white: #f9f4f0;
   --font-display: "Chakra Petch", sans-serif;
   --font-body: "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
