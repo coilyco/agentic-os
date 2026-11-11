@@ -145,6 +145,8 @@ export type HostEvent =
   | { type: "roster"; roles: Role[] }
   | { type: "sessions"; sessions: Session[] }
   | { type: "output"; sessionId: string; data: string | Uint8Array }
+  // What was drawn does not join what comes next, so the screen is cleared first.
+  | { type: "output_reset"; sessionId: string }
   | { type: "message"; message: PeerMessage }
   | { type: "notice"; text: string }
   // A seat asked to open a page. Its name is the label, and the daemon names no pane.

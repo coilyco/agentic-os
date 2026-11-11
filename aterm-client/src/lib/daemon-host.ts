@@ -1,6 +1,7 @@
 // aterm.daemon.v1 over the daemon's loopback websocket. The frame reference is
 // the Wire contract section of the aterm daemon page in coilyco/agentic-os.
 import { quietSince } from "./age";
+import { ScreenTails } from "./screen-tail";
 import { toActivity } from "./seat-activity";
 import { backoffDelay, differentBuild } from "./backoff";
 import { safely } from "./pane-watch";
@@ -64,6 +65,9 @@ export const DEFAULT_DAEMON_URL =
 
 interface SessionView {
   name: string;
+  /** When this run of the seat began, which tells a restarted seat from the same one. */
+  started?: string;
+  pid?: number;
   role: string;
   identity: string;
   seat: string;
@@ -431,6 +435,8 @@ export class DaemonHost implements HostConnection {
   private lastPoke = new Map<string, number>();
   // What arrived since a seat's last attach, so an ask-again can place a lost replay.
   private arrived = new Map<string, { since: number; frames: number; bytes: number }>();
+  // What each opened seat's terminal drew, so a reopen asks only for the rest.
+  private tails = new ScreenTails();
   private busy = new Set<string>();
   // When the latest `sessions` frame arrived. Its `quiet_seconds` count back from here.
   private viewsAt = 0;
@@ -746,8 +752,22 @@ export class DaemonHost implements HostConnection {
     this.attached.set(sessionId, { rows, cols, count: (this.attached.get(sessionId)?.count ?? 0) + 1 });
     this.lastPoke.set(sessionId, Date.now());
     this.arrived.set(sessionId, { since: Date.now(), frames: 0, bytes: 0 });
-    this.request({ type: "attach", session: sessionId, replay: true, rows, cols, ...(this.ptySize ? { scales: true } : {}) });
+    this.request({ type: "attach", session: sessionId, replay: true, rows, cols, ...this.resumeFrom(sessionId), ...(this.ptySize ? { scales: true } : {}) });
   }
+
+  // Draws what the terminal held at once and names where the host goes on from.
+  private resumeFrom(sessionId: string): { offset?: number } {
+    this.tails.keep(sessionId, this.runOf(sessionId));
+    const held = this.tails.resume(sessionId);
+    if (!held) return {};
+    this.emit({ type: "output", sessionId, data: held.bytes });
+    return { offset: held.end };
+  }
+
+  private runOf = (name: string): string => {
+    const view = this.sessionViews.find((each) => each.name === name);
+    return `${view?.started ?? ""}/${view?.pid ?? ""}`;
+  };
 
   replay(sessionId: string): void {
     const shown = this.attached.get(sessionId);
@@ -755,6 +775,8 @@ export class DaemonHost implements HostConnection {
     // Zero frames, socket open: lost before here. Frames that never drew: in the pane.
     console.warn(`aterm: asking ${sessionId} for its screen again, ${got ? `${got.frames} frame(s), ${got.bytes} byte(s) in ${Date.now() - got.since} ms since the last attach` : "no attach on record"}, socket ${this.open ? "open" : "closed"}, ${this.outbox.length} queued`);
     this.lastPoke.set(sessionId, Date.now());
+    // The screen is asked for whole, since the one drawn never showed.
+    this.tails.clear(sessionId);
     const box = shown ? { rows: shown.rows, cols: shown.cols, ...(this.ptySize ? { scales: true } : {}) } : {};
     this.request({ type: "attach", session: sessionId, replay: true, ...box });
   }
@@ -931,7 +953,7 @@ export class DaemonHost implements HostConnection {
         this.arrived.set(name, { since: Date.now(), frames: 0, bytes: 0 });
       }
       const box = shown ? { rows: shown.rows, cols: shown.cols, ...(this.ptySize ? { scales: true } : {}) } : {};
-      this.request({ type: "attach", session: name, replay: shown !== undefined, ...box });
+      this.request({ type: "attach", session: name, replay: shown !== undefined, ...(shown ? this.resumeFrom(name) : {}), ...box });
     }
     for (const [session, size] of this.watching) this.request({ type: "browser_watch", session, ...(size ?? {}) });
   }
@@ -1081,7 +1103,11 @@ export class DaemonHost implements HostConnection {
       case "output":
         if (!frame.session || !frame.data) return;
         this.noteOutput(frame.session);
-        this.emit({ type: "output", sessionId: frame.session, data: this.counted(frame.session, decode(frame.data)) });
+        {
+          const noted = this.tails.note(frame.session, decode(frame.data), frame.offset);
+          if (noted.reset) this.emit({ type: "output_reset", sessionId: frame.session });
+          if (noted.data) this.emit({ type: "output", sessionId: frame.session, data: this.counted(frame.session, noted.data) });
+        }
         return;
       case "message":
         if (frame.message) this.emit({ type: "message", message: toMessage(frame.message) });

@@ -626,6 +626,13 @@
           trackView();
         });
       }
+      else if (event.type === "output_reset" && event.sessionId === sessionId) {
+        afterQueued(terminal, "clearing, the host's screen does not join the one drawn", () => {
+          terminal.reset();
+          remark();
+          trackView();
+        });
+      }
       // The host attaches this seat again with replay right after, so the old screen would print twice.
       else if (event.type === "size" && event.sessionId === sessionId) {
         // Behind the bytes already queued, which the harness drew for the size before this one.
