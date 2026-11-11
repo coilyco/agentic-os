@@ -1,7 +1,7 @@
 // COI-3532: Focus, Default and Verbose views of a seat, read from its transcript.
 // Peer messages never show in them. The raw screen stays under them and in Verbose.
 import { existsSync, readFileSync } from "node:fs";
-import { expect, kindOf, SEATS, test, type Bed } from "../harness.ts";
+import { expect, kindOf, SEATS, test, type Bed, reopenSeat } from "../harness.ts";
 
 test.use({ mockOptions: { transcript: true } });
 
@@ -86,9 +86,8 @@ test.describe("on a phone", () => {
   test("the stop is the seat's own and kept on the device", async ({ bed }) => {
     await open(bed);
     await stop(bed, "Default").click();
-    await bed.page.reload();
-    // The app now rests on the overview after a reload, so the seat is opened again.
-    await bed.openSeat(SEATS.imp);
+    await reopenSeat(bed.page, SEATS.imp);
+    await expect(bed.page.getByRole("heading", { name: SEATS.imp.name, level: 1 })).toBeAttached();
     await expect(stop(bed, "Default")).toHaveAttribute("aria-checked", "true");
     await bed.switchSeat(SEATS.beetle);
     await expect(stop(bed, "Focus"), "another seat opens on Focus").toHaveAttribute("aria-checked", "true");

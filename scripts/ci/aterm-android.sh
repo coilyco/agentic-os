@@ -129,12 +129,22 @@ build() {
     --manifest-path "$android_dir/src-tauri/Cargo.toml" >/dev/null || fail "Cargo.lock is missing or stale, run just aterm-android-lock"
   rm -rf "$android_dir/src-tauri/gen/android"
   just aterm-android-tauri android init --ci
+  ime_patch
   just aterm-android-tauri android build --apk --target aarch64 --ci --config "$(tauri_config "$version" "$code")"
   if [ -e "$repo_root/.git" ] && ! git -C "$repo_root" diff --quiet -- aterm-android/src-tauri/Cargo.lock; then
     fail "the build changed Cargo.lock, commit the lock it resolved"
   fi
   cp "$(find_unsigned)" "$out"
   echo "unsigned APK: $out"
+}
+
+# ime_patch: swap in our MainActivity, which keeps the keyboard off the message box
+# on Android 15 and later (COI-3575). Run after every android init.
+ime_patch() {
+  local target
+  target=$(find "$android_dir/src-tauri/gen/android/app/src/main" -name MainActivity.kt 2>/dev/null)
+  [ "$(printf '%s\n' "$target" | grep -c .)" -eq 1 ] || fail "expected one generated MainActivity.kt, found: ${target:-none}"
+  cp "$android_dir/android/MainActivity.kt" "$target"
 }
 
 # Keystore and password come from ATERM_ANDROID_KEYSTORE_* env. Unset: a throwaway key,
@@ -246,6 +256,7 @@ build_debug() {
   rustup target add "$rust_target"
   rm -rf "$android_dir/src-tauri/gen/android"
   just aterm-android-tauri android init --ci
+  ime_patch
   just aterm-android-tauri android build --debug --apk --target "$abi" --ci \
     --config "$(tauri_config 0.0.0 "$(resolve_code)")"
   local found
@@ -255,6 +266,9 @@ build_debug() {
   printf '%s\n' "$badging" | grep -q "^package: name='$APP_ID' " || fail "package name is not $APP_ID"
   printf '%s\n' "$badging" | grep -q "^native-code: '$native'$" || fail "native code is not $native only"
   printf '%s\n' "$badging" | grep -q "^application-debuggable" || fail "the APK is not debuggable"
+  # wry builds the DevTools call only with debug_assertions or its devtools feature.
+  unzip -p "$found" "lib/$native/*.so" | strings -a | grep -q 'setWebContentsDebuggingEnabled' \
+    || fail "the debug APK's native library has no WebView DevTools call, so the emulator verbs cannot drive it"
   cp "$found" "$out"
   echo "debug APK ($abi): $out"
 }
@@ -339,6 +353,7 @@ case "$cmd" in
   same-app) same_app "$@" ;;
   against-release) against_release "$@" ;;
   build-debug) build_debug "$@" ;;
+  ime-patch) ime_patch "$@" ;;
   version-code) version_code "$@" ;;
   sign-bundle) sign_bundle "$@" ;;
   verify-bundle) verify_bundle "$@" ;;
