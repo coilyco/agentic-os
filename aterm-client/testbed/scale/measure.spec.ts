@@ -1,6 +1,6 @@
 // COI-3363: `just aterm-client-scale` prints a JSON line per run.
 import { test } from "@playwright/test";
-import { observeLive, runOnce } from "./measure.ts";
+import { longHistory, observeLive, runOnce } from "./measure.ts";
 
 test("measure the client at growing seat counts", async ({ browser }) => {
   test.setTimeout(0);
@@ -15,4 +15,13 @@ test("observe the real client on a real daemon, read only", async ({ browser }) 
   test.skip(!process.env.SCALE_LIVE, "set SCALE_LIVE to a daemon page, such as http://127.0.0.1:7419/");
   test.setTimeout(0);
   console.log("SCALE " + JSON.stringify(await observeLive(process.env.SCALE_LIVE!, browser)));
+});
+
+test("the open seat after a long run, by how much history it holds", async ({ browser }) => {
+  test.skip(!process.env.SCALE_HISTORY, "set SCALE_HISTORY to the item counts, such as 200,2000,8000");
+  test.setTimeout(0);
+  for (const history of process.env.SCALE_HISTORY!.split(",").map(Number)) {
+    const earlier = Math.ceil(history / 50);
+    console.log("SCALE " + JSON.stringify(await longHistory(browser, { seats: 10, history, earlier, windows: 3 })));
+  }
 });

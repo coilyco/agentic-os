@@ -250,3 +250,57 @@ export async function longTasksWhileUsed(count: number, browser: Browser): Promi
     await close();
   }
 }
+
+const longItem = (seat: number, n: number) => {
+  const at = new Date(Date.UTC(2026, 10, 11, 0, 0, 0) + n * 20_000).toISOString();
+  if (n % 3 === 0) return { id: `s${seat}-p${n}`, kind: "prompt", text: `Seat ${seat} question ${n}: why does the wrapped row hide the stripe in the folded view?`, at };
+  if (n % 3 === 1) return { id: `s${seat}-t${n}`, kind: "tool", tool: { name: "Bash", class: "shell", summary: `Ran step ${n}`, output: Array.from({ length: 40 }, (_, line) => `line ${line} of the output of step ${n}`).join("\n"), ok: true } };
+  return { id: `s${seat}-r${n}`, kind: "reply", text: `Answer ${n}. ${"It names the cause and the file, and says what it changed. ".repeat(6)}`, complete: true, at };
+};
+
+/** The open seat after a long run: `earlier` pages read back, then windows of arrivals.
+ * Each seat has `history` items. Heap is read after a collection: what is held. */
+export async function longHistory(browser: Browser, options: { seats: number; history: number; earlier: number; windows: number }): Promise<Record<string, unknown>> {
+  const specs = seats(options.seats);
+  const mock = await startMock({ sessions: specs, transcript: true });
+  specs.forEach((spec, seat) => mock.setTranscript(spec.name, Array.from({ length: options.history }, (_, n) => longItem(seat, n))));
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: "block", reducedMotion: "reduce" });
+  const page = await context.newPage();
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Performance.enable");
+  await page.addInitScript(INSTRUMENT);
+  const out: Record<string, unknown> = { ...options };
+  try {
+    await page.goto(mock.url);
+    await page.getByRole("tab", { name: /this Mac/ }).click();
+    await page.locator("button.seat").nth(options.seats - 1).waitFor({ timeout: 120_000 });
+    await page.locator("button.seat").first().click();
+    await page.getByRole("radio", { name: "Focus" }).click();
+    await page.getByText(/From the transcript/).waitFor({ timeout: 30_000 });
+    for (let at = 0; at < options.earlier; at++) {
+      const button = page.locator(".earlier");
+      if ((await button.count()) === 0) break;
+      await button.click();
+      await page.waitForTimeout(60);
+      await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>(".earlier")?.disabled);
+    }
+    out.rowsInDom = await page.locator(".transcript .feed > *").count();
+    const samples: Record<string, unknown>[] = [];
+    let next = options.history;
+    for (let w = 0; w < options.windows; w++) {
+      const sample = await window_(page, async () => {
+        for (let beat = 0; beat < 5; beat++) {
+          mock.appendTranscript(specs[0]!.name, [longItem(0, next++), longItem(0, next++), longItem(0, next++)]);
+          await page.waitForTimeout(2000);
+        }
+      }, cdp);
+      const held = await settled(cdp);
+      samples.push({ w, heapMB: +(held.heap / 1e6).toFixed(1), nodes: held.nodes, ...sample });
+    }
+    out.samples = samples;
+  } finally {
+    await context.close();
+    await mock.stop();
+  }
+  return out;
+}
