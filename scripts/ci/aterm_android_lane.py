@@ -93,7 +93,7 @@ class Lane(J.Journey):
     def op_fill(self, spec: dict) -> None:
         self.page_().wait_selector(spec["selector"], spec.get("timeout", 30))
         js = (
-            f"(()=>{{const e=document.querySelector({json.dumps(spec['selector'])});e.focus();e.value={json.dumps(spec['text'])};"
+            f"(()=>{{const e=document.querySelector({json.dumps(spec['selector'])});e.value={json.dumps(spec['text'])};"
             "e.dispatchEvent(new Event('input',{bubbles:true}))}})()"
         )
         self.page_().js(js)
