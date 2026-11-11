@@ -16,7 +16,7 @@ A windowed Tauri 2 app around the same client bundle the [Android app](android.m
 * **A person's own choices win.** A stored host list is theirs, even an empty one, so a removed `this Mac` stays removed. A last-open host beats the build's, and a profile an older build seeded lists the host once. Only an app build reads the setting, and Android names none.
 * **There is no open-this-role setting.** The overview replaced it, since no launch opens a seat (COI-3518).
 
-The loopback daemon accepts the webview's `tauri://localhost` origin, since its origin check reads the host and not the scheme. **A second target is a saved host**, typed in the host panel and kept on the device, so a cloud target needs no rebuild (COI-3469). Discovery, the broker and a `wss` host work as in any app build.
+The loopback daemon accepts the webview's `tauri://localhost` origin, since its origin check reads the host and not the scheme. **A tailnet or Serve-fronted daemon accepts it by exact match**, because that check demands https for every other origin, and a pod behind Serve refused it until COI-3645. **A second target is a saved host**, typed in the host panel and kept on the device, so a cloud target needs no rebuild (COI-3469). Discovery, the broker and a `wss` host work as in any app build.
 
 ## Commands
 

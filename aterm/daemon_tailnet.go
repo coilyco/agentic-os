@@ -48,6 +48,10 @@ var defaultAllowOrigins = []string{"https://coilyco.dev"}
 // pages, since ATERM_DAEMON_ALLOW_ORIGINS replaces the default.
 const appOrigin = "https://tauri.localhost"
 
+// desktopOrigin is the Treehouse Mac app's webview, served from a custom scheme
+// a web page cannot send. Every other origin still needs https (COI-3645).
+const desktopOrigin = "tauri://localhost"
+
 var tailscaleBin = "tailscale"
 
 // tailnetGate says whether the tailscale CLI may run without starting the
@@ -239,9 +243,12 @@ func (a *whoisAdmission) judge(address string, owners []string) (login string, e
 }
 
 // tailnetOrigin serves a websocket to the page the listener served itself, a
-// configured hosted page, and the Android app.
+// configured hosted page, and the Android and Mac apps.
 func tailnetOrigin(allowOrigins []string) func(*http.Request, *url.URL) bool {
 	return func(r *http.Request, origin *url.URL) bool {
+		if origin.Scheme+"://"+strings.ToLower(origin.Host) == desktopOrigin && origin.Path == "" {
+			return true
+		}
 		if origin.Scheme != "https" {
 			return false
 		}
