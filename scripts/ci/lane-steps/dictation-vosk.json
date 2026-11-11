@@ -1,0 +1,23 @@
+{
+  "name": "dictation from a spoken phrase, heard by the debug build's Vosk recognizer",
+  "start": "seat",
+  "steps": [
+    {"op": "recognizer", "service": "vosk"},
+    {
+      "op": "retry",
+      "times": 5,
+      "every": 30,
+      "steps": [
+        {"op": "fill", "selector": "#composer-input", "text": ""},
+        {"op": "tap", "selector": "[aria-label=\"Dictate\"]"},
+        {"op": "sleep", "seconds": 3},
+        {"op": "speak"},
+        {"op": "wait-value", "selector": "#composer-input", "pattern": "hello world this is a test", "timeout": 20}
+      ]
+    },
+    {"op": "keyboard", "action": "close"},
+    {"op": "shot", "name": "composer-after-spoken-phrase"},
+    {"op": "recognizer", "service": "system"},
+    {"op": "logcat", "name": "speech", "pattern": "vosk|speech|recogni|dictation"}
+  ]
+}

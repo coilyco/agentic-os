@@ -239,6 +239,7 @@ verify() {
   printf '%s\n' "$badging" | grep -q "^native-code: 'arm64-v8a'$" || fail "native code is not arm64-v8a only"
   printf '%s\n' "$badging" | grep -E "^(package:|sdkVersion:|targetSdkVersion:|application-label:)"
   check_icon "$apk"
+  debug_speech "$apk" absent
   work=$(mktemp -d)
   unzip -q -o "$apk" 'lib/arm64-v8a/*.so' -d "$work"
   libs=$(find "$work/lib/arm64-v8a" -name '*.so')
@@ -251,6 +252,24 @@ verify() {
   done
   rm -rf "$work"
   echo "signer SHA-256: $cert"
+}
+
+# debug_speech APK present|absent: the debug-only recognizers (Fake, Vosk) are in a debug
+# build and in no release build. Dex strings, native libs and the manifest are all read.
+debug_speech() {
+  local apk="${1:?usage: debug_speech APK present|absent}" want="${2:?usage: debug_speech APK present|absent}" hits=0 work
+  work=$(mktemp -d)
+  unzip -q -o "$apk" 'classes*.dex' 'AndroidManifest.xml' -d "$work"
+  hits=$(cat "$work"/classes*.dex | grep -ac -E 'VoskRecognitionService|FakeRecognitionService|Lorg/vosk/' || true)
+  hits=$((hits + $(unzip -l "$apk" | grep -c -E 'libvosk|libjnidispatch' || true)))
+  hits=$((hits + $(aapt2 dump xmltree --file AndroidManifest.xml "$apk" | grep -c -E 'RecognitionService' || true)))
+  rm -rf "$work"
+  if [ "$want" = absent ]; then
+    [ "$hits" -eq 0 ] || fail "$apk carries the debug-only recognizers ($hits hits), a release build must not"
+  else
+    [ "$hits" -gt 0 ] || fail "$apk has no debug recognizer, so the release assertion would pass for nothing"
+  fi
+  echo "debug recognizers $want in $apk ($hits hits)"
 }
 
 # same-app PREV NEW: Android updates in place on the same package, the same signer, and a
@@ -315,6 +334,7 @@ build_debug() {
   printf '%s\n' "$badging" | grep -q "^native-code: '$native'$" || fail "native code is not $native only"
   printf '%s\n' "$badging" | grep -q "^application-debuggable" || fail "the APK is not debuggable"
   check_icon "$found"
+  debug_speech "$found" present
   # wry builds the DevTools call only with debug_assertions or its devtools feature.
   unzip -p "$found" "lib/$native/*.so" | strings -a | grep -q 'setWebContentsDebuggingEnabled' \
     || fail "the debug APK's native library has no WebView DevTools call, so the emulator verbs cannot drive it"
@@ -405,9 +425,10 @@ case "$cmd" in
   ime-patch) ime_patch "$@" ;;
   icon-patch) icon_patch "$@" ;;
   check-icon) check_icon "$@" ;;
+  debug-speech) debug_speech "$@" ;;
   version-code) version_code "$@" ;;
   sign-bundle) sign_bundle "$@" ;;
   verify-bundle) verify_bundle "$@" ;;
   app-id) echo "$APP_ID" ;;
-  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | sign IN OUT | verify APK | same-app PREV NEW | against-release TAG NEW | bundle VERSION OUT | build-debug ABI OUT | sign-bundle IN OUT | verify-bundle AAB | icon-patch | check-icon APK | version-code [EPOCH] | app-id" ;;
+  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | sign IN OUT | verify APK | same-app PREV NEW | against-release TAG NEW | bundle VERSION OUT | build-debug ABI OUT | sign-bundle IN OUT | verify-bundle AAB | icon-patch | check-icon APK | debug-speech APK present|absent | version-code [EPOCH] | app-id" ;;
 esac

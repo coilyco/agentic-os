@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
@@ -19,6 +20,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 APP = "dev.coilyco.treehouse"
 FAKE_RECOGNIZER = f"{APP}/{APP}.dictation.FakeRecognitionService"
+VOSK_RECOGNIZER = f"{APP}/{APP}.dictation.VoskRecognitionService"
 
 
 def _journey_module():
@@ -61,7 +63,7 @@ class Lane(J.Journey):
         except (Fail, OSError, subprocess.TimeoutExpired, KeyError) as err:
             self.shot("FAILED")
             self.evidence()
-            self.op_logcat({"name": "speech", "pattern": "speech|recogni|soda|dictation|language pack|MDD"})
+            self.op_logcat({"name": "speech", "pattern": "speech|recogni|soda|dictation|language pack|MDD|vosk"})
             self.finish(f"{err!r}")
             print(f"FAILED: {err}", file=sys.stderr)
             raise SystemExit(1) from err
@@ -222,11 +224,26 @@ class Lane(J.Journey):
         self.open_seat()
 
     def op_recognizer(self, spec: dict) -> None:
-        """`fake` names the debug build's FakeRecognitionService the phone's default, `system` puts back what was there."""
-        if spec["service"] == "fake":
-            adb("shell", "settings", "put", "secure", "voice_recognition_service", FAKE_RECOGNIZER)
+        """`fake` or `vosk` name a debug-build service the phone's default, `system` puts back what was there."""
+        which = spec["service"]
+        if which == "vosk":
+            self.push_vosk_model()
+        if which in ("fake", "vosk"):
+            adb("shell", "settings", "put", "secure", "voice_recognition_service", VOSK_RECOGNIZER if which == "vosk" else FAKE_RECOGNIZER)
         elif self.recognizer_before:
             adb("shell", "settings", "put", "secure", "voice_recognition_service", self.recognizer_before)
+
+    def push_vosk_model(self) -> None:
+        """The model dir the job fetched (`audio` verb) goes into the app's files, where the service reads it."""
+        model = os.environ.get("ATERM_VOSK_MODEL", "")
+        if not model or not Path(model, "am").is_dir():
+            raise Fail("no Vosk model: the job did not run its `audio` step (ATERM_VOSK_MODEL)")
+        adb("shell", "rm", "-rf", "/data/local/tmp/vosk-model")
+        adb("push", f"{model}/.", "/data/local/tmp/vosk-model", timeout=300)
+        adb("shell", f"run-as {APP} sh -c 'rm -rf files/vosk-model && mkdir -p files && cp -r /data/local/tmp/vosk-model files/vosk-model'")
+        have = adb("shell", f"run-as {APP} ls files/vosk-model").split()
+        if "am" not in have:
+            raise Fail(f"the model did not reach the app's files: {have}")
 
     def op_speak(self, spec: dict) -> None:
         self.speak()

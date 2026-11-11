@@ -1,0 +1,22 @@
+{
+  "name": "does the recognizer keep listening with the screen off, real audio (COI-3466)",
+  "start": "seat",
+  "steps": [
+    {"op": "recognizer", "service": "vosk"},
+    {"op": "fill", "selector": "#composer-input", "text": ""},
+    {"op": "tap", "selector": "[aria-label=\"Dictate\"]"},
+    {"op": "sleep", "seconds": 8},
+    {"op": "adb", "args": ["shell", "input", "keyevent", "26"]},
+    {"op": "sleep", "seconds": 3},
+    {"op": "adb", "args": ["shell", "dumpsys power | grep -m2 -E 'mWakefulness=|Display Power'"]},
+    {"op": "speak"},
+    {"op": "sleep", "seconds": 5},
+    {"op": "adb", "args": ["shell", "dumpsys audio | grep -i -B1 -A3 -E 'AudioRecord|record.*(silenced|active)|Recording' | head -40"]},
+    {"op": "adb", "args": ["shell", "input", "keyevent", "224"]},
+    {"op": "sleep", "seconds": 3},
+    {"op": "eval", "js": "JSON.stringify({composer: document.querySelector('#composer-input').value, state: document.visibilityState, listening: !!document.querySelector('[aria-label=\"Stop dictating\"]')})", "save": "after_wake"},
+    {"op": "shot", "name": "after-wake"},
+    {"op": "recognizer", "service": "system"},
+    {"op": "logcat", "name": "speech", "pattern": "vosk|speech|recogni|dictation|AudioRecord|silenc"}
+  ]
+}

@@ -72,6 +72,19 @@ audio() {
   espeak-ng -s 130 -w "$out/speech-raw.wav" "${ATERM_LANE_PHRASE:-hello world this is a test}"
   sox "$out/speech-raw.wav" -r 16000 -c 1 -b 16 "$out/speech.wav"
   python3 -I "$repo_root/scripts/ci/aterm_audio_stream.py" "$out/speech.wav" "$out/speech.jsonl"
+  vosk_model
+}
+
+# vosk_model: the debug build's offline recognizer reads this model. Pinned by hash, so a
+# changed download fails the job. Apache-2.0, from the vosk-api authors (alphacephei).
+vosk_model() {
+  local zip="$out/vosk-model.zip" sha=30f26242c4eb449f948e42cb302dd7a686cb29a3423a8367f99ff41780942498
+  curl -fsSL --retry 3 -o "$zip" https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+  [ "$(sha256sum "$zip" | cut -d' ' -f1)" = "$sha" ] || fail "the Vosk model download does not match its pinned hash"
+  rm -rf "$out/vosk-model" "$out/vosk-unpacked"
+  unzip -q "$zip" -d "$out/vosk-unpacked"
+  mv "$out/vosk-unpacked"/* "$out/vosk-model"
+  rm -rf "$out/vosk-unpacked" "$zip"
 }
 
 boot() {
@@ -120,6 +133,7 @@ daemon() {
 speech_env() {
   [ -s "$out/speech.jsonl" ] || return 0
   export ATERM_SPEECH_JSONL="$out/speech.jsonl" ATERM_GRPCURL="$out/bin/grpcurl" ATERM_GRPC_PORT="$grpc_port"
+  if [ -d "$out/vosk-model/am" ]; then export ATERM_VOSK_MODEL="$out/vosk-model"; fi
 }
 
 journey() {
