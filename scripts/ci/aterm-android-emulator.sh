@@ -137,7 +137,7 @@ daemon() {
 speech_env() {
   [ -s "$out/speech.jsonl" ] || return 0
   export ATERM_SPEECH_JSONL="$out/speech.jsonl" ATERM_GRPCURL="$out/bin/grpcurl" ATERM_GRPC_PORT="$grpc_port"
-  if [ -d "$out/vosk-model/am" ]; then export ATERM_VOSK_MODEL="$out/vosk-model"; fi
+  if [ -d "$out/vosk-model/am" ]; then export ATERM_VOSK_MODEL="$out/vosk-model" ATERM_SPEECH_WAV="$out/speech.wav"; fi
 }
 
 journey() {

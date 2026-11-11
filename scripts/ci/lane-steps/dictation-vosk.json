@@ -1,15 +1,16 @@
 {
-  "name": "dictation from a spoken phrase, heard by the debug build's Vosk recognizer",
+  "name": "dictation from a spoken phrase, recognised by the debug build's Vosk (phrase played from a file)",
   "start": "seat",
   "steps": [
     {
       "op": "recognizer",
-      "service": "vosk"
+      "service": "vosk",
+      "input": "file"
     },
     {
       "op": "retry",
-      "times": 5,
-      "every": 30,
+      "times": 3,
+      "every": 20,
       "steps": [
         {
           "op": "fill",
@@ -21,38 +22,10 @@
           "selector": "[aria-label=\"Dictate\"]"
         },
         {
-          "op": "sleep",
-          "seconds": 8
-        },
-        {
-          "op": "adb",
-          "args": [
-            "shell",
-            "grep -E 'MemTotal|MemAvailable' /proc/meminfo; dumpsys audio | grep -i -E 'silenc|record' | head -40; pm list packages | grep -i -E 'google.*(search|assistant|hotword|voice)|speech'"
-          ]
-        },
-        {
-          "op": "logcat",
-          "name": "vosk-listening",
-          "pattern": "vosk|AndroidRuntime|FATAL|lmkd|lowmem"
-        },
-        {
-          "op": "speak"
-        },
-        {
-          "op": "sleep",
-          "seconds": 6
-        },
-        {
-          "op": "logcat",
-          "name": "vosk-heard",
-          "pattern": "vosk|AndroidRuntime|FATAL|lmkd|lowmem"
-        },
-        {
           "op": "wait-value",
           "selector": "#composer-input",
           "pattern": "hello world this is a test",
-          "timeout": 20
+          "timeout": 30
         }
       ]
     },

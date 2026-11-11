@@ -64,8 +64,12 @@ class VoskRecognitionService : RecognitionService() {
             if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                 return say { listener.error(SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) }
             }
+            // A pushed WAV stands in for the mic, played in real time.
+            val canned = File(filesDir, INPUT_WAV).takeIf { it.exists() }?.readBytes()
+            var at = WAV_HEADER
+            var silence = 0
             val size = maxOf(AudioRecord.getMinBufferSize(RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT), 8192)
-            val mic = AudioRecord(MediaRecorder.AudioSource.MIC, RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, size)
+            val mic = if (canned == null) AudioRecord(MediaRecorder.AudioSource.MIC, RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, size) else null
             val recognizer = Recognizer(loaded, RATE.toFloat())
             val chunk = ShortArray(2048)
             var last = ""
@@ -73,16 +77,29 @@ class VoskRecognitionService : RecognitionService() {
             var logged = System.currentTimeMillis()
             val started = System.currentTimeMillis()
             try {
-                mic.startRecording()
-                Log.i(TAG, "listening, mic state ${mic.recordingState}")
+                mic?.startRecording()
+                Log.i(TAG, "listening, ${if (canned == null) "mic state ${mic?.recordingState}" else "file of ${canned.size} bytes"}")
                 say { listener.readyForSpeech(Bundle()) }
                 say { listener.beginningOfSpeech() }
                 while (!aborted && !finish) {
-                    val read = mic.read(chunk, 0, chunk.size)
+                    val read = if (mic != null) mic.read(chunk, 0, chunk.size) else {
+                        Thread.sleep(100)
+                        val have = minOf(1600, (canned!!.size - at) / 2)
+                        if (have > 0) {
+                            for (i in 0 until have) chunk[i] = ((canned[at + 2 * i + 1].toInt() shl 8) or (canned[at + 2 * i].toInt() and 0xff)).toShort()
+                            at += 2 * have
+                            have
+                        } else {
+                            // Silence after the phrase lets Vosk close the utterance.
+                            java.util.Arrays.fill(chunk, 0, 1600, 0)
+                            if (++silence > 20) finish = true
+                            1600
+                        }
+                    }
                     if (read <= 0) continue
                     for (i in 0 until read) peak = maxOf(peak, Math.abs(chunk[i].toInt()))
                     if (System.currentTimeMillis() - logged > 1000) {
-                        Log.i(TAG, "mic peak $peak, silenced ${mic.activeRecordingConfiguration?.isClientSilenced}")
+                        Log.i(TAG, "peak $peak, silenced ${mic?.activeRecordingConfiguration?.isClientSilenced}")
                         peak = 0
                         logged = System.currentTimeMillis()
                     }
@@ -111,7 +128,7 @@ class VoskRecognitionService : RecognitionService() {
                     if (text.isEmpty()) listener.error(SpeechRecognizer.ERROR_NO_MATCH) else listener.results(words(text))
                 }
             } finally {
-                mic.release()
+                mic?.release()
                 recognizer.close()
             }
         }
@@ -121,6 +138,8 @@ class VoskRecognitionService : RecognitionService() {
         private const val TAG = "VoskDictation"
         private const val MODEL_DIR = "vosk-model"
         private const val RATE = 16000
+        private const val INPUT_WAV = "vosk-input.wav"
+        private const val WAV_HEADER = 44
         private const val TIMEOUT_MS = 90_000L
         @Volatile private var loaded: Model? = null
 

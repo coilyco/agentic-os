@@ -224,14 +224,26 @@ class Lane(J.Journey):
         self.open_seat()
 
     def op_recognizer(self, spec: dict) -> None:
-        """`fake` or `vosk` name a debug-build service the phone's default, `system` puts back what was there."""
+        """`fake` or `vosk` (`input` file or mic) name a debug service the default, `system` undoes it."""
         which = spec["service"]
         if which == "vosk":
             self.push_vosk_model()
+            self.push_vosk_input(spec.get("input", "mic"))
         if which in ("fake", "vosk"):
             adb("shell", "settings", "put", "secure", "voice_recognition_service", VOSK_RECOGNIZER if which == "vosk" else FAKE_RECOGNIZER)
         elif self.recognizer_before:
             adb("shell", "settings", "put", "secure", "voice_recognition_service", self.recognizer_before)
+
+    def push_vosk_input(self, source: str) -> None:
+        """`file` plays the job's spoken phrase to the recogniser, `mic` removes it so the mic is read."""
+        wav = os.environ.get("ATERM_SPEECH_WAV", "")
+        if source == "file":
+            if not wav or not Path(wav).is_file():
+                raise Fail("no phrase WAV: the job did not run its `audio` step (ATERM_SPEECH_WAV)")
+            adb("push", wav, "/data/local/tmp/vosk-input.wav", timeout=60)
+            adb("shell", f"run-as {APP} sh -c 'cp /data/local/tmp/vosk-input.wav files/vosk-input.wav'")
+        else:
+            adb("shell", f"run-as {APP} rm -f files/vosk-input.wav", check=False)
 
     def push_vosk_model(self) -> None:
         """The model dir the job fetched (`audio` verb) goes into the app's files, where the service reads it."""
