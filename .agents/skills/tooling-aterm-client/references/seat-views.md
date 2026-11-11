@@ -24,6 +24,7 @@ A seat opens on the transcript this device last read, then catches up. The measu
 * **What is kept** - per host and seat in IndexedDB, the newest 60 items without any tool output, 12 seats at most, 24 hours (`transcript-cache.ts`). Output is left out because it is where a seat's secrets sit. Jev picked this over memory only (0.72, confidence 0.58), so it is a flag-sized change to drop it.
 * **When it shows** - only on a device that may type, so a device that must unlock first never paints a kept page.
 * **On open** - the kept page paints at once with `Showing what this device read 3 hours ago. Catching up.` The newest page is read in parallel and joined by item id, which brings a tool's output back. A host that does not answer leaves the kept page up and says so.
+* **A view switch** lands on the newest line and keeps following, whether Transcript stays mounted or comes back from the raw screen. The marker below is for opening a seat only (COI-3647).
 * **The marker** - `New since you were last here` sits above the first item that was not on the kept page, at the first row drawn at this view, and scrolls there. It is set on open only, never for lines that arrive while watching, and clears after 8 seconds with the newest line in view. When the read shares no item with the kept page, the kept page is dropped, since a gap would read as nothing having happened, and everything shown is new.
 * **Journey** - `seat-open-instantly` on a phone, with the mock's `holdTranscript` to hold the host's answer.
 
