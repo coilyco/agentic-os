@@ -102,3 +102,23 @@ test("a link in a seat's terminal opens through the app", async ({ bed }, info) 
   }
   await expect.poll(() => opened(bed.page)).toEqual(["https://claude.ai/artifact/T1"]);
 });
+
+// COI-3559: a host with no browser left the phone out of open_url, so a seat's page
+// opened on the host's screen and the phone showed nothing.
+test.describe("a host that serves no browser", () => {
+  test.use({ mockOptions: { noBrowser: true } });
+
+  test("the Android app still takes a seat's page, and opens it on the phone", async ({ bed }, info) => {
+    test.skip(info.project.name !== "android", "the Android app's agent string");
+    await inApp(bed.page);
+    await bed.openSeat(SEATS.griffin);
+    await expect.poll(() => bed.mock.browserCalls.some((call) => call.type === "subscribe" && call.channel === "open_url"), "the app asked for the pages").toBe(true);
+    bed.mock.push({ type: "open_url", session: SEATS.beetle.id, url: PAGE });
+    await expect(card(bed.page)).toContainText("accounts.example.com");
+    await expect(card(bed.page).getByRole("button", { name: "Show here", exact: false }), "the host has no browser to show it in").toHaveCount(0);
+    await bed.step("card-no-browser", { compare: false });
+    await card(bed.page).getByRole("button", { name: /Open in browser/ }).click();
+    await expect(card(bed.page)).toBeHidden();
+    expect(await opened(bed.page)).toEqual([PAGE]);
+  });
+});

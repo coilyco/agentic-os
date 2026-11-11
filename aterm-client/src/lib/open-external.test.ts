@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { inApp, isArtifactUrl, openExternal } from "./open-external";
+import { inAndroidApp, inApp, isArtifactUrl, openExternal } from "./open-external";
 
 const ARTIFACT = "https://claude.ai/artifact/LfwfhS4hgtHYSAB5gXhKsj";
 
@@ -52,6 +52,13 @@ describe("openExternal", () => {
     }
     expect(invoke).not.toHaveBeenCalled();
   });
+});
+
+describe("inAndroidApp", () => {
+  const phone = "Mozilla/5.0 (Linux; Android 15; Pixel 7) AppleWebKit/537.36";
+  it("is the app on an Android phone", () => expect(inAndroidApp({ invoke: vi.fn() }, phone)).toBe(true));
+  it("is not a browser on the phone, which has no app bridge", () => expect(inAndroidApp({ invoke: null }, phone)).toBe(false));
+  it("is not the Mac app", () => expect(inAndroidApp({ invoke: vi.fn() }, "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")).toBe(false));
 });
 
 describe("inApp", () => {

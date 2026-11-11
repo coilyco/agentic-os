@@ -13,6 +13,7 @@ import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel,
 import { decodeReply, REFUSALS, TranscriptRefused } from "./transcript";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
+import { inAndroidApp } from "./open-external";
 import { bridge, DeviceKeyError, type Invoke, enrollKey, keyStatus, KEY_CODE_SPENT, mayEnroll, signChallenge, biometricNotice } from "./device-key";
 import { CODE_SPENT, createCredential, getCredential, passkeySupport, PasskeyError } from "./passkey";
 import { RESUME_ENDED_REASON, RESUME_FEATURE, ResumeEndedError, resumeProof } from "./resume";
@@ -989,9 +990,9 @@ export class DaemonHost implements HostConnection {
         this.request({ type: "subscribe", channel: "sessions" });
         this.request({ type: "roster" });
         if (this.features.has("mcp-apps") || this.features.has("artifacts")) this.request({ type: "subscribe", channel: "views" });
-        // Subscribers are the clients that can show a page. With no browser, stay out,
-        // and the host opens its own.
-        if (this.features.has(OPEN_URL_FEATURE) && this.features.has(BROWSER_FEATURE)) this.request({ type: "subscribe", channel: "open_url" });
+        // A client that can show a page subscribes. Without a host browser it stays out,
+        // but the Android app takes it: no host's browser opens on a phone (COI-3559).
+        if (this.features.has(OPEN_URL_FEATURE) && (this.features.has(BROWSER_FEATURE) || inAndroidApp())) this.request({ type: "subscribe", channel: "open_url" });
         // The daemon replays each seat's shelf on subscribe, so a reconnect restores it.
         if (this.features.has("media")) this.request({ type: "subscribe", channel: "media" });
         for (const line of this.outbox.splice(0)) this.socket.send(this.ptySize ? withScales(line) : line);

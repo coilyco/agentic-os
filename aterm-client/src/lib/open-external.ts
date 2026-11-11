@@ -19,6 +19,11 @@ export function inApp(io: Pick<OpenIo, "invoke"> = defaults()): boolean {
   return io.invoke !== null;
 }
 
+/** The Android app on a phone, where no host's own browser opens (COI-3559). */
+export function inAndroidApp(io: Pick<OpenIo, "invoke"> = defaults(), agent: string = globalThis.navigator?.userAgent ?? ""): boolean {
+  return inApp(io) && /Android/i.test(agent);
+}
+
 /** A claude.ai artifact, which the seat's streamed browser cannot show. */
 export function isArtifactUrl(url: string): boolean {
   try {

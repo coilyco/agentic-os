@@ -9,8 +9,9 @@
   const seat = $derived(page ? sessionById(page.sessionId) : undefined);
   const others = $derived(Math.max(app.openedPages.length - 1, 0));
   const label = $derived(page ? pageLabel(page.url) : "");
-  // An artifact opens in the device's own browser, where Kai is signed in. The seat's streamed browser is not, and claude.ai refuses framing.
-  const outside = $derived(page !== undefined && inApp() && isArtifactUrl(page.url));
+  // The device's own browser opens an artifact, where Kai is signed in, since the seat's streamed
+  // browser is not and claude.ai refuses framing. It also opens every page when the host serves no browser.
+  const outside = $derived(page !== undefined && inApp() && (isArtifactUrl(page.url) || !app.connection?.browser));
 
   async function openOutside(id: number, url: string): Promise<void> {
     // A failed open keeps the card, so the address stays to copy and the person can try again.
