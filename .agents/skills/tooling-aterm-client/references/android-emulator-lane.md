@@ -11,14 +11,14 @@ A second way for a Frontend seat to prove something in the real Treehouse app, w
 * `ref` - the git ref to prove. Its debug x86_64 APK is built there, and the step file is read from it, so a PR branch carries its own proof. Default `main`.
 * `steps` - the step file, a path inside `ref`. Default `scripts/ci/lane-steps/smoke.json`.
 * `apk_run` - a run id holding an `aterm-android-debug-x86_64-<id>` artifact, to skip the 7 minute build. Empty builds from `ref`.
-* `image` - `google_apis` (default) or `google_apis_playstore`, which carries Google's speech app.
+* `image` - a system image: Android 14 or 15, `google_apis` or `google_apis_playstore` (the one with Google's speech app). Default is Android 14 playstore.
 * `audio` - a spoken phrase the emulator's microphone can hear, for steps that use `speak`.
 
 The workflow file and the runner come from the ref you dispatch on, which is `main` unless you pass `--ref`. The proof runs against `ref`. Anyone who can dispatch can run any step file, so there are no secrets in the job.
 
 ## What the job has
 
-Android 14 on `google_apis` x86_64, the debug APK installed with every permission granted, a real `aterm daemon` on the runner behind the rig's relay, and one stub seat, `emulator-seat` (role `frontend-eng`), that asks no question. The app starts on a fresh install. A debug build is required, because DevTools is the way to read the page.
+The chosen image (Android 14 playstore by default), the debug APK installed with every permission granted, a real `aterm daemon` on the runner behind the rig's relay, and one stub seat, `emulator-seat` (role `frontend-eng`), that asks no question. The app starts on a fresh install. A debug build is required, because DevTools is the way to read the page.
 
 ## The step file
 

@@ -153,8 +153,20 @@ class Journey:
         page.js("(()=>{const i=document.querySelector('#add-host');i.value='ws://127.0.0.1:7419';i.dispatchEvent(new Event('input',{bubbles:true}))})()")
         page.tap(by_text("Add host", "button"))
         page.tap("()=>document.querySelector('[id^=tab-host-]')")
-        # Named by role and state. It sits in the nav or on the Seats overview.
-        page.tap(by_text("frontend-eng", "button"))
+        self.open_seat()
+
+    def open_seat(self) -> None:
+        """Tap the seat row, on the Seats overview or in the nav, until the composer shows."""
+        page = self.page
+        assert page
+        for _ in range(3):
+            page.tap(by_text("frontend-eng on", "button"))
+            try:
+                page.wait_selector("#composer-input", 12)
+                return
+            except Fail:
+                print("open_seat: the composer did not show, tapping the seat again")
+        raise Fail("the seat never opened: no composer after three taps on its row")
 
     def open_picker(self) -> None:
         page = self.page
@@ -348,7 +360,7 @@ class Journey:
         page = self.page
         assert page
         # The page may already be on a seat view with the nav collapsed, so try briefly.
-        for finder in ("()=>document.querySelector('[id^=tab-host-]')", by_text("frontend-eng", "button")):
+        for finder in ("()=>document.querySelector('[id^=tab-host-]')", by_text("frontend-eng on", "button")):
             try:
                 page.tap(finder, wait=5)
             except Fail:

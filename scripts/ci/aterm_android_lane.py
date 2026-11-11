@@ -91,6 +91,7 @@ class Lane(J.Journey):
         self.page_().tap(J.by_text(spec["text"], spec.get("within", "button,[role=tab],[role=button],a,li,[aria-label]")), wait=spec.get("timeout", 20))
 
     def op_fill(self, spec: dict) -> None:
+        self.page_().wait_selector(spec["selector"], spec.get("timeout", 30))
         js = (
             f"(()=>{{const e=document.querySelector({json.dumps(spec['selector'])});e.focus();e.value={json.dumps(spec['text'])};"
             "e.dispatchEvent(new Event('input',{bubbles:true}))}})()"
@@ -150,14 +151,16 @@ class Lane(J.Journey):
         self.attach_page()
 
     def op_reopen(self, spec: dict) -> None:
-        """Launch and attach, then tap the host and the seat if the page is not already on one."""
+        """Launch and attach, then open the host and the seat if the page is not already on one."""
         self.op_launch(spec)
         page = self.page_()
-        for finder in ("()=>document.querySelector('[id^=tab-host-]')", J.by_text("frontend-eng", "button")):
-            try:
-                page.tap(finder, wait=spec.get("timeout", 8))
-            except Fail:
-                print("reopen: nothing to tap, carrying on with the page as it is")
+        if page.js("!!document.querySelector('#composer-input')"):
+            return
+        try:
+            page.tap("()=>document.querySelector('[id^=tab-host-]')", wait=spec.get("timeout", 8))
+        except Fail:
+            print("reopen: no host tab, carrying on with the page as it is")
+        self.open_seat()
 
     def op_recognizer(self, spec: dict) -> None:
         """`fake` names the debug build's FakeRecognitionService the phone's default, `system` puts back what was there."""

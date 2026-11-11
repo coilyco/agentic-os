@@ -20,12 +20,14 @@ on:
         description: "Run id with an aterm-android-debug-x86_64-<id> artifact. Empty builds the debug APK."
         default: ""
       image:
-        description: "Emulator image. The playstore one carries Google's speech app."
+        description: "The emulator image. The playstore ones carry Google's speech app."
         type: choice
         options:
-          - google_apis
-          - google_apis_playstore
-        default: google_apis
+          - system-images;android-34;google_apis;x86_64
+          - system-images;android-34;google_apis_playstore;x86_64
+          - system-images;android-35;google_apis;x86_64
+          - system-images;android-35;google_apis_playstore;x86_64
+        default: system-images;android-34;google_apis_playstore;x86_64
       audio:
         description: "A virtual microphone fed by a spoken phrase, for steps that use `speak`."
         type: boolean
@@ -42,7 +44,7 @@ env:
   COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
   ATERM_LANE_STEPS: ${{ inputs.steps || 'scripts/ci/lane-steps/dictation-spoken.json' }}
   ATERM_LANE_APK_RUN: ${{ inputs.apk_run }}
-  ATERM_EMULATOR_IMAGE: system-images;android-34;${{ inputs.image || 'google_apis_playstore' }};x86_64
+  ATERM_EMULATOR_IMAGE: ${{ inputs.image || 'system-images;android-34;google_apis_playstore;x86_64' }}
   GH_TOKEN: ${{ github.token }}
 
 jobs:
