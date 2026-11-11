@@ -17,6 +17,9 @@ export function mixHex(top: string, base: string, amount: number): string {
   return `#${channel(0)}${channel(2)}${channel(4)}`;
 }
 
+/** The one mark every seat shares, in chrome and in the terminal's cursor (COI-3621). */
+export const SEAT_MARK = "var(--seat-mark)";
+
 /** Find highlights from the accent token over the ground, so a retune carries over. */
 export function findColours(accent: string, ground: string) {
   return {

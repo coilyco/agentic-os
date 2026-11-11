@@ -1,5 +1,6 @@
 import { nextUnseen } from "./activity";
 import { EXTERNAL, PLACE, type Place } from "./build";
+import { SEAT_MARK } from "./brand";
 import { bridge } from "./device-key";
 import { type AttentionSettings, loadAttention, storeAttention } from "./attention";
 import { chime, unlock, watchBlocked } from "./chime";
@@ -456,7 +457,8 @@ export function selectHost(host: Host): void {
   app.connection = connection;
   app.attachedHostId = host.id;
   connection.subscribe((event) => {
-    if (event.type === "roster") app.roles = event.roles;
+    // The roster's colour per role is not drawn. Every seat gets one mark (COI-3621).
+    if (event.type === "roster") app.roles = event.roles.map((role) => ({ ...role, color: SEAT_MARK }));
     else if (event.type === "sessions") {
       app.unseen = nextUnseen(app.sessions, event.sessions, viewingSession(), app.unseen);
       app.sessions = event.sessions;
