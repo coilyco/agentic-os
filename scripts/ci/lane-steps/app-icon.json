@@ -1,0 +1,14 @@
+{
+  "name": "the launcher icon and the App info page show the Treehouse canopy (COI-3616)",
+  "start": "launch",
+  "steps": [
+    {"op": "adb", "args": ["shell", "am", "start", "-a", "android.settings.APPLICATION_DETAILS_SETTINGS", "-d", "package:dev.coilyco.treehouse"]},
+    {"op": "sleep", "seconds": 4},
+    {"op": "shot", "name": "app-info"},
+    {"op": "adb", "args": ["shell", "input", "keyevent", "3"]},
+    {"op": "sleep", "seconds": 2},
+    {"op": "adb", "args": ["shell", "input", "swipe", "540", "1900", "540", "500", "300"]},
+    {"op": "sleep", "seconds": 3},
+    {"op": "shot", "name": "all-apps"}
+  ]
+}

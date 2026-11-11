@@ -255,3 +255,26 @@ describe("demo peer messages", () => {
     expect(queued?.message.reason).toBe("<frontend-eng> is mid-turn");
   });
 });
+
+describe("the demo host's transcript and shared files", () => {
+  it("reads a seat's made-up transcript, and has nothing new since its cursor", async () => {
+    const { host } = started();
+    const first = SEATS[0]!.id;
+    const reply = await host.transcripts.read(first);
+    expect(reply.items.map((item) => item.kind)).toEqual(["prompt", "tool", "reply", "prompt", "tool", "reply", "tool", "tool", "reply"]);
+    expect((await host.transcripts.read(first, { since: reply.cursor })).items).toEqual([]);
+  });
+  it("refuses a seat it has no script for, so the screen shows instead", async () => {
+    const { host } = started();
+    await expect(host.transcripts.read(`${DEMO_PREFIX}unknown`)).rejects.toMatchObject({ reason: "unsupported_harness" });
+  });
+  it("shelves drawn frames for the first seat and hands back their bytes", async () => {
+    const { host, events } = started();
+    const items = events.flatMap((event) => (event.type === "media" ? [event.item] : []));
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.every((item) => item.kind === "image" && item.session === SEATS[0]!.id)).toBe(true);
+    const blob = await host.media.read(items[0]!);
+    expect(blob.type.startsWith("image/")).toBe(true);
+    expect(blob.size).toBeGreaterThan(0);
+  });
+});

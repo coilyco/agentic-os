@@ -26,6 +26,8 @@ GitHub run 42916604561 (`aterm-android-emulator`, Android 14 `google_apis` x86_6
 * **Journey F, not working.** It plays a spoken phrase (espeak) into a PulseAudio null sink as the virtual mic, and the phone's own recognizer got `No words recognised`. Three causes show in the logs: the emulator printed `Could not init 'pa' audio driver`, so the mic was silent. The recognizer has no en-US offline pack (`Failed to get language pack of required locale: error 13`). Its online path answered 401. The first reached Google's service through the plugin on a first run, which shows the route is live, and F stays an observation.
 * **The kai-server rig has no mic.** Its unit runs `-no-audio` (infrastructure PR 384 restored it so on 2026-11-10), so it could carry journey G only.
 
+Debug builds also carry `VoskRecognitionService`, an offline recogniser that hears the CI emulator's microphone (`dictation-vosk` step file, [lane](android-emulator-lane.md)).
+
 ## Not yet checked
 
 * **Any run on a phone: the microphone prompt, Google's recognizer, and a real sentence. Kai's Pixel is the check.**

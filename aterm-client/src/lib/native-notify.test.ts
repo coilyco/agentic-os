@@ -41,6 +41,10 @@ describe("showNative", () => {
     expect(invoke).toHaveBeenCalledWith("plugin:notification|notify", nativeNotice(note));
     expect(nativeNotice(note).options).toEqual({ id: noticeId(note.session), title: "Decision needed", body: "Pick the order", extra: { session: "prod-director-griffin-goose" } });
   });
+  it("names the canopy as the small icon on Android and nowhere else", () => {
+    expect(nativeNotice(note, true).options.icon).toBe("ic_stat_treehouse");
+    expect(nativeNotice(note, false).options).not.toHaveProperty("icon");
+  });
   it("is false when the system refuses", async () => {
     expect(await showNative(core(() => Promise.reject(new Error("refused"))), note)).toBe(false);
   });

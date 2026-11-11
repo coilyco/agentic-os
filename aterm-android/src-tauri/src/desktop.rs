@@ -8,8 +8,6 @@ use tauri::{App, WebviewUrl, WebviewWindowBuilder};
 
 /// The seat a login opens on. One role per app, so another role is another build.
 const DIRECTOR_ROLE: &str = "prod-director";
-/// The daemon's loopback websocket, the one target every desktop install has.
-const LOCAL_DAEMON: &str = "ws://127.0.0.1:7419/";
 /// The daemon is a LaunchAgent that starts beside this app, so it may be a moment late.
 const DAEMON_WAIT: Duration = Duration::from_secs(30);
 
@@ -65,27 +63,13 @@ fn ensure_director() -> Option<Seat> {
   live_director()
 }
 
-/// Runs before the page's script on every load. It writes the client's storage keys
-/// (hosts, last-open: the host, no seat) since an app seeds none. See desktop.md.
-const SEED: &str = "try{const A=__ADDRESS__;let h=[];\
-try{h=JSON.parse(localStorage.getItem('aterm.hosts.v1')||'[]')}catch(e){}\
-if(!Array.isArray(h))h=[];\
-if(!h.some(x=>x&&x.address===A)){h.unshift({label:'this Mac',address:A});localStorage.setItem('aterm.hosts.v1',JSON.stringify(h))}\
-if(!sessionStorage.getItem('treehouse.seeded')){sessionStorage.setItem('treehouse.seeded','1');\
-localStorage.setItem('aterm.last-open.v1',JSON.stringify({host:'saved:'+A}))}}catch(e){}";
-
-pub fn seed_script() -> String {
-  let json = |text: &str| serde_json::to_string(text).unwrap_or_default();
-  SEED.replace("__ADDRESS__", &json(LOCAL_DAEMON))
-}
-
 pub fn open(app: &mut App) -> Result<(), Box<dyn std::error::Error>> {
-  // The director is kept live for the overview to list. No seat is opened on it.
+  // The director is kept live for the overview to list. No seat is opened on it, and the
+  // page seeds nothing: the client names its own host at build time (COI-3476).
   ensure_director();
   WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
     .title("Treehouse")
     .inner_size(1280.0, 860.0)
-    .initialization_script(seed_script())
     .build()?;
   Ok(())
 }
@@ -113,21 +97,5 @@ mod tests {
   #[test]
   fn a_malformed_roster_is_no_seat() {
     assert_eq!(seat_of_role("not json", "prod-director"), None);
-  }
-
-  #[test]
-  fn the_script_names_the_loopback_daemon_and_the_host_to_rest_on() {
-    let script = seed_script();
-    assert!(script.contains("ws://127.0.0.1:7419/"));
-    assert!(script.contains("aterm.hosts.v1"));
-    assert!(script.contains("aterm.last-open.v1"));
-    assert!(script.contains("{host:'saved:'+A}"));
-  }
-
-  #[test]
-  fn the_script_opens_no_seat() {
-    let script = seed_script();
-    assert!(!script.contains("seat:"));
-    assert!(!script.contains("prod-director"));
   }
 }

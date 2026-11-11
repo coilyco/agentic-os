@@ -4,6 +4,7 @@
 // .agents/skills/tooling-aterm-client/references/demo-mode.md
 import type { ShellStep } from "./demo-shell";
 import type { Ask, PeerMessage } from "./protocol";
+import type { TranscriptItem } from "./transcript";
 
 /** Every id the demo makes starts with this, so leaving can drop what it left. */
 export const DEMO_PREFIX = "demo-";
@@ -137,6 +138,49 @@ export const SEATS: DemoSeat[] = [
 export const DEMO_ROLES = SEATS.map((seat) => seat.role);
 
 export const ASK_SEAT = `${DEMO_PREFIX}scientist-1`;
+
+/** The seat whose shared files the Views of the demo show. */
+const [FIRST = "", SECOND = "", THIRD = "", FOURTH = ""] = SEATS.map((seat) => seat.id);
+export const MEDIA_SEAT = FIRST;
+
+const tool = (id: string, name: string, cls: "read" | "edit" | "shell", summary: string, extra: Partial<NonNullable<TranscriptItem["tool"]>> = {}): TranscriptItem => ({
+  id,
+  kind: "tool",
+  tool: { name, class: cls, summary, ok: true, ...extra },
+});
+
+/** What each seat's transcript holds, for Focus, Default and Verbose. Made up. */
+export function transcriptOf(seatId: string, now: number): TranscriptItem[] | null {
+  const minute = 60_000;
+  const frontend = [
+    { id: "t0", kind: "prompt", text: "Sort the trail list by distance, nearest first.", at: now - 31 * minute },
+    tool("t0a", "Update", "edit", "src/TrailList.svelte +14 -3", { diff: { files: 1, added: 14, removed: 3 } }),
+    { id: "t0b", kind: "reply", text: "The list now sorts by distance. Trails with no distance go last.", at: now - 30 * minute, model: "demo", complete: true },
+    { id: "t1", kind: "prompt", text: "The trail list is a blank page when there are no trails. Fix it.", at: now - 9 * minute },
+    tool("t2", "Read", "read", "src/TrailList.svelte, 96 lines"),
+    { id: "t3", kind: "reply", text: "It renders nothing for an empty list. I'll add an empty state that says what to do next.", at: now - 8 * minute, model: "demo" },
+    tool("t4", "Update", "edit", "src/TrailList.svelte +9 -1", { diff: { files: 1, added: 9, removed: 1 } }),
+    tool("t5", "Bash", "shell", "npm test", { output: "24 passed, 0 failed\n" }),
+    { id: "t6", kind: "reply", text: 'Done. The empty list now reads "No trails yet. Add one to start." Tests pass.', at: now - 6 * minute, model: "demo", complete: true },
+  ] as TranscriptItem[];
+  const others: Record<string, TranscriptItem[]> = {
+    [SECOND]: [
+      { id: "t1", kind: "prompt", text: "Retry the sync worker when the upload fails, with a backoff.", at: now - 4 * minute },
+      tool("t2", "Update", "edit", "sync/worker.go +42 -6", { diff: { files: 1, added: 42, removed: 6 } }),
+      tool("t3", "Bash", "shell", "go test ./sync/...", { output: "running, 3 of 8 packages\n" }),
+    ],
+    [THIRD]: [
+      { id: "t1", kind: "prompt", text: "Compare the routes for latency.", at: now - 3 * minute },
+      { id: "t2", kind: "reply", text: "Three routes could go first. I need your pick before I spend any runs.", at: now - 2 * minute, model: "demo" },
+    ],
+    [FOURTH]: [
+      { id: "t1", kind: "prompt", text: "Make the jump feel floaty, not stiff. Keep it playable.", at: now - 12 * minute },
+      tool("t2", "Update", "edit", "game/player.gd, gravity 32 to 22", { diff: { files: 1, added: 5, removed: 2 } }),
+      { id: "t3", kind: "reply", text: "Jump height is the same. The top of the arc now lingers 80 ms.", at: now - 11 * minute, model: "demo", complete: true },
+    ],
+  };
+  return seatId === FIRST ? frontend : (others[seatId] ?? null);
+}
 
 export const ASK: Ask = {
   id: `${DEMO_PREFIX}ask-routes`,

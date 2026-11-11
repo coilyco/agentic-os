@@ -1,6 +1,6 @@
 // Journeys for COI-3341: a phone in landscape. Height is scarce, so the seat's terminal
 // should fill the screen. These record how many rows of output a person can read.
-import { expect, quirk, SEATS, test } from "../harness.ts";
+import { expect, SEATS, test } from "../harness.ts";
 
 const measure = (page: import("@playwright/test").Page) =>
   page.evaluate(() => {
@@ -12,7 +12,7 @@ const measure = (page: import("@playwright/test").Page) =>
     return { rows: rows.length, share: Math.round((host.height / innerHeight) * 100), height: innerHeight };
   });
 
-test("the seat's terminal fills the screen", quirk("COI-3341"), async ({ bed }, info) => {
+test("the seat's terminal fills the screen", async ({ bed }, info) => {
   await bed.openSeat(SEATS.imp);
   await expect(bed.screen()).toContainText("Churning");
   const seen = await measure(bed.page);

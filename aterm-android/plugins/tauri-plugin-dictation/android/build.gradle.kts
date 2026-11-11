@@ -28,5 +28,7 @@ kotlin {
 
 dependencies {
     implementation(project(":tauri-android"))
+    // Debug only. aterm-android.sh debug-speech asserts no release build has it.
+    debugImplementation("com.alphacephei:vosk-android:0.3.75")
     testImplementation("junit:junit:4.13.2")
 }
