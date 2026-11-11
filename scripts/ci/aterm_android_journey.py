@@ -500,10 +500,22 @@ class Journey:
         if not stream or not grpcurl or not Path(stream).exists():
             raise Fail("no phrase to speak: the job did not run its `audio` step (ATERM_SPEECH_JSONL)")
         port = os.environ.get("ATERM_GRPC_PORT", "8554")
-        with open(stream, "rb") as feed:
-            done = subprocess.run([grpcurl, "-plaintext", "-d", "@", f"127.0.0.1:{port}", "android.emulation.control.EmulatorController/injectAudio"], stdin=feed, capture_output=True, text=True, timeout=90, check=False)
-        if done.returncode != 0:
-            raise Fail(f"injectAudio failed: {(done.stderr or done.stdout).strip()[:300]}")
+        target = f"127.0.0.1:{port}"
+        proc = subprocess.Popen([grpcurl, "-plaintext", "-d", "@", target, "android.emulation.control.EmulatorController/injectAudio"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        assert proc.stdin
+        try:
+            # Real-time pacing. Sent at once, the emulator died on a later call.
+            for line in Path(stream).read_text().splitlines():
+                proc.stdin.write(line + "\n")
+                proc.stdin.flush()
+                time.sleep(0.1)
+            proc.stdin.close()
+            out, err = proc.communicate(timeout=90)
+        except (OSError, subprocess.TimeoutExpired) as err_:
+            proc.kill()
+            raise Fail(f"injectAudio did not finish: {err_!r}") from err_
+        if proc.returncode != 0:
+            raise Fail(f"injectAudio failed: {(err or out).strip()[:300]}")
 
     def dictate(self, label: str, pattern: str, wait: float, speak: bool) -> str:
         """Tap the mic, optionally play the spoken phrase into the virtual mic, and read the composer."""

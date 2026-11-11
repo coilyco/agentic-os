@@ -69,6 +69,8 @@ class VoskRecognitionService : RecognitionService() {
             val recognizer = Recognizer(loaded, RATE.toFloat())
             val chunk = ShortArray(2048)
             var last = ""
+            var peak = 0
+            var logged = System.currentTimeMillis()
             val started = System.currentTimeMillis()
             try {
                 mic.startRecording()
@@ -78,6 +80,12 @@ class VoskRecognitionService : RecognitionService() {
                 while (!aborted && !finish) {
                     val read = mic.read(chunk, 0, chunk.size)
                     if (read <= 0) continue
+                    for (i in 0 until read) peak = maxOf(peak, Math.abs(chunk[i].toInt()))
+                    if (System.currentTimeMillis() - logged > 1000) {
+                        Log.i(TAG, "mic peak $peak over the last second")
+                        peak = 0
+                        logged = System.currentTimeMillis()
+                    }
                     if (recognizer.acceptWaveForm(chunk, read)) {
                         val text = JSONObject(recognizer.result).optString("text")
                         if (text.isNotEmpty()) {
