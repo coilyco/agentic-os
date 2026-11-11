@@ -229,6 +229,11 @@ func runNativeShadow(ctx context.Context, cmd *cli.Command) error {
 	if err := protectNativeHarnessInstall(harness, isolated); err != nil {
 		return err
 	}
+	if cleared, err := clearHarnessQuarantine(harness, homebrewCaskroom()); err != nil {
+		fmt.Fprintf(runtime.Stderr, "aos: warning: %v\n", err)
+	} else if cleared != "" {
+		fmt.Fprintf(runtime.Stderr, "aos: cleared the download quarantine on %s\n", cleared)
+	}
 	if isolated && harness == "codex" {
 		command = trustNativeCodexWorkspace(command, harness, nativeCodexProject(launchCWD))
 	}
