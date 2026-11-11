@@ -59,9 +59,48 @@ def daemon():
             break
         time.sleep(0.2)
     yield str(path), env
+    if proc.poll() is None:
+        script("down", "--socket", str(path), env=env)
     proc.terminate()
     proc.wait(timeout=10)
+    leaked = _holds_left(root)
+    _kill_tree(leaked)
     shutil.rmtree(root, ignore_errors=True)
+    assert not leaked, f"{len(leaked)} aterm holds outlived the test daemon (COI-3636), now killed"
+
+
+def _processes() -> dict[int, tuple[int, str]]:
+    """pid -> (ppid, command) for every process, from one ps read."""
+    shown = subprocess.run(["ps", "-axo", "pid=,ppid=,command="], capture_output=True, text=True, check=False).stdout
+    table = {}
+    for line in shown.splitlines():
+        pid, ppid, command = line.split(None, 2)
+        table[int(pid)] = (int(ppid), command)
+    return table
+
+
+def _holds_left(root: Path, settle: float = 5.0) -> list[int]:
+    """Holds under root, after giving a seat that was just closed time to exit."""
+    deadline = time.monotonic() + settle
+    while True:
+        found = [pid for pid, (_, cmd) in _processes().items() if "aterm hold --socket " + str(root) + "/" in cmd]
+        if not found or time.monotonic() >= deadline:
+            return found
+        time.sleep(0.25)
+
+
+def _kill_tree(roots: list[int]) -> None:
+    table = _processes()
+    todo, doomed = list(roots), []
+    while todo:
+        pid = todo.pop()
+        doomed.append(pid)
+        todo += [child for child, (parent, _) in table.items() if parent == pid]
+    for pid in reversed(doomed):
+        try:
+            os.kill(pid, 9)
+        except ProcessLookupError:
+            pass
 
 
 class Watcher:
