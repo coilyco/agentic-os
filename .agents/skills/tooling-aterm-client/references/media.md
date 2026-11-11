@@ -16,7 +16,7 @@ A welcome listing `media`. The client subscribes to the `media` channel, which r
 
 ## Not in the first slice
 
-Zoom and pan, a PDF or 3D viewer, thumbnails, and any way for the person to send a file back. Download works in a browser. **In the Android app it saves nothing** (checked 2026-11-10: the Download folder stayed empty, and the WebView has no Web Share or save plugin), so inside the app the viewer shows no Download and says the app cannot save files yet. A native save is COI-3593.
+Zoom and pan, a PDF or 3D viewer, thumbnails, and any way for the person to send a file back. Download works in a browser, and in the app through the `savefile` plugin ([save-file.md](save-file.md), COI-3593). An app without the plugin shows no Download and says it cannot save files yet.
 
 ## Trying it with no daemon that shares files
 
