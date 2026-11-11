@@ -39,6 +39,12 @@ type fakeAccounts struct {
 	renewFail int
 	renewals  int
 	wrongKey  bool
+	// provisionSecret is the secret the claim endpoint honors. provisionRefuse is how many
+	// claims it answers 401 first (an owner not signed up), and claims is every key it saw.
+	provisionSecret string
+	provisionRefuse int
+	claims          []string
+	boundKey        string
 }
 
 func newFakeAccounts(t *testing.T) *fakeAccounts {
@@ -58,6 +64,9 @@ func newFakeAccounts(t *testing.T) *fakeAccounts {
 			return
 		case "/v1/daemons/renew":
 			a.handleRenew(w, r)
+			return
+		case "/v1/daemons/provision":
+			a.handleProvision(w, r)
 			return
 		}
 		if down || r.URL.Path != "/.well-known/jwks.json" {
@@ -109,6 +118,47 @@ func (a *fakeAccounts) handleEnroll(w http.ResponseWriter, r *http.Request) {
 		jkt = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 	}
 	_ = json.NewEncoder(w).Encode(certReply{DaemonID: testDaemonID, Cert: a.daemonCert(jkt, time.Hour), ExpiresIn: 3600})
+}
+
+// handleProvision is accounts' claim endpoint. A known secret binds to the first key that
+// presents it, the same key retries to the same daemon, and another key is 403.
+func (a *fakeAccounts) handleProvision(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Secret    string                          `json:"secret"`
+		DaemonPub struct{ Kty, Crv, X, Y string } `json:"daemon_pub"`
+		Name      string                          `json:"name"`
+		Substrate string                          `json:"substrate"`
+	}
+	if err := decodeStrict(r, &req); err != nil || req.DaemonPub.Kty != "EC" || req.Name == "" || req.Substrate == "" {
+		http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
+		return
+	}
+	pub, err := parseP256(req.DaemonPub.X, req.DaemonPub.Y)
+	if err != nil {
+		http.Error(w, `{"error":"bad_request"}`, http.StatusBadRequest)
+		return
+	}
+	jkt := jwkThumbprint(pub)
+	a.mu.Lock()
+	a.claims = append(a.claims, jkt)
+	refuse := a.provisionRefuse > 0
+	if refuse {
+		a.provisionRefuse--
+	}
+	known := a.provisionSecret != "" && req.Secret == a.provisionSecret
+	conflict := known && a.boundKey != "" && a.boundKey != jkt
+	if known && !refuse && !conflict {
+		a.boundKey = jkt
+	}
+	a.mu.Unlock()
+	switch {
+	case !known || refuse:
+		http.Error(w, `{"error":"unauthorized","message":"the enrollment secret is not accepted"}`, http.StatusUnauthorized)
+	case conflict:
+		http.Error(w, `{"error":"forbidden","message":"another key"}`, http.StatusForbidden)
+	default:
+		_ = json.NewEncoder(w).Encode(certReply{DaemonID: testDaemonID, Cert: a.daemonCert(jkt, time.Hour), ExpiresIn: 3600})
+	}
 }
 
 // handleRenew checks the proof as accounts does: signed by the key whose thumbprint the
@@ -947,5 +997,97 @@ func TestWaitingSeatsBecomeBrokerEventsOnTheTrackersTerms(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("no event for a seat that finished")
+	}
+}
+
+// provisionRig is a daemon with no certificate, a secret file and fast retries.
+func provisionRig(t *testing.T, secret string) (*brokeredRig, string) {
+	t.Helper()
+	r := prepareBrokeredRig(t, time.Hour)
+	for _, f := range []string{"daemon.key", "daemon.cert"} {
+		if err := os.Remove(filepath.Join(r.dir, f)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r.a.provisionSecret = secret
+	prev := provisionBackoff
+	provisionBackoff = struct{ first, max time.Duration }{20 * time.Millisecond, 60 * time.Millisecond}
+	t.Cleanup(func() { provisionBackoff = prev })
+	file := filepath.Join(t.TempDir(), "secret")
+	return r, file
+}
+
+func (r *brokeredRig) startProvisioned(file string) {
+	r.d.startTreehouse(r.ctx, treehouseOptions{Broker: r.b.address(), Accounts: r.a.server.URL, Dir: r.dir, ConfigDir: r.configDir,
+		ProvisionSecretFile: file, Name: "kai-server", Substrate: "other"})
+}
+
+func (r *brokeredRig) haveCert() bool {
+	_, err := os.Stat(filepath.Join(r.dir, "daemon.cert"))
+	return err == nil
+}
+
+func TestProvisionedDaemonClaimsItsCertificateWithNoCodeThenRegistersWithTheBroker(t *testing.T) {
+	const secret = "q3VnT1uXk0yq8mJf2Zb9Wc7LrE4aHdS6pNtG5oYvIiM"
+	r, file := provisionRig(t, secret)
+	if err := os.WriteFile(file, []byte(secret+"\n"), 0o440); err != nil {
+		t.Fatal(err)
+	}
+	r.startProvisioned(file)
+	r.b.attach(t, "c1", testOwner) // fails unless the daemon claimed, then dialed and registered
+	key, err := loadDaemonKey(filepath.Join(r.dir, "daemon.key"))
+	if err != nil {
+		t.Fatalf("the key is private and loads: %v", err)
+	}
+	cert, _ := os.ReadFile(filepath.Join(r.dir, "daemon.cert"))
+	if !certBindsKey(strings.TrimSpace(string(cert)), key) || fileMode(t, filepath.Join(r.dir, "daemon.cert")) != 0o600 {
+		t.Fatal("the certificate binds the key and is private")
+	}
+	if strings.Contains(r.logs.String(), secret) {
+		t.Fatalf("the secret reached the log: %s", r.logs.String())
+	}
+}
+
+func TestProvisionedClaimKeepsAskingWithOneKeyUntilAccountsAccepts(t *testing.T) {
+	const secret = "q3VnT1uXk0yq8mJf2Zb9Wc7LrE4aHdS6pNtG5oYvIiM"
+	r, file := provisionRig(t, secret)
+	r.a.provisionRefuse = 3 // the owner has not signed up yet
+	// The secret store delivers the file after the daemon starts.
+	r.startProvisioned(file)
+	time.Sleep(100 * time.Millisecond)
+	if r.haveCert() || len(r.a.claims) != 0 {
+		t.Fatal("with no secret file there is nothing to claim with")
+	}
+	if err := os.WriteFile(file, []byte(secret), 0o440); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the certificate after three refusals", 5*time.Second, r.haveCert)
+	r.a.mu.Lock()
+	claims := append([]string(nil), r.a.claims...)
+	r.a.mu.Unlock()
+	if len(claims) != 4 {
+		t.Fatalf("expected three refusals and one success, saw %d claims", len(claims))
+	}
+	for _, jkt := range claims {
+		if jkt != claims[0] {
+			t.Fatalf("a retry used another key: %v", claims)
+		}
+	}
+	if strings.Contains(r.logs.String(), secret) {
+		t.Fatal("the secret reached the log")
+	}
+}
+
+func TestADaemonWithACertificateNeverClaimsAgain(t *testing.T) {
+	r := prepareBrokeredRig(t, time.Hour)
+	file := filepath.Join(t.TempDir(), "secret")
+	if err := os.WriteFile(file, []byte("q3VnT1uXk0yq8mJf2Zb9Wc7LrE4aHdS6pNtG5oYvIiM"), 0o440); err != nil {
+		t.Fatal(err)
+	}
+	r.a.provisionSecret = "q3VnT1uXk0yq8mJf2Zb9Wc7LrE4aHdS6pNtG5oYvIiM"
+	r.startProvisioned(file)
+	r.b.attach(t, "c1", testOwner)
+	if len(r.a.claims) != 0 {
+		t.Fatalf("an enrolled daemon claimed %d times", len(r.a.claims))
 	}
 }
