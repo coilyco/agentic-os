@@ -9,5 +9,11 @@ export const EXTERNAL = HOSTED || IN_APP;
 /** Only the coilyco.dev page can run the ceremony, since the daemon's RP is there. */
 export const CAN_PASSKEY = HOSTED && !IN_APP;
 
+/** The host an app build starts with, set by the build. Null if the build names none. */
+export function builtHost(address: string | undefined, label: string | undefined): { label: string; address: string } | null {
+  return address && /^wss?:\/\//.test(address) ? { label: label || "this host", address } : null;
+}
+export const BUILT_HOST = IN_APP ? builtHost(import.meta.env.VITE_ATERM_LOCAL_HOST, import.meta.env.VITE_ATERM_LOCAL_LABEL) : null;
+
 export type Place = "hosted" | "app" | "app-key" | "served";
 export const PLACE: Place = IN_APP ? "app" : HOSTED ? "hosted" : "served";

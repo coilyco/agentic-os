@@ -2470,23 +2470,37 @@ func reserveNativeSession(
 	)
 }
 
-// reclaimRequestedSession frees a requested code an ended session left behind, as a
-// deleted pod does. Only a leaseless remnant with nothing unpushed goes.
+// reclaimRequestedSession frees a requested code an ended session left behind, lease
+// included, since a deleted pod's lease outlives it. Unpushed work keeps the code taken.
 func reclaimRequestedSession(runtime nativeRuntime, harness, id string, repositories []nativeRepository) {
-	if _, err := os.Lstat(nativeStatePath(runtime, "leases", id+".json")); !errors.Is(err, fs.ErrNotExist) {
+	sessionRoot := filepath.Join(runtime.SessionsRoot, id)
+	leasePath := nativeStatePath(runtime, "leases", id+".json")
+	artifacts := make([]nativeArtifact, 0, len(repositories))
+	_, err := os.Lstat(leasePath)
+	switch {
+	case err == nil:
+		var lease nativeLease
+		if readNativeJSON(leasePath, &lease) != nil || nativeLeaseIsLive(lease) {
+			return
+		}
+		artifacts = lease.Artifacts
+	case errors.Is(err, fs.ErrNotExist):
+		for _, repository := range repositories {
+			artifacts = append(artifacts, nativeArtifact{
+				Repository: repository.Path,
+				Worktree:   filepath.Join(sessionRoot, "projects", repository.Owner, repository.Name),
+				Branch:     "aos/" + harness + "/" + id,
+			})
+		}
+	default:
 		return
 	}
-	sessionRoot := filepath.Join(runtime.SessionsRoot, id)
-	for _, repository := range repositories {
-		artifact := nativeArtifact{
-			Repository: repository.Path,
-			Worktree:   filepath.Join(sessionRoot, "projects", repository.Owner, repository.Name),
-			Branch:     "aos/" + harness + "/" + id,
-		}
+	for _, artifact := range artifacts {
 		if cleaned, err := cleanNativeArtifact(artifact); err != nil || !cleaned {
 			return
 		}
 	}
+	_ = os.Remove(leasePath)
 	_ = os.RemoveAll(sessionRoot)
 }
 

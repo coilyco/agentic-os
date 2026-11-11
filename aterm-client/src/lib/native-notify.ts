@@ -67,8 +67,15 @@ export function noticeId(session: string): number {
   return (hash >>> 0) % 2147483646 + 1;
 }
 
-export function nativeNotice(note: Notify): { options: { id: number; title: string; body: string; extra: { session: string } } } {
-  return { options: { id: noticeId(note.session), title: note.title, body: note.body, extra: { session: note.session } } };
+/** True in the Android app's WebView. Only Android names a small icon. */
+export const onAndroid = (): boolean => typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+
+/** The status bar's flat canopy, a drawable the icons script writes (COI-3613). */
+export const SMALL_ICON = "ic_stat_treehouse";
+
+export function nativeNotice(note: Notify, android = onAndroid()): { options: { id: number; title: string; body: string; extra: { session: string }; icon?: string } } {
+  const options = { id: noticeId(note.session), title: note.title, body: note.body, extra: { session: note.session } };
+  return { options: android ? { ...options, icon: SMALL_ICON } : options };
 }
 
 /** What was raised and not yet tapped, by notification id. A tap carries no notification

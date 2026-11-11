@@ -28,10 +28,13 @@ test_shell() {
   (cd "$tauri_dir" && cargo test)
 }
 
-# The same client bundle the Android app ships, then the Tauri shell around it.
-# tauri.macos.conf.json is merged over tauri.conf.json on this OS only.
+# The Android app's client bundle, then the Tauri shell around it. The bundle lists this
+# Mac's loopback daemon from the build (COI-3476).
+local_host=ws://127.0.0.1:7419/
 build() {
-  (cd "$repo_root" && just aterm-client-install && VITE_ATERM_APP=1 just aterm-client-build && just aterm-android-install)
+  (cd "$repo_root" && just aterm-client-install \
+    && VITE_ATERM_APP=1 VITE_ATERM_LOCAL_HOST="$local_host" VITE_ATERM_LOCAL_LABEL="this Mac" just aterm-client-build \
+    && just aterm-android-install)
   local version config=()
   version=$(app_version || true)
   [ -z "$version" ] || config=(--config "{\"version\":\"$version\"}")
