@@ -36,7 +36,7 @@ try() {
   local label="$1"; shift
   echo "######## variant: $label"
   start_pulse
-  env "$@" nohup emulator -avd ci -no-window -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel on -allow-host-audio >emulator.log 2>&1 &
+  env "$@" nohup emulator -avd ci -no-window -no-boot-anim -no-snapshot -gpu swiftshader_indirect -accel on >emulator.log 2>&1 &
   local pid=$! waited=0
   until [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; do
     kill -0 "$pid" 2>/dev/null || { echo "emulator exited"; tail -15 emulator.log; return 1; }
@@ -45,9 +45,9 @@ try() {
     waited=$((waited + 3))
   done
   echo "booted after ${waited}s"
-  grep -n -i -E "audio|pulse" emulator.log | head
-  adb shell 'which tinycap tinymix tinyplay arecord' 2>&1 | head
-  adb shell 'ls /dev/snd 2>&1' | head
+  grep -n -i -E "audio|pulse|grpc" emulator.log | head
+  adb root >/dev/null 2>&1; sleep 3
+  adb shell setenforce 0
   ( sleep 2; paplay --device=virt_mic /tmp/speech.wav ) &
   adb shell 'tinycap /data/local/tmp/cap.wav -D 0 -d 0 -r 16000 -c 1 -b 16 -T 6' 2>&1 | tail -3
   adb pull /data/local/tmp/cap.wav /tmp/cap.wav 2>&1 | tail -1
@@ -56,6 +56,10 @@ try() {
   sleep 8
 }
 
-try pa-env-vars QEMU_AUDIO_DRV=pa QEMU_PA_SERVER=unix:/tmp/pa/native QEMU_PA_SOURCE=virt_mic.monitor QEMU_PA_SINK=virt_mic PULSE_SERVER=unix:/tmp/pa/native XDG_RUNTIME_DIR=/tmp/pa || true
-try plain PULSE_SERVER=unix:/tmp/pa/native XDG_RUNTIME_DIR=/tmp/pa || true
-try default-socket XDG_RUNTIME_DIR=/tmp/pa || true
+echo "== qemu pulse linkage"
+find "$ANDROID_HOME/emulator" -name 'libpulse*' | head
+QEMU=$(find "$ANDROID_HOME/emulator" -name 'qemu-system-x86_64*' -type f | head -1)
+echo "qemu: $QEMU"
+ldd "$QEMU" 2>&1 | grep -i -E "pulse|asound|sdl|not found" | head
+try ld-preload-system LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libpulse.so.0 PULSE_SERVER=unix:/tmp/pa/native XDG_RUNTIME_DIR=/tmp/pa || true
+try plain-root PULSE_SERVER=unix:/tmp/pa/native XDG_RUNTIME_DIR=/tmp/pa || true
