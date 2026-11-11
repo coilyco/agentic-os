@@ -21,6 +21,7 @@ tauri-build = { version = "=2.7.1", features = [] }
 tauri = { version = "=2.12.1", features = [] }
 tauri-plugin-devicekey = { path = "../plugins/tauri-plugin-devicekey" }
 tauri-plugin-dictation = { path = "../plugins/tauri-plugin-dictation" }
+tauri-plugin-speak = { path = "../plugins/tauri-plugin-speak" }
 tauri-plugin-sharetarget = { path = "../plugins/tauri-plugin-sharetarget" }
 tauri-plugin-savefile = { path = "../plugins/tauri-plugin-savefile" }
 # The official opener plugin: Android ACTION_VIEW and macOS open. Reference:
