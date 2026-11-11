@@ -1,5 +1,5 @@
 // COI-3334 and COI-3243 bug 3: the ?taptrace record Kai hands back from her phone.
-import { card, expect, kindOf, loadFonts, SEATS, test } from "../harness.ts";
+import { card, expect, kindOf, loadFonts, SEATS, test, seatEntry } from "../harness.ts";
 import { ClaudeAsk, MULTI } from "../scenes.ts";
 import type { TraceEvent } from "../../src/lib/tap-trace.ts";
 
@@ -26,7 +26,7 @@ async function openTraced(bed: Bed, flag: string): Promise<void> {
   await bed.page.goto(`/${flag}`);
   await loadFonts(bed.page);
   await bed.page.getByRole("tab", { name: /this Mac/ }).click();
-  await bed.page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first().click();
+  await seatEntry(bed.page, SEATS.imp.name).click();
   await expect(bed.page.locator(".xterm-rows")).toBeVisible();
 }
 

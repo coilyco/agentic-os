@@ -1,6 +1,6 @@
 // COI-3544: a switch wraps a seat's long lines to a phone's width. Panning stays default.
 // The client alone draws it, so a desktop view of the seat is not asked to change.
-import { expect, kindOf, SEATS, test } from "../harness.ts";
+import { expect, kindOf, SEATS, test, seatEntry } from "../harness.ts";
 import type { Scene } from "../scenes.ts";
 
 const TAIL = "END-OF-THE-LONG-LINE";
@@ -78,7 +78,7 @@ test.describe("on a phone", () => {
     await bed.page.keyboard.press("Enter");
     await expect(wrap).toHaveAttribute("aria-pressed", "true");
     await bed.page.reload();
-    await bed.page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first().click();
+    await seatEntry(bed.page, SEATS.imp.name).click();
     await expect(bed.page.getByRole("heading", { name: SEATS.imp.name, level: 1 })).toBeAttached();
     bed.mock.holdWide(SEATS.imp.id, WIDE);
     bed.mock.setScene(SEATS.imp.id, wideScene);
@@ -233,7 +233,7 @@ test.describe("on a desktop", () => {
     const page = await phone.newPage();
     await page.goto("/");
     await page.getByRole("tab", { name: /this Mac/ }).click();
-    await page.getByRole("tab", { name: new RegExp(SEATS.imp.name) }).first().click();
+    await seatEntry(page, SEATS.imp.name).click();
     await page.getByRole("button", { name: "Wrap long lines" }).click();
     await expect.poll(async () => (await reading(page)).wrapping).toBe(true);
     await page.waitForTimeout(1000);
