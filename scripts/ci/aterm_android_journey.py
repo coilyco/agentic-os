@@ -171,8 +171,19 @@ class Journey:
         page = self.page
         assert page
         # The row moves groups as the seat settles and can swallow a tap, so tap again.
-        for _ in range(4):
-            page.tap(by_text("frontend-eng", ".overview button.open, nav button"))
+        for attempt in range(4):
+            try:
+                page.tap(by_text("frontend-eng", ".overview button.open, nav button"))
+            except Fail:
+                # A slow cold start can rest on the host list with no seat row (COI-3622).
+                print(f"open_seat: no seat row, the page says {page.text()[:160]!r}")
+                if attempt == 3:
+                    raise
+                try:
+                    page.tap("()=>document.querySelector('[id^=tab-host-]')", wait=3)
+                except Fail:
+                    pass
+                continue
             deadline = time.monotonic() + 6
             while time.monotonic() < deadline:
                 if self.composer_visible():

@@ -41,12 +41,16 @@ export function withDraft(stored: Stored, key: string, text: string, now: number
   return next;
 }
 
-export function loadDraft(key: string, now = Date.now()): string {
+export function loadDraftEntry(key: string, now = Date.now()): { text: string; at: number } | undefined {
   try {
-    return parseDrafts(localStorage.getItem(KEY), now)[key]?.text ?? "";
+    return parseDrafts(localStorage.getItem(KEY), now)[key];
   } catch {
-    return "";
+    return undefined;
   }
+}
+
+export function loadDraft(key: string, now = Date.now()): string {
+  return loadDraftEntry(key, now)?.text ?? "";
 }
 
 export function storeDraft(key: string, text: string, now = Date.now()): void {
