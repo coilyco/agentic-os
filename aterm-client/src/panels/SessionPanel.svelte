@@ -379,15 +379,15 @@
   .role { font-size: 14px; color: color-mix(in srgb, var(--accent) 55%, white); }
   .degraded { flex-basis: 100%; margin: 0; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--warn); background: var(--warn-fill); color: var(--warn-text); font-size: 13px; }
   .head-button { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 13px var(--font-body); }
-  .head-button[aria-expanded="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--ground)); }
-  .head-button:hover { border-color: var(--accent); }
+  .head-button[aria-expanded="true"] { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 16%, var(--ground)); }
+  .head-button:hover { border-color: var(--brand); }
   .head-button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
-  .count { min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: var(--accent); color: var(--ground); font: 700 12px/20px var(--font-body); text-align: center; }
-  .state { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--accent); }
+  .count { min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: var(--brand); color: var(--brand-ink); font: 700 12px/20px var(--font-body); text-align: center; }
+  .state { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--control-line); }
   .context { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); white-space: nowrap; }
   .context + .state { margin-left: 0; }
   .bar { display: inline-block; position: relative; width: 48px; height: 6px; margin-left: 8px; border-radius: 3px; overflow: hidden; vertical-align: middle; background: var(--line); }
-  .bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--fill); background: var(--accent); }
+  .bar::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--fill); background: var(--muted); }
   .work { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
   .screen { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
   .stage { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }

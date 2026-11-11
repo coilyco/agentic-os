@@ -52,3 +52,16 @@ test("the terminal paints the background, text, cursor, and selection colours it
   // One level of rounding either way is xterm's blend, two is a different colour.
   painted.forEach((value, i) => expect(Math.abs(value - (blended[i] ?? 0)), `selection channel ${i}: ${painted} vs ${blended}`).toBeLessThanOrEqual(1));
 });
+
+// COI-3552: the 16 ANSI colours are tokens too, and an escape code picks them up.
+test("an escape code paints the palette chosen for the brown ground", async ({ bed }) => {
+  await bed.openSeat(SEATS.imp);
+  bed.mock.setScene(SEATS.imp.id, { render: () => ["\x1b[31mred \x1b[91mbright \x1b[0mplain"] });
+  await expect(bed.screen()).toContainText("red bright plain");
+  const painted = await bed.page.evaluate(() => {
+    const colour = (cls: string) => getComputedStyle(document.querySelector(`.xterm-rows .${cls}`)!).color;
+    return { red: colour("xterm-fg-1"), bright: colour("xterm-fg-9") };
+  });
+  expect(painted.red, "ANSI red").toBe(rgb("#ee7769"));
+  expect(painted.bright, "ANSI bright red").toBe(rgb("#ff9a8d"));
+});

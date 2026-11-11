@@ -51,6 +51,7 @@ than editing it by hand.
 ## References
 
 * [features.md](references/features.md) - what ships today.
+* [colour-meaning.md](references/colour-meaning.md) - the one-meaning-per-colour rule, the terminal palette, and the busy-seat before and after.
 * [testbed.md](references/testbed.md) - the test bed: journeys against a mock daemon at desktop and phone sizes, baselines, and reported quirks.
 * [android-emulator.md](references/android-emulator.md) - `just aterm-android-emulator`: drive one live emulator running the real Treehouse app, the lock, the debug APK, and where it runs.
 * [android-emulator-rig.md](references/android-emulator-rig.md) - starting and stopping the whole emulator rig, and the one-tap check for a choice card in the real app.

@@ -105,7 +105,7 @@
   .bar { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 0 12px; border-bottom: 1px solid var(--line); }
   .name { font-family: var(--font-display); font-weight: 600; font-size: 14px; }
   .hint { margin: 0; padding: 4px 12px; color: var(--muted); font-size: 11px; border-top: 1px solid var(--line); }
-  button { min-height: 44px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--accent, var(--brand)); background: transparent; color: var(--text); font-family: var(--font-display); font-weight: 600; font-size: 14px; }
+  button { min-height: 44px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--brand); background: transparent; color: var(--text); font-family: var(--font-display); font-weight: 600; font-size: 14px; }
   button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .quiet { border-color: var(--line); color: var(--text-soft); }
   .note { margin: 0; padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--warn); background: var(--warn-fill); color: var(--warn-text); font-size: 13px; }

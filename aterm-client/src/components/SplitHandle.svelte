@@ -69,7 +69,7 @@
 <style>
   .handle { position: relative; cursor: col-resize; touch-action: none; }
   .handle::after { content: ""; position: absolute; inset: 0 5px; background: var(--line); border-radius: 2px; transition: background 120ms; }
-  .handle:hover::after, .handle.dragging::after { background: var(--accent, var(--brand)); }
+  .handle:hover::after, .handle.dragging::after { background: var(--brand); }
   .handle:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
   @media (max-width: 1000px) {
     .handle { display: none; }

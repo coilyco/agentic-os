@@ -17,5 +17,5 @@
 <style>
   .pin { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; min-height: 44px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--muted); }
   .pin:hover, .pin:focus-visible { border-color: var(--control-line); color: var(--text); }
-  .pin[aria-pressed="true"] { color: var(--accent, var(--brand)); }
+  .pin[aria-pressed="true"] { color: var(--brand); }
 </style>
