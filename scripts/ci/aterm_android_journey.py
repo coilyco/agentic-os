@@ -510,7 +510,8 @@ class Journey:
                 proc.stdin.flush()
                 time.sleep(0.1)
             proc.stdin.close()
-            out, err = proc.communicate(timeout=90)
+            proc.wait(timeout=90)
+            out, err = proc.stdout.read(), proc.stderr.read()  # type: ignore[union-attr]
         except (OSError, subprocess.TimeoutExpired) as err_:
             proc.kill()
             raise Fail(f"injectAudio did not finish: {err_!r}") from err_
