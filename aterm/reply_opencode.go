@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
+	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -32,6 +35,9 @@ func sqliteJSON(db, query string, out any) error {
 	ctx, cancel := context.WithTimeout(context.Background(), sqliteTimeout)
 	defer cancel()
 	raw, err := exec.CommandContext(ctx, "sqlite3", "-readonly", "-json", db, query).Output()
+	if err != nil && idleWAL(db) {
+		raw, err = exec.CommandContext(ctx, "sqlite3", "-json", immutableURI(db), query).Output()
+	}
 	if err != nil {
 		var missing *exec.Error
 		if errors.As(err, &missing) {
@@ -43,6 +49,18 @@ func sqliteJSON(db, query string, out any) error {
 		return json.Unmarshal([]byte("[]"), out)
 	}
 	return json.Unmarshal(raw, out)
+}
+
+// idleWAL is a WAL-mode database no process holds open. Its -wal file is gone, and a
+// read-only open then fails with CANTOPEN, as it does for a closed seat's goose.
+func idleWAL(db string) bool {
+	_, err := os.Stat(db + "-wal")
+	return errors.Is(err, fs.ErrNotExist)
+}
+
+// immutableURI opens a file read-only without a -wal. That is safe only when idleWAL.
+func immutableURI(db string) string {
+	return (&url.URL{Scheme: "file", Path: db, RawQuery: "mode=ro&immutable=1"}).String()
 }
 
 // sqlQuote is a SQL string literal. The input is a path from the ledger, so a
