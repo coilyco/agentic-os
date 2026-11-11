@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+import importlib.util
 import shutil
+import struct
 import subprocess
+import zlib
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +21,7 @@ def _tree(tmp_path: Path) -> Path:
     script.parent.mkdir(parents=True)
     shutil.copy(ROOT / "scripts" / "ci" / "aterm-android.sh", script)
     shutil.copytree(ROOT / ICONS, tmp_path / ICONS)
+    shutil.copy(ROOT / "scripts" / "ci" / "aterm_png_same.py", script.parent / "aterm_png_same.py")
     return tmp_path
 
 
@@ -87,3 +91,28 @@ def test_an_apk_missing_a_density_or_carrying_the_template_vector_fails_the_guar
     done = _run(tree, "check-icon", str(vector))
     assert done.returncode != 0
     assert "template's launcher foreground" in done.stderr
+
+
+def _reencoded(png: Path) -> bytes:
+    """The same picture as another encoder writes it, which is what a release build does to the icon."""
+    spec = importlib.util.spec_from_file_location("aterm_png_same", ROOT / "scripts" / "ci" / "aterm_png_same.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    width, height, data = module.pixels(png)
+    raw = b"".join(b"\x00" + data[y * width * 4 : (y + 1) * width * 4] for y in range(height))
+
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+
+    return module.SIGNATURE + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b"")
+
+
+def test_a_release_apk_that_re_encoded_the_same_icon_passes_and_a_different_picture_does_not(tmp_path: Path) -> None:
+    tree = _tree(tmp_path)
+    ours = tree / ICONS / "mipmap-xxxhdpi" / "ic_launcher_foreground.png"
+    recoded = _reencoded(ours)
+    assert recoded != ours.read_bytes()
+    assert _run(tree, "check-icon", str(_apk(tree, foreground={"xxxhdpi": recoded}))).returncode == 0
+    other = tree / ICONS / "mipmap-xxxhdpi" / "ic_launcher.png"
+    assert _run(tree, "check-icon", str(_apk(tree, foreground={"xxxhdpi": _reencoded(other)}))).returncode != 0

@@ -182,8 +182,10 @@ check_icon() {
       aapt2 dump resources "$apk" 2>/dev/null | grep -A8 'mipmap/ic_launcher_foreground' | head -n 24 >&2 || true
       fail "$apk has no $density launcher foreground, so the launcher icon is not ours (COI-3616)"
     fi
-    cmp -s "$work/$entry" "$android_dir/src-tauri/icons/android/mipmap-$density/ic_launcher_foreground.png" \
-      || fail "$entry in $apk ($(wc -c <"$work/$entry") bytes) differs from the repo's ($(wc -c <"$android_dir/src-tauri/icons/android/mipmap-$density/ic_launcher_foreground.png") bytes), so the launcher icon is not ours (COI-3616)"
+    # A release build re-encodes the PNG, so the same picture may differ in bytes.
+    ours="$android_dir/src-tauri/icons/android/mipmap-$density/ic_launcher_foreground.png"
+    cmp -s "$work/$entry" "$ours" || python3 -I "$repo_root/scripts/ci/aterm_png_same.py" "$work/$entry" "$ours" \
+      || fail "$entry in $apk ($(wc -c <"$work/$entry") bytes) is not the repo's picture ($(wc -c <"$ours") bytes), so the launcher icon is not ours (COI-3616)"
   done
   if unzip -l "$apk" | grep -q 'res/drawable-v24/ic_launcher_foreground.xml'; then
     fail "$apk still carries the template's launcher foreground (COI-3616)"
