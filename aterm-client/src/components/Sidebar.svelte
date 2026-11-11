@@ -138,10 +138,14 @@
     return () => clearInterval(timer);
   });
 
+  // A seat with a page card waiting is cued like one asking (COI-3328).
+  const opened = $derived(new Set(app.openedPages.map((page) => page.sessionId)));
+
   function stateText(session: Session, asking: string | null): string {
     if (reconnecting()) return `${session.state}, last known`;
     if (session.state === "failed") return "launch failed";
     if (asking) return asking;
+    if (opened.has(session.id)) return "opened a page";
     if (app.unseen[session.id]) return stateWithAge("done, your turn", session.quietSince, now);
     if (session.drafting) return "you're typing";
     if (session.pending) return `${session.pending} ${session.pending === 1 ? "message" : "messages"} waiting`;
@@ -151,7 +155,7 @@
 
   function activity(session: Session, asking: string | null): string {
     if (session.state === "failed") return "failed";
-    if (asking) return "asking";
+    if (asking || opened.has(session.id)) return "asking";
     if (app.unseen[session.id]) return "unseen";
     return session.state;
   }

@@ -9,6 +9,10 @@ describe("previewFor", () => {
     expect(previewFor({ identity: "Frog-Ox", kind: "artifact" }, undefined)).toEqual({ identity: "Frog-Ox", kind: "artifact", heading: "Left you a page", detail: null });
   });
 
+  it("says a seat opened a page that is waiting on a click (COI-3328)", () => {
+    expect(previewFor({ identity: "Beetle-Ox", kind: "opened" }, undefined)).toEqual({ identity: "Beetle-Ox", kind: "opened", heading: "Opened a page", detail: null });
+  });
+
   it("says an asking seat is asking and shows its question on one line", () => {
     expect(previewFor({ identity: "Imp-Dragonfly", kind: "asking" }, ask("Merge   the PR\nnow?"))).toEqual({
       identity: "Imp-Dragonfly",

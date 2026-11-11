@@ -795,7 +795,7 @@ export type Waiting = NeedsKai;
 
 /** Seats that need you: the one list the title, badge, chip, toast and cues all read. */
 export function waitingSeats(): Waiting[] {
-  return seatsNeedingKai(Object.values(app.asks), Object.values(app.artifacts), app.sessions);
+  return seatsNeedingKai(Object.values(app.asks), Object.values(app.artifacts), app.sessions, app.openedPages);
 }
 
 let nextPage = 0;
@@ -845,7 +845,7 @@ export function openSeat(): string | null {
 /** Who is waiting, for cues. A read-only browser cannot answer, so its asks sit out. */
 export function cueSeats(): string[] {
   const asks = app.typing.allowed ? Object.values(app.asks) : [];
-  return seatsNeedingKai(asks, Object.values(app.artifacts), app.sessions).map((seat) => seat.sessionId);
+  return seatsNeedingKai(asks, Object.values(app.artifacts), app.sessions, app.openedPages).map((seat) => seat.sessionId);
 }
 
 /** Waiting seats the strong visual draws, with their role colour. */
