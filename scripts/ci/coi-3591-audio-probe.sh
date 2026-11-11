@@ -34,10 +34,10 @@ done
 echo "booted after ${waited}s"
 grep -n -i -E "audio|grpc" emulator.log | head
 echo "== reflection"
-grpcurl -plaintext 127.0.0.1:8554 list 2>&1 | head -20
-grpcurl -plaintext 127.0.0.1:8554 describe android.emulation.control.AudioPacket 2>&1 | head -20
-grpcurl -plaintext 127.0.0.1:8554 describe android.emulation.control.AudioFormat 2>&1 | head -30
-grpcurl -plaintext 127.0.0.1:8554 describe android.emulation.control.EmulatorController 2>&1 | grep -i audio
+timeout 20 grpcurl -plaintext 127.0.0.1:8554 list 2>&1 | head -20
+timeout 20 grpcurl -plaintext 127.0.0.1:8554 describe android.emulation.control.AudioPacket 2>&1 | head -20
+timeout 20 grpcurl -plaintext 127.0.0.1:8554 describe android.emulation.control.AudioFormat 2>&1 | head -30
+timeout 20 grpcurl -plaintext 127.0.0.1:8554 describe android.emulation.control.EmulatorController 2>&1 | grep -i audio
 
 python3 - <<'PY'
 import base64, json, wave
@@ -55,7 +55,7 @@ PY
 adb root >/dev/null 2>&1
 sleep 3
 adb shell setenforce 0
-( sleep 2; grpcurl -plaintext -d @ 127.0.0.1:8554 android.emulation.control.EmulatorController/injectAudio < /tmp/inject.jsonl 2>&1 | tail -5 ) &
+( sleep 2; timeout 25 grpcurl -plaintext -d @ 127.0.0.1:8554 android.emulation.control.EmulatorController/injectAudio < /tmp/inject.jsonl 2>&1 | tail -5 ) &
 adb shell 'tinycap /data/local/tmp/cap.wav -D 0 -d 0 -r 16000 -c 1 -b 16 -T 8' 2>&1 | tail -3
 wait
 adb pull /data/local/tmp/cap.wav /tmp/cap.wav 2>&1 | tail -1
