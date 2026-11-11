@@ -34,6 +34,32 @@ export async function askPermission(core: Core): Promise<boolean> {
   }
 }
 
+const ASKED_KEY = "aterm.notifyAsked.v1";
+
+/** True once this device has shown the system prompt. Android reports a first no as
+ * "never asked", so the system alone lets the prompt return on every launch. */
+export function askedBefore(): boolean {
+  try {
+    return localStorage.getItem(ASKED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function rememberAsked(): void {
+  try {
+    localStorage.setItem(ASKED_KEY, "1");
+  } catch {
+    // Storage can be off. The prompt then returns at the next launch, as it used to.
+  }
+}
+
+/** The prompt is a system dialog that covers the page and eats taps, so it waits for a
+ * screen with no composer: not a seat, not a launch form. The demo never asks. */
+export function mayAskNow(on: { attached: boolean; visible: boolean; composerShown: boolean; demo: boolean }): boolean {
+  return on.attached && on.visible && !on.composerShown && !on.demo;
+}
+
 /** One notification per seat: a new one from the same seat replaces the old. */
 export function noticeId(session: string): number {
   let hash = 2166136261;

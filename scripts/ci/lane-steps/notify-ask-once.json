@@ -1,0 +1,103 @@
+{
+  "name": "the notification prompt is asked once and never over a composer",
+  "start": "seat",
+  "steps": [
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "pm",
+        "revoke",
+        "dev.coilyco.treehouse",
+        "android.permission.POST_NOTIFICATIONS"
+      ]
+    },
+    {
+      "op": "kill-app"
+    },
+    {
+      "op": "reopen"
+    },
+    {
+      "op": "sleep",
+      "seconds": 10
+    },
+    {
+      "op": "assert",
+      "js": "!!document.querySelector('#composer-input')&&document.visibilityState==='visible'&&document.hasFocus()",
+      "message": "a seat is open with its composer, and the page is not behind a system dialog"
+    },
+    {
+      "op": "ui-dump",
+      "name": "seat-open"
+    },
+    {
+      "op": "shot",
+      "name": "seat-open-no-prompt"
+    },
+    {
+      "op": "tap",
+      "selector": ".switcher"
+    },
+    {
+      "op": "tap",
+      "selector": "[id^=tab-host-]"
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "ui-dump",
+      "name": "overview-first-ask"
+    },
+    {
+      "op": "shot",
+      "name": "overview-first-ask"
+    },
+    {
+      "op": "tap-ui",
+      "pattern": "^Don.?t allow$",
+      "timeout": 40
+    },
+    {
+      "op": "sleep",
+      "seconds": 2
+    },
+    {
+      "op": "shot",
+      "name": "after-dont-allow"
+    },
+    {
+      "op": "kill-app"
+    },
+    {
+      "op": "reopen"
+    },
+    {
+      "op": "tap",
+      "selector": ".switcher"
+    },
+    {
+      "op": "tap",
+      "selector": "[id^=tab-host-]"
+    },
+    {
+      "op": "sleep",
+      "seconds": 15
+    },
+    {
+      "op": "ui-dump",
+      "name": "overview-second-launch"
+    },
+    {
+      "op": "assert",
+      "js": "document.visibilityState==='visible'&&document.hasFocus()",
+      "message": "the prompt came back on the second launch"
+    },
+    {
+      "op": "shot",
+      "name": "overview-second-launch"
+    }
+  ]
+}

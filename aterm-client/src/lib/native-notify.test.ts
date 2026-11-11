@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { askPermission, listenForTaps, nativeCore, nativeNotice, noticeId, parseNoted, permissionOf, seatOfTap, showNative, tappedFromActive, tappedSeat } from "./native-notify";
+import { askedBefore, askPermission, listenForTaps, mayAskNow, rememberAsked, nativeCore, nativeNotice, noticeId, parseNoted, permissionOf, seatOfTap, showNative, tappedFromActive, tappedSeat } from "./native-notify";
 import type { Notify } from "./protocol";
 
 const note: Notify = { id: "n1", session: "prod-director-griffin-goose", role: "prod-director", identity: "Griffin-Goose", title: "Decision needed", body: "Pick the order", at: 1 };
@@ -144,5 +144,32 @@ describe("a tap that names no seat", () => {
   });
   it("prefers a seat the payload names", async () => {
     expect(await seatOfTap(core(() => Promise.resolve(null)), { notification: { extra: { session: "named" } } })).toBe("named");
+  });
+});
+
+describe("asking once", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const store = () => {
+    const kept = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (key: string) => kept.get(key) ?? null, setItem: (key: string, value: string) => void kept.set(key, value) });
+  };
+  it("remembers that the prompt was shown, so a first no is the last ask", () => {
+    store();
+    expect(askedBefore()).toBe(false);
+    rememberAsked();
+    expect(askedBefore()).toBe(true);
+  });
+  it("reads as never asked, and does not throw, when storage is off", () => {
+    vi.stubGlobal("localStorage", { getItem: () => { throw new Error("off"); }, setItem: () => { throw new Error("off"); } });
+    expect(askedBefore()).toBe(false);
+    expect(() => rememberAsked()).not.toThrow();
+  });
+  it("waits for a screen with no composer, a visible page, a host, and no demo", () => {
+    const ready = { attached: true, visible: true, composerShown: false, demo: false };
+    expect(mayAskNow(ready)).toBe(true);
+    expect(mayAskNow({ ...ready, composerShown: true })).toBe(false);
+    expect(mayAskNow({ ...ready, attached: false })).toBe(false);
+    expect(mayAskNow({ ...ready, visible: false })).toBe(false);
+    expect(mayAskNow({ ...ready, demo: true })).toBe(false);
   });
 });

@@ -1,0 +1,149 @@
+{
+  "name": "Try the demo, use a seat, the side terminal and Leave demo, with no host (COI-3315)",
+  "start": "launch",
+  "steps": [
+    {
+      "op": "wait",
+      "pattern": "Try the demo",
+      "timeout": 30
+    },
+    {
+      "op": "eval",
+      "js": "window.__net=[];const W=window.WebSocket;window.WebSocket=function(...a){window.__net.push('ws '+a[0]);return new W(...a)};const F=window.fetch;window.fetch=function(i,...a){window.__net.push('fetch '+(i&&i.url||i));return F.call(this,i,...a)};const O=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(m,u){window.__net.push('xhr '+u);return O.apply(this,arguments)};const E=window.EventSource;if(E)window.EventSource=function(u,...a){window.__net.push('sse '+u);return new E(u,...a)};'recording'",
+      "expect": "recording"
+    },
+    {
+      "op": "eval",
+      "js": "innerWidth",
+      "save": "width"
+    },
+    {
+      "op": "shot",
+      "name": "first-screen"
+    },
+    {
+      "op": "tap",
+      "selector": "#try-demo"
+    },
+    {
+      "op": "wait",
+      "pattern": "nothing here is real",
+      "timeout": 30
+    },
+    {
+      "op": "assert",
+      "js": "!!document.querySelector('[aria-label=\"Demo mode\"]')",
+      "message": "the DEMO bar is not on the first seat"
+    },
+    {
+      "op": "assert",
+      "js": "document.title.startsWith('DEMO //')",
+      "message": "the tab title is not marked DEMO"
+    },
+    {
+      "op": "shot",
+      "name": "demo-first-seat"
+    },
+    {
+      "op": "tap",
+      "selector": ".switcher"
+    },
+    {
+      "op": "wait",
+      "pattern": "Seats",
+      "timeout": 15
+    },
+    {
+      "op": "assert",
+      "js": "(()=>{const b=document.querySelector('[aria-label=\"Demo mode\"]');if(!b)return false;const r=b.getBoundingClientRect();const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return !!hit&&b.contains(hit)})()",
+      "message": "the seat menu covers the DEMO bar"
+    },
+    {
+      "op": "shot",
+      "name": "demo-seat-menu"
+    },
+    {
+      "op": "tap",
+      "selector": "#tab-session-demo-scientist-1"
+    },
+    {
+      "op": "wait",
+      "pattern": "Which routes should the latency sweep cover first",
+      "timeout": 20
+    },
+    {
+      "op": "shot",
+      "name": "demo-choice-card"
+    },
+    {
+      "op": "tap-text",
+      "text": "Local Qwen"
+    },
+    {
+      "op": "shot",
+      "name": "demo-choice-picked"
+    },
+    {
+      "op": "tap",
+      "selector": "#side-tab-terminal"
+    },
+    {
+      "op": "wait",
+      "pattern": "demo@trailhead",
+      "timeout": 20
+    },
+    {
+      "op": "assert",
+      "js": "document.body.innerText.includes('DEMO')",
+      "message": "the side terminal shows no DEMO line"
+    },
+    {
+      "op": "shot",
+      "name": "demo-side-terminal"
+    },
+    {
+      "op": "eval",
+      "js": "JSON.stringify(window.__net)",
+      "expect": "^\\[\\]$",
+      "save": "network"
+    },
+    {
+      "op": "assert",
+      "js": "(()=>{const b=document.querySelector('[aria-label=\"Demo mode\"]');if(!b)return false;const r=b.getBoundingClientRect();const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return !!hit&&b.contains(hit)})()",
+      "message": "the DEMO bar is not on top at the end of the walkthrough"
+    },
+    {
+      "op": "tap",
+      "selector": "[aria-label=\"Leave demo\"]"
+    },
+    {
+      "op": "wait",
+      "pattern": "Pick a host",
+      "timeout": 20
+    },
+    {
+      "op": "assert",
+      "js": "!document.querySelector('[aria-label=\"Demo mode\"]')",
+      "message": "the DEMO bar is still up after Leave demo"
+    },
+    {
+      "op": "shot",
+      "name": "left-demo"
+    },
+    {
+      "op": "eval",
+      "js": "JSON.stringify(window.__net)",
+      "expect": "^\\[\\]$",
+      "save": "network_after_leave"
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "dumpsys",
+        "connectivity"
+      ],
+      "check": false
+    }
+  ]
+}
