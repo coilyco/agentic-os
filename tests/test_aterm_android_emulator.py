@@ -154,9 +154,25 @@ def test_keyboard_state_reads_the_input_method(device: Path) -> None:
 
 def test_a_build_with_no_devtools_socket_says_to_install_the_debug_apk(device: Path) -> None:
     verb(device, "acquire")
-    done = verb(device, "devtools", FAKE_SOCKETS="@chrome_devtools_remote")
+    done = verb(device, "devtools", FAKE_SOCKETS="@chrome_devtools_remote", TREEHOUSE_EMULATOR_DEVTOOLS_WAIT="0")
     assert done.returncode == 8
     assert "release build has no WebView DevTools" in done.stderr
+    assert "pids 4242" in done.stderr
+
+
+def test_the_apps_own_socket_is_taken_when_another_apps_is_listed_first(device: Path) -> None:
+    verb(device, "acquire")
+    done = verb(device, "devtools", FAKE_SOCKETS="@webview_devtools_remote_1572\n@webview_devtools_remote_4242")
+    assert done.returncode == 0, done.stderr
+    assert "localabstract:webview_devtools_remote_4242" in (device / "adb.log").read_text(encoding="utf-8")
+    assert "remote_1572" not in (device / "adb.log").read_text(encoding="utf-8")
+
+
+def test_another_apps_socket_alone_is_not_the_apps_and_the_message_lists_it(device: Path) -> None:
+    verb(device, "acquire")
+    done = verb(device, "devtools", FAKE_SOCKETS="@webview_devtools_remote_1572", TREEHOUSE_EMULATOR_DEVTOOLS_WAIT="0")
+    assert done.returncode == 8
+    assert "Sockets listed: webview_devtools_remote_1572" in done.stderr
 
 
 # A fake ssh that, like ssh -f, leaves a child holding its pipes, and opens the port.

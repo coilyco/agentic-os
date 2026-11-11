@@ -12,7 +12,7 @@ Starting the whole rig and the card-tap recipe: [android-emulator-rig.md](androi
 * `acquire [--wait S]` and `release [--force]` - the lock. `status` and `tunnel` need none.
 * `install APK [--reinstall]`, `open`, `stop-app`, `clear-app` - the app, `dev.coilyco.treehouse`.
 * `tap X Y`, `type TEXT`, `key NAME`, `keyboard state|close`, `shot OUT.png` - input and screenshots. A tap is an `adb shell input` touch, so the page sees what a finger sends. Open the keyboard by tapping a field.
-* `devtools`, `eval JS`, `dom SELECTOR`, `tap-selector SELECTOR` - the app's WebView over DevTools, through `scripts/aterm_devtools.py`, the client the CI journey shares. `tap-selector` reads the element's box over DevTools, finds the WebView on screen from the UI tree, and sends one real tap.
+* `devtools`, `eval JS`, `dom SELECTOR`, `tap-selector SELECTOR` - the app's WebView over DevTools, through `scripts/aterm_devtools.py`, the client the CI journey shares. The app's socket is named by its pid, never taken from the list, because a Google-APIs image runs other WebView hosts whose sockets can sort first. A starting app is waited for up to `TREEHOUSE_EMULATOR_DEVTOOLS_WAIT` seconds (15), and a refusal lists the pids and sockets (COI-3600). `tap-selector` reads the element's box over DevTools, finds the WebView on screen from the UI tree, and sends one real tap.
 * `photo [--name NAME.png]` - puts a 512 pixel picture in the library and waits for MediaStore to list it, so the Photo Picker has something to show.
 * `reverse PORT` - the guest's `localhost:PORT` reaches that port on the host running the adb server, as loopback.
 

@@ -299,11 +299,9 @@ class Emulator:
             raise Refused(f"install failed: {text}")
         return f"installed {apk}"
 
-    def pid(self) -> str:
-        pid = self.shell(f"pidof -s {APP_ID}", check=False)
-        if not pid:
-            raise Refused(f"{APP_ID} is not running, run open", EXIT_NO_DEVICE)
-        return pid
+    def pids(self) -> list[str]:
+        """Every process the app has, since a stale one can sort before the live one."""
+        return self.shell(f"pidof {APP_ID}", check=False).split()
 
     def keyboard_shown(self) -> bool:
         return "mInputShown=true" in self.shell("dumpsys input_method | grep -m1 mInputShown", check=False)
@@ -311,13 +309,23 @@ class Emulator:
     def devtools(self) -> str:
         """Forward the app's WebView DevTools socket and print where the page list is."""
         c = self.cfg
-        sockets = self.shell("cat /proc/net/unix")
-        want = f"webview_devtools_remote_{self.pid()}"
-        if want not in sockets:
-            raise Refused(
-                f"{APP_ID} exposes no {want}: the release build has no WebView DevTools, install the debug APK",
-                EXIT_NO_DEVICE,
-            )
+        deadline = time.monotonic() + float(c.env.get("TREEHOUSE_EMULATOR_DEVTOOLS_WAIT") or 15)
+        while True:
+            pids, table = self.pids(), self.shell("cat /proc/net/unix")
+            want = aterm_devtools.app_socket(pids, table)
+            if want:
+                break
+            if not pids:
+                raise Refused(f"{APP_ID} is not running, run open", EXIT_NO_DEVICE)
+            # The WebView is made as the activity starts, so a fresh launch can be early.
+            if time.monotonic() >= deadline:
+                listed = ", ".join(aterm_devtools.listed_sockets(table)) or "none"
+                raise Refused(
+                    f"{APP_ID} (pids {', '.join(pids)}) exposes no webview_devtools_remote_<pid>. Sockets listed: {listed}. "
+                    "The release build has no WebView DevTools, so install the debug APK",
+                    EXIT_NO_DEVICE,
+                )
+            time.sleep(1)
         remote = c.ssh_devtools_port if c.ssh else c.devtools_port
         self.adb("forward", f"tcp:{remote}", f"localabstract:{want}")
         return f"http://127.0.0.1:{c.devtools_port}"
