@@ -177,14 +177,22 @@
       "selector": ".switcher"
     },
     {
-      "op": "eval",
-      "js": "JSON.stringify([...document.querySelectorAll('#sidebar-menu button')].map((b)=>b.innerText.trim().replace(/\\n/g,' / ')).filter(Boolean))",
-      "save": "menu_buttons"
+      "op": "tap-text",
+      "text": "Hosts and settings",
+      "within": "#sidebar-menu summary"
+    },
+    {
+      "op": "sleep",
+      "seconds": 1
+    },
+    {
+      "op": "shot",
+      "name": "6b-hosts-and-settings-open"
     },
     {
       "op": "tap-text",
       "text": "Settings",
-      "within": "#sidebar-menu button"
+      "within": "#sidebar-menu button.link"
     },
     {
       "op": "wait",
