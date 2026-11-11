@@ -157,6 +157,16 @@ def test_a_refused_upgrade_says_what_the_page_answered() -> None:
     listener.close()
 
 
+def test_app_socket_is_named_by_the_apps_pid_and_never_another_apps() -> None:
+    table = "00000000: x @webview_devtools_remote_1572\n00000000: y @webview_devtools_remote_4658\n00000000: z @chrome_devtools_remote"
+    assert devtools.listed_sockets(table) == ["webview_devtools_remote_1572", "webview_devtools_remote_4658"]
+    assert devtools.app_socket(["4658"], table) == "webview_devtools_remote_4658"
+    assert devtools.app_socket(["9999", "4658"], table) == "webview_devtools_remote_4658"
+    assert devtools.app_socket(["9999"], table) is None
+    assert devtools.app_socket([], table) is None
+    assert devtools.app_socket(["1572"], "") is None
+
+
 def test_choose_page_rewrites_to_the_reachable_port_and_prefers_the_apps_origin() -> None:
     targets = [
         {"type": "page", "url": "about:blank", "webSocketDebuggerUrl": "ws://localhost:9222/devtools/page/A"},

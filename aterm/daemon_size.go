@@ -97,3 +97,6 @@ func (s *ptySession) forgetSize(c *conn) {
 	s.size.mu.Unlock()
 	s.refit()
 }
+
+// mayResize says whether a client's box counts toward a PTY's size.
+func (d *daemon) mayResize(cl *client) bool { return !cl.remote || d.users.Unlocked(cl) }
