@@ -50,6 +50,9 @@ test("a tap on the mic puts spoken words in the composer, editable, and Send sen
   await expect(mic).toBeVisible();
   await mic.click();
   await expect(bed.page.getByRole("button", { name: "Stop dictating" })).toHaveAttribute("aria-pressed", "true");
+  // The pointer is still over the button, as a touch screen leaves it after a tap.
+  const ink = await bed.page.getByRole("button", { name: "Stop dictating" }).evaluate((node) => getComputedStyle(node).color);
+  expect(ink, "the mic reads dark on the green while listening, hovered or not").toBe("rgb(11, 26, 16)");
   // Words show while the person is still talking, after what was already typed.
   await expect(field).toHaveValue("seat: run the gate");
   await bed.page.getByRole("button", { name: "Stop dictating" }).click();

@@ -587,7 +587,7 @@
   .composer.dropping { outline: 2px dashed var(--brand); outline-offset: -4px; }
   .add-image { flex: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--control-line); border-radius: 10px; background: var(--terminal); color: var(--text-soft); cursor: pointer; }
   .add-image:hover:not(:disabled) { color: var(--text); border-color: var(--brand); }
-  .add-image.listening { color: var(--brand-ink); background: var(--brand); border-color: var(--brand); }
+  .add-image.listening, .add-image.listening:hover:not(:disabled) { color: var(--brand-ink); background: var(--brand); border-color: var(--brand); }
   .add-image:focus-visible, .chip-remove:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .attachments { flex: 0 0 100%; min-width: 0; }
   .hold { flex: 0 0 100%; margin: 0; font-size: 14px; line-height: 1.4; color: var(--warn-text); }
