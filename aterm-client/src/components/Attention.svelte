@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { app, openSeat } from "../lib/app.svelte";
+  import { app, inDemo, openSeat } from "../lib/app.svelte";
   import { unlock } from "../lib/chime";
+  import { mayAskNow } from "../lib/native-notify";
   import { closeSeatNotifications } from "../lib/push";
   import { askNativeOnce, handleNotify, listenForNativeTaps, openSeatFromNotification, settleSeat, syncPush, takeLaunchSeat } from "../lib/push.svelte";
 
@@ -37,7 +38,8 @@
 
   // The app asks the system for notifications once attached, while it is on screen.
   $effect(() => {
-    if (app.attachedHostId && app.pageVisible) void askNativeOnce();
+    const composerShown = app.selectedSession !== null || app.selectedRole !== null;
+    if (mayAskNow({ attached: app.attachedHostId !== null, visible: app.pageVisible, composerShown, demo: inDemo() })) void askNativeOnce();
   });
 
   onMount(() => {

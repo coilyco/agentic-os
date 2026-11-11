@@ -32,7 +32,8 @@
   import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
   import { loadSide, loadSideOpen, storeSide, storeSideOpen } from "../lib/split";
   import { activityFlag } from "../lib/seat-activity";
-  import { draftKey, loadDraft, storeDraft } from "../lib/draft-store";
+  import { draftKey, loadDraft, loadDraftEntry, storeDraft } from "../lib/draft-store";
+  import { clearedAt, loadMirroredDraft, mirrorDraft, newerWords, noteCleared } from "../lib/draft-words";
   import { loadDraftImages, saveDraftImages } from "../lib/draft-images";
   import { mark } from "../lib/tap-trace";
   import { wantsFind } from "../lib/terminal-extras";
@@ -344,9 +345,17 @@
             reading={layout.reading}
             draft={app.drafts[session.id] ?? loadDraft(draftKey(app.selectedHostId ?? "", session.id))}
             ondraft={(text) => {
+              const key = draftKey(app.selectedHostId ?? "", session.id);
+              if (!text && session.id in app.drafts) noteCleared(key);
               if (text) app.drafts[session.id] = text;
               else delete app.drafts[session.id];
-              storeDraft(draftKey(app.selectedHostId ?? "", session.id), text);
+              storeDraft(key, text);
+              void mirrorDraft(key, text);
+            }}
+            saveddraft={async () => {
+              const key = draftKey(app.selectedHostId ?? "", session.id);
+              // Words kept in memory this page life are the newest there are.
+              return session.id in app.drafts ? undefined : newerWords(loadDraftEntry(key), await loadMirroredDraft(key), clearedAt(key));
             }}
             savedimages={() => loadDraftImages(draftKey(app.selectedHostId ?? "", session.id))}
             onimages={(files) => saveDraftImages(draftKey(app.selectedHostId ?? "", session.id), files)}
@@ -369,7 +378,7 @@
 
 <style>
   .session { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-  header { flex: none; min-height: 64px; padding: 8px 24px; display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; border-bottom: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--ground)); }
+  header { flex: none; min-height: 64px; padding: 8px 24px; display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; border-bottom: 1px solid var(--control-line); background: var(--ground); }
   h1 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 22px; }
   .name-block { display: flex; flex-direction: column; min-width: 0; max-width: 460px; }
   .activity { display: flex; gap: 8px; margin: 0; font-size: 13px; line-height: 1.3; color: var(--text-soft); }

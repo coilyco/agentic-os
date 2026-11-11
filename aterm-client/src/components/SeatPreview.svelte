@@ -19,7 +19,7 @@
   .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
   .name { font-family: var(--font-display); font-weight: 600; font-size: 15px; }
   .kind { font-size: 12px; color: var(--muted); }
-  .kind[data-kind="asking"] { color: var(--accent); }
+  .kind[data-kind="asking"] { color: var(--warn-text); }
   .detail { margin-top: 6px; font-size: 13px; line-height: 1.4; color: var(--text-soft); display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
   .hint { margin-top: 6px; font-size: 11px; color: var(--muted); }
 </style>

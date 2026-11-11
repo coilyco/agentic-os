@@ -1,6 +1,6 @@
 import { app, openByPerson, openSeat, placeNow, selectHost } from "./app.svelte";
 import { chime } from "./chime";
-import { askPermission, listenForTaps, nativeCore, permissionOf, showNative } from "./native-notify";
+import { askedBefore, askPermission, listenForTaps, nativeCore, permissionOf, rememberAsked, showNative } from "./native-notify";
 import { noticeFor, SeenIds, wantsDesktopNotice } from "./notify";
 import type { Notify } from "./protocol";
 import { disablePush, enablePush, liveBrowser, loadPushHosts, lockedMessage, PushError, pushIsOn, pushUnavailable, resolveSeat, seatFromLocation, storePushHosts, type PendingSeat } from "./push";
@@ -100,13 +100,16 @@ const seenNotes = new SeenIds();
 
 let askedNative = false;
 
-/** In the app, asks the system once per launch, from the foreground, where a prompt can
- * show. Later pings show only what was allowed, and a no is not asked again. */
+/** In the app, asks the system once ever, from the foreground, where a prompt can show.
+ * Later pings show only what was allowed, and a no is remembered, not asked again. */
 export async function askNativeOnce(): Promise<void> {
   const core = nativeCore();
-  if (!core || askedNative) return;
+  if (!core || askedNative || askedBefore()) return;
   askedNative = true;
-  if ((await permissionOf(core)) === "ask") await askPermission(core);
+  if ((await permissionOf(core)) !== "ask") return;
+  // Marked before the dialog, so a kill with it showing still counts as asked.
+  rememberAsked();
+  await askPermission(core);
 }
 
 /** In the app, a tap on a notification opens the seat it names. Returns how to stop. */

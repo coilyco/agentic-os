@@ -1,9 +1,12 @@
 import { nextUnseen } from "./activity";
 import { EXTERNAL, PLACE, type Place } from "./build";
+import { SEAT_MARK } from "./brand";
 import { bridge } from "./device-key";
 import { type AttentionSettings, loadAttention, storeAttention } from "./attention";
 import { chime, unlock, watchBlocked } from "./chime";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
+import { DEMO_PREFIX } from "./demo-script";
+import { DemoHost } from "./demo-host";
 import { discover, listedAddresses, newFoundHosts, staleFoundHosts } from "./discovery";
 import { addToShelf, removeFromShelf, unseenCount, type MediaItem } from "./media";
 import { upsertMessage } from "./messages";
@@ -198,7 +201,7 @@ export function showHost(): void {
   app.settingsOpen = false;
   app.logoHome = false;
   launching = null;
-  if (app.attachedHostId) storeLastOpen({ host: app.attachedHostId });
+  if (app.attachedHostId && !inDemo()) storeLastOpen({ host: app.attachedHostId });
   app.selectedSession = null;
   app.selectedRole = null;
   if (app.attachedHostId) app.selectedHostId = app.attachedHostId;
@@ -228,7 +231,7 @@ export function openTerminal(sessionId: string): void {
   if (!channel || app.terminalSupport !== "yes" || app.terminalOpening[sessionId]) return;
   delete app.terminalRefusals[sessionId];
   app.terminalClosed = app.terminalClosed.filter((each) => each !== sessionId);
-  storeClosed(app.terminalClosed);
+  if (!inDemo()) storeClosed(app.terminalClosed);
   app.terminals = app.terminals.filter((entry) => !(entry.label === sessionId && entry.exit));
   app.terminalOpening[sessionId] = true;
   openTimers.set(
@@ -249,7 +252,8 @@ export function closeTerminal(sessionId: string): void {
   if (entry.exit) app.terminals = app.terminals.filter((each) => each.id !== entry.id);
   else app.connection?.terminals?.close(entry.id);
   app.terminalClosed = [...app.terminalClosed.filter((each) => each !== sessionId), sessionId];
-  storeClosed(app.terminalClosed);
+  // The demo's seats are not on this device's record of hosts, so it keeps nothing.
+  if (!inDemo()) storeClosed(app.terminalClosed);
 }
 
 export async function checkHost(host: Host): Promise<void> {
@@ -345,7 +349,8 @@ async function refreshFound(): Promise<void> {
 }
 
 setInterval(() => {
-  if (document.visibilityState === "visible") void refreshFound();
+  // The demo asks no host anything, so discovery waits for it to end.
+  if (document.visibilityState === "visible" && !inDemo()) void refreshFound();
 }, FOUND_REFRESH_MS);
 
 /** Keeps a found host on this device, as if it had been typed. */
@@ -415,12 +420,13 @@ function restoreFor(host: Host): void {
   restoring = null;
 }
 
-export function selectHost(host: Host): void {
+export function selectHost(host: Host, given?: HostConnection): void {
   if (!restoringNow) restoring = null;
   app.settingsOpen = false;
   app.logoHome = false;
   launching = null;
-  storeLastOpen({ host: host.id });
+  // The demo is not a place to come back to, so a restart lands on the connect screen.
+  if (!given) storeLastOpen({ host: host.id });
   app.selectedHostId = host.id;
   app.selectedSession = null;
   app.selectedRole = null;
@@ -428,6 +434,15 @@ export function selectHost(host: Host): void {
   app.openedPages = [];
   app.pageToShow = null;
   if (host.status.kind !== "online" || app.attachedHostId === host.id) return;
+  resetAttached();
+  // A production build's demo row is the bundled demo. `just dev` keeps the mock host.
+  const connection = given ?? (host.kind === "daemon" ? new DaemonHost(host.address) : import.meta.env.DEV ? new MockHost(undefined, terminalModeFrom(typeof location === "undefined" ? "" : location.search)) : new DemoHost());
+  attach(host, connection);
+}
+
+/** Drops the attached host's state, so the next screen starts clean. */
+function resetAttached(): void {
+  const wasDemo = inDemo();
   app.connection?.close();
   clearTimeout(restoredTimer);
   app.link = { state: "live" };
@@ -455,11 +470,49 @@ export function selectHost(host: Host): void {
   app.terminalsLoaded = false;
   for (const label of Object.keys(app.terminalOpening)) settleOpen(label);
   app.terminalRefusals = {};
-  const connection = host.kind === "daemon" ? new DaemonHost(host.address) : new MockHost(undefined, terminalModeFrom(typeof location === "undefined" ? "" : location.search));
+  if (wasDemo) forgetDemo();
+}
+
+/** True while the bundled demo is attached. It is the one connection that never dials. */
+export function inDemo(): boolean {
+  return app.connection?.demo === true;
+}
+
+/** Nothing the demo made outlives it: its terminal ids and closed seats leave with it. */
+function forgetDemo(): void {
+  app.terminalClosed = app.terminalClosed.filter((id) => !id.startsWith(DEMO_PREFIX));
+  for (const id of Object.keys(app.terminalSeats)) if (id.startsWith(DEMO_PREFIX)) delete app.terminalSeats[id];
+  for (const id of [...dismissed]) if (id.startsWith(DEMO_PREFIX)) dismissed.delete(id);
+}
+
+/** The first screen's "Try the demo": attaches the bundled host, with no network. */
+export function enterDemo(): void {
+  const host = app.hosts.find((candidate) => candidate.kind === "demo");
+  if (!host) return;
+  selectHost(host, new DemoHost());
+  // The connect screen is not the demo. A seat is, so its terminal is seen first.
+  const first = app.sessions[0];
+  if (first) selectSession(first.id);
+}
+
+/** Back to the connect screen, with no host chosen and nothing of the demo left. */
+export function leaveDemo(): void {
+  if (!inDemo()) return;
+  resetAttached();
+  app.connection = null;
+  app.attachedHostId = null;
+  app.selectedHostId = null;
+  app.selectedSession = null;
+  app.selectedRole = null;
+  app.notice = "";
+}
+
+function attach(host: Host, connection: HostConnection): void {
   app.connection = connection;
   app.attachedHostId = host.id;
   connection.subscribe((event) => {
-    if (event.type === "roster") app.roles = event.roles;
+    // The roster's colour per role is not drawn. Every seat gets one mark (COI-3621).
+    if (event.type === "roster") app.roles = event.roles.map((role) => ({ ...role, color: SEAT_MARK }));
     else if (event.type === "sessions") {
       app.unseen = nextUnseen(app.sessions, event.sessions, viewingSession(), app.unseen);
       app.sessions = event.sessions;
@@ -506,8 +559,10 @@ export function selectHost(host: Host): void {
       for (const each of app.terminals) if (each.label && !each.exit) shellArrived(each.label);
     }
     else if (event.type === "terminal_opened") {
-      app.terminalSeats[event.id] = event.label;
-      storeSeats(app.terminalSeats);
+      if (!inDemo()) {
+        app.terminalSeats[event.id] = event.label;
+        storeSeats(app.terminalSeats);
+      }
       app.terminals = claim(app.terminals, event.id, event.label);
       // The reply can beat the list, so opening ends when the list shows the shell.
       if (app.terminals.some((entry) => entry.id === event.id)) shellArrived(event.label);
