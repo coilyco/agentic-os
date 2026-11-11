@@ -82,7 +82,7 @@ class VoskRecognitionService : RecognitionService() {
                     if (read <= 0) continue
                     for (i in 0 until read) peak = maxOf(peak, Math.abs(chunk[i].toInt()))
                     if (System.currentTimeMillis() - logged > 1000) {
-                        Log.i(TAG, "mic peak $peak over the last second")
+                        Log.i(TAG, "mic peak $peak, silenced ${mic.activeRecordingConfiguration?.isClientSilenced}")
                         peak = 0
                         logged = System.currentTimeMillis()
                     }

@@ -28,7 +28,7 @@
           "op": "adb",
           "args": [
             "shell",
-            "grep -E 'MemTotal|MemAvailable' /proc/meminfo; dumpsys meminfo dev.coilyco.treehouse | head -12"
+            "grep -E 'MemTotal|MemAvailable' /proc/meminfo; dumpsys audio | grep -i -E 'silenc|record' | head -40; pm list packages | grep -i -E 'google.*(search|assistant|hotword|voice)|speech'"
           ]
         },
         {
