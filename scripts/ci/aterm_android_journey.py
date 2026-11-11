@@ -155,18 +155,24 @@ class Journey:
         page.tap("()=>document.querySelector('[id^=tab-host-]')")
         self.open_seat()
 
+    def composer_visible(self) -> bool:
+        """The message box is on screen. It can be mounted under the Seats overview and not be."""
+        assert self.page
+        return bool(self.page.js("(()=>{const e=document.querySelector('#composer-input');return !!e&&e.getClientRects().length>0})()"))
+
     def open_seat(self) -> None:
-        """Tap the seat's overview row, or its nav button, until the composer shows."""
+        """Tap the seat's overview row, or its nav button, until the composer is on screen."""
         page = self.page
         assert page
         # The row moves groups as the seat settles and can swallow a tap, so tap again.
         for _ in range(4):
             page.tap(by_text("frontend-eng", ".overview button.open, nav button"))
-            try:
-                page.wait_selector("#composer-input", wait=6)
-                return
-            except Fail:
-                print("open_seat: the seat did not open, tapping its row again")
+            deadline = time.monotonic() + 6
+            while time.monotonic() < deadline:
+                if self.composer_visible():
+                    return
+                time.sleep(0.5)
+            print("open_seat: the seat did not open, tapping its row again")
         raise Fail("the seat never opened from its overview row")
 
     def open_picker(self) -> None:
