@@ -16,3 +16,6 @@ pub fn run() {
   let builder = builder.setup(desktop::open);
   builder.run(tauri::generate_context!()).expect("error while running the aterm app");
 }
+
+// COI-3634 throwaway proof: a red apk job must block this PR. Never merge.
+compile_error!("COI-3634 throwaway red apk");
