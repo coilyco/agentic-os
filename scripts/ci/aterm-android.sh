@@ -130,6 +130,7 @@ build() {
   rm -rf "$android_dir/src-tauri/gen/android"
   just aterm-android-tauri android init --ci
   ime_patch
+  icon_patch
   just aterm-android-tauri android build --apk --target aarch64 --ci --config "$(tauri_config "$version" "$code")"
   if [ -e "$repo_root/.git" ] && ! git -C "$repo_root" diff --quiet -- aterm-android/src-tauri/Cargo.lock; then
     fail "the build changed Cargo.lock, commit the lock it resolved"
@@ -145,6 +146,32 @@ ime_patch() {
   target=$(find "$android_dir/src-tauri/gen/android/app/src/main" -name MainActivity.kt 2>/dev/null)
   [ "$(printf '%s\n' "$target" | grep -c .)" -eq 1 ] || fail "expected one generated MainActivity.kt, found: ${target:-none}"
   cp "$android_dir/android/MainActivity.kt" "$target"
+}
+
+# icon_patch: put our launcher icons over the template's, which `android init` leaves
+# behind (COI-3616). Run after every android init, with ime_patch.
+icon_patch() {
+  local res="$android_dir/src-tauri/gen/android/app/src/main/res"
+  [ -d "$res" ] || fail "no generated res directory at $res"
+  [ -d "$android_dir/src-tauri/icons/android" ] || fail "no launcher icons at $android_dir/src-tauri/icons/android"
+  cp -R "$android_dir/src-tauri/icons/android/." "$res/"
+  rm -f "$res/drawable-v24/ic_launcher_foreground.xml" "$res/drawable/ic_launcher_background.xml"
+}
+
+# check_icon APK: the launcher icon inside the APK is ours and not Tauri's template.
+check_icon() {
+  local apk="${1:?usage: check-icon APK}" density work entry
+  work=$(mktemp -d)
+  for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+    entry="res/mipmap-$density-v4/ic_launcher_foreground.png"
+    unzip -q -o "$apk" "$entry" -d "$work" >/dev/null 2>&1 || fail "$apk has no $entry, so the launcher icon is not ours"
+    cmp -s "$work/$entry" "$android_dir/src-tauri/icons/android/mipmap-$density/ic_launcher_foreground.png" \
+      || fail "$entry in $apk differs from the repo's, so the launcher icon is not ours (COI-3616)"
+  done
+  if unzip -l "$apk" | grep -q 'res/drawable-v24/ic_launcher_foreground.xml'; then
+    fail "$apk still carries the template's launcher foreground (COI-3616)"
+  fi
+  rm -rf "$work"
 }
 
 # Keystore and password come from ATERM_ANDROID_KEYSTORE_* env. Unset: a throwaway key,
@@ -192,6 +219,7 @@ verify() {
   printf '%s\n' "$badging" | grep -q "^application-label:'$APP_LABEL'$" || fail "the launcher label is not $APP_LABEL"
   printf '%s\n' "$badging" | grep -q "^native-code: 'arm64-v8a'$" || fail "native code is not arm64-v8a only"
   printf '%s\n' "$badging" | grep -E "^(package:|sdkVersion:|targetSdkVersion:|application-label:)"
+  check_icon "$apk"
   work=$(mktemp -d)
   unzip -q -o "$apk" 'lib/arm64-v8a/*.so' -d "$work"
   libs=$(find "$work/lib/arm64-v8a" -name '*.so')
@@ -257,6 +285,7 @@ build_debug() {
   rm -rf "$android_dir/src-tauri/gen/android"
   just aterm-android-tauri android init --ci
   ime_patch
+  icon_patch
   just aterm-android-tauri android build --debug --apk --target "$abi" --ci \
     --config "$(tauri_config 0.0.0 "$(resolve_code)")"
   local found
@@ -266,6 +295,7 @@ build_debug() {
   printf '%s\n' "$badging" | grep -q "^package: name='$APP_ID' " || fail "package name is not $APP_ID"
   printf '%s\n' "$badging" | grep -q "^native-code: '$native'$" || fail "native code is not $native only"
   printf '%s\n' "$badging" | grep -q "^application-debuggable" || fail "the APK is not debuggable"
+  check_icon "$found"
   # wry builds the DevTools call only with debug_assertions or its devtools feature.
   unzip -p "$found" "lib/$native/*.so" | strings -a | grep -q 'setWebContentsDebuggingEnabled' \
     || fail "the debug APK's native library has no WebView DevTools call, so the emulator verbs cannot drive it"
@@ -354,9 +384,11 @@ case "$cmd" in
   against-release) against_release "$@" ;;
   build-debug) build_debug "$@" ;;
   ime-patch) ime_patch "$@" ;;
+  icon-patch) icon_patch "$@" ;;
+  check-icon) check_icon "$@" ;;
   version-code) version_code "$@" ;;
   sign-bundle) sign_bundle "$@" ;;
   verify-bundle) verify_bundle "$@" ;;
   app-id) echo "$APP_ID" ;;
-  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | sign IN OUT | verify APK | same-app PREV NEW | against-release TAG NEW | bundle VERSION OUT | build-debug ABI OUT | sign-bundle IN OUT | verify-bundle AAB | version-code [EPOCH] | app-id" ;;
+  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | sign IN OUT | verify APK | same-app PREV NEW | against-release TAG NEW | bundle VERSION OUT | build-debug ABI OUT | sign-bundle IN OUT | verify-bundle AAB | icon-patch | check-icon APK | version-code [EPOCH] | app-id" ;;
 esac
