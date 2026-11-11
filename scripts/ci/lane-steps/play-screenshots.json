@@ -65,7 +65,7 @@
       "op": "adb",
       "args": [
         "shell",
-        "am broadcast -a com.android.systemui.demo -e command network -e mobile show -e datatype none -e level 4 -e fully true"
+        "am broadcast -a com.android.systemui.demo -e command network -e mobile show -e datatype lte -e level 4 -e fully true"
       ]
     },
     {
@@ -182,7 +182,8 @@
     },
     {
       "op": "tap-text",
-      "text": "Previous"
+      "text": "Previous",
+      "within": "[role=\"dialog\"]"
     },
     {
       "op": "sleep",
@@ -190,7 +191,8 @@
     },
     {
       "op": "tap-text",
-      "text": "Previous"
+      "text": "Previous",
+      "within": "[role=\"dialog\"]"
     },
     {
       "op": "wait",
@@ -207,7 +209,8 @@
     },
     {
       "op": "tap-text",
-      "text": "Close"
+      "text": "Close",
+      "within": "[role=\"dialog\"]"
     },
     {
       "op": "sleep",
