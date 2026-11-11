@@ -140,7 +140,7 @@ func codexRollout(entry ledgerEntry, all []ledgerEntry) (string, error) {
 				files, _ := filepath.Glob(filepath.Join(root, year, month, day, "rollout-*.jsonl"))
 				for _, path := range files {
 					cwd, started, ok := codexMeta(path)
-					if !ok || cwd != entry.Cwd || started.Before(entry.Started.Add(-5*time.Second)) {
+					if !ok || !entry.inWorkdir(cwd) || started.Before(entry.Started.Add(-5*time.Second)) {
 						continue
 					}
 					if entry.Ended != nil && started.After(entry.Ended.Add(5*time.Second)) {

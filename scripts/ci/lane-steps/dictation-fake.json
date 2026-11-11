@@ -1,0 +1,12 @@
+{
+  "name": "dictation with the debug fake recognizer",
+  "start": "seat",
+  "steps": [
+    {"op": "recognizer", "service": "fake"},
+    {"op": "fill", "selector": "#composer-input", "text": ""},
+    {"op": "tap", "selector": "[aria-label=\"Dictate\"]"},
+    {"op": "wait-value", "selector": "#composer-input", "pattern": "run the gate and report back", "timeout": 30},
+    {"op": "keyboard", "action": "close"},
+    {"op": "shot", "name": "composer-after-fake-dictation"}
+  ]
+}

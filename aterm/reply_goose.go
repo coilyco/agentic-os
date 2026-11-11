@@ -19,12 +19,12 @@ func gooseDB(entry ledgerEntry) string {
 // gooseSession finds a seat's own session: its directory, begun no earlier than the seat.
 // Subagent, scheduled and archived ones are skipped. It reads only id and time.
 func gooseSession(db string, entry ledgerEntry, all []ledgerEntry) (string, error) {
-	dir, err := sqlQuote(entry.Cwd)
+	dir, err := entry.dirClause("working_dir")
 	if err != nil {
 		return "", withExit(exitUsage, fmt.Errorf("%s: %v: %w", entry.Name, err, errNoTranscript))
 	}
 	query := fmt.Sprintf("SELECT id, CAST(strftime('%%s', created_at) AS INTEGER) AS created FROM sessions "+
-		"WHERE working_dir = %s AND session_type = 'user' AND parent_session_id IS NULL AND archived_at IS NULL "+
+		"WHERE %s AND session_type = 'user' AND parent_session_id IS NULL AND archived_at IS NULL "+
 		"AND CAST(strftime('%%s', created_at) AS INTEGER) >= %d", dir, entry.Started.Add(-5*time.Second).Unix())
 	if entry.Ended != nil {
 		query += fmt.Sprintf(" AND CAST(strftime('%%s', created_at) AS INTEGER) <= %d", entry.Ended.Add(5*time.Second).Unix())

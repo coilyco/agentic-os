@@ -1,0 +1,9 @@
+{
+  "name": "smoke",
+  "start": "seat",
+  "steps": [
+    {"op": "wait", "pattern": "Message", "timeout": 30},
+    {"op": "eval", "js": "!!document.querySelector('#composer-input')", "expect": "true"},
+    {"op": "shot", "name": "seat-open"}
+  ]
+}
