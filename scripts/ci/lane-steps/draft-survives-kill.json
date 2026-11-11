@@ -8,6 +8,10 @@
       "text": "a draft that outlives the app"
     },
     {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
       "op": "shot",
       "name": "draft-typed"
     },
@@ -21,7 +25,7 @@
       "op": "wait-value",
       "selector": "#composer-input",
       "pattern": "a draft that outlives the app",
-      "timeout": 30
+      "timeout": 15
     },
     {
       "op": "shot",
