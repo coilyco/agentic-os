@@ -1,5 +1,5 @@
 {
-  "name": "the notification prompt is asked once and never over a composer",
+  "name": "the notification prompt is asked once, on a screen with no composer",
   "start": "seat",
   "steps": [
     {
@@ -16,7 +16,7 @@
       "op": "kill-app"
     },
     {
-      "op": "reopen"
+      "op": "launch"
     },
     {
       "op": "sleep",
@@ -24,55 +24,28 @@
     },
     {
       "op": "assert",
-      "js": "!!document.querySelector('#composer-input')&&document.visibilityState==='visible'",
-      "message": "a seat is open with its composer, and the page is not behind a system dialog"
-    },
-    {
-      "op": "ui-dump",
-      "name": "seat-open"
+      "js": "!document.querySelector('#composer-input')",
+      "message": "the first ask lands on a screen with no composer"
     },
     {
       "op": "adb",
       "args": [
         "shell",
-        "dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'"
+        "dumpsys window | grep -E 'mCurrentFocus'"
       ]
-    },
-    {
-      "op": "shot",
-      "name": "seat-open-no-prompt"
-    },
-    {
-      "op": "tap",
-      "selector": ".switcher"
-    },
-    {
-      "op": "tap",
-      "selector": "[id^=tab-host-]"
-    },
-    {
-      "op": "sleep",
-      "seconds": 3
     },
     {
       "op": "ui-dump",
-      "name": "overview-first-ask"
-    },
-    {
-      "op": "adb",
-      "args": [
-        "shell",
-        "dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'"
-      ]
+      "name": "first-launch"
     },
     {
       "op": "shot",
-      "name": "overview-first-ask"
+      "name": "first-launch-prompt-on-overview"
     },
     {
       "op": "tap-ui",
       "pattern": "^Don.?t allow$",
-      "timeout": 40
+      "timeout": 30
     },
     {
       "op": "sleep",
@@ -83,33 +56,26 @@
       "name": "after-dont-allow"
     },
     {
-      "op": "kill-app"
-    },
-    {
       "op": "reopen"
     },
     {
-      "op": "tap",
-      "selector": ".switcher"
+      "op": "assert",
+      "js": "!!document.querySelector('#composer-input')&&document.visibilityState==='visible'",
+      "message": "the seat opens with its composer after the answer, nothing in front of it"
     },
     {
-      "op": "tap",
-      "selector": "[id^=tab-host-]"
+      "op": "shot",
+      "name": "seat-open-after-answer"
+    },
+    {
+      "op": "kill-app"
+    },
+    {
+      "op": "launch"
     },
     {
       "op": "sleep",
       "seconds": 15
-    },
-    {
-      "op": "ui-dump",
-      "name": "overview-second-launch"
-    },
-    {
-      "op": "adb",
-      "args": [
-        "shell",
-        "dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'"
-      ]
     },
     {
       "op": "assert",
@@ -117,8 +83,31 @@
       "message": "the prompt came back on the second launch"
     },
     {
+      "op": "adb",
+      "args": [
+        "shell",
+        "dumpsys window | grep -E 'mCurrentFocus'"
+      ]
+    },
+    {
+      "op": "ui-dump",
+      "name": "second-launch"
+    },
+    {
       "op": "shot",
-      "name": "overview-second-launch"
+      "name": "second-launch-no-prompt"
+    },
+    {
+      "op": "reopen"
+    },
+    {
+      "op": "assert",
+      "js": "!!document.querySelector('#composer-input')&&document.visibilityState==='visible'",
+      "message": "the seat opens on the second launch with nothing in front of it"
+    },
+    {
+      "op": "shot",
+      "name": "seat-open-second-launch"
     }
   ]
 }
