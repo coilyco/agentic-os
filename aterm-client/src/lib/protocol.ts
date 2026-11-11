@@ -189,7 +189,7 @@ export type HostEvent =
   | { type: "view_closed"; id: string }
   | { type: "browser"; browser: SharedBrowser }
   // `webPush` is only ever true: a daemon without it sends the event as it always did.
-  | { type: "features"; terminals: boolean; webPush?: true }
+  | { type: "features"; terminals: boolean; webPush?: true; feedback?: true; daemonVersion?: string }
   // Whether this daemon runs a passkey ceremony. Apart from `features`, which tests pin.
   | { type: "passkey"; available: boolean }
   // Whether the daemon lists `device-key`. The page also needs the app's plugin.

@@ -121,6 +121,8 @@ export const app = $state({
   terminals: [] as TerminalEntry[],
   /** Whether the host's welcome lists `web-push`, so the Web Push switch shows. */
   webPush: false,
+  /** What the welcome said of feedback: kept here, or else the build it named. */
+  feedbackHost: { arrived: false, has: false, version: undefined as string | undefined },
   /** Whether the host's welcome lists the terminal feature. Unknown until it arrives. */
   terminalSupport: "unknown" as Support,
   /** Terminal id to the seat it was opened beside. The host does not say. */
@@ -449,6 +451,7 @@ export function selectHost(host: Host): void {
   app.terminals = [];
   app.terminalSupport = "unknown";
   app.webPush = false;
+  app.feedbackHost = { arrived: false, has: false, version: undefined };
   app.terminalsLoaded = false;
   for (const label of Object.keys(app.terminalOpening)) settleOpen(label);
   app.terminalRefusals = {};
@@ -495,6 +498,7 @@ export function selectHost(host: Host): void {
     else if (event.type === "features") {
       app.terminalSupport = event.terminals ? "yes" : "no";
       app.webPush = event.webPush === true;
+      app.feedbackHost = { arrived: true, has: event.feedback === true, version: event.daemonVersion };
     }
     else if (event.type === "terminals") {
       app.terminals = applyList(app.terminals, event.terminals, app.terminalSeats, dismissed);

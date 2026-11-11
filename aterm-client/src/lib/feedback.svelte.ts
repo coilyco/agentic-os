@@ -1,7 +1,7 @@
 // Whether the sheet is open and what it was opened over. The note lives in the sheet.
 import { app, sessionById } from "./app.svelte";
 import { PLACE } from "./build";
-import { contextFor } from "./feedback";
+import { contextFor, feedbackMissing } from "./feedback";
 import type { FeedbackContext } from "./protocol";
 
 export const sheet = $state({ open: false, context: null as FeedbackContext | null });
@@ -10,8 +10,9 @@ export type FeedbackAvailability = { ok: true } | { ok: false; reason: string };
 
 /** Whether Send can work from here, and in words why not. */
 export function feedbackAvailability(): FeedbackAvailability {
-  if (!app.connection) return { ok: false, reason: "Connect to a host first." };
-  if (!app.connection.feedback) return { ok: false, reason: "This host needs a newer Treehouse." };
+  // Until the welcome names its features the host has not said, so nothing is claimed.
+  if (!app.connection || !app.feedbackHost.arrived) return { ok: false, reason: "Connect to a host first." };
+  if (!app.feedbackHost.has || !app.connection.feedback) return { ok: false, reason: feedbackMissing(app.feedbackHost.version) };
   return { ok: true };
 }
 

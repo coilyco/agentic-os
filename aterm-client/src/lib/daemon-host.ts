@@ -7,9 +7,10 @@ import { backoffDelay, differentBuild } from "./backoff";
 import { safely } from "./pane-watch";
 import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
+import { FeedbackRefused, feedbackRefusal } from "./feedback";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
 import { CHUNK_BYTES, decodeMedia, mediaRefusal } from "./media";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, ViewChannel } from "./protocol";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, FeedbackChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, ViewChannel } from "./protocol";
 import { decodeReply, REFUSALS, TranscriptRefused } from "./transcript";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
@@ -149,6 +150,9 @@ interface Frame {
   data?: string;
   /** The absolute file an `image_uploaded` names. */
   path?: string;
+  /** The token `feedback_image_saved` names, and the record `feedback_saved` names. */
+  image?: string;
+  record?: string;
   /** A coordinator seat's ping, on the sessions channel. */
   notify?: { id?: string; session?: string; role?: string; identity?: string; title?: string; body?: string; at?: string };
   /** Answers a `last_reply` request. */
@@ -234,6 +238,10 @@ const TERMINAL_LABEL_FEATURE = "terminal-label";
 /** `welcome.features` names this when the daemon sends a seat's `open_url` (COI-3258). */
 const OPEN_URL_FEATURE = "open-url";
 
+/** `welcome.features` names this when the daemon answers `feedback` (COI-3345). */
+const FEEDBACK_FEATURE = "feedback";
+/** The daemon holds a staged screenshot ten minutes. The client trusts it for nine. */
+const FEEDBACK_TOKEN_MS = 9 * 60 * 1000;
 /** `welcome.features` names this when the daemon answers `image_upload` (COI-3239). */
 const IMAGE_UPLOAD_FEATURE = "image-upload";
 
@@ -598,6 +606,52 @@ export class DaemonHost implements HostConnection {
       const reply = await this.exchange({ type: "image_upload", session: sessionId, data });
       if (!reply.path) throw new Error("The host took the image but named no file for it.");
       return reply.path;
+    },
+  };
+
+  /** Only a welcome listing `feedback` keeps a note and screenshots as a record. */
+  get feedback(): FeedbackChannel | undefined {
+    return this.features.has(FEEDBACK_FEATURE) ? this.feedbackChannel : undefined;
+  }
+
+  /** Requests for feedback, whose refusal reasons are this feature's own. */
+  private feedbackIds = new Set<string>();
+  // A refusal keeps the tokens on the host, so a retry sends only the closing frame.
+  private staged = new WeakMap<Blob, { token: string; at: number }>();
+
+  private async stage(image: Blob): Promise<string> {
+    const held = this.staged.get(image);
+    if (held && Date.now() - held.at < FEEDBACK_TOKEN_MS) return held.token;
+    const data = encodeBytes(new Uint8Array(await image.arrayBuffer()));
+    const reply = await this.exchange({ type: "feedback_image", data }, this.feedbackIds);
+    if (!reply.image) throw new Error("The host took the screenshot but gave no token for it.");
+    this.staged.set(image, { token: reply.image, at: Date.now() });
+    return reply.image;
+  }
+
+  private feedbackChannel: FeedbackChannel = {
+    maxBytes: IMAGE_UPLOAD_MAX_BYTES,
+    send: async (report, progress) => {
+      const total = report.images.length;
+      const attempt = async (): Promise<string> => {
+        const tokens: string[] = [];
+        for (const [done, image] of report.images.entries()) {
+          progress?.(done, total);
+          tokens.push(await this.stage(image));
+        }
+        progress?.(total, total);
+        const reply = await this.exchange({ type: "feedback", text: report.text, screen: report.context, images: tokens }, this.feedbackIds);
+        if (!reply.record) throw new Error("The host took the feedback but named no record for it.");
+        return reply.record;
+      };
+      try {
+        return await attempt();
+      } catch (error) {
+        if (!(error instanceof FeedbackRefused) || error.reason !== "image_expired") throw error;
+        // The tokens died, from age or a redial. The pictures go up once more.
+        for (const image of report.images) this.staged.delete(image);
+        return attempt();
+      }
     },
   };
 
@@ -985,7 +1039,8 @@ export class DaemonHost implements HostConnection {
         this.emit(this.last.passkey);
         this.last.deviceKey = { type: "device_key", available: this.features.has("device-key") };
         this.emit(this.last.deviceKey);
-        this.last.features = { type: "features", terminals: this.features.has("terminals"), ...(this.features.has(PUSH_FEATURE) ? { webPush: true as const } : {}) };
+        const feedback = this.features.has(FEEDBACK_FEATURE);
+        this.last.features = { type: "features", terminals: this.features.has("terminals"), ...(this.features.has(PUSH_FEATURE) ? { webPush: true as const } : {}), ...(feedback ? { feedback: true as const } : frame.version ? { daemonVersion: frame.version } : {}) };
         this.emit(this.last.features);
         this.request({ type: "subscribe", channel: "sessions" });
         this.request({ type: "roster" });
@@ -1056,6 +1111,8 @@ export class DaemonHost implements HostConnection {
       case "transcript":
       case "media_data":
       case "image_uploaded":
+      case "feedback_image_saved":
+      case "feedback_saved":
       case "passkey_enroll_options":
       case "passkey_enrolled":
       case "passkey_assert_options":
@@ -1074,6 +1131,7 @@ export class DaemonHost implements HostConnection {
         if (call && frame.id) {
           this.calls.delete(frame.id);
           this.transcriptIds.delete(frame.id);
+          this.feedbackIds.delete(frame.id);
           call.resolve(frame);
         }
         return;
@@ -1179,7 +1237,8 @@ export class DaemonHost implements HostConnection {
         if (call && frame.id) {
           this.calls.delete(frame.id);
           const imageWords = refused ? null : imageRefusal(frame.reason);
-          if (frame.id && this.transcriptIds.delete(frame.id) && typeof frame.reason === "string" && Object.hasOwn(REFUSALS, frame.reason)) call.reject(new TranscriptRefused(frame.reason));
+          if (frame.id && this.feedbackIds.delete(frame.id)) call.reject(new FeedbackRefused(feedbackRefusal(frame.reason) ?? frame.error ?? "The host refused the feedback.", typeof frame.reason === "string" ? frame.reason : undefined));
+          else if (frame.id && this.transcriptIds.delete(frame.id) && typeof frame.reason === "string" && Object.hasOwn(REFUSALS, frame.reason)) call.reject(new TranscriptRefused(frame.reason));
           else if (frame.reason === "media_unknown") call.reject(new Error(mediaRefusal(frame.reason)));
           else if (frame.reason === RESUME_ENDED_REASON) call.reject(new ResumeEndedError());
           else if (frame.reason === KEY_UNKNOWN_REASON) call.reject(new DeviceKeyError(KEY_UNKNOWN, KEY_UNKNOWN_REASON));

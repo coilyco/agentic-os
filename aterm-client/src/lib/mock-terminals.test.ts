@@ -19,13 +19,13 @@ describe("the demo host's terminals", () => {
   });
 
   it("says it has the feature, so the pane can tell a quiet host from one without it", () => {
-    expect(open("ok").events).toContainEqual({ type: "features", terminals: true });
+    expect(open("ok").events).toContainEqual({ type: "features", terminals: true, feedback: true });
   });
 
   it("carries no channel and says so when it plays a host without the kind", () => {
     const { host, events, kinds } = open("off");
     expect(host.terminals).toBeUndefined();
-    expect(events).toContainEqual({ type: "features", terminals: false });
+    expect(events).toContainEqual({ type: "features", terminals: false, feedback: true });
     expect(kinds()).not.toContain("terminals");
   });
 

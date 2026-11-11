@@ -1,6 +1,6 @@
 // Feedback: a note and screenshots sent from the screen they are about. Daemon half:
 // COI-3345, and `FeedbackChannel` in protocol.ts is the seam.
-import { fitImage, formatSize, screenImages } from "./images";
+import { IMAGE_UPLOAD_MAX_BYTES, fitImage, formatSize, screenImages } from "./images";
 import type { FeedbackContext, FeedbackChannel } from "./protocol";
 
 /** The daemon's limit on a note, in characters. */
@@ -42,9 +42,37 @@ export function feedbackRefusal(reason: unknown): string | null {
       return "This device has not unlocked typing yet, so the host would not take it.";
     case "session_descendant":
       return "The host does not take feedback from inside a seat.";
+    case "not_an_image":
+      return "The host did not read a screenshot as a PNG, JPEG, GIF or WebP image.";
+    case "too_large":
+      return `The host took a screenshot as over ${formatSize(IMAGE_UPLOAD_MAX_BYTES)}.`;
+    case "too_many":
+      return "The host takes 4 screenshots in one report and keeps 8 waiting at a time. Remove one and send again.";
+    case "image_expired":
+      return "The host let a screenshot go after ten minutes. Add it again and send.";
     default:
       return null;
   }
+}
+
+/** A refusal from the host's feedback frames, with the daemon's reason kept. */
+export class FeedbackRefused extends Error {
+  constructor(message: string, readonly reason?: string) {
+    super(message);
+  }
+}
+
+/** The first release whose daemon answers `feedback` (aos-v0.518.0). */
+const FEEDBACK_SINCE = [0, 518, 0];
+
+/** Why a host does not take feedback, from the version its welcome named. */
+export function feedbackMissing(version: string | undefined): string {
+  const found = /(\d+)\.(\d+)\.(\d+)/.exec(version ?? "");
+  if (!found) return "This host does not take feedback.";
+  const have = found.slice(1).map(Number);
+  const gap = FEEDBACK_SINCE.findIndex((need, at) => have[at] !== need);
+  const older = gap >= 0 && have[gap]! < FEEDBACK_SINCE[gap]!;
+  return older ? "This host needs a newer Treehouse." : "This host has nowhere to keep feedback.";
 }
 
 export interface Prepared {
