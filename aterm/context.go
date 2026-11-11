@@ -359,6 +359,7 @@ func (d *daemon) refreshContexts() {
 			if err != nil {
 				continue
 			}
+			entry = withLiveCwd(entry, s.pid)
 			view, err := s.readContext(entry, recorded)
 			if err != nil {
 				d.logf("context of %s: %v", s.name, err)
