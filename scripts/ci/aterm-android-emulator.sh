@@ -57,6 +57,10 @@ avd() {
   yes | sdkmanager --licenses >/dev/null || true
   sdkmanager "emulator" "$IMAGE"
   echo no | avdmanager create avd --force --name "$AVD" --package "$IMAGE" --device pixel_6
+  # The 2 GB default let lmkd kill system apps once the Vosk model loaded (COI-3591).
+  local config="${ANDROID_AVD_HOME:-$HOME/.android/avd}/$AVD.avd/config.ini"
+  sed -i '/^hw.ramSize/d' "$config"
+  echo "hw.ramSize=4096" >>"$config"
   command -v emulator || fail "no emulator binary on PATH after sdkmanager"
   emulator -version | head -n3
   emulator -list-avds | grep -qx "$AVD" || fail "emulator does not list $AVD, AVD home is $ANDROID_AVD_HOME"
