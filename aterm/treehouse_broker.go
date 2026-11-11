@@ -432,6 +432,9 @@ func fetchJWKS(ctx context.Context, address string) ([]byte, error) {
 // treehouseOptions turn the brokered path on. All three empty leaves it off.
 type treehouseOptions struct {
 	Broker, Accounts, Dir string
+	// ProvisionSecretFile, Name and Substrate let a daemon with no certificate claim one
+	// with a secret its secret store holds (treehouse_provision.go).
+	ProvisionSecretFile, Name, Substrate string
 	// ConfigDir holds the configuration snapshot, empty for the default place.
 	ConfigDir string
 }
@@ -454,6 +457,16 @@ func (d *daemon) startTreehouse(ctx context.Context, o treehouseOptions) {
 	}
 	if !strings.HasPrefix(o.Broker, "wss://") && !strings.HasPrefix(o.Broker, "ws://127.0.0.1") {
 		d.logf("no Treehouse broker path: the broker address must be wss")
+		return
+	}
+	if _, err := os.Stat(o.Dir + "/daemon.cert"); errors.Is(err, os.ErrNotExist) && o.ProvisionSecretFile != "" {
+		d.logf("no Treehouse certificate yet, claiming one with the provisioned secret")
+		go func() {
+			if _, err := d.provisionDaemon(ctx, provisionOptions{Accounts: o.Accounts, Dir: o.Dir, SecretFile: o.ProvisionSecretFile, Name: provisionName(o.Name), Substrate: provisionSubstrate(o.Substrate)}); err != nil {
+				return
+			}
+			d.startTreehouse(ctx, o)
+		}()
 		return
 	}
 	key, err := loadDaemonKey(o.Dir + "/daemon.key")

@@ -6,9 +6,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/json"
-	"encoding/pem"
 	"errors"
 	"fmt"
 	"os"
@@ -92,14 +90,7 @@ func enrollDaemon(ctx context.Context, o enrollOptions) (daemonIdentity, error) 
 	if identity.ID != reply.DaemonID || !certBindsKey(reply.Cert, key) {
 		return daemonIdentity{}, errors.New("accounts issued a certificate that does not name this daemon and key")
 	}
-	der, err := x509.MarshalPKCS8PrivateKey(key)
-	if err != nil {
-		return daemonIdentity{}, err
-	}
-	if err := os.MkdirAll(o.Dir, 0o700); err != nil {
-		return daemonIdentity{}, err
-	}
-	if err := writeFileAtomic(keyPath, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), 0o600); err != nil {
+	if err := writeKeyFile(keyPath, key); err != nil {
 		return daemonIdentity{}, err
 	}
 	if err := writeFileAtomic(certPath, []byte(strings.TrimSpace(reply.Cert)+"\n"), 0o600); err != nil {
