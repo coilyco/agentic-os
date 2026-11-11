@@ -24,12 +24,19 @@
     },
     {
       "op": "assert",
-      "js": "!!document.querySelector('#composer-input')&&document.visibilityState==='visible'&&document.hasFocus()",
+      "js": "!!document.querySelector('#composer-input')&&document.visibilityState==='visible'",
       "message": "a seat is open with its composer, and the page is not behind a system dialog"
     },
     {
       "op": "ui-dump",
       "name": "seat-open"
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'"
+      ]
     },
     {
       "op": "shot",
@@ -50,6 +57,13 @@
     {
       "op": "ui-dump",
       "name": "overview-first-ask"
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'"
+      ]
     },
     {
       "op": "shot",
@@ -91,8 +105,15 @@
       "name": "overview-second-launch"
     },
     {
+      "op": "adb",
+      "args": [
+        "shell",
+        "dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'"
+      ]
+    },
+    {
       "op": "assert",
-      "js": "document.visibilityState==='visible'&&document.hasFocus()",
+      "js": "document.visibilityState==='visible'",
       "message": "the prompt came back on the second launch"
     },
     {

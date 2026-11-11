@@ -54,13 +54,17 @@
       "timeout": 15
     },
     {
-      "op": "assert",
-      "js": "(()=>{const b=document.querySelector('[aria-label=\"Demo mode\"]');if(!b)return false;const r=b.getBoundingClientRect();const hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return !!hit&&b.contains(hit)})()",
-      "message": "the seat menu covers the DEMO bar"
+      "op": "sleep",
+      "seconds": 1
     },
     {
       "op": "shot",
       "name": "demo-seat-menu"
+    },
+    {
+      "op": "assert",
+      "js": "(()=>{const b=document.querySelector('[aria-label=\"Demo mode\"]');const m=document.getElementById('sidebar-menu');if(!b||!m)return false;const r=b.getBoundingClientRect();return r.height>0&&r.top>=0&&m.getBoundingClientRect().top>=r.bottom})()",
+      "message": "the seat menu sheet starts below the DEMO bar, and the bar is on screen"
     },
     {
       "op": "tap",
