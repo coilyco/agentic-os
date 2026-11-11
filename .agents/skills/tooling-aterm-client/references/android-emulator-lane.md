@@ -9,7 +9,7 @@ A second way for a Frontend seat to prove something in the real Treehouse app, w
 `gh workflow run aterm-android-lane.yml --repo coilyco/agentic-os -f ref=<branch> -f steps=<path in that ref>`, then `gh run watch` and `gh run download <id> -n aterm-android-lane-<id>`.
 
 * `ref` - the git ref to prove. Its debug x86_64 APK is built there, and the step file is read from it, so a PR branch carries its own proof. Default `main`.
-* `steps` - the step file, a path inside `ref`. Default `scripts/ci/lane-steps/smoke.json`.
+* `steps` - the step file, a path inside `ref`, or the lane's own copy when `ref` is too old to have one. Default `scripts/ci/lane-steps/smoke.json`.
 * `apk_run` - a run id holding an `aterm-android-debug-x86_64-<id>` artifact, to skip the 7 minute build. Empty builds from `ref`.
 * `image` - a system image: Android 14, 15 or 16, `google_apis`, or `google_apis_playstore` for 14 and 15 (the one with Google's speech app). **Default is Android 15**, because Android 14 predates edge-to-edge and cannot show a keyboard that covers the page (COI-3575).
 * `audio` - a spoken phrase the emulator's microphone can hear, for steps that use `speak`.
@@ -44,7 +44,7 @@ JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add
 * `tap-ui` - `pattern`, `timeout`. Taps the first system UI node whose text or description matches the regex.
 * `sleep` - `seconds`.
 
-Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill`, `draft-image-survives-kill` and `composer-above-keyboard`, which fails on a build where the keyboard covers the message box. Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.
+Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill`, `draft-image-survives-kill`, `screen-off-timer` and `composer-above-keyboard`, which fails on a build where the keyboard covers the message box. Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.
 
 ## What comes back
 
