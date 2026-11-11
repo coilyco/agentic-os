@@ -47,6 +47,7 @@ env:
   ATERM_LANE_APK_RUN: ${{ inputs.apk_run }}
   ATERM_EMULATOR_IMAGE: ${{ inputs.image || 'system-images;android-35;google_apis;x86_64' }}
   GH_TOKEN: ${{ github.token }}
+  ATERM_LANE_APP_DIR: ${{ github.workspace }}/app
 
 jobs:
   lane:
@@ -74,8 +75,6 @@ jobs:
       - name: Let the runner use KVM
         run: bash "$GITHUB_WORKSPACE/tooling/scripts/ci/aterm-android-emulator.sh" kvm
       - name: Get the debug APK
-        env:
-          ATERM_LANE_APP_DIR: ${{ github.workspace }}/app
         run: mkdir -p "$GITHUB_WORKSPACE/tooling/aterm-emulator-out" && bash "$GITHUB_WORKSPACE/tooling/scripts/ci/aterm-android-emulator.sh" apk "$GITHUB_WORKSPACE/tooling/aterm-emulator-out/aterm-debug.apk"
       - name: Make the emulator image
         run: bash "$GITHUB_WORKSPACE/tooling/scripts/ci/aterm-android-emulator.sh" avd

@@ -151,7 +151,10 @@ apk() {
 # lane: a seat's step file, run by aterm_android_lane.py. It comes from the app checkout.
 lane() {
   use_sdk
-  local apk="${1:?usage: lane APK STEPS}" steps="${2:?usage: lane APK STEPS}"
+  local apk="${1:?usage: lane APK STEPS}" steps="${2:?usage: lane APK STEPS}" app="${ATERM_LANE_APP_DIR:-$repo_root}"
+  # An older ref has no step file of its own, so the lane's own copy is the fallback.
+  if [ ! -f "$steps" ] && [ -f "$repo_root/${steps#"$app"/}" ]; then steps="$repo_root/${steps#"$app"/}"; fi
+  [ -f "$steps" ] || fail "no step file at $steps, in the ref or in the lane's own checkout"
   speech_env
   python3 -I "$repo_root/scripts/ci/aterm_android_lane.py" --apk "$apk" --out "$out/screens" --steps "$steps" \
     --socket "$state/d.sock" --seat "$SEAT" --seat-log "$state/seat.log" --refuse-file "$state/refuse-upload"
