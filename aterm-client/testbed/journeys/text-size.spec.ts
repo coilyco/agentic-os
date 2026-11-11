@@ -118,3 +118,28 @@ test("with a card open the size control steps aside and the card's own buttons a
   await expect(card(bed.page)).toHaveCount(0);
   await expect(opener, "the size control does not come back after the card").toBeVisible();
 });
+
+// COI-3589: the waiting-seat banner lay over the size row and took the taps meant for it.
+test("with a banner up the size row takes its own tap, and Open opens the seat", quirk("COI-3589"), async ({ bed }, info) => {
+  test.skip(wide(info), "the button shows only in a narrow terminal");
+  await bed.openSeat(SEATS.imp);
+  await bed.page.getByRole("button", { name: "Text size" }).click();
+  await expect.poll(() => bed.mock.idleMs(), { timeout: 15000 }).toBeGreaterThan(1500);
+  bed.mock.push({
+    type: "ask",
+    ask: { id: "banner-1", session: SEATS.beetle.id, header: "Scope", question: "Which scope?", options: [{ label: "Yes", description: "" }, { label: "No", description: "" }], allow_other: false, multi: false },
+  });
+  await expect(bed.page.locator(".toast")).toBeVisible();
+  const larger = bed.page.getByRole("button", { name: "Larger text" });
+  const box = (await larger.boundingBox())!;
+  const topmost = await bed.page.evaluate(
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.getAttribute("aria-label") ?? null,
+    { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+  );
+  expect(topmost, "the banner is over Larger text").toBe("Larger text");
+  await larger.click();
+  await expect.poll(() => fontOf(bed.page)).toBe("16px");
+  await bed.step("banner-and-size-row", { compare: false });
+  await bed.page.locator("button.toast, .toast button").click();
+  await expect(bed.page.getByRole("heading", { name: SEATS.beetle.name, level: 1 })).toBeAttached();
+});
