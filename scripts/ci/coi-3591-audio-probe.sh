@@ -57,7 +57,7 @@ sleep 3
 adb shell setenforce 0
 ( sleep 2; timeout 25 grpcurl -plaintext -d @ 127.0.0.1:8554 android.emulation.control.EmulatorController/injectAudio < /tmp/inject.jsonl 2>&1 | tail -5 ) &
 adb shell 'tinycap /data/local/tmp/cap.wav -D 0 -d 0 -r 16000 -c 1 -b 16 -T 8' 2>&1 | tail -3
-wait
+sleep 3
 adb pull /data/local/tmp/cap.wav /tmp/cap.wav 2>&1 | tail -1
 sox /tmp/cap.wav -n stat 2>&1 | grep -E "Maximum amplitude|Length|RMS"
 adb emu kill || kill "$pid"
