@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import Markdown from "./Markdown.svelte";
   import { replyAge } from "../lib/last-reply";
   import { openLink } from "../lib/link-notice.svelte";
@@ -7,7 +7,7 @@
   import { linkTarget } from "../lib/terminal-extras";
   import { mergeItems, rowsFor, TranscriptRefused, type Level, type PeerRef, type TranscriptItem } from "../lib/transcript";
   import { inDemo } from "../lib/app.svelte";
-  import { cacheKey, catchUp, loadSnapshot, markerRow, saveSnapshot } from "../lib/transcript-cache";
+  import { cacheKey, catchUp, loadSnapshot, markerRow, MAX_ITEMS, saveSnapshot } from "../lib/transcript-cache";
 
   // `restore` is false for a device that has not unlocked, which never shows a kept page.
   let { channel, sessionId, hostId, restore, level, marker, onread, onrefused, onpeer }: { channel: TranscriptChannel; sessionId: string; hostId: string; restore: boolean; level: Level; marker: boolean; onread: () => void; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void } = $props();
@@ -15,6 +15,8 @@
   // Read once: a demo keeps no page, and leaving it must not write one on the way out.
   const demo = inDemo();
   const PAGE = 50;
+  // The most items held at once, so a seat watched for hours costs what a fresh one does (COI-3648).
+  const HOLD = 400;
   const POLL_MS = 2000;
   const MARKER_MS = 8000;
   let items = $state<TranscriptItem[]>([]);
@@ -24,6 +26,8 @@
   let loadingOlder = $state(false);
   let phase = $state<"loading" | "ready">("loading");
   let stale = $state(false);
+  // The newest items were dropped to make room for earlier ones. Reading stops until the person jumps to latest.
+  let detached = $state(false);
   let updatedAt = $state<number | undefined>();
   // The page kept from last time is shown while the host is asked, and `catching` says so.
   let catching = $state(false);
@@ -65,6 +69,7 @@
     updatedAt = Date.now();
     phase = "ready";
     stale = false;
+    detached = false;
     catching = false;
     heard = true;
     onread();
@@ -87,7 +92,7 @@
     clearTimeout(saving);
     if (demo) return;
     // A $state array is a proxy, which IndexedDB cannot clone, so a snapshot is stored.
-    saving = setTimeout(() => void saveSnapshot(key, $state.snapshot(items), older), 1000);
+    saving = setTimeout(() => void saveSnapshot(key, $state.snapshot(items.slice(-MAX_ITEMS)), older), 1000);
   }
 
   // The marker has done its job once the person has been at the newest line a while.
@@ -99,7 +104,7 @@
 
   let busy = false;
   async function poll(): Promise<void> {
-    if (busy || document.visibilityState === "hidden") return;
+    if (busy || detached || document.visibilityState === "hidden") return;
     busy = true;
     try {
       if (!cursor) await newest();
@@ -110,6 +115,8 @@
         updatedAt = Date.now();
         stale = false;
         if (reply.items.length) (void follow(), keep());
+        // The older pointer belongs to the first item held, so the tail starts over from a fresh read.
+        if (items.length > HOLD && pinned) await newest();
       }
     } catch (error) {
       if (error instanceof TranscriptRefused && error.reason === "bad_cursor") cursor = "";
@@ -137,7 +144,7 @@
       clearInterval(timer);
       clearInterval(tickAge);
       clearTimeout(saving);
-      if (heard && !demo) void saveSnapshot(key, $state.snapshot(items), older);
+      if (heard && !demo) void saveSnapshot(key, $state.snapshot(items.slice(-MAX_ITEMS)), older);
     };
   });
 
@@ -145,13 +152,19 @@
   async function earlier(): Promise<void> {
     if (!older || loadingOlder || !list) return;
     loadingOlder = true;
-    const before = list.scrollHeight - list.scrollTop;
+    // The oldest row on screen stays where it is, whatever is added above it or dropped below.
+    const anchor = list.querySelector<HTMLElement>("[data-row]");
+    const was = anchor?.getBoundingClientRect().top ?? 0;
     try {
       const reply = await channel.read(sessionId, { before: older, limit: PAGE });
       items = mergeItems(reply.items, items);
       older = reply.older;
+      if (items.length > HOLD) {
+        items = items.slice(0, HOLD);
+        detached = true;
+      }
       await tick();
-      if (list) list.scrollTop = list.scrollHeight - before;
+      if (list && anchor?.isConnected) list.scrollTop += anchor.getBoundingClientRect().top - was;
     } catch (error) {
       // A pointer from an earlier visit may have gone stale. That ends the way back, not the view.
       if (error instanceof TranscriptRefused && error.reason === "bad_cursor") older = undefined;
@@ -164,13 +177,26 @@
   // A new level re-derives every row under the same scroll offset, so it starts again at the newest line (COI-3647).
   $effect(() => {
     void level;
-    pinned = true;
-    void tick().then(() => list && (list.scrollTop = list.scrollHeight));
+    untrack(() => void jump());
+    void tick().then(() => !detached && list && (list.scrollTop = list.scrollHeight));
   });
 
-  function jump(): void {
+  // Held items that stop short of the newest are replaced by a fresh read of the newest page.
+  async function jump(): Promise<void> {
     pinned = true;
-    if (list) list.scrollTop = list.scrollHeight;
+    if (!detached) {
+      if (list) list.scrollTop = list.scrollHeight;
+      return;
+    }
+    if (busy) return;
+    busy = true;
+    try {
+      await newest();
+    } catch (error) {
+      if (!refused(error)) stale = true;
+    } finally {
+      busy = false;
+    }
   }
 
   function open(href: string): void {
@@ -197,11 +223,11 @@
     {#each rows as row (row.key)}
       {#if row.key === markerKey}<p class="since" role="separator" data-since>New since you were last here</p>{/if}
       {#if row.kind === "prompt"}
-        <div class="turn me"><span class="who">You</span><p class="plain">{row.text}</p>{#if row.cut}<p class="maybe">The host cut this message.</p>{/if}</div>
+        <div class="turn me" data-row={row.key}><span class="who">You</span><p class="plain">{row.text}</p>{#if row.cut}<p class="maybe">The host cut this message.</p>{/if}</div>
       {:else if row.kind === "reply"}
-        <div class="turn"><Markdown source={row.text} onlink={open} />{#if row.cut}<p class="maybe">The host cut this reply.</p>{/if}{#if row.peer}{@render maybe(row.peer)}{/if}</div>
+        <div class="turn" data-row={row.key}><Markdown source={row.text} onlink={open} />{#if row.cut}<p class="maybe">The host cut this reply.</p>{/if}{#if row.peer}{@render maybe(row.peer)}{/if}</div>
       {:else if row.kind === "tool"}
-        <div class="step" data-failed={row.ok === false}>
+        <div class="step" data-row={row.key} data-failed={row.ok === false}>
           <p class="line">{row.summary}{#if row.ok === false}<span class="bad">failed</span>{/if}</p>
           {#if row.lines.length}<pre>{row.lines.join("\n")}</pre>{/if}
           {#if row.hidden}<p class="more">{row.hidden} more {row.hidden === 1 ? "line" : "lines"}. Verbose shows them.</p>{/if}
@@ -209,12 +235,12 @@
           {#if row.peer}{@render maybe(row.peer)}{/if}
         </div>
       {:else}
-        <p class="note">{row.text}</p>
+        <p class="note" data-row={row.key}>{row.text}</p>
       {/if}
     {/each}
   </div>
-  {#if !pinned}
-    <button type="button" class="jump" onclick={jump}><span aria-hidden="true">↓</span> Jump to latest</button>
+  {#if !pinned || detached}
+    <button type="button" class="jump" onclick={() => void jump()}><span aria-hidden="true">↓</span> Jump to latest</button>
   {/if}
   <p class="source" role="status">{catching ? (stale ? `Showing what this device read ${age}. The host did not answer.` : `Showing what this device read ${age}. Catching up.`) : stale ? "Not updating. The host did not answer." : phase === "ready" ? `From the transcript, ${age}.` : ""}</p>
 </section>

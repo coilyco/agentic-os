@@ -284,7 +284,10 @@ export async function longHistory(browser: Browser, options: { seats: number; hi
       await page.waitForTimeout(60);
       await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>(".earlier")?.disabled);
     }
-    out.rowsInDom = await page.locator(".transcript .feed > *").count();
+    const latest = page.getByRole("button", { name: /Jump to latest/ });
+    if (await latest.count()) await latest.click();
+    await page.waitForTimeout(500);
+    out.rowsInDom = await page.locator(".transcript .feed > :is(.turn, .step, .note)").count();
     const samples: Record<string, unknown>[] = [];
     let next = options.history;
     for (let w = 0; w < options.windows; w++) {
