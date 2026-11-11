@@ -258,6 +258,7 @@ test.describe("on a desktop", () => {
 
 // COI-3612: Settings holds a device default, and a seat's own button overrides it.
 test.describe("the device default on a phone", () => {
+  test.use({ wrapDefault: "auto" });
   test.beforeEach(({}, info) => test.skip(kindOf(info) !== "phone", "a phone's narrow box"));
 
   const open = async (bed: import("../harness.ts").Bed, seat = SEATS.imp) => {
