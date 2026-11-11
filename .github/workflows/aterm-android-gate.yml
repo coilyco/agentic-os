@@ -1,0 +1,31 @@
+# One required check for the Android release build. Design: references/android.md.
+# It checks out the base commit, so a PR cannot loosen the gate it is judged by.
+name: aterm-android-gate
+
+on:
+  pull_request:
+
+concurrency:
+  group: aterm-android-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+
+jobs:
+  android-release-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+      - name: Wait for the Android release build when this PR touches it
+        if: ${{ hashFiles('scripts/ci/aterm-android-gate.sh') != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android-gate.sh"
