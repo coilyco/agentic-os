@@ -6,11 +6,14 @@
   import type { TranscriptChannel } from "../lib/protocol";
   import { linkTarget } from "../lib/terminal-extras";
   import { mergeItems, rowsFor, TranscriptRefused, type Level, type PeerRef, type TranscriptItem } from "../lib/transcript";
+  import { inDemo } from "../lib/app.svelte";
   import { cacheKey, catchUp, loadSnapshot, markerRow, saveSnapshot } from "../lib/transcript-cache";
 
   // `restore` is false for a device that has not unlocked, which never shows a kept page.
   let { channel, sessionId, hostId, restore, level, onrefused, onpeer }: { channel: TranscriptChannel; sessionId: string; hostId: string; restore: boolean; level: Level; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void } = $props();
 
+  // Read once: a demo keeps no page, and leaving it must not write one on the way out.
+  const demo = inDemo();
   const PAGE = 50;
   const POLL_MS = 2000;
   const MARKER_MS = 8000;
@@ -30,7 +33,7 @@
   // svelte-ignore state_referenced_locally
   const key = cacheKey(hostId, sessionId);
   // svelte-ignore state_referenced_locally
-  const kept = restore ? loadSnapshot(key) : Promise.resolve(null);
+  const kept = restore && !demo ? loadSnapshot(key) : Promise.resolve(null);
   let firstRead = true;
   let now = $state(Date.now());
   let list = $state<HTMLDivElement>();
@@ -80,6 +83,7 @@
   let saving: ReturnType<typeof setTimeout> | undefined;
   function keep(): void {
     clearTimeout(saving);
+    if (demo) return;
     // A $state array is a proxy, which IndexedDB cannot clone, so a snapshot is stored.
     saving = setTimeout(() => void saveSnapshot(key, $state.snapshot(items), older), 1000);
   }
@@ -131,7 +135,7 @@
       clearInterval(timer);
       clearInterval(tickAge);
       clearTimeout(saving);
-      if (heard) void saveSnapshot(key, $state.snapshot(items), older);
+      if (heard && !demo) void saveSnapshot(key, $state.snapshot(items), older);
     };
   });
 

@@ -1,0 +1,259 @@
+{
+  "name": "Play listing screenshots from the demo at 1080x1920 (COI-3313)",
+  "start": "launch",
+  "steps": [
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "wm size 1080x1920 && wm size"
+      ]
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "launch"
+    },
+    {
+      "op": "wait",
+      "pattern": "Try the demo",
+      "timeout": 40
+    },
+    {
+      "op": "eval",
+      "js": "JSON.stringify({w:innerWidth,h:innerHeight,r:devicePixelRatio})",
+      "save": "viewport"
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "settings put global sysui_demo_allowed 1"
+      ]
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "am broadcast -a com.android.systemui.demo -e command enter"
+      ]
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "am broadcast -a com.android.systemui.demo -e command clock -e hhmm 1200"
+      ]
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "am broadcast -a com.android.systemui.demo -e command battery -e level 100 -e plugged false"
+      ]
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "am broadcast -a com.android.systemui.demo -e command network -e wifi show -e level 4 -e fully true"
+      ]
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "am broadcast -a com.android.systemui.demo -e command network -e mobile show -e datatype none -e level 4 -e fully true"
+      ]
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "am broadcast -a com.android.systemui.demo -e command notifications -e visible false"
+      ]
+    },
+    {
+      "op": "tap",
+      "selector": "#try-demo"
+    },
+    {
+      "op": "wait",
+      "pattern": "nothing here is real",
+      "timeout": 30
+    },
+    {
+      "op": "sleep",
+      "seconds": 4
+    },
+    {
+      "op": "tap",
+      "selector": ".switcher"
+    },
+    {
+      "op": "sleep",
+      "seconds": 1
+    },
+    {
+      "op": "eval",
+      "js": "document.getElementById('tab-host-demo').click();'ok'",
+      "expect": "ok"
+    },
+    {
+      "op": "wait",
+      "pattern": "Demo host // 4 seats",
+      "timeout": 20
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "shot",
+      "name": "overview"
+    },
+    {
+      "op": "tap-text",
+      "text": "Imp-Dragonfly",
+      "within": ".overview"
+    },
+    {
+      "op": "wait",
+      "pattern": "Done. The empty list now reads",
+      "timeout": 30
+    },
+    {
+      "op": "assert",
+      "js": "!!document.querySelector('[aria-label=\"Demo mode\"]')",
+      "message": "the DEMO bar is not on the Focus screen"
+    },
+    {
+      "op": "sleep",
+      "seconds": 4
+    },
+    {
+      "op": "shot",
+      "name": "seat-focus"
+    },
+    {
+      "op": "tap",
+      "selector": ".switcher"
+    },
+    {
+      "op": "tap",
+      "selector": "#tab-session-demo-scientist-1"
+    },
+    {
+      "op": "wait",
+      "pattern": "Which routes should the latency sweep cover first",
+      "timeout": 30
+    },
+    {
+      "op": "sleep",
+      "seconds": 4
+    },
+    {
+      "op": "shot",
+      "name": "choice-card"
+    },
+    {
+      "op": "tap",
+      "selector": ".switcher"
+    },
+    {
+      "op": "tap",
+      "selector": "#tab-session-demo-frontend-eng-1"
+    },
+    {
+      "op": "wait",
+      "pattern": "shared 3 files",
+      "timeout": 30
+    },
+    {
+      "op": "tap-text",
+      "text": "View"
+    },
+    {
+      "op": "wait",
+      "pattern": "Rotate",
+      "timeout": 20
+    },
+    {
+      "op": "tap-text",
+      "text": "Previous"
+    },
+    {
+      "op": "sleep",
+      "seconds": 1
+    },
+    {
+      "op": "tap-text",
+      "text": "Previous"
+    },
+    {
+      "op": "wait",
+      "pattern": "1 of 3",
+      "timeout": 20
+    },
+    {
+      "op": "sleep",
+      "seconds": 4
+    },
+    {
+      "op": "shot",
+      "name": "media-viewer"
+    },
+    {
+      "op": "tap-text",
+      "text": "Close"
+    },
+    {
+      "op": "sleep",
+      "seconds": 2
+    },
+    {
+      "op": "tap",
+      "selector": ".switcher"
+    },
+    {
+      "op": "sleep",
+      "seconds": 1
+    },
+    {
+      "op": "eval",
+      "js": "document.getElementById('tab-host-demo').click();'ok'",
+      "expect": "ok"
+    },
+    {
+      "op": "wait",
+      "pattern": "Demo host // 4 seats",
+      "timeout": 20
+    },
+    {
+      "op": "eval",
+      "js": "Array.from(document.querySelectorAll('button')).find((b)=>b.innerText.trim()==='Settings').click();'ok'",
+      "expect": "ok"
+    },
+    {
+      "op": "wait",
+      "pattern": "These apply to this device only",
+      "timeout": 20
+    },
+    {
+      "op": "sleep",
+      "seconds": 4
+    },
+    {
+      "op": "shot",
+      "name": "settings"
+    },
+    {
+      "op": "eval",
+      "js": "JSON.stringify(window.performance.getEntriesByType('resource').map((e)=>e.name).filter((n)=>!n.includes('tauri.localhost')))",
+      "expect": "^\\[\\]$",
+      "save": "offsite_requests"
+    }
+  ]
+}

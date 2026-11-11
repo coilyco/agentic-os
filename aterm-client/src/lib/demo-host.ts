@@ -4,7 +4,10 @@
 // .agents/skills/tooling-aterm-client/references/demo-mode.md
 import rosterJson from "./fixtures/roster.json";
 import { envelope } from "./messages";
-import type { Ask, HostConnection, HostEvent, PeerMessage, Session, TerminalChannel } from "./protocol";
+import { DEMO_FRAMES } from "./fixtures/demo-frames";
+import { mediaRefusal } from "./media";
+import type { Ask, HostConnection, HostEvent, MediaChannel, PeerMessage, Session, TerminalChannel, TranscriptChannel } from "./protocol";
+import { TranscriptRefused } from "./transcript";
 import { parseRoster, type Role } from "./roster";
 import type { ShellStep } from "./demo-shell";
 import {
@@ -14,6 +17,7 @@ import {
   ASK_SEAT,
   DEMO_PREFIX,
   DEMO_ROLES,
+  MEDIA_SEAT,
   MESSAGES,
   runDemoLine,
   SEAT_PROMPT,
@@ -22,6 +26,7 @@ import {
   seatBanner,
   SHELL_PROMPT,
   shellBanner,
+  transcriptOf,
 } from "./demo-script";
 import type { ListedTerminal } from "./terminals";
 
@@ -39,6 +44,24 @@ export class DemoHost implements HostConnection {
   readonly demo = true;
   readonly canLaunch = true;
   readonly terminals: TerminalChannel = { open: (label) => this.openShell(label), close: (id) => this.endShell(id, null) };
+  // Made-up text, read from memory. A seat the script does not know has no transcript.
+  readonly transcripts: TranscriptChannel = {
+    read: async (sessionId, options) => {
+      const items = transcriptOf(sessionId, this.openedAt);
+      if (!items) throw new TranscriptRefused("unsupported_harness");
+      const cursor = String(items.length);
+      return { session: sessionId, reader: "demo", items: options?.since === cursor ? [] : items, cursor, more: false, updatedAt: this.openedAt };
+    },
+  };
+  // Drawn frames, in memory. Nothing here came from a seat or a disk.
+  readonly media: MediaChannel = {
+    read: async (item) => {
+      const file = DEMO_FRAMES.find((each) => each.id === item.id);
+      if (!file) throw new Error(mediaRefusal("media_unknown"));
+      return new Blob([Uint8Array.from(atob(file.base64), (char) => char.charCodeAt(0))], { type: file.mime });
+    },
+  };
+  private readonly openedAt = Date.now();
   private listeners = new Set<(event: HostEvent) => void>();
   private timers = new Set<ReturnType<typeof setTimeout>>();
   private roles: Role[];
@@ -82,6 +105,7 @@ export class DemoHost implements HostConnection {
     for (const message of this.messages) listener({ type: "message", message });
     for (const ask of this.asks) listener({ type: "ask", ask });
     listener({ type: "features", terminals: true });
+    for (const file of DEMO_FRAMES) listener({ type: "media", item: { id: file.id, session: MEDIA_SEAT, name: file.name, mime: file.mime, kind: "image", size: Math.floor((file.base64.length * 3) / 4), at: this.openedAt } });
     listener({ type: "terminals", terminals: this.listShells() });
     return () => this.listeners.delete(listener);
   }
