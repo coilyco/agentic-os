@@ -48,14 +48,17 @@ export class ScreenTails {
     return { bytes, end: held.end };
   }
 
-  /** Takes one output frame. A frame with no offset ends the keeping of that seat. */
+  /** Takes one output frame. A later frame with no offset ends keeping the seat. */
   note(name: string, data: Uint8Array, offset: number | undefined): Noted {
     const held = this.tails.get(name);
     if (!held) return { data, reset: false };
-    if (offset === undefined || !Number.isFinite(offset)) {
+    // The daemon leaves `offset` out at 0, so a first frame without one starts at 0.
+    const at = offset === undefined && held.end < 0 ? 0 : offset;
+    if (at === undefined || !Number.isFinite(at)) {
       this.tails.delete(name);
       return { data, reset: false };
     }
+    offset = at;
     const end = offset + data.length;
     if (held.end >= 0 && end <= held.end) return { data: null, reset: false };
     if (held.end < 0 || offset > held.end) {
