@@ -3,6 +3,15 @@
   "start": "launch",
   "steps": [
     {
+      "op": "wait",
+      "pattern": "Add a host",
+      "timeout": 60
+    },
+    {
+      "op": "eval",
+      "js": "JSON.stringify({tauri:typeof window.__TAURI__,core:Object.keys((window.__TAURI__||{}).core||{}),internals:typeof window.__TAURI_INTERNALS__,href:location.href})"
+    },
+    {
       "op": "assert",
       "js": "typeof window.__TAURI__?.core?.addPluginListener === 'function'",
       "message": "the app hands the page the plugin listener channel"
