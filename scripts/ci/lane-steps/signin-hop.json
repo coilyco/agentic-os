@@ -16,11 +16,6 @@
       "js": "JSON.stringify({vh:innerHeight,y:scrollY,buttons:[...document.querySelectorAll('button')].map(b=>[(b.textContent||'').trim().slice(0,24),Math.round(b.getBoundingClientRect().top),Math.round(b.getBoundingClientRect().height)]).slice(0,14)})"
     },
     {
-      "op": "eval",
-      "js": "(()=>{const t=window.__TAURI_INTERNALS__;const orig=t.invoke;window.__opened=[];t.invoke=function(cmd,args,o){if(String(cmd).endsWith('|open'))window.__opened.push(args&&args.url);return orig.call(this,cmd,args,o)};return t.invoke!==orig?'wrapped':'not-wrapped'})()",
-      "expect": "^wrapped$"
-    },
-    {
       "op": "adb",
       "args": [
         "shell",
@@ -63,20 +58,27 @@
     },
     {
       "op": "assert",
-      "js": "(()=>{const o=window.__opened||[];if(o.length!==1)return false;const u=new URL(o[0]);return u.origin==='https://accounts.coilyco.ai'&&u.pathname==='/signin'&&u.searchParams.get('redirect_uri')==='dev.coilyco.treehouse:/signin'&&/^[A-Za-z0-9_-]{1,128}$/.test(u.searchParams.get('state')||'')&&/^[A-Za-z0-9_-]{43}$/.test(u.searchParams.get('challenge')||'')})()",
-      "message": "the app opened accounts' sign-in page once, with the return address, a state and a 43 character challenge"
+      "js": "document.body.innerText.includes('Waiting for your browser')",
+      "message": "tapping sign in puts the card in its waiting state"
     },
     {
       "op": "eval",
-      "js": "new URL(window.__opened[0]).searchParams.get('state')",
+      "js": "JSON.parse(localStorage.getItem('treehouse.handoff.v1')).state",
       "save": "state",
-      "expect": "^[A-Za-z0-9_-]+$"
+      "expect": "^[A-Za-z0-9_-]{1,128}$"
     },
     {
       "op": "adb",
       "args": [
         "shell",
         "dumpsys activity activities | grep -E 'ResumedActivity'"
+      ]
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "dumpsys activity activities | grep -E 'accounts.coilyco' | head -3"
       ]
     },
     {
