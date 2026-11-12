@@ -98,12 +98,12 @@
     {
       "op": "eval",
       "js": "window.__TAURI__.core.invoke('plugin:systembrowser|take_return').then((v)=>JSON.stringify(v))",
-      "expect": "^\\{\"url\":\"dev.coilyco.treehouse:/signin\\?code=CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC&state=lanestate\"\\}$"
+      "expect": "^\"dev.coilyco.treehouse:/signin\\?code=CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC&state=lanestate\"$"
     },
     {
       "op": "eval",
       "js": "window.__TAURI__.core.invoke('plugin:systembrowser|take_return').then((v)=>JSON.stringify(v))",
-      "expect": "^\\{\"url\":null\\}$|^null$"
+      "expect": "^null$"
     },
     {
       "op": "adb",
@@ -119,7 +119,7 @@
     {
       "op": "eval",
       "js": "window.__TAURI__.core.invoke('plugin:systembrowser|take_return').then((v)=>JSON.stringify(v))",
-      "expect": "^\\{\"url\":null\\}$|^null$"
+      "expect": "^null$"
     },
     {
       "op": "shot",
