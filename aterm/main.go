@@ -186,7 +186,11 @@ func newCommand(deps commandDeps) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name:  "identity",
-				Usage: "answer to this one of the role's names, not the first free one",
+				Usage: "answer to this name of the role's, its own or an adjective before it, not a drawn one",
+			},
+			&cli.StringFlag{
+				Name:  "prefer-identity",
+				Usage: "answer to this name if it is still the role's and free, as a resume does, else draw one",
 			},
 			&cli.StringFlag{
 				Name:  "shadow-id",
@@ -354,9 +358,9 @@ func runLaunch(ctx context.Context, deps commandDeps, cmd *cli.Command) error {
 		}
 		request.ShadowID = reuse
 	}
-	// Two instances of a role take two names from its pool, so a stamp says which
-	// sent it. An agent-compose too old to honor the name falls back to a slot.
-	chosen, err := chooseIdentity(identityPool(roster, role), role, cmd.String("identity"), deps.claim)
+	// Two seats of a role differ by an adjective, so a stamp says which sent it. An
+	// agent-compose too old to honor the name falls back to a slot.
+	chosen, err := chooseIdentity(identityPoolOf(roster, role), role, cmd.String("identity"), cmd.String("prefer-identity"), deps.claim)
 	if err != nil {
 		return err
 	}

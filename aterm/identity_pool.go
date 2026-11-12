@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"slices"
 	"strings"
 )
@@ -9,41 +10,70 @@ import (
 // identityEnv is the variable agent-compose reads to name a launch or a card.
 const identityEnv = "AGENT_COMPOSE_IDENTITY"
 
-// identityPool is every name a role's live instances take, primary first.
-func identityPool(roster rosterDocument, role string) []string {
-	for _, item := range roster.Items {
-		if item.Slug == role {
-			return append([]string{item.Identity.Name}, item.Identity.Alternates...)
-		}
-	}
-	return nil
+// identityPool is a role's one base name and the roster's adjectives. A seat is the base
+// name or "<Adjective> <base name>", and nothing here reads the base name's parts.
+type identityPool struct {
+	Base       string
+	Adjectives []string
 }
 
-// chooseIdentity picks the first name in the pool no live session holds. ""
-// keeps the primary and the slot suffix. See docs/aterm-daemon.md.
-func chooseIdentity(pool []string, role, requested string, claim func(string, bool) string) (string, error) {
-	if requested = strings.TrimSpace(requested); requested != "" {
-		if !slices.Contains(pool, requested) {
-			return "", withExit(exitUsage, fmt.Errorf("%q is not one of %s's names (%s)",
-				requested, role, strings.Join(pool, ", ")))
-		}
-		if requested == pool[0] {
-			return "", nil
-		}
-		return requested, nil
+func identityPoolOf(roster rosterDocument, role string) identityPool {
+	item, ok := roster.role(role)
+	if !ok {
+		return identityPool{}
 	}
-	if len(pool) < 2 || claim == nil {
+	return identityPool{Base: item.Identity.Name, Adjectives: roster.IdentityAdjectives}
+}
+
+// allows says whether name is one a seat of this role may answer to.
+func (p identityPool) allows(name string) bool {
+	if p.Base == "" {
+		return false
+	}
+	if name == p.Base {
+		return true
+	}
+	adjective, rest, found := strings.Cut(name, " ")
+	return found && rest == p.Base && slices.Contains(p.Adjectives, adjective)
+}
+
+// shuffleAdjectives orders the draw. A test replaces it to fix the order.
+var shuffleAdjectives = func(words []string) {
+	rand.Shuffle(len(words), func(i, j int) { words[i], words[j] = words[j], words[i] })
+}
+
+// chooseIdentity picks a new seat's name, "" keeping the base name and slot suffix. A
+// requested name must be allowed, a resume's preferred one is kept only if free.
+func chooseIdentity(pool identityPool, role, requested, preferred string, claim func(string, bool) string) (string, error) {
+	free := func(name string) bool {
+		base := sessionName(name, role, "")
+		return claim == nil || claim(base, true) == base
+	}
+	keep := func(name string) string {
+		if name == pool.Base {
+			return ""
+		}
+		return name
+	}
+	if requested = strings.TrimSpace(requested); requested != "" {
+		if !pool.allows(requested) {
+			return "", withExit(exitUsage, fmt.Errorf("%q is not one of %s's names (%q, or an adjective from the roster's list before it)",
+				requested, role, pool.Base))
+		}
+		return keep(requested), nil
+	}
+	if preferred = strings.TrimSpace(preferred); preferred != "" && pool.allows(preferred) && free(preferred) {
+		return keep(preferred), nil
+	}
+	if len(pool.Adjectives) == 0 || claim == nil {
 		return "", nil
 	}
-	for index, name := range pool {
-		base := sessionName(name, role, "")
-		if claim(base, true) != base {
-			continue
+	drawn := slices.Clone(pool.Adjectives)
+	shuffleAdjectives(drawn)
+	for _, adjective := range drawn {
+		if name := adjective + " " + pool.Base; free(name) {
+			return name, nil
 		}
-		if index == 0 {
-			return "", nil
-		}
-		return name, nil
 	}
 	return "", nil
 }
