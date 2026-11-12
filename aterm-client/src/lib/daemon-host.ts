@@ -21,6 +21,31 @@ import { RESUME_ENDED_REASON, RESUME_FEATURE, ResumeEndedError, resumeProof } fr
 import { keepStanding, parseTyping, Refusal, refusalOf, typingNotice, type Typing } from "./typing";
 
 export const FORMAT = "aterm.daemon.v1";
+
+/** How a brokered link gets its channel and unlock (references/treehouse-broker.md) */
+export interface Brokered {
+  /** A fresh one-use channel URL. Asked for on every dial, since a ticket opens once. */
+  dial(): Promise<string>;
+  /** A single-use unlock token for this daemon and nonce, asked for just before use. */
+  unlock(daemonId: string, nonce: string): Promise<string>;
+}
+
+/** `welcome.features` names this on a channel the broker opened, which starts locked. */
+const UNLOCK_FEATURE = "unlock-token";
+/** The daemon spends a nonce on the fifth refusal, so move to a new channel first. */
+const UNLOCK_RETRIES = 3;
+const SESSION_OVER = "Your sign-in ended. Sign in again to reconnect.";
+const MACHINE_GONE = "This machine is no longer on your account.";
+const MACHINE_OFFLINE = "This machine is offline. It is not connected to the broker.";
+
+/** Why a ticket could not be had, and whether waiting would help. One shape for both. */
+function dialFailure(error: unknown, answered: boolean): { reason: string; final: boolean } {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (code === "unauthorized") return { reason: SESSION_OVER, final: true };
+  if (code === "not_found") return { reason: MACHINE_GONE, final: true };
+  const reason = code === "daemon_offline" ? MACHINE_OFFLINE : error instanceof Error ? error.message : "The connection failed.";
+  return { reason, final: !answered };
+}
 const LOOPBACK_DAEMON = "ws://127.0.0.1:7419";
 // A sleeping tailnet path can hold a dial open for minutes. Give up on it sooner.
 const DIAL_TIMEOUT_MS = 10000;
@@ -183,6 +208,8 @@ interface Frame {
   typing?: unknown;
   reason?: unknown;
   features?: string[];
+  /** On a brokered welcome only: which daemon this is and the channel's nonce. */
+  unlock?: { daemon_id?: string; nonce?: string };
   challenge?: string;
   rows?: number;
   cols?: number;
@@ -408,7 +435,7 @@ export class DaemonHost implements HostConnection {
   private reopens = new Map<string, string>();
   private features = new Set<string>();
   private calls = new Map<string, { resolve: (reply: Frame) => void; reject: (error: Error) => void }>();
-  private socket!: WebSocket;
+  private socket?: WebSocket;
   private listeners = new Set<(event: HostEvent) => void>();
   private outbox: string[] = [];
   private open = false;
@@ -425,6 +452,10 @@ export class DaemonHost implements HostConnection {
   // When a frame last arrived, and when the probe still waiting on one went out.
   private lastHeard = 0;
   private probeAt?: number;
+  // The ticket request in flight: an answer after a newer dial or a close is dropped.
+  private turn = 0;
+  // What a brokered welcome gave this channel, and how often a token was refused on it.
+  private channel?: { daemonId: string; nonce: string; refusals: number };
   private attempt = 0;
   private redial?: ReturnType<typeof setTimeout>;
   private dialTimer?: ReturnType<typeof setTimeout>;
@@ -458,7 +489,10 @@ export class DaemonHost implements HostConnection {
   /** Set once the welcome lists `browser`, so an older daemon keeps the empty state. */
   browser?: BrowserChannel;
 
-  constructor(private url = DEFAULT_DAEMON_URL) {
+  constructor(
+    private url = DEFAULT_DAEMON_URL,
+    private via?: Brokered,
+  ) {
     this.connect();
     this.ticker = setInterval(() => this.settle(), 500);
     // The daemon pushes sessions on change, not on a clock, so quiet times are asked for.
@@ -472,8 +506,35 @@ export class DaemonHost implements HostConnection {
     }
   }
 
+  /** True on a connection the broker routes, which the daemon starts locked. */
+  get brokered(): boolean {
+    return this.via !== undefined;
+  }
+
   private connect(): void {
-    const socket = new WebSocket(this.url);
+    const via = this.via;
+    if (!via) return this.dial(this.url);
+    const turn = ++this.turn;
+    via.dial().then(
+      (url) => {
+        if (turn === this.turn && !this.halted) this.dial(url);
+      },
+      (error: unknown) => {
+        if (turn === this.turn && !this.halted) this.dialFailed(error);
+      },
+    );
+  }
+
+  private dialFailed(error: unknown): void {
+    const { reason, final } = dialFailure(error, this.answered);
+    // No socket ended here, so the guard that drops a second close of one does not apply.
+    if (!final) return this.lost(true);
+    this.halted = true;
+    this.emit({ type: "closed", reason });
+  }
+
+  private dial(url: string): void {
+    const socket = new WebSocket(url);
     this.socket = socket;
     this.dialStartedAt = Date.now();
     // A socket this host has moved past must not speak for it.
@@ -492,12 +553,14 @@ export class DaemonHost implements HostConnection {
 
   // The socket ended. A host that answered is redialed and the page keeps its state.
   // One that never answered is reported closed.
-  private lost(): void {
-    if (this.ended === this.socket) return;
+  private lost(ticketFailed = false): void {
+    if (!ticketFailed && this.ended === this.socket) return;
     this.ended = this.socket;
     clearTimeout(this.dialTimer);
     this.open = false;
     this.probeAt = undefined;
+    // A new channel has a new nonce, so nothing of this one can unlock it.
+    this.channel = undefined;
     for (const call of this.calls.values()) call.reject(new Error("The daemon closed the connection."));
     this.calls.clear();
     if (this.halted) return;
@@ -547,7 +610,7 @@ export class DaemonHost implements HostConnection {
       // A dial still out may sit on a path that is gone. Drop it for one on the path now.
       this.ended = this.socket;
       clearTimeout(this.dialTimer);
-      this.socket.close();
+      this.socket?.close();
       this.connect();
     }
   };
@@ -565,7 +628,7 @@ export class DaemonHost implements HostConnection {
     // A half-open socket may never fire close, so the loss is declared here.
     const socket = this.socket;
     this.lost();
-    socket.close();
+    socket?.close();
   }
 
   subscribe(listener: (event: HostEvent) => void): () => void {
@@ -911,7 +974,7 @@ export class DaemonHost implements HostConnection {
       document.removeEventListener("visibilitychange", this.wake);
     }
     this.listeners.clear();
-    this.socket.close();
+    this.socket?.close();
   }
 
   private browserChannel(): BrowserChannel {
@@ -992,7 +1055,7 @@ export class DaemonHost implements HostConnection {
   private request(frame: Record<string, unknown>): string {
     const id = `c${++this.nextId}`;
     const line = JSON.stringify({ id, ...frame });
-    if (this.open) this.socket.send(line);
+    if (this.open) this.socket?.send(line);
     // After a loss the screen is locked and state is re-attached from what is held.
     else if (!this.answered) this.outbox.push(line);
     return id;
@@ -1024,7 +1087,7 @@ export class DaemonHost implements HostConnection {
           // A daemon that refuses or speaks another format will not change by waiting.
           this.halted = true;
           this.emit({ type: "closed", reason: frame.error ?? `The daemon speaks ${frame.format}.` });
-          this.socket.close();
+          this.socket?.close();
           return;
         }
         this.open = true;
@@ -1053,7 +1116,11 @@ export class DaemonHost implements HostConnection {
         if (this.features.has(OPEN_URL_FEATURE) && (this.features.has(BROWSER_FEATURE) || inAndroidApp())) this.request({ type: "subscribe", channel: "open_url" });
         // The daemon replays each seat's shelf on subscribe, so a reconnect restores it.
         if (this.features.has("media")) this.request({ type: "subscribe", channel: "media" });
-        for (const line of this.outbox.splice(0)) this.socket.send(this.ptySize ? withScales(line) : line);
+        for (const line of this.outbox.splice(0)) this.socket?.send(this.ptySize ? withScales(line) : line);
+        if (this.via && frame.unlock?.daemon_id && frame.unlock.nonce && this.features.has(UNLOCK_FEATURE)) {
+          this.channel = { daemonId: frame.unlock.daemon_id, nonce: frame.unlock.nonce, refusals: 0 };
+          void this.unlockChannel();
+        }
         return;
       }
       case "ask":
@@ -1221,6 +1288,7 @@ export class DaemonHost implements HostConnection {
         // Code 2: the answer does not fit the ask. Code 3: the ask is gone or settled.
         const role = frame.id ? this.launches.get(frame.id) : undefined;
         const refused = refusalOf(frame);
+        if (frame.reason === "unlock_refused" && this.channel) this.channel.refusals += 1;
         this.setTyping(refused);
         const closing = frame.id ? this.closes.get(frame.id) : undefined;
         if (closing !== undefined && frame.id) {
@@ -1289,6 +1357,37 @@ export class DaemonHost implements HostConnection {
         this.emit({ type: "resume", state: ended ? "ended" : null });
       },
     );
+  }
+
+  /** Asks accounts for a token and sends it in an `unlock` frame. */
+  private async unlockChannel(): Promise<void> {
+    const via = this.via;
+    const channel = this.channel;
+    const socket = this.socket;
+    if (!via || !channel) return;
+    let token: string;
+    try {
+      token = await via.unlock(channel.daemonId, channel.nonce);
+    } catch (error) {
+      if (socket !== this.socket) return;
+      this.setTyping({ allowed: false, reason: "unlock_failed" });
+      this.emit({ type: "notice", text: `Accounts did not unlock this connection. ${error instanceof Error ? error.message : ""}`.trim() });
+      return;
+    }
+    // A token is for one channel, so it is never sent down the socket that replaced it.
+    if (socket !== this.socket || !this.open || this.channel !== channel) return;
+    this.request({ type: "unlock", unlock_token: token });
+  }
+
+  /** Unlocks again with a fresh token. Near the nonce limit it redials for a new one. */
+  unlockAgain(): void {
+    const channel = this.channel;
+    if (!this.via || !channel || !this.open) return;
+    if (channel.refusals >= UNLOCK_RETRIES) {
+      this.socket?.close();
+      return;
+    }
+    void this.unlockChannel();
   }
 
   private setTyping(typing: Typing | null): void {

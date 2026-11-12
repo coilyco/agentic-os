@@ -16,7 +16,8 @@ export type HostKind = "daemon" | "demo";
 
 export type HostStatus =
   | { kind: "checking" }
-  | { kind: "online"; sessionCount: number }
+  // A host the broker lists has no probe, so no count until it is attached.
+  | { kind: "online"; sessionCount: number | null }
   | { kind: "unreachable"; reason: string; layer?: Layer };
 
 export interface Host {
@@ -29,6 +30,8 @@ export interface Host {
   found?: boolean;
   /** It answered this page load: silence is a restart, and no listing change drops it. */
   answered?: boolean;
+  /** Listed by the broker for the signed-in account, and reached through it. */
+  brokered?: { daemonId: string; substrate: string };
 }
 
 /** The attached host's link: live, lost and being redialed, or just back. */
@@ -310,6 +313,10 @@ export interface HostConnection {
   readonly demo?: boolean;
   readonly canLaunch: boolean;
   readonly canReopen?: boolean;
+  /** Routed by the broker, so the daemon starts it locked until accounts unlocks it. */
+  readonly brokered?: boolean;
+  /** Asks accounts for a new unlock token. Only a brokered connection has it. */
+  unlockAgain?(): void;
   readonly passkey?: PasskeyChannel;
   readonly push?: PushChannel;
   readonly deviceKey?: DeviceKeyChannel;

@@ -111,3 +111,21 @@ describe("passkeyOffer", () => {
     expect(passkeyOffer({ allowed: false, reason: "session_descendant" }, on)).toBeNull();
   });
 });
+
+describe("typing notices on a brokered connection", () => {
+  it("says accounts unlocks it, not a passkey on this page", () => {
+    expect(typingNotice({ allowed: false, reason: "passkey_required" }, "account")).toBe("This connection is locked. It can watch, and types once your account unlocks it.");
+  });
+
+  it("says the machine refused the unlock, and offers a fresh check rather than blaming the person", () => {
+    expect(typingNotice({ allowed: false, reason: "unlock_refused" }, "account")).toMatch(/did not accept the unlock/);
+  });
+
+  it("says accounts could not unlock it, apart from the machine refusing", () => {
+    expect(typingNotice({ allowed: false, reason: "unlock_failed" }, "account")).toMatch(/Accounts could not unlock/);
+  });
+
+  it("reads an unlock_refused error frame as a lock, and not as a plain error", () => {
+    expect(refusalOf({ reason: "unlock_refused" })).toEqual({ allowed: false, reason: "unlock_refused" });
+  });
+});

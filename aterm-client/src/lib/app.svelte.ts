@@ -1,9 +1,14 @@
+import { AccountsClient, AccountsError } from "./accounts";
 import { nextUnseen } from "./activity";
-import { BUILT_HOST, EXTERNAL, PLACE, type Place } from "./build";
+import { BrokerClient, type BrokerDaemon } from "./broker";
+import { BUILT_HOST, EXTERNAL, IN_APP, PLACE, type Place } from "./build";
 import { SEAT_MARK } from "./brand";
 import { bridge } from "./device-key";
 import { type AttentionSettings, loadAttention, storeAttention } from "./attention";
 import { chime, unlock, watchBlocked } from "./chime";
+import { brokeredFor } from "./brokered";
+import { APP_RETURN, HandoffError, isHandoffReturn, readReturn, startHandoff } from "./handoff";
+import { systemBrowser, type SystemBrowser } from "./system-browser";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
 import { DEMO_PREFIX } from "./demo-script";
 import { DemoHost } from "./demo-host";
@@ -26,10 +31,17 @@ import { flipPin, isPinned, loadPins, storePins } from "./pins";
 import type { ResumeState } from "./resume";
 import type { Role } from "./roster";
 import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
+import { treehouseConfig } from "./treehouse";
 import { TYPING_OPEN, type Typing } from "./typing";
 import { offer, pageLabel, type OpenedPage } from "./pages";
 import { loadLastOpen, storeLastOpen, type LastOpen } from "./last-open";
 import { beginLaunch, newSeatFor, type PendingLaunch } from "./launch-follow";
+
+// Treehouse accounts and the broker, when this build names both. Otherwise none of this.
+const treehouse = treehouseConfig();
+const accountsClient = treehouse ? new AccountsClient({ baseUrl: treehouse.accountsUrl }) : null;
+const brokerClient = treehouse && accountsClient ? new BrokerClient({ baseUrl: treehouse.brokerUrl, accessToken: () => accountsClient.accessToken() }) : null;
+const BROKER_PREFIX = "broker:";
 
 /** The coilyco.dev build: no daemon serves the page, so hosts are added by hand. */
 
@@ -52,6 +64,10 @@ export const app = $state({
   selectedHostId: null as string | null,
   attachedHostId: null as string | null,
   connection: null as HostConnection | null,
+  /** The signed-in account. The session lives in the accounts client, in memory. */
+  accounts: { configured: treehouse !== null, hop: treehouse?.hop ?? false, status: "signed-out" as "signed-out" | "signing-in" | "signed-in", name: "", error: "", listed: false, listError: "" },
+  /** The attached host is reached through the broker, so accounts unlocks it. */
+  brokered: false,
   /** Whether the attached host answers. If not, the screen is its last known state. */
   link: { state: "live" } as Link,
   /** A returning daemon is a newer build than this page, so a reload brings it. */
@@ -277,7 +293,8 @@ export function closeTerminal(sessionId: string): void {
 }
 
 export async function checkHost(host: Host): Promise<void> {
-  if (host.kind !== "daemon") return;
+  // The broker's list is a brokered host's only probe.
+  if (host.kind !== "daemon" || host.brokered) return;
   host.status = { kind: "checking" };
   try {
     host.status = { kind: "online", sessionCount: await probe(host.address) };
@@ -352,7 +369,7 @@ async function refreshFound(): Promise<void> {
   try {
     do {
       refreshFoundAgain = false;
-      const asked = app.hosts.filter((host) => host.kind === "daemon" && !host.found && host.status.kind === "online");
+      const asked = app.hosts.filter((host) => host.kind === "daemon" && !host.found && !host.brokered && host.status.kind === "online");
       const replies = await Promise.allSettled(asked.map((host) => discover(host.address)));
       const found = replies.flatMap((reply) => (reply.status === "fulfilled" ? reply.value : []));
       if (replies.some((reply) => reply.status === "fulfilled")) {
@@ -457,7 +474,7 @@ export function selectHost(host: Host, given?: HostConnection): void {
   if (host.status.kind !== "online" || app.attachedHostId === host.id) return;
   resetAttached();
   // A production build's demo row is the bundled demo. `just dev` keeps the mock host.
-  const connection = given ?? (host.kind === "daemon" ? new DaemonHost(host.address) : import.meta.env.DEV ? new MockHost(undefined, terminalModeFrom(typeof location === "undefined" ? "" : location.search)) : new DemoHost());
+  const connection = given ?? (host.brokered ? new DaemonHost(host.address, brokeredFor(accountsClient!, brokerClient!, host.brokered.daemonId)) : host.kind === "daemon" ? new DaemonHost(host.address) : import.meta.env.DEV ? new MockHost(undefined, terminalModeFrom(typeof location === "undefined" ? "" : location.search)) : new DemoHost());
   attach(host, connection);
 }
 
@@ -468,6 +485,7 @@ function resetAttached(): void {
   clearTimeout(restoredTimer);
   app.link = { state: "live" };
   app.newerBuild = false;
+  app.brokered = false;
   app.typing = TYPING_OPEN;
   app.passkeyAvailable = false;
   app.deviceKeyAvailable = false;
@@ -534,6 +552,7 @@ export function leaveDemo(): void {
 
 function attach(host: Host, connection: HostConnection): void {
   app.connection = connection;
+  app.brokered = (connection as HostConnection).brokered === true;
   app.attachedHostId = host.id;
   connection.subscribe((event) => {
     // The roster's colour per role is not drawn. Every seat gets one mark (COI-3621).
@@ -658,6 +677,8 @@ function attach(host: Host, connection: HostConnection): void {
       app.connection = null;
       app.selectedSession = null;
       app.selectedRole = null;
+      // The close may be the sign-in or the machine, so ask now and not in half a minute.
+      if (host.brokered) void refreshBrokered();
     }
   });
 }
@@ -914,6 +935,7 @@ export async function setAlert(key: keyof AttentionSettings, on: boolean): Promi
 
 /** Where this page unlocks from, for the words a locked device shows. */
 export function placeNow(): Place {
+  if (app.brokered) return "account";
   return app.deviceKeyAvailable ? "app-key" : PLACE;
 }
 
@@ -926,3 +948,257 @@ export const unseenMedia = (sessionId: string): number => unseenCount(mediaOf(se
 export function markMediaSeen(sessionId: string): void {
   app.mediaSeen[sessionId] = mediaOf(sessionId).at(-1)?.id;
 }
+
+// --- Treehouse accounts and the broker (references/treehouse-broker.md) ---
+
+const BROKERED_REFRESH_MS = 30_000;
+
+/** What a person reads when accounts or the broker refuses. Both send their own words. */
+function accountsFailure(error: unknown): string {
+  if (error instanceof AccountsError && error.code === "rate_limited" && error.retryAfter) return `Too many tries. Wait ${error.retryAfter} seconds and try again.`;
+  return error instanceof Error ? error.message : String(error);
+}
+
+function isSessionOver(error: unknown): boolean {
+  return (error as { code?: unknown } | null)?.code === "unauthorized";
+}
+
+function brokerHost(daemon: BrokerDaemon): Host {
+  return {
+    id: `${BROKER_PREFIX}${daemon.id}`,
+    label: daemon.name,
+    address: "through the broker",
+    kind: "daemon",
+    brokered: { daemonId: daemon.id, substrate: daemon.substrate },
+    status: brokerStatus(daemon),
+  };
+}
+
+function brokerStatus(daemon: BrokerDaemon): Host["status"] {
+  return daemon.state === "online" ? { kind: "online", sessionCount: null } : { kind: "unreachable", reason: "Offline. It is not connected to the broker." };
+}
+
+/** Lists the account's machines, online first. The attached one keeps its own state. */
+function applyBrokered(daemons: readonly BrokerDaemon[]): void {
+  const have = new Map(app.hosts.filter((host) => host.brokered).map((host) => [host.id, host]));
+  const ordered = [...daemons].sort((a, b) => Number(b.state === "online") - Number(a.state === "online"));
+  const rows = ordered.map((daemon) => {
+    const row = have.get(`${BROKER_PREFIX}${daemon.id}`);
+    if (!row) return brokerHost(daemon);
+    row.label = daemon.name;
+    if (row.id !== app.attachedHostId) row.status = brokerStatus(daemon);
+    return row;
+  });
+  const others = app.hosts.filter((host) => !host.brokered);
+  const demo = others.filter((host) => host.kind === "demo");
+  app.hosts = [...others.filter((host) => host.kind !== "demo"), ...rows, ...demo];
+  if (app.selectedHostId?.startsWith(BROKER_PREFIX) && !rows.some((row) => row.id === app.selectedHostId)) app.selectedHostId = null;
+}
+
+/** The machines again. A failure keeps the last list. A refused session ends sign-in. */
+async function refreshBrokered(): Promise<void> {
+  if (!brokerClient || app.accounts.status !== "signed-in") return;
+  try {
+    applyBrokered(await brokerClient.daemons());
+    app.accounts.listed = true;
+    app.accounts.listError = "";
+  } catch (error) {
+    if (isSessionOver(error)) endSignIn("Your sign-in ended. Sign in again.");
+    else app.accounts.listError = accountsFailure(error);
+  }
+}
+
+/** Nothing of the account stays: not its machines, nor a brokered connection. */
+function endSignIn(message: string): void {
+  if (app.attachedHostId?.startsWith(BROKER_PREFIX)) {
+    resetAttached();
+    app.connection = null;
+    app.attachedHostId = null;
+    app.selectedSession = null;
+    app.selectedRole = null;
+  }
+  app.hosts = app.hosts.filter((host) => !host.brokered);
+  if (app.selectedHostId?.startsWith(BROKER_PREFIX)) app.selectedHostId = null;
+  Object.assign(app.accounts, { status: "signed-out", name: "", error: message, listed: false, listError: "" });
+}
+
+async function startSignIn(run: () => Promise<{ name: string }>): Promise<void> {
+  if (!accountsClient || app.accounts.status !== "signed-out") return;
+  app.accounts.status = "signing-in";
+  app.accounts.error = "";
+  try {
+    const session = await run();
+    Object.assign(app.accounts, { status: "signed-in", name: session.name });
+  } catch (error) {
+    Object.assign(app.accounts, { status: "signed-out", error: accountsFailure(error) });
+    return;
+  }
+  await refreshBrokered();
+}
+
+// --- The sign-in hop: accounts' own page signs in (references/system-browser.md) ---
+
+const HANDOFF_KEY = "treehouse.handoff.v1";
+const NO_BROWSER = "This app cannot open the sign-in page in your browser yet.";
+// Past this the hop is given up on, and a kept verifier for a killed app is dropped.
+const HOP_WINDOW_MS = 10 * 60_000;
+type Hop = { verifier: string; state: string };
+let pending: Hop | null = null;
+let stopListening: (() => void) | null = null;
+let hopTimer: ReturnType<typeof setTimeout> | null = null;
+
+// A page keeps its verifier in session storage and an app in local storage, so a killed
+// app can trade its return. It trades nothing without the code, and it expires.
+const hopStore = (): Storage => (IN_APP ? localStorage : sessionStorage);
+
+function keepPending(hop: Hop): void {
+  try {
+    hopStore().setItem(HANDOFF_KEY, JSON.stringify({ ...hop, at: Date.now() }));
+  } catch {
+    // Storage can be off. The hop then cannot come back, and the exchange says so.
+  }
+}
+
+function peekPending(): Hop | null {
+  try {
+    const kept = JSON.parse(hopStore().getItem(HANDOFF_KEY) ?? "null") as (Hop & { at?: number }) | null;
+    if (kept && typeof kept.verifier === "string" && typeof kept.state === "string" && Date.now() - (kept.at ?? 0) <= HOP_WINDOW_MS) {
+      return { verifier: kept.verifier, state: kept.state };
+    }
+  } catch {
+    // Nothing kept, or nothing readable.
+  }
+  return null;
+}
+
+function takePending(): Hop | null {
+  const held = pending;
+  pending = null;
+  stopListening?.();
+  stopListening = null;
+  if (hopTimer) clearTimeout(hopTimer);
+  hopTimer = null;
+  const stored = peekPending();
+  try {
+    hopStore().removeItem(HANDOFF_KEY);
+  } catch {
+    // Nothing kept.
+  }
+  return held ?? stored;
+}
+
+/** Waits on the browser: a return finishes, a dismissal or the time limit gives up. */
+function listen(browser: SystemBrowser): void {
+  const stopReturn = browser.onReturn((url) => void finishHandoff(url));
+  const stopClosed = browser.onClosed(() => cancelSignIn());
+  stopListening = () => {
+    stopReturn();
+    stopClosed();
+  };
+  hopTimer = setTimeout(() => {
+    if (app.accounts.status !== "signing-in") return;
+    takePending();
+    Object.assign(app.accounts, { status: "signed-out", error: "The sign-in took too long. Try again." });
+  }, HOP_WINDOW_MS);
+}
+
+/** From accounts' page: check the return is ours, trade the code, list the machines. */
+async function finishHandoff(returnUrl: string): Promise<void> {
+  const hop = takePending();
+  if (!accountsClient) return;
+  try {
+    if (!hop) throw new HandoffError("The sign-in did not come back as expected, so nothing was signed in. Try again.");
+    const session = await accountsClient.handoff(readReturn(returnUrl, hop.state), hop.verifier);
+    Object.assign(app.accounts, { status: "signed-in", name: session.name, error: "" });
+  } catch (error) {
+    Object.assign(app.accounts, { status: "signed-out", error: accountsFailure(error) });
+    return;
+  }
+  await refreshBrokered();
+}
+
+/** Opens accounts' sign-in page: the system browser for an app, a redirect for a page. */
+export async function signInThroughBrowser(): Promise<void> {
+  if (!treehouse || !accountsClient || !app.accounts.hop || app.accounts.status !== "signed-out") return;
+  app.accounts.status = "signing-in";
+  app.accounts.error = "";
+  try {
+    const browser = IN_APP ? systemBrowser() : null;
+    if (IN_APP && !browser) throw new HandoffError(NO_BROWSER);
+    const hop = await startHandoff(treehouse.accountsUrl, IN_APP ? APP_RETURN : location.origin + location.pathname);
+    pending = { verifier: hop.verifier, state: hop.state };
+    keepPending(pending);
+    if (browser) {
+      listen(browser);
+      await browser.open(hop.url);
+    } else {
+      location.assign(hop.url);
+    }
+  } catch (error) {
+    takePending();
+    Object.assign(app.accounts, { status: "signed-out", error: accountsFailure(error) });
+  }
+}
+
+/** The person gave up on the browser. Nothing is signed in, a late return is dropped. */
+export function cancelSignIn(): void {
+  if (app.accounts.status !== "signing-in") return;
+  takePending();
+  Object.assign(app.accounts, { status: "signed-out", error: "" });
+}
+
+// A page load that carries a code and a state is the way back from accounts' page.
+if (accountsClient && app.accounts.hop && !IN_APP && isHandoffReturn(location.search)) {
+  app.accounts.status = "signing-in";
+  const returned = location.href;
+  history.replaceState(null, "", location.pathname);
+  void finishHandoff(returned);
+}
+
+// An app killed while the browser was open starts with the return, or still waiting.
+async function resumeAppHop(): Promise<void> {
+  const browser = systemBrowser();
+  if (!browser) return;
+  const returned = await browser.takeReturn();
+  const kept = peekPending();
+  if (!kept) {
+    takePending();
+    return;
+  }
+  app.accounts.status = "signing-in";
+  pending = kept;
+  if (returned) void finishHandoff(returned);
+  else listen(browser);
+}
+if (accountsClient && app.accounts.hop && IN_APP) void resumeAppHop();
+
+/** Signs in with a passkey this account already holds. */
+export function signIn(): Promise<void> {
+  return startSignIn(() => accountsClient!.signIn());
+}
+
+/** Makes an account with a new passkey, and signs in to it. */
+export function signUp(name: string): Promise<void> {
+  return startSignIn(() => accountsClient!.signUp(name));
+}
+
+/** Asks the broker for the account's machines now, from the Check again button. */
+export function refreshMachines(): Promise<void> {
+  return refreshBrokered();
+}
+
+/** Ends the sign-in here at once, and at accounts as far as it answers. */
+export async function signOut(): Promise<void> {
+  if (!accountsClient) return;
+  endSignIn("");
+  await accountsClient.signOut();
+}
+
+/** Asks accounts for a new unlock token, for a brokered connection left locked. */
+export function unlockAgain(): void {
+  app.connection?.unlockAgain?.();
+}
+
+setInterval(() => {
+  if (document.visibilityState === "visible" && app.accounts.status === "signed-in") void refreshBrokered();
+}, BROKERED_REFRESH_MS);

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { addHost, app, checkHost, overviewShown, placeNow, reconnecting, removeHost, saveFoundHost, selectHost, selectedHost } from "../lib/app.svelte";
+  import { addHost, app, checkHost, overviewShown, placeNow, reconnecting, refreshMachines, removeHost, saveFoundHost, selectHost, selectedHost } from "../lib/app.svelte";
+  import AccountPanel from "../components/AccountPanel.svelte";
   import DemoEntry from "../components/DemoEntry.svelte";
   import Unlock from "../components/Unlock.svelte";
   import { CAN_PASSKEY, EXTERNAL } from "../lib/build";
@@ -12,7 +13,8 @@
   import ConnectionCheck from "../components/ConnectionCheck.svelte";
 
   const host = $derived(selectedHost());
-  const silent = $derived(app.hosts.filter((candidate) => candidate.status.kind === "unreachable"));
+  // A machine the broker lists as offline is not a fault, and has its own words when picked.
+  const silent = $derived(app.hosts.filter((candidate) => candidate.status.kind === "unreachable" && !candidate.brokered));
   const running = $derived(splitSessions(app.sessions).running.length);
   // A healthy attached host with no seat open rests on the seat overview, or on the logo alone when asked. A fault or a lock shows the full page.
   const home = $derived(overviewShown());
@@ -52,6 +54,7 @@
   {#if !host}
     <h1>Pick a host</h1>
     <p class="lede">Sessions run on the host. This window only attaches to them. Pick one from the host list.</p>
+    <AccountPanel />
     {#each silent as quiet (quiet.id)}
       <div class="alert" role="alert">
         {#if quiet.answered}
@@ -79,6 +82,12 @@
   {:else if host.status.kind === "checking"}
     <h1>Checking {host.label}</h1>
     <p class="lede" role="status">Asking the daemon at <code>{host.address}</code> whether it is up.</p>
+  {:else if host.brokered && host.status.kind === "unreachable"}
+    <h1>{host.label} is offline</h1>
+    <div class="alert" role="alert">
+      <p>{host.status.reason} It stays in your list, and it opens once it connects. This list checks again every half minute.</p>
+      <button class="button" onclick={() => refreshMachines()}>Check again</button>
+    </div>
   {:else if host.status.kind === "unreachable"}
     <h1>{host.label} {host.answered ? "stopped answering" : "is not answering"}</h1>
     <div class="alert" role="alert">
@@ -122,7 +131,7 @@
     <!-- The passkey section is here whatever the lock says, so enrollment never depends on a lock that failed to show. -->
     {#if !app.typing.allowed}
       <p class="lede" role="status"><strong>Read only.</strong> {typingNotice(app.typing, placeNow())}</p>
-    {:else if (CAN_PASSKEY && app.passkeyAvailable) || app.deviceKeyAvailable}
+    {:else if (CAN_PASSKEY && app.passkeyAvailable) || app.deviceKeyAvailable || app.brokered}
       <p class="lede" role="status">Typing is on for this device.</p>
     {/if}
     <Unlock always />

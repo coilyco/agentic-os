@@ -15,5 +15,6 @@ export function builtHost(address: string | undefined, label: string | undefined
 }
 export const BUILT_HOST = IN_APP ? builtHost(import.meta.env.VITE_ATERM_LOCAL_HOST, import.meta.env.VITE_ATERM_LOCAL_LABEL) : null;
 
-export type Place = "hosted" | "app" | "app-key" | "served";
+/** `account`: a brokered connection, which accounts unlocks wherever the page is from. */
+export type Place = "hosted" | "app" | "app-key" | "served" | "account";
 export const PLACE: Place = IN_APP ? "app" : HOSTED ? "hosted" : "served";

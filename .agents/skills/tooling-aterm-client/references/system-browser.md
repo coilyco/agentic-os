@@ -18,6 +18,16 @@ The Treehouse apps open the accounts sign-in page in the system's own browser an
 
 **Two dependencies are new.** `objc2-authentication-services` 0.3.2 on a Mac, from the repository that already supplies `objc2` (last commit 2026-10-16, two crate owners, Apache-2.0 or MIT or Zlib, 1.18 million downloads). `androidx.browser:browser` 1.8.0 on Android, a Google AndroidX library under Apache-2.0. It is not 1.10.0 because the plugin pins Android Gradle plugin 8.0.2.
 
+## The page side
+
+`system-browser.ts` and the hop in `app.svelte.ts` (COI-3653) call it, and `handoff.ts` makes the verifier, state and S256 challenge. The contract is `docs/contract-flows.md`, "Sign in from an app", in coilyco/treehouse-servers.
+
+* **Opens** `https://accounts.<domain>/signin?redirect_uri=&state=&challenge=` with return `dev.coilyco.treehouse:/signin`. The card shows a waiting state with Cancel. A refused address shows the plugin's phrase after "This app could not open the sign-in page".
+* **Returns** - the page checks `state`, trades `code` and the verifier at `POST /v1/auth/handoff` for a new session, and lists the machines. A return it is not waiting for is dropped.
+* **Gives up** on Cancel, on `closed` (nothing said), and after ten minutes ("The sign-in took too long").
+* **A killed app** - the verifier is kept in local storage for ten minutes. At every app start the page calls `take_return`, and a kept verifier with a return trades it. One without a return goes on waiting.
+* **Build** - the app needs `VITE_TREEHOUSE_ACCOUNTS_URL` and `VITE_TREEHOUSE_BROKER_URL`. Without both, the card is absent.
+
 ## Checked and not checked
 
 * **Checked:** `cargo test` in the plugin runs nine tests for the address rule, the listener registry and the hidden `Debug`. The app shell compiles with the plugin on a Mac.
