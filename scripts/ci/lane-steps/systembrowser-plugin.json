@@ -1,0 +1,138 @@
+{
+  "name": "systembrowser plugin only: open refuses what it must, a return reaches a warm and a cold app, a return on another path is dropped (no page sign-in code is in this build)",
+  "start": "launch",
+  "steps": [
+    {
+      "op": "assert",
+      "js": "typeof window.__TAURI__?.core?.addPluginListener === 'function'",
+      "message": "the app hands the page the plugin listener channel"
+    },
+    {
+      "op": "eval",
+      "js": "(async()=>{window.__sb={returns:[],closed:0};await window.__TAURI__.core.addPluginListener('systembrowser','return',(p)=>window.__sb.returns.push(String(p&&p.url)));await window.__TAURI__.core.addPluginListener('systembrowser','closed',()=>window.__sb.closed++);return 'registered'})()",
+      "expect": "^registered$"
+    },
+    {
+      "op": "eval",
+      "js": "(async()=>{const r=[];for(const u of [\"http://accounts.coilyco.ai/signin\",\"https://accounts.coilyco.ai:8443/signin\",\"https://evil.example/signin\",\"https://accounts.coilyco.ai/other\",\"nonsense\"]){try{await window.__TAURI__.core.invoke(\"plugin:systembrowser|open\",{url:u});r.push(\"opened\")}catch(e){r.push(\"refused\")}}return r.join(\",\")})()",
+      "expect": "^refused,refused,refused,refused,refused$"
+    },
+    {
+      "op": "eval",
+      "js": "(async()=>{await window.__TAURI__.core.invoke('plugin:systembrowser|open',{url:'https://accounts.coilyco.ai/signin?redirect_uri=dev.coilyco.treehouse%3A%2Fsignin&state=lanestate&challenge=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'});return 'opened'})()",
+      "expect": "^opened$"
+    },
+    {
+      "op": "sleep",
+      "seconds": 6
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "dumpsys activity activities | grep -E 'topResumedActivity|ResumedActivity'"
+      ]
+    },
+    {
+      "op": "ui-dump",
+      "name": "browser-open"
+    },
+    {
+      "op": "shot",
+      "name": "browser-open"
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "am",
+        "start",
+        "-a",
+        "android.intent.action.VIEW",
+        "-d",
+        "dev.coilyco.treehouse:/signin?code=CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC&state=lanestate",
+        "dev.coilyco.treehouse"
+      ]
+    },
+    {
+      "op": "retry",
+      "times": 10,
+      "every": 1,
+      "steps": [
+        {
+          "op": "eval",
+          "js": "window.__sb.returns.length",
+          "expect": "^1$"
+        }
+      ]
+    },
+    {
+      "op": "eval",
+      "js": "window.__sb.returns[0].startsWith('dev.coilyco.treehouse:/signin?code=') && window.__sb.returns[0].endsWith('&state=lanestate')",
+      "expect": "^true$"
+    },
+    {
+      "op": "shot",
+      "name": "warm-return-received"
+    },
+    {
+      "op": "kill-app"
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "am",
+        "start",
+        "-a",
+        "android.intent.action.VIEW",
+        "-d",
+        "dev.coilyco.treehouse:/signin?code=CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC&state=lanestate",
+        "dev.coilyco.treehouse"
+      ]
+    },
+    {
+      "op": "sleep",
+      "seconds": 8
+    },
+    {
+      "op": "launch"
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:systembrowser|take_return').then((v)=>String(v))",
+      "expect": "^dev.coilyco.treehouse:/signin\\?code=CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC&state=lanestate$"
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:systembrowser|take_return').then((v)=>String(v))",
+      "expect": "^null$"
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "am",
+        "start",
+        "-a",
+        "android.intent.action.VIEW",
+        "-d",
+        "dev.coilyco.treehouse:/other?code=x&state=y",
+        "dev.coilyco.treehouse"
+      ]
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "eval",
+      "js": "window.__TAURI__.core.invoke('plugin:systembrowser|take_return').then((v)=>String(v))",
+      "expect": "^null$"
+    },
+    {
+      "op": "shot",
+      "name": "other-path-ignored"
+    }
+  ]
+}
