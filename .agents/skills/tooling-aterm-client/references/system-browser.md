@@ -16,6 +16,8 @@ The Treehouse apps open the accounts sign-in page in the system's own browser an
 
 **The scheme.** `dev.coilyco.treehouse` is the Android application id and the Mac bundle id is `dev.coilyco.treehouse.desktop`. Android's manifest filter matches the scheme only, since a filter cannot match a path on an address with no host, so `SignInRules.kt` checks `/signin`. A Mac needs no bundle registration because the session matches the scheme itself.
 
+**The card needs two addresses at build time.** The page shows the sign-in card only when `VITE_TREEHOUSE_ACCOUNTS_URL` and `VITE_TREEHOUSE_BROKER_URL` are both set. `just aterm-client-build` sets them to `https://accounts.coilyco.ai` and `https://broker.coilyco.ai` for an app build (`VITE_ATERM_APP` set) unless the caller sets them, and a value set empty opts out. Android's CI build and the Mac build both go through that recipe, so the two names live there and nowhere else (COI-3657).
+
 **Two dependencies are new.** `objc2-authentication-services` 0.3.2 on a Mac, from the repository that already supplies `objc2` (last commit 2026-10-16, two crate owners, Apache-2.0 or MIT or Zlib, 1.18 million downloads). `androidx.browser:browser` 1.8.0 on Android, a Google AndroidX library under Apache-2.0. It is not 1.10.0 because the plugin pins Android Gradle plugin 8.0.2.
 
 ## Checked and not checked
