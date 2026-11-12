@@ -139,8 +139,8 @@ class Page:
         return str(found)
 
     def center(self, finder: str) -> tuple[float, float] | None:
-        """Viewport centre of the element finder() returns, or None."""
-        return self.js(f"(()=>{{const e=({finder})();if(!e)return null;const r=e.getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2]}})()")  # type: ignore[return-value]
+        """Viewport centre of the element finder() returns, or None. One below the fold scrolls in first."""
+        return self.js(f"(()=>{{const e=({finder})();if(!e)return null;e.scrollIntoView({{block:'nearest',inline:'nearest'}});const r=e.getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2]}})()")  # type: ignore[return-value]
 
     def tap(self, finder: str, wait: float = 20) -> None:
         """A trusted mouse press and release at the element's centre, waiting for it to exist."""

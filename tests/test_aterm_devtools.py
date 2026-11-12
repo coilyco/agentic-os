@@ -96,6 +96,21 @@ def test_js_returns_the_value_and_asks_for_an_awaited_by_value_evaluate_with_a_g
     assert (params["returnByValue"], params["awaitPromise"], params["userGesture"]) == (True, True, True)
 
 
+def test_a_tap_scrolls_a_target_below_the_fold_into_view_before_it_measures(server) -> None:
+    def handler(m):
+        value = [10.0, 20.0] if m["method"] == "Runtime.evaluate" else {}
+        return [{"id": m["id"], "result": {"result": {"value": value}} if m["method"] == "Runtime.evaluate" else {"result": value}}]
+
+    server["handler"] = handler
+    with devtools.Page(server["url"]) as page:
+        page.tap("()=>document.body", wait=1)
+    expression = server["seen"][0]["params"]["expression"]
+    assert expression.index("scrollIntoView") < expression.index("getBoundingClientRect")
+    assert "block:'nearest'" in expression
+    presses = [m["params"]["type"] for m in server["seen"] if m["method"] == "Input.dispatchMouseEvent"]
+    assert presses == ["mousePressed", "mouseReleased"]
+
+
 def test_a_reply_skips_events_and_pings_and_matches_only_its_own_id(server) -> None:
     def handler(m):
         return [{"method": "Page.loadEventFired", "params": {}}, _frame(0x9, b"hi"), {"id": m["id"] + 7, "result": {}}, {"id": m["id"], "result": {"result": {"value": "mine"}}}]

@@ -17,7 +17,7 @@
     },
     {
       "op": "eval",
-      "js": "(()=>{const c=window.__TAURI__.core;const orig=c.invoke;window.__opened=[];try{c.invoke=function(cmd,args){if(String(cmd).endsWith('|open'))window.__opened.push(args&&args.url);return orig.apply(this,arguments)}}catch(e){return 'readonly'}return c.invoke!==orig?'wrapped':'not-wrapped'})()",
+      "js": "(()=>{const t=window.__TAURI_INTERNALS__;const orig=t.invoke;window.__opened=[];t.invoke=function(cmd,args,o){if(String(cmd).endsWith('|open'))window.__opened.push(args&&args.url);return orig.call(this,cmd,args,o)};return t.invoke!==orig?'wrapped':'not-wrapped'})()",
       "expect": "^wrapped$"
     },
     {
