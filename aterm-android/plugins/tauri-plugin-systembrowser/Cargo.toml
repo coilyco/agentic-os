@@ -1,0 +1,28 @@
+[package]
+name = "tauri-plugin-systembrowser"
+version = "0.1.0"
+description = "Opens the system browser for sign-in and hands the dev.coilyco.treehouse:/signin return back to the page."
+authors = ["coilyco"]
+license = "MIT"
+repository = "https://github.com/coilyco/agentic-os"
+edition = "2024"
+rust-version = "1.90"
+links = "tauri-plugin-systembrowser"
+
+[dependencies]
+tauri = "=2.12.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+
+# ASWebAuthenticationSession on a Mac. objc2, objc2-foundation, objc2-app-kit and block2 are
+# already in the tree through tauri and wry, so only the AuthenticationServices bindings are new.
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "=0.6.2"
+objc2 = "=0.6.5"
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = ["std", "NSWindow", "NSResponder"] }
+objc2-authentication-services = { version = "=0.3.2", default-features = false, features = ["std", "ASWebAuthenticationSession", "ASFoundation", "block2"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSError", "NSObject", "NSString", "NSURL"] }
+
+[build-dependencies]
+tauri-plugin = { version = "=2.7.1", features = ["build"] }

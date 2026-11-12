@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <!-- Sends the sign-in return to MainActivity, which is singleTask. A filter cannot match a path
+             on an address with no host, so SignInRules checks the path and this matches the scheme. -->
+        <activity android:name="dev.coilyco.treehouse.MainActivity" android:exported="true" tools:node="merge">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="dev.coilyco.treehouse" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

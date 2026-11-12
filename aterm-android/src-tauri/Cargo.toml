@@ -16,7 +16,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "=2.7.1", features = [] }
 
 # The page talks to the daemon over its own websocket, so the plugins are the device key,
-# dictation, the share target and saving a file, and no app IPC commands exist. See .agents/skills/tooling-aterm-client/references/android.md.
+# dictation, the share target, saving a file and the system browser, and no app IPC commands exist. See .agents/skills/tooling-aterm-client/references/android.md.
 [dependencies]
 tauri = { version = "=2.12.1", features = [] }
 tauri-plugin-devicekey = { path = "../plugins/tauri-plugin-devicekey" }
@@ -24,6 +24,7 @@ tauri-plugin-dictation = { path = "../plugins/tauri-plugin-dictation" }
 tauri-plugin-speak = { path = "../plugins/tauri-plugin-speak" }
 tauri-plugin-sharetarget = { path = "../plugins/tauri-plugin-sharetarget" }
 tauri-plugin-savefile = { path = "../plugins/tauri-plugin-savefile" }
+tauri-plugin-systembrowser = { path = "../plugins/tauri-plugin-systembrowser" }
 # The official opener plugin: Android ACTION_VIEW and macOS open. Reference:
 # .agents/skills/tooling-aterm-client/references/android-opener.md
 tauri-plugin-opener = "=2.7.2"

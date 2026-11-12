@@ -81,6 +81,7 @@ than editing it by hand.
 * [android-speak.md](references/android-speak.md) - read a reply aloud on Android: the `speak` plugin's four commands, what it does with focus, and what is measured.
 * [save-file.md](references/save-file.md) - the app's `savefile` plugin: what Download does inside the app, the five commands, and where a file lands.
 * [android-sharetarget.md](references/android-sharetarget.md) - Treehouse as an Android Share target for images: the sheet, the plugin, and what is not yet checked on a phone.
+* [system-browser.md](references/system-browser.md) - the `systembrowser` plugin: sign-in in a Custom Tab or an authentication session, the return into the page, and what is not yet checked on a device.
 * [device-key.md](references/device-key.md) - the Android app's unlock with the phone's own key, as a person sees it.
 * [device-key-daemon.md](references/device-key-daemon.md) - the daemon half: the frames, the attestation checks, and the app origin.
 * [resume.md](references/resume.md) - the unlock that survives a phone lock: the resume proof, the window setting, the gate it leaves closed, and the Pixel procedure.

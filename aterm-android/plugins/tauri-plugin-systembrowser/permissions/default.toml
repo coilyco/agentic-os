@@ -1,0 +1,5 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Lets the aterm window open the sign-in page in the system browser, take a return that arrived while it was away, and listen for the return."
+permissions = ["allow-open", "allow-take-return", "allow-register-listener", "allow-remove-listener"]
