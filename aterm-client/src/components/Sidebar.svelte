@@ -127,6 +127,7 @@
   function hostDetail(host: Host): string {
     if (kindOf(host) === "reconnecting") return app.link.state === "resting" ? "not answering" : "reconnecting";
     const running = hostRunning(host, app.attachedHostId, app.sessions);
+    if (host.brokered) return host.status.kind === "online" ? (running === null ? "online" : `${running} running`) : "offline";
     if (running !== null) return host.found ? `${running} running, found on tailnet` : `${running} running`;
     if (host.status.kind === "unreachable") return host.status.layer && host.status.layer !== "network" ? "refused" : "no answer";
     return "checking";

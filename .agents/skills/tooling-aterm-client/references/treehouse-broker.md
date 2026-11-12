@@ -28,6 +28,17 @@ The daemon can dial the Treehouse broker and serve each client the broker attach
 * **When** - the file is statted at each event, so a change applies to the next event with no restart. Off, or no snapshot, `question` never leaves the daemon. `done` and `prompt` events never carry one.
 * **Held to the writer** - `aterm/testdata/treehouse-config-snapshot.v1.json` was written by the real `EncodeSnapshot`, and a test reads it. If the writer's hash changes, regenerate that file.
 
+## The client
+
+The page side is in `aterm-client/` (COI-3392), replayed from coilyco/treehouse-servers, which keeps the server code and the testbed. It is off unless a build sets both `VITE_TREEHOUSE_ACCOUNTS_URL` and `VITE_TREEHOUSE_BROKER_URL`, and the direct path is unchanged.
+
+* **What a person sees** - a card on the host screen: "Sign in to see your machines" signed out, "Your machines" signed in with each machine online or offline, a Check again button, and Sign out. An offline machine has its own panel. A refused sign-in or listing says why in words.
+* **How it connects** - `broker.ts` lists the account's daemons (`GET /v1/daemons`) and asks for a one-use ticket (`POST /v1/connect`). `daemon-host.ts` dials the ticket URL and, on a welcome with `unlock` and the `unlock-token` feature, sends `{type: "unlock", unlock_token}` with a token from accounts. Three refusals redial for a new nonce. Every dial takes a new ticket.
+* **Unlock** - `session` first, then the passkey method only on a 403 `forbidden`. The passkey method cannot run in an app, whose origin is outside the RP ID.
+* **The session** is held in memory only. A sign-in that accounts ends sends the page back to the card.
+* **Sign in from an app or the web** - the system-browser hop, in [system-browser.md](system-browser.md).
+* **Not replayed here** - `accounts.test.ts`, `broker.test.ts` and `handoff.test.ts` hold the client to the contract schemas in treehouse-servers, so they run there, and so does the testbed against the real accounts and broker (`just testbed`). The cutover (COI-2924) brings them back.
+
 ## Not built yet
 
 Nothing ran against the real broker or accounts. Device-key unlock is not offered by accounts yet, so a brokered channel unlocks by passkey or session.

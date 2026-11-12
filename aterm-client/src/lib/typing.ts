@@ -14,7 +14,7 @@ export const TYPING_OPEN: Typing = { allowed: true };
 import { PLACE, type Place } from "./build";
 
 /** The `reason` values the daemon sends when it refuses a guarded frame. */
-const REFUSAL_REASONS = new Set(["session_descendant", "peer_unread", "passkey_required"]);
+const REFUSAL_REASONS = new Set(["session_descendant", "peer_unread", "passkey_required", "unlock_refused"]);
 
 /** A daemon refusal that carried its `reason`, so a lock reads apart from a failure. */
 export class Refusal extends Error {
@@ -82,7 +82,12 @@ export function typingNotice(typing: Typing, place: Place = PLACE): string {
       return "This browser was started by an agent session, so it can watch but not type. Open this page in a browser you started yourself.";
     case "peer_unread":
       return "The daemon could not tell which program opened this page, so it blocks typing to be safe. You can still watch.";
+    case "unlock_refused":
+      return "The machine did not accept the unlock, so this connection can watch but not type. Unlock again to try a fresh check.";
+    case "unlock_failed":
+      return "Accounts could not unlock this connection, so it can watch but not type. Unlock again to retry.";
     case "passkey_required":
+      if (place === "account") return "This connection is locked. It can watch, and types once your account unlocks it.";
       if (place === "app-key") return "This device is locked. It can watch, and types after you unlock it with your fingerprint or screen lock.";
       if (place === "app") return "This device is locked, and the app cannot unlock it yet. It can watch but not type.";
       return place === "hosted"
