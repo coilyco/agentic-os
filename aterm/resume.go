@@ -78,6 +78,11 @@ func resumeArgs(entry ledgerEntry, all []ledgerEntry, headless, dryRun bool) ([]
 	if info, err := os.Stat(entry.Cwd); err == nil && info.IsDir() {
 		args = append(args, "--working-directory", entry.Cwd)
 	}
+	// The seat keeps the name its transcript and stamps used. A name the roster no
+	// longer allows, such as a retired alternate, is dropped and one is drawn (COI-2819).
+	if entry.Identity != "" {
+		args = append(args, "--prefer-identity", entry.Identity)
+	}
 	// Goose asks before resuming outside the directory it recorded, which a headless
 	// seat cannot answer, so a goose seat resumes in a shadow of the recorded code.
 	if entry.Seat == "goose" {

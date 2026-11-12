@@ -30,6 +30,9 @@ type listedRole struct {
 type listedRoster struct {
 	Format string       `json:"format"`
 	Roles  []listedRole `json:"roles"`
+	// IdentityAdjectives are the words a seat takes before its role's name. Absent when
+	// the installed agent-compose ships none.
+	IdentityAdjectives []string `json:"identity_adjectives,omitempty"`
 }
 
 // nativeHarnesses is the set `agent-compose launch` accepts. A catalogue seat
@@ -47,8 +50,6 @@ type rosterSeat struct {
 type rosterIdentity struct {
 	Name     string `json:"name"`
 	Pronouns string `json:"pronouns"`
-	// Alternates are the names a role's later live instances take, in order.
-	Alternates []string `json:"alternates,omitempty"`
 }
 
 type rosterRole struct {
@@ -69,6 +70,8 @@ type rosterRole struct {
 type rosterDocument struct {
 	Format string       `json:"format"`
 	Items  []rosterRole `json:"items"`
+	// IdentityAdjectives is agent-compose's list, read as it is. See identity_pool.go.
+	IdentityAdjectives []string `json:"identity_adjectives,omitempty"`
 }
 
 func isNativeHarness(value string) bool {
@@ -133,7 +136,7 @@ func listRoster(document rosterDocument) listedRoster {
 			PinnedByDefault: item.PinnedByDefault,
 		})
 	}
-	return listedRoster{Format: rosterFormat, Roles: roles}
+	return listedRoster{Format: rosterFormat, Roles: roles, IdentityAdjectives: document.IdentityAdjectives}
 }
 
 func loadRoster(ctx context.Context, deps commandDeps, agentCompose string) (rosterDocument, error) {

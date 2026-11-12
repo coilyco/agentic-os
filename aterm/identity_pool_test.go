@@ -19,60 +19,115 @@ func liveNames(live ...string) func(string, bool) string {
 	}
 }
 
-var angiePool = []string{"Angie", "Bea", "Cy"}
+var angie = identityPool{Base: "Angie", Adjectives: []string{"Fast", "Calm", "Warm"}}
 
-func TestChooseIdentityTakesTheFirstFreeName(t *testing.T) {
+// inOrder fixes the draw, so a test names the adjective it expects.
+func inOrder(t *testing.T) {
+	t.Helper()
+	was := shuffleAdjectives
+	shuffleAdjectives = func([]string) {}
+	t.Cleanup(func() { shuffleAdjectives = was })
+}
+
+func TestChooseIdentityDrawsAFreeAdjective(t *testing.T) {
+	inOrder(t)
 	for _, test := range []struct {
 		name string
 		live []string
 		want string
 	}{
-		{"none live keeps the primary", nil, ""},
-		{"primary live takes the first alternate", []string{"eng-platform-angie"}, "Bea"},
-		{"two live take the second alternate", []string{"eng-platform-angie", "eng-platform-bea"}, "Cy"},
-		{"a freed primary is reused before an alternate", []string{"eng-platform-bea"}, ""},
-		{"an exhausted pool falls back to the slot suffix", []string{"eng-platform-angie", "eng-platform-bea", "eng-platform-cy"}, ""},
+		{"none live takes the first drawn", nil, "Fast Angie"},
+		{"a live adjective is skipped", []string{"eng-platform-fast-angie"}, "Calm Angie"},
+		{"two live leave the third", []string{"eng-platform-fast-angie", "eng-platform-calm-angie"}, "Warm Angie"},
+		{"the bare base name does not hold an adjective", []string{"eng-platform-angie"}, "Fast Angie"},
+		{"every adjective live falls back to the slot suffix", []string{"eng-platform-fast-angie", "eng-platform-calm-angie", "eng-platform-warm-angie"}, ""},
 	} {
-		got, err := chooseIdentity(angiePool, "eng-platform", "", liveNames(test.live...))
+		got, err := chooseIdentity(angie, "eng-platform", "", "", liveNames(test.live...))
 		if err != nil || got != test.want {
 			t.Errorf("%s: got %q, %v, want %q", test.name, got, err, test.want)
 		}
 	}
 }
 
-func TestChooseIdentityWithNothingToChooseFrom(t *testing.T) {
-	if got, err := chooseIdentity([]string{"Angie"}, "eng-platform", "", liveNames("eng-platform-angie")); err != nil || got != "" {
-		t.Errorf("a one-name pool: got %q, %v", got, err)
+// With the real shuffle, a draw never meets a name a live session holds.
+func TestAnUnfixedDrawNeverTakesALiveName(t *testing.T) {
+	live := liveNames("eng-platform-fast-angie", "eng-platform-calm-angie")
+	for range 200 {
+		if got, err := chooseIdentity(angie, "eng-platform", "", "", live); err != nil || got != "Warm Angie" {
+			t.Fatalf("got %q, %v, want the only free adjective", got, err)
+		}
 	}
-	if got, err := chooseIdentity(angiePool, "eng-platform", "", nil); err != nil || got != "" {
+}
+
+func TestChooseIdentityWithNothingToChooseFrom(t *testing.T) {
+	if got, err := chooseIdentity(identityPool{Base: "Angie"}, "eng-platform", "", "", liveNames()); err != nil || got != "" {
+		t.Errorf("a roster with no adjectives: got %q, %v", got, err)
+	}
+	if got, err := chooseIdentity(angie, "eng-platform", "", "", nil); err != nil || got != "" {
 		t.Errorf("no daemon to ask: got %q, %v", got, err)
 	}
 }
 
-func TestChooseIdentityHonorsARequestedNameInThePool(t *testing.T) {
-	got, err := chooseIdentity(angiePool, "eng-platform", "Cy", liveNames())
-	if err != nil || got != "Cy" {
+func TestChooseIdentityHonorsARequestedNameAndRefusesTheRest(t *testing.T) {
+	if got, err := chooseIdentity(angie, "eng-platform", "Calm Angie", "", liveNames()); err != nil || got != "Calm Angie" {
 		t.Errorf("got %q, %v", got, err)
 	}
-	if got, err := chooseIdentity(angiePool, "eng-platform", "Angie", liveNames()); err != nil || got != "" {
-		t.Errorf("the primary needs no rename: got %q, %v", got, err)
+	if got, err := chooseIdentity(angie, "eng-platform", "Angie", "", liveNames()); err != nil || got != "" {
+		t.Errorf("the base name needs no rename: got %q, %v", got, err)
 	}
-	if _, err := chooseIdentity(angiePool, "eng-platform", "Vera", liveNames()); err == nil ||
-		!strings.Contains(err.Error(), "not one of eng-platform's names (Angie, Bea, Cy)") {
-		t.Errorf("another role's name: %v", err)
+	for _, name := range []string{"Vera", "Fast Vera", "fast Angie", "Fast Calm Angie", "Angie Fast", "Fast  Angie", "Brisk Angie"} {
+		_, err := chooseIdentity(angie, "eng-platform", name, "", liveNames())
+		if err == nil || !strings.Contains(err.Error(), `not one of eng-platform's names ("Angie", or an adjective`) {
+			t.Errorf("%q: got %v, want a refusal", name, err)
+		}
+	}
+}
+
+// A resume prefers the seat's old name, but a name the roster has retired is dropped.
+func TestChooseIdentityPrefersAResumedNameOnlyWhileItIsAllowedAndFree(t *testing.T) {
+	inOrder(t)
+	for _, test := range []struct {
+		name      string
+		preferred string
+		live      []string
+		want      string
+	}{
+		{"an allowed free name is kept", "Warm Angie", nil, "Warm Angie"},
+		{"the base name keeps the bare form", "Angie", nil, ""},
+		{"a name a live seat holds is not taken twice", "Warm Angie", []string{"eng-platform-warm-angie"}, "Fast Angie"},
+		{"a retired alternate is dropped for a draw", "Bea", nil, "Fast Angie"},
+		{"a retired adjective is dropped for a draw", "Brisk Angie", nil, "Fast Angie"},
+	} {
+		got, err := chooseIdentity(angie, "eng-platform", "", test.preferred, liveNames(test.live...))
+		if err != nil || got != test.want {
+			t.Errorf("%s: got %q, %v, want %q", test.name, got, err, test.want)
+		}
+	}
+}
+
+// A base name is one opaque string, so a single word works the same as a pair.
+func TestAnAdjectiveSitsBeforeAnyBaseName(t *testing.T) {
+	for _, base := range []string{"Beetle-Ox", "Beetle", "Mister Beetle"} {
+		pool := identityPool{Base: base, Adjectives: []string{"Fast"}}
+		if !pool.allows("Fast "+base) || !pool.allows(base) || pool.allows("Slow "+base) {
+			t.Errorf("%q: the pool reads the base name's parts", base)
+		}
 	}
 }
 
 func TestIdentityPoolReadsTheRoster(t *testing.T) {
-	roster := rosterDocument{Items: []rosterRole{
-		{Slug: "eng-platform", Identity: rosterIdentity{Name: "Angie", Alternates: []string{"Bea"}}},
-		{Slug: "scientist", Identity: rosterIdentity{Name: "Moss"}},
-	}}
-	if got := identityPool(roster, "eng-platform"); strings.Join(got, ",") != "Angie,Bea" {
-		t.Errorf("got %v", got)
+	roster := rosterDocument{
+		Items: []rosterRole{
+			{Slug: "eng-platform", Identity: rosterIdentity{Name: "Angie"}},
+			{Slug: "scientist", Identity: rosterIdentity{Name: "Moss"}},
+		},
+		IdentityAdjectives: []string{"Fast", "Calm"},
 	}
-	if got := identityPool(roster, "nobody"); got != nil {
-		t.Errorf("got %v for a role that is not there", got)
+	if got := identityPoolOf(roster, "eng-platform"); got.Base != "Angie" || strings.Join(got.Adjectives, ",") != "Fast,Calm" {
+		t.Errorf("got %+v", got)
+	}
+	if got := identityPoolOf(roster, "nobody"); got.Base != "" || got.allows("Fast ") || got.allows("") {
+		t.Errorf("got %+v for a role that is not there", got)
 	}
 }
 
@@ -83,9 +138,9 @@ func TestTheChildCarriesTheChosenNameOnlyWhenThereIsOne(t *testing.T) {
 		if plain[0] == "/usr/bin/env" {
 			t.Errorf("shadowed=%v: an unnamed launch gained an env prefix: %v", shadowed, plain)
 		}
-		request.Identity = "Bea"
+		request.Identity = "Fast Angie"
 		named := composeChild(request, "/ac", "/aos", shadowed)
-		if named[0] != "/usr/bin/env" || named[1] != "AGENT_COMPOSE_IDENTITY=Bea" {
+		if named[0] != "/usr/bin/env" || named[1] != "AGENT_COMPOSE_IDENTITY=Fast Angie" {
 			t.Errorf("shadowed=%v: got %v", shadowed, named)
 		}
 		request.Identity = ""
@@ -105,12 +160,7 @@ func dryRunPlan(t *testing.T, live []string, argv ...string) launchPlan {
 			if err := json.Unmarshal(fixture(t, "roster.json"), &document); err != nil {
 				return nil, err
 			}
-			for _, item := range document["items"].([]any) {
-				role := item.(map[string]any)
-				if role["slug"] == "eng-platform" {
-					role["identity"].(map[string]any)["alternates"] = []string{"Bea", "Cy"}
-				}
-			}
+			document["identity_adjectives"] = []string{"Fast", "Calm", "Warm"}
 			return json.Marshal(document)
 		}
 		if name == "/usr/bin/env" && len(args) > 2 && strings.HasPrefix(args[0], identityEnv+"=") {
@@ -139,37 +189,45 @@ func dryRunPlan(t *testing.T, live []string, argv ...string) launchPlan {
 	return plan
 }
 
-func TestASecondInstanceOfARoleIsLaunchedUnderItsOwnName(t *testing.T) {
+func TestEverySeatOfARoleIsLaunchedUnderAnAdjective(t *testing.T) {
+	inOrder(t)
 	first := dryRunPlan(t, nil, "eng-platform", "claude")
-	if first.Identity.Name != "Angie" || first.Identity.Instance != "" {
-		t.Fatalf("the first instance is %q slot %q", first.Identity.Name, first.Identity.Instance)
+	if first.Identity.Name != "Fast Angie" || first.Identity.Instance != "" {
+		t.Fatalf("the first seat is %q slot %q", first.Identity.Name, first.Identity.Instance)
 	}
-	second := dryRunPlan(t, []string{"eng-platform-angie"}, "eng-platform", "claude")
-	if second.Identity.Name != "Bea" || second.Identity.Instance != "" {
-		t.Fatalf("the second instance is %q slot %q, want Bea with no slot suffix", second.Identity.Name, second.Identity.Instance)
+	if first.Child[0] != "/usr/bin/env" || first.Child[1] != "AGENT_COMPOSE_IDENTITY=Fast Angie" {
+		t.Errorf("the launch does not carry the name: %v", first.Child)
 	}
-	if second.Child[0] != "/usr/bin/env" || second.Child[1] != "AGENT_COMPOSE_IDENTITY=Bea" {
-		t.Errorf("the launch does not carry the name: %v", second.Child)
+	second := dryRunPlan(t, []string{"eng-platform-fast-angie"}, "eng-platform", "claude")
+	if second.Identity.Name != "Calm Angie" || second.Identity.Instance != "" {
+		t.Fatalf("the second seat is %q slot %q, want Calm Angie with no slot suffix", second.Identity.Name, second.Identity.Instance)
 	}
-	third := dryRunPlan(t, []string{"eng-platform-angie", "eng-platform-bea"}, "eng-platform", "claude")
-	if third.Identity.Name != "Cy" {
-		t.Errorf("the third instance is %q", third.Identity.Name)
-	}
-	if second.Card.Name != "Bea" {
-		t.Errorf("the card and so the stamp say %q, want Bea", second.Card.Name)
+	if second.Card.Name != "Calm Angie" {
+		t.Errorf("the card and so the stamp say %q, want Calm Angie", second.Card.Name)
 	}
 }
 
-func TestIdentityFlagNamesTheInstance(t *testing.T) {
-	plan := dryRunPlan(t, nil, "--identity", "Cy", "eng-platform", "claude")
-	if plan.Identity.Name != "Cy" || plan.Child[1] != "AGENT_COMPOSE_IDENTITY=Cy" {
+func TestIdentityFlagNamesTheSeat(t *testing.T) {
+	plan := dryRunPlan(t, nil, "--identity", "Warm Angie", "eng-platform", "claude")
+	if plan.Identity.Name != "Warm Angie" || plan.Child[1] != "AGENT_COMPOSE_IDENTITY=Warm Angie" {
 		t.Errorf("got %q, %v", plan.Identity.Name, plan.Child)
 	}
 }
 
-// An agent-compose that predates the variable renders the primary again, so the
+func TestPreferIdentityKeepsAResumedSeatsNameAndDropsARetiredOne(t *testing.T) {
+	inOrder(t)
+	if plan := dryRunPlan(t, nil, "--prefer-identity", "Warm Angie", "eng-platform", "claude"); plan.Identity.Name != "Warm Angie" {
+		t.Errorf("a resumed seat came back as %q", plan.Identity.Name)
+	}
+	if plan := dryRunPlan(t, nil, "--prefer-identity", "Bea", "eng-platform", "claude"); plan.Identity.Name != "Fast Angie" {
+		t.Errorf("a retired alternate gave %q, want a drawn Fast Angie", plan.Identity.Name)
+	}
+}
+
+// An agent-compose that predates the variable renders the base name again, so the
 // launch must not claim a name the card does not show.
 func TestAnOldAgentComposeFallsBackToTheSlotSuffix(t *testing.T) {
+	inOrder(t)
 	var spawns []recordedSpawn
 	deps := stubDeps(t, &spawns, true)
 	inner := deps.output
@@ -182,11 +240,7 @@ func TestAnOldAgentComposeFallsBackToTheSlotSuffix(t *testing.T) {
 			if err := json.Unmarshal(fixture(t, "roster.json"), &document); err != nil {
 				return nil, err
 			}
-			for _, item := range document["items"].([]any) {
-				if role := item.(map[string]any); role["slug"] == "eng-platform" {
-					role["identity"].(map[string]any)["alternates"] = []string{"Bea"}
-				}
-			}
+			document["identity_adjectives"] = []string{"Fast"}
 			return json.Marshal(document)
 		}
 		return inner(ctx, name, args...)
