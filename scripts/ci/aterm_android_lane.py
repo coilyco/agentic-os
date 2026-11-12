@@ -185,7 +185,7 @@ class Lane(J.Journey):
         raise Fail(f"{spec['selector']} never matched /{spec['pattern']}/. last value: {value!r}. page: {self.page_().text()[-300:]!r}")
 
     def op_adb(self, spec: dict) -> str:
-        return adb(*spec["args"], check=spec.get("check", False))[:400]
+        return adb(*[self.sub(arg) for arg in spec["args"]], check=spec.get("check", False))[:400]
 
     def op_sleep(self, spec: dict) -> None:
         time.sleep(float(spec["seconds"]))

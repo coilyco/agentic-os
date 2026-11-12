@@ -1,0 +1,116 @@
+{
+  "name": "sign in from the signed-out card: the browser opens accounts' sign-in page, and a return by intent reaches handoff (a refused code, since no one signs in here)",
+  "start": "launch",
+  "steps": [
+    {
+      "op": "wait",
+      "pattern": "Sign in to see your machines",
+      "timeout": 60
+    },
+    {
+      "op": "shot",
+      "name": "signed-out-card"
+    },
+    {
+      "op": "eval",
+      "js": "JSON.stringify({vh:innerHeight,y:scrollY,buttons:[...document.querySelectorAll('button')].map(b=>[(b.textContent||'').trim().slice(0,24),Math.round(b.getBoundingClientRect().top),Math.round(b.getBoundingClientRect().height)]).slice(0,14)})"
+    },
+    {
+      "op": "eval",
+      "js": "(()=>{const c=window.__TAURI__.core;const orig=c.invoke;window.__opened=[];try{c.invoke=function(cmd,args){if(String(cmd).endsWith('|open'))window.__opened.push(args&&args.url);return orig.apply(this,arguments)}}catch(e){return 'readonly'}return c.invoke!==orig?'wrapped':'not-wrapped'})()",
+      "expect": "^wrapped$"
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "echo '_ --no-first-run --disable-fre --no-default-browser-check' > /data/local/tmp/chrome-command-line"
+      ]
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "chmod 755 /data/local/tmp/chrome-command-line"
+      ]
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "am",
+        "set-debug-app",
+        "--persistent",
+        "com.android.chrome"
+      ]
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "am",
+        "force-stop",
+        "com.android.chrome"
+      ]
+    },
+    {
+      "op": "tap-text",
+      "text": "Sign in with a passkey"
+    },
+    {
+      "op": "sleep",
+      "seconds": 8
+    },
+    {
+      "op": "assert",
+      "js": "(()=>{const o=window.__opened||[];if(o.length!==1)return false;const u=new URL(o[0]);return u.origin==='https://accounts.coilyco.ai'&&u.pathname==='/signin'&&u.searchParams.get('redirect_uri')==='dev.coilyco.treehouse:/signin'&&/^[A-Za-z0-9_-]{1,128}$/.test(u.searchParams.get('state')||'')&&/^[A-Za-z0-9_-]{43}$/.test(u.searchParams.get('challenge')||'')})()",
+      "message": "the app opened accounts' sign-in page once, with the return address, a state and a 43 character challenge"
+    },
+    {
+      "op": "eval",
+      "js": "new URL(window.__opened[0]).searchParams.get('state')",
+      "save": "state",
+      "expect": "^[A-Za-z0-9_-]+$"
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "dumpsys activity activities | grep -E 'ResumedActivity'"
+      ]
+    },
+    {
+      "op": "ui-dump",
+      "name": "browser"
+    },
+    {
+      "op": "shot",
+      "name": "browser"
+    },
+    {
+      "op": "adb",
+      "args": [
+        "shell",
+        "am start -a android.intent.action.VIEW -d 'dev.coilyco.treehouse:/signin?code=DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD&state=$state' dev.coilyco.treehouse"
+      ]
+    },
+    {
+      "op": "sleep",
+      "seconds": 6
+    },
+    {
+      "op": "assert",
+      "js": "performance.getEntriesByType('resource').some(e=>e.name==='https://accounts.coilyco.ai/v1/auth/handoff')",
+      "message": "the return reached the page, which checked its state and traded the code at accounts' handoff"
+    },
+    {
+      "op": "assert",
+      "js": "document.body.innerText.includes('Sign in with a passkey')",
+      "message": "a refused code puts the card back to its button"
+    },
+    {
+      "op": "shot",
+      "name": "refused-code-back-on-the-card"
+    }
+  ]
+}

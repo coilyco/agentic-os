@@ -63,6 +63,15 @@ def test_a_saved_value_is_put_into_a_later_script(tmp_path: Path) -> None:
     assert lane.sub("a $missing b") == "a $missing b"
 
 
+def test_a_saved_value_reaches_an_adb_argument(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    lane_mod, lane = _lane(tmp_path, FakePage())
+    calls: list[tuple] = []
+    monkeypatch.setattr(lane_mod, "adb", lambda *args, check=False: calls.append(args) or "ok")
+    lane.saved["state"] = "abc_1-2"
+    lane.op_adb({"args": ["shell", "am start -d 'x:/y?state=$state'"]})
+    assert calls == [("shell", "am start -d 'x:/y?state=abc_1-2'")]
+
+
 def test_an_assert_that_is_false_fails_with_its_reason(tmp_path: Path) -> None:
     lane_mod, lane = _lane(tmp_path, FakePage(["False"]))
     with pytest.raises(lane_mod.Fail, match="the page did not shrink"):
