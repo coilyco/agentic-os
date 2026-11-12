@@ -54,13 +54,7 @@
       "op": "adb",
       "args": [
         "shell",
-        "am",
-        "start",
-        "-a",
-        "android.intent.action.VIEW",
-        "-d",
-        "dev.coilyco.treehouse:/signin?code=CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC&state=lanestate",
-        "dev.coilyco.treehouse"
+        "am start -a android.intent.action.VIEW -d 'dev.coilyco.treehouse:/signin?code=CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC&state=lanestate' dev.coilyco.treehouse"
       ]
     },
     {
@@ -91,13 +85,7 @@
       "op": "adb",
       "args": [
         "shell",
-        "am",
-        "start",
-        "-a",
-        "android.intent.action.VIEW",
-        "-d",
-        "dev.coilyco.treehouse:/signin?code=CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC&state=lanestate",
-        "dev.coilyco.treehouse"
+        "am start -a android.intent.action.VIEW -d 'dev.coilyco.treehouse:/signin?code=CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC&state=lanestate' dev.coilyco.treehouse"
       ]
     },
     {
@@ -109,25 +97,19 @@
     },
     {
       "op": "eval",
-      "js": "window.__TAURI__.core.invoke('plugin:systembrowser|take_return').then((v)=>String(v))",
-      "expect": "^dev.coilyco.treehouse:/signin\\?code=CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC&state=lanestate$"
+      "js": "window.__TAURI__.core.invoke('plugin:systembrowser|take_return').then((v)=>JSON.stringify(v))",
+      "expect": "^\\{\"url\":\"dev.coilyco.treehouse:/signin\\?code=CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC&state=lanestate\"\\}$"
     },
     {
       "op": "eval",
-      "js": "window.__TAURI__.core.invoke('plugin:systembrowser|take_return').then((v)=>String(v))",
-      "expect": "^null$"
+      "js": "window.__TAURI__.core.invoke('plugin:systembrowser|take_return').then((v)=>JSON.stringify(v))",
+      "expect": "^\\{\"url\":null\\}$|^null$"
     },
     {
       "op": "adb",
       "args": [
         "shell",
-        "am",
-        "start",
-        "-a",
-        "android.intent.action.VIEW",
-        "-d",
-        "dev.coilyco.treehouse:/other?code=x&state=y",
-        "dev.coilyco.treehouse"
+        "am start -a android.intent.action.VIEW -d 'dev.coilyco.treehouse:/other?code=x&state=y' dev.coilyco.treehouse"
       ]
     },
     {
@@ -136,8 +118,8 @@
     },
     {
       "op": "eval",
-      "js": "window.__TAURI__.core.invoke('plugin:systembrowser|take_return').then((v)=>String(v))",
-      "expect": "^null$"
+      "js": "window.__TAURI__.core.invoke('plugin:systembrowser|take_return').then((v)=>JSON.stringify(v))",
+      "expect": "^\\{\"url\":null\\}$|^null$"
     },
     {
       "op": "shot",

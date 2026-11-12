@@ -41,8 +41,9 @@ describe("systemBrowser", () => {
 
   it("takes the pending return once, and reads a null, an empty answer or a failure as nothing", async () => {
     const address = "dev.coilyco.treehouse:/signin?code=c&state=s";
+    expect(await systemBrowser(plugin({ take: async () => ({ url: address }) }).scope)!.takeReturn()).toBe(address);
     expect(await systemBrowser(plugin({ take: async () => address }).scope)!.takeReturn()).toBe(address);
-    for (const take of [async () => null, async () => "", async () => 7, () => Promise.reject("no")]) {
+    for (const take of [async () => ({ url: null }), async () => ({}), async () => null, async () => "", async () => 7, () => Promise.reject("no")]) {
       expect(await systemBrowser(plugin({ take }).scope)!.takeReturn()).toBeNull();
     }
   });

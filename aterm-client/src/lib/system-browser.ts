@@ -63,7 +63,9 @@ export function systemBrowser(scope: unknown = globalThis): SystemBrowser | null
     },
     async takeReturn() {
       try {
-        return addressOf({ url: await tauri.invoke(`plugin:${PLUGIN}|take_return`) });
+        const answer = await tauri.invoke(`plugin:${PLUGIN}|take_return`);
+        // The plugin answers {url}, with a null url when nothing is pending.
+        return typeof answer === "string" && answer !== "" ? answer : addressOf(answer);
       } catch {
         return null;
       }
