@@ -1,7 +1,9 @@
 // How the client behaves as seats grow (COI-3363): the mock daemon with N seats,
 // 90 percent idle, and a real Chromium. `measure.spec.ts` runs it.
 import type { Browser, CDPSession, Page } from "@playwright/test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { createServer } from "node:http";
+import { extname, join } from "node:path";
 import { startMock, type SessionSpec } from "../mock-daemon.ts";
 
 const ROLES = (JSON.parse(readFileSync(new URL("../../src/lib/fixtures/roster.json", import.meta.url), "utf8")) as { roles: { slug: string }[] }).roles.map((role) => role.slug);
@@ -304,6 +306,96 @@ export async function longHistory(browser: Browser, options: { seats: number; hi
   } finally {
     await context.close();
     await mock.stop();
+  }
+  return out;
+}
+
+const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".svg": "image/svg+xml", ".json": "application/json", ".webmanifest": "application/manifest+json", ".woff2": "font/woff2", ".ico": "image/x-icon" };
+
+/** A built client on a live daemon at a phone's size: each seat opened, paged, watched.
+ * It never types, and an agent-started browser is a watcher that resizes nothing. */
+export async function observeLiveSeats(url: string, dist: string, browser: Browser, options: { pages: number; watchMs: number; skip: string }): Promise<Record<string, unknown>> {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: "block", reducedMotion: "reduce" });
+  // The daemon serves its own build, so this one comes from a loopback port. The daemon
+  // admits any loopback origin, and a saved host points the page at it.
+  const server = createServer((request, response) => {
+    const path = new URL(request.url ?? "/", "http://x").pathname;
+    const file = join(dist, path === "/" ? "index.html" : path);
+    if (!existsSync(file) || !statSync(file).isFile()) return void response.writeHead(404).end();
+    response.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" }).end(readFileSync(file));
+  });
+  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  const here = `http://127.0.0.1:${(server.address() as { port: number }).port}/`;
+  const daemon = url.replace(/^http/, "ws");
+  const page = await context.newPage();
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Performance.enable");
+  await cdp.send("Network.enable");
+  await page.addInitScript(INSTRUMENT);
+  await page.addInitScript((address) => localStorage.setItem("aterm.hosts.v1", JSON.stringify([{ label: "live", address }])), daemon);
+  let transcriptBytes = 0;
+  cdp.on("Network.webSocketFrameReceived", (event) => {
+    if (event.response.payloadData.slice(0, 60).includes('"type":"transcript"')) transcriptBytes += event.response.payloadData.length;
+  });
+  const out: Record<string, unknown> = { dist: dist.split("/").slice(-3, -2)[0] };
+  try {
+    await page.goto(here);
+    await page.getByRole("tab", { name: /live/ }).click();
+    await page.locator('[id^="tab-session-"]').first().waitFor({ timeout: 20_000 }).catch(async () => {
+      throw new Error("no seats listed: " + (await page.locator("body").ariaSnapshot()).slice(0, 600));
+    });
+    await page.waitForTimeout(2000);
+    const ids = (await page.locator('[id^="tab-session-"]').evaluateAll((tabs) => tabs.map((tab) => tab.id.replace("tab-session-", "")))).filter((id) => !id.includes(options.skip));
+    out.seats = ids.length;
+    out.build = await page.evaluate(() => (document.body.innerText.match(/build [0-9a-f]{7}/) ?? [""])[0]);
+    const rows: Record<string, unknown>[] = [];
+    for (const id of ids) {
+      const row: Record<string, unknown> = { id };
+      if ((await page.locator(`[id="tab-session-${id}"]`).count()) === 0) {
+        await page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ }).click();
+      }
+      await page.locator(`[id="tab-session-${id}"]`).first().click();
+      const before = transcriptBytes;
+      const ready = await page.getByText(/From the transcript|Showing what this device read/).first().waitFor({ timeout: 20_000 }).then(() => true, () => false);
+      row.transcript = ready;
+      if (!ready) {
+        row.shows = (await page.locator(".fallback, .transcript .status").first().innerText().catch(() => "")).slice(0, 80);
+        rows.push(row);
+        await page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ }).click();
+        continue;
+      }
+      await page.waitForTimeout(1000);
+      const feedRows = () => page.locator(".transcript .feed > :is(.turn, .step, .note)").count();
+      row.rowsOnOpen = await feedRows();
+      row.openWindow = await window_(page, () => page.waitForTimeout(options.watchMs), cdp);
+      const opened = await settled(cdp);
+      row.heapOpenMB = +(opened.heap / 1e6).toFixed(1);
+      row.nodesOpen = opened.nodes;
+      let pages = 0;
+      while (pages < options.pages && (await page.locator(".earlier").count())) {
+        await page.locator(".earlier").click();
+        await page.waitForTimeout(40);
+        await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>(".earlier")?.disabled, undefined, { timeout: 20_000 }).catch(() => undefined);
+        pages += 1;
+      }
+      row.pagesBack = pages;
+      row.reachedStart = (await page.locator(".earlier").count()) === 0;
+      const latest = page.getByRole("button", { name: /Jump to latest/ });
+      if (await latest.count()) await latest.click();
+      await page.waitForTimeout(500);
+      row.rowsAfterPaging = await feedRows();
+      row.pagedWindow = await window_(page, () => page.waitForTimeout(options.watchMs), cdp);
+      const deep = await settled(cdp);
+      row.heapPagedMB = +(deep.heap / 1e6).toFixed(1);
+      row.nodesPaged = deep.nodes;
+      row.transcriptKB = Math.round((transcriptBytes - before) / 1000);
+      rows.push(row);
+      await page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ }).click();
+    }
+    out.rows = rows;
+  } finally {
+    await context.close();
+    server.close();
   }
   return out;
 }
