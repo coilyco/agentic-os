@@ -139,6 +139,14 @@ export interface Mock {
   uploads: { session: string; bytes: Buffer }[];
   /** The daemon refuses every `image_upload` with this reason, until set back to null. */
   refuseUploads(reason: string | null): void;
+  /** Each `feedback` taken: the note, the screen it names, and the screenshots' bytes. */
+  feedbacks: { text: string; screen: Record<string, unknown>; images: Buffer[] }[];
+  /** Every `feedback_image` and `feedback` frame heard, to count what a retry resent. */
+  feedbackFrames: string[];
+  /** The daemon refuses the next `feedback` frame with this reason, then serves again. */
+  refuseFeedbackOnce(reason: string): void;
+  /** Staged screenshot tokens stop holding, as ten minutes or a redial does. */
+  expireFeedbackImages(): void;
   /** What a seat's transcript holds. The mock answers `transcript` from it. */
   setTranscript(session: string, items: unknown[]): void;
   /** Items written to a seat's transcript after the client's last read. */
@@ -177,7 +185,7 @@ export function loadSessions(): SessionSpec[] {
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
  * `images`: Add image shows. `webPush`: Notify when closed shows. */
-export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; transcript?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
+export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; feedback?: boolean; version?: string; transcript?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   if (!existsSync(join(DIST, "index.html"))) {
     throw new Error("The mock daemon serves aterm-client/dist, which is not built. Run `just aterm-client-testbed`, which builds it first.");
@@ -190,6 +198,9 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const live = new Map<string, Live>();
   const typedBy = new Map<string, string[]>();
   let uploadRefusal: string | null = null;
+  let feedbackRefusal: string | null = null;
+  const staged = new Map<string, Buffer>();
+  let stagedCount = 0;
   const clients = new Set<WebSocket>();
   // Sockets that went silent: they stay open but speak and hear nothing.
   const silent = new WeakSet<WebSocket>();
@@ -201,7 +212,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const lastBox = new Map<string, { rows: number; cols: number }>();
   const closed = new Map<string, SessionSpec>();
   const artifactFrames = new Map<string, Record<string, unknown>>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"], attachCalls: [] as Mock["attachCalls"] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], feedbacks: [] as Mock["feedbacks"], feedbackFrames: [] as string[], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"], attachCalls: [] as Mock["attachCalls"] };
   const shared = new Map<string, { session: string; name: string; mime: string; kind: string; bytes: Buffer; at: number; unreadable?: boolean }>();
   const mediaFrame = (id: string) => {
     const file = shared.get(id)!;
@@ -293,9 +304,9 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
       switch (frame.type) {
         case "hello":
           if (options.lock) {
-            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...served(), ...unlockedFeatures, ...pushFeature], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
+            send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...unlockedFeatures, ...pushFeature], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
           } else {
-            send(socket, { type: "welcome", format: FORMAT, version: "testbed", features: [...served(), ...(options.images ? ["image-upload"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.media ? ["media"] : []), ...(options.artifacts ? ["artifacts"] : []), ...pushFeature], typing: { allowed: true } });
+            send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...(options.images ? ["image-upload"] : []), ...(options.feedback ? ["feedback"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.media ? ["media"] : []), ...(options.artifacts ? ["artifacts"] : []), ...pushFeature], typing: { allowed: true } });
           }
           return;
         case "device_assert_begin":
@@ -433,6 +444,30 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
             draw(seat, socket);
           }
           return;
+        case "feedback_image": {
+          mock.feedbackFrames.push("feedback_image");
+          const token = `tok-${(stagedCount += 1)}`;
+          staged.set(token, Buffer.from(String(frame.data ?? ""), "base64"));
+          send(socket, { type: "feedback_image_saved", id: frame.id, image: token });
+          return;
+        }
+        case "feedback": {
+          mock.feedbackFrames.push("feedback");
+          if (feedbackRefusal) {
+            const reason = feedbackRefusal;
+            feedbackRefusal = null;
+            send(socket, { type: "error", id: frame.id, code: 6, error: "refused", reason });
+            return;
+          }
+          const tokens = Array.isArray(frame.images) ? (frame.images as string[]) : [];
+          if (tokens.some((token) => !staged.has(token))) {
+            send(socket, { type: "error", id: frame.id, code: 6, error: "refused", reason: "image_expired" });
+            return;
+          }
+          mock.feedbacks.push({ text: String(frame.text ?? ""), screen: (frame.screen ?? {}) as Record<string, unknown>, images: tokens.map((token) => staged.get(token)!) });
+          send(socket, { type: "feedback_saved", id: frame.id, record: `2026-11-11-0000-${String(mock.feedbacks.length).padStart(4, "0")}` });
+          return;
+        }
         case "image_upload": {
           if (!seat) return;
           if (uploadRefusal) {
@@ -618,6 +653,14 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     closeMedia(session, id) {
       shared.delete(id);
       for (const socket of clients) send(socket, { type: "media_closed", session, media_id: id });
+    },
+    feedbacks: mock.feedbacks,
+    feedbackFrames: mock.feedbackFrames,
+    refuseFeedbackOnce(reason) {
+      feedbackRefusal = reason;
+    },
+    expireFeedbackImages() {
+      staged.clear();
     },
     refuseUploads(reason) {
       uploadRefusal = reason;

@@ -643,7 +643,7 @@ describe("riding out a daemon restart", () => {
     vi.advanceTimersByTime(1000);
     const again = StubSocket.last;
     again.receive({ ...WELCOME, version: "0.443.0" });
-    expect(events.at(-1)).toEqual({ type: "features", terminals: false });
+    expect(events.at(-1)).toEqual({ type: "features", terminals: false, daemonVersion: "0.443.0" });
     expect(events.filter((event) => event.type === "reconnected")).toEqual([{ type: "reconnected", newerBuild: false }]);
     expect(kinds(again)).toEqual(["subscribe", "roster"]);
     again.receive(SEATS);
@@ -1198,6 +1198,162 @@ describe("the image channel", () => {
     await sentUpload(socket);
     socket.drop();
     await expect(attempt).rejects.toThrow(/closed the connection/);
+    host.close();
+  });
+});
+
+describe("the feedback channel", () => {
+  const WELCOME = { type: "welcome", format: "aterm.daemon.v1", features: ["feedback"], version: "aos-v0.578.0" };
+  const screen = { view: "Host list", host: "this Mac", viewport: { width: 390, height: 844, ratio: 3 }, build: "abc1234", app: true, at: "2026-11-11T10:00:00.000Z" };
+  const png = (byte = 1) => new Blob([new Uint8Array(3).fill(byte)], { type: "image/png" });
+  const framesOf = (socket: StubSocket, type: string) => socket.sent.map((line) => JSON.parse(line)).filter((frame) => frame.type === type);
+  const next = async (socket: StubSocket, type: string, count: number) => {
+    await vi.waitFor(() => expect(framesOf(socket, type)).toHaveLength(count));
+    return framesOf(socket, type)[count - 1];
+  };
+
+  it("is offered only once the welcome lists the feature, and the event says which host it came from", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["send-new"], version: "aos-v0.517.0" });
+    expect(host.feedback).toBeUndefined();
+    expect(events.filter((event) => event.type === "features").at(-1)).toMatchObject({ daemonVersion: "aos-v0.517.0" });
+    expect(events.filter((event) => event.type === "features").at(-1)).not.toHaveProperty("feedback");
+    socket.receive(WELCOME);
+    expect(host.feedback?.maxBytes).toBe(3_000_000);
+    expect(events.filter((event) => event.type === "features").at(-1)).toMatchObject({ feedback: true });
+    host.close();
+  });
+
+  it("sends a feedback_image per screenshot, then one closing frame whose context is the key screen", async () => {
+    const { host, socket } = connect();
+    socket.receive(WELCOME);
+    const steps: string[] = [];
+    const sent = host.feedback!.send({ text: "the card is cut off", context: screen, images: [png(1), png(2)] }, (done, total) => steps.push(`${done}/${total}`));
+    const first = await next(socket, "feedback_image", 1);
+    expect(first.data).toBe(btoa("\x01\x01\x01"));
+    socket.receive({ type: "feedback_image_saved", id: first.id, image: "tok-a" });
+    const second = await next(socket, "feedback_image", 2);
+    expect(second.data).toBe(btoa("\x02\x02\x02"));
+    socket.receive({ type: "feedback_image_saved", id: second.id, image: "tok-b" });
+    const closing = await next(socket, "feedback", 1);
+    expect(closing).toMatchObject({ text: "the card is cut off", screen, images: ["tok-a", "tok-b"] });
+    expect(closing).not.toHaveProperty("context");
+    socket.receive({ type: "feedback_saved", id: closing.id, record: "2026-11-11-1000-ab12" });
+    await expect(sent).resolves.toBe("2026-11-11-1000-ab12");
+    expect(steps).toEqual(["0/2", "1/2", "2/2"]);
+    host.close();
+  });
+
+  it("takes a note alone, with no image frame", async () => {
+    const { host, socket } = connect();
+    socket.receive(WELCOME);
+    const sent = host.feedback!.send({ text: "just words", context: screen, images: [] });
+    const closing = await next(socket, "feedback", 1);
+    expect(closing.images).toEqual([]);
+    expect(framesOf(socket, "feedback_image")).toHaveLength(0);
+    socket.receive({ type: "feedback_saved", id: closing.id, record: "r1" });
+    await expect(sent).resolves.toBe("r1");
+    host.close();
+  });
+
+  it("takes a screenshot alone, with an empty note", async () => {
+    const { host, socket } = connect();
+    socket.receive(WELCOME);
+    const sent = host.feedback!.send({ text: "", context: screen, images: [png()] });
+    const image = await next(socket, "feedback_image", 1);
+    socket.receive({ type: "feedback_image_saved", id: image.id, image: "tok-a" });
+    const closing = await next(socket, "feedback", 1);
+    expect(closing).toMatchObject({ text: "", images: ["tok-a"] });
+    socket.receive({ type: "feedback_saved", id: closing.id, record: "r2" });
+    await expect(sent).resolves.toBe("r2");
+    host.close();
+  });
+
+  it("words each refusal the daemon names, on the screenshot or the note", async () => {
+    const { host, socket } = connect();
+    socket.receive(WELCOME);
+    for (const [reason, words] of [
+      ["not_an_image", /did not read a screenshot as a PNG/],
+      ["too_large", /over 3 MB/],
+      ["too_many", /4 screenshots in one report/],
+    ] as const) {
+      const before = framesOf(socket, "feedback_image").length;
+      const sent = host.feedback!.send({ text: "x", context: screen, images: [png()] });
+      const image = await next(socket, "feedback_image", before + 1);
+      socket.receive({ type: "error", id: image.id, code: 6, error: "daemon words", reason });
+      await expect(sent).rejects.toThrow(words);
+    }
+    for (const [reason, words] of [
+      ["text_too_long", /8,000 characters/],
+      ["passkey_required", /not unlocked typing/],
+      ["session_descendant", /not take feedback from inside a seat/],
+    ] as const) {
+      const before = framesOf(socket, "feedback").length;
+      const sent = host.feedback!.send({ text: "x", context: screen, images: [] });
+      const closing = await next(socket, "feedback", before + 1);
+      socket.receive({ type: "error", id: closing.id, code: 6, error: "daemon words", reason });
+      await expect(sent).rejects.toThrow(words);
+    }
+    host.close();
+  });
+
+  it("keeps the tokens through a refusal, so a retry sends only the closing frame", async () => {
+    const { host, socket } = connect();
+    socket.receive(WELCOME);
+    const report = { text: "x".repeat(10), context: screen, images: [png()] };
+    const first = host.feedback!.send(report);
+    const image = await next(socket, "feedback_image", 1);
+    socket.receive({ type: "feedback_image_saved", id: image.id, image: "tok-a" });
+    const closing = await next(socket, "feedback", 1);
+    socket.receive({ type: "error", id: closing.id, code: 6, error: "refused", reason: "text_too_long" });
+    await expect(first).rejects.toThrow(/8,000/);
+    const retry = host.feedback!.send(report);
+    const again = await next(socket, "feedback", 2);
+    expect(again.images).toEqual(["tok-a"]);
+    expect(framesOf(socket, "feedback_image"), "the picture was not sent twice").toHaveLength(1);
+    socket.receive({ type: "feedback_saved", id: again.id, record: "r3" });
+    await expect(retry).resolves.toBe("r3");
+    host.close();
+  });
+
+  it("sends the pictures again once when the host says a token has gone", async () => {
+    const { host, socket } = connect();
+    socket.receive(WELCOME);
+    const sent = host.feedback!.send({ text: "x", context: screen, images: [png()] });
+    const image = await next(socket, "feedback_image", 1);
+    socket.receive({ type: "feedback_image_saved", id: image.id, image: "tok-old" });
+    const closing = await next(socket, "feedback", 1);
+    socket.receive({ type: "error", id: closing.id, code: 6, error: "refused", reason: "image_expired" });
+    const reup = await next(socket, "feedback_image", 2);
+    socket.receive({ type: "feedback_image_saved", id: reup.id, image: "tok-new" });
+    const final = await next(socket, "feedback", 2);
+    expect(final.images).toEqual(["tok-new"]);
+    socket.receive({ type: "feedback_saved", id: final.id, record: "r4" });
+    await expect(sent).resolves.toBe("r4");
+    host.close();
+  });
+
+  it("says so, in words, when a token goes a second time", async () => {
+    const { host, socket } = connect();
+    socket.receive(WELCOME);
+    const sent = host.feedback!.send({ text: "x", context: screen, images: [png()] });
+    for (let round = 1; round <= 2; round += 1) {
+      const image = await next(socket, "feedback_image", round);
+      socket.receive({ type: "feedback_image_saved", id: image.id, image: `tok-${round}` });
+      const closing = await next(socket, "feedback", round);
+      socket.receive({ type: "error", id: closing.id, code: 6, error: "refused", reason: "image_expired" });
+    }
+    await expect(sent).rejects.toThrow(/after ten minutes/);
+    host.close();
+  });
+
+  it("fails a send the connection dropped under", async () => {
+    const { host, socket } = connect();
+    socket.receive(WELCOME);
+    const sent = host.feedback!.send({ text: "x", context: screen, images: [] });
+    await next(socket, "feedback", 1);
+    socket.drop();
+    await expect(sent).rejects.toThrow(/closed the connection/);
     host.close();
   });
 });

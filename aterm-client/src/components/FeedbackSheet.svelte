@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
   import { app } from "../lib/app.svelte";
-  import { FEEDBACK_TEXT_MAX, canSend, contextLine, feedbackRefusal, prepareScreenshots, sendingLine } from "../lib/feedback";
+  import { FEEDBACK_TEXT_MAX, canSend, contextLine, feedbackMissing, feedbackRefusal, prepareScreenshots, sendingLine } from "../lib/feedback";
   import { sheet } from "../lib/feedback.svelte";
   import { IMAGE_TYPES, MAX_IMAGES, chipLabel, pastedImages } from "../lib/images";
 
@@ -19,7 +19,7 @@
   let record = $state("");
   let preparing = $state(false);
 
-  const channel = $derived(app.connection?.feedback);
+  const channel = $derived(app.feedbackHost.has ? app.connection?.feedback : undefined);
   const context = $derived(sheet.context);
 
   // The native dialog traps focus, answers Escape, and returns focus to the button that opened it.
@@ -149,7 +149,7 @@
         {#if phase === "sending"}{sendingLine(progress.done, progress.total)}{:else if preparing}Getting your screenshot ready.{:else if info}{info}{/if}
       </div>
       {#if note}<p class="refusal" role="alert">{note}</p>{/if}
-      {#if !channel}<p class="refusal" role="alert">{app.connection ? "This host needs a newer Treehouse to take feedback." : "Connect to a host to send feedback."}</p>{/if}
+      {#if !channel}<p class="refusal" role="alert">{app.connection && app.feedbackHost.arrived ? feedbackMissing(app.feedbackHost.version) : "Connect to a host to send feedback."}</p>{/if}
       <div class="actions">
         <button class="button" type="button" onclick={() => (sheet.open = false)}>Close</button>
         <button class="button primary" type="submit" disabled={!channel || phase === "sending" || preparing || !canSend(text, chips.length)}>{phase === "sending" ? "Sending" : "Send"}</button>

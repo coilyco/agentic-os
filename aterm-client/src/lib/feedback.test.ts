@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FEEDBACK_TEXT_MAX, canSend, contextFor, contextLine, feedbackRefusal, prepareScreenshots, sendingLine, viewName } from "./feedback";
+import { FEEDBACK_TEXT_MAX, canSend, contextFor, contextLine, feedbackMissing, feedbackRefusal, prepareScreenshots, sendingLine, viewName } from "./feedback";
 
 const scene = { host: "This Mac", seat: { identity: "Imp-Dragonfly", role: "frontend-eng", state: "idle" }, starting: null, place: "app", build: "1a2b3c4" };
 const screen = { width: 360, height: 780, ratio: 3 };
@@ -55,5 +55,28 @@ describe("screenshots", () => {
     const taken = await prepareScreenshots([png("a.png"), png("b.png")], 3, { maxBytes: 100 });
     expect(taken.ready).toHaveLength(1);
     expect(taken.refusal).toMatch(/4 images at most/);
+  });
+});
+
+
+describe("why a host does not take feedback", () => {
+  const OLDER = "This host needs a newer Treehouse.";
+
+  it("says a newer Treehouse only for a daemon older than the first that takes feedback", () => {
+    for (const version of ["aos-v0.517.9", "v0.400.0", "0.9.0", "aos-v0.0.1"]) expect(feedbackMissing(version), version).toBe(OLDER);
+  });
+
+  it("does not say it for the release that added feedback, a later one, or the rig's build", () => {
+    for (const version of ["aos-v0.518.0", "aos-v0.578.0", "v0.600.2", "1.0.0"]) expect(feedbackMissing(version), version).not.toBe(OLDER);
+    expect(feedbackMissing("aos-v0.578.0")).toBe("This host has nowhere to keep feedback.");
+  });
+
+  it("claims nothing when the host named no build it can read", () => {
+    for (const version of [undefined, "", "dev", "testbed"]) expect(feedbackMissing(version), String(version)).toBe("This host does not take feedback.");
+  });
+
+  it("words the screenshot refusals", () => {
+    expect(feedbackRefusal("image_expired")).toMatch(/after ten minutes/);
+    expect(feedbackRefusal("too_large")).toContain("3 MB");
   });
 });

@@ -203,7 +203,7 @@ export class MockHost implements HostConnection {
     for (const message of this.messages) listener({ type: "message", message });
     for (const ask of this.asks) listener({ type: "ask", ask });
     if (this.terminalMode === "locked") listener({ type: "typing", typing: { allowed: false, reason: "peer_unread" } });
-    listener({ type: "features", terminals: this.terminals !== undefined });
+    listener({ type: "features", terminals: this.terminals !== undefined, feedback: true });
     if (this.media) for (const file of DEMO_FILES) listener({ type: "media", item: { id: file.id, session: MEDIA_SEAT, name: file.name, mime: file.mime, kind: file.kind, size: Math.floor((file.base64.length * 3) / 4) } });
     if (this.terminals && this.terminalMode !== "mute") listener({ type: "terminals", terminals: this.listShells() });
     return () => this.listeners.delete(listener);

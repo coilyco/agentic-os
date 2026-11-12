@@ -2,7 +2,11 @@
 
 A person takes a screenshot of the aterm client, taps one button, and sends it with a note. The host keeps both as a record and a frontend-eng seat files it. Kai asked for it on 2026-11-04 after about a dozen cases in an hour on the Android app.
 
-**The sheet is the client half, and the daemon's `feedback` frames are the other (COI-3345, see [the daemon half](#the-daemon-half)).** The sheet shows only where the connection has a `FeedbackChannel`, which `DaemonHost` gets once the daemon lists the `feedback` feature. Until then a real host's menu entry reads "This host needs a newer Treehouse to take feedback.", and only the Demo host sends.
+**The sheet is the client half, and the daemon's `feedback` frames are the other (COI-3345, see [the daemon half](#the-daemon-half)).** The sheet shows only where the connection has a `FeedbackChannel`, which `DaemonHost` gets once the daemon lists the `feedback` feature (COI-3434).
+
+**The menu entry says why a host cannot take it, by what the welcome named.** "This host needs a newer Treehouse." only for a build older than aos-v0.518.0, the first with `feedback`. "This host has nowhere to keep feedback." for a newer build, since the daemon offers the feature only with a state directory. "This host does not take feedback." when the build is unreadable. The app reads this from the `features` event, never from the connection, so it updates when the welcome lands.
+
+**A retry costs one frame.** A screenshot's token is kept per image, so a refused note resends only the closing frame. A token the host let go (`image_expired`) sends the pictures again once.
 
 ## What a person sees
 
@@ -20,7 +24,7 @@ A host's disk holds the files, so no bucket or credential reaches a phone. A sea
 
 ## Test
 
-`just aterm-client-drive` opens the sheet at 1280 and 320px: the icon with no menu, the 44px target, a refused screenshot keeping the draft, the sheet fitting the screen, a kept draft, and a named record. The Playwright test bed drives the daemon's wire and has no journey for this until `DaemonHost` sends the frame.
+`just aterm-client-drive` opens the sheet at 1280 and 320px: the icon with no menu, the 44px target, a refused screenshot keeping the draft, the sheet fitting the screen, a kept draft, and a named record. The test bed's `feedback-send` journey drives the daemon's wire at desktop and phone sizes: a send with a screenshot, a refused note then a retry, an older host and a current host with no state directory.
 
 ## The daemon half
 
