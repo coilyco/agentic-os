@@ -28,8 +28,8 @@ type launchRequest struct {
 	// Conversation is the claude conversation id minted for this launch, so a
 	// later `aterm resume` can name it. Empty leaves the harness to pick.
 	Conversation string
-	// Identity is the alternate name this instance took from its role's pool, ""
-	// for the primary. See identity_pool.go.
+	// Identity is "<Adjective> <base name>" for a drawn adjective, "" for the base
+	// name alone. See identity_pool.go.
 	Identity string
 	// Instance is the pool slot the daemon granted, "" for the bare name and "2"
 	// or "3" for a concurrent instance. See docs/aterm-daemon.md.

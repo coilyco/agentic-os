@@ -16,6 +16,8 @@ The Treehouse apps open the accounts sign-in page in the system's own browser an
 
 **The scheme.** `dev.coilyco.treehouse` is the Android application id and the Mac bundle id is `dev.coilyco.treehouse.desktop`. Android's manifest filter matches the scheme only, since a filter cannot match a path on an address with no host, so `SignInRules.kt` checks `/signin`. A Mac needs no bundle registration because the session matches the scheme itself.
 
+**The card needs two addresses at build time.** The page shows the sign-in card only when `VITE_TREEHOUSE_ACCOUNTS_URL` and `VITE_TREEHOUSE_BROKER_URL` are both set. `just aterm-client-build` sets them to `https://accounts.coilyco.ai` and `https://broker.coilyco.ai` for an app build (`VITE_ATERM_APP` set) unless the caller sets them, and a value set empty opts out. Android's CI build and the Mac build both go through that recipe, so the two names live there and nowhere else (COI-3657).
+
 **Two dependencies are new.** `objc2-authentication-services` 0.3.2 on a Mac, from the repository that already supplies `objc2` (last commit 2026-10-16, two crate owners, Apache-2.0 or MIT or Zlib, 1.18 million downloads). `androidx.browser:browser` 1.8.0 on Android, a Google AndroidX library under Apache-2.0. It is not 1.10.0 because the plugin pins Android Gradle plugin 8.0.2.
 
 ## The page side
@@ -30,6 +32,6 @@ The Treehouse apps open the accounts sign-in page in the system's own browser an
 
 ## Checked and not checked
 
-* **Checked:** `cargo test` in the plugin runs nine tests for the address rule, the listener registry and the hidden `Debug`. The app shell compiles with the plugin on a Mac.
-* **Not yet checked on a device:** the Custom Tab opening, the merged manifest (read it with `aapt2 dump xmltree`), a return reaching a warm and a cold app, Android's `closed`, the listener commands falling through to Kotlin as the notification plugin's do, and the Android build of `SystemBrowserPlugin.kt`.
+* **Checked:** `cargo test` in the plugin runs nine tests for the address rule, the listener registry and the hidden `Debug`. The app shell compiles with the plugin on a Mac, and the bundle builds and passes `codesign --verify`. The debug APK from dispatch 43126130895 (main 21d4b5a5), read with `aapt2 dump xmltree`, has the scheme filter on `MainActivity` (`singleTask`), and its dex holds `SystemBrowserPlugin`, so the Kotlin compiles.
+* **Not yet checked on a device:** the Custom Tab opening, a return reaching a warm and a cold app, Android's `closed`, and the listener commands falling through to Kotlin as the notification plugin's do. `SignInRulesTest` has not been run.
 * **Not yet checked on a Mac:** the sheet appearing over the Treehouse window, a completed sign-in arriving as `return`, a cancel arriving as `closed`, and the Mac needing no bundle registration.

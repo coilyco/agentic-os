@@ -214,6 +214,28 @@ func TestFindResumablePicksByNameThenByRoleAndRefusesALiveSession(t *testing.T) 
 	}
 }
 
+// COI-2819: a seat comes back under the name its stamps used, as a preference, so a name
+// the roster has since retired is dropped at launch and not refused.
+func TestResumeArgsPreferTheRecordedIdentityOnlyWhenThereIsOne(t *testing.T) {
+	id := newConversationID()
+	entry := ledgerEntry{Name: "eng-platform-fast-beetle-ox", Role: "eng-platform", Identity: "Fast Beetle-Ox", Seat: "claude", Cwd: t.TempDir(), Conversation: id}
+	got, err := resumeArgs(entry, nil, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.Index(got, "--prefer-identity")
+	if i < 0 || got[i+1] != "Fast Beetle-Ox" || slices.Index(got, "eng-platform") < i {
+		t.Fatalf("the recorded identity is not passed ahead of the role: %v", got)
+	}
+	if slices.Contains(got, "--identity") {
+		t.Fatalf("a resume must not demand the name, since a retired one would refuse: %v", got)
+	}
+	entry.Identity = ""
+	if got, _ := resumeArgs(entry, nil, true, false); slices.Contains(got, "--prefer-identity") {
+		t.Fatalf("a record with no identity has nothing to prefer: %v", got)
+	}
+}
+
 func TestResumeArgsReopenTheConversationAndLeaveTheNameToTheClaim(t *testing.T) {
 	id := newConversationID()
 	dir := t.TempDir()

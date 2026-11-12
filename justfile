@@ -194,9 +194,9 @@ aterm-client-drive:
 aterm-client-drive-hops:
     @uv run aterm-client/scripts/hops_drive.py
 
-# Build the aterm web client's production bundle into aterm-client/dist/.
+# Build the aterm web client's production bundle into aterm-client/dist/. An app build (VITE_ATERM_APP set) gets the accounts and broker addresses unless it sets them, empty to opt out.
 aterm-client-build *ARGS:
-    @cd aterm-client && {{pnpm}} run build "$@"
+    @cd aterm-client && if [ -n "${VITE_ATERM_APP:-}" ]; then export VITE_TREEHOUSE_ACCOUNTS_URL="${VITE_TREEHOUSE_ACCOUNTS_URL-https://accounts.coilyco.ai}" VITE_TREEHOUSE_BROKER_URL="${VITE_TREEHOUSE_BROKER_URL-https://broker.coilyco.ai}"; fi && {{pnpm}} run build "$@"
 
 # The aterm web client's CI gate: check, test, and build, in that order.
 aterm-client-gate:

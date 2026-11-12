@@ -6,7 +6,7 @@
 
 **`_session` hands the harness to the daemon instead of running it.** It sends a `spawn` with argv, environment, directory and window size, then attaches, the argv untouched.
 
-**A session is named `<role>-<identity>`, and a live name refuses a spawn.** A concurrent instance takes the next pool name, and only a full pool adds `-2`, `-3`.
+**A session is named `<role>-<identity>`, and a live name refuses a spawn.** A seat takes an adjective first (`eng-platform-fast-beetle-ox`), and a used-up list adds `-2`, `-3`.
 
 **`list` reads each session's screen** and reports `state`: `starting`, `prompt` (a card is up), `busy` (recent output or the interrupt hint), else `idle`.
 
