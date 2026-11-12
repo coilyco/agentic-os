@@ -229,6 +229,10 @@ aterm-client-scale COUNTS="25,100":
     @just aterm-client-build
     @cd aterm-client && SCALE_COUNTS={{COUNTS}} {{pnpm}} exec playwright test -c testbed/scale/playwright.config.ts
 
+# Read only: the real client, built at DIST (an absolute aterm-client/dist path), through the live daemon's seats, with heap and long tasks per seat. Never types. Not the gate.
+aterm-client-scale-live DIST:
+    @cd aterm-client && SCALE_LIVE_DIST="{{DIST}}" {{pnpm}} exec playwright test -c testbed/scale/playwright.config.ts -g "through a client build"
+
 # Serve the built client from the mock daemon on a port, to look at a journey's screen by hand.
 aterm-client-testbed-serve *ARGS:
     @just aterm-client-build
