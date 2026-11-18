@@ -40,18 +40,27 @@ build() {
   [ -z "$version" ] || config=(--config "{\"version\":\"$version\"}")
   (cd "$repo_root/aterm-android" && pnpm exec tauri build --ci --bundles app ${config[@]+"${config[@]}"})
   [ -d "$built" ] || fail "no app at $built"
-  check_arch "$built"
+  drop_carbon "$built"
+  check_bundle "$built"
   sign_app "$built"
   codesign --verify --deep --strict "$built"
   echo "built $built ${version:-with no release tag}"
   codesign -d -r- "$built" 2>&1 | grep '^designated' || true
 }
 
-# macOS warns "Support Ending for Intel-based Apps" for a bundle holding a Mach-O with an
-# Intel slice and no arm64 slice (COI-3700). No signing identity or lipo is needed.
-check_arch() {
-  python3 -I "$repo_root/scripts/check_macho_arch.py" "$1" \
-    || fail "$1 holds a Mach-O with no arm64 slice, which macOS flags as an Intel-based app"
+# macOS warns of Intel-based apps (COI-3700). The Carbon key may count too (COI-3703).
+# What the check reads and why: tooling-aterm-client references/desktop.md.
+check_bundle() {
+  python3 -I "$repo_root/scripts/check_app_bundle.py" "$1" \
+    || fail "$1 holds what macOS may flag as an Intel-based app, see above"
+}
+
+# Tauri's bundler writes LSRequiresCarbon itself, so it is removed after bundling. Signing
+# seals the plist, so this runs before sign_app.
+drop_carbon() {
+  local plist="$1/Contents/Info.plist"
+  plutil -extract LSRequiresCarbon raw "$plist" >/dev/null 2>&1 || return 0
+  plutil -remove LSRequiresCarbon "$plist"
 }
 
 # The version the app shows is the client's: the newest aterm-android release tag, or
@@ -181,7 +190,7 @@ case "${1:-}" in
   test) test_shell ;;
   build) build ;;
   version) app_version ;;
-  arch) check_arch "${2:-$built}" ;;
+  arch) check_bundle "${2:-$built}" ;;
   sign-setup) sign_setup ;;
   install) install ;;
   login) shift; login "${1:-status}" ;;

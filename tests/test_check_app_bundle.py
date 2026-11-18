@@ -1,12 +1,13 @@
-"""Tests for the Intel-slice check behind `just treehouse-mac-build` (COI-3700).
+"""Tests for the bundle check behind `just treehouse-mac-build` (COI-3700, COI-3703).
 
-Mach-O headers are built by hand, so the cases need no compiler, no lipo and no Mac.
+Mach-O headers and plists are built by hand, so the cases need no compiler, lipo or Mac.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import os
+import plistlib
 import struct
 import subprocess
 import sys
@@ -14,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT = Path(__file__).parents[1] / "scripts" / "check_macho_arch.py"
-SPEC = importlib.util.spec_from_file_location("check_macho_arch", SCRIPT)
+SCRIPT = Path(__file__).parents[1] / "scripts" / "check_app_bundle.py"
+SPEC = importlib.util.spec_from_file_location("check_app_bundle", SCRIPT)
 assert SPEC and SPEC.loader
 CHECK = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CHECK)
@@ -99,6 +100,13 @@ def bundle(tmp_path: Path, files: dict[str, bytes]) -> Path:
     return app
 
 
+def with_plist(app: Path, info: dict, binary: bool = False) -> None:
+    fmt = plistlib.FMT_BINARY if binary else plistlib.FMT_XML
+    path = app / "Contents" / "Info.plist"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(plistlib.dumps(info, fmt=fmt))
+
+
 def run(*args: object) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, "-I", str(SCRIPT), *map(str, args)], capture_output=True, text=True, timeout=60
@@ -120,7 +128,7 @@ def test_a_bundle_with_an_intel_only_helper_fails_and_names_it(tmp_path: Path) -
     assert result.returncode == 1
     assert "INTEL-ONLY x86_64" in result.stdout and "helper.dylib" in result.stdout
     assert "MacOS/Treehouse" not in result.stdout
-    assert "2 Mach-O file(s) scanned, 1 Intel-only" in result.stderr
+    assert "2 Mach-O file(s) scanned, 1 problem(s)" in result.stderr
 
 
 def test_an_intel_only_main_executable_fails(tmp_path: Path) -> None:
@@ -143,7 +151,7 @@ def test_a_bundle_of_arm64_and_universal_files_passes(tmp_path: Path) -> None:
 
     assert result.returncode == 0
     assert result.stdout == ""
-    assert "2 Mach-O file(s) scanned, 0 Intel-only" in result.stderr
+    assert "2 Mach-O file(s) scanned, 0 problem(s)" in result.stderr
 
 
 def test_all_lists_every_mach_o_and_still_passes(tmp_path: Path) -> None:
@@ -166,3 +174,61 @@ def test_a_symlink_is_not_followed_out_of_the_bundle(tmp_path: Path) -> None:
 def test_an_empty_or_missing_directory_scans_nothing_and_passes(tmp_path: Path) -> None:
     assert run(tmp_path / "absent").returncode == 0
     assert "0 Mach-O file(s) scanned" in run(tmp_path).stderr
+
+
+@pytest.mark.parametrize("binary", [False, True])
+def test_a_bundle_whose_plist_declares_lsrequirescarbon_fails_in_either_plist_format(
+    tmp_path: Path, binary: bool
+) -> None:
+    app = bundle(tmp_path, {"Contents/MacOS/Treehouse": thin(ARM64)})
+    with_plist(app, {"CFBundleExecutable": "Treehouse", "LSRequiresCarbon": True}, binary)
+
+    result = run(app)
+
+    assert result.returncode == 1
+    assert "LEGACY-KEY LSRequiresCarbon" in result.stdout and "Info.plist" in result.stdout
+
+
+def test_the_key_fails_even_when_it_is_false(tmp_path: Path) -> None:
+    app = bundle(tmp_path, {"Contents/MacOS/Treehouse": thin(ARM64)})
+    with_plist(app, {"LSRequiresCarbon": False})
+
+    assert run(app).returncode == 1
+
+
+def test_a_plist_without_the_key_passes(tmp_path: Path) -> None:
+    app = bundle(tmp_path, {"Contents/MacOS/Treehouse": thin(ARM64)})
+    with_plist(app, {"CFBundleExecutable": "Treehouse", "NSHighResolutionCapable": True})
+
+    result = run(app)
+
+    assert result.returncode == 0 and result.stdout == ""
+
+
+def test_the_key_and_an_intel_slice_are_both_reported(tmp_path: Path) -> None:
+    app = bundle(tmp_path, {"Contents/MacOS/Treehouse": thin(X86_64)})
+    with_plist(app, {"LSRequiresCarbon": True})
+
+    result = run(app)
+
+    assert result.returncode == 1
+    assert "LEGACY-KEY" in result.stdout and "INTEL-ONLY" in result.stdout
+    assert "1 Mach-O file(s) scanned, 2 problem(s)" in result.stderr
+
+
+@pytest.mark.parametrize("content", [b"", b"not a plist", b"<plist><dict>"])
+def test_a_plist_that_cannot_be_read_is_a_problem_not_a_pass(tmp_path: Path, content: bytes) -> None:
+    app = bundle(tmp_path, {"Contents/MacOS/Treehouse": thin(ARM64), "Contents/Info.plist": content})
+
+    result = run(app)
+
+    assert result.returncode == 1
+    assert "UNREADABLE-PLIST" in result.stdout and "Traceback" not in result.stderr
+
+
+def test_a_plain_directory_with_a_nested_plist_is_not_read_as_a_bundle(tmp_path: Path) -> None:
+    folder = tmp_path / "tools"
+    nested = folder / "Some.app"
+    with_plist(nested, {"LSRequiresCarbon": True})
+
+    assert run(folder).returncode == 0

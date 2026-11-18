@@ -293,7 +293,7 @@ treehouse-mac-test:
 treehouse-mac-build:
     @bash scripts/treehouse-mac.sh build
 
-# Fail when a Mach-O in the built Treehouse.app, or the bundle given, has an Intel slice and no arm64 slice.
+# Fail when the built Treehouse.app, or the bundle given, holds a Mach-O with an Intel slice and no arm64 slice, or an LSRequiresCarbon key.
 treehouse-mac-arch *BUNDLE:
     @bash scripts/treehouse-mac.sh arch "$@"
 
