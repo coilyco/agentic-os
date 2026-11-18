@@ -4,6 +4,7 @@
   import { replyAge } from "../lib/last-reply";
   import { draftKey } from "../lib/draft-store";
   import { clearSends, jumpTo, newer, NOT_WALKING, older, onFirstLine, onLastLine, recentSends, recordSend, type Entry, type Walk } from "../lib/send-history";
+  import { keepOnly, loadSendImages, saveSendImages } from "../lib/history-images";
   import { ESCAPE, HOLD_MS, INTERRUPT, showStop } from "../lib/stop";
   import { findMention, insertMention, mentionMatches } from "../lib/mentions";
   import type { HostConnection, Session } from "../lib/protocol";
@@ -43,7 +44,7 @@
     /** The seat's `state` is working, the value the sidebar's spinner reads. The field stays open to typing. */
     busy?: boolean;
     /** Where a send shows in the transcript before the harness writes it (COI-3690). */
-    pending?: { note(session: string, text: string): number; cancel(id: number): void };
+    pending?: { note(session: string, text: string, images: number): number; cancel(id: number): void };
     /** Keys this device's send history with the seat's, as drafts are (COI-3691). */
     hostId?: string;
   } = $props();
@@ -310,11 +311,16 @@
     if (!typed && chips.length === 0) return;
     if (uploading || resizing) return;
     // At the press and before any guard: whatever happens to the delivery, the words are kept.
-    if (typed) {
-      recordSend(draftKey(hostId, session.id), typed);
-      sends = recentSends(draftKey(hostId, session.id));
+    if (typed || chips.length > 0) {
+      const files = chips.map((chip) => chip.file);
+      const seat = draftKey(hostId, session.id);
+      const kept = recordSend(seat, typed, files);
+      // The images sit beside the words, and any no entry points at is dropped.
+      void (kept.fresh && kept.id ? saveSendImages(seat, kept.id, files) : Promise.resolve()).then(() => keepOnly(seat, recentSends(seat).flatMap((one) => (one.id ? [one.id] : []))));
+      sends = recentSends(seat);
     }
     walk = NOT_WALKING;
+    stashed = [];
     historyOpen = false;
     if (offline) {
       status = "Not sent. The host is reconnecting, and your message stays here.";
@@ -364,7 +370,7 @@
     }
     if (!typed && paths.length === 0) return;
     // Before the first byte leaves, so it shows in the transcript on the next frame.
-    lastPending = typed ? pending?.note(target.id, typed) : undefined;
+    lastPending = typed || paths.length > 0 ? pending?.note(target.id, typed, paths.length) : undefined;
     if (target.paste) {
       // Each path is its own paste, which is what a harness reads as an attachment (references/image-upload.md).
       const steps = pasteSteps(paths, typed, PASTE_OPEN, PASTE_CLOSE);
@@ -466,10 +472,31 @@
     return context.measureText(line).width > room;
   }
 
-  async function show(next: { text: string; walk: Walk }, note: string): Promise<void> {
+  // The draft's own images, set aside while a recalled send's images are in the field.
+  let stashed: File[] = [];
+
+  function releaseChips(): File[] {
+    const files = chips.map((chip) => chip.file);
+    for (const chip of chips) URL.revokeObjectURL(chip.url);
+    chips = [];
+    return files;
+  }
+
+  async function show(next: { text: string; walk: Walk; entry?: Entry }, note: string): Promise<void> {
+    const leaving = walk.at === -1 && next.walk.at >= 0;
+    const away = releaseChips();
+    if (leaving) stashed = away;
     text = next.text;
     walk = next.walk;
     status = note;
+    if (next.walk.at === -1) {
+      take(stashed);
+      stashed = [];
+    } else if (next.entry?.images && next.entry.id) {
+      const files = await loadSendImages(historyKey, next.entry.id);
+      if (files.length) take(files);
+      else status = `${note} Its ${next.entry.images === 1 ? "image is" : "images are"} no longer kept.`;
+    }
     await tick();
     field?.setSelectionRange(text.length, text.length);
     syncCaret();
@@ -487,6 +514,8 @@
     void show(next, up ? "An earlier send. Down returns to your draft." : next.walk.at === -1 ? "Back to your draft." : "A later send.");
     return true;
   }
+
+  const imageWords = (count: number): string => (count === 1 ? "1 image" : `${count} images`);
 
   async function recall(at: number): Promise<void> {
     const next = jumpTo(sends, walk, text, at);
@@ -608,9 +637,9 @@
         <li><button type="button" class="pick back" onmousedown={keepFocus} onclick={() => void backToDraft()}>Back to your draft</button></li>
       {/if}
       {#each sends as entry, index (entry.at)}
-        <li><button type="button" class="pick" onmousedown={keepFocus} onclick={() => void recall(index)}><span class="words">{entry.text}</span><span class="role">{replyAge(entry.at, Date.now())}</span></button></li>
+        <li><button type="button" class="pick" onmousedown={keepFocus} onclick={() => void recall(index)}><span class="words">{entry.text || imageWords(entry.images ?? 0)}{#if entry.text && entry.images} <span class="role">// {imageWords(entry.images)}</span>{/if}</span><span class="role">{replyAge(entry.at, Date.now())}</span></button></li>
       {/each}
-      <li><button type="button" class="pick clear" onmousedown={keepFocus} onclick={() => { clearSends(historyKey); sends = []; walk = NOT_WALKING; historyOpen = false; status = "Cleared this seat's recent sends."; }}>Clear recent sends</button></li>
+      <li><button type="button" class="pick clear" onmousedown={keepFocus} onclick={() => { clearSends(historyKey); void keepOnly(historyKey, []); sends = []; walk = NOT_WALKING; historyOpen = false; status = "Cleared this seat's recent sends."; }}>Clear recent sends</button></li>
     </ul>
   {/if}
   {#if touch && sends.length > 0}
@@ -723,6 +752,8 @@
     background: var(--terminal); color: var(--text); font: 15px/1.4 var(--font-body);
   }
   textarea:focus-visible { border-color: var(--brand); }
+  /* A narrow field clips its hint to one line, since the field sizes to its content and a wrapped hint made it three lines tall. */
+  textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* The sidebar avatar's spinner, drawn round the field: same seat mark, same gradient, same 1.4s turn. It sits in the composer's padding, so nothing moves. */
   @property --spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
   @keyframes working-spin { to { --spin: 360deg; } }

@@ -1,0 +1,16 @@
+{
+  "name": "the composer's ring shows while the seat works and clears when it goes quiet (COI-3706)",
+  "start": "seat",
+  "steps": [
+    { "op": "assert", "js": "document.querySelector('.field[data-working=\"true\"]') === null", "message": "no ring on a quiet seat" },
+    { "op": "fill", "selector": "#composer-input", "text": "make the stub seat print something" },
+    { "op": "tap", "selector": "form.composer button.primary" },
+    { "op": "retry", "times": 8, "every": 0.2, "steps": [
+      { "op": "assert", "js": "document.querySelector('.field[data-working=\"true\"]') !== null", "message": "the ring shows while the seat is printing" }
+    ] },
+    { "op": "shot", "name": "ring-while-working" },
+    { "op": "sleep", "seconds": 5 },
+    { "op": "assert", "js": "document.querySelector('.field[data-working=\"true\"]') === null", "message": "the ring cleared once the seat went quiet" },
+    { "op": "shot", "name": "ring-cleared" }
+  ]
+}

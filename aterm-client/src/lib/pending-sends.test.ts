@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cancelPending, notePending, pendingFor, sameWords, settlePending, SKEW_MS, UNSENT_AFTER_MS } from "./pending-sends.svelte";
+import { cancelPending, notePending, pendingFor, sameWords, settlePending, shownText, SKEW_MS, UNSENT_AFTER_MS } from "./pending-sends.svelte";
 import type { TranscriptItem } from "./transcript";
 
 const prompt = (id: string, text: string, at?: number): TranscriptItem => ({ id, kind: "prompt", text, ...(at === undefined ? {} : { at }) });
@@ -68,5 +68,20 @@ describe("pending sends", () => {
     expect(sameWords("line one\nline two", "line one line two")).toBe(true);
     expect(sameWords("what", "what is this")).toBe(false);
     expect(sameWords("", "anything")).toBe(false);
+  });
+
+  it("names a send of only pictures, and settles it on an image marker and nothing else", () => {
+    const at = Date.now();
+    notePending("i", "", at, 2);
+    expect(shownText(pendingFor("i")[0]!)).toBe("2 images sent");
+    expect(shownText({ text: "", images: 1 })).toBe("An image sent");
+    expect(settlePending("i", [prompt("p1", "some other words")], true)).toBe(0);
+    expect(settlePending("i", [prompt("p2", "[Image #1] [Image #2]")], true)).toBe(1);
+    expect(pendingFor("i")).toHaveLength(0);
+  });
+
+  it("lets a send with words and a picture settle on the words, whatever marker leads them", () => {
+    notePending("j", "what is this", Date.now(), 1);
+    expect(settlePending("j", [prompt("p1", "[Image #1] what is this")], true)).toBe(1);
   });
 });
