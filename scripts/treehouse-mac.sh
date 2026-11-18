@@ -40,10 +40,18 @@ build() {
   [ -z "$version" ] || config=(--config "{\"version\":\"$version\"}")
   (cd "$repo_root/aterm-android" && pnpm exec tauri build --ci --bundles app ${config[@]+"${config[@]}"})
   [ -d "$built" ] || fail "no app at $built"
+  check_arch "$built"
   sign_app "$built"
   codesign --verify --deep --strict "$built"
   echo "built $built ${version:-with no release tag}"
   codesign -d -r- "$built" 2>&1 | grep '^designated' || true
+}
+
+# macOS warns "Support Ending for Intel-based Apps" for a bundle holding a Mach-O with an
+# Intel slice and no arm64 slice (COI-3700). No signing identity or lipo is needed.
+check_arch() {
+  python3 -I "$repo_root/scripts/check_macho_arch.py" "$1" \
+    || fail "$1 holds a Mach-O with no arm64 slice, which macOS flags as an Intel-based app"
 }
 
 # The version the app shows is the client's: the newest aterm-android release tag, or
@@ -173,8 +181,9 @@ case "${1:-}" in
   test) test_shell ;;
   build) build ;;
   version) app_version ;;
+  arch) check_arch "${2:-$built}" ;;
   sign-setup) sign_setup ;;
   install) install ;;
   login) shift; login "${1:-status}" ;;
-  *) fail "usage: treehouse-mac.sh test|build|version|sign-setup|install|login [on|off|status]" ;;
+  *) fail "usage: treehouse-mac.sh test|build|version|arch [app]|sign-setup|install|login [on|off|status]" ;;
 esac
