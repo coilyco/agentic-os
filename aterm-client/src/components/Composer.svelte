@@ -17,7 +17,7 @@
   // `reading` is a phone on its side, where height is scarce: the composer is one row (COI-3371).
   // `saveddraft` reads a newer copy of the words once, for a draft local storage lost (COI-3619).
   // `savedimages` reads the images kept for this draft once, and `onimages` hands over the chips each time they change (COI-3582).
-  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, reading = false, draft = "", ondraft, saveddraft, savedimages, onimages, onsent, onfocuschange, place, working = false, busy = false }: {
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, reading = false, draft = "", ondraft, saveddraft, savedimages, onimages, onsent, onfocuschange, place, working = false, busy = false, pending }: {
     connection: HostConnection;
     session: Session;
     sessions?: readonly Session[];
@@ -39,6 +39,8 @@
     working?: boolean;
     /** The seat's `state` is working, the value the sidebar's spinner reads. The field stays open to typing. */
     busy?: boolean;
+    /** Where a send shows in the transcript before the harness writes it (COI-3690). */
+    pending?: { note(session: string, text: string): number; cancel(id: number): void };
   } = $props();
 
   let text = $state(untrack(() => draft));
@@ -51,6 +53,7 @@
   let lastSent: { body: string; at: number } | null = null;
   // A refused send takes its images back with its text, since a screenshot may not be one to take twice.
   let lastImages: File[] = [];
+  let lastPending: number | undefined;
   // Chips hold the files until Send. Nothing goes to the host for an image that is never sent.
   let chips = $state<{ id: number; file: File; url: string }[]>([]);
   let nextChip = 0;
@@ -107,10 +110,13 @@
       if (back.restored) {
         text = back.draft;
         kept = true;
+        // Its words are back in the field, so no entry should wait for it.
+        if (lastPending !== undefined) pending?.cancel(lastPending);
         if (lastImages.length) untrack(() => take(lastImages));
       }
       lastImages = [];
       lastSent = null;
+      lastPending = undefined;
     } else if (wasLocked) {
       kept = false;
       wasLocked = false;
@@ -340,6 +346,8 @@
       }
     }
     if (!typed && paths.length === 0) return;
+    // Before the first byte leaves, so it shows in the transcript on the next frame.
+    lastPending = typed ? pending?.note(target.id, typed) : undefined;
     if (target.paste) {
       // Each path is its own paste, which is what a harness reads as an attachment (references/image-upload.md).
       const steps = pasteSteps(paths, typed, PASTE_OPEN, PASTE_CLOSE);

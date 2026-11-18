@@ -29,6 +29,16 @@ A seat opens on the transcript this device last read, then catches up. The measu
 * **The marker** - `New since you were last here` sits above the first item that was not on the kept page, at the first row drawn at this view, and scrolls there. It is set on open only, never for lines that arrive while watching, and clears after 8 seconds with the newest line in view. When the read shares no item with the kept page, the kept page is dropped, since a gap would read as nothing having happened, and everything shown is new.
 * **Journey** - `seat-open-instantly` on a phone, with the mock's `holdTranscript` to hold the host's answer.
 
+## A message just sent (COI-3690)
+
+The transcript shows a message only once the harness writes it, and the client polls every 2 seconds, so a message appeared 0.2 to 1.8 seconds after the harness wrote it (12 samples against the mock daemon, 2026-11-17, the poll's phase and nothing else). A real seat's write time and a device's own numbers are not measured.
+
+* **At send** - the Composer notes the words in `pending-sends.svelte.ts` before the first byte is typed, and the view draws a dashed "You" entry marked `Sending.` on the next frame, scrolled into view.
+* **Resolving** - a prompt that arrives with the same words (an attached image's path before them counts) removes the entry in the same update that merges it, so the message never shows twice. A prompt resolves one send, so two sends of the same words stay two. A first read trusts a prompt only by its stamp, within 60 seconds before the send, for host clock drift.
+* **Never taken** - after 30 seconds the entry turns amber, says `Not in the transcript yet`, and offers Dismiss. A late prompt still resolves it. A send the lock refused and returned to the field leaves no entry.
+* **Not covered** - an image sent with no words, and a restart: entries live in memory (send history is COI-3691).
+* **Journey** - `pending-send`, with the page clock moved 31 seconds for the unsent state.
+
 ## Where it lives
 
-`src/lib/transcript.ts` (types, decoder, `rowsFor`), `src/lib/seat-view.ts`, `src/components/SeatViews.svelte` (the radio group, arrow keys, 44px stops), `src/components/Transcript.svelte`, `src/lib/transcript-cache.ts`, and the host channel `transcripts` in `daemon-host.ts`. The journey is `seat-views`, and the bed's mock answers `transcript` from `setTranscript`.
+`src/lib/transcript.ts` (types, decoder, `rowsFor`), `src/lib/seat-view.ts`, `src/components/SeatViews.svelte` (the radio group, arrow keys, 44px stops), `src/components/Transcript.svelte`, `src/lib/pending-sends.svelte.ts`, `src/lib/transcript-cache.ts`, and the host channel `transcripts` in `daemon-host.ts`. The journey is `seat-views`, and the bed's mock answers `transcript` from `setTranscript`.
