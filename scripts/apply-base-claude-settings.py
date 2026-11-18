@@ -114,6 +114,36 @@ BASE_AUTO_MODE_ALLOW: list[str] = [
 ]
 
 
+# Seat login guard (COI-3682), found from this file as install-session-name.py's
+# scripts are. tooling-aosguard references/login-guard.md
+LOGIN_GUARD_SCRIPT = Path(__file__).resolve().parent / "seat_login_guard.py"
+LOGIN_GUARD_MARKER = "seat_login_guard.py"
+
+
+def merge_login_guard_hook(settings: dict) -> bool:
+    """Register the login guard once, repointing a copy wired from another path."""
+    command = str(LOGIN_GUARD_SCRIPT)
+    hooks = settings.get("hooks")
+    if not isinstance(hooks, dict):
+        hooks = {}
+    groups = hooks.get("PreToolUse")
+    if not isinstance(groups, list):
+        groups = []
+    for group in groups:
+        for hook in group.get("hooks", []) if isinstance(group, dict) else []:
+            existing = hook.get("command", "") if isinstance(hook, dict) else ""
+            if LOGIN_GUARD_MARKER not in existing:
+                continue
+            if existing == command:
+                return False
+            hook["command"] = command
+            settings["hooks"] = {**hooks, "PreToolUse": groups}
+            return True
+    groups.append({"matcher": "Bash", "hooks": [{"type": "command", "command": command}]})
+    settings["hooks"] = {**hooks, "PreToolUse": groups}
+    return True
+
+
 def parse_ops_areas(help_text: str) -> list[str]:
     """Area names from the COMMANDS block of `aosguard ops --help`."""
     areas: list[str] = []
@@ -239,6 +269,8 @@ def merge_base_settings(settings: dict, areas: list[str] | None = None) -> list[
     settings["permissions"] = permissions
     if merge_auto_mode_allow(settings, areas or []):
         changed.append("autoMode.allow")
+    if merge_login_guard_hook(settings):
+        changed.append("hooks.PreToolUse")
     return changed
 
 
