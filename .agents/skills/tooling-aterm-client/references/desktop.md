@@ -24,6 +24,7 @@ The loopback daemon accepts the webview's `tauri://localhost` origin, since its 
 
 * `just treehouse-mac-test` runs the shell's Rust tests.
 * `just treehouse-mac-build` builds the client for the app, builds the bundle, and signs it under the bundle id. The version shown is the newest `aterm-android` release tag, or `TREEHOUSE_VERSION` where the tree has no tags.
+* `just treehouse-mac-arch [app]` fails when a Mach-O in the built app, or the bundle named, holds an Intel slice and no arm64 slice. The build runs it before signing. macOS warns "Support Ending for Intel-based Apps" for such a bundle (COI-3700). It reads headers (`scripts/check_macho_arch.py`), so its tests need no Mac, and it checks the bundle and not what the app starts at run time.
 * `just treehouse-mac-sign-setup` imports the signing identity from SSM. Run it once, from a session with AWS access.
 * `just treehouse-mac-install` copies it to `~/Applications/Treehouse.app`. The role calls it.
 * `just treehouse-mac-login on` adds Treehouse, then removes Portfolio Director, and takes Treehouse off again if the removal fails, so there is one. `off` reverses both. `status` lists them. The role calls it.

@@ -372,7 +372,8 @@
         if (index === 0) connection.input(target.id, step);
         else setTimeout(() => connection.input(target.id, step), index * STEP_MS);
       }
-      setTimeout(() => connection.input(target.id, "\r"), (steps.length - 1) * STEP_MS + 300);
+      // A menu that opened since would take this Enter as a pick (COI-3689).
+      setTimeout(() => !dialogOpen && connection.input(target.id, "\r"), (steps.length - 1) * STEP_MS + 300);
     } else {
       // No bracketed paste, so a path is only text. The harness may still open the file.
       connection.input(target.id, `${withImagePaths(typed, paths).replace(/\r?\n/g, " ")}\r`);
