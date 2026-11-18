@@ -8,7 +8,7 @@ import { DEMO_FILES } from "./fixtures/demo-media";
 import { mediaRefusal } from "./media";
 import type { Ask, ContextReading, HostConnection, FeedbackChannel, HostEvent, ImageChannel, MediaChannel, PeerMessage, Session, TerminalChannel } from "./protocol";
 import { parseRoster } from "./roster";
-import { CLAUDE_BOX, CLAUDE_DIALOG, drawHarness, type Frame } from "./demo-harness";
+import { CLAUDE_BOX, CLAUDE_DIALOG, drawHarness, loginFrame, type Frame, type LoginStage } from "./demo-harness";
 import { runShellLine, SHELL_PROMPT, type ShellStep } from "./demo-shell";
 import type { ListedTerminal } from "./terminals";
 
@@ -25,6 +25,10 @@ const scripts: Record<string, string[]> = {
 
 /** What a turn adds to a demo seat's context, so the meter is seen to move. */
 const TURN_TOKENS = 3000;
+
+// The one code the signed-out demo seat accepts. Any other draws the refusal.
+const DEMO_CODE = "demo-code#demo-state";
+const LOGIN_SEAT = "scientist-heron-ox-lg01";
 
 function session(id: string, role: string, seat: string, identity: string, state: Session["state"], pending = 0, context?: ContextReading): Session {
   return { id, role, seat, identity, state, pending, drafting: false, paste: true, degraded: [], ...(context ? { context } : {}) };
@@ -117,10 +121,15 @@ export class MockHost implements HostConnection {
     session("eng-platform-beetle-ox-eb64", "eng-platform", "claude", "Beetle-Ox", "idle", 0, { tokens: 535_004, source: "claude" }),
     { ...session("sysadmin-senior-turtle-ox-gj84", "sysadmin-senior", "goose", "Turtle-Ox", "idle", 0, { tokens: 4_260, window: 1_000_000, source: "proxy" }), degraded: ["host-converge", "telemetry"] },
     session("scientist-frog-ox-va67", "scientist", "claude", "Frog-Ox", "working", 1),
+    // A Claude seat with no login, so its sign-in screens can be driven (COI-3678).
+    session(LOGIN_SEAT, "scientist", "claude", "Heron-Ox", "idle"),
     { ...session("sysadmin-access-turtle-ox-kt21", "sysadmin-access", "goose", "Turtle-Ox", "failed"), failure: "goose did not start. Exit 4, goose is not on this host's PATH." },
   ];
   private buffers = new Map<string, string>();
   private attached = new Set<string>();
+  // Where the signed-out seat is, and the code typed so far. "done" is signed in.
+  private login: { stage: LoginStage | "done"; typed: string } = { stage: "method", typed: "" };
+  private sizes = new Map<string, [number, number]>();
   private messages: PeerMessage[] = [];
   private asks: Ask[] = [];
 
@@ -139,6 +148,7 @@ export class MockHost implements HostConnection {
     const transcript = scripts[each.role] ?? [];
     if (each.id === "frontend-eng-imp-dragonfly-dj99") return { transcript, frame: CLAUDE_BOX };
     if (each.id === "eng-platform-beetle-ox-eb64") return { transcript, frame: CLAUDE_DIALOG };
+    if (each.id === LOGIN_SEAT) return { transcript: [], frame: this.login.stage === "done" ? CLAUDE_BOX : loginFrame(this.login.stage, this.login.typed) };
     return null;
   }
 
@@ -224,6 +234,7 @@ export class MockHost implements HostConnection {
 
   input(sessionId: string, data: string): void {
     if (this.shells.has(sessionId)) return this.typeIntoShell(sessionId, data);
+    if (sessionId === LOGIN_SEAT && this.login.stage !== "done") return this.typeIntoLogin(data);
     // A harness redraws its box in place, so a turn only grows the context.
     if (this.drawn(sessionId) !== null) {
       if (data === "\r") this.addTurn(sessionId);
@@ -242,7 +253,24 @@ export class MockHost implements HostConnection {
     this.emit({ type: "sessions", sessions: this.sessions });
   }
 
+  /** The three screens Claude Code draws with no login, and what its keys do on each. */
+  private typeIntoLogin(data: string): void {
+    const state = this.login;
+    if (state.stage === "method") {
+      if (data === "\r") state.stage = "code";
+    } else if (state.stage === "code") {
+      if (data === "\x1b") state.stage = "method";
+      else if (data === "\r") {
+        state.stage = state.typed === DEMO_CODE ? "done" : "error";
+        state.typed = "";
+      } else state.typed += data;
+    } else if (data === "\r") state.stage = "method";
+    else if (data === "\x1b") state.stage = "done";
+    this.resize(LOGIN_SEAT, ...(this.sizes.get(LOGIN_SEAT) ?? [24, 70]));
+  }
+
   resize(sessionId: string, rows: number, cols: number): void {
+    this.sizes.set(sessionId, [rows, cols]);
     const redraw = this.drawn(sessionId, rows, cols);
     if (redraw === null) return;
     this.buffers.set(sessionId, redraw);

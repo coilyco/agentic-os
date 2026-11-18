@@ -114,6 +114,54 @@ def feedback(page, tag: str, expect) -> None:
     expect(f"{tag} feedback: a send names its record", "fb-demo-" in done, done)
 
 
+def sign_in(browser, url: str, size: tuple[int, int], tag: str, expect) -> None:
+    """The signed-out seat: the card, the hop to the browser, a refused code, and a code that works (COI-3678, COI-3679)."""
+    page = browser.new_page(viewport={"width": size[0], "height": size[1]})
+    # Nothing navigates: window.open is replaced by a stub that records the address.
+    page.add_init_script("window.__opened = []; window.open = (u) => { window.__opened.push(String(u)); return null; };")
+    page.goto(url)
+    page.get_by_role("tab", name="Demo host").click()
+    # A desktop switches seats by tab, a phone by a row in the seat list.
+    tab = page.get_by_role("tab", name="Heron-Ox")
+    (tab if tab.count() else page.get_by_role("button", name=re.compile("Heron-Ox"))).first.click()
+    page.wait_for_timeout(1800)
+    card = page.locator("[data-card='login']")
+
+    def rows() -> str:
+        return page.evaluate("() => [...document.querySelectorAll('.xterm-rows > div')].map((r) => r.textContent).join('\\n')")
+
+    expect(f"{tag} signed-out seat: the native sign-in card is up", card.count() == 1 and card.get_by_role("button", name="Sign in with Claude").is_visible(), card.count())
+    page.screenshot(path=str(CLIENT / f"drive-{size[0]}-login-method.png"))
+    page.get_by_role("button", name="Show terminal").click()
+    expect(f"{tag} signed-out seat: the terminal's own menu is reachable under the card", "Select login method" in rows() and page.get_by_role("button", name="Show sign-in").is_visible(), rows()[:200])
+    page.get_by_role("button", name="Show sign-in").click()
+    page.get_by_role("button", name="Sign in with Claude").click()
+    page.wait_for_timeout(900)
+    opened = page.evaluate("() => window.__opened")
+    expect(f"{tag} one tap opens the sign-in page in the browser, not the streamed one", len(opened) == 1 and opened[0].startswith("https://claude.com/cai/oauth/authorize?"), opened)
+    expect(f"{tag} the sign-in card now asks for the code", page.locator("#login-code").is_visible(), card.inner_text()[:120])
+    field = page.locator("#login-code")
+    box = field.bounding_box() or {"height": 0}
+    expect(f"{tag} the code field is a 44px target", box["height"] >= 44, box)
+    expect(f"{tag} no sideways scroll", page.evaluate("() => document.documentElement.scrollWidth <= document.documentElement.clientWidth"), size)
+    page.screenshot(path=str(CLIENT / f"drive-{size[0]}-login-code.png"))
+    field.fill("not-the-code#nope")
+    field.press("Enter")
+    page.wait_for_timeout(900)
+    refused = page.get_by_role("alert").filter(has_text="That code wasn't accepted")
+    expect(f"{tag} a wrong code leaves the seat on its login screen with the error on the card", refused.count() == 1 and "OAuth error" in rows(), rows()[:300])
+    page.screenshot(path=str(CLIENT / f"drive-{size[0]}-login-error.png"))
+    page.get_by_role("button", name="Try again").click()
+    page.wait_for_timeout(700)
+    page.get_by_role("button", name="Sign in with Claude").click()
+    page.wait_for_timeout(900)
+    page.locator("#login-code").fill("  demo-code#demo-state ")
+    page.get_by_role("button", name="Sign in", exact=True).click()
+    page.wait_for_timeout(1200)
+    expect(f"{tag} the made-up code reaches the logged-in prompt", card.count() == 0 and "auto mode on" in rows(), rows()[-200:])
+    page.close()
+
+
 def main() -> int:
     port = free_port()
     server = serve(port)
@@ -127,6 +175,8 @@ def main() -> int:
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch()
+            for size in WIDTHS:
+                sign_in(browser, f"http://localhost:{port}/", size, f"{size[0]}px", expect)
             for size in WIDTHS:
                 tag = f"{size[0]}px"
                 page = open_seat(browser, f"http://localhost:{port}/", size, "Imp-Dragonfly")

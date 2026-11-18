@@ -1,7 +1,8 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import Creature from "../components/Creature.svelte";
   import ChoiceCard from "../components/ChoiceCard.svelte";
+  import LoginCard from "../components/LoginCard.svelte";
   import CloseSeat from "../components/CloseSeat.svelte";
   import Origin from "../components/Origin.svelte";
   import PinSeat from "../components/PinSeat.svelte";
@@ -22,6 +23,8 @@
   import { menuFooterShowing } from "../lib/menu-footer";
   import { askAnswer, CANCEL, choiceFromAsk, choiceKey, detectChoice, keysFor, keysForPicks, type Choice } from "../lib/choices";
   import { contextPercent, contextText } from "../lib/context";
+  import { CONTINUE_KEYS, codeKeys, detectLogin, loginKey, methodKeys, RETRY_KEYS, type Login } from "../lib/login";
+  import { openExternal } from "../lib/open-external";
   import { isBlank } from "../lib/screen";
   import type { Session } from "../lib/protocol";
   import type { Role } from "../lib/roster";
@@ -171,8 +174,16 @@
   // The browser needs room to be read, so a page takes half the width. Its empty states do not.
   const wide = $derived(side === "browser" && page !== undefined && page.state !== "none");
   let choice = $state<Choice | null>(null);
+  // A seat with no Claude login draws its own sign-in screens, and the card stands in for them (COI-3678, COI-3679).
+  let login = $state<Login | null>(null);
+  let loginShown = "";
+  let loginTimer: ReturnType<typeof setTimeout> | undefined;
+  let loginFolded = $state(false);
+  let loginNote = $state("");
+  // The sign-in button sets it and the link spends it, so one tap runs the whole hop to the browser.
+  let openWhenLinked = $state(false);
   // The composer holds its send, and focus no longer hides the strip: leaving the field would bring it back and move the card under a tap.
-  const dialogOpen = $derived(!!(ask || choice));
+  const dialogOpen = $derived(!!(ask || choice || login));
   // A menu is on the screen, card or not. The composer never types into it (COI-3689).
   let menuUp = $state(false);
   let menuTimer: ReturnType<typeof setTimeout> | undefined;
@@ -211,6 +222,7 @@
   function readScreen(rows: string[], tabBar: TabBarCells | null): void {
     const scope = screenScope(session.id);
     blank = isBlank(rows);
+    readLogin(detectLogin(rows));
     const found = detectChoice(rows);
     lastFound = found;
     if (found || menuFooterShowing(rows)) {
@@ -251,6 +263,50 @@
       if (choice.question !== found.question) choice.question = found.question;
     }
   }
+
+  // A redraw arrives in pieces, so a frame without the sign-in screen is not it closing.
+  function readLogin(seen: Login | null): void {
+    if (!seen) {
+      loginTimer ??= setTimeout(() => {
+        login = null;
+        loginShown = "";
+        loginNote = "";
+        openWhenLinked = false;
+        loginTimer = undefined;
+      }, HIDE_AFTER_MS);
+      return;
+    }
+    clearTimeout(loginTimer);
+    loginTimer = undefined;
+    const key = loginKey(seen);
+    if (key !== loginShown) {
+      loginShown = key;
+      loginNote = "";
+      login = seen;
+    } else if (seen.kind === "method") {
+      // Same card, but the highlight moved and the arrows are counted from it.
+      login = seen;
+    }
+  }
+
+  function press(chunks: string[]): void {
+    const id = session.id;
+    chunks.forEach((chunk, index) => setTimeout(() => app.connection?.input(id, chunk), index * KEY_GAP_MS));
+  }
+
+  async function openLink(url: string): Promise<void> {
+    const opened = await openExternal(url);
+    loginNote = opened.ok ? "" : opened.message;
+  }
+
+  $effect(() => {
+    if (login?.kind !== "code" || !login.url || !openWhenLinked) return;
+    const url = login.url;
+    untrack(() => {
+      openWhenLinked = false;
+      void openLink(url);
+    });
+  });
 
   const KEY_GAP_MS = 150;
 
@@ -333,7 +389,7 @@
             {/if}
             <div class="stage">
               <div class="rawscreen" inert={!showRaw} aria-hidden={!showRaw}>
-                <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice)} locked={!app.typing.allowed || reconnecting()} />
+                <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice || login)} locked={!app.typing.allowed || reconnecting()} />
               </div>
               {#if transcripts && !showRaw}
                 <Transcript channel={transcripts} sessionId={session.id} hostId={app.selectedHostId ?? ""} restore={app.typing.allowed} level={view.level} marker={!hasRead} onread={() => (hasRead = true)} onrefused={(reason) => (fallback = reason)} onpeer={showPeer} />
@@ -365,6 +421,34 @@
                       forgetCardMemos(askScope(ask.id));
                       app.connection?.cancelAsk(ask.id);
                     }}
+                  />
+                </div>
+              {/key}
+            {:else if login}
+              {@const current = login}
+              {#key current.kind}
+                <div class="overlay" data-card="login">
+                  <LoginCard
+                    login={current}
+                    identity={session.identity}
+                    folded={loginFolded}
+                    onfold={() => (loginFolded = !loginFolded)}
+                    note={loginNote}
+                    locked={!app.typing.allowed || reconnecting()}
+                    lockedLabel={reconnecting() ? "Reconnecting" : "Read only"}
+                    onsignin={() => {
+                      if (current.kind !== "method") return;
+                      mark("answer", "login-method");
+                      openWhenLinked = true;
+                      press(methodKeys(current));
+                    }}
+                    onopen={(url) => void openLink(url)}
+                    onsubmit={(text) => {
+                      mark("answer", "login-code");
+                      press(codeKeys(text));
+                    }}
+                    onretry={() => press(RETRY_KEYS)}
+                    oncancel={() => press(CONTINUE_KEYS)}
                   />
                 </div>
               {/key}
