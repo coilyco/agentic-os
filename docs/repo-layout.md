@@ -31,6 +31,8 @@ Setup, after `brew install --cask karabiner-elements`:
 - `install-session-name.py` - idempotently wire the provider composer as Claude
   Code's status line and `docker/dev-base/session-name.sh` as its SessionStart
   hook, repointing a host still wired to the retired `agent-name.sh`.
+- `seat_login_guard.py` - PreToolUse Bash hook refusing a seat's `claude` launch
+  with a cleared environment or another `HOME`, which starts a login on the host.
 
 ## agentic_os
 

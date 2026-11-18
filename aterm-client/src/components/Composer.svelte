@@ -17,7 +17,7 @@
   // `reading` is a phone on its side, where height is scarce: the composer is one row (COI-3371).
   // `saveddraft` reads a newer copy of the words once, for a draft local storage lost (COI-3619).
   // `savedimages` reads the images kept for this draft once, and `onimages` hands over the chips each time they change (COI-3582).
-  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, enterOnly = false, reading = false, draft = "", ondraft, saveddraft, savedimages, onimages, onsent, onfocuschange, place, working = false }: {
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, enterOnly = false, reading = false, draft = "", ondraft, saveddraft, savedimages, onimages, onsent, onfocuschange, place, working = false, busy = false }: {
     connection: HostConnection;
     session: Session;
     sessions?: readonly Session[];
@@ -39,6 +39,8 @@
     place?: Place;
     /** The seat is busy, so an empty field offers Stop in Send's place. */
     working?: boolean;
+    /** The seat's `state` is working, the value the sidebar's spinner reads. The field stays open to typing. */
+    busy?: boolean;
   } = $props();
 
   let text = $state(untrack(() => draft));
@@ -367,6 +369,8 @@
     onsent?.();
   }
 
+  // A card waiting on a person or a host not answering is not the seat working, as the sidebar's row reads it.
+  const ringing = $derived(busy && !dialogOpen && !offline);
   const stopping = $derived(showStop({ working, hasText: text.trim() !== "" || chips.length > 0, justSent: sentFlash, offline }));
   let holdTimer: ReturnType<typeof setTimeout> | undefined;
   let held = false;
@@ -517,7 +521,7 @@
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8" /><circle cx="9" cy="10" r="1.6" fill="currentColor" /><path d="M4.5 17.5l4.5-4.5 3.5 3.5 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg>
     </button>
   {/if}
-  <div class="field">
+  <div class="field" data-working={ringing}>
     {#if open}
       <ul class="mentions" id="composer-mentions" role="listbox" aria-label="Live sessions">
         {#each matches as match, index (match.id)}
@@ -558,12 +562,15 @@
       enterkeyhint={touch ? "enter" : "send"}
       aria-autocomplete="list"
       aria-controls={open ? "composer-mentions" : undefined}
+      aria-describedby={ringing ? "composer-working" : undefined}
       aria-activedescendant={open ? `mention-${current}` : undefined}
       rows="1"
       placeholder={narrow || reading ? `Message ${session.identity}` : `Type or dictate to ${session.identity}. Enter sends, Shift+Enter for a new line, @ names a session.${connection.images ? " Paste or drop an image to attach it." : ""}`}
       autocomplete="off"
       spellcheck="true"
     ></textarea>
+    <!-- Read with the field, never announced: the state flips with every burst of output. -->
+    {#if ringing}<span id="composer-working" class="visually-hidden">{session.identity} is working. You can still type.</span>{/if}
   </div>
   {#if stopping}
     <!-- Focus stays in the field: a blur closes the keyboard, the layout moves, and the first tap on Stop is lost. -->
@@ -618,6 +625,18 @@
     background: var(--terminal); color: var(--text); font: 15px/1.4 var(--font-body);
   }
   textarea:focus-visible { border-color: var(--brand); }
+  /* The sidebar avatar's spinner, drawn round the field: same seat mark, same gradient, same 1.4s turn. It sits in the composer's padding, so nothing moves. */
+  @property --spin { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  @keyframes working-spin { to { --spin: 360deg; } }
+  .field[data-working="true"]::before {
+    content: ""; position: absolute; inset: -3px; border-radius: 13px; z-index: 0; pointer-events: none;
+    background: conic-gradient(from var(--spin, 0deg), var(--seat-mark), transparent 40%, transparent 60%, var(--seat-mark));
+    animation: working-spin 1.4s linear infinite;
+  }
+  .field[data-working="true"] textarea { position: relative; z-index: 1; }
+  @media (prefers-reduced-motion: reduce) {
+    .field[data-working="true"]::before { animation: none; background: var(--seat-mark); opacity: 0.6; }
+  }
   button:disabled { opacity: 0.5; cursor: default; }
   .composer :global(.button) { min-width: 76px; justify-content: center; }
   .stop { border-color: var(--warn); background: var(--warn-fill); color: var(--warn-text); font-weight: 600; touch-action: manipulation; user-select: none; -webkit-touch-callout: none; }

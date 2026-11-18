@@ -390,6 +390,7 @@
             onfocuschange={(focused) => (app.composing = focused)}
             place={placeNow()}
             working={session.state === "working" && !blank}
+            busy={session.state === "working"}
           />
           <!-- Gives way to the keyboard, so the pin never takes the terminal's last lines. -->
           {#if narrow && !layout.reading && showRaw}<LastReply {session} connection={app.connection} hidden={app.composing} />{/if}

@@ -40,7 +40,9 @@ keyboard. `just aterm-client-drive` does that with no human: it drives the real 
 against the Demo host in a headless browser at 1280px and 320px, on its own port, and
 asserts what is on screen. Check a UI change there and never hand Kai a click to test.
 Add a case when a bug appears, and teach the Demo host the screen that reproduces it
-(`src/lib/demo-harness.ts`). `just aterm-client-drive-hops` does the same for a connection that fails: it breaks one hop per scenario in a mock daemon (`scripts/hop_daemon.py`) and checks the connection check names it.
+(`src/lib/demo-harness.ts`). `just aterm-client-drive-hops` breaks one hop per scenario in a mock daemon (`scripts/hop_daemon.py`) and checks the connection check names it.
+
+**Test a login flow from captured screens, demo mode, or the emulator lane, never with a real login on the host.** A fresh `claude` login opens the host browser and a Keychain prompt Kai cannot approve (COI-3682). [Guard](../tooling-aosguard/references/login-guard.md).
 
 ## Contracts
 
@@ -59,16 +61,16 @@ than editing it by hand.
 * [context-meter.md](references/context-meter.md) - the per-seat context-token count, where each harness's reading comes from, and Kai's freeze exception.
 * [architecture.md](references/architecture.md) - the host seam, envelopes, activity, the composer.
 * [discovery.md](references/discovery.md) - the `hosts` frame and how the host list merges the daemons it finds.
-* [feedback.md](references/feedback.md) - the Feedback sheet, and the daemon's `feedback` frames that keep its note and screenshots as a durable record handed to a frontend-eng seat.
+* [feedback.md](references/feedback.md) - the Feedback sheet, and the `feedback` frames that keep its note and screenshots as a record for a frontend-eng seat.
 * [choices.md](references/choices.md) - native choice cards, `ask_choice` and `send_user_question`.
 * [seat-state.md](references/seat-state.md) - how long a seat has been in its state, and its last reply.
-* [transcript.md](references/transcript.md) - the daemon's `transcript` read: a seat's prompts, replies and tool steps from its harness files, the frame, peer messages, and how each harness records a tool step.
+* [transcript.md](references/transcript.md) - the `transcript` read: a seat's prompts, replies and tool steps, the frame, and peer messages.
 * [session-names.md](references/session-names.md) - session refs, name@ref, and why a close by stale name is refused.
 * [grants.md](references/grants.md) - approval grants: one Kai decision carried to the executing seats, and the daemon's refusals.
 * [passkey.md](references/passkey.md) - the passkey unlock a remote device needs before it types.
 * [tailnet-access.md](references/tailnet-access.md) - which tailnet devices attach, owner logins on a tagged node, and why a Tailscale Serve front is never loopback.
 * [linux-seat.md](references/linux-seat.md) - what the listeners allow a seat user on Linux, and the probe that checks it (COI-3498).
-* [reach.md](references/reach.md) - why a device cannot reach the daemon, the layers the client names, what the daemon logs, and the six-hop connection check with what a page can and cannot see.
+* [reach.md](references/reach.md) - why a device cannot reach the daemon, the layers the client names, and the six-hop connection check.
 * [seat-views.md](references/seat-views.md) - the Focus, Default and Verbose views of a seat, the client half of the transcript read: the peer rule, paging, and what a refusal does.
 * [media.md](references/media.md) - the viewer for images, video and files a seat shares, the sequence, the file fallback, and trying it with no daemon that shares files.
 * [sizing.md](references/sizing.md) - how a session's PTY is sized when clients of different sizes attach, the `size` frame, and `pty-size`.
@@ -81,7 +83,7 @@ than editing it by hand.
 * [android-speak.md](references/android-speak.md) - read a reply aloud on Android: the `speak` plugin's four commands, what it does with focus, and what is measured.
 * [save-file.md](references/save-file.md) - the app's `savefile` plugin: what Download does inside the app, the five commands, and where a file lands.
 * [android-sharetarget.md](references/android-sharetarget.md) - Treehouse as an Android Share target for images: the sheet, the plugin, and what is not yet checked on a phone.
-* [system-browser.md](references/system-browser.md) - the `systembrowser` plugin: sign-in in a Custom Tab or an authentication session, the return into the page, and what is not yet checked on a device.
+* [system-browser.md](references/system-browser.md) - the `systembrowser` plugin: sign-in in a Custom Tab or an authentication session, the return into the page, and what is unchecked on a device.
 * [device-key.md](references/device-key.md) - the Android app's unlock with the phone's own key, as a person sees it.
 * [device-key-daemon.md](references/device-key-daemon.md) - the daemon half: the frames, the attestation checks, and the app origin.
 * [resume.md](references/resume.md) - the unlock that survives a phone lock: the resume proof, the window setting, the gate it leaves closed, and the Pixel procedure.
@@ -99,4 +101,4 @@ than editing it by hand.
 * [github-token.md](references/github-token.md) - `aterm github-token` and `aterm git-credential`: a seat pushes as the coilyco-ops App, granted wide and minted narrow.
 * [deploy.md](references/deploy.md) - served by a daemon, or hosted.
 * [running.md](references/running.md) - alt-tab use and running it.
-* [slack-adapter.md](references/slack-adapter.md) - the Slack client design. Kai froze new work on this web client on 2026-10-02 (`teable:coilyco/agentic-os#8700`), so merged code stays and features go to Slack.
+* [slack-adapter.md](references/slack-adapter.md) - the Slack client design. New work on this client froze on 2026-10-02 (`teable:coilyco/agentic-os#8700`).
