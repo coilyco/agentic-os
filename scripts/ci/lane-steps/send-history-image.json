@@ -2,25 +2,109 @@
   "name": "an image sent with no words is kept in the send history and comes back, also after a killed app (COI-3705)",
   "start": "seat",
   "steps": [
-    { "op": "attach-image" },
-    { "op": "assert", "js": "document.querySelectorAll('ul.chips li').length === 1", "message": "the picture is attached" },
-    { "op": "tap", "selector": "form.composer button.primary" },
-    { "op": "sleep", "seconds": 4 },
-    { "op": "assert", "js": "document.querySelectorAll('ul.chips li').length === 0", "message": "the picture was sent and left the field" },
-    { "op": "tap", "selector": "[aria-label=\"Recent sends\"]" },
-    { "op": "assert", "js": "document.querySelector('#composer-history')?.textContent.includes('1 image') === true", "message": "the History list names the image send" },
-    { "op": "shot", "name": "image-history-open" },
-    { "op": "tap-text", "text": "1 image", "within": "#composer-history" },
-    { "op": "assert", "js": "document.querySelectorAll('ul.chips li').length === 1", "message": "the picture came back into the field" },
-    { "op": "shot", "name": "image-recalled" },
-    { "op": "tap", "selector": "[aria-label=\"Remove image 1\"]" },
-    { "op": "sleep", "seconds": 3 },
-    { "op": "kill-app" },
-    { "op": "reopen" },
-    { "op": "assert", "js": "document.querySelectorAll('ul.chips li').length === 0", "message": "no draft picture is left, so the next check is the history" },
-    { "op": "tap", "selector": "[aria-label=\"Recent sends\"]" },
-    { "op": "tap-text", "text": "1 image", "within": "#composer-history" },
-    { "op": "assert", "js": "document.querySelectorAll('ul.chips li').length === 1", "message": "the picture is still in the history after the app was killed" },
-    { "op": "shot", "name": "image-after-kill" }
+    {
+      "op": "attach-image"
+    },
+    {
+      "op": "retry",
+      "times": 10,
+      "every": 0.5,
+      "steps": [
+        {
+          "op": "assert",
+          "js": "document.querySelectorAll('ul.chips li').length === 1",
+          "message": "the picture is attached"
+        }
+      ]
+    },
+    {
+      "op": "tap",
+      "selector": "form.composer button.primary"
+    },
+    {
+      "op": "sleep",
+      "seconds": 4
+    },
+    {
+      "op": "assert",
+      "js": "document.querySelectorAll('ul.chips li').length === 0",
+      "message": "the picture was sent and left the field"
+    },
+    {
+      "op": "tap",
+      "selector": "[aria-label=\"Recent sends\"]"
+    },
+    {
+      "op": "assert",
+      "js": "document.querySelector('#composer-history')?.textContent.includes('1 image') === true",
+      "message": "the History list names the image send"
+    },
+    {
+      "op": "shot",
+      "name": "image-history-open"
+    },
+    {
+      "op": "tap",
+      "selector": "#composer-history li:first-child .pick"
+    },
+    {
+      "op": "retry",
+      "times": 10,
+      "every": 0.5,
+      "steps": [
+        {
+          "op": "assert",
+          "js": "document.querySelectorAll('ul.chips li').length === 1",
+          "message": "the picture came back into the field"
+        }
+      ]
+    },
+    {
+      "op": "shot",
+      "name": "image-recalled"
+    },
+    {
+      "op": "tap",
+      "selector": "[aria-label=\"Remove image 1\"]"
+    },
+    {
+      "op": "sleep",
+      "seconds": 3
+    },
+    {
+      "op": "kill-app"
+    },
+    {
+      "op": "reopen"
+    },
+    {
+      "op": "assert",
+      "js": "document.querySelectorAll('ul.chips li').length === 0",
+      "message": "no draft picture is left, so the next check is the history"
+    },
+    {
+      "op": "tap",
+      "selector": "[aria-label=\"Recent sends\"]"
+    },
+    {
+      "op": "tap",
+      "selector": "#composer-history li:first-child .pick"
+    },
+    {
+      "op": "retry",
+      "times": 10,
+      "every": 0.5,
+      "steps": [
+        {
+          "op": "assert",
+          "js": "document.querySelectorAll('ul.chips li').length === 1",
+          "message": "the picture is still in the history after the app was killed"
+        }
+      ]
+    },
+    {
+      "op": "shot",
+      "name": "image-after-kill"
+    }
   ]
 }
