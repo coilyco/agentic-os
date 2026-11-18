@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,13 +60,18 @@ const testFQDN = "mac.example.ts.net"
 // that reaches it by the tailnet name, as a browser on another device would.
 func tailnetServer(t *testing.T, whois func(string) (tailnetPeer, error)) (string, *http.Client, *daemon) {
 	t.Helper()
+	return tailnetServerWith(t, siblingPages{}, whois)
+}
+
+func tailnetServerWith(t *testing.T, siblings siblingPages, whois func(string) (tailnetPeer, error)) (string, *http.Client, *daemon) {
+	t.Helper()
 	d := newDaemon(func(string, ...any) {})
 	d.clientDir = t.TempDir()
 	if err := os.WriteFile(filepath.Join(d.clientDir, "index.html"), []byte("aterm client"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	node := tailnetNode{FQDN: testFQDN, IPv4: "127.0.0.1", Owner: "kai@example.com"}
-	server := httptest.NewTLSServer(d.handler(tailnetPolicy(node, []string{"tag:physical"}, nil, []string{"https://coilyco.dev"}, whois)))
+	server := httptest.NewTLSServer(d.handler(tailnetPolicy(node, []string{"tag:physical"}, nil, []string{"https://coilyco.dev"}, siblings, whois)))
 	t.Cleanup(server.Close)
 	_, port, _ := net.SplitHostPort(server.Listener.Addr().String())
 	// Trust the test server's own certificate. It names example.com, and the
@@ -483,7 +489,7 @@ func TestTailnetPeerOnThisHostCannotSpawnWithoutUnlocking(t *testing.T) {
 func TestTailnetPolicyWithoutRemoteLetsALocalPeerPastTheLock(t *testing.T) {
 	d := newDaemon(func(string, ...any) {})
 	node := tailnetNode{FQDN: testFQDN, IPv4: "127.0.0.1", Owner: "kai@example.com"}
-	policy := tailnetPolicy(node, []string{"tag:physical"}, nil, []string{"https://coilyco.dev"}, func(string) (tailnetPeer, error) { return peerWith("kai@example.com"), nil })
+	policy := tailnetPolicy(node, []string{"tag:physical"}, nil, []string{"https://coilyco.dev"}, siblingPages{}, func(string) (tailnetPeer, error) { return peerWith("kai@example.com"), nil })
 	policy.remote = false
 	server := httptest.NewTLSServer(d.handler(policy))
 	t.Cleanup(server.Close)
@@ -496,5 +502,183 @@ func TestTailnetPolicyWithoutRemoteLetsALocalPeerPastTheLock(t *testing.T) {
 	reply := spawnAnswer(t, "https://"+testFQDN+":"+port, client, filepath.Join(t.TempDir(), "ran"))
 	if reply.Reason == reasonPasskeyRequired {
 		t.Fatalf("a local peer with remote off should not meet the passkey lock, got %+v", reply)
+	}
+}
+
+// siblingFixture is a tailnet of this node's owner's laptop, a physical tower, a
+// guest's laptop and a CI runner, with the names tailscaled holds for them.
+func siblingFixture() (siblingPages, func(string) (tailnetPeer, error)) {
+	book := map[string]string{
+		"laptop.example.ts.net": "100.64.0.7",
+		"tower.example.ts.net":  "100.64.0.8",
+		"guest.example.ts.net":  "100.64.0.9",
+		"runner.example.ts.net": "100.64.0.5",
+	}
+	peers := map[string]tailnetPeer{
+		"127.0.0.1":  peerWith("kai@example.com"),
+		"100.64.0.7": peerWith("kai@example.com"),
+		"100.64.0.8": peerWith("tagged-devices", "tag:physical"),
+		"100.64.0.9": peerWith("guest@example.com"),
+		"100.64.0.5": peerWith("tagged-devices", "tag:ci"),
+	}
+	whois := func(address string) (tailnetPeer, error) {
+		if host, _, err := net.SplitHostPort(address); err == nil {
+			address = host
+		}
+		if peer, ok := peers[address]; ok {
+			return peer, nil
+		}
+		return tailnetPeer{}, errors.New("no such node")
+	}
+	return siblingPages{addresses: func() (map[string]string, error) { return book, nil }, ports: []string{"7419", "7500"}}, whois
+}
+
+func TestTailnetWebsocketTakesAPageServedByAnAdmittedSiblingNode(t *testing.T) {
+	siblings, whois := siblingFixture()
+	base, client, _ := tailnetServerWith(t, siblings, whois)
+	address := "wss" + strings.TrimPrefix(base, "https") + "/"
+	dial := func(origin string) (*websocket.Conn, *http.Response, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return websocket.Dial(ctx, address, &websocket.DialOptions{HTTPClient: client, HTTPHeader: http.Header{"Origin": {origin}}})
+	}
+	for _, origin := range []string{
+		"https://laptop.example.ts.net:7419", "https://LAPTOP.example.ts.net:7419", "https://laptop.example.ts.net",
+		"https://laptop.example.ts.net:443", "https://laptop.example.ts.net:7500", "https://tower.example.ts.net:7419",
+	} {
+		ws, _, err := dial(origin)
+		if err != nil {
+			t.Fatalf("a page from an admitted sibling, origin %q, must open a socket: %v", origin, err)
+		}
+		_ = ws.CloseNow()
+	}
+	for name, origin := range map[string]string{
+		"another tailnet user's node":       "https://guest.example.ts.net:7419",
+		"a tagged node without the tag":     "https://runner.example.ts.net:7419",
+		"a peer tailscaled does not name":   "https://stranger.example.ts.net:7419",
+		"a port that is not a daemon's":     "https://laptop.example.ts.net:8443",
+		"a bare address":                    "https://100.64.0.7:7419",
+		"a name that only ends like a peer": "https://laptop.example.ts.net.evil.example:7419",
+		"a sibling over http":               "http://laptop.example.ts.net:7419",
+		"a short name":                      "https://laptop:7419",
+	} {
+		if ws, response, err := dial(origin); err == nil {
+			_ = ws.CloseNow()
+			t.Fatalf("%s, origin %q, must be refused", name, origin)
+		} else if response == nil || response.StatusCode != http.StatusForbidden {
+			t.Fatalf("%s should get 403, got %v", name, response)
+		}
+	}
+}
+
+func TestASiblingNodesSocketStillMeetsThePasskey(t *testing.T) {
+	siblings, whois := siblingFixture()
+	base, client, _ := tailnetServerWith(t, siblings, whois)
+	marker := filepath.Join(t.TempDir(), "ran")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	ws, _, err := websocket.Dial(ctx, "wss"+strings.TrimPrefix(base, "https")+"/", &websocket.DialOptions{
+		HTTPClient: client, HTTPHeader: http.Header{"Origin": {"https://laptop.example.ts.net:7419"}},
+	})
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	defer ws.CloseNow()
+	ws.SetReadLimit(maxFrame)
+	for _, message := range []frame{
+		{Type: "hello", Format: daemonFormat, Version: "test", ID: "h"},
+		{Type: "spawn", ID: "s", Session: "probe-seat", Role: "probe", Argv: []string{"/bin/sh", "-c", "touch " + marker}, Rows: 24, Cols: 80},
+	} {
+		raw, _ := json.Marshal(message)
+		if err := ws.Write(ctx, websocket.MessageText, raw); err != nil {
+			t.Fatalf("write %s: %v", message.Type, err)
+		}
+	}
+	for {
+		_, raw, err := ws.Read(ctx)
+		if err != nil {
+			t.Fatalf("read: %v", err)
+		}
+		var reply frame
+		if json.Unmarshal(raw, &reply) == nil && reply.ID == "s" {
+			if reply.Type != "error" || reply.Reason != reasonPasskeyRequired {
+				t.Fatalf("a sibling page's socket must still get passkey_required, got %+v", reply)
+			}
+			break
+		}
+	}
+	time.Sleep(300 * time.Millisecond)
+	if _, err := os.Stat(marker); err == nil {
+		t.Fatal("the refused spawn still ran its argv")
+	}
+}
+
+func TestASiblingIsJudgedByTheNameTailscaledHoldsAndNotByAnAddressTheOriginSupplies(t *testing.T) {
+	siblings, whois := siblingFixture()
+	var asked []string
+	judged := func(address string) (tailnetPeer, error) {
+		asked = append(asked, address)
+		return whois(address)
+	}
+	policy := tailnetPolicy(tailnetNode{FQDN: testFQDN, IPv4: "100.64.0.1", Owner: "kai@example.com"}, []string{"tag:physical"}, nil, nil, siblings, judged)
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Host = testFQDN + ":7419"
+	origin, _ := url.Parse("https://laptop.example.ts.net:7419")
+	if !policy.origin(request, origin) || len(asked) != 1 || asked[0] != "100.64.0.7" {
+		t.Fatalf("the sibling should be judged at the address tailscaled names for it, asked %v", asked)
+	}
+	asked = nil
+	if bare, _ := url.Parse("https://100.64.0.7:7419"); policy.origin(request, bare) || len(asked) != 0 {
+		t.Fatalf("an origin that is an address must be refused without a whois, asked %v", asked)
+	}
+}
+
+func TestASiblingIsRefusedWhenTailscaledCannotBeRead(t *testing.T) {
+	siblings, whois := siblingFixture()
+	siblings.addresses = func() (map[string]string, error) { return nil, errors.New("the backend is down") }
+	policy := tailnetPolicy(tailnetNode{FQDN: testFQDN, IPv4: "100.64.0.1", Owner: "kai@example.com"}, []string{"tag:physical"}, nil, []string{"https://coilyco.dev"}, siblings, whois)
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Host = testFQDN + ":7419"
+	origin, _ := url.Parse("https://laptop.example.ts.net:7419")
+	if policy.origin(request, origin) {
+		t.Fatal("an unreadable tailnet must admit no sibling")
+	}
+	if !policy.origin(request, &url.URL{Scheme: "https", Host: "coilyco.dev"}) {
+		t.Fatal("the configured page must still be admitted when the tailnet cannot be read")
+	}
+}
+
+func TestParseTailnetAddressesKeepsPeerNamesAndTheirIPv4(t *testing.T) {
+	raw := []byte(`{"Peer":{"a":{"DNSName":"Laptop.example.ts.net.","TailscaleIPs":["fd7a:115c::7","100.64.0.7"]},"b":{"DNSName":"","TailscaleIPs":["100.64.0.8"]},"c":{"DNSName":"v6only.example.ts.net.","TailscaleIPs":["fd7a:115c::9"]}}}`)
+	book, err := parseTailnetAddresses(raw)
+	if err != nil || len(book) != 1 || book["laptop.example.ts.net"] != "100.64.0.7" {
+		t.Fatalf("want only the laptop at its IPv4, got %v (%v)", book, err)
+	}
+	if _, err := parseTailnetAddresses([]byte("not json")); err == nil {
+		t.Fatal("a malformed status must be an error")
+	}
+}
+
+func TestAddressBookKeepsAnAnswerBrieflyAndNeverAFailure(t *testing.T) {
+	var reads int
+	fail := true
+	book := &addressBook{read: func() (map[string]string, error) {
+		reads++
+		if fail {
+			return nil, errors.New("down")
+		}
+		return map[string]string{"laptop.example.ts.net": "100.64.0.7"}, nil
+	}}
+	if _, err := book.get(); err == nil {
+		t.Fatal("a failed read must surface")
+	}
+	fail = false
+	for range 3 {
+		if got, err := book.get(); err != nil || got["laptop.example.ts.net"] != "100.64.0.7" {
+			t.Fatalf("book %v (%v)", got, err)
+		}
+	}
+	if reads != 2 {
+		t.Fatalf("a failure is retried and a success reused, got %d reads", reads)
 	}
 }

@@ -67,6 +67,7 @@ func (d *daemon) userHost() userHost {
 // admissionConfig is who the tailnet listener and a Serve front let in.
 type admissionConfig struct {
 	tags, owners, origins []string
+	siblings              siblingPages
 	whois                 func(string) (tailnetPeer, error)
 }
 
@@ -119,8 +120,10 @@ func openLocalUsers(host userHost, options daemonOptions) *localUsers {
 	} else if err := u.setupPush(options.VAPIDKey, store); err != nil {
 		host.logf("no Web Push: %v", err)
 	}
-	u.admission = admissionConfig{tags: options.AllowTags, owners: options.AllowOwners, origins: options.AllowOrigins, whois: tailscaleWhois}
-	u.proxied = forwardedPolicy(&nodeReader{read: readTailnetNode}, u.admission.tags, u.admission.owners, u.admission.origins, u.admission.whois)
+	book := &addressBook{read: readTailnetAddresses}
+	siblings := siblingPages{addresses: book.get, ports: daemonPagePorts(options)}
+	u.admission = admissionConfig{tags: options.AllowTags, owners: options.AllowOwners, origins: options.AllowOrigins, siblings: siblings, whois: tailscaleWhois}
+	u.proxied = forwardedPolicy(&nodeReader{read: readTailnetNode}, u.admission.tags, u.admission.owners, u.admission.origins, siblings, u.admission.whois)
 	return u
 }
 
@@ -128,7 +131,7 @@ func (u *localUsers) ProxiedPolicy() accessPolicy { return u.proxied }
 
 func (u *localUsers) TailnetPolicy(node tailnetNode) accessPolicy {
 	a := u.admission
-	return tailnetPolicy(node, a.tags, a.owners, a.origins, a.whois)
+	return tailnetPolicy(node, a.tags, a.owners, a.origins, a.siblings, a.whois)
 }
 
 func (u *localUsers) Admits(node tailnetNode) string {
