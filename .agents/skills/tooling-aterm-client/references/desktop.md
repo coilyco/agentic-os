@@ -20,7 +20,7 @@ The loopback daemon accepts the webview's `tauri://localhost` origin, since its 
 
 ## Commands
 
-**A seat does not run the install or the login swap.** The umbra fs guard refuses a write under `~/Applications`, and a login item is Kai's. The infrastructure `treehouse-mac` role does both, and `just mac-converge apply` in infrastructure runs it outside the session with the real `HOME` (COI-3234). It rebuilds only when the `aterm-android/` or `aterm-client/` tree on main changed, defers the install while Treehouse is open, and prints `login: changed` or `login: unchanged`.
+**A seat does not run the install or the login swap.** The umbra fs guard refuses a write under `~/Applications`, and a login item is Kai's. The infrastructure `treehouse-mac` role does both, and `just mac-converge apply` in infrastructure runs it outside the session with the real `HOME` (COI-3234). It rebuilds only when a path in its `treehouse_mac_trees` setting changed on main, which includes `scripts/treehouse-mac.sh`, defers the install while Treehouse is open, and prints `login: changed` or `login: unchanged`.
 
 * `just treehouse-mac-test` runs the shell's Rust tests.
 * `just treehouse-mac-build` builds the client for the app, builds the bundle, and signs it under the bundle id. The version shown is the newest `aterm-android` release tag, or `TREEHOUSE_VERSION` where the tree has no tags.
