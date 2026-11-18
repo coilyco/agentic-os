@@ -368,6 +368,7 @@
             typing={app.typing}
             offline={reconnecting()}
             {dialogOpen}
+            enterOnly={!ask && !!choice?.waiting}
             reading={layout.reading}
             draft={app.drafts[session.id] ?? loadDraft(draftKey(app.selectedHostId ?? "", session.id))}
             ondraft={(text) => {

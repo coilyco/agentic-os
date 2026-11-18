@@ -18,6 +18,10 @@ A card is the same card while only digits in the dialog's text change (an away-t
 
 On a phone (720px and under) the card takes at most 58% of the terminal area, so the output behind it stays readable, and its options scroll inside it. While a text box is open it may use all of it, since the keyboard takes the rest. A Hide question button folds the card to a one-line bar, and Show question brings it back. The folded state is kept like the draft (COI-3320).
 
+## A screen that waits on Enter
+
+Claude Code draws a screen with nothing to pick after a sign-in: the security notes, and a `Login successful. Press Enter to continue…` line. It has no `❯` row and no footer, so the reader above took it for plain output and the composer typed into it. Its paste is dropped and the Enter that follows dismisses the screen, which is a first message lost (COI-3680, observed on 2.1.327 with a made-up API key, no real sign-in). `detectContinue` reads it as a card with one Continue row when `Press Enter to continue…` is the last row on screen, so the phrase in a reply never counts. The card pins Continue in its footer, drops the numbered row and the `1 to 1` hint, and the composer holds its send with a note that names Enter. The trust-folder screen that follows is an ordinary card. The `Login successful.` line's layout is read from the binary's strings and not yet seen on screen.
+
 ## The durable path
 
 Screen reading is per harness and breaks when a harness redraws its menu differently. Kai chose `ask_choice`: a tool on the daemon's MCP server that any seat can call. The daemon broadcasts an `ask` frame, the client answers with the picked indexes and any typed text, and an `asked` frame closes the card everywhere. An ask outranks a screen menu in the same seat, and because it is a daemon event it can flag a seat you are not viewing. The frame shape in `daemon-host.ts` is the one proposed to eng-platform, and the daemon's version wins.

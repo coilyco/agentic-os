@@ -328,6 +328,14 @@ export function captured(name: string): Scene {
   return { render: (_cols, rows) => bottom(lines, rows) };
 }
 
+/** A capture's text word-wrapped to the width asked for. The logo rows stay as drawn. */
+export function reflowed(name: string): Scene {
+  const text = readFileSync(new URL(`./fixtures/captures/${name}.txt`, import.meta.url), "utf8");
+  const lines = text.replace(/\n+$/, "").split("\n");
+  const drawn = (line: string): boolean => /[█▓░▄]|^\.{5,}/.test(line);
+  return { render: (cols, rows) => bottom(lines.flatMap((line) => (drawn(line) || line === "" ? [line.slice(0, cols)] : wrap(line, cols, line.length - line.trimStart().length + 3))), rows) };
+}
+
 /** A scene by its fixture name. */
 export function sceneFor(name: string, _spec: SessionSpec): Scene {
   switch (name) {
