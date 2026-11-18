@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount, tick, untrack } from "svelte";
   import { restoreRefused } from "../lib/drafts";
+  import { replyAge } from "../lib/last-reply";
+  import { draftKey } from "../lib/draft-store";
+  import { clearSends, jumpTo, newer, NOT_WALKING, older, onFirstLine, onLastLine, recentSends, recordSend, type Entry, type Walk } from "../lib/send-history";
   import { ESCAPE, HOLD_MS, INTERRUPT, showStop } from "../lib/stop";
   import { findMention, insertMention, mentionMatches } from "../lib/mentions";
   import type { HostConnection, Session } from "../lib/protocol";
@@ -17,7 +20,7 @@
   // `reading` is a phone on its side, where height is scarce: the composer is one row (COI-3371).
   // `saveddraft` reads a newer copy of the words once, for a draft local storage lost (COI-3619).
   // `savedimages` reads the images kept for this draft once, and `onimages` hands over the chips each time they change (COI-3582).
-  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, reading = false, draft = "", ondraft, saveddraft, savedimages, onimages, onsent, onfocuschange, place, working = false, busy = false, pending }: {
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, reading = false, draft = "", ondraft, saveddraft, savedimages, onimages, onsent, onfocuschange, place, working = false, busy = false, pending, hostId = "" }: {
     connection: HostConnection;
     session: Session;
     sessions?: readonly Session[];
@@ -41,6 +44,8 @@
     busy?: boolean;
     /** Where a send shows in the transcript before the harness writes it (COI-3690). */
     pending?: { note(session: string, text: string): number; cancel(id: number): void };
+    /** Keys this device's send history with the seat's, as drafts are (COI-3691). */
+    hostId?: string;
   } = $props();
 
   let text = $state(untrack(() => draft));
@@ -54,6 +59,11 @@
   // A refused send takes its images back with its text, since a screenshot may not be one to take twice.
   let lastImages: File[] = [];
   let lastPending: number | undefined;
+  // Past sends for this seat, newest first. Recorded at press, so a swallowed send is still here.
+  const historyKey = $derived(draftKey(hostId, session.id));
+  let sends = $state<Entry[]>(untrack(() => recentSends(draftKey(hostId, session.id))));
+  let walk = $state<Walk>(NOT_WALKING);
+  let historyOpen = $state(false);
   // Chips hold the files until Send. Nothing goes to the host for an image that is never sent.
   let chips = $state<{ id: number; file: File; url: string }[]>([]);
   let nextChip = 0;
@@ -299,6 +309,13 @@
     const typed = text.trim();
     if (!typed && chips.length === 0) return;
     if (uploading || resizing) return;
+    // At the press and before any guard: whatever happens to the delivery, the words are kept.
+    if (typed) {
+      recordSend(draftKey(hostId, session.id), typed);
+      sends = recentSends(draftKey(hostId, session.id));
+    }
+    walk = NOT_WALKING;
+    historyOpen = false;
     if (offline) {
       status = "Not sent. The host is reconnecting, and your message stays here.";
       return;
@@ -438,6 +455,54 @@
     field?.setSelectionRange(next.caret, next.caret);
   }
 
+  // Whether this logical line wraps in the field. The field's own height says nothing, since it never shrinks below three lines on a desktop.
+  function wraps(line: string): boolean {
+    if (!field) return false;
+    const style = getComputedStyle(field);
+    const room = field.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const context = document.createElement("canvas").getContext("2d");
+    if (!context) return line.length * 8 > room;
+    context.font = style.font;
+    return context.measureText(line).width > room;
+  }
+
+  async function show(next: { text: string; walk: Walk }, note: string): Promise<void> {
+    text = next.text;
+    walk = next.walk;
+    status = note;
+    await tick();
+    field?.setSelectionRange(text.length, text.length);
+    syncCaret();
+  }
+
+  // Up from the first line recalls an older send, down from the last walks back, and past the newest the draft returns.
+  function step(up: boolean): boolean {
+    if (!field || uploading !== null) return false;
+    const caret = field.selectionStart ?? 0;
+    if (field.selectionEnd !== caret) return false;
+    const next = up
+      ? onFirstLine(text, caret, wraps(text.split("\n")[0] ?? "")) && older(sends, walk, text)
+      : walk.at >= 0 && onLastLine(text, caret, wraps(text.split("\n").at(-1) ?? "")) && newer(sends, walk);
+    if (!next) return false;
+    void show(next, up ? "An earlier send. Down returns to your draft." : next.walk.at === -1 ? "Back to your draft." : "A later send.");
+    return true;
+  }
+
+  async function recall(at: number): Promise<void> {
+    const next = jumpTo(sends, walk, text, at);
+    if (!next) return;
+    historyOpen = false;
+    await show(next, "An earlier send, in the field to edit and send again.");
+    field?.focus();
+  }
+
+  async function backToDraft(): Promise<void> {
+    const next = newer(sends, { ...walk, at: 0 });
+    historyOpen = false;
+    if (next) await show(next, "Back to your draft.");
+    field?.focus();
+  }
+
   function keydown(event: KeyboardEvent): void {
     if (event.isComposing) return;
     if (open && mention) {
@@ -457,6 +522,15 @@
         dismissedAt = mention.start;
         return;
       }
+    }
+    if ((event.key === "ArrowUp" || event.key === "ArrowDown") && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && step(event.key === "ArrowUp")) {
+      event.preventDefault();
+      return;
+    }
+    if (event.key === "Escape" && historyOpen) {
+      event.preventDefault();
+      historyOpen = false;
+      return;
     }
     // On touch the return key is for a newline and the Send button sends.
     if (event.key === "Enter" && !event.shiftKey && !touch) {
@@ -526,6 +600,23 @@
     <input bind:this={picker} hidden type="file" accept={IMAGE_TYPES.join(",")} multiple onchange={picked} />
     <button class="add-image" type="button" aria-label="Add image" title="Add image" disabled={uploading !== null || resizing || offline} onmousedown={keepFocus} onclick={() => picker?.click()}>
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8" /><circle cx="9" cy="10" r="1.6" fill="currentColor" /><path d="M4.5 17.5l4.5-4.5 3.5 3.5 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg>
+    </button>
+  {/if}
+  {#if historyOpen && sends.length > 0}
+    <ul class="mentions history" id="composer-history" aria-label="Recent sends">
+      {#if walk.at >= 0}
+        <li><button type="button" class="pick back" onmousedown={keepFocus} onclick={() => void backToDraft()}>Back to your draft</button></li>
+      {/if}
+      {#each sends as entry, index (entry.at)}
+        <li><button type="button" class="pick" onmousedown={keepFocus} onclick={() => void recall(index)}><span class="words">{entry.text}</span><span class="role">{replyAge(entry.at, Date.now())}</span></button></li>
+      {/each}
+      <li><button type="button" class="pick clear" onmousedown={keepFocus} onclick={() => { clearSends(historyKey); sends = []; walk = NOT_WALKING; historyOpen = false; status = "Cleared this seat's recent sends."; }}>Clear recent sends</button></li>
+    </ul>
+  {/if}
+  {#if touch && sends.length > 0}
+    <!-- A phone has no arrow keys. Same box as Add image, and the field keeps focus on a press so the keyboard stays. -->
+    <button class="add-image" type="button" aria-label="Recent sends" aria-expanded={historyOpen} aria-controls="composer-history" title="Recent sends" onmousedown={keepFocus} onclick={() => (historyOpen = !historyOpen)}>
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v3.7h3.7M12 8v4.3l2.8 1.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
     </button>
   {/if}
   <div class="field" data-working={ringing}>
@@ -603,14 +694,14 @@
 {/if}
 
 <style>
-  .composer { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--ground); }
+  .composer { position: relative; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--line); background: var(--ground); }
   /* Above the terminal, which overflows its row when the layout is squeezed. */
   .composer.locked { display: block; position: relative; z-index: 1; }
   .locked p { margin: 0; color: var(--text-soft); }
   .locked p + p { margin-top: 8px; }
   .kept { color: var(--warn-text); }
   .draft { margin: 8px 0 0; padding: 8px 10px; max-height: 6.5em; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--control-line); border-radius: 8px; background: var(--terminal); color: var(--text-soft); font: 14px/1.4 var(--font-body); }
-  .field { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .field { position: relative; flex: 1; min-width: 96px; display: flex; flex-direction: column; }
   .composer.dropping { outline: 2px dashed var(--brand); outline-offset: -4px; }
   .add-image { flex: none; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--control-line); border-radius: 10px; background: var(--terminal); color: var(--text-soft); cursor: pointer; }
   .add-image:hover:not(:disabled) { color: var(--text); border-color: var(--brand); }
@@ -654,6 +745,13 @@
   .mention { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--text-soft); }
   .mention.active { background: var(--brand); color: var(--brand-ink); }
   .who { font-weight: 600; }
+  .history { padding: 4px; }
+  .pick { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: 8px; background: none; color: var(--text-soft); font: 14px/1.35 var(--font-body); text-align: left; cursor: pointer; }
+  .pick:hover, .pick:focus-visible { background: var(--hover); color: var(--text); outline: none; }
+  .pick .words { flex: 1; min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; white-space: pre-wrap; }
+  .pick .role { flex: none; }
+  .pick.back { color: var(--brand); font-weight: 600; }
+  .pick.clear { color: var(--muted); font-size: 13px; }
   .role { font-size: 13px; color: var(--muted); }
   .name { flex-basis: 100%; font: 13px/1.3 var(--font-mono); overflow-wrap: anywhere; }
   .mention.active .role { color: var(--brand-ink); }
