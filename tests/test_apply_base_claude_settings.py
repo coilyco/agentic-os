@@ -36,6 +36,7 @@ def test_base_settings_disable_memory_and_chrome_without_losing_local_denies() -
         "permissions.deny",
         "permissions.allow",
         "autoMode.allow",
+        "hooks.PreToolUse",
     }
     assert MODULE.merge_base_settings(settings) == []
 
@@ -251,3 +252,34 @@ def test_the_sudo_prose_replaces_a_reworded_copy_in_place() -> None:
     MODULE.merge_base_settings(settings)
     merged = [e for e in settings["autoMode"]["allow"] if e.startswith(older[: MODULE.AUTO_MODE_KEY_LEN])]
     assert merged == [owned]
+
+
+def guard_commands(settings: dict) -> list[str]:
+    return [
+        hook["command"]
+        for group in settings["hooks"]["PreToolUse"]
+        for hook in group["hooks"]
+        if "seat_login_guard.py" in hook["command"]
+    ]
+
+
+def test_the_login_guard_is_wired_once_beside_a_hook_already_there() -> None:
+    attribution = {"matcher": "Bash", "hooks": [{"type": "command", "command": "/x/attribution.py hook claude"}]}
+    settings = {"hooks": {"PreToolUse": [attribution], "Stop": [{"hooks": []}]}}
+
+    assert MODULE.merge_login_guard_hook(settings) is True
+    assert MODULE.merge_login_guard_hook(settings) is False
+
+    assert settings["hooks"]["PreToolUse"][0] == attribution
+    assert settings["hooks"]["Stop"] == [{"hooks": []}]
+    assert guard_commands(settings) == [str(MODULE.LOGIN_GUARD_SCRIPT)]
+    assert Path(guard_commands(settings)[0]).is_file()
+
+
+def test_a_login_guard_wired_from_another_checkout_is_repointed_not_duplicated() -> None:
+    old = "/old/checkout/scripts/seat_login_guard.py"
+    settings = {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": old}]}]}}
+
+    assert MODULE.merge_login_guard_hook(settings) is True
+
+    assert guard_commands(settings) == [str(MODULE.LOGIN_GUARD_SCRIPT)]
