@@ -293,6 +293,10 @@ treehouse-mac-test:
 treehouse-mac-build:
     @bash scripts/treehouse-mac.sh build
 
+# Fail when the built Treehouse.app, or the bundle given, holds a Mach-O with an Intel slice and no arm64 slice, or an LSRequiresCarbon key.
+treehouse-mac-arch *BUNDLE:
+    @bash scripts/treehouse-mac.sh arch "$@"
+
 # Copy the built Treehouse.app into ~/Applications. Quit a running copy first.
 treehouse-mac-install:
     @bash scripts/treehouse-mac.sh install

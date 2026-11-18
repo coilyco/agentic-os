@@ -18,6 +18,10 @@ A card is the same card while only digits in the dialog's text change (an away-t
 
 On a phone (720px and under) the card takes at most 58% of the terminal area, so the output behind it stays readable, and its options scroll inside it. While a text box is open it may use all of it, since the keyboard takes the rest. A Hide question button folds the card to a one-line bar, and Show question brings it back. The folded state is kept like the draft (COI-3320).
 
+## The composer never types into a menu
+
+The composer types raw keys, so any select menu on the screen would take its text and Enter as picks, and a typed row would fill (COI-3689). It holds its send on three signals, any one of which is enough. A card is up. The screen still shows a menu after the card was answered, since a card answered at the wrong moment leaves a menu the keys did not reach. Or a menu footer (`Enter to select`, `Enter to confirm`, `Esc to cancel`, `Esc to go back`) is on the last four rows, which holds for a menu the card reader does not know (`menu-footer.ts`). A reply that quotes a footer sits above the input box and does not count. A menu that stays up 3 seconds after its card was answered did not take the keys, so its card returns. The delayed Enter of a pasted send is dropped if a menu opened in between. The daemon's own `aterm send` path is the daemon's, COI-3243.
+
 ## The durable path
 
 Screen reading is per harness and breaks when a harness redraws its menu differently. Kai chose `ask_choice`: a tool on the daemon's MCP server that any seat can call. The daemon broadcasts an `ask` frame, the client answers with the picked indexes and any typed text, and an `asked` frame closes the card everywhere. An ask outranks a screen menu in the same seat, and because it is a daemon event it can flag a seat you are not viewing. The frame shape in `daemon-host.ts` is the one proposed to eng-platform, and the daemon's version wins.

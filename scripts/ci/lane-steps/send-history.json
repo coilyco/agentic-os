@@ -1,0 +1,24 @@
+{
+  "name": "send history: a send is recorded, recalled from the History control, and survives a killed app (COI-3691)",
+  "start": "seat",
+  "steps": [
+    { "op": "fill", "selector": "#composer-input", "text": "first lane send" },
+    { "op": "tap", "selector": "form.composer button.primary" },
+    { "op": "wait-value", "selector": "#composer-input", "pattern": "^$", "timeout": 15 },
+    { "op": "fill", "selector": "#composer-input", "text": "second lane send" },
+    { "op": "tap", "selector": "form.composer button.primary" },
+    { "op": "wait-value", "selector": "#composer-input", "pattern": "^$", "timeout": 15 },
+    { "op": "fill", "selector": "#composer-input", "text": "my draft" },
+    { "op": "tap", "selector": "[aria-label=\"Recent sends\"]" },
+    { "op": "assert", "js": "document.querySelectorAll('#composer-history .pick .words').length === 2", "message": "the History list shows both sends" },
+    { "op": "shot", "name": "history-open" },
+    { "op": "tap-text", "text": "first lane send", "within": "#composer-history" },
+    { "op": "wait-value", "selector": "#composer-input", "pattern": "first lane send", "timeout": 15 },
+    { "op": "shot", "name": "recalled-in-field" },
+    { "op": "kill-app" },
+    { "op": "reopen" },
+    { "op": "tap", "selector": "[aria-label=\"Recent sends\"]" },
+    { "op": "assert", "js": "document.querySelector('#composer-history')?.textContent.includes('second lane send') === true", "message": "the sends survived the killed app" },
+    { "op": "shot", "name": "history-after-kill" }
+  ]
+}

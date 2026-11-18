@@ -20,6 +20,7 @@
   import { readTabs, tabKeys, type TabReading } from "../lib/dialog-tabs";
   import type { TabBarCells } from "../lib/screen";
   import { askScope, cardMemo, forgetCardMemos, memoKey, screenScope, tickedRows } from "../lib/card-memo.svelte";
+  import { menuFooterShowing } from "../lib/menu-footer";
   import { askAnswer, CANCEL, choiceFromAsk, choiceKey, detectChoice, keysFor, keysForPicks, type Choice } from "../lib/choices";
   import { contextPercent, contextText } from "../lib/context";
   import { CONTINUE_KEYS, codeKeys, detectLogin, loginKey, methodKeys, RETRY_KEYS, type Login } from "../lib/login";
@@ -31,6 +32,8 @@
   import { sessionCode } from "../lib/sessions";
   import { findPeerMessage } from "../lib/peer-link";
   import { mayClear, refusalText, type Level, type PeerRef } from "../lib/transcript";
+  import { cacheKey } from "../lib/transcript-cache";
+  import { cancelPending, notePending } from "../lib/pending-sends.svelte";
   import { needsPasskey } from "../lib/typing";
   import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
   import { loadSide, loadSideOpen, storeSide, storeSideOpen } from "../lib/split";
@@ -181,6 +184,9 @@
   let openWhenLinked = $state(false);
   // The composer holds its send, and focus no longer hides the strip: leaving the field would bring it back and move the card under a tap.
   const dialogOpen = $derived(!!(ask || choice || login));
+  // A menu is on the screen, card or not. The composer never types into it (COI-3689).
+  let menuUp = $state(false);
+  let menuTimer: ReturnType<typeof setTimeout> | undefined;
   let shownKey = $state("");
   // A seat that is still starting has printed nothing, so the pane says so instead of sitting empty.
   let blank = $state(true);
@@ -191,6 +197,12 @@
   // Whether the last screen read held a menu, so a trace notes only the change.
   let menuSeen = false;
   const HIDE_AFTER_MS = 400;
+  // An answered menu still up this long after the keys went in did not take them, so its card returns.
+  const ANSWER_RETURN_MS = 3000;
+  let answeredAt = 0;
+  let answerTimer: ReturnType<typeof setTimeout> | undefined;
+  // The last menu read, for the card to come back with when no frame follows to read it again.
+  let lastFound: Choice | null = null;
   const FORGET_AFTER_MS = 5000;
   let forgetTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -212,6 +224,12 @@
     blank = isBlank(rows);
     readLogin(detectLogin(rows));
     const found = detectChoice(rows);
+    lastFound = found;
+    if (found || menuFooterShowing(rows)) {
+      clearTimeout(menuTimer);
+      menuTimer = undefined;
+      menuUp = true;
+    } else menuTimer ??= setTimeout(() => ((menuUp = false), (menuTimer = undefined)), HIDE_AFTER_MS);
     if ((found !== null) !== menuSeen) mark("screen", found ? "menu" : "no-menu");
     menuSeen = found !== null;
     dialogTabs = found && tabBar ? readTabs(tabBar.text, new Set(tabBar.highlighted)) : null;
@@ -230,7 +248,10 @@
     clearTimeout(hideTimer);
     hideTimer = undefined;
     const key = keyOf(found);
-    if (key === answered) return;
+    if (key === answered) {
+      if (performance.now() < answeredAt + ANSWER_RETURN_MS) return;
+      answered = "";
+    }
     // Our own keys redraw the same question while they land: a checkbox ticks, a typed row fills. That is not a new menu.
     if (performance.now() < holdUntil && found.question === heldQuestion) return;
     if (key !== shownKey) {
@@ -297,6 +318,14 @@
     if (!choice) return;
     mark("answer", "screen-card");
     answered = shownKey;
+    answeredAt = performance.now();
+    clearTimeout(answerTimer);
+    answerTimer = setTimeout(() => {
+      if (!lastFound || keyOf(lastFound) !== answered) return;
+      answered = "";
+      shownKey = keyOf(lastFound);
+      choice = lastFound;
+    }, ANSWER_RETURN_MS);
     forgetCardMemos(screenScope(session.id));
     heldQuestion = choice.question;
     holdUntil = performance.now() + chunks.length * KEY_GAP_MS + HOLD_AFTER_KEYS_MS;
@@ -451,7 +480,7 @@
             sessions={app.sessions}
             typing={app.typing}
             offline={reconnecting()}
-            {dialogOpen}
+            dialogOpen={dialogOpen || menuUp}
             reading={layout.reading}
             draft={app.drafts[session.id] ?? loadDraft(draftKey(app.selectedHostId ?? "", session.id))}
             ondraft={(text) => {
@@ -474,6 +503,8 @@
             place={placeNow()}
             working={session.state === "working" && !blank}
             busy={session.state === "working"}
+            hostId={app.selectedHostId ?? ""}
+            pending={{ note: (id, text) => notePending(cacheKey(app.selectedHostId ?? "", id), text), cancel: cancelPending }}
           />
           <!-- Gives way to the keyboard, so the pin never takes the terminal's last lines. -->
           {#if narrow && !layout.reading && showRaw}<LastReply {session} connection={app.connection} hidden={app.composing} />{/if}
