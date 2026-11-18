@@ -392,6 +392,7 @@
             place={placeNow()}
             working={session.state === "working" && !blank}
             busy={session.state === "working"}
+            hostId={app.selectedHostId ?? ""}
             pending={{ note: (id, text) => notePending(cacheKey(app.selectedHostId ?? "", id), text), cancel: cancelPending }}
           />
           <!-- Gives way to the keyboard, so the pin never takes the terminal's last lines. -->
