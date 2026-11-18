@@ -23,6 +23,8 @@ export interface Choice {
   multi: boolean;
   /** Options scrolled off the top of a screen too short for the dialog. Unreadable. */
   hidden?: number;
+  /** The screen asks nothing and waits on Enter, so the card is one Continue button. */
+  waiting?: boolean;
 }
 
 const CURSOR = "❯";
@@ -37,15 +39,43 @@ const CHECKBOX = /^\[([ ✔✓xX])\]\s+/;
 // Next and Submit are rows of their own, with no number, at the label column.
 const ACTION_ROW = /^(next|submit)$/i;
 const QUESTION_LINES = 8;
+// A phone wraps a screen that waits on Enter over many rows. See the choices reference.
+const CONTINUE_LINES = 24;
 const NUMBERED = /^\s*\d+\.\s/;
 
 function strip(line: string): string {
   return line.replace(/^[\s│|]*?(?=\S)/, (lead) => lead.replace(/[│|]/g, " "));
 }
 
+// A screen with nothing to pick, only Enter (COI-3680). See the choices reference.
+const CONTINUE_ROW = /^(?:login successful\.\s+)?press enter to continue(?:…|\.{3})?$/i;
+// The logo and its dotted rule are not part of what the screen says.
+const LOGO_ROW = /[█▓░▄]|^\.{5,}/;
+
+/** A screen that waits on Enter alone, as a card of one row. Only the last row counts. */
+function detectContinue(lines: readonly string[]): Choice | null {
+  const last = lines.findLastIndex((line) => line.trim() !== "");
+  if (last === -1 || !CONTINUE_ROW.test(lines[last]!.trim())) return null;
+  const rows: string[] = [];
+  for (let row = last - 1; row >= 0 && rows.length < CONTINUE_LINES; row--) {
+    const line = lines[row]!;
+    if (RULE.test(line) || LOGO_ROW.test(line)) break;
+    rows.unshift(line.trim());
+  }
+  // A row joins the one before unless it opens an item, since a narrow terminal wraps.
+  const text = [...rows, /^login successful/i.test(lines[last]!.trim()) ? "Login successful." : ""].reduce((joined, line) => {
+    if (line === "") return joined.endsWith("\n") ? joined : `${joined}\n`;
+    const opens = /^\d+\.\s/.test(line) || joined === "" || joined.endsWith("\n") || joined.endsWith(":");
+    return `${joined}${opens ? (joined === "" || joined.endsWith("\n") ? "" : "\n") : " "}${line}`;
+  }, "");
+  return { header: "", question: text.trim(), options: [{ label: "Continue", description: "", freeText: false }], cursor: 0, cancellable: false, multi: false, waiting: true };
+}
+
 /** The last select menu on screen, or null when none is showing. */
 export function detectChoice(screen: readonly string[]): Choice | null {
   const lines = screen.map(strip);
+  const waiting = detectContinue(lines);
+  if (waiting) return waiting;
   let cursorRow = lines.findLastIndex((line) => line.trimStart().startsWith(CURSOR));
   let column = cursorRow === -1 ? -1 : lines[cursorRow]!.indexOf(CURSOR);
   // A dialog taller than the screen loses its top, highlight included.

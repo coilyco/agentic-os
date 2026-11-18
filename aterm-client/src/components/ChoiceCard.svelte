@@ -141,7 +141,7 @@
 <section class="card" class:folded aria-labelledby="choice-question" data-writing={memo.writing !== -1} bind:this={card} onmousedown={holdComposer}>
   <div class="body">
     <p class="asker">
-      <span>{identity} is asking{#if choice.header}<span class="chip">{choice.header}</span>{/if}{#if locked}<span class="chip">{lockedLabel}</span>{/if}</span>
+      <span>{identity} {choice.waiting ? "is waiting on Enter" : "is asking"}{#if choice.header}<span class="chip">{choice.header}</span>{/if}{#if locked}<span class="chip">{lockedLabel}</span>{/if}</span>
       {#if narrow}<button type="button" class="fold" aria-expanded={!folded} onclick={() => (memo.collapsed = !memo.collapsed)}>{folded ? "Show question" : "Hide question"}</button>{/if}
     </p>
   <h2 id="choice-question" class:peek={folded}>{choice.question || (hidden ? "The question is off the top of this screen" : "Pick one")}</h2>
@@ -160,6 +160,7 @@
     </div>
   {/if}
   {#if choice.multi && !stuck}<p class="hint">Pick any, then {next === -1 ? "submit" : nextLabel.toLowerCase()}.</p>{/if}
+  {#if !choice.waiting}
   <ol hidden={stuck}>
     {#each choice.options as option, index (index)}
       {#if index !== advance && index !== next}
@@ -189,14 +190,17 @@
       {/if}
     {/each}
   </ol>
-  <p class="keys" aria-hidden="true" hidden={stuck || hidden > 0}>
+  {/if}
+  <p class="keys" aria-hidden="true" hidden={stuck || hidden > 0 || choice.waiting}>
     {choice.multi ? `1 to ${rows.length} to pick // Enter to ${next === -1 ? "submit" : nextLabel.toLowerCase()}` : `1 to ${choice.options.length} to answer`}{choice.cancellable ? " // Esc to cancel" : ""}
   </p>
   {/if}
   </div>
   {#if !folded}
   <div class="actions">
-    {#if advance !== -1 && !stuck}
+    {#if choice.waiting}
+      <button class="button primary advance" disabled={locked} onclick={() => pick(0)} onkeydown={keys}>{choice.options[0]?.label}</button>
+    {:else if advance !== -1 && !stuck}
       <button class="button primary advance" disabled={locked} onclick={() => pick(advance)} onkeydown={keys}>{choice.options[advance]?.label}</button>
     {/if}
     {#if stuck}

@@ -21,13 +21,15 @@
   // `reading` is a phone on its side, where height is scarce: the composer is one row (COI-3371).
   // `saveddraft` reads a newer copy of the words once, for a draft local storage lost (COI-3619).
   // `savedimages` reads the images kept for this draft once, and `onimages` hands over the chips each time they change (COI-3582).
-  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, reading = false, draft = "", ondraft, saveddraft, savedimages, onimages, onsent, onfocuschange, place, working = false, busy = false, pending, hostId = "" }: {
+  let { connection, session, sessions = [], typing = { allowed: true }, offline = false, dialogOpen = false, enterOnly = false, reading = false, draft = "", ondraft, saveddraft, savedimages, onimages, onsent, onfocuschange, place, working = false, busy = false, pending, hostId = "" }: {
     connection: HostConnection;
     session: Session;
     sessions?: readonly Session[];
     typing?: Typing;
     offline?: boolean;
     dialogOpen?: boolean;
+    /** The open dialog asks nothing and waits on Enter, so the note says Continue, not an answer (COI-3680). */
+    enterOnly?: boolean;
     reading?: boolean;
     draft?: string;
     ondraft?: (text: string) => void;
@@ -203,7 +205,7 @@
     }
   }
 
-  const HELD_NOTE = "Not sent. A question is waiting for your answer, and your message stays here until you answer it.";
+  const HELD_NOTE = $derived(enterOnly ? "Not sent. The seat is waiting on Enter, and your message stays here until you press Continue." : "Not sent. A question is waiting for your answer, and your message stays here until you answer it.");
   const PASTE_OPEN = "\x1b[200~";
   const PASTE_CLOSE = "\x1b[201~";
   const STEP_MS = 200;
@@ -616,7 +618,7 @@
     </div>
   {/if}
   {#if dialogOpen && (text.trim() || chips.length)}
-    <p class="hold" role="status">A question is waiting. Answer it, then send. Your message stays here.</p>
+    <p class="hold" role="status">{enterOnly ? "The seat is waiting on Enter. Press Continue, then send. Your message stays here." : "A question is waiting. Answer it, then send. Your message stays here."}</p>
   {/if}
   {#if canDictate}
     <!-- Same box as Add image. The field keeps focus on a press, so the keyboard stays and the layout holds still. -->
