@@ -51,7 +51,7 @@ func (n *nodeReader) get() (tailnetNode, error) {
 
 // forwardedPolicy admits a proxied request as a direct tailnet peer is admitted, by
 // whois on the peer the proxy names. Every doubt refuses, which the doc page lists.
-func forwardedPolicy(node *nodeReader, allowTags, allowOwners, allowOrigins []string, whois func(string) (tailnetPeer, error)) accessPolicy {
+func forwardedPolicy(node *nodeReader, allowTags, allowOwners, allowOrigins []string, siblings siblingPages, whois func(string) (tailnetPeer, error)) accessPolicy {
 	admission := &whoisAdmission{whois: whois, allowTags: allowTags}
 	return accessPolicy{
 		admit: func(r *http.Request) error {
@@ -87,7 +87,11 @@ func forwardedPolicy(node *nodeReader, allowTags, allowOwners, allowOrigins []st
 			}
 			return nil
 		},
-		origin: tailnetOrigin(allowOrigins),
+		// The owners a sibling is judged by are this node's, read as admit reads them.
+		origin: tailnetOrigin(allowOrigins, func(origin *url.URL) bool {
+			self, err := node.get()
+			return err == nil && siblingJudge(siblings, admission, admittedOwners(self, allowOwners))(origin)
+		}),
 	}
 }
 

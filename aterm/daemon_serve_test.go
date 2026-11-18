@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,7 +34,7 @@ func serveDaemon(t *testing.T, read func() (tailnetNode, error), whois func(stri
 	if err := os.WriteFile(filepath.Join(d.clientDir, "index.html"), []byte("aterm client"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	d.local().proxied = forwardedPolicy(&nodeReader{read: read}, []string{"tag:physical"}, []string{ownerLogin}, []string{"https://coilyco.dev"}, whois)
+	d.local().proxied = forwardedPolicy(&nodeReader{read: read}, []string{"tag:physical"}, []string{ownerLogin}, []string{"https://coilyco.dev"}, siblingPages{}, whois)
 	server := httptest.NewServer(d.websocketHandler())
 	t.Cleanup(server.Close)
 	return d, server
@@ -246,13 +247,13 @@ func TestAdmitPeerTakesAConfiguredOwnerOnATaggedNode(t *testing.T) {
 
 func TestTailnetListenerAdmitsAConfiguredOwnersPhoneOnATaggedNode(t *testing.T) {
 	node, _ := taggedMac()
-	policy := tailnetPolicy(node, []string{"tag:physical"}, []string{ownerLogin}, nil, func(string) (tailnetPeer, error) { return peerWith(ownerLogin), nil })
+	policy := tailnetPolicy(node, []string{"tag:physical"}, []string{ownerLogin}, nil, siblingPages{}, func(string) (tailnetPeer, error) { return peerWith(ownerLogin), nil })
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
 	request.Host, request.RemoteAddr = testFQDN+":7419", "100.64.0.7:50000"
 	if err := policy.admit(request); err != nil {
 		t.Fatalf("the owner's phone was refused on the direct listener: %v", err)
 	}
-	strict := tailnetPolicy(node, []string{"tag:physical"}, nil, nil, func(string) (tailnetPeer, error) { return peerWith(ownerLogin), nil })
+	strict := tailnetPolicy(node, []string{"tag:physical"}, nil, nil, siblingPages{}, func(string) (tailnetPeer, error) { return peerWith(ownerLogin), nil })
 	if err := strict.admit(request); err == nil {
 		t.Fatal("with no owner configured a tagged node must keep refusing untagged devices")
 	}
@@ -291,5 +292,31 @@ func TestExecutableGoneSeesTheOldVersionRemovedBehindARepointedSymlink(t *testin
 	}
 	if !fileGone(resolvedAtStart) {
 		t.Fatalf("the removed version %s was not seen as gone", strings.TrimPrefix(resolvedAtStart, dir))
+	}
+}
+
+func TestForwardedWebsocketTakesAnAdmittedSiblingsPageAndTheAppOrigins(t *testing.T) {
+	siblings, whois := siblingFixture()
+	policy := forwardedPolicy(&nodeReader{read: taggedMac}, []string{"tag:physical"}, []string{ownerLogin}, nil, siblings, whois)
+	request := httptest.NewRequest(http.MethodGet, "/", nil)
+	request.Host = testFQDN
+	for origin, want := range map[string]bool{
+		"https://laptop.example.ts.net":      true,
+		"https://tower.example.ts.net:7419":  true,
+		"https://guest.example.ts.net":       false,
+		"https://laptop.example.ts.net:8443": false,
+		appOrigin:                            true,
+		desktopOrigin:                        true,
+		"https://evil.example":               false,
+	} {
+		parsed, _ := url.Parse(origin)
+		if got := policy.origin(request, parsed); got != want {
+			t.Errorf("origin %q admitted=%v, want %v", origin, got, want)
+		}
+	}
+	unreadable := func() (tailnetNode, error) { return tailnetNode{}, errors.New("no tailnet") }
+	down := forwardedPolicy(&nodeReader{read: unreadable}, []string{"tag:physical"}, []string{ownerLogin}, nil, siblings, whois)
+	if parsed, _ := url.Parse("https://laptop.example.ts.net"); down.origin(request, parsed) {
+		t.Error("a node that cannot be read admits no sibling")
 	}
 }

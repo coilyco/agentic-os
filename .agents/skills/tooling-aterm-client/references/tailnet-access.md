@@ -6,7 +6,9 @@ How [the aterm daemon](../../../../docs/aterm-daemon.md) decides which device on
 
 **An untagged device attaches when its owner login is one the daemon admits**: this node's own owner, and each login in `--allow-owners` (env `ATERM_DAEMON_ALLOW_OWNERS`, comma-separated, case-insensitive). A tagged node has no owner of its own, so with none configured no untagged device attaches. **A device tagged `tag:physical` attaches** (`--allow-tags`), and a tagged device claiming an owner's login does not. The passkey gate still applies to every one of them.
 
-**A websocket opens only from the page the listener served, `https://coilyco.dev`, or the Android app's origin**, and the origin must be https.
+**A websocket opens only from the page the listener served, `https://coilyco.dev`, the two app origins, or a sibling node's page**, and the origin must be https. The apps are `https://tauri.localhost` and `tauri://localhost`, in code on the direct listener and behind Serve alike.
+
+**A sibling node's page is admitted when `tailscale whois` admits that node** by the rule above (COI-2537). The origin's name is looked up in `tailscale status --json`, never resolved by DNS, and the address found is judged like a connecting device. Only 443 and a daemon's own ports count (`--tailnet-port` and each `--peer-port`), so another web app on a peer's other port gets nothing. A bare address, a short name, an unknown peer or an unreadable tailnet is refused. **The passkey gate is unchanged**: an origin is not a login, so a page from a sibling still types only after a passkey. A non-browser client can send any `Origin`, and it already passed whois.
 
 ## A Serve front is never loopback
 

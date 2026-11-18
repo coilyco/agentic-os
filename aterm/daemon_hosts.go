@@ -227,6 +227,21 @@ func parsePeerPorts(entries []string) (map[string]string, error) {
 	return ports, nil
 }
 
+// daemonPagePorts are the ports a daemon's page is served on, besides 443: this
+// node's tailnet port, and each port a peer is configured to use.
+func daemonPagePorts(options daemonOptions) []string {
+	ports := []string{}
+	if options.TailnetPort != "" {
+		ports = append(ports, options.TailnetPort)
+	}
+	for _, port := range options.PeerPorts {
+		if !slices.Contains(ports, port) {
+			ports = append(ports, port)
+		}
+	}
+	return ports
+}
+
 func shortName(fqdn string) string {
 	name, _, _ := strings.Cut(fqdn, ".")
 	return name

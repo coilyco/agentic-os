@@ -242,9 +242,94 @@ func (a *whoisAdmission) judge(address string, owners []string) (login string, e
 	return login, err
 }
 
+// siblingPages judges an origin that is another node's page: peer names to
+// addresses, and the daemon page ports besides 443. Zero admits no sibling.
+type siblingPages struct {
+	addresses func() (map[string]string, error)
+	ports     []string
+}
+
+// addressBook reads peer name to tailnet address from tailscaled, and keeps the
+// answer for whoisTTL. A failed read is not kept.
+type addressBook struct {
+	read    func() (map[string]string, error)
+	mu      sync.Mutex
+	book    map[string]string
+	expires time.Time
+}
+
+func (a *addressBook) get() (map[string]string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if time.Now().Before(a.expires) {
+		return a.book, nil
+	}
+	book, err := a.read()
+	if err != nil {
+		return nil, err
+	}
+	a.book, a.expires = book, time.Now().Add(whoisTTL)
+	return book, nil
+}
+
+// parseTailnetAddresses maps each peer's lowercase tailnet name to its IPv4
+// address. The name is the one tailscaled holds, never one a request supplies.
+func parseTailnetAddresses(raw []byte) (map[string]string, error) {
+	var status struct {
+		Peer map[string]struct {
+			DNSName      string   `json:"DNSName"`
+			TailscaleIPs []string `json:"TailscaleIPs"`
+		} `json:"Peer"`
+	}
+	if err := json.Unmarshal(raw, &status); err != nil {
+		return nil, fmt.Errorf("tailscale status: %w", err)
+	}
+	book := map[string]string{}
+	for _, peer := range status.Peer {
+		name := strings.ToLower(strings.TrimSuffix(peer.DNSName, "."))
+		for _, ip := range peer.TailscaleIPs {
+			if parsed := net.ParseIP(ip); name != "" && parsed != nil && parsed.To4() != nil {
+				book[name] = ip
+				break
+			}
+		}
+	}
+	return book, nil
+}
+
+func readTailnetAddresses() (map[string]string, error) {
+	command, err := tailscaleCommand("status", "--json")
+	if err != nil {
+		return nil, err
+	}
+	raw, err := command.Output()
+	if err != nil {
+		return nil, fmt.Errorf("tailscale status: %w", err)
+	}
+	return parseTailnetAddresses(raw)
+}
+
+// admits says whether origin is a page of a peer that admit lets in. Only a
+// daemon's own ports count, so a peer's other web apps get nothing.
+func (s siblingPages) admits(origin *url.URL, admit func(ip string) error) bool {
+	if s.addresses == nil {
+		return false
+	}
+	name := strings.ToLower(origin.Hostname())
+	if port := origin.Port(); port != "" && port != "443" && !slices.Contains(s.ports, port) {
+		return false
+	}
+	book, err := s.addresses()
+	if err != nil {
+		return false
+	}
+	ip, ok := book[name]
+	return ok && admit(ip) == nil
+}
+
 // tailnetOrigin serves a websocket to the page the listener served itself, a
-// configured hosted page, and the Android and Mac apps.
-func tailnetOrigin(allowOrigins []string) func(*http.Request, *url.URL) bool {
+// configured hosted page, the Android and Mac apps, and a sibling node's page.
+func tailnetOrigin(allowOrigins []string, sibling func(*url.URL) bool) func(*http.Request, *url.URL) bool {
 	return func(r *http.Request, origin *url.URL) bool {
 		if origin.Scheme+"://"+strings.ToLower(origin.Host) == desktopOrigin && origin.Path == "" {
 			return true
@@ -253,13 +338,13 @@ func tailnetOrigin(allowOrigins []string) func(*http.Request, *url.URL) bool {
 			return false
 		}
 		site := "https://" + strings.ToLower(origin.Host)
-		return strings.EqualFold(origin.Host, r.Host) || slices.Contains(allowOrigins, site) || site == appOrigin
+		return strings.EqualFold(origin.Host, r.Host) || slices.Contains(allowOrigins, site) || site == appOrigin || sibling(origin)
 	}
 }
 
-// tailnetPolicy asks tailscaled who each peer is rather than trusting anything
-// the request says, and serves a websocket only to the page it served itself.
-func tailnetPolicy(node tailnetNode, allowTags, allowOwners, allowOrigins []string, whois func(string) (tailnetPeer, error)) accessPolicy {
+// tailnetPolicy asks tailscaled who each peer is, never the request, and opens a
+// websocket to its own page, an admitted sibling's, and allowOrigins.
+func tailnetPolicy(node tailnetNode, allowTags, allowOwners, allowOrigins []string, siblings siblingPages, whois func(string) (tailnetPeer, error)) accessPolicy {
 	admission := &whoisAdmission{whois: whois, allowTags: allowTags}
 	owners := admittedOwners(node, allowOwners)
 	return accessPolicy{
@@ -273,8 +358,18 @@ func tailnetPolicy(node tailnetNode, allowTags, allowOwners, allowOrigins []stri
 			_, err := admission.judge(r.RemoteAddr, owners)
 			return err
 		},
-		origin: tailnetOrigin(allowOrigins),
+		origin: tailnetOrigin(allowOrigins, siblingJudge(siblings, admission, owners)),
 		remote: true,
+	}
+}
+
+// siblingJudge binds siblingPages to the admission a connecting device meets.
+func siblingJudge(siblings siblingPages, admission *whoisAdmission, owners []string) func(*url.URL) bool {
+	return func(origin *url.URL) bool {
+		return siblings.admits(origin, func(ip string) error {
+			_, err := admission.judge(ip, owners)
+			return err
+		})
 	}
 }
 
