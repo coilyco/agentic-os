@@ -8,7 +8,7 @@
   import { mergeItems, rowsFor, TranscriptRefused, type Level, type PeerRef, type TranscriptItem } from "../lib/transcript";
   import { inDemo } from "../lib/app.svelte";
   import { cacheKey, catchUp, loadSnapshot, markerRow, MAX_ITEMS, saveSnapshot } from "../lib/transcript-cache";
-  import { cancelPending, pendingFor, settlePending } from "../lib/pending-sends.svelte";
+  import { cancelPending, pendingFor, settlePending, shownText } from "../lib/pending-sends.svelte";
 
   // `restore` is false for a device that has not unlocked, which never shows a kept page.
   let { channel, sessionId, hostId, restore, level, marker, onread, onrefused, onpeer }: { channel: TranscriptChannel; sessionId: string; hostId: string; restore: boolean; level: Level; marker: boolean; onread: () => void; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void } = $props();
@@ -256,7 +256,7 @@
     {/each}
     {#each sending as send (send.id)}
       <div class="turn me sending" data-row={`sending-${send.id}`} data-state={send.state}>
-        <span class="who">You</span><p class="plain">{send.text}</p>
+        <span class="who">You</span><p class="plain">{shownText(send)}</p>
         {#if send.state === "unsent"}
           <p class="maybe warn" role="alert">Not in the transcript yet. The seat may not have taken it, for example while a dialog is open. <button type="button" class="peer" onclick={() => cancelPending(send.id)}>Dismiss</button></p>
         {:else}

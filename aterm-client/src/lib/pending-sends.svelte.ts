@@ -9,6 +9,8 @@ export const SKEW_MS = 60_000;
 export interface PendingSend {
   id: number;
   text: string;
+  /** How many images went with it. With no words, the entry names them. */
+  images: number;
   /** When the person pressed send, in ms on this device. */
   at: number;
   state: "pending" | "unsent";
@@ -32,9 +34,18 @@ export function sameWords(sent: string, prompt: string): boolean {
   return a !== "" && (b === a || b.endsWith(a));
 }
 
-export function notePending(key: string, text: string, at = Date.now()): number {
+/** A prompt of only pictures reads `[Image #1]`, once per picture. */
+const MARKERS = /^(\[image[^\]]*\]\s*)+$/i;
+
+/** The words an entry shows. A send of only pictures names them. */
+export function shownText(send: Pick<PendingSend, "text" | "images">): string {
+  if (send.text) return send.text;
+  return send.images === 1 ? "An image sent" : `${send.images} images sent`;
+}
+
+export function notePending(key: string, text: string, at = Date.now(), images = 0): number {
   const id = nextId++;
-  held[key] = [...(held[key] ?? []), { id, text, at, state: "pending" }];
+  held[key] = [...(held[key] ?? []), { id, text, images, at, state: "pending" }];
   timers.set(
     id,
     setTimeout(() => {
@@ -75,7 +86,7 @@ export function settlePending(key: string, items: readonly TranscriptItem[], fre
         item.kind === "prompt" &&
         item.text !== undefined &&
         !claimed.has(`${key}|${item.id}`) &&
-        sameWords(send.text, item.text) &&
+        (send.text ? sameWords(send.text, item.text) : MARKERS.test(flat(item.text))) &&
         (fresh || (item.at !== undefined && item.at >= send.at - SKEW_MS)),
     );
     if (!hit) continue;

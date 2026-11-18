@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearSends, jumpTo, KEEP_MS, MAX_CHARS, MAX_SEATS, newer, NOT_WALKING, older, onFirstLine, onLastLine, parseHistory, PER_SEAT, recentSends, recordSend, resetHistoryMemory, withSend, type Entry } from "./send-history";
+import { clearSends, describeImages, IMAGE_SENDS, jumpTo, KEEP_MS, MAX_CHARS, MAX_SEATS, newer, NOT_WALKING, older, onFirstLine, onLastLine, parseHistory, PER_SEAT, recentSends, recordSend, resetHistoryMemory, withSend, type Entry } from "./send-history";
 
 const sends = (...texts: string[]): Entry[] => texts.map((text, at) => ({ text, at }));
 
@@ -103,6 +103,45 @@ describe("what is kept", () => {
   });
 });
 
+describe("image sends", () => {
+  const NOW = 1_000_000_000_000;
+  const shot = (name: string, size = 100) => ({ name, size });
+  const attached = (id: string, ...files: { name: string; size: number }[]) => ({ ...describeImages(files), id });
+
+  it("keeps an image send with no words, which a words-only send would drop", () => {
+    expect(withSend({}, "k", "", NOW)).toEqual({});
+    const stored = withSend({}, "k", "", NOW, attached("a", shot("one.png")));
+    expect(stored["k"]).toEqual([{ text: "", at: NOW, images: 1, id: "a", sig: "one.png:100" }]);
+  });
+
+  it("makes a press repeated while Send is held one entry, with the first id", () => {
+    const first = withSend({}, "k", "look", NOW, attached("a", shot("one.png"), shot("two.png")));
+    const again = withSend(first, "k", "look", NOW + 5, attached("b", shot("one.png"), shot("two.png")));
+    expect(again["k"]).toHaveLength(1);
+    expect(again["k"]?.[0]).toMatchObject({ id: "a", images: 2, at: NOW + 5 });
+  });
+
+  it("treats the same words with other images as another send", () => {
+    const first = withSend({}, "k", "look", NOW, attached("a", shot("one.png")));
+    expect(withSend(first, "k", "look", NOW + 5, attached("b", shot("two.png")))["k"]).toHaveLength(2);
+    expect(withSend(first, "k", "look", NOW + 5)["k"]).toHaveLength(2);
+  });
+
+  it("keeps images for the newest ten image sends only, and an older one keeps its words", () => {
+    let stored = {};
+    for (let i = 0; i < IMAGE_SENDS + 2; i++) stored = withSend(stored, "k", i % 2 ? `note ${i}` : "", NOW + i, attached(`id${i}`, shot(`s${i}.png`)));
+    const list = (stored as Record<string, Entry[]>)["k"]!;
+    expect(list.filter((one) => one.images)).toHaveLength(IMAGE_SENDS);
+    expect(list.some((one) => one.text === "" && !one.images), "a wordless send lost its images and stayed").toBe(false);
+    expect(list.find((one) => one.text === "note 1"), "a send with words keeps the words").toEqual({ text: "note 1", at: NOW + 1 });
+  });
+
+  it("reads an entry with images and no words back from storage", () => {
+    const raw = JSON.stringify({ k: [{ text: "", at: NOW, images: 2, id: "a", sig: "x" }, { text: "", at: NOW }] });
+    expect(parseHistory(raw, NOW)["k"]).toHaveLength(1);
+  });
+});
+
 describe("on the device", () => {
   const store = new Map<string, string>();
   beforeEach(() => {
@@ -116,6 +155,16 @@ describe("on the device", () => {
     recordSend("mac/imp", "two");
     resetHistoryMemory();
     expect(recentSends("mac/imp").map((one) => one.text)).toEqual(["two", "one"]);
+  });
+
+  it("hands back an id for new images and none for the same press again", () => {
+    const file = new File(["x"], "shot.png", { type: "image/png" });
+    const first = recordSend("mac/imp", "", [file]);
+    expect(first.fresh).toBe(true);
+    expect(first.id).toBeTruthy();
+    const again = recordSend("mac/imp", "", [file]);
+    expect(again).toEqual({ id: first.id, fresh: false });
+    expect(recordSend("mac/imp", "words only")).toEqual({ fresh: false });
   });
 
   it("clears one seat and leaves the others", () => {

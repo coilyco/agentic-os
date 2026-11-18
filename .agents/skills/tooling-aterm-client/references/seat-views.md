@@ -36,7 +36,8 @@ The transcript shows a message only once the harness writes it, and the client p
 * **At send** - the Composer notes the words in `pending-sends.svelte.ts` before the first byte is typed, and the view draws a dashed "You" entry marked `Sending.` on the next frame, scrolled into view.
 * **Resolving** - a prompt that arrives with the same words (an attached image's path before them counts) removes the entry in the same update that merges it, so the message never shows twice. A prompt resolves one send, so two sends of the same words stay two. A first read trusts a prompt only by its stamp, within 60 seconds before the send, for host clock drift.
 * **Never taken** - after 30 seconds the entry turns amber, says `Not in the transcript yet`, and offers Dismiss. A late prompt still resolves it. A send the lock refused and returned to the field leaves no entry.
-* **Not covered** - an image sent with no words, and a restart: entries live in memory (send history is COI-3691).
+* **Pictures only** (COI-3705) - a send with no words shows `An image sent`, or `2 images sent`, and settles on the first new prompt that is only image markers such as `[Image #1]`. That marker is the harness's, and the daemon drops a Claude line with no text at all, so a harness that writes none leaves the entry to turn unsent. Not yet checked against a real seat.
+* **Not covered** - a restart: entries live in memory (send history is COI-3691).
 * **Journey** - `pending-send`, with the page clock moved 31 seconds for the unsent state.
 
 ## Where it lives
