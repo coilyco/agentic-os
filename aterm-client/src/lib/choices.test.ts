@@ -26,6 +26,32 @@ const trust = [
   "",
 ];
 
+// Claude Code 2.1.327 at 100 columns, run with a made-up API key (COI-3680).
+// No real sign-in was made. Blank rows were not kept.
+const securityNotes = [
+  "       █████████                                        *",
+  "      ██▄█████▄██                        *",
+  "       █████████      *",
+  ".......█ █   █ █..........................................",
+  " Security notes:",
+  " 1. Claude can make mistakes.",
+  "    You're responsible for Claude's actions and should always",
+  "    review them, especially when running code.",
+  " 2. Due to prompt injection risks, only use it with code you trust",
+  "    Learn more: https://code.claude.com/docs/en/security",
+  " Press Enter to continue…",
+];
+
+// What a logged-out seat draws before its prompt. It is not a card.
+const loginMethod = [
+  " Claude Code can be used with your Claude subscription or billed based on API usage through your",
+  " Console account.",
+  " Select login method:",
+  " ❯ 1. Claude account with subscription · Individual, Team, or Enterprise",
+  "   2. Anthropic Console account · API usage billing",
+  "   3. 3rd-party platform · Bedrock, Microsoft Foundry, Google Vertex AI",
+];
+
 // Captured from Claude Code v2.1.282 showing an AskUserQuestion menu.
 const ask = [
   "❯ Use the AskUserQuestion tool once to ask me which accent color the aterm client should",
@@ -418,6 +444,48 @@ describe("a dialog taller than the screen", () => {
     const choice = detectChoice(["Which?", "", "  1. Black", "  2. Gold", "──────────────", "❯ 3. Chat about this", "", "Enter to select · Esc to cancel"]);
     expect(choice?.options.map((option) => option.label)).toEqual(["Black", "Gold", "Chat about this"]);
     expect(choice?.cursor).toBe(2);
+  });
+});
+
+describe("a screen that waits on Enter alone (COI-3680)", () => {
+  it("reads the security notes as a card with one Continue row, so a message waits", () => {
+    const found = detectChoice(securityNotes);
+    expect(found).toMatchObject({ waiting: true, cancellable: false, multi: false, cursor: 0, options: [{ label: "Continue", freeText: false }] });
+    expect(found?.question).toBe("Security notes:\n1. Claude can make mistakes. You're responsible for Claude's actions and should always review them, especially when running code.\n2. Due to prompt injection risks, only use it with code you trust Learn more: https://code.claude.com/docs/en/security");
+  });
+
+  it("answers with Enter alone", () => {
+    expect(keysFor(detectChoice(securityNotes)!, 0)).toEqual(["\r"]);
+  });
+
+  // Not captured: the string is from the 2.1.327 binary, and no real login was run.
+  it("reads the line that follows a login, with what it says kept", () => {
+    const found = detectChoice(["", " Login successful. Press Enter to continue…", ""]);
+    expect(found?.waiting).toBe(true);
+    expect(found?.question).toBe("Login successful.");
+  });
+
+  it("keeps the whole text when a narrow terminal wraps it over many rows", () => {
+    const narrow = ["Security notes:", "1. Claude can make", "mistakes.", "You're responsible for", "Claude's actions and", "should always review", "them, especially when", "running code.", "2. Due to prompt", "injection risks, only", "use it with code you", "trust", "Learn more:", "https://code.claude.com", "/docs/en/security", "Press Enter to continue…"];
+    expect(detectChoice(narrow)?.question.startsWith("Security notes:\n1. Claude can make mistakes. You're responsible")).toBe(true);
+  });
+
+  it("takes three dots as the ellipsis, and no ellipsis at all", () => {
+    expect(detectChoice(["Press Enter to continue..."])?.waiting).toBe(true);
+    expect(detectChoice(["Press Enter to continue"])?.waiting).toBe(true);
+  });
+
+  it("is not there once the prompt is, or when the phrase is only in a reply", () => {
+    const reply = ["● Run it, then press Enter to continue…", "", "╭──────────────╮", "│ >            │", "╰──────────────╯", "  ? for shortcuts"];
+    expect(detectChoice(reply)).toBeNull();
+    expect(detectChoice([" Press Enter to continue… to see the rest", ""])).toBeNull();
+    expect(detectChoice(["Press Enter to continue…", "", "  ❯ Try \"fix lint errors\""])).toBeNull();
+  });
+
+  it("leaves the screens around it as they were: the login picker is no card, the trust prompt still is", () => {
+    expect(detectChoice(loginMethod)).toBeNull();
+    expect(detectChoice(trust)?.waiting).toBeUndefined();
+    expect(detectChoice(trust)?.options).toHaveLength(2);
   });
 });
 
