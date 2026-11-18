@@ -8,6 +8,7 @@
   import { mergeItems, rowsFor, TranscriptRefused, type Level, type PeerRef, type TranscriptItem } from "../lib/transcript";
   import { inDemo } from "../lib/app.svelte";
   import { cacheKey, catchUp, loadSnapshot, markerRow, MAX_ITEMS, saveSnapshot } from "../lib/transcript-cache";
+  import { cancelPending, pendingFor, settlePending, shownText } from "../lib/pending-sends.svelte";
 
   // `restore` is false for a device that has not unlocked, which never shows a kept page.
   let { channel, sessionId, hostId, restore, level, marker, onread, onrefused, onpeer }: { channel: TranscriptChannel; sessionId: string; hostId: string; restore: boolean; level: Level; marker: boolean; onread: () => void; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void } = $props();
@@ -44,6 +45,7 @@
   // Whether the view sits at the newest line, so arriving text follows and a person's place is kept.
   let pinned = $state(true);
   const rows = $derived(rowsFor(items, level));
+  const sending = $derived(pendingFor(key));
   const markerKey = $derived(markerRow(items, rows.map((row) => row.key), newFrom));
   const age = $derived(replyAge(updatedAt, now));
 
@@ -65,6 +67,7 @@
     older = joined ? joined.older : reply.older;
     // The marker is for opening a seat. Coming back from another view reads the page it kept a moment ago (COI-3647).
     newFrom = marker ? joined?.newFrom : undefined;
+    settlePending(key, reply.items, false);
     cursor = reply.cursor;
     updatedAt = Date.now();
     phase = "ready";
@@ -95,6 +98,17 @@
     saving = setTimeout(() => void saveSnapshot(key, $state.snapshot(items.slice(-MAX_ITEMS)), older), 1000);
   }
 
+  // A message the person just sent is where they look next, whatever they had scrolled to.
+  let sentBefore = 0;
+  $effect(() => {
+    const count = sending.length;
+    if (count > untrack(() => sentBefore)) {
+      pinned = true;
+      void follow();
+    }
+    sentBefore = count;
+  });
+
   // The marker has done its job once the person has been at the newest line a while.
   $effect(() => {
     if (!newFrom || !pinned) return;
@@ -111,6 +125,8 @@
       else {
         const reply = await channel.read(sessionId, { since: cursor });
         if (reply.items.length) items = mergeItems(items, reply.items);
+        // In the same update as the merge, so the real entry never shows beside its pending one.
+        settlePending(key, reply.items, true);
         cursor = reply.cursor || cursor;
         updatedAt = Date.now();
         stale = false;
@@ -217,7 +233,7 @@
     {/if}
     {#if phase === "loading"}
       <p class="status" role="status">Reading this seat's transcript.</p>
-    {:else if rows.length === 0}
+    {:else if rows.length === 0 && sending.length === 0}
       <p class="status" role="status">No messages yet. Verbose has the raw screen.</p>
     {/if}
     {#each rows as row (row.key)}
@@ -238,6 +254,16 @@
         <p class="note" data-row={row.key}>{row.text}</p>
       {/if}
     {/each}
+    {#each sending as send (send.id)}
+      <div class="turn me sending" data-row={`sending-${send.id}`} data-state={send.state}>
+        <span class="who">You</span><p class="plain">{shownText(send)}</p>
+        {#if send.state === "unsent"}
+          <p class="maybe warn" role="alert">Not in the transcript yet. The seat may not have taken it, for example while a dialog is open. <button type="button" class="peer" onclick={() => cancelPending(send.id)}>Dismiss</button></p>
+        {:else}
+          <p class="maybe" role="status">Sending.</p>
+        {/if}
+      </div>
+    {/each}
   </div>
   {#if !pinned || detached}
     <button type="button" class="jump" onclick={() => void jump()}><span aria-hidden="true">↓</span> Jump to latest</button>
@@ -253,6 +279,11 @@
   .turn.me { border-left: 3px solid var(--brand); padding-left: 10px; color: var(--text); }
   .who { display: block; font: 600 11px var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
   .plain { margin: 2px 0 0; white-space: pre-wrap; }
+  /* Dashed until the harness has it, amber if it has not taken it: the colour rule's "take care". */
+  .turn.sending { border-left-style: dashed; color: var(--text-soft); }
+  .turn.sending[data-state="unsent"] { border-left-color: var(--warn); }
+  .turn .maybe.warn { color: var(--warn-text); }
+  .turn .maybe.warn .peer { padding-left: 0; }
   .step { min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: 400 13px/1.45 var(--font-mono); color: var(--muted); }
   .step[data-failed="true"] { border-color: var(--danger-line); }
   .line { margin: 0; overflow-wrap: anywhere; color: var(--text-soft); }

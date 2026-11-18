@@ -488,3 +488,14 @@ describe("a screen that waits on Enter alone (COI-3680)", () => {
     expect(detectChoice(trust)?.options).toHaveLength(2);
   });
 });
+
+// The card shows a Type something row as Something else (COI-3689).
+describe("a captured multi-select with its free-text row and footer", () => {
+  const shot = (name: string): string[] => readFileSync(new URL(`../../testbed/fixtures/captures/claude-2.1.318-${name}.txt`, import.meta.url), "utf8").replace(/\n+$/, "").split("\n");
+
+  it.each(["72-03-after-enter-q2", "72-05-q2-cursor-on-next", "134-01-q2"])("reads %s as a card of checkboxes with one typed row", (name) => {
+    const found = detectChoice(shot(name));
+    expect(found?.multi).toBe(true);
+    expect(found?.options.filter((option) => option.freeText)).toHaveLength(1);
+  });
+});

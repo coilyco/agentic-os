@@ -20,10 +20,11 @@ The loopback daemon accepts the webview's `tauri://localhost` origin, since its 
 
 ## Commands
 
-**A seat does not run the install or the login swap.** The umbra fs guard refuses a write under `~/Applications`, and a login item is Kai's. The infrastructure `treehouse-mac` role does both, and `just mac-converge apply` in infrastructure runs it outside the session with the real `HOME` (COI-3234). It rebuilds only when the `aterm-android/` or `aterm-client/` tree on main changed, defers the install while Treehouse is open, and prints `login: changed` or `login: unchanged`.
+**A seat does not run the install or the login swap.** The umbra fs guard refuses a write under `~/Applications`, and a login item is Kai's. The infrastructure `treehouse-mac` role does both, and `just mac-converge apply` in infrastructure runs it outside the session with the real `HOME` (COI-3234). It rebuilds only when a path in its `treehouse_mac_trees` setting changed on main, which includes `scripts/treehouse-mac.sh`, defers the install while Treehouse is open, and prints `login: changed` or `login: unchanged`.
 
 * `just treehouse-mac-test` runs the shell's Rust tests.
 * `just treehouse-mac-build` builds the client for the app, builds the bundle, and signs it under the bundle id. The version shown is the newest `aterm-android` release tag, or `TREEHOUSE_VERSION` where the tree has no tags.
+* `just treehouse-mac-arch [app]` fails when the built app, or the bundle named, holds a Mach-O with an Intel slice and no arm64 slice, or an `LSRequiresCarbon` key. macOS warns "Support Ending for Intel-based Apps" for the first (COI-3700). The second is Tauri's default plist key, dropped after bundling because it may count as an Intel component, which is unproven (COI-3703). The build runs it before signing. It reads headers and the plist (`scripts/check_app_bundle.py`), so its tests need no Mac, and it checks the bundle and not what the app starts at run time.
 * `just treehouse-mac-sign-setup` imports the signing identity from SSM. Run it once, from a session with AWS access.
 * `just treehouse-mac-install` copies it to `~/Applications/Treehouse.app`. The role calls it.
 * `just treehouse-mac-login on` adds Treehouse, then removes Portfolio Director, and takes Treehouse off again if the removal fails, so there is one. `off` reverses both. `status` lists them. The role calls it.
