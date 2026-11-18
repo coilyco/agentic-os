@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Fail when a Mach-O under a path carries an Intel slice and no arm64 slice (COI-3700).
+"""Fail when an app bundle holds what macOS may count as an Intel component (COI-3700).
 
-macOS warns "Support Ending for Intel-based Apps" for an app that holds such a binary.
-Headers are read directly, so the check needs no lipo or macOS runner. Why and what it
-misses: .agents/skills/tooling-aterm-client/references/desktop.md.
+A Mach-O with an Intel slice and no arm64 slice, or a legacy Info.plist key (COI-3703).
+Headers and plists are read directly, so the check needs no lipo, plutil or macOS runner.
+Why and what it misses: .agents/skills/tooling-aterm-client/references/desktop.md.
 """
 from __future__ import annotations
 
 import argparse
 import os
+import plistlib
 import struct
 import sys
 from collections.abc import Iterator
+from xml.parsers.expat import ExpatError
 
 CPU_ARCHS = {
     0x00000007: "i386",
@@ -26,6 +28,9 @@ FAT = {0xCAFEBABE: 20, 0xCAFEBABF: 32}  # magic, then bytes per arch entry
 # A Java class file also starts 0xCAFEBABE, with a version where a fat count would be.
 MAX_FAT_ARCHS = 16
 HEADER_BYTES = 1024
+# Carbon predates Apple silicon. Tauri's bundler writes the key by default, and whether
+# macOS counts it as an Intel component is unproven, so the build drops it (COI-3703).
+FORBIDDEN_PLIST_KEYS = ("LSRequiresCarbon",)
 
 
 def macho_archs(header: bytes, size: int) -> list[str] | None:
@@ -71,17 +76,36 @@ def scan(root: str) -> Iterator[tuple[str, list[str]]]:
                 yield path, archs
 
 
+def plist_problems(root: str) -> list[str]:
+    """Report lines for root's Contents/Info.plist: a forbidden key, or a plist unreadable.
+
+    Only a bundle root has one, so a plain directory yields nothing. A plist that is
+    there and cannot be read is a problem, since passing it would pass what it hides."""
+    path = os.path.join(root, "Contents", "Info.plist")
+    try:
+        with open(path, "rb") as handle:
+            info = plistlib.load(handle)
+    except (FileNotFoundError, NotADirectoryError):
+        return []
+    except (OSError, ValueError, plistlib.InvalidFileException, ExpatError) as error:
+        return [f"UNREADABLE-PLIST {path} ({error.__class__.__name__})"]
+    return [f"LEGACY-KEY {key} {path}" for key in FORBIDDEN_PLIST_KEYS if key in info]
+
+
 def intel_only(archs: list[str]) -> bool:
     return bool(INTEL & set(archs)) and "arm64" not in archs
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("roots", nargs="+", help="a bundle or directory to scan")
+    parser.add_argument("roots", nargs="+", help="an app bundle or directory to scan")
     parser.add_argument("--all", action="store_true", help="list every Mach-O, not only the Intel-only ones")
     args = parser.parse_args()
     found = bad = 0
     for root in args.roots:
+        for line in plist_problems(root):
+            bad += 1
+            print(line)
         for path, archs in scan(root):
             found += 1
             if intel_only(archs):
@@ -89,7 +113,7 @@ def main() -> int:
                 print(f"INTEL-ONLY {'+'.join(archs)} {path}")
             elif args.all:
                 print(f"ok         {'+'.join(archs)} {path}")
-    print(f"{found} Mach-O file(s) scanned, {bad} Intel-only", file=sys.stderr)
+    print(f"{found} Mach-O file(s) scanned, {bad} problem(s)", file=sys.stderr)
     return 1 if bad else 0
 
 
