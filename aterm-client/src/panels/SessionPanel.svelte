@@ -29,6 +29,8 @@
   import { sessionCode } from "../lib/sessions";
   import { findPeerMessage } from "../lib/peer-link";
   import { mayClear, refusalText, type Level, type PeerRef } from "../lib/transcript";
+  import { cacheKey } from "../lib/transcript-cache";
+  import { cancelPending, notePending } from "../lib/pending-sends.svelte";
   import { needsPasskey } from "../lib/typing";
   import { loadOverrides, sideTabFor, storeOverride, type SideTab } from "../lib/side-tab";
   import { loadSide, loadSideOpen, storeSide, storeSideOpen } from "../lib/split";
@@ -417,6 +419,7 @@
             place={placeNow()}
             working={session.state === "working" && !blank}
             busy={session.state === "working"}
+            pending={{ note: (id, text) => notePending(cacheKey(app.selectedHostId ?? "", id), text), cancel: cancelPending }}
           />
           <!-- Gives way to the keyboard, so the pin never takes the terminal's last lines. -->
           {#if narrow && !layout.reading && showRaw}<LastReply {session} connection={app.connection} hidden={app.composing} />{/if}
