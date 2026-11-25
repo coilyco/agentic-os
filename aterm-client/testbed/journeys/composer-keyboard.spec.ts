@@ -15,9 +15,12 @@ test("type to a seat with the keyboard up", async ({ bed }, info) => {
   await expect.poll(() => bed.mock.boxOf(SEATS.imp.id)!.rows).not.toBe(before);
   // A late font or a slow frame can resize once more, so the shot waits for a long quiet.
   await expect.poll(() => bed.mock.idleMs(), { timeout: 15000 }).toBeGreaterThan(1500);
-  // With focus in the composer the tab strip goes away, so the seat has room.
+  // The tab strip stays put mid-draft, above the keyboard, one tap from the side panel.
   await composer.focus();
-  await expect(bed.page.getByRole("tab", { name: "Messages" }), "the tab strip stays under the keyboard").toBeHidden();
+  const tab = bed.page.getByRole("tab", { name: "Messages" });
+  await expect(tab, "the tab strip stays while the composer has focus").toBeVisible();
+  const strip = (await tab.boundingBox())!;
+  expect(strip.y + strip.height, "the strip sits above the keyboard's edge").toBeLessThanOrEqual(size.height - keyboard);
   await bed.step("keyboard-up");
   await composer.fill("run the gate again and tell me what changed");
   await bed.step("typed");
