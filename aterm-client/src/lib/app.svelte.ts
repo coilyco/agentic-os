@@ -374,9 +374,7 @@ async function refreshFound(): Promise<void> {
         for (const id of staleFoundHosts(app.hosts, listedAddresses(found))) removeHost(id);
       }
       const added = newFoundHosts(app.hosts, found);
-      // Before the dev mock host, which stays last.
-      const mock = app.hosts.findIndex((host) => host.kind === "mock");
-      app.hosts.splice(mock < 0 ? app.hosts.length : mock, 0, ...added);
+      insertHosts(added);
       for (const host of added) void checkHost(app.hosts.find((candidate) => candidate.id === host.id)!);
     } while (refreshFoundAgain);
   } finally {
@@ -399,6 +397,12 @@ export function saveFoundHost(host: Host): void {
   persist();
 }
 
+/** Real hosts go before the dev mock row, which stays last, or at the end with none. */
+function insertHosts(hosts: Host[]): void {
+  const mock = app.hosts.findIndex((host) => host.kind === "mock");
+  app.hosts.splice(mock < 0 ? app.hosts.length : mock, 0, ...hosts);
+}
+
 /** Adds a host by tailnet name, remembered on this device. Throws a readable message. */
 export function addHost(input: string): Host {
   const saved = parseHostInput(input);
@@ -408,7 +412,7 @@ export function addHost(input: string): Host {
     return existing;
   }
   const host = savedHost(saved);
-  app.hosts.splice(app.hosts.length - 1, 0, host);
+  insertHosts([host]);
   persist();
   void checkHost(app.hosts.find((candidate) => candidate.id === host.id)!);
   return host;

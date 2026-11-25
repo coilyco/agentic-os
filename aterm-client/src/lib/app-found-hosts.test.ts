@@ -65,6 +65,12 @@ describe("refreshing found hosts", () => {
     expect(labels(app.hosts)).toEqual(["this Mac", "tower"]);
   });
 
+  it("adds a typed host after the last real one in a production build", async () => {
+    const { app, addHost } = await boot(false);
+    addHost("mac.example.ts.net:7419");
+    expect(labels(app.hosts)).toEqual(["this Mac", "mac"]);
+  });
+
   it("keeps a found host that answered after the daemons stop listing it", async () => {
     replies.found = [tower];
     const { app } = await boot();
