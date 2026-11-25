@@ -2,7 +2,7 @@
 # requires-python = ">=3.12"
 # dependencies = ["playwright==1.59.0"]
 # ///
-"""Drive the real aterm client against the Demo host, headless, and assert the screen.
+"""Drive the real aterm client against the dev mock host, headless, and assert the screen.
 
 Serves its own dev server on a free port, so another seat's server is never tested.
 Reference: tooling-aterm-client, "One input at every width".
@@ -21,7 +21,7 @@ from playwright.sync_api import sync_playwright
 
 CLIENT = Path(__file__).resolve().parent.parent
 WIDTHS = [(1280, 800), (320, 640)]
-# A real 1x1 PNG, so the Demo host reads it as an image by its bytes.
+# A real 1x1 PNG, so the mock host reads it as an image by its bytes.
 PIXEL = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
 PROBE = """() => {
   const seen = (e) => { const r = e.getBoundingClientRect(); const s = getComputedStyle(e); return r.width > 4 && r.height > 4 && s.visibility !== 'hidden' && s.opacity !== '0'; };
@@ -61,7 +61,7 @@ def serve(port: int) -> subprocess.Popen:
 def open_seat(browser, url: str, size: tuple[int, int], seat: str):
     page = browser.new_page(viewport={"width": size[0], "height": size[1]})
     page.goto(url)
-    page.get_by_role("tab", name="Demo host").click()
+    page.get_by_role("tab", name="Mock host").click()
     # A desktop switches seats by tab, a phone by a row in the seat list.
     # A phone row's name opens with the tab's name, which tells two Beetle-Ox seats apart.
     tab = page.get_by_role("tab", name=seat)
@@ -134,7 +134,7 @@ def feedback(page, tag: str, expect) -> None:
     send.click()
     sheet.get_by_role("heading", name="Sent").wait_for()
     done = sheet.get_by_role("status").inner_text()
-    expect(f"{tag} feedback: a send names its record", "fb-demo-" in done, done)
+    expect(f"{tag} feedback: a send names its record", "fb-mock-" in done, done)
 
 
 def sign_in(browser, url: str, size: tuple[int, int], tag: str, expect) -> None:
@@ -143,7 +143,7 @@ def sign_in(browser, url: str, size: tuple[int, int], tag: str, expect) -> None:
     # Nothing navigates: window.open is replaced by a stub that records the address.
     page.add_init_script("window.__opened = []; window.open = (u) => { window.__opened.push(String(u)); return null; };")
     page.goto(url)
-    page.get_by_role("tab", name="Demo host").click()
+    page.get_by_role("tab", name="Mock host").click()
     # A desktop switches seats by tab, a phone by a row in the seat list.
     tab = page.get_by_role("tab", name="Heron-Ox")
     (tab if tab.count() else page.get_by_role("button", name=re.compile("Heron-Ox"))).first.click()

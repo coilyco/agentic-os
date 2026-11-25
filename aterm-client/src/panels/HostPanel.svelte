@@ -1,7 +1,6 @@
 <script lang="ts">
   import { addHost, app, checkHost, overviewShown, placeNow, reconnecting, refreshMachines, removeHost, saveFoundHost, selectHost, selectedHost } from "../lib/app.svelte";
   import AccountPanel from "../components/AccountPanel.svelte";
-  import DemoEntry from "../components/DemoEntry.svelte";
   import Unlock from "../components/Unlock.svelte";
   import { CAN_PASSKEY, EXTERNAL } from "../lib/build";
   import type { Host } from "../lib/protocol";
@@ -68,7 +67,6 @@
     {#if EXTERNAL && !hasDaemonHost}
       <p class="lede">No hosts on this device yet. Add one by its tailnet name, once, and this device remembers it.</p>
     {/if}
-    <DemoEntry />
     <form class="add" onsubmit={add}>
       <label for="add-host">Add a host by its tailnet name</label>
       <div class="row">

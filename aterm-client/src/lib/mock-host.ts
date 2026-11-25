@@ -1,15 +1,15 @@
-// The demo host: scripted sessions shaped like aterm.daemon.v1, for working on
+// The mock host: scripted sessions shaped like aterm.daemon.v1, for working on
 // the surface with no daemon running. Nothing here reaches a real PTY.
 import rosterJson from "./fixtures/roster.json";
 import { envelope } from "./messages";
 import { FEEDBACK_TEXT_MAX, feedbackRefusal } from "./feedback";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
-import { DEMO_FILES } from "./fixtures/demo-media";
+import { MOCK_FILES } from "./fixtures/mock-media";
 import { mediaRefusal } from "./media";
 import type { Ask, ContextReading, HostConnection, FeedbackChannel, HostEvent, ImageChannel, MediaChannel, PeerMessage, Session, TerminalChannel } from "./protocol";
 import { parseRoster } from "./roster";
-import { CLAUDE_BOX, CLAUDE_DIALOG, drawHarness, loginFrame, type Frame, type LoginStage } from "./demo-harness";
-import { runShellLine, SHELL_PROMPT, type ShellStep } from "./demo-shell";
+import { CLAUDE_BOX, CLAUDE_DIALOG, drawHarness, loginFrame, type Frame, type LoginStage } from "./mock-harness";
+import { runShellLine, SHELL_PROMPT, type ShellStep } from "./mock-shell";
 import type { ListedTerminal } from "./terminals";
 
 const DIM = "\x1b[2m";
@@ -23,11 +23,11 @@ const scripts: Record<string, string[]> = {
   scientist: ["› run the latency sweep", `${DIM}● route 4 of 12, measuring${RESET}`],
 };
 
-/** What a turn adds to a demo seat's context, so the meter is seen to move. */
+/** What a turn adds to a mock seat's context, so the meter is seen to move. */
 const TURN_TOKENS = 3000;
 
-// The one code the signed-out demo seat accepts. Any other draws the refusal.
-const DEMO_CODE = "demo-code#demo-state";
+// The one code the signed-out mock seat accepts. Any other draws the refusal.
+const MOCK_CODE = "demo-code#demo-state";
 const LOGIN_SEAT = "scientist-heron-ox-lg01";
 
 function session(id: string, role: string, seat: string, identity: string, state: Session["state"], pending = 0, context?: ContextReading): Session {
@@ -51,12 +51,12 @@ function isImage(head: Uint8Array): boolean {
   return starts(0x89, 0x50, 0x4e, 0x47) || starts(0xff, 0xd8, 0xff) || starts(0x47, 0x49, 0x46, 0x38) || (starts(0x52, 0x49, 0x46, 0x46) && head[8] === 0x57 && head[9] === 0x45);
 }
 
-// The seat the demo's shared files come from.
+// The seat the mock's shared files come from.
 const MEDIA_SEAT = "frontend-eng-imp-dragonfly-dj99";
 
-function demoMediaOn(): boolean {
+function mockMediaOn(): boolean {
   try {
-    return localStorage.getItem("aterm.demo-media") === "1";
+    return localStorage.getItem("aterm.mock-media") === "1";
   } catch {
     return false;
   }
@@ -65,10 +65,10 @@ function demoMediaOn(): boolean {
 export class MockHost implements HostConnection {
   readonly canLaunch = true;
   // Off unless asked for: no daemon shares files yet, and this host scripts what one has.
-  readonly media?: MediaChannel = demoMediaOn()
+  readonly media?: MediaChannel = mockMediaOn()
     ? {
         read: async (item) => {
-          const file = DEMO_FILES.find((each) => each.id === item.id);
+          const file = MOCK_FILES.find((each) => each.id === item.id);
           if (!file) throw new Error(mediaRefusal("media_unknown"));
           await new Promise((resolve) => setTimeout(resolve, 300));
           return new Blob([Uint8Array.from(atob(file.base64), (char) => char.charCodeAt(0))], { type: file.mime });
@@ -86,7 +86,7 @@ export class MockHost implements HostConnection {
       const held = (this.uploads.get(sessionId) ?? 0) + 1;
       this.uploads.set(sessionId, held);
       await new Promise((resolve) => setTimeout(resolve, 400));
-      return `/tmp/aterm-demo/images/${sessionId}-1/${String(held).padStart(4, "0")}.png`;
+      return `/tmp/aterm-mock/images/${sessionId}-1/${String(held).padStart(4, "0")}.png`;
     },
   };
   // COI-3345's frames, scripted before the daemon has them, under the image rules above.
@@ -104,7 +104,7 @@ export class MockHost implements HostConnection {
       progress?.(report.images.length, report.images.length);
       await new Promise((resolve) => setTimeout(resolve, 250));
       this.reports += 1;
-      return `fb-demo-${String(this.reports).padStart(4, "0")}`;
+      return `fb-mock-${String(this.reports).padStart(4, "0")}`;
     },
   };
   private reports = 0;
@@ -214,7 +214,7 @@ export class MockHost implements HostConnection {
     for (const ask of this.asks) listener({ type: "ask", ask });
     if (this.terminalMode === "locked") listener({ type: "typing", typing: { allowed: false, reason: "peer_unread" } });
     listener({ type: "features", terminals: this.terminals !== undefined, feedback: true });
-    if (this.media) for (const file of DEMO_FILES) listener({ type: "media", item: { id: file.id, session: MEDIA_SEAT, name: file.name, mime: file.mime, kind: file.kind, size: Math.floor((file.base64.length * 3) / 4) } });
+    if (this.media) for (const file of MOCK_FILES) listener({ type: "media", item: { id: file.id, session: MEDIA_SEAT, name: file.name, mime: file.mime, kind: file.kind, size: Math.floor((file.base64.length * 3) / 4) } });
     if (this.terminals && this.terminalMode !== "mute") listener({ type: "terminals", terminals: this.listShells() });
     return () => this.listeners.delete(listener);
   }
@@ -261,7 +261,7 @@ export class MockHost implements HostConnection {
     } else if (state.stage === "code") {
       if (data === "\x1b") state.stage = "method";
       else if (data === "\r") {
-        state.stage = state.typed === DEMO_CODE ? "done" : "error";
+        state.stage = state.typed === MOCK_CODE ? "done" : "error";
         state.typed = "";
       } else state.typed += data;
     } else if (data === "\r") state.stage = "method";
@@ -284,7 +284,7 @@ export class MockHost implements HostConnection {
     // Like the daemon, a launch opens another instance beside any that are running.
     this.sessions = [...this.sessions.filter((each) => !(each.role === role && each.state === "failed")), session(id, role, seat, identity, "idle")];
     this.buffers.set(id, `${DIM}${seat} started for ${identity}${RESET}${PROMPT}`);
-    this.emit({ type: "launch", role, state: "started", text: `${role} launched on the demo host.` });
+    this.emit({ type: "launch", role, state: "started", text: `${role} launched on the mock host.` });
     this.emit({ type: "sessions", sessions: this.sessions });
   }
 
@@ -308,12 +308,12 @@ export class MockHost implements HostConnection {
     this.timers.push(
       setTimeout(() => {
         if (this.terminalMode === "refuse") {
-          this.emit({ type: "terminal_refused", label, text: "The demo host has no login shell to start." });
+          this.emit({ type: "terminal_refused", label, text: "The mock host has no login shell to start." });
           return;
         }
         const id = `terminal-${++this.nextShell}`;
         this.shells.set(id, { label, line: "" });
-        this.buffers.set(id, `${DIM}demo shell, nothing real runs here${RESET}\r\n${SHELL_PROMPT}`);
+        this.buffers.set(id, `${DIM}mock shell, nothing real runs here${RESET}\r\n${SHELL_PROMPT}`);
         if (this.terminalMode === "early") {
           this.emit({ type: "terminal_opened", label, id });
           this.timers.push(setTimeout(() => this.emit({ type: "terminals", terminals: this.listShells() }), 100));

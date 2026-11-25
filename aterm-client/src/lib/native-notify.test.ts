@@ -168,12 +168,11 @@ describe("asking once", () => {
     expect(askedBefore()).toBe(false);
     expect(() => rememberAsked()).not.toThrow();
   });
-  it("waits for a screen with no composer, a visible page, a host, and no demo", () => {
-    const ready = { attached: true, visible: true, composerShown: false, demo: false };
+  it("waits for a screen with no composer, a visible page, and a host", () => {
+    const ready = { attached: true, visible: true, composerShown: false };
     expect(mayAskNow(ready)).toBe(true);
     expect(mayAskNow({ ...ready, composerShown: true })).toBe(false);
     expect(mayAskNow({ ...ready, attached: false })).toBe(false);
     expect(mayAskNow({ ...ready, visible: false })).toBe(false);
-    expect(mayAskNow({ ...ready, demo: true })).toBe(false);
   });
 });

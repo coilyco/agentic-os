@@ -42,7 +42,7 @@
   }
 
   let size = $state(loadTextSize());
-  // Hosts typed or saved here. The demo host and ones a daemon lists are not stored.
+  // Hosts typed or saved here. The dev mock host and ones a daemon lists are not stored.
   const saved = $derived(app.hosts.filter((host) => host.kind === "daemon" && !host.found));
 
   function setSize(next: number): void {

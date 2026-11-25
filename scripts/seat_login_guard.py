@@ -31,7 +31,7 @@ SEPARATORS = set(";&|()<>")
 REASON = (
     "refused: a `claude` launched with {why} has no login. Its login screen opens the "
     "host browser and asks the login Keychain for an item that does not exist, on Kai's "
-    "own screen (COI-3682). Test a login flow from captured screens, demo mode, or the "
+    "own screen (COI-3682). Test a login flow from captured screens, the dev Mock host, or the "
     "emulator lane, never with a real login on this host (tooling-aterm-client)."
 )
 

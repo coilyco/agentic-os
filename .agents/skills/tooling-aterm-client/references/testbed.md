@@ -56,7 +56,7 @@ To write or refresh the Linux baselines, run the workflow by hand with `update` 
 
 ## Beside the drive
 
-`just aterm-client-drive` drives the Demo host at 1280px and 320px with a few assertions. The bed is the wider tool: a mock daemon, five viewports, per step baselines. They do not share code.
+`just aterm-client-drive` drives the dev Mock host at 1280px and 320px with a few assertions. The bed is the wider tool: a mock daemon, five viewports, per step baselines. They do not share code.
 
 ## How many seats it holds
 
