@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- FCM starts this service in a killed app's process, so the notification needs no page. -->
+        <service android:name="dev.coilyco.treehouse.push.PushService" android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <!-- No token until the page asks for one, so a person who never turns push on has none. -->
+        <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
+    </application>
+</manifest>

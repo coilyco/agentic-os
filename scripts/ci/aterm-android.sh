@@ -118,6 +118,7 @@ build() {
   local version="${1:?usage: build VERSION OUT}" out="${2:?usage: build VERSION OUT}"
   local code
   [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "version must be major.minor.patch, got $version"
+  [ -z "${ATERM_ANDROID_PUSH_FIXTURE:-}" ] || fail "ATERM_ANDROID_PUSH_FIXTURE is for debug builds only"
   code=$(resolve_code)
   echo "building $version with version code $code"
   use_java
@@ -131,6 +132,7 @@ build() {
   just aterm-android-tauri android init --ci
   ime_patch
   icon_patch
+  push_patch
   just aterm-android-tauri android build --apk --target aarch64 --ci --config "$(tauri_config "$version" "$code")"
   if [ -e "$repo_root/.git" ] && ! git -C "$repo_root" diff --quiet -- aterm-android/src-tauri/Cargo.lock; then
     fail "the build changed Cargo.lock, commit the lock it resolved"
@@ -156,6 +158,32 @@ icon_patch() {
   [ -d "$android_dir/src-tauri/icons/android" ] || fail "no launcher icons at $android_dir/src-tauri/icons/android"
   cp -R "$android_dir/src-tauri/icons/android/." "$res/"
   rm -f "$res/drawable-v24/ic_launcher_foreground.xml" "$res/drawable/ic_launcher_background.xml"
+}
+
+# push_patch [fixture]: ATERM_ANDROID_GOOGLE_SERVICES_JSON as the resources Firebase
+# reads, unset leaves push off. Contract: references/android-push.md (COI-3750).
+push_patch() {
+  local values="$android_dir/src-tauri/gen/android/app/src/main/res/values" json="${ATERM_ANDROID_GOOGLE_SERVICES_JSON:-}" from=deployment
+  if [ -z "$json" ] && [ "${1:-}" = fixture ]; then
+    json=$(push_fixture)
+    from=fixture
+  fi
+  if [ -z "$json" ]; then
+    echo "push: no google-services.json in the environment, push is off in this build" >&2
+    return 0
+  fi
+  mkdir -p "$values"
+  printf '%s' "$json" | python3 -I "$repo_root/scripts/ci/aterm_google_services.py" "$APP_ID" >"$values/treehouse_push.xml" \
+    || { rm -f "$values/treehouse_push.xml"; fail "the $from google-services.json has no usable Android client for $APP_ID"; }
+  echo "push: on, from the $from google-services.json"
+}
+
+# push_fixture: a google-services.json for no real project. The key is built here so no
+# key-shaped literal sits in the repo.
+push_fixture() {
+  printf '{"project_info":{"project_number":"000000000000","project_id":"treehouse-push-fixture"},'
+  printf '"client":[{"client_info":{"mobilesdk_app_id":"1:000000000000:android:0000000000000000",'
+  printf '"android_client_info":{"package_name":"%s"}},"api_key":[{"current_key":"AIza%035d"}]}]}' "$APP_ID" 0
 }
 
 # icon_entry APK DENSITY: where the APK keeps that launcher foreground. A release build
@@ -324,6 +352,7 @@ build_debug() {
   just aterm-android-tauri android init --ci
   ime_patch
   icon_patch
+  push_patch "${ATERM_ANDROID_PUSH_FIXTURE:+fixture}"
   just aterm-android-tauri android build --debug --apk --target "$abi" --ci \
     --config "$(tauri_config 0.0.0 "$(resolve_code)")"
   local found
@@ -424,11 +453,13 @@ case "$cmd" in
   build-debug) build_debug "$@" ;;
   ime-patch) ime_patch "$@" ;;
   icon-patch) icon_patch "$@" ;;
+  push-patch) push_patch "$@" ;;
+  push-fixture) push_fixture ;;
   check-icon) check_icon "$@" ;;
   debug-speech) debug_speech "$@" ;;
   version-code) version_code "$@" ;;
   sign-bundle) sign_bundle "$@" ;;
   verify-bundle) verify_bundle "$@" ;;
   app-id) echo "$APP_ID" ;;
-  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | sign IN OUT | verify APK | same-app PREV NEW | against-release TAG NEW | bundle VERSION OUT | build-debug ABI OUT | sign-bundle IN OUT | verify-bundle AAB | icon-patch | check-icon APK | debug-speech APK present|absent | version-code [EPOCH] | app-id" ;;
+  *) fail "usage: aterm-android.sh toolchain | build VERSION OUT | sign IN OUT | verify APK | same-app PREV NEW | against-release TAG NEW | bundle VERSION OUT | build-debug ABI OUT | sign-bundle IN OUT | verify-bundle AAB | icon-patch | push-patch [fixture] | push-fixture | check-icon APK | debug-speech APK present|absent | version-code [EPOCH] | app-id" ;;
 esac

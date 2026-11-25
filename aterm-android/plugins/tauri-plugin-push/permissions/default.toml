@@ -1,0 +1,5 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Lets the aterm window get and refresh the push token, take a tapped push that started the app, and listen for a new token or a tap."
+permissions = ["allow-register", "allow-token", "allow-take-tap", "allow-register-listener", "allow-remove-listener"]

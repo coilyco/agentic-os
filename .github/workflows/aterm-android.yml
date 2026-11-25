@@ -36,6 +36,11 @@ on:
         default: none
         type: choice
         options: [none, x86_64, aarch64]
+      push_fixture:
+        description: "With debug_abi, build push on from a fixture config that renders pushes and reaches no FCM, for a build with no deployment google-services.json."
+        required: false
+        default: false
+        type: boolean
       allow_throwaway:
         description: "Publish even when the signing secrets are unset. The APK will not install over a later properly signed build."
         required: false
@@ -90,6 +95,8 @@ jobs:
       - name: Build the debuggable APK
         env:
           ABI: ${{ inputs.debug_abi }}
+          ATERM_ANDROID_GOOGLE_SERVICES_JSON: ${{ secrets.ATERM_ANDROID_GOOGLE_SERVICES_JSON }}
+          ATERM_ANDROID_PUSH_FIXTURE: ${{ inputs.push_fixture && '1' || '' }}
         run: bash "$GITHUB_WORKSPACE/scripts/ci/aterm-android.sh" build-debug "$ABI" "$GITHUB_WORKSPACE/aterm-android-out/aterm-debug.apk"
       - name: Keep the debug build as a workflow artifact
         uses: actions/upload-artifact@v4
@@ -110,6 +117,7 @@ jobs:
       ATERM_ANDROID_UPLOAD_KEYSTORE_B64: ${{ secrets.ATERM_ANDROID_UPLOAD_KEYSTORE_B64 }}
       ATERM_ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ATERM_ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
       ATERM_ANDROID_UPLOAD_CERT_SHA256: ${{ secrets.ATERM_ANDROID_UPLOAD_CERT_SHA256 }}
+      ATERM_ANDROID_GOOGLE_SERVICES_JSON: ${{ secrets.ATERM_ANDROID_GOOGLE_SERVICES_JSON }}
     steps:
       - uses: actions/checkout@v7
         with:
