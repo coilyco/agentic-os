@@ -58,6 +58,10 @@ The layer gradient, lowest first: umbra, then Ward, then aos, then infra.
 
 Config splits on three axes, each a distinct owner: **permission/surface** (AOSguard specs and Ward's fixed broker), **deployment tuning** (identity, model, endpoint, attribution, roster defaults - AOS and agent-compose launch inputs), and **operator-local preference** (per-host, hand-edited, not embedded, parsed from a local source). One parser may serve two sources, and the axes stay distinct owners regardless.
 
+### Ship for any user, not the operator
+
+**Product code ships to every person who installs it, so the operator who asked for a feature is one user among many, never the default.** Their name, handles, pronouns, hosts, home paths, org and repo names, role roster, personas, colors, and preferred choices reach shipped code only through that user's configuration or a first-run choice, never as a literal or a default value. This binds hardest when the request is personal ("make it do what I do"): build the general setting, and put the operator's value in their own operator-local config. Provenance comments and the product's own brand and service addresses are exempt. A seat that finds one already shipped adds it to the hardcode inventory (COI-3745) and keeps going.
+
 ### Skills
 
 `.agents/skills/` ships generalizable, public-safe ordinary skills, and `.agents/composed/` ships public-safe role-scoped sources that agent-compose promotes only after role selection. Both directories are canonical and harness-specific setup owns installation and discovery, so edit `SKILL.md` or `COMPOSED.md` here rather than an installed copy.
