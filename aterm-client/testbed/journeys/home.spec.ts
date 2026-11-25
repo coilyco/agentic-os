@@ -29,7 +29,7 @@ test("a host with no seat open shows the seats by what they want of you, and a s
 async function byline(scope: Locator): Promise<{ marks: string[]; words: number; rest: number }> {
   return scope.evaluate((root) => {
     const by = root.querySelector(".by")!;
-    const marks = [...by.querySelectorAll("img")].map((img) => img.classList[0]);
+    const marks = [...by.querySelectorAll("img")].map((img) => img.classList[0] ?? "");
     const words = by.querySelector(".words")!;
     const size = (el: Element) => parseFloat(getComputedStyle(el).fontSize);
     const rest = [...root.querySelectorAll("*")].filter((el) => !by.contains(el) && el.childElementCount === 0 && el.textContent?.trim());
