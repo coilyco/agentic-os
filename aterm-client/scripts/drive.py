@@ -62,9 +62,32 @@ def open_seat(browser, url: str, size: tuple[int, int], seat: str):
     page = browser.new_page(viewport={"width": size[0], "height": size[1]})
     page.goto(url)
     page.get_by_role("tab", name="Demo host").click()
-    page.get_by_role("tab", name=seat).first.click()
+    # A desktop switches seats by tab, a phone by a row in the seat list.
+    # A phone row's name opens with the tab's name, which tells two Beetle-Ox seats apart.
+    tab = page.get_by_role("tab", name=seat)
+    (tab if tab.count() else page.get_by_role("button", name=re.compile("^" + re.escape(seat)))).first.click()
     page.wait_for_timeout(1800)
     return page
+
+
+def side_sheet(page, tag: str, expect) -> None:
+    """Below 1000px: the strip clears the gesture bar, stays up mid-draft, and a raised sheet reaches the seat bar."""
+    field = page.locator("#composer-input")
+    field.click()
+    field.type("a draft in progress")
+    tab = page.locator("#side-tab-messages")
+    box = tab.bounding_box()
+    height = page.viewport_size["height"]
+    expect(f"{tag} side sheet: the strip stays while a draft is in the composer", box is not None and tab.is_visible(), box)
+    expect(f"{tag} side sheet: the strip clears the bottom 24px", box is not None and height - (box["y"] + box["height"]) >= 24, box)
+    tab.click()
+    page.wait_for_timeout(300)
+    tops = page.evaluate("() => [document.querySelector('.session .body'), document.querySelector('aside.panel')].map((e) => Math.round(e.getBoundingClientRect().top))")
+    expect(f"{tag} side sheet: a raised sheet reaches the seat bar", tops[0] == tops[1], tops)
+    page.screenshot(path=str(CLIENT / f"drive-{page.viewport_size['width']}-sheet.png"))
+    page.keyboard.press("Escape")
+    expect(f"{tag} side sheet: Escape puts it away", page.locator("aside.panel").get_attribute("data-open") == "false", None)
+    field.fill("")
 
 
 def open_entry(page) -> None:
@@ -193,6 +216,8 @@ def main() -> int:
                 page.wait_for_timeout(400)
                 expect(f"{tag} Enter sends and empties the field", field.input_value() == "", field.input_value())
                 page.screenshot(path=str(CLIENT / f"drive-{size[0]}-resting.png"))
+                if size[0] <= 1000:
+                    side_sheet(page, tag, expect)
                 feedback(page, tag, expect)
                 page.close()
                 page = open_seat(browser, f"http://localhost:{port}/", size, "Beetle-Ox, Platform Engineer on claude")

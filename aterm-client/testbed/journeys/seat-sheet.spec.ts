@@ -12,10 +12,11 @@ test("Start a seat is on screen with the seats listed, and the sheet is not unde
   const start = await bed.page.getByRole("heading", { name: "Start a seat" }).boundingBox();
   expect(start && start.y + start.height, "Start a seat is above the fold").toBeLessThan(height);
   await expect(bed.page.locator(".chips [role=tab]").first(), "the first role is on screen, the rest one swipe away").toBeInViewport();
-  const menu = await bed.page.locator("#sidebar-menu").boundingBox();
-  const strip = await bed.page.locator(".panel").first().boundingBox();
-  const end = (menu?.y ?? 0) + (menu?.height ?? 0);
-  expect(end <= (strip?.y ?? height) || end >= height - 1, `the sheet ends at ${end}, neither above the strip nor at the edge`).toBe(true);
+  const menu = (await bed.page.locator("#sidebar-menu").boundingBox())!;
+  const end = menu.y + menu.height;
+  // The strip may sit behind the sheet's foot, never over it.
+  const onTop = await bed.page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest("#sidebar-menu"), { x: menu.x + 8, y: end - 2 });
+  expect(onTop, `the sheet's last row, at ${end}, is under nothing`).toBe(true);
   await expect(seatEntry(bed.page, SEATS.imp.name), "a row says more than idle").toContainText(/\b\d+\s?(s|m|h)\b/);
   await bed.step("sheet");
 });

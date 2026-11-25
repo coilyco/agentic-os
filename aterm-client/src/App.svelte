@@ -76,7 +76,7 @@
   main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: auto; }
   .panel-root { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   /* A seat's panel clears the bottom itself, through the tab strip it reserves. The list and launch screens have no strip. */
-  .panel-root.clear-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .panel-root.clear-bottom { padding-bottom: var(--bottom-clear); }
   @media (max-width: 720px) {
     .shell { flex-direction: column; }
     /* The seat overview is where the app rests, so a phone shows it first and the hosts, roles and switches under it (COI-3518). */

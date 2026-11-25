@@ -152,6 +152,18 @@
   }
   // Below 1000px the side panel is a bottom sheet over the seat's terminal, and starts put away.
   let raised = $state(false);
+  // A raised sheet reaches up to the seat bar: the view switch above it is noise while the sheet is read.
+  let body = $state<HTMLDivElement>();
+  let sheetTop = $state<number | null>(null);
+  $effect(() => {
+    const element = body;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const read = () => (sheetTop = Math.round(element.getBoundingClientRect().top));
+    const observer = new ResizeObserver(read);
+    observer.observe(element);
+    read();
+    return () => observer.disconnect();
+  });
   // A question waiting sits at the foot of the terminal, which a raised sheet would cover.
   $effect(() => {
     if (dialogOpen) raised = false;
@@ -377,7 +389,7 @@
       <p class="degraded">Started without {session.degraded.join(", ")}. agent-compose skipped these steps at launch, so this seat may be missing what they set up.</p>
     {/if}
   </header>
-  <div class="body" class:wide class:away={split && !sideOpen} data-composing={app.composing && !dialogOpen} data-reading={layout.reading && !split} style:--side={sideWidth ? `${sideWidth}px` : undefined}>
+  <div bind:this={body} class="body" class:wide class:away={split && !sideOpen} data-reading={layout.reading && !split} style:--side={sideWidth ? `${sideWidth}px` : undefined} style:--sheet-top={sheetTop === null ? undefined : `${sheetTop}px`}>
     <div class="work">
       {#if app.connection}
         {#key session.id}
@@ -550,7 +562,7 @@
   .input-notice button { min-height: 44px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--danger); background: transparent; color: var(--danger-text); }
   .starting { position: absolute; inset: 0; margin: 0; padding: 24px; display: grid; place-content: center; text-align: center; color: var(--muted); pointer-events: none; }
   .overlay { position: absolute; z-index: 5; left: 0; right: 0; bottom: 0; max-height: 92%; display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; background: linear-gradient(to top, var(--terminal) 70%, transparent); }
-  .body { --side: 360px; --strip: calc(44px + env(safe-area-inset-bottom)); flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--side); min-height: 0; }
+  .body { --side: 360px; --strip: calc(44px + var(--bottom-clear)); flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 12px var(--side); min-height: 0; }
   .body.wide { --side: minmax(360px, 50%); }
   .body.away { grid-template-columns: minmax(0, 1fr); }
   .body :global(.panel) { border-left: none; }
@@ -565,9 +577,6 @@
     .overlay:has(:global([data-writing="true"])) { max-height: 100%; }
     /* Keyboard up, the terminal is a few hundred pixels: options matter more than the output behind them (COI-3482). */
     @media (max-height: 560px) { .overlay { max-height: 100%; } }
-    /* The tab strip gives way to the keyboard, so typing has the whole screen but the seat's text. */
-    .body[data-composing="true"] :global(.panel) { display: none; }
-    .body[data-composing="true"] { --strip: 0px; }
   }
   @media (max-width: 1000px) {
     /* The sheet floats over this row, so the strip's height stays clear of the composer and the terminal never resizes as it rises. */

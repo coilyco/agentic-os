@@ -537,5 +537,5 @@
   .sidebar[data-mode="reading"] :is(.who, .state, .chevron, .elsewhere .word) { display: none; }
   .sidebar[data-mode="reading"] .elsewhere { position: absolute; top: -4px; right: -4px; min-width: 18px; padding: 0 4px; font-size: 11px; line-height: 18px; text-align: center; border-radius: 9px; background: var(--warn); color: var(--ground); }
   .sidebar[data-mode="reading"] .scrim { position: fixed; inset: 0; z-index: -1; background: rgb(0 0 0 / 0.55); }
-  .sidebar[data-mode="reading"] .menu[data-flow="sheet"] { position: fixed; top: 0; bottom: 0; left: calc(env(safe-area-inset-left) + 52px); right: auto; width: min(340px, 70vw); max-height: none; overflow-y: auto; padding: 0 8px calc(12px + env(safe-area-inset-bottom)); background: var(--ground); border-right: 1px solid var(--line); border-bottom: none; box-shadow: 8px 0 16px rgb(0 0 0 / 0.4); }
+  .sidebar[data-mode="reading"] .menu[data-flow="sheet"] { position: fixed; top: 0; bottom: 0; left: calc(env(safe-area-inset-left) + 52px); right: auto; width: min(340px, 70vw); max-height: none; overflow-y: auto; padding: 0 8px calc(12px + var(--bottom-clear)); background: var(--ground); border-right: 1px solid var(--line); border-bottom: none; box-shadow: 8px 0 16px rgb(0 0 0 / 0.4); }
 </style>

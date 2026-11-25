@@ -32,7 +32,7 @@ See [views-and-browser.md](views-and-browser.md).
 
 ## Narrow screens
 
-Below 720px the top is one bar, the seat switcher, which names the seat on screen and opens a sheet of seats, alerts, roles to start, and hosts. The session header keeps only a heading for screen readers. The tab strip is 44px and goes away while the composer has focus, so the keyboard leaves the seat's text the screen (COI-2608). With no seat on screen those lists stay in the page. Below 1000px the side panel becomes a bottom sheet ([views-and-browser.md](views-and-browser.md)).
+Below 720px the top is one bar, the seat switcher, which names the seat on screen and opens a sheet of seats, alerts, roles to start, and hosts. The session header keeps only a heading for screen readers. The tab strip is 44px and stays put while the composer has focus, so the side panel is one tap away mid-draft. With no seat on screen those lists stay in the page. Below 1000px the side panel becomes a bottom sheet ([views-and-browser.md](views-and-browser.md)).
 
 ## One input at every width
 
