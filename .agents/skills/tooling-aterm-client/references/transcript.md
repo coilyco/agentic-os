@@ -19,9 +19,10 @@
 * **text** - cut at 64 KiB on a rune boundary. A reply carries at most 1 MiB of text in all, oldest items dropped first.
 * **complete** - on a reply: the turn ended.
 * **model** - Claude: on each assistant line. Codex: the turn's model. opencode: the assistant message's.
-* **tool** - `{name, class, summary, ok?, output?, output_bytes?, truncated?, diff?}`.
+* **tool** - `{name, class, summary, full_summary?, ok?, output?, output_bytes?, truncated?, diff?}`.
   * `class` is `shell`, `edit`, `read`, `search`, `mcp` or `other`.
   * `summary` is built here (`Ran just gate`, `Edited reply.go +12 -3`), so a client needs no harness vocabulary.
+  * A shell summary starts after any leading `cd <dir>` joined by `&&`, `;` or a newline, since a seat's scratchpad path would take the whole line. A bare `cd` stays. `full_summary` carries the command as typed, only when the two differ, and Verbose shows it (COI-3738).
   * `ok` is true or false, and absent while the tool runs or when the harness cannot say.
   * `diff` is `{files, added, removed}`, counts only. The patch text is not sent. An edit carries no `output`.
   * `output` is cut at 64 KiB with `truncated` and the full size in `output_bytes`.

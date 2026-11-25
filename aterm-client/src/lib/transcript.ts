@@ -12,6 +12,8 @@ export interface ToolStep {
   class: ToolClass;
   /** One line from the daemon, with an edit's counts. Focus shows only this. */
   summary: string;
+  /** A shell command as typed, where the summary dropped a cd. Verbose shows it. */
+  fullSummary?: string;
   /** The whole result, which the client cuts for Default. */
   output?: string;
   ok?: boolean;
@@ -119,6 +121,7 @@ export function decodeItem(raw: unknown): TranscriptItem | null {
             name,
             class: TOOL_CLASSES.includes(String(tool.class)) ? (tool.class as ToolClass) : "other",
             summary: str(tool.summary) ?? name,
+            ...(str(tool.full_summary) ? { fullSummary: str(tool.full_summary) } : {}),
             ...(typeof tool.output === "string" ? { output: tool.output } : {}),
             ...(typeof tool.ok === "boolean" ? { ok: tool.ok } : {}),
             ...(num(tool.output_bytes) !== undefined ? { outputBytes: num(tool.output_bytes) } : {}),
@@ -219,7 +222,7 @@ export function rowsFor(all: readonly TranscriptItem[], level: Level): Row[] {
         key: item.id,
         kind: "tool",
         name: item.tool.name,
-        summary: item.tool.summary,
+        summary: (level === "verbose" && item.tool.fullSummary) || item.tool.summary,
         lines: shown,
         hidden: all.length - shown.length,
         ok: item.tool.ok,

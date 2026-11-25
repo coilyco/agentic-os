@@ -268,7 +268,7 @@ func opencodeTool(row opencodePartRow) *transcriptTool {
 	tool := &transcriptTool{Name: row.Tool, Class: transcriptClassOther, Summary: row.Tool}
 	switch name := row.Tool; {
 	case name == "bash":
-		tool.Class, tool.Summary = transcriptClassShell, "Ran "+summaryLine(row.Command, 100)
+		tool.setShell(row.Command)
 	case name == "edit" || name == "write" || name == "patch":
 		tool.Class = transcriptClassEdit
 		verb := map[string]string{"edit": "Edited", "write": "Wrote", "patch": "Patched"}[name]

@@ -161,7 +161,8 @@ func codexCommand(raw json.RawMessage, status string, exit *int, output string) 
 	if len(argv) > 0 {
 		command = argv[len(argv)-1]
 	}
-	tool := &transcriptTool{Name: "exec", Class: transcriptClassShell, Summary: "Ran " + summaryLine(command, 100), OK: codexOK(status, exit)}
+	tool := &transcriptTool{Name: "exec", OK: codexOK(status, exit)}
+	tool.setShell(command)
 	tool.setOutput(output)
 	return tool
 }
