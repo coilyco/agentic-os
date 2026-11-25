@@ -15,7 +15,7 @@ test("Start a seat is on screen with the seats listed, and the sheet is not unde
   const menu = (await bed.page.locator("#sidebar-menu").boundingBox())!;
   const end = menu.y + menu.height;
   // The strip may sit behind the sheet's foot, never over it.
-  const onTop = await bed.page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest("#sidebar-menu"), [menu.x + 8, end - 2]);
+  const onTop = await bed.page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest("#sidebar-menu"), { x: menu.x + 8, y: end - 2 });
   expect(onTop, `the sheet's last row, at ${end}, is under nothing`).toBe(true);
   await expect(seatEntry(bed.page, SEATS.imp.name), "a row says more than idle").toContainText(/\b\d+\s?(s|m|h)\b/);
   await bed.step("sheet");
