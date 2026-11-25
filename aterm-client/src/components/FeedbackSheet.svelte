@@ -181,7 +181,7 @@
   .button:disabled { opacity: 0.5; cursor: not-allowed; }
   /* A phone gets the screen's width and sits at its foot, where the thumb is. */
   @media (max-width: 720px) {
-    .sheet { width: 100vw; max-width: 100vw; margin: auto 0 0; border-radius: 14px 14px 0 0; border-width: 1px 0 0; padding-bottom: env(safe-area-inset-bottom); }
+    .sheet { width: 100vw; max-width: 100vw; margin: auto 0 0; border-radius: 14px 14px 0 0; border-width: 1px 0 0; padding-bottom: var(--bottom-clear); }
     .actions .button { flex: 1; justify-content: center; }
   }
 </style>

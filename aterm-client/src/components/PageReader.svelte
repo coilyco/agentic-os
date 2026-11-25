@@ -103,7 +103,7 @@
 <style>
   .reader {
     position: fixed; inset: 0; z-index: 70; display: flex; flex-direction: column; gap: 10px; background: var(--ground); color: var(--text);
-    padding: calc(env(safe-area-inset-top, 0px) + 8px) calc(env(safe-area-inset-right, 0px) + 12px) calc(env(safe-area-inset-bottom, 0px) + 8px) calc(env(safe-area-inset-left, 0px) + 12px);
+    padding: calc(env(safe-area-inset-top, 0px) + 8px) calc(env(safe-area-inset-right, 0px) + 12px) calc(var(--bottom-clear) + 8px) calc(env(safe-area-inset-left, 0px) + 12px);
   }
   header { display: flex; align-items: center; gap: 10px; }
   .who { flex: 1; min-width: 0; }

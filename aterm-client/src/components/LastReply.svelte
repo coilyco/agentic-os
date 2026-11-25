@@ -98,7 +98,7 @@
   .age { font-weight: 500; letter-spacing: 0; text-transform: none; }
   .line { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
   .scrim { position: fixed; inset: 0; z-index: 40; background: rgb(0 0 0 / 0.5); }
-  .sheet { position: fixed; z-index: 41; left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); bottom: 0; display: flex; flex-direction: column; max-height: 78dvh; background: var(--ground); border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; box-shadow: 0 -12px 24px rgb(0 0 0 / 0.4); padding-bottom: var(--bottom-clear, env(safe-area-inset-bottom, 0px)); }
+  .sheet { position: fixed; z-index: 41; left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); bottom: 0; display: flex; flex-direction: column; max-height: 78dvh; background: var(--ground); border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; box-shadow: 0 -12px 24px rgb(0 0 0 / 0.4); padding-bottom: var(--bottom-clear); }
   header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 12px 4px 16px; border-bottom: 1px solid var(--line); }
   h2 { display: flex; align-items: baseline; gap: 8px; margin: 0; font: 600 16px var(--font-display); }
   h2 .age { font: 400 13px var(--font-body); color: var(--muted); }
