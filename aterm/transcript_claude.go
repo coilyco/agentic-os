@@ -316,7 +316,7 @@ func claudeToolItem(block claudeBlock, entry claudeLine, pos int64) transcriptIt
 	tool := &transcriptTool{Name: block.Name, Class: transcriptClassOther, Summary: block.Name}
 	switch name := block.Name; {
 	case name == "Bash":
-		tool.Class, tool.Summary = transcriptClassShell, "Ran "+summaryLine(str("command"), 100)
+		tool.setShell(str("command"))
 	case name == "Edit" || name == "MultiEdit" || name == "NotebookEdit":
 		tool.Class, tool.verb, tool.subject = transcriptClassEdit, "Edited", firstNonEmpty(str("file_path"), str("notebook_path"))
 		tool.Summary = "Edited " + baseName(tool.subject)

@@ -79,11 +79,12 @@ type transcriptDiff struct {
 }
 
 // transcriptTool is a tool step. OK is absent while it runs or when the harness cannot
-// say.
+// say. FullSummary is a shell command as typed, sent only where Summary dropped a cd.
 type transcriptTool struct {
 	Name        string          `json:"name"`
 	Class       string          `json:"class"`
 	Summary     string          `json:"summary"`
+	FullSummary string          `json:"full_summary,omitempty"`
 	OK          *bool           `json:"ok,omitempty"`
 	Output      string          `json:"output,omitempty"`
 	OutputBytes int             `json:"output_bytes,omitempty"`

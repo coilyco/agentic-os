@@ -42,6 +42,22 @@ describe("what each level shows", () => {
   it("shows nothing for an empty transcript", () => {
     expect(rowsFor([], "focus")).toEqual([]);
   });
+
+  it("starts a shell row at the command after its cd, and Verbose shows the cd too (COI-3738)", () => {
+    const wire = [
+      { id: "a", kind: "tool", tool: { name: "Bash", class: "shell", summary: "Ran python3 -c x", full_summary: "Ran cd /tmp/s; python3 -c x" } },
+      { id: "b", kind: "tool", tool: { name: "Bash", class: "shell", summary: "Ran just test", full_summary: "Ran cd /tmp/s && just test" } },
+      { id: "c", kind: "tool", tool: { name: "Bash", class: "shell", summary: "Ran go test", full_summary: 'Ran cd "/a b" && cd c && go test' } },
+      { id: "d", kind: "tool", tool: { name: "Bash", class: "shell", summary: "Ran cd /tmp/s" } },
+      { id: "e", kind: "tool", tool: { name: "Bash", class: "shell", summary: "Ran just gate" } },
+    ];
+    const items = wire.map(decodeItem).filter((item): item is TranscriptItem => item !== null);
+    const summaries = (level: "focus" | "default" | "verbose") => rowsFor(items, level).map((row) => row.kind === "tool" && row.summary);
+    const short = ["Ran python3 -c x", "Ran just test", "Ran go test", "Ran cd /tmp/s", "Ran just gate"];
+    expect(summaries("focus")).toEqual(short);
+    expect(summaries("default")).toEqual(short);
+    expect(summaries("verbose")).toEqual(["Ran cd /tmp/s; python3 -c x", "Ran cd /tmp/s && just test", 'Ran cd "/a b" && cd c && go test', "Ran cd /tmp/s", "Ran just gate"]);
+  });
 });
 
 describe("reading a reply off the wire", () => {
