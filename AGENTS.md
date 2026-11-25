@@ -160,6 +160,10 @@ When a question is asked, use the harness's structured question tool (AskUserQue
 
 Before a structured question tool, send whatever the evidence settles to Jev first, and ask the human only what Jev cannot hold - a preference, an authority, a fact only they have, or a Jev answer below confidence. Deterministic checks, arithmetic, and text generation stay out of Jev. Harness overlays name the call surface.
 
+### Reach for a connected MCP first
+
+**Before reaching for an external system, or a harness-native stand-in for one (an artifact type, a built-in store, a web fetch, a CLI), check whether a connected MCP server already covers the need, and use it.** The operator connected it on purpose, and it is where they look. A harness default that duplicates a connected tool is the second choice, never the first.
+
 ### Front-load the context you know you need
 
 Before a consequential claim (one a reader could act on, or one entering a durable artifact - issue, plan, review, record, verdict, recommendation, including an assessment or diagnosis), name the source that would settle it and open that source.
