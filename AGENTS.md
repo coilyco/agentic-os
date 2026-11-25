@@ -58,6 +58,10 @@ The layer gradient, lowest first: umbra, then Ward, then aos, then infra.
 
 Config splits on three axes, each a distinct owner: **permission/surface** (AOSguard specs and Ward's fixed broker), **deployment tuning** (identity, model, endpoint, attribution, roster defaults - AOS and agent-compose launch inputs), and **operator-local preference** (per-host, hand-edited, not embedded, parsed from a local source). One parser may serve two sources, and the axes stay distinct owners regardless.
 
+### Ship for any user, not the operator
+
+**Product code ships to every person who installs it, so the operator who asked for a feature is one user among many, never the default.** Their name, handles, pronouns, hosts, home paths, org and repo names, role roster, personas, colors, and preferred choices reach shipped code only through that user's configuration or a first-run choice, never as a literal or a default value. This binds hardest when the request is personal ("make it do what I do"): build the general setting, and put the operator's value in their own operator-local config. Provenance comments and the product's own brand and service addresses are exempt. A seat that finds one already shipped adds it to the hardcode inventory (COI-3745) and keeps going.
+
 ### Skills
 
 `.agents/skills/` ships generalizable, public-safe ordinary skills, and `.agents/composed/` ships public-safe role-scoped sources that agent-compose promotes only after role selection. Both directories are canonical and harness-specific setup owns installation and discovery, so edit `SKILL.md` or `COMPOSED.md` here rather than an installed copy.
@@ -155,6 +159,10 @@ When a question is asked, use the harness's structured question tool (AskUserQue
 **Every structured decision a model makes MUST come from Jev through Agent Proxy.** A structured decision has a closed answer set: pick one option, rate against ordered levels, or say yes or no. It binds call sites in code and verdicts in conversation alike - a go or no-go, a pick, a ranking, a rating, and any likelihood, odds, or percent handed to a human, however casual the question. The reasoning stays generative, the verdict comes from Jev, and the reply reports Jev's probabilities and confidence, never a number the seat produced on its own. A verdict delivered without a Jev call is a failure, not a shortcut. A subjective grade, such as whether an answer keeps a persona's commitment, is a human's call, and an agent runs programmatic checks and never writes PASS or FAIL ([tooling-jev-decisions](.agents/skills/tooling-jev-decisions/SKILL.md)).
 
 Before a structured question tool, send whatever the evidence settles to Jev first, and ask the human only what Jev cannot hold - a preference, an authority, a fact only they have, or a Jev answer below confidence. Deterministic checks, arithmetic, and text generation stay out of Jev. Harness overlays name the call surface.
+
+### Reach for a connected MCP first
+
+**Before reaching for an external system, or a harness-native stand-in for one (an artifact type, a built-in store, a web fetch, a CLI), check whether a connected MCP server already covers the need, and use it.** The operator connected it on purpose, and it is where they look. A harness default that duplicates a connected tool is the second choice, never the first.
 
 ### Front-load the context you know you need
 
