@@ -15,6 +15,7 @@ object PushNotifier {
     // One notification per tag, so a second push for a seat replaces the first.
     private const val ID = 1
     private const val EXTRA = "dev.coilyco.treehouse.push."
+    const val OPEN = EXTRA + "OPEN"
     const val TAP = EXTRA + "tap"
     const val KIND = EXTRA + "kind"
     const val DAEMON_ID = EXTRA + "daemon_id"
@@ -62,7 +63,9 @@ object PushNotifier {
 
     private fun tapIntent(context: Context, message: PushMessage): PendingIntent? {
         val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
-        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        // Its own action, or Android resumes the launcher's task and drops the extras.
+        launch.action = OPEN
+        launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         launch.putExtra(TAP, true)
         launch.putExtra(KIND, message.kind)
         launch.putExtra(DAEMON_ID, message.daemonId)
