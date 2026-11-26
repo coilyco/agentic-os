@@ -34,7 +34,7 @@ const registrar = () => {
 const rejection = (code: string) => Object.assign(new Error(code), { code });
 
 beforeEach(() => {
-  localStorage?.clear?.();
+  globalThis.localStorage?.clear?.();
 });
 
 describe("turning it on", () => {
