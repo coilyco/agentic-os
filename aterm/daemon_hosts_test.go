@@ -52,12 +52,12 @@ func fakeDiscovery(dialed *atomic.Int32, answers map[string]error) *hostDiscover
 				{FQDN: "kube.example.ts.net"},
 			}, nil
 		},
-		probe: func(_ context.Context, _, _, host, _ string) (string, error) {
+		probe: func(_ context.Context, _, _, host, _ string) (peerWelcome, error) {
 			dialed.Add(1)
 			if err, ok := answers[host]; !ok || err != nil {
-				return "", errors.Join(errors.New("no daemon"), err)
+				return peerWelcome{}, errors.Join(errors.New("no daemon"), err)
 			}
-			return "1.2.3", nil
+			return peerWelcome{Version: "1.2.3"}, nil
 		},
 		port: func() string { return defaultTailnetPort },
 	}
@@ -120,8 +120,8 @@ func TestProbeSeesADaemonOnlyWhenItAdmitsThisNode(t *testing.T) {
 	admitting, admittingClient, _ := tailnetServer(t, func(string) (tailnetPeer, error) { return peerWith("kai@example.com"), nil })
 	admittingURL, _ := url.Parse(admitting)
 	got, err := daemonProber(admittingClient)(context.Background(), testFQDN, admittingURL.Port(), testFQDN, admittingURL.Port())
-	if err != nil || got != version {
-		t.Fatalf("an admitting daemon should answer with its version %q: %q, %v", version, got, err)
+	if err != nil || got != (peerWelcome{Version: version, HostKind: "personal"}) {
+		t.Fatalf("an admitting daemon should answer with its version %q and kind personal: %+v, %v", version, got, err)
 	}
 
 	refusing, refusingClient, _ := tailnetServer(t, func(string) (tailnetPeer, error) { return peerWith("guest@example.com"), nil })
@@ -203,7 +203,7 @@ func TestFindDialsAPeerOnItsOwnPortAndListsThatPort(t *testing.T) {
 	dialedPorts := map[string]string{}
 	var mu sync.Mutex
 	inner := discovery.probe
-	discovery.probe = func(ctx context.Context, self, pagePort, host, port string) (string, error) {
+	discovery.probe = func(ctx context.Context, self, pagePort, host, port string) (peerWelcome, error) {
 		mu.Lock()
 		dialedPorts[host] = port + " from page " + pagePort
 		mu.Unlock()

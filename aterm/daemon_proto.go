@@ -232,6 +232,8 @@ type frame struct {
 
 	// Hosts answers a hosts request: the tailnet daemons that answered this one.
 	Hosts []hostView `json:"hosts,omitempty"`
+	// HostKind is this host's kind, on a welcome and a host_kind frame. Kind is taken.
+	HostKind string `json:"host_kind,omitempty"`
 
 	// Web Push: Key is the VAPID public key on a push_key reply, and Push is a
 	// browser's PushSubscription.toJSON(). See docs/aterm-daemon.md.
