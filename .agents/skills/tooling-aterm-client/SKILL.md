@@ -20,7 +20,7 @@ from `teable:coilyco/agentic-os#8220`.
 
 `aterm.daemon.v1` is owned by the daemon in `aterm/` ([aterm-daemon.md](../../../docs/aterm-daemon.md)).
 `src/lib/daemon-host.ts` follows it and never extends it. The mock scripts only
-behaviour the daemon has, so the Demo host never promises what "this Mac" cannot do.
+behaviour the daemon has, so the dev Mock host never promises what "this Mac" cannot do.
 
 Deployment config does not live here: hosts, allowed origins, tags, which roles
 appear, and publishing belong to the deployment, which passes them in at build
@@ -37,12 +37,12 @@ Every command is a root `just` verb: `aterm-client-install`, `-dev`, `-check`,
 Run `just aterm-client-gate` and `pre-commit run --all-files` before committing. A
 layout change is not done until it has been rendered at 320px wide and walked by
 keyboard. `just aterm-client-drive` does that with no human: it drives the real client
-against the Demo host in a headless browser at 1280px and 320px, on its own port, and
+against the dev-only Mock host in a headless browser at 1280px and 320px, on its own port, and
 asserts what is on screen. Check a UI change there and never hand Kai a click to test.
-Add a case when a bug appears, and teach the Demo host the screen that reproduces it
-(`src/lib/demo-harness.ts`). `just aterm-client-drive-hops` breaks one hop per scenario in a mock daemon (`scripts/hop_daemon.py`) and checks the connection check names it.
+Add a case when a bug appears, and teach the Mock host the screen that reproduces it
+(`src/lib/mock-harness.ts`). `just aterm-client-drive-hops` breaks one hop per scenario in a mock daemon (`scripts/hop_daemon.py`) and checks the connection check names it.
 
-**Test a login flow from captured screens, demo mode, or the emulator lane, never with a real login on the host.** A fresh `claude` login opens the host browser and a Keychain prompt Kai cannot approve (COI-3682). [Guard](../tooling-aosguard/references/login-guard.md).
+**Test a login flow from captured screens, the dev Mock host, or the emulator lane, never with a real login on the host.** A fresh `claude` login opens the host browser and a Keychain prompt Kai cannot approve (COI-3682). [Guard](../tooling-aosguard/references/login-guard.md).
 
 ## Contracts
 
@@ -77,7 +77,6 @@ than editing it by hand.
 * [desktop.md](references/desktop.md) - the windowed Treehouse app for the Mac: its identity, what it does at launch, and the verbs that build and install it.
 * [android-opener.md](references/android-opener.md) - why a window does nothing for window.open, and how an artifact or link opens in the device's own browser.
 * [android-emulator-lane.md](references/android-emulator-lane.md) - the CI emulator lane: dispatch a ref and a step file, get named screenshots back, no rig lock.
-* [demo-mode.md](references/demo-mode.md) - "Try the demo": a bundled host of made-up seats with no network and no real shell, for a store reviewer with no daemon.
 * [native-notify.md](references/native-notify.md) - the Mac and Android apps' system notification for a coordinator's notify, the one-time ask, and what a tap does.
 * [android-dictation.md](references/android-dictation.md) - the composer's mic on Android: the phone's own speech recognition, why that engine, and what is not yet checked on a phone.
 * [android-speak.md](references/android-speak.md) - read a reply aloud on Android: the `speak` plugin's four commands, what it does with focus, and what is measured.

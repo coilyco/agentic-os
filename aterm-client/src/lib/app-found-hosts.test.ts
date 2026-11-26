@@ -19,7 +19,8 @@ vi.mock("./discovery", async (original) => ({
   discover: vi.fn(async () => replies.found),
 }));
 
-async function boot() {
+async function boot(dev = true) {
+  vi.stubEnv("DEV", dev);
   vi.stubGlobal("location", { search: "", hostname: "localhost", protocol: "http:", host: "localhost" });
   vi.stubGlobal("document", { visibilityState: "visible", title: "", addEventListener() {}, removeEventListener() {} });
   vi.stubGlobal("localStorage", { getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => void stored.set(key, value) });
@@ -42,6 +43,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.useRealTimers();
 });
 
@@ -49,12 +51,24 @@ describe("refreshing found hosts", () => {
   it("lists what a daemon sees, then drops a found host that never answered once no daemon lists it", async () => {
     replies.found = [tower, ghost];
     const { app } = await boot();
-    expect(labels(app.hosts)).toEqual(["this Mac", "tower", "ghost", "Demo host"]);
+    expect(labels(app.hosts)).toEqual(["this Mac", "tower", "ghost", "Mock host"]);
     expect(app.hosts.find((host) => host.label === "ghost")?.status.kind).toBe("unreachable");
 
     replies.found = [tower];
     await vi.advanceTimersByTimeAsync(60_000);
-    expect(labels(app.hosts)).toEqual(["this Mac", "tower", "Demo host"]);
+    expect(labels(app.hosts)).toEqual(["this Mac", "tower", "Mock host"]);
+  });
+
+  it("adds found hosts after the last real one in a production build, which lists no mock", async () => {
+    replies.found = [tower];
+    const { app } = await boot(false);
+    expect(labels(app.hosts)).toEqual(["this Mac", "tower"]);
+  });
+
+  it("adds a typed host after the last real one in a production build", async () => {
+    const { app, addHost } = await boot(false);
+    addHost("mac.example.ts.net:7419");
+    expect(labels(app.hosts)).toEqual(["this Mac", "mac"]);
   });
 
   it("keeps a found host that answered after the daemons stop listing it", async () => {

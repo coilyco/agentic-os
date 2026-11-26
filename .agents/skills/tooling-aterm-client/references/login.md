@@ -18,5 +18,5 @@ A Claude seat started with no login draws its sign-in as terminal text. The clie
 
 ## Checked and not checked
 
-* **Checked:** `login.test.ts` against the captures, a hand-wrapped narrow menu, and the Demo seat's frames at 34 to 120 columns. `just aterm-client-drive` walks the Demo seat Heron-Ox at 1280px and 320px: the card, the terminal under it, one tap recording the authorize address, a wrong code with its error, and a made-up code reaching the prompt. Nothing there signs in to anything.
+* **Checked:** `login.test.ts` against the captures, a hand-wrapped narrow menu, and the Mock host seat's frames at 34 to 120 columns. `just aterm-client-drive` walks the Mock host seat Heron-Ox at 1280px and 320px: the card, the terminal under it, one tap recording the authorize address, a wrong code with its error, and a made-up code reaching the prompt. Nothing there signs in to anything.
 * **Not checked:** a real login completing, which needs Kai's account and is not run from a seat. Narrow Claude Code screens: the 44 and 34 column captures did not complete, so the wrapped link and menu are shaped by test. The Console and third-party options, whose authorize addresses were not captured. The card on a phone, where `openExternal` hands the link to the Custom Tab. The `/login` command inside a signed-in seat reaches the same menu and is not captured either.

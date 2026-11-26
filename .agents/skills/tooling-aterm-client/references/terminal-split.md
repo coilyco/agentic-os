@@ -26,7 +26,7 @@ Terminals arrive in the `sessions` frame's own `terminals` list, never in `sessi
 
 The split handle is a window splitter. Drag, Left and Right (Shift for larger steps), Home, End, or double-click to reset. The width is remembered in `aterm.side-width.v1`. Below 1000px the handle goes and the panel is a bottom sheet instead. The shell takes Tab, so Ctrl+Alt+Left returns focus to the composer and Ctrl+Alt+Right enters the shell.
 
-## Demo host modes
+## Mock host modes
 
 `?terminals=` picks one: `ok`, `early` (reply before the list), `off` (no channel), `refuse`, `silent` (never answers), `mute` (no first list), `locked` (typing refused). They script COI-2498's frame, with the list ahead of the `spawned` reply and the exit.
 

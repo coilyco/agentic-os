@@ -1,5 +1,5 @@
 // The client's view of a host. `DaemonHost` maps aterm.daemon.v1 onto it,
-// and `MockHost` scripts it for the demo. Why: the architecture reference.
+// and `MockHost` scripts it for `just dev`. Why: the architecture reference.
 import type { TranscriptReply } from "./transcript";
 import type { MediaItem } from "./media";
 import type { KeyStatus } from "./device-key";
@@ -12,7 +12,7 @@ import type { InputKind, SharedBrowser } from "./screencast";
 import type { ListedTerminal } from "./terminals";
 import type { Typing } from "./typing";
 
-export type HostKind = "daemon" | "demo";
+export type HostKind = "daemon" | "mock";
 
 export type HostStatus =
   | { kind: "checking" }
@@ -309,8 +309,6 @@ export interface DeviceKeyChannel {
 }
 
 export interface HostConnection {
-  /** The bundled demo: it dials nothing, and the page marks every surface as a demo. */
-  readonly demo?: boolean;
   readonly canLaunch: boolean;
   readonly canReopen?: boolean;
   /** Routed by the broker, so the daemon starts it locked until accounts unlocks it. */

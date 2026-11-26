@@ -1,4 +1,4 @@
-// Screens a demo seat draws as a harness would, so the crop and choice card run in Demo.
+// Screens a mock seat draws as a harness would, so the crop and choice card run.
 // Shapes follow the captured screens in harness.test.ts and choices.test.ts.
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
@@ -36,7 +36,7 @@ export function drawHarness(transcript: readonly string[], frame: Frame, rows = 
 export type LoginStage = "method" | "code" | "error";
 
 // A made-up address. The card reads host and path, so it offers it like a real one.
-const DEMO_LINK = "https://claude.com/cai/oauth/authorize?code=true&client_id=demo&response_type=code&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&state=demo-not-real";
+const MOCK_LINK = "https://claude.com/cai/oauth/authorize?code=true&client_id=demo&response_type=code&redirect_uri=https%3A%2F%2Fplatform.claude.com%2Foauth%2Fcode%2Fcallback&state=demo-not-real";
 
 /** Breaks a row at spaces to `cols`, later rows indented, as the harness does. */
 function wrapRow(row: string, cols: number): string[] {
@@ -60,7 +60,7 @@ export const loginFrame =
   (cols) => {
     const edge = "─".repeat(Math.max(cols - 4, 4));
     const field = [`╭${edge}╮`, `│ ${typed}`.padEnd(Math.max(cols - 3, 5)).slice(0, cols - 2) + "│", `╰${edge}╯`];
-    if (stage === "code") return [" Browser didn't open? Use the URL below to sign in (c to copy)", "", ...chunks(DEMO_LINK, cols), "", " Paste code here if prompted", ...field, "", " Esc to go back"];
+    if (stage === "code") return [" Browser didn't open? Use the URL below to sign in (c to copy)", "", ...chunks(MOCK_LINK, cols), "", " Paste code here if prompted", ...field, "", " Esc to go back"];
     const rows =
       stage === "method"
         ? [" Select login method:", "", " ❯ 1. Claude account with subscription · Individual, Team, or Enterprise", "   2. Anthropic Console account · API usage billing", "   3. 3rd-party platform · Bedrock, Microsoft Foundry, Google Vertex AI"]

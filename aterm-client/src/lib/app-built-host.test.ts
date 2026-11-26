@@ -27,6 +27,8 @@ const stored = new Map<string, string>();
 const writes: string[] = [];
 
 async function launched(env: Record<string, string> = { VITE_ATERM_APP: "1", VITE_ATERM_LOCAL_HOST: MAC, VITE_ATERM_LOCAL_LABEL: "this Mac" }) {
+  // A shipped build, so no dev-only row is listed.
+  vi.stubEnv("DEV", false);
   for (const [key, value] of Object.entries(env)) vi.stubEnv(key, value);
   vi.stubGlobal("WebSocket", Dial);
   vi.stubGlobal("location", { search: "", hostname: "tauri.localhost", protocol: "tauri:", host: "tauri.localhost" });
@@ -63,7 +65,6 @@ describe("an app build that names its host", () => {
     const { app } = await launched();
     expect(app.hosts.map((host) => [host.label, host.address])).toEqual([
       ["this Mac", MAC],
-      ["Demo host", "scripted, no daemon"],
     ]);
     expect(writes).toEqual([]);
   });
@@ -86,7 +87,7 @@ describe("an app build that names its host", () => {
   it("stays removed once a person removed it", async () => {
     stored.set("aterm.hosts.v1", "[]");
     const { app } = await launched();
-    expect(app.hosts.map((host) => host.label)).toEqual(["Demo host"]);
+    expect(app.hosts.map((host) => host.label)).toEqual([]);
   });
 
   it("keeps the host a person last had open over its own", async () => {
@@ -102,7 +103,7 @@ describe("an app build that names its host", () => {
 describe("builds that name no host", () => {
   it("a hosted or android build starts with none, as before", async () => {
     const { app } = await launched({ VITE_ATERM_APP: "1" });
-    expect(app.hosts.map((host) => host.label)).toEqual(["Demo host"]);
+    expect(app.hosts.map((host) => host.label)).toEqual([]);
   });
 
   it("a build that is not an app ignores the setting", async () => {

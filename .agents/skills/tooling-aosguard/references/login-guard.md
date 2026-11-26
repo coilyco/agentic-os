@@ -11,7 +11,7 @@ could catch it.
 [`scripts/seat_login_guard.py`](../../../../scripts/seat_login_guard.py) is a PreToolUse Bash
 hook that reads the command and refuses before the process starts. The doctrine it
 backs is in the `tooling-aterm-client` skill: login flows are tested from captured
-screens, demo mode, or the emulator lane.
+screens, the dev Mock host, or the emulator lane.
 
 ## Rollout
 

@@ -10,8 +10,6 @@ import { brokeredFor } from "./brokered";
 import { APP_RETURN, HandoffError, isHandoffReturn, readReturn, startHandoff } from "./handoff";
 import { systemBrowser, type SystemBrowser } from "./system-browser";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
-import { DEMO_PREFIX } from "./demo-script";
-import { DemoHost } from "./demo-host";
 import { discover, listedAddresses, newFoundHosts, staleFoundHosts } from "./discovery";
 import { addToShelf, removeFromShelf, unseenCount, type MediaItem } from "./media";
 import { upsertMessage } from "./messages";
@@ -59,7 +57,8 @@ export const app = $state({
   hosts: [
     ...(EXTERNAL ? [] : [{ id: "local", label: hostLabel(location, import.meta.env.DEV), address: DEFAULT_DAEMON_URL, kind: "daemon", status: { kind: "checking" } } as Host]),
     ...startingHosts(BUILT_HOST).map(savedHost),
-    { id: "demo", label: "Demo host", address: "scripted, no daemon", kind: "demo", status: { kind: "online", sessionCount: 4 } },
+    // `just dev` only. A production build drops the row and the mock with it.
+    ...(import.meta.env.DEV ? [{ id: "mock", label: "Mock host", address: "scripted, dev only", kind: "mock", status: { kind: "online", sessionCount: 4 } } as Host] : []),
   ] as Host[],
   selectedHostId: null as string | null,
   attachedHostId: null as string | null,
@@ -237,7 +236,7 @@ export function showHost(): void {
   app.configurationOpen = false;
   app.logoHome = false;
   launching = null;
-  if (app.attachedHostId && !inDemo()) storeLastOpen({ host: app.attachedHostId });
+  if (app.attachedHostId) storeLastOpen({ host: app.attachedHostId });
   app.selectedSession = null;
   app.selectedRole = null;
   if (app.attachedHostId) app.selectedHostId = app.attachedHostId;
@@ -267,7 +266,7 @@ export function openTerminal(sessionId: string): void {
   if (!channel || app.terminalSupport !== "yes" || app.terminalOpening[sessionId]) return;
   delete app.terminalRefusals[sessionId];
   app.terminalClosed = app.terminalClosed.filter((each) => each !== sessionId);
-  if (!inDemo()) storeClosed(app.terminalClosed);
+  storeClosed(app.terminalClosed);
   app.terminals = app.terminals.filter((entry) => !(entry.label === sessionId && entry.exit));
   app.terminalOpening[sessionId] = true;
   openTimers.set(
@@ -288,8 +287,7 @@ export function closeTerminal(sessionId: string): void {
   if (entry.exit) app.terminals = app.terminals.filter((each) => each.id !== entry.id);
   else app.connection?.terminals?.close(entry.id);
   app.terminalClosed = [...app.terminalClosed.filter((each) => each !== sessionId), sessionId];
-  // The demo's seats are not on this device's record of hosts, so it keeps nothing.
-  if (!inDemo()) storeClosed(app.terminalClosed);
+  storeClosed(app.terminalClosed);
 }
 
 export async function checkHost(host: Host): Promise<void> {
@@ -376,8 +374,7 @@ async function refreshFound(): Promise<void> {
         for (const id of staleFoundHosts(app.hosts, listedAddresses(found))) removeHost(id);
       }
       const added = newFoundHosts(app.hosts, found);
-      // Before the demo host, which stays last.
-      app.hosts.splice(app.hosts.length - 1, 0, ...added);
+      insertHosts(added);
       for (const host of added) void checkHost(app.hosts.find((candidate) => candidate.id === host.id)!);
     } while (refreshFoundAgain);
   } finally {
@@ -386,8 +383,7 @@ async function refreshFound(): Promise<void> {
 }
 
 setInterval(() => {
-  // The demo asks no host anything, so discovery waits for it to end.
-  if (document.visibilityState === "visible" && !inDemo()) void refreshFound();
+  if (document.visibilityState === "visible") void refreshFound();
 }, FOUND_REFRESH_MS);
 
 /** Keeps a found host on this device, as if it had been typed. */
@@ -401,6 +397,12 @@ export function saveFoundHost(host: Host): void {
   persist();
 }
 
+/** Real hosts go before the dev mock row, which stays last, or at the end with none. */
+function insertHosts(hosts: Host[]): void {
+  const mock = app.hosts.findIndex((host) => host.kind === "mock");
+  app.hosts.splice(mock < 0 ? app.hosts.length : mock, 0, ...hosts);
+}
+
 /** Adds a host by tailnet name, remembered on this device. Throws a readable message. */
 export function addHost(input: string): Host {
   const saved = parseHostInput(input);
@@ -410,7 +412,7 @@ export function addHost(input: string): Host {
     return existing;
   }
   const host = savedHost(saved);
-  app.hosts.splice(app.hosts.length - 1, 0, host);
+  insertHosts([host]);
   persist();
   void checkHost(app.hosts.find((candidate) => candidate.id === host.id)!);
   return host;
@@ -457,14 +459,13 @@ function restoreFor(host: Host): void {
   restoring = null;
 }
 
-export function selectHost(host: Host, given?: HostConnection): void {
+export function selectHost(host: Host): void {
   if (!restoringNow) restoring = null;
   app.settingsOpen = false;
   app.configurationOpen = false;
   app.logoHome = false;
   launching = null;
-  // The demo is not a place to come back to, so a restart lands on the connect screen.
-  if (!given) storeLastOpen({ host: host.id });
+  storeLastOpen({ host: host.id });
   app.selectedHostId = host.id;
   app.selectedSession = null;
   app.selectedRole = null;
@@ -473,14 +474,13 @@ export function selectHost(host: Host, given?: HostConnection): void {
   app.pageToShow = null;
   if (host.status.kind !== "online" || app.attachedHostId === host.id) return;
   resetAttached();
-  // A production build's demo row is the bundled demo. `just dev` keeps the mock host.
-  const connection = given ?? (host.brokered ? new DaemonHost(host.address, brokeredFor(accountsClient!, brokerClient!, host.brokered.daemonId)) : host.kind === "daemon" ? new DaemonHost(host.address) : import.meta.env.DEV ? new MockHost(undefined, terminalModeFrom(typeof location === "undefined" ? "" : location.search)) : new DemoHost());
+  // DEV first, so a production build folds the branch away and ships no mock.
+  const connection = host.brokered ? new DaemonHost(host.address, brokeredFor(accountsClient!, brokerClient!, host.brokered.daemonId)) : import.meta.env.DEV && host.kind === "mock" ? new MockHost(undefined, terminalModeFrom(typeof location === "undefined" ? "" : location.search)) : new DaemonHost(host.address);
   attach(host, connection);
 }
 
 /** Drops the attached host's state, so the next screen starts clean. */
 function resetAttached(): void {
-  const wasDemo = inDemo();
   app.connection?.close();
   clearTimeout(restoredTimer);
   app.link = { state: "live" };
@@ -511,43 +511,6 @@ function resetAttached(): void {
   app.terminalsLoaded = false;
   for (const label of Object.keys(app.terminalOpening)) settleOpen(label);
   app.terminalRefusals = {};
-  if (wasDemo) forgetDemo();
-}
-
-/** True while the bundled demo is attached. It is the one connection that never dials. */
-export function inDemo(): boolean {
-  return app.connection?.demo === true;
-}
-
-/** Nothing the demo made outlives it: its terminal ids and closed seats leave with it. */
-function forgetDemo(): void {
-  app.terminalClosed = app.terminalClosed.filter((id) => !id.startsWith(DEMO_PREFIX));
-  for (const id of Object.keys(app.terminalSeats)) if (id.startsWith(DEMO_PREFIX)) delete app.terminalSeats[id];
-  for (const id of [...dismissed]) if (id.startsWith(DEMO_PREFIX)) dismissed.delete(id);
-}
-
-/** The first screen's "Try the demo": attaches the bundled host, with no network. */
-export function enterDemo(): void {
-  const host = app.hosts.find((candidate) => candidate.kind === "demo");
-  if (!host) return;
-  selectHost(host, new DemoHost());
-  // The connect screen is not the demo. A seat is, so its terminal is seen first.
-  const first = app.sessions[0];
-  if (first) selectSession(first.id);
-}
-
-/** Back to the connect screen, with no host chosen and nothing of the demo left. */
-export function leaveDemo(): void {
-  if (!inDemo()) return;
-  resetAttached();
-  app.connection = null;
-  app.attachedHostId = null;
-  app.selectedHostId = null;
-  app.selectedSession = null;
-  app.selectedRole = null;
-  app.notice = "";
-  // Leave from Settings lands on Pick a host, not on Settings with no demo behind it.
-  app.settingsOpen = false;
 }
 
 function attach(host: Host, connection: HostConnection): void {
@@ -604,10 +567,8 @@ function attach(host: Host, connection: HostConnection): void {
       for (const each of app.terminals) if (each.label && !each.exit) shellArrived(each.label);
     }
     else if (event.type === "terminal_opened") {
-      if (!inDemo()) {
-        app.terminalSeats[event.id] = event.label;
-        storeSeats(app.terminalSeats);
-      }
+      app.terminalSeats[event.id] = event.label;
+      storeSeats(app.terminalSeats);
       app.terminals = claim(app.terminals, event.id, event.label);
       // The reply can beat the list, so opening ends when the list shows the shell.
       if (app.terminals.some((entry) => entry.id === event.id)) shellArrived(event.label);
@@ -990,8 +951,8 @@ function applyBrokered(daemons: readonly BrokerDaemon[]): void {
     return row;
   });
   const others = app.hosts.filter((host) => !host.brokered);
-  const demo = others.filter((host) => host.kind === "demo");
-  app.hosts = [...others.filter((host) => host.kind !== "demo"), ...rows, ...demo];
+  const mock = others.filter((host) => host.kind === "mock");
+  app.hosts = [...others.filter((host) => host.kind !== "mock"), ...rows, ...mock];
   if (app.selectedHostId?.startsWith(BROKER_PREFIX) && !rows.some((row) => row.id === app.selectedHostId)) app.selectedHostId = null;
 }
 

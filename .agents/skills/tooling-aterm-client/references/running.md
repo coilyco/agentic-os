@@ -22,11 +22,11 @@ From another machine on the tailnet, such as a gaming PC: open `https://<mac tai
 just aterm-client-install
 just aterm-client-dev    # http://localhost:5173
 just aterm-client-gate   # check, test, build
-just aterm-client-drive  # headless browser against the Demo host, 1280px and 320px
+just aterm-client-drive  # headless browser against the dev Mock host, 1280px and 320px
 just aterm-client-drive-hops  # a mock daemon that breaks each hop, and the connection check
 ```
 
-In dev, "this Mac" needs `aterm daemon` running (any `aterm` launch starts it), and `VITE_ATERM_DAEMON_WS` points the client at another port. A build dials the origin that served it, so a daemon serving `dist/` needs no configuration, and the host tab names that machine. The Demo host is scripted and needs nothing. See [architecture.md](architecture.md).
+In dev, "this Mac" needs `aterm daemon` running (any `aterm` launch starts it), and `VITE_ATERM_DAEMON_WS` points the client at another port. A build dials the origin that served it, so a daemon serving `dist/` needs no configuration, and the host tab names that machine. In dev only, the Mock host is scripted and needs nothing. A build has no Mock host. See [architecture.md](architecture.md).
 
 ## License
 

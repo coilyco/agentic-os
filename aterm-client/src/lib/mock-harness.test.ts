@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { detectChoice } from "./choices";
 import { harnessInputRows } from "./harness";
-import { CLAUDE_BOX, CLAUDE_DIALOG, drawHarness, type Frame } from "./demo-harness";
+import { CLAUDE_BOX, CLAUDE_DIALOG, drawHarness, type Frame } from "./mock-harness";
 
 // The drive's test bed, so its screens must stay what the detectors read.
 const screen = (frame: Frame, rows = 0, cols = 70) =>
   drawHarness(["› check the hosts page"], frame, rows, cols).replace("\x1b[H\x1b[2J", "").replace(/\x1b\[[0-9;]*m/g, "").split("\r\n");
 
-describe("demo harness screens", () => {
+describe("mock harness screens", () => {
   it("draws a Claude Code box the crop hides, with no menu in it", () => {
     expect(harnessInputRows(screen(CLAUDE_BOX))).toBe(5);
     expect(detectChoice(screen(CLAUDE_BOX))).toBeNull();
