@@ -11,7 +11,7 @@ A person takes a screenshot of the aterm client, taps one button, and sends it w
 ## What a person sees
 
 * **On a phone, one tap.** A chat-bubble icon sits in the bar beside the seat switcher, 44px, and is absent while the host cannot take feedback. The sidebar and the phone menu carry a labelled entry that says why it is unavailable instead of vanishing.
-* **The sheet opens over the screen being discussed** and names it in a line: the seat, the viewport, the Android app or browser, and the build. That line is read when the sheet opens, since the screen underneath is the subject. The build is the short git sha stamped at build time (`__ATERM_BUILD__`, `dev` outside a repo).
+* **The sheet is its own full screen** (COI-3741) and names the screen being discussed in a line: the seat, the viewport, the Android app or browser, and the build. That line is read when the sheet opens, since the screen it replaced is the subject. The build is the short git sha stamped at build time (`__ATERM_BUILD__`, `dev` outside a repo).
 * **A note and up to four screenshots.** Add screenshot opens the phone's picker, which lists the newest screenshots first. A paste or a drop works on a desktop. A still image over the host's limit is shrunk, a GIF is refused, as in the composer.
 * **A refusal keeps everything.** The note and screenshots stay, with the host's reason in words. Closing the sheet keeps the draft until a send succeeds.
 * **A send names its record**, and Send another starts clean.

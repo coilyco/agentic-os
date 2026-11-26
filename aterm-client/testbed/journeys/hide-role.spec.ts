@@ -27,8 +27,7 @@ const openList = async (page: Page, phone: boolean) => {
 };
 const openSettings = async (page: Page, phone: boolean) => {
   if (phone) {
-    if (!(await page.getByText("Hosts and settings").isVisible())) await openList(page, phone);
-    await page.getByText("Hosts and settings").click();
+    if (!(await page.locator("#sidebar-menu").isVisible())) await openList(page, phone);
     await page.getByRole("button", { name: "Settings", exact: true }).click();
   } else {
     await page.getByRole("navigation", { name: "Hosts and sessions" }).getByRole("button", { name: "Settings", exact: true }).click();
