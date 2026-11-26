@@ -299,11 +299,6 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	contextDone := make(chan struct{})
 	defer close(contextDone)
 	go d.watchContext(contextDone, contextEvery)
-	if os.Getenv(keepAwakeEnv) != "off" {
-		d.awake = newKeepAwake(acquireAwake, func() bool { return d.hostKind() == hostPersonal }, d.seatCount, logf)
-		go d.awake.run(contextDone)
-		d.onHostKind(func(hostKind) { d.awake.nudge() })
-	}
 	if d.users.PushEnabled() {
 		go d.users.WatchWaiting(contextDone, pushWatchEvery)
 	}
@@ -320,6 +315,16 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		d.handWaitingFeedback()
 	}
 	d.restoreArtifacts()
+	if os.Getenv(keepAwakeEnv) != "off" {
+		// After the host kind loads and holders are adopted. Under mu, since an adopted
+		// seat ending nudges from its own goroutine.
+		awake := newKeepAwake(acquireAwake, func() bool { return d.hostKind() == hostPersonal }, d.seatCount, logf)
+		d.mu.Lock()
+		d.awake = awake
+		d.mu.Unlock()
+		go awake.run(contextDone)
+		d.onHostKind(func(hostKind) { awake.nudge() })
+	}
 	d.clientDir = options.ClientDir
 	d.discovery.port = func() string { return options.TailnetPort }
 	d.discovery.peerPorts = options.PeerPorts

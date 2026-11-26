@@ -19,4 +19,5 @@ The [aterm host daemon](../../../../docs/aterm-daemon.md) keeps the computer fro
 ## Checked
 
 * `go test -run 'KeepAwake|Caffeinate|Inhibit'` covers one lock shared by many seats, release at the last seat, no lock off a personal host and release on turning durable, a dead lock taken again, a failure reported in status, and release at daemon stop.
-* `TestCaffeinateLockShowsInPmsetAndReleases` takes the real macOS lock, reads it back from `pmset -g assertions`, releases it, and reads it gone. `TestInhibitLockShowsInLogindAndReleases` does the same against `systemd-inhibit --list` where logind runs, and skips elsewhere.
+* On macOS, `TestCaffeinateLockShowsInPmsetAndReleases` takes the real lock and reads it from `pmset -g assertions` and then gone. `TestDaemonKeepsAPersonalMacAwakeOnlyWhileASeatRuns` runs a daemon with one seat and sees the assertion and `aterm status` report it, then sees both clear when the seat ends. `TestDaemonTakesNoAssertionOnADurableMac` sees nothing held with a durable `host.json`. A SIGKILL of the daemon while holding left no assertion and no caffeinate within 0.5s (2026-11-26).
+* `TestInhibitLockShowsInLogindAndReleases` reads the Linux lock from `systemd-inhibit --list` where logind runs, and skips elsewhere.
