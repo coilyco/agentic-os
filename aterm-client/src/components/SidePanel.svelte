@@ -169,12 +169,12 @@
     .panel { position: fixed; left: env(safe-area-inset-left); right: env(safe-area-inset-right); bottom: 0; z-index: 5; height: var(--strip); border-left: none; border-top: 1px solid var(--line); background: var(--ground); }
     .head { height: calc(var(--strip) - var(--bottom-clear)); flex: none; }
     .panel[data-open="false"] .content { display: none; }
-    .panel[data-open="true"] { top: var(--sheet-top, 72px); height: auto; padding-bottom: var(--bottom-clear); box-shadow: 0 -8px 16px rgb(0 0 0 / 0.35); }
-    /* Reading mode, a phone on its side: no strip. One 44px button, inside the safe-area insets, raises the panel over the terminal beside the 52px rail, and it covers the terminal only while open. */
-    .panel[data-reading="true"] { left: auto; right: 0; top: 0; bottom: 0; height: auto; width: calc(100vw - 52px - env(safe-area-inset-left)); max-width: 520px; padding-right: env(safe-area-inset-right); border-top: none; background: transparent; }
+    .panel[data-open="true"] { top: var(--sheet-top, 72px); height: auto; padding-bottom: var(--bottom-clear); }
+    /* Reading mode, a phone on its side: no strip. One 44px button, inside the safe-area insets, raises the panel over the whole terminal beside the 52px rail, only while open (COI-3741). */
+    .panel[data-reading="true"] { left: auto; right: 0; top: 0; bottom: 0; height: auto; width: calc(100vw - 52px - env(safe-area-inset-left)); padding-right: env(safe-area-inset-right); border-top: none; background: transparent; }
     .panel[data-reading="true"][data-open="false"] { width: 0; padding: 0; }
     .panel[data-reading="true"][data-open="false"] .head { display: none; }
-    .panel[data-reading="true"][data-open="true"] { height: auto; border-left: 1px solid var(--line); background: var(--ground); box-shadow: -8px 0 16px rgb(0 0 0 / 0.4); }
+    .panel[data-reading="true"][data-open="true"] { height: auto; border-left: 1px solid var(--line); background: var(--ground); }
     .panel[data-reading="true"][data-open="true"] .head { height: 44px; }
     .panel[data-reading="true"] .reveal { position: fixed; display: grid; place-items: center; top: max(4px, env(safe-area-inset-top)); right: max(4px, env(safe-area-inset-right)); width: 44px; height: 44px; padding: 0; border-radius: 8px; border: 1px solid var(--control-line); background: color-mix(in srgb, var(--ground) 82%, transparent); color: var(--text); }
     .reveal:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }

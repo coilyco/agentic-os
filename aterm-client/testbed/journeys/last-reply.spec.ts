@@ -2,7 +2,7 @@
 import { expect, kindOf, SEATS, test } from "../harness.ts";
 
 const FIRST = "I put an access sysadmin on it and the gate is green now.";
-const WHOLE = `${FIRST}\n\n${Array.from({ length: 30 }, (_, i) => `Step ${i + 1}: the thing that changed and why it matters.`).join("\n")}\nEND-OF-THE-REPLY`;
+const WHOLE = `${FIRST}\n\n${Array.from({ length: 60 }, (_, i) => `Step ${i + 1}: the thing that changed and why it matters.`).join("\n")}\nEND-OF-THE-REPLY`;
 
 const phoneOnly = (info: import("@playwright/test").TestInfo) => kindOf(info) === "phone";
 

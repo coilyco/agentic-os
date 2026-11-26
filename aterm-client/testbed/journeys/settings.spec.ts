@@ -48,7 +48,6 @@ test("Settings opens from a seat's menu, and picking a seat closes it", async ({
     await page.getByRole("navigation", { name: "Hosts and sessions" }).getByRole("button", { name: "Settings", exact: true }).click();
   } else {
     await page.getByRole("button", { name: /Seats, starting a seat, hosts and settings/ }).click();
-    await page.getByText("Hosts and settings").click();
     await page.getByRole("button", { name: "Settings", exact: true }).click();
   }
   const settings = page.getByRole("region", { name: "Settings" });

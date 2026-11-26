@@ -124,13 +124,12 @@
   }
 </script>
 
-<!-- The dialog is the sheet. A click on its dimmed edge, or Escape, drops what it holds. The original stays where it came from. -->
+<!-- The dialog is the sheet, a full screen. Discard or Escape drops what it holds. The original stays where it came from. -->
 <dialog
   bind:this={dialog}
   class="sheet"
   aria-labelledby="share-title"
   onclose={() => share.open && discard()}
-  onclick={(event) => event.target === dialog && phase === "editing" && discard()}
 >
   <form method="dialog" class="body" onsubmit={(event) => { event.preventDefault(); void send(); }}>
     <h2 id="share-title">Send to a seat</h2>
@@ -176,9 +175,10 @@
 </dialog>
 
 <style>
-  .sheet { padding: 0; border: 1px solid var(--control-line); border-radius: 14px; background: var(--surface); color: var(--text); width: min(520px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; }
-  .sheet::backdrop { background: rgb(0 0 0 / 0.6); }
-  .body { display: flex; flex-direction: column; gap: 10px; padding: 16px; }
+  /* COI-3741: its own screen, edge to edge, with nothing of the seat behind it. */
+  .sheet { margin: 0; padding: env(safe-area-inset-top, 0px) 0 var(--bottom-clear); border: none; border-radius: 0; background: var(--ground); color: var(--text); width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; overflow: auto; }
+  .sheet::backdrop { background: var(--ground); }
+  .body { display: flex; flex-direction: column; gap: 10px; padding: 16px; max-width: 560px; margin: 0 auto; }
   h2 { margin: 0; font: 600 20px/1.2 var(--font-display); }
   label { font-size: 15px; color: var(--text); }
   .plain { margin: 0; font-size: 14px; line-height: 1.45; color: var(--text-soft); }
@@ -201,9 +201,7 @@
   /* Send stays in view while the seats and words scroll under it. */
   .actions { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 8px; padding: 10px 0 2px; background: var(--surface); }
   .button:disabled { opacity: 0.5; cursor: not-allowed; }
-  /* A phone gets the screen's width and sits at its foot, where the thumb is. */
   @media (max-width: 720px) {
-    .sheet { width: 100vw; max-width: 100vw; margin: auto 0 0; border-radius: 14px 14px 0 0; border-width: 1px 0 0; padding-bottom: var(--bottom-clear); }
     .actions .button { flex: 1; justify-content: center; }
   }
 </style>
