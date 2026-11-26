@@ -89,6 +89,13 @@ func writeStatus(w io.Writer, status sessionStatus) error {
 	if _, err := fmt.Fprintln(w, head); err != nil {
 		return err
 	}
+	if awake := status.Awake; awake != nil {
+		held := "not held"
+		if awake.Held {
+			held = "held"
+		}
+		fmt.Fprintf(w, "host awake: %s, %s\n", held, awake.Detail)
+	}
 	if len(status.Prompt) > 0 {
 		fmt.Fprintln(w, "-- prompt --")
 		fmt.Fprintln(w, strings.Join(status.Prompt, "\n"))

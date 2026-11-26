@@ -60,6 +60,7 @@ func runIsolated(m *testing.M) int {
 	defer os.RemoveAll(root)
 	_ = os.Setenv(stateDirEnv, filepath.Join(root, "state"))
 	_ = os.Setenv(daemonSocketEnv, filepath.Join(root, "no-daemon.sock"))
+	_ = os.Setenv(keepAwakeEnv, "off")
 	ledgerGuard = realLedgerGuard(real, func(dir string) {
 		realLedgerMu.Lock()
 		defer realLedgerMu.Unlock()
