@@ -283,6 +283,15 @@ class Lane(J.Journey):
         if not self.tap_node(wanted, spec.get("timeout", 20)):
             raise Fail(f"no system UI node matched /{spec['pattern']}/")
 
+    def op_seed_photo(self, spec: dict) -> None:
+        """Put the seeded PNG in MediaStore under `name`, so Android's own picker lists it."""
+        self.seed(spec.get("name", J.PNG_NAME), spec.get("red", 220))
+
+    def op_pick_image(self, spec: dict) -> None:
+        """Open Add image and pick through Android's picker: `mode` thumb (Photo Picker) or browse."""
+        self.open_picker()
+        self.pick_image(spec.get("mode", "thumb"))
+
     def op_logcat(self, spec: dict) -> None:
         lines = [line for line in adb("logcat", "-d", "-t", "10000", check=False).splitlines() if re.search(spec["pattern"], line, re.IGNORECASE)]
         (self.out / f"logcat-{spec['name']}.txt").write_text("\n".join(lines[-400:]))
