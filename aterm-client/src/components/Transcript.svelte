@@ -8,6 +8,7 @@
   import { mergeItems, rowsFor, TranscriptRefused, type Level, type PeerRef, type TranscriptItem } from "../lib/transcript";
   import { cacheKey, catchUp, loadSnapshot, markerRow, MAX_ITEMS, saveSnapshot } from "../lib/transcript-cache";
   import { cancelPending, pendingFor, settlePending, shownText } from "../lib/pending-sends.svelte";
+  import { layout } from "../lib/app.svelte";
 
   // `restore` is false for a device that has not unlocked, which never shows a kept page.
   let { channel, sessionId, hostId, restore, level, marker, onread, onrefused, onpeer }: { channel: TranscriptChannel; sessionId: string; hostId: string; restore: boolean; level: Level; marker: boolean; onread: () => void; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void } = $props();
@@ -264,7 +265,10 @@
   {#if !pinned || detached}
     <button type="button" class="jump" onclick={() => void jump()}><span aria-hidden="true">↓</span> Jump to latest</button>
   {/if}
-  <p class="source" role="status">{catching ? (stale ? `Showing what this device read ${age}. The host did not answer.` : `Showing what this device read ${age}. Catching up.`) : stale ? "Not updating. The host did not answer." : phase === "ready" ? `From the transcript, ${age}.` : ""}</p>
+  <!-- A phone on its side keeps the line only when something is wrong or still catching up (COI-3371). -->
+  {#if !layout.reading || catching || stale}
+    <p class="source" role="status">{catching ? (stale ? `Showing what this device read ${age}. The host did not answer.` : `Showing what this device read ${age}. Catching up.`) : stale ? "Not updating. The host did not answer." : phase === "ready" ? `From the transcript, ${age}.` : ""}</p>
+  {/if}
 </section>
 
 <style>
