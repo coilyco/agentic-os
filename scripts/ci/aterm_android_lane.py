@@ -288,9 +288,15 @@ class Lane(J.Journey):
         self.seed(spec.get("name", J.PNG_NAME), spec.get("red", 220))
 
     def op_pick_image(self, spec: dict) -> None:
-        """Open Add image and pick through Android's picker: `mode` thumb (Photo Picker) or browse."""
+        """Open Add image and pick through Android's picker: `mode` thumb (Photo Picker), browse
+        (the Photo Picker's file browser), or docs (the file browser opened straight, for any type)."""
         self.open_picker()
-        self.pick_image(spec.get("mode", "thumb"))
+        mode = spec.get("mode", "thumb")
+        if mode != "docs":
+            self.pick_image(mode)
+            return
+        if not self.tap_node(lambda n: n.get("content-desc", "").startswith(f"{J.PNG_NAME},") or n.get("text") == J.PNG_NAME, 30):
+            raise Fail(f"the file browser did not show {J.PNG_NAME}, ui.xml has what it did show")
 
     def op_logcat(self, spec: dict) -> None:
         lines = [line for line in adb("logcat", "-d", "-t", "10000", check=False).splitlines() if re.search(spec["pattern"], line, re.IGNORECASE)]

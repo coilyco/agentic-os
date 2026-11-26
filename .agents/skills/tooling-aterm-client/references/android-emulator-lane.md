@@ -29,7 +29,7 @@ JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add
 * `fill` - `selector`, `text`. Waits for the element, sets the value and fires `input`.
 * `attach-image` - gives the composer's file input the seeded PNG, the way a pick would. It skips Android's picker.
 * `seed-photo` - puts the seeded PNG in MediaStore, so Android's picker lists it.
-* `pick-image` - `mode` `thumb` (the Photo Picker's own thumbnail) or `browse` (the file browser). Taps Add image and picks the seeded PNG through Android's picker, which `attach-image` does not.
+* `pick-image` - `mode` `thumb` (the Photo Picker's own thumbnail), `browse` (its file browser) or `docs` (the file browser opened straight, for an input with no `accept`). Taps Add image and picks the seeded PNG through Android's picker, which `attach-image` does not.
 * `eval` - `js`, optionally `expect` (a regex on the result) and `save` (a name in the result file).
 * `wait` - `pattern`, `timeout`. Waits for the page text to match.
 * `assert` - `js`, `message`. A script that must be true, with `$name` for a value an earlier `eval` saved. `eval` takes `$name` too.
