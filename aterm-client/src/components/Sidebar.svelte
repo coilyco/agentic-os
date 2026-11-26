@@ -56,6 +56,18 @@
     if (!onScreen) menuOpen = false;
   });
 
+  // The menu fills the window under the bar, so it starts where the bar ends.
+  let nav = $state<HTMLElement>();
+  let menuTop = $state(49);
+  $effect(() => {
+    if (!menuOpen || !nav) return;
+    const element = nav;
+    const read = () => (menuTop = Math.round(element.getBoundingClientRect().bottom));
+    read();
+    addEventListener("resize", read);
+    return () => removeEventListener("resize", read);
+  });
+
   async function toggleMenu(): Promise<void> {
     menuOpen = !menuOpen;
     if (!menuOpen) return;
@@ -310,7 +322,7 @@
 
 <!-- Escape is heard here only because the keys it answers come from controls inside the menu. -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<nav class="sidebar" aria-label="Hosts and sessions" data-link={app.link.state} data-mode={reading ? "reading" : narrow ? "narrow" : "wide"} onkeydown={escape}>
+<nav bind:this={nav} class="sidebar" aria-label="Hosts and sessions" data-link={app.link.state} data-mode={reading ? "reading" : narrow ? "narrow" : "wide"} onkeydown={escape}>
   {#if narrow || reading}
     <!-- With the overview on screen it is the seat list, so the bar does not list them twice. -->
     {#if onScreen || (app.attachedHostId && !overviewShown())}
@@ -339,35 +351,21 @@
         {/if}
       </div>
     {/if}
-    {#if onScreen && menuOpen}
-      <!-- A click on the dimmed page puts the menu away. Escape does the same from the keyboard. -->
-      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-      <div class="scrim" onclick={closeMenu}></div>
-    {/if}
     <!-- Settings is the page on a phone, so the host menu is not stacked above it. -->
     {#if (!onScreen && !app.settingsOpen && !app.configurationOpen) || menuOpen}
-      <div id="sidebar-menu" class="menu" data-flow={onScreen ? "sheet" : "page"}>
+      <div id="sidebar-menu" class="menu" data-flow={onScreen ? "sheet" : "page"} style:--menu-top={onScreen ? `${menuTop}px` : undefined}>
         <!-- Over a seat the menu is the seat switcher too, since the bar names only the one on screen. -->
         {#if onScreen}
           {#if app.attachedHostId}{@render runningGroup()}{@render failedGroup()}{@render startGroup()}{/if}
-          <details class="more">
-            <summary>
-              <span>Hosts and settings</span>
-              <svg class="chev" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
-            </summary>
-            {@render hostsGroup()}
-            <ConfigurationLink onopen={closeMenu} />
-            <SettingsLink onopen={closeMenu} />
-            <ByCoilyco />
-          </details>
+          {@render hostsGroup()}
         {:else}
           {@render hostsGroup()}
           {#if app.attachedHostId}{@render startGroup()}{/if}
         {/if}
         <div class="feedback"><FeedbackEntry onopen={closeMenu} /></div>
-        {#if !onScreen}<ConfigurationLink onopen={closeMenu} />{/if}
-        {#if !onScreen}<SettingsLink onopen={closeMenu} />{/if}
-        {#if !onScreen && !overviewShown()}<ByCoilyco />{/if}
+        <ConfigurationLink onopen={closeMenu} />
+        <SettingsLink onopen={closeMenu} />
+        {#if onScreen || !overviewShown()}<ByCoilyco />{/if}
       </div>
     {/if}
   {:else}
@@ -499,8 +497,8 @@
     .seats .name { grid-column: 1 / -1; font-size: 14px; line-height: 1.2; }
     .seats .harness { padding: 0; border: none; font-size: 11px; color: var(--muted); }
     .seats .code-inline { display: inline; }
-    .scrim { position: fixed; inset: 0; z-index: -1; background: rgb(0 0 0 / 0.55); }
-    .menu[data-flow="sheet"] { position: absolute; top: 100%; left: 0; right: 0; max-height: calc(100dvh - 49px); overflow-y: auto; overscroll-behavior: contain; padding: 0 8px calc(12px + var(--bottom-clear)); background: var(--ground); border-bottom: 1px solid var(--line); box-shadow: 0 12px 16px rgb(0 0 0 / 0.4); }
+    /* COI-3741: the seat menu is its own screen under the bar, with nothing of the seat showing. */
+    .menu[data-flow="sheet"] { position: fixed; top: var(--menu-top, 49px); left: 0; right: 0; bottom: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 max(8px, env(safe-area-inset-right)) calc(12px + var(--bottom-clear)) max(8px, env(safe-area-inset-left)); background: var(--ground); }
     /* With no seat on screen the lists are the page: today's rows, tight, above the host's own panel. */
     .menu[data-flow="page"] { padding: 4px 0; display: flex; flex-direction: column; gap: 4px; }
     .menu[data-flow="page"] h2, .menu[data-flow="page"] .detail { display: none; }
@@ -523,13 +521,6 @@
   .menu[data-flow="sheet"] .chips .text { align-items: center; }
   .menu[data-flow="sheet"] .chips .name { font-size: 12px; line-height: 1.2; white-space: normal; text-align: center; overflow: visible; }
   .menu[data-flow="sheet"] .chips .detail { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .more { margin-top: 8px; border-top: 1px solid var(--line); }
-  .more > summary { list-style: none; min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; padding: 6px 10px; cursor: pointer; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
-  .more > summary::-webkit-details-marker { display: none; }
-  .more > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; border-radius: 8px; }
-  .more > summary > span:first-child { flex: 1; }
-  .more .chev { flex: none; }
-  .more[open] .chev { transform: rotate(180deg); }
 
   /* Reading view, a phone on its side: the bar becomes a rail, so the seat keeps the full height. Chosen in script, since the width is past the phone breakpoint. */
   .sidebar[data-mode="reading"] { width: 52px; flex: none; position: relative; z-index: 7; padding: 0; gap: 0; overflow: visible; border-right: 1px solid var(--line); border-bottom: none; }
@@ -538,6 +529,5 @@
   .sidebar[data-mode="reading"] .switcher[aria-expanded="true"] { border-color: var(--accent, var(--brand)); background: var(--selected); }
   .sidebar[data-mode="reading"] :is(.who, .state, .chevron, .elsewhere .word) { display: none; }
   .sidebar[data-mode="reading"] .elsewhere { position: absolute; top: -4px; right: -4px; min-width: 18px; padding: 0 4px; font-size: 11px; line-height: 18px; text-align: center; border-radius: 9px; background: var(--warn); color: var(--ground); }
-  .sidebar[data-mode="reading"] .scrim { position: fixed; inset: 0; z-index: -1; background: rgb(0 0 0 / 0.55); }
-  .sidebar[data-mode="reading"] .menu[data-flow="sheet"] { position: fixed; top: 0; bottom: 0; left: calc(env(safe-area-inset-left) + 52px); right: auto; width: min(340px, 70vw); max-height: none; overflow-y: auto; padding: 0 8px calc(12px + var(--bottom-clear)); background: var(--ground); border-right: 1px solid var(--line); border-bottom: none; box-shadow: 8px 0 16px rgb(0 0 0 / 0.4); }
+  .sidebar[data-mode="reading"] .menu[data-flow="sheet"] { position: fixed; top: 0; bottom: 0; left: calc(env(safe-area-inset-left) + 52px); right: 0; max-height: none; overflow-y: auto; padding: 0 max(8px, env(safe-area-inset-right)) calc(12px + var(--bottom-clear)) 8px; background: var(--ground); }
 </style>

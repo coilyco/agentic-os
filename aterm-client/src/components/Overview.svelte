@@ -79,7 +79,7 @@
     <button type="button" class="settings" onclick={openSettings}>Settings</button>
   </header>
   <!-- Under Settings and not beside it: the header is full at 320px. -->
-  <div class="entries"><button type="button" class="settings" onclick={openConfiguration}>Configuration</button></div>
+  <div class="entries"><button type="button" class="settings" onclick={openConfiguration}>Roles</button></div>
 
   {#if app.notice}<p class="note" role="status">{app.notice}</p>{/if}
 

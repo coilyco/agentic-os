@@ -12,12 +12,11 @@
 <section class="configuration" aria-labelledby="configuration-title">
   <header>
     <button type="button" class="back" onclick={closeConfiguration}>Back</button>
-    <h1 id="configuration-title">Configuration</h1>
+    <h1 id="configuration-title">Roles</h1>
   </header>
   <p class="lede">What each role is called on this host. You can read it here. Editing arrives once this host can store configuration.</p>
 
-  <section class="group" aria-labelledby="roles-label">
-    <h2 id="roles-label">Roles</h2>
+  <section class="group">
     {#if view.kind === "no-host"}
       <div class="empty">
         <p><b>No host is connected.</b></p>
@@ -52,7 +51,6 @@
   .configuration { max-width: 640px; padding: 24px clamp(16px, 4vw, 48px) 40px; display: flex; flex-direction: column; gap: 22px; }
   header { display: flex; align-items: center; gap: 14px; }
   h1 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 6vw, 36px); line-height: 1.1; }
-  h2 { margin: 0 0 6px; font: 600 12px var(--font-body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
   .lede { margin: 0; color: var(--muted); font-size: 15px; }
   .back, .action { min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 14px var(--font-body); }
   .back:focus-visible, .action:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
