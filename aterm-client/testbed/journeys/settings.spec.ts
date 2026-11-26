@@ -1,5 +1,5 @@
 // COI-3521: one Settings page, reached from home, holding this device's settings.
-import { expect, kindOf, loadFonts, reopenSeat, SEATS, seatEntry, test } from "../harness.ts";
+import { expect, kindOf, loadFonts, reopenSeat, SEATS, seatEntry, test, pickView, viewButton } from "../harness.ts";
 
 const stored = (page: import("@playwright/test").Page, key: string) => page.evaluate((k) => localStorage.getItem(k), key);
 
@@ -74,11 +74,10 @@ test.describe("the view a seat opens in", () => {
     expect(await stored(page, "aterm.seat-view-default.v1"), "stored without a reload").toBe("default");
     await settings.getByRole("button", { name: "Back" }).click();
     await seatEntry(page, SEATS.beetle.name).click();
-    const view = page.getByRole("radiogroup", { name: "Seat view" });
-    await expect(view.getByRole("radio", { name: "Default" }), "the seat opens in the chosen view").toHaveAttribute("aria-checked", "true");
-    await view.getByRole("radio", { name: "Focus" }).click();
+    await expect(viewButton(page), "the seat opens in the chosen view").toHaveText("Default");
+    await pickView(page, "Focus");
     await reopenSeat(page, SEATS.beetle);
-    await expect(page.getByRole("radiogroup", { name: "Seat view" }).getByRole("radio", { name: "Focus" }), "the seat's own pick wins").toHaveAttribute("aria-checked", "true");
+    await expect(viewButton(page), "the seat's own pick wins").toHaveText("Focus");
   });
 });
 

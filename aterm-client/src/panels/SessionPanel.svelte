@@ -13,7 +13,8 @@
   import RelayNotice from "../components/RelayNotice.svelte";
   import SidePanel from "../components/SidePanel.svelte";
   import SplitHandle from "../components/SplitHandle.svelte";
-  import SeatViews from "../components/SeatViews.svelte";
+  import ViewChoice from "../components/ViewChoice.svelte";
+  import { viewChoice } from "../lib/view-choice.svelte";
   import Terminal from "../components/Terminal.svelte";
   import Transcript from "../components/Transcript.svelte";
   import { app, asksShownOn, colorOf, layout, markMediaSeen, mediaOf, messagesFor, needsKaiIds, placeNow, reconnecting, relayedTo, unseenMedia } from "../lib/app.svelte";
@@ -28,7 +29,7 @@
   import { isBlank } from "../lib/screen";
   import type { Session } from "../lib/protocol";
   import type { Role } from "../lib/roster";
-  import { loadView, storeView } from "../lib/seat-view";
+  import { choiceOf, loadView, storeView, type ViewPick } from "../lib/seat-view";
   import { sessionCode } from "../lib/sessions";
   import { findPeerMessage } from "../lib/peer-link";
   import { mayClear, refusalText, type Level, type PeerRef } from "../lib/transcript";
@@ -113,19 +114,28 @@
     const found = findPeerMessage(messages, peer);
     focusMessage = found ? { id: found.id, n: (focusMessage?.n ?? 0) + 1 } : null;
   }
-  function pick(level: Level): void {
-    view = { level, raw: level === "verbose" ? view.raw : false };
+  // One of five views (COI-3757). A raw pick folds or unfolds the screen as the toolbar switch does.
+  let wrapping = $state(false);
+  function pickChoice(choice: ViewPick): void {
+    const raw = choice === "raw-wrapped" || choice === "raw-unwrapped";
+    view = raw ? { level: view.level, raw: true } : { level: choice, raw: false };
     fallback = null;
     storeView(session.id, view);
+    if (raw) seatTerminal?.wrap(choice === "raw-wrapped");
   }
-  function setRaw(raw: boolean): void {
-    view = { ...view, raw };
-    storeView(session.id, view);
-  }
+  $effect(() => {
+    viewChoice.current = choiceOf(view, showRaw, wrapping);
+    viewChoice.pick = pickChoice;
+    viewChoice.levels = !!transcripts;
+    return () => {
+      viewChoice.current = null;
+      viewChoice.pick = null;
+    };
+  });
   // Files this seat shared. The chip says so and the viewer opens over the seat (COI-3458).
   const shared = $derived(app.connection?.media ? mediaOf(session.id) : []);
   let viewing = $state(false);
-  let seatTerminal = $state<{ openFind: () => void }>();
+  let seatTerminal = $state<{ openFind: () => void; wrap: (next: boolean) => void }>();
   const findChord = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "Cmd+F" : "Ctrl+Shift+F";
   // Cmd+F from the composer or the card finds in the seat's output, as it does from the terminal.
   function findKey(event: KeyboardEvent): void {
@@ -375,6 +385,7 @@
       {/if}
       <span class="state mono">{session.state}</span>
     {/if}
+    {#if !phone}<ViewChoice />{/if}
     {#if !phone}
       <button type="button" class="head-button" aria-label="Find in output" title={`Find in output (${findChord})`} onclick={() => seatTerminal?.openFind()}>Find</button>
     {/if}
@@ -395,13 +406,10 @@
         {#key session.id}
           <!-- The card overlays the terminal so it never resizes it, which would make the harness redraw its menu. -->
           <div class="screen" data-link={app.link.state}>
-            {#if transcripts}
-              <SeatViews level={view.level} raw={showRaw} onlevel={pick} onraw={setRaw} />
-              {#if fallback}<p class="fallback" role="status">{refusalText(fallback)} Showing the screen.</p>{/if}
-            {/if}
+            {#if transcripts && fallback}<p class="fallback" role="status">{refusalText(fallback)} Showing the screen.</p>{/if}
             <div class="stage">
               <div class="rawscreen" inert={!showRaw} aria-hidden={!showRaw}>
-                <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice || login)} locked={!app.typing.allowed || reconnecting()} />
+                <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} onwrap={(next) => (wrapping = next)} cropHarness covered={!!(ask || choice || login)} locked={!app.typing.allowed || reconnecting()} />
               </div>
               {#if transcripts && !showRaw}
                 <Transcript channel={transcripts} sessionId={session.id} hostId={app.selectedHostId ?? ""} restore={app.typing.allowed} level={view.level} marker={!hasRead} onread={() => (hasRead = true)} onrefused={(reason) => (fallback = reason)} onpeer={showPeer} />

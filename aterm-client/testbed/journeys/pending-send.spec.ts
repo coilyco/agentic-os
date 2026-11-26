@@ -1,6 +1,6 @@
 // COI-3690: a sent message shows in the transcript on the next frame, marked pending, and
 // becomes the real entry with no copy beside it. One the seat never takes says so.
-import { expect, kindOf, SEATS, test, type Bed } from "../harness.ts";
+import { expect, kindOf, SEATS, test, type Bed, pickView } from "../harness.ts";
 
 test.use({ mockOptions: { transcript: true } });
 
@@ -15,7 +15,7 @@ const mine = (bed: Bed, words: string) => bed.page.locator(".transcript .turn.me
 async function openTranscript(bed: Bed): Promise<void> {
   bed.mock.setTranscript(imp, history);
   await bed.openSeat(SEATS.imp);
-  if (kindOf(test.info()) === "desktop") await bed.page.getByRole("radio", { name: "Focus" }).click();
+  if (kindOf(test.info()) === "desktop") await pickView(bed.page, "Focus");
   await expect(bed.page.locator(".transcript")).toContainText("A folded row breaks it.");
 }
 

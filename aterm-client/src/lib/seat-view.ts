@@ -68,3 +68,24 @@ export function storeView(session: string, view: SeatView): void {
     // Storage can be off (a private window). The choice holds until reload.
   }
 }
+
+/** One of the five views a seat's View button offers (COI-3757). */
+export type ViewPick = Level | "raw-wrapped" | "raw-unwrapped";
+
+export const CHOICES: readonly { choice: ViewPick; label: string; detail: string }[] = [
+  { choice: "focus", label: "Focus", detail: "Each prompt, one line per step, and the last reply." },
+  { choice: "default", label: "Default", detail: "Every reply, with the first lines of each step." },
+  { choice: "verbose", label: "Verbose", detail: "All of it, every step in full." },
+  { choice: "raw-wrapped", label: "Raw wrapped", detail: "The seat's own screen, long lines folded to fit." },
+  { choice: "raw-unwrapped", label: "Raw unwrapped", detail: "The seat's own screen as drawn. Long lines pan sideways." },
+];
+
+export function choiceLabel(choice: ViewPick): string {
+  return CHOICES.find((each) => each.choice === choice)?.label ?? choice;
+}
+
+/** A stored view and its screen's wrap, as one of the five. Upgrades keep their view. */
+export function choiceOf(view: SeatView, screen: boolean, wrapping: boolean): ViewPick {
+  if (screen || view.raw) return wrapping ? "raw-wrapped" : "raw-unwrapped";
+  return view.level;
+}

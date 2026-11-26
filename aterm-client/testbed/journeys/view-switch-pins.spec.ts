@@ -1,5 +1,5 @@
 // COI-3647: a view switch lands on the last item, and the view follows arrivals.
-import { expect, SEATS, test, type Bed } from "../harness.ts";
+import { expect, SEATS, test, type Bed, pickView, viewButton } from "../harness.ts";
 
 test.use({ mockOptions: { transcript: true } });
 
@@ -12,7 +12,6 @@ const turn = (n: number) => [
 // Far more than one screen at every size in the bed, in every view.
 const history = Array.from({ length: 40 }, (_, i) => turn(i + 1)).flat();
 
-const stop = (bed: Bed, name: string) => bed.page.getByRole("radio", { name });
 const feed = (bed: Bed) => bed.page.locator(".transcript .feed");
 const gap = (bed: Bed) => feed(bed).evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
 const atEnd = async (bed: Bed, why: string) => {
@@ -23,11 +22,11 @@ const atEnd = async (bed: Bed, why: string) => {
 test("every switch between Focus, Default and Verbose lands on the last item and keeps following", async ({ bed }) => {
   bed.mock.setTranscript(imp, history);
   await bed.openSeat(SEATS.imp);
-  await stop(bed, "Focus").click();
+  await pickView(bed.page, "Focus");
   await atEnd(bed, "Focus opens at the end");
   for (const name of ["Default", "Verbose", "Focus", "Verbose", "Default"]) {
-    await stop(bed, name).click();
-    await expect(stop(bed, name)).toHaveAttribute("aria-checked", "true");
+    await pickView(bed.page, name);
+    await expect(viewButton(bed.page)).toHaveText(name);
     await atEnd(bed, `${name} lands at the end`);
   }
   await expect(bed.page.getByRole("button", { name: /Jump to latest/ })).toHaveCount(0);
@@ -39,15 +38,14 @@ test("every switch between Focus, Default and Verbose lands on the last item and
 test("coming back from the raw screen lands on the last item and keeps following", async ({ bed }) => {
   bed.mock.setTranscript(imp, history);
   await bed.openSeat(SEATS.imp);
-  await stop(bed, "Focus").click();
-  await stop(bed, "Verbose").click();
+  await pickView(bed.page, "Focus");
+  await pickView(bed.page, "Verbose");
   await atEnd(bed, "Verbose opens at the end");
-  const raw = bed.page.getByRole("button", { name: "Raw screen" });
-  await raw.click();
+  await pickView(bed.page, "Raw unwrapped");
   await expect(feed(bed)).toHaveCount(0);
   // The seat wrote more while its screen was up.
   bed.mock.appendTranscript(imp, [turn(41), turn(42), turn(43)].flat());
-  await raw.click();
+  await pickView(bed.page, "Verbose");
   await expect(feed(bed)).toContainText("Answer number 43.", { timeout: 6000 });
   await atEnd(bed, "the transcript is back at the end");
   bed.mock.appendTranscript(imp, turn(44));

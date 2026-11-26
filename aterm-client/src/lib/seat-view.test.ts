@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { defaultView, loadView, loadViewDefault, storeView, storeViewDefault } from "./seat-view";
+import { CHOICES, choiceOf, defaultView, loadView, loadViewDefault, storeView, storeViewDefault } from "./seat-view";
 
 const shelf = new Map<string, string>();
 beforeEach(() => {
@@ -63,5 +63,16 @@ describe("the default a person sets for seats with no view of their own", () => 
     storeViewDefault("verbose");
     expect(loadView("imp", false)).toEqual({ level: "focus", raw: false });
     expect(loadView("sprite", false)).toEqual({ level: "verbose", raw: false });
+  });
+
+  it("maps every stored view and wrap onto one of the five, so an upgrade changes nobody's view", () => {
+    expect(CHOICES.map((each) => each.label)).toEqual(["Focus", "Default", "Verbose", "Raw wrapped", "Raw unwrapped"]);
+    for (const level of ["focus", "default", "verbose"] as const) {
+      expect(choiceOf({ level, raw: false }, false, false)).toBe(level);
+      expect(choiceOf({ level, raw: false }, false, true), "a wrap kept for the screen leaves a level alone").toBe(level);
+    }
+    expect(choiceOf({ level: "verbose", raw: true }, true, true)).toBe("raw-wrapped");
+    expect(choiceOf({ level: "verbose", raw: true }, true, false)).toBe("raw-unwrapped");
+    expect(choiceOf({ level: "focus", raw: false }, true, false), "no transcript shows the screen").toBe("raw-unwrapped");
   });
 });
