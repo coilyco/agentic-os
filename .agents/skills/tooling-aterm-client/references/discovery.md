@@ -4,7 +4,7 @@ A served client lists the other tailnet nodes running an aterm daemon, with no t
 
 ## What the daemon answers
 
-**`hosts` lists a peer only if a browser on this node's page could attach to it.** The daemon reads its own `tailscale status --json`, keeps the online macOS and Linux peers, dials each on the tailnet port, or on the port `--peer-port name=port` (env `ATERM_DAEMON_PEER_PORTS`, short or full name) gives that peer, with the websocket this node's served page opens, `Origin` included, and reads the `welcome`. Each answer carries `name`, `host`, `port` and `version`. Absent, never an error frame: a peer with no daemon, one that refuses this node by `tailscale whois`, one that refuses this node's page, and a different service.
+**`hosts` lists a peer only if a browser on this node's page could attach to it.** The daemon reads its own `tailscale status --json`, keeps the online macOS and Linux peers, dials each on the tailnet port, or on the port `--peer-port name=port` (env `ATERM_DAEMON_PEER_PORTS`, short or full name) gives that peer, with the websocket this node's served page opens, `Origin` included, and reads the `welcome`. Each answer carries `name`, `host`, `port`, `version` and the peer's [`host_kind`](host-kind.md). Absent, never an error frame: a peer with no daemon, one that refuses this node by `tailscale whois`, one that refuses this node's page, and a different service.
 
 **Discovery grants nothing.** The client dials each listed host itself, so that peer's whois and origin check judge the browser again. A peer admits this node's page when `tailscale whois` admits this node by the rule devices meet, so two nodes of one owner list each other with no per-host setting (COI-2537, [tailnet-access.md](tailnet-access.md)).
 

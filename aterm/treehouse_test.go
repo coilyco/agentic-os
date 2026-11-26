@@ -273,11 +273,14 @@ type fakeBroker struct {
 	certs    chan brokerMsg
 	// rawEvents are the bytes of each reg.event, for a test that asserts the exact payload.
 	rawEvents chan []byte
+	// features rides each ready, and hosts gets each reg.host.
+	features []string
+	hosts    chan brokerMsg
 }
 
 func newFakeBroker(t *testing.T, a *fakeAccounts, identity daemonIdentity) *fakeBroker {
 	b := &fakeBroker{t: t, accounts: a, identity: identity, up: make(chan *websocket.Conn, 4), inbox: map[string]chan brokerMsg{}, rejected: make(chan string, 8),
-		events: make(chan brokerMsg, 16), certs: make(chan brokerMsg, 16), rawEvents: make(chan []byte, 16)}
+		events: make(chan brokerMsg, 16), certs: make(chan brokerMsg, 16), rawEvents: make(chan []byte, 16), hosts: make(chan brokerMsg, 16)}
 	b.server = httptest.NewServer(http.HandlerFunc(b.handle))
 	t.Cleanup(b.server.Close)
 	return b
@@ -333,7 +336,7 @@ func (b *fakeBroker) handle(w http.ResponseWriter, r *http.Request) {
 		b.reject(ws, why)
 		return
 	}
-	if b.write(ws, brokerMsg{Type: "treehouse.reg.ready.v1", DaemonID: b.identity.ID, HeartbeatS: 5, CertExpires: time.Now().Add(time.Hour).Unix()}) != nil {
+	if b.write(ws, brokerMsg{Type: "treehouse.reg.ready.v1", DaemonID: b.identity.ID, HeartbeatS: 5, CertExpires: time.Now().Add(time.Hour).Unix(), Features: b.features}) != nil {
 		return
 	}
 	b.up <- ws
@@ -352,9 +355,11 @@ func (b *fakeBroker) handle(w http.ResponseWriter, r *http.Request) {
 		case m.Type == "treehouse.reg.event.v1":
 			b.events <- m
 			b.rawEvents <- append([]byte(nil), data...)
+		case m.Type == "treehouse.reg.host.v1":
+			b.hosts <- m
 		case m.Type == "treehouse.reg.cert.v1":
 			b.certs <- m
-			_ = b.write(ws, brokerMsg{Type: "treehouse.reg.ready.v1", DaemonID: b.identity.ID, HeartbeatS: 5, CertExpires: time.Now().Add(time.Hour).Unix()})
+			_ = b.write(ws, brokerMsg{Type: "treehouse.reg.ready.v1", DaemonID: b.identity.ID, HeartbeatS: 5, CertExpires: time.Now().Add(time.Hour).Unix(), Features: b.features})
 		}
 	}
 }

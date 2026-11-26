@@ -249,6 +249,7 @@ func newCommand(deps commandDeps) *cli.Command {
 			newReplyCommand(),
 			newClearCommand(),
 			newActivityCommand(),
+			newHostCommand(),
 			newOpenCommand(),
 			newArtifactCommand(),
 			newShowCommand(),

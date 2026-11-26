@@ -40,6 +40,8 @@ type hostView struct {
 	Host    string `json:"host"`
 	Port    string `json:"port"`
 	Version string `json:"version,omitempty"`
+	// HostKind is the peer's kind from its welcome, absent from a daemon that predates it.
+	HostKind string `json:"host_kind,omitempty"`
 }
 
 // parseTailnetPeers keeps online, named macOS and Linux peers. Phones and Windows
@@ -91,15 +93,18 @@ func readTailnetPeers() (self string, peers []tailnetPeerNode, err error) {
 
 // daemonProber dials the websocket this node's served page would open and reads
 // the welcome. A nil client verifies the peer's tailscale certificate.
-func daemonProber(client *http.Client) func(ctx context.Context, self, pagePort, host, port string) (string, error) {
-	return func(ctx context.Context, self, pagePort, host, port string) (string, error) {
+func daemonProber(client *http.Client) func(ctx context.Context, self, pagePort, host, port string) (peerWelcome, error) {
+	return func(ctx context.Context, self, pagePort, host, port string) (peerWelcome, error) {
 		return probeDaemonPeer(ctx, client, self, pagePort, host, port)
 	}
 }
 
+// peerWelcome is what discovery keeps from a peer's welcome.
+type peerWelcome struct{ Version, HostKind string }
+
 // probeDaemonPeer dials host on port. The Origin names this node's page on
 // pagePort, its own tailnet port, which a peer on another port still allows.
-func probeDaemonPeer(ctx context.Context, client *http.Client, self, pagePort, host, port string) (string, error) {
+func probeDaemonPeer(ctx context.Context, client *http.Client, self, pagePort, host, port string) (peerWelcome, error) {
 	authority := net.JoinHostPort(host, port)
 	ctx, cancel := context.WithTimeout(ctx, hostProbe.timeout)
 	defer cancel()
@@ -111,28 +116,28 @@ func probeDaemonPeer(ctx context.Context, client *http.Client, self, pagePort, h
 	})
 	if err != nil {
 		if response != nil {
-			return "", fmt.Errorf("%s answered %d", authority, response.StatusCode)
+			return peerWelcome{}, fmt.Errorf("%s answered %d", authority, response.StatusCode)
 		}
-		return "", fmt.Errorf("no daemon at %s: %w", authority, err)
+		return peerWelcome{}, fmt.Errorf("no daemon at %s: %w", authority, err)
 	}
 	defer ws.CloseNow()
 	ws.SetReadLimit(maxFrame)
 	hello, _ := json.Marshal(frame{Type: "hello", Format: daemonFormat})
 	if err := ws.Write(ctx, websocket.MessageText, hello); err != nil {
-		return "", err
+		return peerWelcome{}, err
 	}
 	_, data, err := ws.Read(ctx)
 	if err != nil {
-		return "", err
+		return peerWelcome{}, err
 	}
 	var welcome frame
 	if err := json.Unmarshal(data, &welcome); err != nil {
-		return "", fmt.Errorf("%s did not speak %s: %w", authority, daemonFormat, err)
+		return peerWelcome{}, fmt.Errorf("%s did not speak %s: %w", authority, daemonFormat, err)
 	}
 	if welcome.Type != "welcome" || welcome.Format != daemonFormat || welcome.Error != "" {
-		return "", fmt.Errorf("%s did not speak %s", authority, daemonFormat)
+		return peerWelcome{}, fmt.Errorf("%s did not speak %s", authority, daemonFormat)
 	}
-	return welcome.Version, nil
+	return peerWelcome{Version: welcome.Version, HostKind: welcome.HostKind}, nil
 }
 
 // hostDiscovery sweeps the tailnet on demand. Both reads are fields so a test
@@ -140,7 +145,7 @@ func probeDaemonPeer(ctx context.Context, client *http.Client, self, pagePort, h
 type hostDiscovery struct {
 	mu    sync.Mutex
 	peers func() (self string, peers []tailnetPeerNode, err error)
-	probe func(ctx context.Context, self, pagePort, host, port string) (version string, err error)
+	probe func(ctx context.Context, self, pagePort, host, port string) (peerWelcome, error)
 	// port is this daemon's tailnet port, which a peer uses unless peerPorts names it.
 	// Empty is off.
 	port func() string
@@ -185,13 +190,13 @@ func (h *hostDiscovery) find(ctx context.Context) ([]hostView, error) {
 			defer group.Done()
 			defer func() { <-slots }()
 			peerPort := h.portFor(peer.FQDN, port)
-			version, err := h.probe(ctx, self, port, peer.FQDN, peerPort)
+			welcome, err := h.probe(ctx, self, port, peer.FQDN, peerPort)
 			if err != nil {
 				return
 			}
 			foundMu.Lock()
 			defer foundMu.Unlock()
-			found = append(found, hostView{Name: shortName(peer.FQDN), Host: peer.FQDN, Port: peerPort, Version: version})
+			found = append(found, hostView{Name: shortName(peer.FQDN), Host: peer.FQDN, Port: peerPort, Version: welcome.Version, HostKind: welcome.HostKind})
 		}()
 	}
 	group.Wait()
