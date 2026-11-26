@@ -55,9 +55,9 @@ export function rememberAsked(): void {
 }
 
 /** The prompt is a system dialog that covers the page and eats taps, so it waits for a
- * screen with no composer: not a seat, not a launch form. The demo never asks. */
-export function mayAskNow(on: { attached: boolean; visible: boolean; composerShown: boolean; demo: boolean }): boolean {
-  return on.attached && on.visible && !on.composerShown && !on.demo;
+ * screen with no composer: not a seat, not a launch form. */
+export function mayAskNow(on: { attached: boolean; visible: boolean; composerShown: boolean }): boolean {
+  return on.attached && on.visible && !on.composerShown;
 }
 
 /** One notification per seat: a new one from the same seat replaces the old. */

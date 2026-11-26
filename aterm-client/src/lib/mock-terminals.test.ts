@@ -12,7 +12,7 @@ function open(mode: TerminalMode) {
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
 
-describe("the demo host's terminals", () => {
+describe("the mock host's terminals", () => {
   it("lists none up front, so an empty list reads as none and not as unasked", () => {
     const { events } = open("ok");
     expect(events.find((event) => event.type === "terminals")).toEqual({ type: "terminals", terminals: [] });

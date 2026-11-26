@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { detectChoice } from "./choices";
-import { loginFrame } from "./demo-harness";
+import { loginFrame } from "./mock-harness";
 import { CONTINUE_KEYS, codeKeys, detectLogin, loginKey, methodKeys, RETRY_KEYS, signInUrl, type LoginMethod } from "./login";
 
 const X = (count: number): string => "x".repeat(count);
@@ -179,7 +179,7 @@ describe("narrow screens", () => {
     expect([login.cursor, login.subscription]).toEqual([0, 0]);
   });
 
-  it("reads the demo seat's three screens at a phone's width and a desktop's", () => {
+  it("reads the mock seat's three screens at a phone's width and a desktop's", () => {
     for (const cols of [34, 44, 70, 120]) {
       expect(detectLogin(loginFrame("method")(cols))?.kind).toBe("method");
       expect(detectLogin(loginFrame("code", "abc")(cols))).toEqual({ kind: "code", url: expect.stringMatching(/^https:\/\/claude\.com\/cai\/oauth\/authorize\?code=true.*state=demo-not-real$/) });

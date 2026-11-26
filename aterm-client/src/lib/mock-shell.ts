@@ -1,4 +1,4 @@
-// The demo host's shell: a few commands, enough to see a terminal take input and exit.
+// The mock host's shell: a few commands, enough to see a terminal take input and exit.
 // It reads nothing and runs nothing. Real shells come from the daemon.
 
 export const SHELL_PROMPT = "demo@host ~ % ";

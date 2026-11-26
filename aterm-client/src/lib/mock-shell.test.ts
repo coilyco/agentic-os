@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runShellLine } from "./demo-shell";
+import { runShellLine } from "./mock-shell";
 
 describe("runShellLine", () => {
   it("echoes what it was given", () => {

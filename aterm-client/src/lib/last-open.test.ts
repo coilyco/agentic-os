@@ -3,7 +3,7 @@ import { parseLastOpen } from "./last-open";
 
 describe("parseLastOpen", () => {
   it("reads a host", () => {
-    expect(parseLastOpen('{"host":"demo"}')).toEqual({ host: "demo" });
+    expect(parseLastOpen('{"host":"mock"}')).toEqual({ host: "mock" });
   });
 
   it("drops a seat an older build stored, so a launch rests on the overview", () => {

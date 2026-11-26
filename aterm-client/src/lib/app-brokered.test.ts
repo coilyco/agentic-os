@@ -125,7 +125,7 @@ describe("a build without Treehouse addresses", () => {
     script.configured = false;
     const { app } = await boot();
     expect(app.accounts.configured).toBe(false);
-    expect(app.hosts.map((host) => host.id)).toEqual(["local", "demo"]);
+    expect(app.hosts.map((host) => host.id)).toEqual(["local", "mock"]);
   });
 });
 
@@ -203,11 +203,11 @@ describe("signed in", () => {
     expect(brokerHosts(app.hosts).map((host) => host.label)).toEqual(["kai-mac"]);
   });
 
-  it("puts brokered machines before the demo host, which stays last", async () => {
+  it("puts brokered machines before the dev mock host, which stays last", async () => {
     script.daemons = [mac];
     const { app, signIn } = await boot();
     await signIn();
-    expect(app.hosts.at(-1)?.id).toBe("demo");
+    expect(app.hosts.at(-1)?.id).toBe("mock");
   });
 });
 
