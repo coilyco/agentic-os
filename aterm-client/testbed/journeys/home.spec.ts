@@ -1,4 +1,5 @@
 // COI-3518: a host with no seat open rests on the overview. The logo is its own screen.
+import type { Locator } from "@playwright/test";
 import { card, expect, loadFonts, SEATS, test } from "../harness.ts";
 import type { SessionSpec } from "../mock-daemon.ts";
 
@@ -24,19 +25,54 @@ test("a host with no seat open shows the seats by what they want of you, and a s
   await expect(overview, "the overview gives way to the seat").toHaveCount(0);
 });
 
-test("the logo screen is the logo and nothing else, and one tap returns to the seats", async ({ page }, info) => {
+// COI-3740: the coil, then the canopy, then the words. Returns the marks in order.
+async function byline(scope: Locator): Promise<{ marks: string[]; words: number; rest: number }> {
+  return scope.evaluate((root) => {
+    const by = root.querySelector(".by")!;
+    const marks = [...by.querySelectorAll("img")].map((img) => img.classList[0] ?? "");
+    const words = by.querySelector(".words")!;
+    const size = (el: Element) => parseFloat(getComputedStyle(el).fontSize);
+    const rest = [...root.querySelectorAll("*")].filter((el) => !by.contains(el) && el.childElementCount === 0 && el.textContent?.trim());
+    return { marks, words: size(words), rest: Math.max(0, ...rest.map(size)) };
+  });
+}
+
+test("Treehouse by coilyco is the largest thing on the seat overview, coil then canopy", async ({ page }, info) => {
   await page.goto("/");
   await loadFonts(page);
   await page.getByRole("tab", { name: /this Mac/ }).click();
-  await page.getByRole("button", { name: "Treehouse logo screen" }).click();
+  const overview = page.getByRole("region", { name: "Seats", exact: true });
+  const brand = overview.getByRole("button", { name: /^Treehouse by coilyco/ });
+  await expect(brand, "the byline opens the overview, above the fold").toBeInViewport();
+  const read = await byline(overview);
+  expect(read.marks, "the coilyco coil, then the Treehouse canopy").toEqual(["coil", "canopy"]);
+  expect(read.words, `${read.words}px, past every other line's ${read.rest}px`).toBeGreaterThan(read.rest);
+  const images = brand.locator("img");
+  const [coil, canopy] = [(await images.nth(0).boundingBox())!, (await images.nth(1).boundingBox())!];
+  expect(coil.x + coil.width, "the coil sits left of the canopy").toBeLessThanOrEqual(canopy.x);
+  expect(await images.evaluateAll((imgs) => imgs.every((img) => (img as HTMLImageElement).complete && (img as HTMLImageElement).naturalWidth > 0)), "both marks loaded").toBe(true);
+  for (const colorScheme of ["dark", "light"] as const) {
+    await page.emulateMedia({ colorScheme });
+    await page.mouse.move(0, 0);
+    await page.screenshot({ path: info.outputPath(`overview-byline-${colorScheme}.png`) });
+  }
+});
+
+test("the logo screen is the pair and the words, and one tap returns to the seats", async ({ page }, info) => {
+  await page.goto("/");
+  await loadFonts(page);
+  await page.getByRole("tab", { name: /this Mac/ }).click();
+  await page.getByRole("button", { name: /^Treehouse by coilyco\. Logo screen/ }).click();
   const home = page.getByRole("region", { name: "Treehouse" });
   await expect(home, "the logo screen").toBeVisible();
-  const logo = home.locator("img");
-  expect(await logo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0), "the logo loaded").toBe(true);
-  expect(await home.innerText(), "no words on it").toBe("");
-  const box = (await logo.boundingBox())!;
-  expect(box.width, `${info.project.name}: a readable size`).toBeGreaterThanOrEqual(120);
-  expect(box.x + box.width, "inside the screen").toBeLessThanOrEqual(page.viewportSize()!.width);
+  expect(await home.innerText(), "the words and nothing else").toBe("Treehouse by coilyco");
+  expect((await byline(home)).marks, "coil, then canopy").toEqual(["coil", "canopy"]);
+  for (const logo of await home.locator("img").all()) {
+    expect(await logo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0), "the mark loaded").toBe(true);
+    const box = (await logo.boundingBox())!;
+    expect(box.width, `${info.project.name}: a readable size`).toBeGreaterThanOrEqual(96);
+    expect(box.x + box.width, "inside the screen").toBeLessThanOrEqual(page.viewportSize()!.width);
+  }
   await page.mouse.move(0, 0);
   await page.screenshot({ path: info.outputPath("logo.png") });
   await page.keyboard.press("Escape");

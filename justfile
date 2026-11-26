@@ -261,6 +261,10 @@ aterm-android-tauri *ARGS:
 aterm-android-lock:
     @cd aterm-android/src-tauri && cargo generate-lockfile
 
+# Run one Treehouse app plugin's Rust tests on this machine, for example `just aterm-android-plugin-test push`.
+aterm-android-plugin-test NAME:
+    @cd "aterm-android/plugins/tauri-plugin-{{NAME}}" && cargo test
+
 # Install the JDK, Android SDK, NDK and Rust target the aterm APK build needs. Run as root, as the CI container does.
 aterm-android-toolchain:
     @bash scripts/ci/aterm-android.sh toolchain

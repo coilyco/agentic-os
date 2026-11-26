@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
   import { canopy } from "../lib/theme.svelte";
+  import coil from "../assets/by-coilyco.svg?url";
   import CloseSeat from "./CloseSeat.svelte";
   import Origin from "./Origin.svelte";
   import PinSeat from "./PinSeat.svelte";
@@ -366,11 +367,11 @@
         <div class="feedback"><FeedbackEntry onopen={closeMenu} /></div>
         {#if !onScreen}<ConfigurationLink onopen={closeMenu} />{/if}
         {#if !onScreen}<SettingsLink onopen={closeMenu} />{/if}
-        {#if !onScreen}<ByCoilyco />{/if}
+        {#if !onScreen && !overviewShown()}<ByCoilyco />{/if}
       </div>
     {/if}
   {:else}
-    <img class="mark" src={canopy()} alt="Treehouse" width="36" height="36" />
+    <span class="mark" role="img" aria-label="Treehouse by coilyco"><img src={coil} alt="" width="32" height="32" /><img src={canopy()} alt="" width="32" height="32" /></span>
     {@render hostsGroup()}
     {#if app.attachedHostId}
       {@render runningGroup()}
@@ -380,7 +381,7 @@
     <div class="feedback foot"><FeedbackEntry /></div>
     <ConfigurationLink />
     <SettingsLink />
-    <ByCoilyco />
+    {#if !overviewShown()}<ByCoilyco />{/if}
   {/if}
 </nav>
 {#if hover && preview}
@@ -393,7 +394,8 @@
   .feedback { margin-top: 14px; padding: 0 2px; }
   /* The footer sits at the bottom, where the Alerts block used to push it. */
   .feedback.foot { margin-top: auto; padding-top: 14px; }
-  .mark { align-self: flex-start; margin: 2px 10px 4px; }
+  .mark { align-self: flex-start; display: flex; gap: 6px; margin: 2px 10px 4px; }
+  .mark img:first-child { border-radius: 8px; }
   h2 { margin: 14px 10px 4px; font-family: var(--font-display); font-size: 13px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
   [role="tablist"] { display: flex; flex-direction: column; gap: 2px; }
   .note-actions { display: flex; gap: 8px; margin: 4px 10px 8px; }
