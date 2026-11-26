@@ -33,7 +33,9 @@ const (
 )
 
 type daemon struct {
-	mu       sync.Mutex
+	mu sync.Mutex
+	// host is this host's kind. See host_kind.go.
+	host     hostKindStore
 	github   *githubBroker
 	sessions map[string]*ptySession
 	// terminals are plain login shells. They sit in their own map so every walk
@@ -309,6 +311,9 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	d.sweepImages()
 	d.sweepMedia()
 	if d.ledgerDir != "" {
+		if err := d.host.load(filepath.Join(filepath.Dir(d.ledgerDir), hostKindFile)); err != nil {
+			logf("host kind reads as personal: %v", err)
+		}
 		d.artifactDir = filepath.Join(filepath.Dir(d.ledgerDir), "artifacts")
 		d.feedbackDir = filepath.Join(filepath.Dir(d.ledgerDir), "feedback")
 		d.sweepFeedback()
@@ -496,7 +501,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{transcriptFeature, sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, closeSelfFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature, activityFeature, backgroundFeature, closeUnpushedFeature, reopenFeature, originFeature, notifyFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{transcriptFeature, sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, closeSelfFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature, activityFeature, backgroundFeature, closeUnpushedFeature, reopenFeature, originFeature, notifyFeature, hostKindFeature}, HostKind: string(d.hostKind())}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -724,6 +729,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return cl.c.write(frame{Type: "roster", ID: message.ID, Roster: &roster})
 	case "hosts":
 		return d.hosts(cl.c, message)
+	case "host_kind":
+		return d.hostKindFrame(cl, message)
 	case "github_token":
 		return d.githubToken(cl, message)
 	case "whoami":
