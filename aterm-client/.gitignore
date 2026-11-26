@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-treehouse/
 *.local
 .DS_Store
 testbed/out/

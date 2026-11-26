@@ -19,6 +19,7 @@ Every step also saves its screenshot, pass or fail, under `aterm-client/testbed/
 * **Captures** - `fixtures/captures/` holds real Claude Code 2.1.318 screens, replayed verbatim at their own width on desktop. Add one by dropping a plain-text screen in that folder.
 * **Roster** - the mock serves `src/lib/fixtures/roster.json`, so one fixture has one owner.
 * **Another build** - `ATERM_TESTBED_DIST=<dir>` points the bed at any built client, to try a fix before it lands. Add `ATERM_TESTBED_COMPARE=0` to judge its behavior and ignore how it now looks, since a fix changes pixels. Run the update verb afterward to take the new baselines.
+* **The Treehouse build** - `dist-treehouse/` names accounts and a broker at `.invalid` addresses, so a journey answers both with `page.route`: the hop's return, the session, the broker's list and its push calls. `startMock({ dist: "dist-treehouse" })` serves it. `app-push` uses it (COI-3752).
 
 ## Projects
 
