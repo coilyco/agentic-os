@@ -1,0 +1,21 @@
+[package]
+name = "tauri-plugin-push"
+version = "0.1.0"
+description = "FCM push for the Treehouse Android app: the registration token for the broker, and a notification shown while the app is closed."
+authors = ["coilyco"]
+license = "MIT"
+repository = "https://github.com/coilyco/agentic-os"
+edition = "2024"
+rust-version = "1.90"
+links = "tauri-plugin-push"
+
+[dependencies]
+tauri = "=2.12.1"
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+
+[build-dependencies]
+tauri-plugin = { version = "=2.7.1", features = ["build"] }
+
+[dev-dependencies]
+serde_json = "1"

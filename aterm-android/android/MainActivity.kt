@@ -1,5 +1,6 @@
 package dev.coilyco.treehouse
 
+import android.content.Intent
 import android.view.View
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -19,6 +20,13 @@ class MainActivity : TauriActivity() {
         bars.isAppearanceLightNavigationBars = theme == "light"
       }
     }
+  }
+
+  // A cold push tap arrives here before any plugin is registered, so a plugin reads it
+  // from the activity's intent at load instead (COI-3750).
+  override fun onNewIntent(intent: Intent) {
+    setIntent(intent)
+    super.onNewIntent(intent)
   }
 
   // Edge to edge on Android 15 puts the keyboard over the message box (COI-3575). Pad the
