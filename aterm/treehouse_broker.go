@@ -455,6 +455,8 @@ func fetchJWKS(ctx context.Context, address string) ([]byte, error) {
 // treehouseOptions turn the brokered path on. All three empty leaves it off.
 type treehouseOptions struct {
 	Broker, Accounts, Dir string
+	// Pages is the pages API seats publish to through this daemon, empty for none.
+	Pages string
 	// ProvisionSecretFile, Name and Substrate let a daemon with no certificate claim one
 	// with a secret its secret store holds (treehouse_provision.go).
 	ProvisionSecretFile, Name, Substrate string
@@ -515,6 +517,13 @@ func (d *daemon) startTreehouse(ctx context.Context, o treehouseOptions) {
 		link.settings = newSettingsReader(dir)
 	}
 	users.brokerEvent = link.emit
+	if o.Pages != "" {
+		if pages, err := newPagesClient(o.Pages, link); err != nil {
+			d.logf("no Treehouse pages: %v", err)
+		} else {
+			d.pages = pages
+		}
+	}
 	d.onHostKind(func(hostKind) { go link.sendHost(ctx) })
 	d.logf("dialing the Treehouse broker as %s", identity.ID)
 	go link.run(ctx)

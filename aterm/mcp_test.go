@@ -15,7 +15,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-var mcpToolNames = []string{"add_artifact", "ask_choice", "clear_session", "close_session", "list_agents", "notify_kai", "read_messages", "remove_artifact", "send_message", "send_user_question", "session_status", "set_artifact_waiting", "show_media", "stage_command"}
+var mcpToolNames = []string{"add_artifact", "ask_choice", "clear_session", "close_session", "list_agents", "list_pages", "notify_kai", "publish_page", "read_messages", "remove_artifact", "remove_page", "send_message", "send_user_question", "session_status", "set_artifact_waiting", "show_media", "stage_command"}
 
 func fakeBackend() mcpBackend {
 	return mcpBackend{

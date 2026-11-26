@@ -77,7 +77,9 @@ type daemon struct {
 	// feedbackDir keeps each feedback report. It sits in the state directory and not
 	// beside the socket, since /tmp is cleared daily. Empty means none is taken.
 	feedbackDir string
-	feedback    feedbackState
+	// pages publishes to the Treehouse pages host, nil when none is configured.
+	pages    *pagesClient
+	feedback feedbackState
 	// shimDir holds the `open` shims a seat's PATH leads with, empty for none.
 	shimDir string
 	// openers are the clients subscribed to open_url, guarded by mu.
@@ -522,6 +524,9 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	if d.feedbackDir != "" {
 		welcome.Features = append(welcome.Features, feedbackFeature)
 	}
+	if d.pages != nil {
+		welcome.Features = append(welcome.Features, pagesFeature)
+	}
 	if d.users.ResumeEnabled() {
 		welcome.Features = append(welcome.Features, resumeFeature)
 	}
@@ -660,6 +665,10 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return d.artifactAdd(cl, message)
 	case "artifact_waiting", "artifact_remove":
 		return d.artifactChange(cl, message)
+	case "page_publish":
+		return d.pagePublish(cl, message)
+	case "page_list", "page_remove":
+		return d.pageCall(cl, message)
 	case "resize":
 		if s := cl.attached[message.Session]; s != nil && d.mayResize(cl) {
 			s.report(cl.c, message.Rows, message.Cols, nil)
