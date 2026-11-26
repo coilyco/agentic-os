@@ -97,6 +97,8 @@ type sessionStatus struct {
 	// Prompt is the screen around a permission or choice card, when one is up.
 	Prompt []string `json:"prompt,omitempty"`
 	Screen []string `json:"screen"`
+	// Awake is the host's keep-awake, not this session's.
+	Awake *awakeState `json:"host_awake,omitempty"`
 }
 
 const (

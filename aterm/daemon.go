@@ -81,6 +81,8 @@ type daemon struct {
 	// openers are the clients subscribed to open_url, guarded by mu.
 	openers map[*conn]bool
 	tailnet tailnetState
+	// awake holds the OS sleep assertion while a seat runs, nil in tests. keepawake.go
+	awake *keepAwake
 	// loopbackAddr is where the loopback listener bound, empty while it is not
 	// serving. A session's Playwright reaches its browser there.
 	loopbackAddr string
@@ -295,6 +297,11 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	contextDone := make(chan struct{})
 	defer close(contextDone)
 	go d.watchContext(contextDone, contextEvery)
+	if os.Getenv(keepAwakeEnv) != "off" {
+		d.awake = newKeepAwake(acquireAwake, func() bool { return d.hostKind() == hostPersonal }, d.seatCount, logf)
+		go d.awake.run(contextDone)
+		d.onHostKind(func(hostKind) { d.awake.nudge() })
+	}
 	if d.users.PushEnabled() {
 		go d.users.WatchWaiting(contextDone, pushWatchEvery)
 	}
@@ -348,6 +355,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		go d.serve(raw)
 	}
 	_ = os.Remove(socket)
+	d.awake.drop()
 	d.browsers.closeAll()
 	d.closeApps()
 	if options.EndSessions {
@@ -410,6 +418,7 @@ func (d *daemon) adoptHolders() {
 		} else {
 			d.sessions[s.name] = s
 			d.tokens[s.token] = s
+			d.awake.nudge()
 		}
 		d.mu.Unlock()
 		d.restoreGateways(s)
@@ -419,6 +428,12 @@ func (d *daemon) adoptHolders() {
 }
 
 // letGoAll detaches from every session and leaves each one running.
+func (d *daemon) seatCount() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return len(d.sessions)
+}
+
 func (d *daemon) letGoAll() {
 	for _, s := range d.everySession() {
 		s.letGo()
@@ -652,6 +667,7 @@ func (d *daemon) handle(cl *client, message frame) error {
 			return err
 		}
 		status := s.status(message.Lines)
+		status.Awake = d.awake.state()
 		return cl.c.write(frame{Type: "status", ID: message.ID, Session: s.name, Status: &status})
 	case "transcript":
 		return d.transcript(cl, message)
@@ -827,6 +843,7 @@ func (d *daemon) spawn(message frame) (*ptySession, error) {
 	d.mu.Lock()
 	d.sessions[name] = s
 	d.tokens[s.token] = s
+	d.awake.nudge()
 	delete(d.claims, name)
 	// A fresh instance answers one new-instance send, so two asked for at once
 	// open two sessions rather than both landing in the first.
@@ -961,6 +978,7 @@ func (d *daemon) forget(s *ptySession) {
 	d.mu.Lock()
 	if d.sessions[s.name] == s {
 		delete(d.sessions, s.name)
+		d.awake.nudge()
 	}
 	delete(d.tokens, s.token)
 	d.lastActive = time.Now()
