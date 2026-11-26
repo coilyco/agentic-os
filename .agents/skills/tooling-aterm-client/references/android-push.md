@@ -11,6 +11,18 @@ All through `window.__TAURI__.core`, like the [system browser](system-browser.md
 * `invoke("plugin:push|take_tap")` gives the tap that started or woke the app once, then null: `{kind, daemon_id, session, tag}`. `session` is null for a `reachable` push, whose tap opens that machine's list rather than a seat.
 * `addPluginListener("push", "tokenRefresh", cb)` with `{token}` when FCM rotates it, so the page registers it again. `addPluginListener("push", "tap", cb)` with the same shape as `take_tap`, for a warm app.
 
+## What the page does with it
+
+The Alerts switch **Notify when closed** is the one control (COI-3752). In a browser it stays Web Push through the daemon. In the app, with Treehouse accounts in the build, it drives the plugin, in `src/lib/app-push.ts` and `push.svelte.ts`.
+
+* **Signed out** - the switch is off and disabled, and says to sign in. An app's session lives in memory, so every launch starts here. A switch left on can still be turned off, which only records it, since sign-out already dropped the token.
+* **On** - the notification permission first (asked once, a no is the refusal), then `register`, then `POST /v1/push/apps`. The setting is kept as `aterm.app-push.v1`.
+* **Each sign-in and each `tokenRefresh`** with the switch on - `register` and the POST again, quietly, because the broker wants the token at every launch.
+* **Off, and sign-out** - `token`, then `POST /v1/push/apps/unregister`. Sign-out waits for it at most 3 s.
+* **`push_off`** - "Notifications with the app closed are not set up on this server", or on a Mac that the app cannot show them while closed, with notifications while open still working. A broker with no FCM credential still answers 204 today, so the page cannot tell. COI-3777 asks the broker to refuse with `push_off`, which the page already words the same way.
+* **A tap** - `take_tap` at launch and `tap` after. The tap waits for the account to list its machine, opens it, then the seat as a Web Push tap does. A `reachable` tap opens only the machine.
+* **Checked** - `app-push.test.ts`, `app-push-tap.test.ts`, and the testbed journey `app-push` on every project. Not checked: a real phone, which is COI-2568.
+
 ## What the phone does with a message
 
 The message is data only, so FCM wakes the app's own `PushService` even when the app is killed, and no page is involved. The data map is the broker's `treehouse.push.payload.v1` with string values. The contract is in coilyco/treehouse-servers `contract/` (main 319fcae): `app-register.v1`, `app-unregister.v1`, `fcm.v1` (data only, priority HIGH, TTL 86400 s, no `collapse_key`) and `payload.v1`.

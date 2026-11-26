@@ -1,15 +1,19 @@
 <script lang="ts">
   import { app, setAlert } from "../lib/app.svelte";
-  import { push, pushBlocked, setPush } from "../lib/push.svelte";
+  import { appPush, appPushBlocked, appPushShown, push, pushBlocked, setAppPush, setPush } from "../lib/push.svelte";
 
-  // The browser, not the daemon, decides this: no worker, no push manager, an insecure page.
-  const blocked = pushBlocked();
+  // In the app the switch registers the phone's push token with the broker. In a browser it
+  // is Web Push through the daemon, which the browser decides: no worker, an insecure page.
+  const inApp = appPushShown();
+  const shown = $derived(inApp || app.webPush);
+  const state = $derived(inApp ? appPush : push);
+  const blocked = $derived(inApp ? appPushBlocked() : pushBlocked());
 
   async function flip(event: Event & { currentTarget: HTMLInputElement }): Promise<void> {
     const box = event.currentTarget;
-    await setPush(box.checked);
+    await (inApp ? setAppPush(box.checked) : setPush(box.checked));
     // A refusal leaves the switch where it was, and the box has already moved.
-    box.checked = push.on;
+    box.checked = state.on;
   }
 </script>
 
@@ -26,9 +30,9 @@
       <span class="track" aria-hidden="true"></span>
       <span class="name">Highlight</span>
     </label>
-    {#if app.webPush}
+    {#if shown}
       <label class="switch">
-        <input type="checkbox" role="switch" checked={push.on} disabled={blocked !== null} aria-busy={push.busy} aria-describedby="alerts-push-hint alerts-push-note" onchange={flip} />
+        <input type="checkbox" role="switch" checked={state.on} disabled={(blocked !== null && !(inApp && state.on)) || state.busy} aria-busy={state.busy} aria-describedby="alerts-push-hint alerts-push-note" onchange={flip} />
         <span class="track" aria-hidden="true"></span>
         <span class="name">Notify when closed</span>
       </label>
@@ -36,10 +40,10 @@
   </div>
   <p id="alerts-sound-hint" class="hint">One short tone when the coordinator seat pings you. A seat that is waiting on you stays silent.</p>
   <p id="alerts-visual-hint" class="hint">A soft tint on the seat's tab, until you open it.</p>
-  {#if app.webPush}
+  {#if shown}
     <p id="alerts-push-hint" class="hint">A notification on this device when a seat starts waiting on you, even with the app closed.</p>
-    <p id="alerts-push-note" class={push.failed || blocked ? "blocked" : "hint"} role={push.failed ? "alert" : "status"}>
-      {#if push.busy}{push.on ? "Turning off" : "Turning on"}...{:else if push.message}{push.message}{:else if blocked}{blocked}{/if}
+    <p id="alerts-push-note" class={state.failed || blocked ? "blocked" : "hint"} role={state.failed ? "alert" : "status"}>
+      {#if state.busy}{state.on ? "Turning off" : "Turning on"}...{:else if state.message}{state.message}{:else if blocked}{blocked}{/if}
     </p>
   {/if}
   {#if app.alerts.soundBlocked}

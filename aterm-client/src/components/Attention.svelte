@@ -1,10 +1,10 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, untrack } from "svelte";
   import { app, openSeat } from "../lib/app.svelte";
   import { unlock } from "../lib/chime";
   import { mayAskNow } from "../lib/native-notify";
   import { closeSeatNotifications } from "../lib/push";
-  import { askNativeOnce, handleNotify, listenForNativeTaps, openSeatFromNotification, settleSeat, syncPush, takeLaunchSeat } from "../lib/push.svelte";
+  import { askNativeOnce, handleNotify, listenForNativeTaps, openSeatFromNotification, registerOnSignIn, settlePushTap, settleSeat, startAppPush, syncPush, takeLaunchSeat } from "../lib/push.svelte";
 
   // A seat that starts waiting makes no sound here, only the glow and list cues (COI-3517).
   // The coordinator's own ping arrives as a notify frame.
@@ -30,6 +30,17 @@
     settleSeat();
   });
 
+  // The app's push: each sign-in registers this launch's token, and a tapped push waits
+  // for its machine to be listed (COI-3752).
+  $effect(() => {
+    // Only a sign-in sets this off. The switch itself already registered when it turned on.
+    if (app.accounts.status === "signed-in") untrack(() => void registerOnSignIn());
+  });
+  $effect(() => {
+    void app.hosts;
+    settlePushTap();
+  });
+
   // The seat is open, so its notification has done its work.
   $effect(() => {
     const open = openSeat();
@@ -45,7 +56,9 @@
   onMount(() => {
     takeLaunchSeat();
     let stopTaps = () => {};
+    let stopAppPush = () => {};
     void listenForNativeTaps().then((stop) => (stopTaps = stop));
+    void startAppPush().then((stop) => (stopAppPush = stop));
     const tapped = (event: MessageEvent) => {
       const { type, session } = (event.data ?? {}) as { type?: unknown; session?: unknown };
       if (type === "aterm-open-seat" && typeof session === "string" && session) openSeatFromNotification(session);
@@ -65,6 +78,7 @@
     window.addEventListener("keydown", touch);
     return () => {
       stopTaps();
+      stopAppPush();
       worker?.removeEventListener("message", tapped);
       document.removeEventListener("visibilitychange", visibility);
       window.removeEventListener("pointerdown", touch);
