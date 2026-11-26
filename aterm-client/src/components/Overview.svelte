@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { canopy } from "../lib/theme.svelte";
+  import ByCoilyco from "./ByCoilyco.svelte";
   import CloseSeat from "./CloseSeat.svelte";
   import Creature from "./Creature.svelte";
   import PagesList from "./PagesList.svelte";
@@ -70,8 +70,8 @@
 </script>
 
 <section class="overview" aria-labelledby="overview-title">
+  <button type="button" class="logo" aria-label="Treehouse by coilyco. Logo screen" onclick={showLogo}><ByCoilyco size="hero" inline /></button>
   <header>
-    <button type="button" class="logo" aria-label="Treehouse logo screen" onclick={showLogo}><img src={canopy()} alt="" width="32" height="32" /></button>
     <div class="who">
       <h1 id="overview-title">Seats</h1>
       <p class="host">{host?.label ?? ""} // {running} {running === 1 ? "seat" : "seats"}</p>
@@ -122,9 +122,9 @@
   .overview { flex: 1; min-width: 0; max-width: 760px; width: 100%; margin: 0 auto; padding: 20px clamp(12px, 4vw, 40px) 32px; display: flex; flex-direction: column; gap: 18px; }
   header { display: flex; align-items: center; gap: 12px; }
   .who { flex: 1; min-width: 0; }
-  h1 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 24px; line-height: 1.1; }
+  h1 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 20px; line-height: 1.1; }
   .host { margin: 2px 0 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
-  .logo { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--control-line); background: transparent; }
+  .logo { align-self: flex-start; max-width: 100%; min-height: 44px; padding: 4px; margin: -4px; border: none; border-radius: 12px; background: transparent; color: inherit; text-align: left; }
   .settings { flex: none; min-height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 14px var(--font-body); }
   .entries { display: flex; justify-content: flex-end; margin-top: -4px; }
   .logo:focus-visible, .settings:focus-visible, .open:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
