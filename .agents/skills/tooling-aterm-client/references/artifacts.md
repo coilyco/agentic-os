@@ -35,3 +35,12 @@ Welcome feature `artifacts`. They ride the `views` channel, replayed on `subscri
 * **Open on claude.ai is the first action** after Back. claude.ai refuses to be framed, so the real page opens in the device's own browser, where Kai is signed in. Measured on the Android app: the opener launches Chrome, and Back returns to Treehouse with its state kept. Only an address that is exactly a claude.ai artifact is offered.
 * **A page that calls `window.claude`** says "Answer on the page", since a copy here cannot save an answer. A page whose seat ended says so, and a page its seat closes says so and leaves the list. A page with no source says so and still offers the real page.
 * **Attention.** A waiting page already counted as needing Kai (COI-3342). Its toast now opens the page, not the seat that left it. Focus moves into the reader and back to its row, Escape closes it, and the page behind is inert while it is open.
+
+## Treehouse pages
+
+A seat can also publish a page that Treehouse hosts, so the owner opens it from any client while this machine sleeps (COI-3770). The host is the shared static host in treehouse-servers `docs/pages.md`.
+
+* **Verbs** - `aterm page publish --title <name> --path <file|dir> [--page <id>]`, `aterm page list` and `aterm page remove <id>`. The MCP tools are `publish_page`, `list_pages` and `remove_page`.
+* **What is sent** - one `.html` file as `index.html`, or a directory holding `index.html` and its assets, read by the daemon from the seat's roots, at most 8 MiB and 64 files. Dot files stay home, a symlink is refused, and a file holding a live session token is refused with `secret_in_page`.
+* **Who sends it** - the daemon, with a publish token accounts mints for its certificate and a fresh proof. The seat never holds a token. The daemon needs `--treehouse-pages <https address>` beside the three broker flags, and without it a request answers `no_pages`.
+* **Who reads it** - only the account that owns the host, through a signed URL that lasts 15 minutes. The page runs sandboxed with `connect-src 'none'`, so it saves no answers yet (COI-3759).

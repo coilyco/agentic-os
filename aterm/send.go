@@ -99,6 +99,11 @@ func newDaemonCommand() *cli.Command {
 				Sources: cli.EnvVars("ATERM_TREEHOUSE_DIR"),
 			},
 			&cli.StringFlag{
+				Name:    "treehouse-pages",
+				Usage:   "https address of the Treehouse pages API that seats publish pages to, empty for none. Needs the three flags above",
+				Sources: cli.EnvVars("ATERM_TREEHOUSE_PAGES"),
+			},
+			&cli.StringFlag{
 				Name:    "treehouse-provision-secret-file",
 				Usage:   "file holding the secret that lets this daemon claim its Treehouse certificate with no code typed, for a target Treehouse starts itself. Needs the three flags above",
 				Sources: cli.EnvVars("ATERM_TREEHOUSE_PROVISION_SECRET_FILE"),
@@ -156,6 +161,7 @@ func newDaemonCommand() *cli.Command {
 					Broker:    cmd.String("treehouse-broker"),
 					Accounts:  cmd.String("treehouse-accounts"),
 					Dir:       cmd.String("treehouse-dir"),
+					Pages:     cmd.String("treehouse-pages"),
 					ConfigDir: cmd.String("treehouse-config-dir"),
 
 					ProvisionSecretFile: cmd.String("treehouse-provision-secret-file"),

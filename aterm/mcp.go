@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -35,6 +36,9 @@ type mcpBackend struct {
 	artifactAdd func(address, title, source string, waiting, standing bool) (frame, error)
 	artifact    func(frame) (frame, error)
 	showMedia   func(path, title string) (frame, error)
+	// publishPage and page reach the Treehouse pages host through the daemon.
+	publishPage func(title, path, page string) (frame, error)
+	page        func(frame) (frame, error)
 	ask         func(choiceAsk) (choiceAnswer, error)
 	inbox       func(all bool) ([]inboxMessage, error)
 	notify      func(title, body string) (notifyResult, error)
@@ -50,6 +54,8 @@ var liveBackend = mcpBackend{
 	artifactAdd: addArtifact,
 	artifact:    artifactCall,
 	showMedia:   showMedia,
+	publishPage: publishPage,
+	page:        pageCall,
 	ask:         askChoice,
 	inbox:       readInbox,
 	notify:      notifyKai,
@@ -119,6 +125,16 @@ type notifyKaiInput struct {
 type showMediaInput struct {
 	Path  string `json:"path" jsonschema:"an image, a video or any file under your working directory or scratchpad, at most 64 MiB"`
 	Title string `json:"title,omitempty" jsonschema:"a name to show with it, the file's own name when unset"`
+}
+
+type publishPageInput struct {
+	Title string `json:"title" jsonschema:"the name shown in the page list, one line"`
+	Path  string `json:"path" jsonschema:"an .html file, or a directory holding index.html and its assets, under your working directory or scratchpad, at most 8 MiB and 64 files"`
+	Page  string `json:"page,omitempty" jsonschema:"the id of a page you published before, to replace it and keep its id"`
+}
+
+type pageRefInput struct {
+	Page string `json:"page" jsonschema:"the page id, pg_ and 20 characters"`
 }
 
 type artifactRefInput struct {
@@ -357,6 +373,50 @@ func newMCPServer(backend mcpBackend) *mcp.Server {
 		Description: "Close an artifact you added in Kai's client. A standing page whose seat has ended may be removed by any seat.",
 	}, func(_ context.Context, _ *mcp.CallToolRequest, input artifactRefInput) (*mcp.CallToolResult, any, error) {
 		if _, err := backend.artifact(frame{Type: "artifact_remove", ArtifactID: input.Artifact}); err != nil {
+			return nil, nil, err
+		}
+		return textResult("removed", false)
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "publish_page",
+		Description: "Publish a page to the Treehouse pages host, where only the account that owns this host can open it, " +
+			"from any of its clients, while this machine is asleep too. `path` is one .html file or a directory holding " +
+			"index.html and its assets (html, css, js, json, svg, png, jpg, webp, gif, woff2, txt), under your working " +
+			"directory or scratchpad, at most 8 MiB and 64 files. The page runs sandboxed with no network: it may load " +
+			"its own files and common CDN hosts, and cannot call any API. Pass `page` to replace a page you published " +
+			"and keep its id. A file holding a session token is refused. Returns the page id.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, input publishPageInput) (*mcp.CallToolResult, any, error) {
+		reply, err := backend.publishPage(input.Title, input.Path, input.Page)
+		if err != nil {
+			return nil, nil, err
+		}
+		return textResult(fmt.Sprintf("published %s, %d files, %d bytes", reply.Page.Page, reply.Page.Files, reply.Page.Bytes), false)
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "list_pages",
+		Description: "List the pages on the Treehouse pages host that belong to this host's account: id, last update and title.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+		reply, err := backend.page(frame{Type: "page_list"})
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(reply.Pages) == 0 {
+			return textResult("no pages", false)
+		}
+		var b strings.Builder
+		for _, p := range reply.Pages {
+			fmt.Fprintf(&b, "%s  %s  %s\n", p.Page, p.Updated, p.Title)
+		}
+		return textResult(strings.TrimRight(b.String(), "\n"), false)
+	})
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "remove_page",
+		Description: "Remove a page from the Treehouse pages host. Any seat of this host's account may remove any of its pages.",
+	}, func(_ context.Context, _ *mcp.CallToolRequest, input pageRefInput) (*mcp.CallToolResult, any, error) {
+		if _, err := backend.page(frame{Type: "page_remove", PageID: input.Page}); err != nil {
 			return nil, nil, err
 		}
 		return textResult("removed", false)
