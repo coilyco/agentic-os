@@ -10,7 +10,7 @@ import type { ToolResult, View, ViewCsp } from "./mcp-apps";
 import { FeedbackRefused, feedbackRefusal } from "./feedback";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
 import { CHUNK_BYTES, decodeMedia, mediaRefusal } from "./media";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, FeedbackChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, TuiState, ViewChannel } from "./protocol";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, FeedbackChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MachineKindChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, TuiState, ViewChannel } from "./protocol";
 import { decodeReply, REFUSALS, TranscriptRefused } from "./transcript";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
@@ -19,6 +19,7 @@ import { bridge, DeviceKeyError, type Invoke, enrollKey, keyStatus, KEY_CODE_SPE
 import { CODE_SPENT, createCredential, getCredential, passkeySupport, PasskeyError } from "./passkey";
 import { RESUME_ENDED_REASON, RESUME_FEATURE, ResumeEndedError, resumeProof } from "./resume";
 import { keepStanding, parseTyping, Refusal, refusalOf, typingNotice, type Typing } from "./typing";
+import { parseMachineKind, type MachineKind } from "./machine-kind";
 
 export const FORMAT = "aterm.daemon.v1";
 
@@ -209,6 +210,8 @@ interface Frame {
   typing?: unknown;
   reason?: unknown;
   features?: string[];
+  /** This host's kind, on a welcome, a set's reply, and a push with no id. */
+  host_kind?: unknown;
   /** On a brokered welcome only: which daemon this is and the channel's nonce. */
   unlock?: { daemon_id?: string; nonce?: string };
   challenge?: string;
@@ -275,6 +278,8 @@ const FEEDBACK_FEATURE = "feedback";
 const FEEDBACK_TOKEN_MS = 9 * 60 * 1000;
 /** `welcome.features` names this when the daemon answers `image_upload` (COI-3239). */
 const IMAGE_UPLOAD_FEATURE = "image-upload";
+/** `welcome.features` names this when the daemon reports and sets `host_kind`. */
+const HOST_KIND_FEATURE = "host-kind";
 
 /** CDP's ScreencastFrameMetadata as the daemon sends it, in snake_case. */
 export function toFrameMetadata(raw: Record<string, number> | undefined): FrameMetadata {
@@ -473,7 +478,7 @@ export class DaemonHost implements HostConnection {
   private nextId = 0;
   // Input has no reply on success, so an error naming one of these is its only failure.
   private inputIds = new Set<string>();
-  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; passkey?: HostEvent; deviceKey?: HostEvent; terminals?: HostEvent } = {};
+  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; passkey?: HostEvent; deviceKey?: HostEvent; machineKind?: HostEvent; terminals?: HostEvent } = {};
   private sessionViews: SessionView[] = [];
   // The daemon's one-use unlock proof. Memory only, replaced on every use.
   private resumeToken: string | undefined;
@@ -645,6 +650,7 @@ export class DaemonHost implements HostConnection {
     if (this.last.passkey) tell(this.last.passkey);
     if (this.last.deviceKey) tell(this.last.deviceKey);
     if (this.last.features) tell(this.last.features);
+    if (this.last.machineKind) tell(this.last.machineKind);
     if (this.last.terminals) tell(this.last.terminals);
     return () => this.listeners.delete(listener);
   }
@@ -774,6 +780,25 @@ export class DaemonHost implements HostConnection {
   /** Only a welcome listing `passkey` has a ceremony. The page decides if it can run. */
   get passkey(): PasskeyChannel | undefined {
     return this.features.has("passkey") ? this.passkeyChannel : undefined;
+  }
+
+  /** Only a welcome listing `host-kind` can set it. */
+  get machineKind(): MachineKindChannel | undefined {
+    return this.features.has(HOST_KIND_FEATURE) ? this.machineKindChannel : undefined;
+  }
+
+  private machineKindChannel: MachineKindChannel = {
+    set: async (kind) => {
+      const reply = await this.exchange({ type: "host_kind", host_kind: kind });
+      const held = parseMachineKind(reply.host_kind);
+      if (!held) throw new Error("The daemon named no host kind.");
+      return held;
+    },
+  };
+
+  private setMachineKind(kind: MachineKind | null): void {
+    this.last.machineKind = { type: "machine_kind", kind };
+    this.emit(this.last.machineKind);
   }
 
   /** Only a welcome listing `device-key` has one. Without the plugin it says so. */
@@ -1118,6 +1143,7 @@ export class DaemonHost implements HostConnection {
         this.emit(this.last.passkey);
         this.last.deviceKey = { type: "device_key", available: this.features.has("device-key") };
         this.emit(this.last.deviceKey);
+        this.setMachineKind(this.features.has(HOST_KIND_FEATURE) ? (parseMachineKind(frame.host_kind) ?? null) : null);
         const feedback = this.features.has(FEEDBACK_FEATURE);
         this.last.features = { type: "features", terminals: this.features.has("terminals"), ...(this.features.has(PUSH_FEATURE) ? { webPush: true as const } : {}), ...(feedback ? { feedback: true as const } : frame.version ? { daemonVersion: frame.version } : {}) };
         this.emit(this.last.features);
@@ -1207,9 +1233,15 @@ export class DaemonHost implements HostConnection {
       case "device_enrolled":
       case "device_assert_challenge":
       case "device_asserted":
-      case "resumed": {
+      case "resumed":
+      case "host_kind": {
         // Only unlock replies carry a proof. Absent means no resume window.
         if (UNLOCKED_REPLIES.has(frame.type)) this.resumeToken = resumeProof(frame);
+        // A push has no id, and a reply to a set names the kind held, so either redraws.
+        if (frame.type === "host_kind" && this.features.has(HOST_KIND_FEATURE)) {
+          const kind = parseMachineKind(frame.host_kind);
+          if (kind) this.setMachineKind(kind);
+        }
         const call = frame.id ? this.calls.get(frame.id) : undefined;
         if (call && frame.id) {
           this.calls.delete(frame.id);
@@ -1433,7 +1465,7 @@ export class DaemonHost implements HostConnection {
 }
 
 /** One round trip to learn whether a daemon answers and how many sessions it holds. */
-export function probe(url = DEFAULT_DAEMON_URL, timeoutMs = 2000): Promise<number> {
+export function probe(url = DEFAULT_DAEMON_URL, timeoutMs = 2000, onKind?: (kind: MachineKind | undefined) => void): Promise<number> {
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(url);
     const timer = setTimeout(() => finish(new Error("no answer")), timeoutMs);
@@ -1451,8 +1483,11 @@ export function probe(url = DEFAULT_DAEMON_URL, timeoutMs = 2000): Promise<numbe
     socket.addEventListener("error", () => finish(new Error("no answer")));
     socket.addEventListener("message", (event) => {
       const frame = JSON.parse(String(event.data)) as Frame;
-      if (frame.type === "welcome") socket.send(JSON.stringify({ type: "list", id: "probe" }));
-      else if (frame.type === "sessions") finish(frame.sessions?.length ?? 0);
+      if (frame.type === "welcome") {
+        // The welcome names the kind, so a host not attached still shows one.
+        if (!frame.error) onKind?.(frame.features?.includes(HOST_KIND_FEATURE) ? parseMachineKind(frame.host_kind) : undefined);
+        socket.send(JSON.stringify({ type: "list", id: "probe" }));
+      } else if (frame.type === "sessions") finish(frame.sessions?.length ?? 0);
       else if (frame.type === "error") finish(new Error(frame.error ?? "refused"));
     });
   });

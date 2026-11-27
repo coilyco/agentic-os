@@ -15,6 +15,7 @@
   import { app, askLineFor, asksShownOn, colorOf, closeAnyway, dismissCloseNote, glowSeats, layout, needsKaiIds, overviewShown, pinnedNow, reopenClosed, showAllRoles, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
+  import { MACHINE_KIND_LABEL } from "../lib/machine-kind";
   import { stateWithAge } from "../lib/age";
   import { activityFlag, activityWords } from "../lib/seat-activity";
   import { splitHidden } from "../lib/hidden-roles";
@@ -138,7 +139,13 @@
   // The attached host's state is its link, not the probe that found it.
   const kindOf = (host: Host): string => (reconnecting() && host.id === app.attachedHostId ? "reconnecting" : host.status.kind);
 
+  // The kind leads, so a narrow row cuts the status before it cuts the kind.
   function hostDetail(host: Host): string {
+    const status = hostStatus(host);
+    return host.machineKind ? `${MACHINE_KIND_LABEL[host.machineKind]} // ${status}` : status;
+  }
+
+  function hostStatus(host: Host): string {
     if (kindOf(host) === "reconnecting") return app.link.state === "resting" ? "not answering" : "reconnecting";
     const running = hostRunning(host, app.attachedHostId, app.sessions);
     if (host.brokered) return host.status.kind === "online" ? (running === null ? "online" : `${running} running`) : "offline";

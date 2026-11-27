@@ -7,8 +7,8 @@
   import { linkTarget } from "../lib/terminal-extras";
   import { mergeItems, rowsFor, TranscriptRefused, type Level, type PeerRef, type TranscriptItem } from "../lib/transcript";
   import { cacheKey, catchUp, loadSnapshot, markerRow, MAX_ITEMS, saveSnapshot } from "../lib/transcript-cache";
-  import { cancelPending, pendingFor, settlePending, shownText } from "../lib/pending-sends.svelte";
-  import { layout } from "../lib/app.svelte";
+  import { cancelPending, pendingFor, readPast, settlePending, shownText, waitingSince } from "../lib/pending-sends.svelte";
+  import { app, layout } from "../lib/app.svelte";
 
   // `restore` is false for a device that has not unlocked, which never shows a kept page.
   let { channel, sessionId, hostId, restore, level, marker, onread, onrefused, onpeer }: { channel: TranscriptChannel; sessionId: string; hostId: string; restore: boolean; level: Level; marker: boolean; onread: () => void; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void } = $props();
@@ -46,6 +46,20 @@
   const sending = $derived(pendingFor(key));
   const markerKey = $derived(markerRow(items, rows.map((row) => row.key), newFrom));
   const age = $derived(replyAge(updatedAt, now));
+  // A working seat queues a message and writes it only when it takes it, minutes later at
+  // times. So an entry asks to be dismissed only once the seat has stopped without it (COI-3690).
+  const QUIET_MS = 5000;
+  const working = $derived(app.sessions.find((one) => one.id === sessionId)?.state === "working");
+  let quiet = $state(true);
+  $effect(() => {
+    if (working) {
+      quiet = false;
+      return;
+    }
+    const timer = setTimeout(() => (quiet = true), QUIET_MS);
+    return () => clearTimeout(timer);
+  });
+  const shownState = (state: "pending" | "unsent") => (state === "unsent" && !quiet ? "queued" : state);
 
   const atEnd = () => !list || list.scrollHeight - list.scrollTop - list.clientHeight < 4;
   const follow = () => tick().then(() => pinned && list && (list.scrollTop = list.scrollHeight));
@@ -66,6 +80,7 @@
     // The marker is for opening a seat. Coming back from another view reads the page it kept a moment ago (COI-3647).
     newFrom = marker ? joined?.newFrom : undefined;
     settlePending(key, reply.items, false);
+    void reachBack(reply.items, reply.older);
     cursor = reply.cursor;
     updatedAt = Date.now();
     phase = "ready";
@@ -77,6 +92,30 @@
     if (newFrom) void showMarker();
     else void follow();
     keep();
+  }
+
+  // A seat may take a message while this view is closed, and a busy one buries it under the
+  // newest page by the time it opens again. Reads back, without showing it, until each waiting
+  // send settles or the pages pass the earliest of them (COI-3690).
+  const REACH_PAGES = 10;
+  let reaching = false;
+  async function reachBack(page: readonly TranscriptItem[], from: string | undefined): Promise<void> {
+    if (reaching) return;
+    reaching = true;
+    try {
+      for (let read = 0; from && read < REACH_PAGES; read++) {
+        const since = waitingSince(key);
+        if (since === undefined || readPast(page, since)) return;
+        const reply = await channel.read(sessionId, { before: from, limit: 200 });
+        settlePending(key, reply.items, false);
+        page = reply.items;
+        from = reply.older;
+      }
+    } catch {
+      // A failed read leaves the entry waiting, and its own timeout says so.
+    } finally {
+      reaching = false;
+    }
   }
 
   // Puts the first new line at the top, since the end of a long catch-up is not where the person left.
@@ -252,9 +291,11 @@
       {/if}
     {/each}
     {#each sending as send (send.id)}
-      <div class="turn me sending" data-row={`sending-${send.id}`} data-state={send.state}>
+      <div class="turn me sending" data-row={`sending-${send.id}`} data-state={shownState(send.state)}>
         <span class="who">You</span><p class="plain">{shownText(send)}</p>
-        {#if send.state === "unsent"}
+        {#if shownState(send.state) === "queued"}
+          <p class="maybe" role="status">Queued. The seat is working and takes it at its next step.</p>
+        {:else if send.state === "unsent"}
           <p class="maybe warn" role="alert">Not in the transcript yet. The seat may not have taken it, for example while a dialog is open. <button type="button" class="peer" onclick={() => cancelPending(send.id)}>Dismiss</button></p>
         {:else}
           <p class="maybe" role="status">Sending.</p>

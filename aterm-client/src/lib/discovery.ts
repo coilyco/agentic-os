@@ -3,12 +3,15 @@
 import { FORMAT } from "./daemon-host";
 import type { Host } from "./protocol";
 import { parseHostInput } from "./saved-hosts";
+import { parseMachineKind, type MachineKind } from "./machine-kind";
 
 export interface FoundHost {
   name: string;
   host: string;
   port: string;
   version?: string;
+  /** The peer's kind from its welcome. Absent from a daemon that predates it. */
+  machineKind?: MachineKind;
 }
 
 export const FOUND_PREFIX = "found:";
@@ -17,9 +20,10 @@ export const FOUND_PREFIX = "found:";
 export function parseFound(raw: unknown): FoundHost[] {
   if (!Array.isArray(raw)) return [];
   return raw.flatMap((entry): FoundHost[] => {
-    const { name, host, port, version } = (entry ?? {}) as Record<string, unknown>;
+    const { name, host, port, version, host_kind } = (entry ?? {}) as Record<string, unknown>;
     if (typeof host !== "string" || typeof port !== "string" || !host || !/^\d+$/.test(port)) return [];
-    return [{ name: typeof name === "string" && name ? name : host, host, port, ...(typeof version === "string" ? { version } : {}) }];
+    const machineKind = parseMachineKind(host_kind);
+    return [{ name: typeof name === "string" && name ? name : host, host, port, ...(typeof version === "string" ? { version } : {}), ...(machineKind ? { machineKind } : {}) }];
   });
 }
 
@@ -41,6 +45,16 @@ export function staleFoundHosts(hosts: readonly Host[], listed: ReadonlySet<stri
   return hosts.filter((host) => host.found && !host.answered && !listed.has(host.address)).map((host) => host.id);
 }
 
+/** Each listed address's kind, for rows already shown. A peer with none is left out. */
+export function foundKinds(found: readonly FoundHost[]): Map<string, MachineKind> {
+  const kinds = new Map<string, MachineKind>();
+  for (const daemon of found) {
+    const address = addressOf(daemon);
+    if (address !== null && daemon.machineKind) kinds.set(address, daemon.machineKind);
+  }
+  return kinds;
+}
+
 /** Hosts for found daemons this device does not list yet, by address. */
 export function newFoundHosts(existing: readonly Host[], found: readonly FoundHost[]): Host[] {
   const known = new Set(existing.map((host) => host.address));
@@ -49,7 +63,7 @@ export function newFoundHosts(existing: readonly Host[], found: readonly FoundHo
     const address = addressOf(daemon);
     if (address === null || known.has(address)) continue;
     known.add(address);
-    added.push({ id: `${FOUND_PREFIX}${address}`, label: daemon.name, address, kind: "daemon", found: true, status: { kind: "checking" } });
+    added.push({ id: `${FOUND_PREFIX}${address}`, label: daemon.name, address, kind: "daemon", found: true, status: { kind: "checking" }, ...(daemon.machineKind ? { machineKind: daemon.machineKind } : {}) });
   }
   return added;
 }

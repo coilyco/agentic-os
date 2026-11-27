@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -473,3 +474,62 @@ func TestTheTranscriptFeatureIsAdvertisedAndGatedLikeTyping(t *testing.T) {
 }
 
 var _ = exec.LookPath
+
+// COI-3690: a typed turn and a mid-turn message, shaped as a live seat wrote them.
+// The second is only a queued_command attachment beside queue-operation rows.
+func TestClaudeTranscriptReadsATypedTurnAndAnAbsorbedMessageDeepInALongFile(t *testing.T) {
+	var lines []string
+	tool := func(n int) string {
+		return fmt.Sprintf(`{"type":"assistant","uuid":"a%d","parentUuid":"p","timestamp":"2026-11-27T21:00:%02d.000Z","isSidechain":false,"message":{"id":"msg_%d","model":"m","stop_reason":"tool_use","content":[{"type":"tool_use","id":"toolu_%d","name":"Bash","input":{"command":"true"}}]}}`, n, n%60, n, n) + "\n" +
+			fmt.Sprintf(`{"type":"user","uuid":"u%d","parentUuid":"a%d","timestamp":"2026-11-27T21:00:%02d.500Z","isSidechain":false,"message":{"role":"user","content":[{"tool_use_id":"toolu_%d","type":"tool_result","content":"ok"}]}}`, n, n, n%60, n)
+	}
+	for n := 0; n < 300; n++ {
+		lines = append(lines, tool(n))
+	}
+	lines = append(lines, `{"parentUuid":"u299","isSidechain":false,"promptId":"x","type":"user","message":{"role":"user","content":"is it connected now"},"uuid":"typed-1","timestamp":"2026-11-27T21:02:59.778Z","permissionMode":"bypassPermissions","origin":{"kind":"human"},"promptSource":"typed","turnOrigin":"human","userType":"external","entrypoint":"cli"}`)
+	for n := 300; n < 320; n++ {
+		lines = append(lines, tool(n))
+	}
+	lines = append(lines,
+		`{"type":"queue-operation","operation":"enqueue","timestamp":"2026-11-27T21:13:58.465Z","sessionId":"s","content":"and pick up the rest"}`,
+		`{"type":"queue-operation","operation":"remove","timestamp":"2026-11-27T21:13:59.971Z","sessionId":"s","content":"and pick up the rest","reason":"absorbed_mid_turn","commandUuid":"c","deliveryId":"d"}`,
+		`{"parentUuid":"u319","isSidechain":false,"attachment":{"type":"queued_command","prompt":"and pick up the rest","source_uuid":"c","delivery_id":"d","commandMode":"prompt","origin":{"kind":"human"},"timestamp":"2026-11-27T21:13:58.256Z","humanTurn":true},"type":"attachment","uuid":"queued-1","timestamp":"2026-11-27T21:13:58.256Z"}`)
+	for n := 320; n < 500; n++ {
+		lines = append(lines, tool(n))
+	}
+	path := transcriptTempFile(t, strings.Join(lines, "\n")+"\n")
+
+	// The newest page is all tool calls, so a client reading only it sees neither.
+	newest, err := claudeTranscript(path, transcriptRequest{Limit: 50}, transcriptLedger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range newest.Items {
+		if item.Kind == "prompt" {
+			t.Fatalf("the newest page holds a prompt: %+v", item)
+		}
+	}
+	// Reading back by the older cursor reaches both, as prompts with the words and a stamp.
+	found := map[string]transcriptItem{}
+	for older := newest.Older; older != "" && len(found) < 2; {
+		page, err := claudeTranscript(path, transcriptRequest{Limit: 200, Before: older}, transcriptLedger)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, item := range page.Items {
+			if item.Kind == "prompt" {
+				found[item.ID] = item
+			}
+		}
+		older = page.Older
+	}
+	if typed := found["typed-1"]; typed.Text != "is it connected now" || typed.At == "" {
+		t.Fatalf("typed turn = %+v", typed)
+	}
+	if queued := found["queued-1"]; queued.Text != "and pick up the rest" || queued.At == "" || queued.From != nil {
+		t.Fatalf("absorbed message = %+v", queued)
+	}
+	if len(found) != 2 {
+		t.Fatalf("queue-operation rows are not messages: %+v", found)
+	}
+}

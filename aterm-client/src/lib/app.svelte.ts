@@ -10,7 +10,8 @@ import { brokeredFor } from "./brokered";
 import { APP_RETURN, HandoffError, isHandoffReturn, readReturn, startHandoff } from "./handoff";
 import { systemBrowser, type SystemBrowser } from "./system-browser";
 import { DaemonHost, DEFAULT_DAEMON_URL, hostLabel, probe } from "./daemon-host";
-import { discover, listedAddresses, newFoundHosts, staleFoundHosts } from "./discovery";
+import { discover, foundKinds, listedAddresses, newFoundHosts, staleFoundHosts } from "./discovery";
+import type { MachineKind } from "./machine-kind";
 import { addToShelf, removeFromShelf, unseenCount, type MediaItem } from "./media";
 import { upsertMessage } from "./messages";
 import { askerLine, cardSeatOf } from "./relay";
@@ -30,7 +31,7 @@ import type { ResumeState } from "./resume";
 import type { Role } from "./roster";
 import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, recordExit, storeClosed, storeSeats, terminalFor, type Support, type TerminalEntry } from "./terminals";
 import { treehouseConfig } from "./treehouse";
-import { TYPING_OPEN, type Typing } from "./typing";
+import { Refusal, TYPING_OPEN, type Typing } from "./typing";
 import { offer, pageLabel, type OpenedPage } from "./pages";
 import { loadLastOpen, storeLastOpen, type LastOpen } from "./last-open";
 import { beginLaunch, newSeatFor, type PendingLaunch } from "./launch-follow";
@@ -160,6 +161,8 @@ export const app = $state({
   terminalRefusals: {} as Record<string, string>,
   /** Seats Kai closed a terminal for, so opening their tab does not bring it back. */
   terminalClosed: loadClosed(),
+  /** The attached host's kind. Null until named, and from a daemon without it. */
+  machineKind: null as MachineKind | null,
 });
 
 // Ids Kai closed: they leave the list on purpose, so they are not an ended shell.
@@ -297,7 +300,7 @@ export async function checkHost(host: Host): Promise<void> {
   if (host.kind !== "daemon" || host.brokered) return;
   host.status = { kind: "checking" };
   try {
-    host.status = { kind: "online", sessionCount: await probe(host.address) };
+    host.status = { kind: "online", sessionCount: await probe(host.address, undefined, (kind) => (host.machineKind = kind)) };
     host.answered = true;
   } catch {
     // The socket failure says nothing, so ask over HTTPS which layer stopped it.
@@ -335,7 +338,7 @@ function stopWatching(host: Host): void {
  * Attaches the host if it was the one picked. */
 async function recheckHost(host: Host): Promise<boolean> {
   try {
-    host.status = { kind: "online", sessionCount: await probe(host.address) };
+    host.status = { kind: "online", sessionCount: await probe(host.address, undefined, (kind) => (host.machineKind = kind)) };
   } catch {
     return false;
   }
@@ -374,6 +377,11 @@ async function refreshFound(): Promise<void> {
       const found = replies.flatMap((reply) => (reply.status === "fulfilled" ? reply.value : []));
       if (replies.some((reply) => reply.status === "fulfilled")) {
         for (const id of staleFoundHosts(app.hosts, listedAddresses(found))) removeHost(id);
+      }
+      const kinds = foundKinds(found);
+      for (const host of app.hosts) {
+        const kind = host.brokered ? undefined : kinds.get(host.address);
+        if (kind && host.id !== app.attachedHostId) host.machineKind = kind;
       }
       const added = newFoundHosts(app.hosts, found);
       insertHosts(added);
@@ -513,6 +521,7 @@ function resetAttached(): void {
   app.terminalsLoaded = false;
   for (const label of Object.keys(app.terminalOpening)) settleOpen(label);
   app.terminalRefusals = {};
+  app.machineKind = null;
 }
 
 function attach(host: Host, connection: HostConnection): void {
@@ -558,6 +567,11 @@ function attach(host: Host, connection: HostConnection): void {
     else if (event.type === "browser") app.browsers[event.browser.session] = event.browser;
     else if (event.type === "passkey") app.passkeyAvailable = event.available;
     else if (event.type === "device_key") app.deviceKeyAvailable = event.available && bridge() !== null;
+    else if (event.type === "machine_kind") {
+      app.machineKind = event.kind;
+      const row = app.hosts.find((candidate) => candidate.id === app.attachedHostId);
+      if (row && event.kind) row.machineKind = event.kind;
+    }
     else if (event.type === "features") {
       app.terminalSupport = event.terminals ? "yes" : "no";
       app.webPush = event.webPush === true;
@@ -911,6 +925,20 @@ export async function setAlert(key: keyof AttentionSettings, on: boolean): Promi
 }
 
 /** Where this page unlocks from, for the words a locked device shows. */
+/** Asks the attached host to take `kind`. Resolves the words to show when it did not. */
+export async function setMachineKind(kind: MachineKind): Promise<string | null> {
+  const channel = app.connection?.machineKind;
+  if (!channel) return "This host cannot change its kind from here.";
+  try {
+    app.machineKind = await channel.set(kind);
+    return null;
+  } catch (error) {
+    // A lock already shows itself, so its words are the guard's own.
+    if (error instanceof Refusal) return error.message;
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
 export function placeNow(): Place {
   if (app.brokered) return "account";
   return app.deviceKeyAvailable ? "app-key" : PLACE;
@@ -948,6 +976,7 @@ function brokerHost(daemon: BrokerDaemon): Host {
     kind: "daemon",
     brokered: { daemonId: daemon.id, substrate: daemon.substrate },
     status: brokerStatus(daemon),
+    ...(daemon.machineKind ? { machineKind: daemon.machineKind } : {}),
   };
 }
 
@@ -963,7 +992,10 @@ function applyBrokered(daemons: readonly BrokerDaemon[]): void {
     const row = have.get(`${BROKER_PREFIX}${daemon.id}`);
     if (!row) return brokerHost(daemon);
     row.label = daemon.name;
-    if (row.id !== app.attachedHostId) row.status = brokerStatus(daemon);
+    if (row.id !== app.attachedHostId) {
+      row.status = brokerStatus(daemon);
+      if (daemon.machineKind) row.machineKind = daemon.machineKind;
+    }
     return row;
   });
   const others = app.hosts.filter((host) => !host.brokered);
