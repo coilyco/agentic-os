@@ -17,8 +17,7 @@ export async function reopenSeat(page: Page, who: { name: string }): Promise<voi
   await seatEntry(page, who.name).click();
 }
 
-/** A seat as found with none open: its tab on a desktop, else its overview row. */
-/** The open seat's View button (COI-3757). Its text is the view on screen. */
+/** The open seat's View button (COI-3757). Its name says the view on screen. */
 export function viewButton(page: Page): Locator {
   return page.getByRole("button", { name: /^View: / });
 }
@@ -29,6 +28,7 @@ export async function pickView(page: Page, name: string): Promise<void> {
   await page.getByRole("dialog", { name: "View" }).getByRole("radio", { name: new RegExp(`^${name}\\b`) }).click();
 }
 
+/** A seat as found with none open: its tab on a desktop, else its overview row. */
 export function seatEntry(page: Page, who: string | RegExp): Locator {
   const name = typeof who === "string" ? new RegExp(who) : who;
   return page.getByRole("tab", { name }).or(page.getByRole("region", { name: "Seats", exact: true }).getByRole("button", { name })).first();

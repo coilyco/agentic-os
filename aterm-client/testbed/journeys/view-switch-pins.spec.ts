@@ -26,7 +26,7 @@ test("every switch between Focus, Default and Verbose lands on the last item and
   await atEnd(bed, "Focus opens at the end");
   for (const name of ["Default", "Verbose", "Focus", "Verbose", "Default"]) {
     await pickView(bed.page, name);
-    await expect(viewButton(bed.page)).toHaveText(name);
+    await expect(viewButton(bed.page)).toHaveAccessibleName(`View: ${name}. Change the view`);
     await atEnd(bed, `${name} lands at the end`);
   }
   await expect(bed.page.getByRole("button", { name: /Jump to latest/ })).toHaveCount(0);

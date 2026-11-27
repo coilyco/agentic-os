@@ -74,10 +74,10 @@ test.describe("the view a seat opens in", () => {
     expect(await stored(page, "aterm.seat-view-default.v1"), "stored without a reload").toBe("default");
     await settings.getByRole("button", { name: "Back" }).click();
     await seatEntry(page, SEATS.beetle.name).click();
-    await expect(viewButton(page), "the seat opens in the chosen view").toHaveText("Default");
+    await expect(viewButton(page), "the seat opens in the chosen view").toHaveAccessibleName("View: Default. Change the view");
     await pickView(page, "Focus");
     await reopenSeat(page, SEATS.beetle);
-    await expect(viewButton(page), "the seat's own pick wins").toHaveText("Focus");
+    await expect(viewButton(page), "the seat's own pick wins").toHaveAccessibleName("View: Focus. Change the view");
   });
 });
 

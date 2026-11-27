@@ -1,5 +1,5 @@
 // COI-3532: Focus, Default and Verbose views of a seat, read from its transcript.
-// Peer messages never show in them. The raw screen stays under them and in Verbose.
+// Peer messages never show in them. Two of the five choices show the raw screen.
 import { existsSync, readFileSync } from "node:fs";
 import { expect, kindOf, SEATS, test, type Bed, reopenSeat, pickView, viewButton } from "../harness.ts";
 
@@ -39,8 +39,11 @@ test.describe("on a phone", () => {
       const button = viewButton(bed.page);
       const feedback = (await bed.page.getByRole("button", { name: "Send feedback", exact: true }).boundingBox())!;
       const own = (await button.boundingBox())!;
-      expect(own.height, "as tall as Send feedback beside it").toBe(feedback.height);
-      expect(own.x + own.width, "to its left, beside the seat picker").toBeLessThanOrEqual(feedback.x);
+      const seats = (await bed.page.getByRole("button", { name: /Seats, starting a seat, hosts and settings$/ }).boundingBox())!;
+      expect([own.width, own.height], "the same size as Send feedback beside it").toEqual([feedback.width, feedback.height]);
+      expect(own.x, "right of the seat picker").toBeGreaterThanOrEqual(seats.x + seats.width);
+      expect(own.x + own.width, "and left of Send feedback").toBeLessThanOrEqual(feedback.x);
+      await expect(button, "names the view on screen in a word").toHaveText("Raw");
       await button.click();
       const picker = bed.page.getByRole("dialog", { name: "View" });
       const radios = picker.getByRole("radio");
@@ -60,7 +63,7 @@ test.describe("on a phone", () => {
       await bed.step("picker", { compare: false });
       await bed.page.keyboard.press("Escape");
       await expect(picker).toHaveCount(0);
-      await expect(button, "Escape keeps the view").toHaveText("Raw unwrapped");
+      await expect(button, "Escape keeps the view").toHaveAccessibleName("View: Raw unwrapped. Change the view");
       await expect(button, "and focus goes back to the button").toBeFocused();
     });
   });
@@ -71,13 +74,13 @@ test.describe("on a phone", () => {
     await expect(bed.page.locator(".fallback")).toHaveText("This seat's transcript is in a format Treehouse does not read yet. Showing the screen.");
     await expect(view(bed)).toHaveCount(0);
     await expect(bed.screen(), "the raw screen is up").toBeVisible();
-    await expect(viewButton(bed.page), "the control is still there, naming the screen").toHaveText(/^Raw/);
+    await expect(viewButton(bed.page), "the control is still there, naming the screen").toHaveAccessibleName(/^View: Raw/);
     await bed.step("no-transcript", { compare: false });
   });
 
   test("opens on Focus, with the last reply of each turn and a line per tool, and no peer message", async ({ bed }) => {
     await open(bed);
-    await expect(viewButton(bed.page)).toHaveText("Focus");
+    await expect(viewButton(bed.page)).toHaveAccessibleName("View: Focus. Change the view");
     await expect(view(bed)).toContainText("Why does the wrapped row hide the stripe?");
     await expect(view(bed)).toContainText("The stripe was placed by row number");
     await expect(view(bed)).toContainText("Ran just aterm-client-gate");
@@ -107,7 +110,7 @@ test.describe("on a phone", () => {
     await expect(view(bed), "a failed step says so").toContainText("failed");
     await bed.step("verbose", { compare: false });
     await pickView(bed.page, "Raw unwrapped");
-    await expect(viewButton(bed.page)).toHaveText("Raw unwrapped");
+    await expect(viewButton(bed.page)).toHaveAccessibleName("View: Raw unwrapped. Change the view");
     await expect(view(bed)).toHaveCount(0);
     await expect(bed.screen()).toBeVisible();
     await pickView(bed.page, "Verbose");
@@ -119,19 +122,19 @@ test.describe("on a phone", () => {
     await pickView(bed.page, "Default");
     await reopenSeat(bed.page, SEATS.imp);
     await expect(bed.page.getByRole("heading", { name: SEATS.imp.name, level: 1 })).toBeAttached();
-    await expect(viewButton(bed.page)).toHaveText("Default");
+    await expect(viewButton(bed.page)).toHaveAccessibleName("View: Default. Change the view");
     await bed.switchSeat(SEATS.beetle);
-    await expect(viewButton(bed.page), "another seat opens on Focus").toHaveText("Focus");
+    await expect(viewButton(bed.page), "another seat opens on Focus").toHaveAccessibleName("View: Focus. Change the view");
   });
 
   test("Raw wrapped and Raw unwrapped take effect at once, and fold the screen as the switch does", async ({ bed }) => {
     await open(bed);
     await pickView(bed.page, "Raw wrapped");
-    await expect(viewButton(bed.page)).toHaveText("Raw wrapped");
+    await expect(viewButton(bed.page)).toHaveAccessibleName("View: Raw wrapped. Change the view");
     await expect(view(bed)).toHaveCount(0);
     await expect(bed.page.locator(".term-host"), "the screen folds its lines").toHaveClass(/wrapping/);
     await pickView(bed.page, "Raw unwrapped");
-    await expect(viewButton(bed.page)).toHaveText("Raw unwrapped");
+    await expect(viewButton(bed.page)).toHaveAccessibleName("View: Raw unwrapped. Change the view");
     await expect(bed.page.locator(".term-host"), "and unfolds them").not.toHaveClass(/wrapping/);
   });
 
@@ -142,9 +145,9 @@ test.describe("on a phone", () => {
       localStorage.setItem("aterm.terminal-wrap.v1", JSON.stringify([id]));
     }, imp);
     await open(bed);
-    await expect(viewButton(bed.page), "verbose with the screen up, wrapped").toHaveText("Raw wrapped");
+    await expect(viewButton(bed.page), "verbose with the screen up, wrapped").toHaveAccessibleName("View: Raw wrapped. Change the view");
     await bed.switchSeat(SEATS.beetle);
-    await expect(viewButton(bed.page), "a seat with nothing stored opens on Focus").toHaveText("Focus");
+    await expect(viewButton(bed.page), "a seat with nothing stored opens on Focus").toHaveAccessibleName("View: Focus. Change the view");
   });
 
   test("a line the seat writes later arrives on its own, asked for by the cursor", async ({ bed }) => {
@@ -209,7 +212,7 @@ test.describe("on a desktop", () => {
 
   test("keeps the screen it has always had, named Raw unwrapped, and Focus is one pick away", async ({ bed }) => {
     await open(bed);
-    await expect(viewButton(bed.page), "a desktop pane scrolls its long lines").toHaveText("Raw unwrapped");
+    await expect(viewButton(bed.page), "a desktop pane scrolls its long lines").toHaveAccessibleName("View: Raw unwrapped. Change the view");
     await expect(view(bed)).toHaveCount(0);
     await expect(bed.screen()).toBeVisible();
     await pickView(bed.page, "Focus");

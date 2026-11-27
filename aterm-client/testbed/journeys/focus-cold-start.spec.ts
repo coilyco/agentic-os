@@ -21,7 +21,7 @@ test("a cold start opens a Focus seat in Focus", async ({ bed }) => {
   bed.mock.setTranscript(imp, transcript);
   await bed.openSeat(SEATS.imp);
   await reopenSeat(bed.page, SEATS.imp);
-  await expect(viewButton(bed.page)).toHaveText("Focus");
+  await expect(viewButton(bed.page)).toHaveAccessibleName("View: Focus. Change the view");
   await expect(feed(bed)).toContainText("The stripe was placed by row number.");
   await expect(bed.page.locator(".rawscreen")).toHaveAttribute("aria-hidden", "true");
 });
