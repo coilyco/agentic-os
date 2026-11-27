@@ -1,0 +1,32 @@
+
+ ▐▛███▛█   Claude Code v2.1.332
+▝▜██████▀  Fable 5.2 · Claude Ultra
+ ▝▝   ▝▝   /tmp/work · /rc
+
+
+
+
+
+
+
+
+
+
+
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ scroll wheel is sending arrow keys · PgUp/PgDn to scroll ▔
+  claude.ai Drive
+  MCP server
+
+  Status:           ✔ connected
+  URL:              https://drive.example.com
+  Config location:  claude.ai
+  Capabilities:     16 tools
+
+  ❯ View tools
+    Clear authentication
+    Reconnect
+    Disable in this project
+    Back
+
+  ↑/↓ to navigate · Enter to select · Esc to go back

@@ -3,7 +3,9 @@
   import Creature from "../components/Creature.svelte";
   import ChoiceCard from "../components/ChoiceCard.svelte";
   import LoginCard from "../components/LoginCard.svelte";
+  import MenuCard from "../components/MenuCard.svelte";
   import CloseSeat from "../components/CloseSeat.svelte";
+  import ReloadSeat from "../components/ReloadSeat.svelte";
   import Origin from "../components/Origin.svelte";
   import PinSeat from "../components/PinSeat.svelte";
   import Composer from "../components/Composer.svelte";
@@ -26,6 +28,7 @@
   import { CONTINUE_KEYS, codeKeys, detectLogin, loginKey, methodKeys, RETRY_KEYS, type Login } from "../lib/login";
   import { openExternal } from "../lib/open-external";
   import { isBlank } from "../lib/screen";
+  import { readScreenMenu, screenChoiceAllowed, type ScreenMenu } from "../lib/screen-menu";
   import type { Session } from "../lib/protocol";
   import type { Role } from "../lib/roster";
   import { loadView, storeView } from "../lib/seat-view";
@@ -186,6 +189,10 @@
   // The browser needs room to be read, so a page takes half the width. Its empty states do not.
   const wide = $derived(side === "browser" && page !== undefined && page.state !== "none");
   let choice = $state<Choice | null>(null);
+  // A harness menu the daemon names and the choice reader misreads (COI-3788).
+  let screenMenu = $state<ScreenMenu | null>(null);
+  // The last screen read, so a new daemon reading redraws the cards without waiting on output.
+  let lastRead: { rows: string[]; tabBar: TabBarCells | null } | null = null;
   // A seat with no Claude login draws its own sign-in screens, and the card stands in for them (COI-3678, COI-3679).
   let login = $state<Login | null>(null);
   let loginShown = "";
@@ -195,7 +202,7 @@
   // The sign-in button sets it and the link spends it, so one tap runs the whole hop to the browser.
   let openWhenLinked = $state(false);
   // The composer holds its send, and focus no longer hides the strip: leaving the field would bring it back and move the card under a tap.
-  const dialogOpen = $derived(!!(ask || choice || login));
+  const dialogOpen = $derived(!!(ask || choice || login || screenMenu));
   // A menu is on the screen, card or not. The composer never types into it (COI-3689).
   let menuUp = $state(false);
   let menuTimer: ReturnType<typeof setTimeout> | undefined;
@@ -234,10 +241,12 @@
   function readScreen(rows: string[], tabBar: TabBarCells | null): void {
     const scope = screenScope(session.id);
     blank = isBlank(rows);
+    lastRead = { rows, tabBar };
     readLogin(detectLogin(rows));
-    const found = detectChoice(rows);
+    screenMenu = readScreenMenu(session.tui, rows);
+    const found = screenChoiceAllowed(session.tui, screenMenu) ? detectChoice(rows) : null;
     lastFound = found;
-    if (found || menuFooterShowing(rows)) {
+    if (found || screenMenu || menuFooterShowing(rows)) {
       clearTimeout(menuTimer);
       menuTimer = undefined;
       menuUp = true;
@@ -275,6 +284,14 @@
       if (choice.question !== found.question) choice.question = found.question;
     }
   }
+
+  // The daemon's reading can change after the last output, so the cards follow it too.
+  $effect(() => {
+    void session.tui;
+    untrack(() => {
+      if (lastRead) readScreen(lastRead.rows, lastRead.tabBar);
+    });
+  });
 
   // A redraw arrives in pieces, so a frame without the sign-in screen is not it closing.
   function readLogin(seen: Login | null): void {
@@ -379,6 +396,7 @@
       <button type="button" class="head-button" aria-label="Find in output" title={`Find in output (${findChord})`} onclick={() => seatTerminal?.openFind()}>Find</button>
     {/if}
     {#if !phone}<PinSeat {session} />{/if}
+    <ReloadSeat {session} />
     <CloseSeat {session} needsKai={needsKaiIds().has(session.id)} where="view" />
     {#if split}
       <button type="button" class="head-button" aria-expanded={sideOpen} aria-controls="side-panel" onclick={toggleSide}>
@@ -401,7 +419,7 @@
             {/if}
             <div class="stage">
               <div class="rawscreen" inert={!showRaw} aria-hidden={!showRaw}>
-                <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice || login)} locked={!app.typing.allowed || reconnecting()} />
+                <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice || login || screenMenu)} locked={!app.typing.allowed || reconnecting()} />
               </div>
               {#if transcripts && !showRaw}
                 <Transcript channel={transcripts} sessionId={session.id} hostId={app.selectedHostId ?? ""} restore={app.typing.allowed} level={view.level} marker={!hasRead} onread={() => (hasRead = true)} onrefused={(reason) => (fallback = reason)} onpeer={showPeer} />
@@ -464,6 +482,14 @@
                   />
                 </div>
               {/key}
+            {:else if screenMenu}
+              {@const current = screenMenu}
+              <div class="overlay" data-card="menu">
+                <MenuCard menu={current} identity={session.identity} locked={!app.typing.allowed || reconnecting()} lockedLabel={reconnecting() ? "Reconnecting" : "Read only"} onkey={(key) => {
+                  mark("answer", `menu-${current.kind}`);
+                  app.connection?.input(session.id, key);
+                }} />
+              </div>
             {:else if choice}
               {@const current = choice}
               {#key shownKey}

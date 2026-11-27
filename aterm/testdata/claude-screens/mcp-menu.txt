@@ -1,0 +1,32 @@
+ ▝▝   ▝▝   /tmp/work · /rc
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+  MCP servers
+  61 servers
+
+    User MCPs (~/.claude-seats/.claude.json)
+  ❯ ✔ local_coilyco_aterm                     14 tools
+    ✔ local_coilyco_basic_memory              21 tools
+    ✔ local_coilyco_blender                   25 tools
+    ✔ local_coilyco_blender_3026              25 tools
+    ✔ local_coilyco_comfyui                   39 tools
+    ✔ local_coilyco_playwright_analyst        24 tools
+    ✔ local_coilyco_playwright_dev-advocate   24 tools
+    ✔ local_coilyco_playwright_eng-platform   24 tools
+    ✔ local_coilyco_playwright_frontend-eng   24 tools
+    … local_coilyco_playwright_game-dev
+    … local_coilyco_playwright_prod-director
+    … local_coilyco_playwright_prod-manager
+    … local_coilyco_playwright_scientist
+    … local_coilyco_playwright_sysadmin-access
+    … local_coilyco_playwright_sysadmin-junior
+    … local_coilyco_playwright_sysadmin-senior
+    ✔ public_coilyco_eco                      20 tools
+    ✘ public_coilyco_linear
+    ✔ tailnet_coilyco_bluesky                 11 tools
+    ✔ tailnet_coilyco_chat                    3 tools
+    ✔ tailnet_coilyco_discord                 8 tools
+    ↓ 40 more
+  Learn more: https://code.claude.com/docs/en/mcp
+
+  ↑/↓ to navigate · Enter to view · Esc to close

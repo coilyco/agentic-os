@@ -21,7 +21,7 @@ import { Recheck } from "./recheck";
 import type { View } from "./mcp-apps";
 import type { SharedBrowser } from "./screencast";
 import { parseHostInput, startingHosts, storeSavedHosts } from "./saved-hosts";
-import type { Ask, Host, HostConnection, LaunchState, Link, Notify, PeerMessage, SeatArtifact, Session } from "./protocol";
+import type { Ask, Host, HostConnection, LaunchState, Link, Notify, PeerMessage, ReloadState, SeatArtifact, Session } from "./protocol";
 import { seatsNeedingKai, type NeedsKai } from "./needs-kai";
 import type { StagedLine } from "./staged";
 import { closedWords, fullyIdle } from "./idle-close";
@@ -114,6 +114,8 @@ export const app = $state({
   closeNote: "",
   /** What the note offers: close it anyway, or reopen what was closed. */
   closeAction: null as { kind: "force" | "reopen"; session: string; ref: string } | null,
+  /** Each seat's last reload and its result in words, by session (COI-3787). */
+  reloads: {} as Record<string, { state: ReloadState; text: string }>,
   // Settings replaces the main panel until a seat, host or role is picked (COI-3521).
   settingsOpen: false,
   configurationOpen: false,
@@ -614,6 +616,7 @@ function attach(host: Host, connection: HostConnection): void {
       // A fresh name, so it is found as a launch is: the first new seat of its role.
       launching = beginLaunch(event.role, app.sessions, Date.now());
     }
+    else if (event.type === "seat_reload") app.reloads[event.session] = { state: event.state, text: event.text };
     else if (event.type === "seat_reopen_refused") {
       app.closeNote = event.text;
       app.closeAction = null;
@@ -720,6 +723,19 @@ export function closeAnyway(): void {
   const again = app.closeAction;
   app.closeAction = null;
   if (again?.kind === "force" && closePending?.id === again.session) app.connection?.closeSeat?.(again.session, again.ref, true);
+}
+
+/** Offer a reload: a daemon that answers it, a typing connection, an idle seat. */
+export function reloadable(session: Session): boolean {
+  if (!app.connection?.reloadSeat || !app.connection.canReload || !app.typing.allowed || reconnecting()) return false;
+  return session.tui === "idle" && !!session.ref && app.reloads[session.id]?.state !== "reloading";
+}
+
+/** Restarts the seat on its conversation, by its ref and never its name. */
+export function reloadSeatNow(session: Session): void {
+  if (!session.ref || !app.connection?.reloadSeat) return;
+  app.reloads[session.id] = { state: "reloading", text: `Restarting ${session.identity} on its conversation, so it reads its connectors again.` };
+  app.connection.reloadSeat(session.id, session.ref);
 }
 
 /** Brings back the seat just closed, under the fresh name the daemon gives it. */

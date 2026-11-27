@@ -8,7 +8,7 @@
 
 **A session is named `<role>-<identity>`, and a live name refuses a spawn.** A seat takes an adjective first (`eng-platform-fast-beetle-ox`), and a used-up list adds `-2`, `-3`.
 
-**`list` reads each session's screen** and reports `state`: `starting`, `prompt` (a card up), `busy` (recent output or the interrupt hint), else `idle`.
+**`list` reads each session's screen** into `state` and a finer `tui` ([seat state](../.agents/skills/tooling-aterm-client/references/seat-state.md)).
 
 **`aterm clear` types the harness's clear command, unstamped.** Only Kai's client and the `prod-director` role may, never on the caller's own session, a prompt, or a seat with no known command (claude only). Without `--force` it refuses a busy session, a draft, or queued messages.
 
@@ -44,7 +44,7 @@
 
 * `spawn`, `attach`, `detach`, `input` and `output` (base64 `data`), `resize`, `exit` with `code`.
 * `send` answers `sent` with the message state, waiting 3 seconds, or `wait` up to 120, for delivery unless `launching`. One not yet final earns the sender an inbox receipt with no body. `notify_idle` types one notice when the target next idles, is held or ends.
-* `status` (with `lines`), `clear` and `close` (with optional `force`), each with a `target`, answer `status`, `cleared` and `closed` with the exit `code`. `claim` with a `session` base answers `claimed` with a free pool name held two minutes, and `peek` holds none.
+* `status` (with `lines`), `clear`, `close` and `reload` (optional `force`), each with a `target`, answer `status`, `cleared`, `closed` (exit `code`) and `reloaded`. `claim` with a `session` base answers `claimed`, a free pool name held two minutes. `peek` holds none.
 * Seat-to-client frames: `image_upload` [saves an image](../.agents/skills/tooling-aterm-client/references/image-upload.md), `open_url` [opens a page](../.agents/skills/tooling-aterm-client/references/open-url.md), `artifact_add` [shows a source file](../.agents/skills/tooling-aterm-client/references/artifacts.md), `media_show` [shows a file](../.agents/skills/tooling-aterm-client/references/media-daemon.md), `feedback` [keeps a report](../.agents/skills/tooling-aterm-client/references/feedback.md).
 * `inbox` (feature `inbox`) returns the caller's own messages by `token`, marked read on return, `all` adding the read. Capped at 200, lost on restart.
 * `list` answers `sessions`, each with `state`, `quiet_seconds`, `last_reply` and `context` ([the meter](../.agents/skills/tooling-aterm-client/references/context-meter.md)). `subscribe` to `sessions` pushes the roster on every change, and `message` events carry each state change and, to a typing client, [the body](../.agents/skills/tooling-aterm-client/references/message-text.md). A stalled subscriber drops after 5s.

@@ -50,3 +50,11 @@ Daemon fields the seat rows and the pinned reply read (COI-3289, COI-3303, COI-3
 * The daemon cuts the text to **57 characters** (runes, not bytes) and drops control and format characters. A line break or tab reads as one space. The cut is plain, with no ellipsis added.
 * Setting pushes a `sessions` frame at once. Setting the same text again moves `activity_at` and pushes, which is how a seat says the line is still true. The age is `now - activity_at`, and a client decides what counts as stale.
 * The line ends with the session, and a daemon restart drops it too, since it is held in memory. An adopted seat shows none until it sets one again.
+
+## The screen detector (COI-3788)
+
+Beside `state`, each session view carries `tui`, one detector's reading (`aterm/screenstate.go`). `choice`, `permission`, `mcp_menu`, `resume_picker` and `login` hold the seat for a person, so `state` reads `prompt` and a message waits. `busy` is recent output or the harness's spinner. `idle` needs the harness's own empty input box, and a screen no signature matches reads `unknown`, never a guess, which stays `idle` in `state`. Each harness carries its own signatures, tried in order, and a sign-in screen reads before the seat is ready. Claude's are tested against real 2.1.332 screens in `aterm/testdata/claude-screens`, named by state. The client's choice card and menu card follow `tui` ([choices](choices.md)).
+
+## Reload connectors (COI-3787)
+
+`reload` (feature `reload`, `aterm reload <seat>`, Reload connectors in the seat's header) restarts a seat on its own conversation, as `aterm resume` would, under the identity it had. It refuses a seat whose `tui` is not `idle`, one holding a draft or messages, or one with no conversation to resume, unless forced, so nothing ends that cannot come back. It then waits up to 90s for `tui` to read `idle` and says which it saw. Claude reads its claude.ai connectors at start, so one added since reaches the seat. The daemon cannot see a tool list, and the reply says so.

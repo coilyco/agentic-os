@@ -403,3 +403,10 @@ export function longSeat(bytes: number, label = "long-seat", style: "text" | "re
     },
   };
 }
+
+/** A screen the daemon detector is tested on, from aterm/testdata/claude-screens. */
+export function recorded(name: string): Scene {
+  const text = readFileSync(new URL(`../../aterm/testdata/claude-screens/${name}.txt`, import.meta.url), "utf8");
+  const lines = text.replace(/\n+$/, "").split("\n");
+  return { render: (_cols, rows) => bottom(lines, rows) };
+}

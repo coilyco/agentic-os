@@ -264,7 +264,10 @@ type sessionView struct {
 	Pending int  `json:"pending"`
 	// State is what the screen shows: starting, busy, idle, or prompt. Both fields
 	// are absent from a daemon that predates them. See docs/aterm-daemon.md.
-	State        string `json:"state,omitempty"`
+	State string `json:"state,omitempty"`
+	// TUI is the screen detector's finer reading: idle, busy, starting, choice, permission,
+	// mcp_menu, resume_picker, login, or unknown. Absent from a daemon that predates it.
+	TUI          string `json:"tui,omitempty"`
 	QuietSeconds int    `json:"quiet_seconds"`
 	// StateSeconds is how long State has lasted since the daemon first saw it, so a restart
 	// counts from the restart. A pointer, so 0 is a reading and absence is an old daemon.

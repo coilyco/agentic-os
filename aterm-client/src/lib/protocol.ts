@@ -47,6 +47,11 @@ export type Link =
 
 export type SessionState = "idle" | "working" | "failed";
 
+export type ReloadState = "reloading" | "reloaded" | "refused";
+
+/** The daemon detector's reading. Unknown is a screen with no signature. */
+export type TuiState = "starting" | "idle" | "busy" | "choice" | "permission" | "mcp_menu" | "resume_picker" | "login" | "unknown";
+
 /** How full a seat's context is, from whichever source its harness has. */
 export interface ContextReading {
   tokens: number;
@@ -84,6 +89,8 @@ export interface Session {
   starting?: boolean;
   /** What the daemon read off the screen. `state` above also folds in recent output. */
   screen?: "starting" | "busy" | "idle" | "prompt";
+  /** The detector's finer reading (COI-3788). Absent from a daemon that predates it. */
+  tui?: TuiState;
   /** How it was launched: in a terminal window, or with none. Absent is unknown. */
   origin?: "window" | "headless";
   /** Background tasks the seat has running. Absent from a daemon without the field. */
@@ -181,6 +188,8 @@ export type HostEvent =
   | { type: "seat_close_refused"; session: string; text: string; unpushed?: boolean }
   | { type: "seat_reopened"; session: string; role: string }
   | { type: "seat_reopen_refused"; session: string; text: string }
+  // A reload asked for, done, or refused, in the daemon's words (COI-3787).
+  | { type: "seat_reload"; session: string; state: ReloadState; text: string }
   | { type: "launch"; role: string; state: LaunchState; text: string }
   | { type: "typing"; typing: Typing }
   | { type: "closed"; reason: string }
@@ -323,6 +332,8 @@ export interface HostConnection {
   readonly canLaunch: boolean;
   readonly machineKind?: MachineKindChannel;
   readonly canReopen?: boolean;
+  /** The daemon answers `reload`, COI-3787. */
+  readonly canReload?: boolean;
   /** Routed by the broker, so the daemon starts it locked until accounts unlocks it. */
   readonly brokered?: boolean;
   /** Asks accounts for a new unlock token. Only a brokered connection has it. */
@@ -348,6 +359,8 @@ export interface HostConnection {
   closeSeat?(session: string, ref: string, force?: boolean): void;
   /** Resumes a closed seat under a fresh name. Needs the daemon's `reopen` feature. */
   reopenSeat?(session: string, ref: string): void;
+  /** Restarts an idle seat on its own conversation, so it reads its connectors again. */
+  reloadSeat?(session: string, ref: string): void;
   attach(sessionId: string, rows: number, cols: number): void;
   /** Asks again for a seat's screen when its replay never drew. No new reference. */
   replay(sessionId: string): void;
