@@ -74,6 +74,19 @@ export function cancelPending(id: number): void {
   }
 }
 
+/** The earliest stamp a waiting send's prompt could carry, if one waits. */
+export function waitingSince(key: string): number | undefined {
+  const waiting = held[key];
+  if (!waiting?.length) return undefined;
+  return Math.min(...waiting.map((one) => one.at)) - SKEW_MS;
+}
+
+/** A page that starts before every waiting send is the last that could hold one. */
+export function readPast(items: readonly TranscriptItem[], since: number): boolean {
+  const first = items.find((item) => item.at !== undefined);
+  return first?.at !== undefined && first.at < since;
+}
+
 /** Resolves what `items` carry. Fresh items are news whatever their stamp says.
  * A first read trusts only a stamp near or after the send. Returns the count. */
 export function settlePending(key: string, items: readonly TranscriptItem[], fresh: boolean): number {
