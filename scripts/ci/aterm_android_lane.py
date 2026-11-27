@@ -295,8 +295,17 @@ class Lane(J.Journey):
         if mode != "docs":
             self.pick_image(mode)
             return
-        if not self.tap_node(lambda n: n.get("content-desc", "").startswith(f"{J.PNG_NAME},") or n.get("text") == J.PNG_NAME, 30):
-            raise Fail(f"the file browser did not show {J.PNG_NAME}, ui.xml has what it did show")
+        def seeded(node) -> bool:
+            return node.get("content-desc", "").startswith(f"{J.PNG_NAME},") or node.get("text") == J.PNG_NAME
+        if self.tap_node(seeded, 10):
+            return
+        # Recent can leave the seeded file out (Android 15), so search for it by name.
+        if self.tap_node(lambda n: n.get("content-desc") == "Search", 10):
+            adb("shell", "input", "text", J.PNG_NAME.rsplit(".", 1)[0])
+            adb("shell", "input", "keyevent", "66")
+            if self.tap_node(seeded, 30):
+                return
+        raise Fail(f"the file browser did not show {J.PNG_NAME}, ui.xml has what it did show")
 
     def op_logcat(self, spec: dict) -> None:
         lines = [line for line in adb("logcat", "-d", "-t", "10000", check=False).splitlines() if re.search(spec["pattern"], line, re.IGNORECASE)]
