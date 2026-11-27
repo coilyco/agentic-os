@@ -299,11 +299,14 @@ class Lane(J.Journey):
             return node.get("content-desc", "").startswith(f"{J.PNG_NAME},") or node.get("text") == J.PNG_NAME
         if self.tap_node(seeded, 10):
             return
-        # Recent can leave the seeded file out (Android 15), so search for it by name.
-        if self.tap_node(lambda n: n.get("content-desc") == "Search", 10):
-            adb("shell", "input", "text", J.PNG_NAME.rsplit(".", 1)[0])
-            adb("shell", "input", "keyevent", "66")
-            if self.tap_node(seeded, 30):
+        # Recent leaves the seed out on some runs, and its search covers Recent only.
+        # So: the roots drawer, its Images root (not the Images chip), then Pictures.
+        def root(text: str):
+            return lambda n: n.get("resource-id") == "android:id/title" and n.get("text") == text
+        if self.tap_node(lambda n: n.get("content-desc") == "Show roots", 10) and self.tap_node(root("Images"), 10):
+            if self.tap_node(seeded, 8):
+                return
+            if self.tap_node(lambda n: n.get("text") == "Pictures", 15) and self.tap_node(seeded, 20):
                 return
         raise Fail(f"the file browser did not show {J.PNG_NAME}, ui.xml has what it did show")
 
