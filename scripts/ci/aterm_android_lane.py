@@ -299,11 +299,11 @@ class Lane(J.Journey):
             return node.get("content-desc", "").startswith(f"{J.PNG_NAME},") or node.get("text") == J.PNG_NAME
         if self.tap_node(seeded, 10):
             return
-        # Recent leaves the seed out on some runs, and its search covers Recent only.
-        # So: the roots drawer, its Images root (not the Images chip), then Pictures.
-        def root(text: str):
-            return lambda n: n.get("resource-id") == "android:id/title" and n.get("text") == text
-        if self.tap_node(lambda n: n.get("content-desc") == "Show roots", 10) and self.tap_node(root("Images"), 10):
+        # Recent can leave the seed out, and its search is Recent only. So the drawer:
+        # Images (Android 15, not the chip) or the storage root (16), then Pictures.
+        def root(n) -> bool:
+            return n.get("resource-id") == "android:id/title" and (n.get("text") == "Images" or n.get("text", "").startswith("sdk_gphone"))
+        if self.tap_node(lambda n: n.get("content-desc") == "Show roots", 10) and self.tap_node(root, 10):
             if self.tap_node(seeded, 8):
                 return
             if self.tap_node(lambda n: n.get("text") == "Pictures", 15) and self.tap_node(seeded, 20):
