@@ -42,6 +42,10 @@ The transcript shows a message only once the harness writes it, and the client p
 * **Not covered** - a restart: entries live in memory (send history is COI-3691).
 * **Journey** - `pending-send`, with the page clock moved 31 seconds for the unsent state.
 
+## Search (COI-3797)
+
+Find on a desktop and a search button on a phone search the whole transcript on the host, and a match outside the held items is paged in. [transcript-search.md](transcript-search.md).
+
 ## Where it lives
 
 `src/lib/transcript.ts` (types, decoder, `rowsFor`), `src/lib/seat-view.ts`, `src/components/SeatViews.svelte` (the radio group, arrow keys, 44px stops), `src/components/Transcript.svelte`, `src/lib/pending-sends.svelte.ts`, `src/lib/transcript-cache.ts`, and the host channel `transcripts` in `daemon-host.ts`. The journey is `seat-views`, and the bed's mock answers `transcript` from `setTranscript`.

@@ -165,6 +165,8 @@ export interface Mock {
   attachCalls: { session: string; replay: boolean; offset?: number }[];
   /** Every `transcript` request the client sent, in order. */
   transcriptCalls: { session: string; since?: string; before?: string; limit?: number }[];
+  /** Every `transcript_search` the client sent, in order. */
+  searchCalls: { session: string; query: string }[];
   /** A seat shares a file. The mock keeps its bytes and pushes the descriptor. */
   shareMedia(session: string, file: { name: string; mime: string; kind: "image" | "video" | "file"; bytes: Buffer; unreadable?: boolean }): string;
   /** The host drops a shared file, as it does when a seat's shelf is full. */
@@ -191,7 +193,7 @@ export function loadSessions(): SessionSpec[] {
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
  * `images`: Add image. `webPush`: Notify when closed. `dist`: another build to serve. */
-export type MockOptions = { dist?: string; sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; feedback?: boolean; version?: string; transcript?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
+export type MockOptions = { dist?: string; sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; feedback?: boolean; version?: string; transcript?: boolean; transcriptSearch?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const dist = options.dist ? join(HERE, "..", options.dist) : DIST;
   if (!existsSync(join(dist, "index.html"))) {
@@ -219,7 +221,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const lastBox = new Map<string, { rows: number; cols: number }>();
   const closed = new Map<string, SessionSpec>();
   const artifactFrames = new Map<string, Record<string, unknown>>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], reloads: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], feedbacks: [] as Mock["feedbacks"], feedbackFrames: [] as string[], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"], attachCalls: [] as Mock["attachCalls"] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], reloads: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], feedbacks: [] as Mock["feedbacks"], feedbackFrames: [] as string[], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"], searchCalls: [] as Mock["searchCalls"], attachCalls: [] as Mock["attachCalls"] };
   const shared = new Map<string, { session: string; name: string; mime: string; kind: string; bytes: Buffer; at: number; unreadable?: boolean }>();
   const mediaFrame = (id: string) => {
     const file = shared.get(id)!;
@@ -313,7 +315,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           if (options.lock) {
             send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...unlockedFeatures, ...pushFeature], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
           } else {
-            send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...(options.images ? ["image-upload"] : []), ...(options.feedback ? ["feedback"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.media ? ["media"] : []), ...(options.artifacts ? ["artifacts"] : []), ...pushFeature], typing: { allowed: true } });
+            send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...(options.images ? ["image-upload"] : []), ...(options.feedback ? ["feedback"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.transcriptSearch ? ["transcript_search"] : []), ...(options.media ? ["media"] : []), ...(options.artifacts ? ["artifacts"] : []), ...pushFeature], typing: { allowed: true } });
           }
           return;
         case "device_assert_begin":
@@ -413,6 +415,23 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           const hold = transcriptHolds.get(session) ?? 0;
           if (hold > 0) setTimeout(() => send(socket, answer), hold);
           else send(socket, answer);
+          return;
+        }
+        case "transcript_search": {
+          // The daemon's rule: text, tool line, output, case folded, no peers.
+          const session = String(frame.session);
+          const query = String(frame.query ?? "").trim();
+          mock.searchCalls.push({ session, query });
+          const needle = query.toLowerCase();
+          const all = (transcripts.get(session) ?? []) as { id: string; kind: string; text?: string; for?: string; shared?: boolean; at?: string; tool?: { summary?: string; output?: string } }[];
+          const matches = all.flatMap((item, at) => {
+            if (!needle || item.kind === "peer" || (item.for && !item.shared)) return [];
+            const field = [["text", item.text], ["summary", item.tool?.summary], ["output", item.tool?.output]].find(([, text]) => text?.toLowerCase().includes(needle));
+            if (!field) return [];
+            const end = at + 8;
+            return [{ id: item.id, kind: item.kind, field: field[0], snippet: String(field[1]).slice(0, 120), ...(item.at ? { at: item.at } : {}), ...(end < all.length ? { before: String(end) } : {}) }];
+          });
+          send(socket, { type: "transcript_search", id: frame.id, session, reader: "claude", query, matches, total: matches.length, updated_at: new Date().toISOString() });
           return;
         }
         case "media_read": {
@@ -660,6 +679,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     uploads: mock.uploads,
     attachCalls: mock.attachCalls,
     transcriptCalls: mock.transcriptCalls,
+    searchCalls: mock.searchCalls,
     setTranscript: (session, items) => void transcripts.set(session, items),
     appendTranscript: (session, items) => void transcripts.set(session, [...(transcripts.get(session) ?? []), ...items]),
     refuseTranscript: (session, reason) => void (reason ? transcriptRefusals.set(session, reason) : transcriptRefusals.delete(session)),

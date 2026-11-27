@@ -64,6 +64,10 @@ An `error` frame with a `reason`, and the client falls back to the screen on any
 * `bad_cursor` - a cursor this daemon did not issue, or one past a replaced file. Fetch the newest page again.
 * `passkey_required` - a locked remote device.
 
+## Search
+
+`transcript_search` finds a phrase anywhere in the same files and hands back a `before` cursor per match. [transcript-search.md](transcript-search.md) (COI-3797).
+
 ## Changing it
 
 Run `UPDATE_GOLDEN=1 go test -run Transcript ./aterm` to rewrite the goldens, and read the diff. The fixtures are real file structure with text, paths and ids replaced, because this repository is public.
