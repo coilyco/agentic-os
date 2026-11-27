@@ -1,0 +1,24 @@
+{
+  "name": "Add image in the app opens Android's file browser, and the pick reads and sends (COI-3739)",
+  "start": "seat",
+  "steps": [
+    {"op": "seed-photo"},
+    {"op": "eval", "js": "String(document.querySelector('form.composer input[type=file]').getAttribute('accept'))", "expect": "^null$", "save": "accept"},
+    {
+      "op": "eval",
+      "js": "window.__probe=[];document.addEventListener('change',e=>{const i=e.target;if(!(i instanceof HTMLInputElement)||i.type!=='file')return;for(const f of Array.from(i.files||[])){const row={name:f.name,type:f.type,size:f.size};window.__probe.push(row);f.arrayBuffer().then(b=>{row.at_once=b.byteLength}).catch(err=>{row.at_once=String(err&&err.name)});}},true);'armed'",
+      "expect": "armed"
+    },
+    {"op": "pick-image", "mode": "docs"},
+    {"op": "sleep", "seconds": 4},
+    {"op": "eval", "js": "JSON.stringify(window.__probe)", "save": "picked"},
+    {"op": "assert", "js": "window.__probe.length===1&&window.__probe[0].at_once===window.__probe[0].size", "message": "the picked file did not read in full"},
+    {"op": "shot", "name": "app-picked"},
+    {"op": "tap", "selector": "form.composer button.primary"},
+    {"op": "sleep", "seconds": 8},
+    {"op": "eval", "js": "JSON.stringify({chips:document.querySelectorAll('form.composer ul.chips li').length,notes:[...document.querySelectorAll('form.composer [role=alert], form.composer [role=status]')].map(n=>n.textContent.trim()).filter(Boolean)})", "save": "after_send"},
+    {"op": "assert", "js": "document.querySelectorAll('form.composer ul.chips li').length===0&&!/Not sent/.test(document.querySelector('form.composer').textContent)", "message": "Send kept the image or said Not sent"},
+    {"op": "shot", "name": "app-after-send"},
+    {"op": "logcat", "name": "app", "pattern": "cr_|NotReadable|FileChooser|Permission Denial|documentsui"}
+  ]
+}
