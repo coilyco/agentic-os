@@ -1,0 +1,32 @@
+
+ ▐▛███▛█   Claude Code v2.1.332
+▝▜██████▀  Fable 5.2 · Claude Ultra
+ ▝▝   ▝▝   /tmp/work · /rc
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  ❯ /mcp                                    Manage MCP servers
+    /claude.ai Exa:web_search_help (MCP)    Get help with web search using Exa
+    …aude.ai Exa:agent_research_help (MCP)  Get help structuring a multi-step Exa Agent research
+                                            run. (arguments: task)
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ /mcp
+────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on

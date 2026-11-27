@@ -1,0 +1,31 @@
+ ▐▛███▛█   Claude Code v2.1.332
+▝▜██████▀  Fable 5.2 · Claude Ultra
+ ▝▝   ▝▝   /tmp/work · /rc
+
+
+❯ Run the shell command: touch made-by-test.txt
+
+⏺ Bash(touch made-by-test.txt)
+  ⎿  Done
+
+⏺ Ran touch made-by-test.txt — it completed with no output, so the empty file now exists in the
+  working directory.
+
+✻ Cooked for 1m 19s · done 1:20 PM
+
+❯ Use the Write tool to create notes.txt containing the word hi. Do nothing else.
+
+⏺ Write(/tmp/work/notes.txt)
+  ⎿  Rejected write /tmp/work/notes.txt
+     to
+      1 hi
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+  Resume session
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
+  │ ⌕ Search…                                                                                    │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+    work
+
+  No sessions in this project yet
+
+  Ctrl+A to show all projects · Ctrl+B to only show current branch · Esc to close
