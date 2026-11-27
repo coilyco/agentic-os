@@ -185,6 +185,44 @@ def sign_in(browser, url: str, size: tuple[int, int], tag: str, expect) -> None:
     page.close()
 
 
+def host_kind(browser, url: str, size: tuple[int, int], tag: str, expect) -> None:
+    """The host kind (COI-3778), worst state first: a locked device sees it and cannot set it."""
+    page = browser.new_page(viewport={"width": size[0], "height": size[1]})
+    page.goto(url + "?terminals=locked")
+    page.get_by_role("tab", name=re.compile("^Mock host")).click()
+    page.wait_for_timeout(600)
+    picker = page.locator("#machine-kind")
+    expect(f"{tag} host kind locked: the kind shows", picker.count() == 1 and picker.input_value() == "personal", picker.count())
+    expect(f"{tag} host kind locked: it cannot be changed", picker.count() == 1 and picker.is_disabled(), None)
+    hint = page.locator("#machine-kind-hint").inner_text() if picker.count() else ""
+    expect(f"{tag} host kind locked: the hint says why", "read only" in hint, hint)
+    page.screenshot(path=str(CLIENT / f"drive-{size[0]}-kind-locked.png"))
+    page.close()
+
+    page = browser.new_page(viewport={"width": size[0], "height": size[1]})
+    page.goto(url)
+    row = page.get_by_role("tab", name=re.compile("^Mock host"))
+    row.click()
+    page.wait_for_timeout(600)
+    # A phone's host rows are chips with no detail, so only a desktop row names the kind.
+    chip = size[0] <= 720
+    if not chip:
+        expect(f"{tag} host kind: the row names the kind", "Personal //" in row.inner_text(), row.inner_text())
+    page.get_by_role("button", name="Settings", exact=True).first.click()
+    picker = page.get_by_role("combobox", name="Host kind // Mock host")
+    expect(f"{tag} host kind: Settings offers the select", picker.count() == 1 and picker.is_enabled(), picker.count())
+    picker.select_option("durable")
+    page.wait_for_timeout(600)
+    expect(f"{tag} host kind: the host keeps the change", picker.input_value() == "durable", picker.input_value())
+    if not chip:
+        expect(f"{tag} host kind: the row follows it", "Durable //" in row.inner_text(), row.inner_text())
+    width = page.evaluate("() => document.documentElement.scrollWidth")
+    expect(f"{tag} host kind: no sideways scroll", width <= size[0], width)
+    picker.scroll_into_view_if_needed()
+    page.screenshot(path=str(CLIENT / f"drive-{size[0]}-kind.png"))
+    page.close()
+
+
 def main() -> int:
     port = free_port()
     server = serve(port)
@@ -200,6 +238,8 @@ def main() -> int:
             browser = p.chromium.launch()
             for size in WIDTHS:
                 sign_in(browser, f"http://localhost:{port}/", size, f"{size[0]}px", expect)
+            for size in WIDTHS:
+                host_kind(browser, f"http://localhost:{port}/", size, f"{size[0]}px", expect)
             for size in WIDTHS:
                 tag = f"{size[0]}px"
                 page = open_seat(browser, f"http://localhost:{port}/", size, "Imp-Dragonfly")

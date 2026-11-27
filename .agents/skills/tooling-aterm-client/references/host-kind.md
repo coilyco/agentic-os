@@ -16,6 +16,12 @@ Every host carries a kind, `personal`, `ephemeral` or `durable` (COI-3767). The 
 
 **The broker hears it** through `treehouse.reg.host.v1`, sent after `reg.ready` and on each change, only when ready lists the `host-kind` feature. An older broker ends a link on any message it does not know, so the daemon never sends it one. The broker lists the kind as `kind` in `treehouse.daemon.list.v1`.
 
+## What the client does
+
+A host row in the sidebar leads with the kind, as `Durable // 2 running`. The attached host's kind comes from its welcome and its `host_kind` pushes. A saved host's comes from its probe's welcome, a found host's from `hosts`, and a brokered machine's from the broker list. A host that never named one shows no kind. On a phone the host rows are chips that drop every detail, so the kind shows on the host page and in Settings.
+
+The select (Personal, Ephemeral, Durable) is the **Host kind** group in Settings, for the attached host only, since only that connection can send the change. A locked device reaches the host page and not the seat overview, and it sees the same select there, disabled, with the reason. A refused change says the guard's words and puts the select back. A daemon without `host-kind` gets no select. The client code is `src/lib/machine-kind.ts` and `src/components/MachineKindPicker.svelte`. It says machine kind, because `Host.kind` already means daemon or mock.
+
 ## For daemon code
 
 `d.hostKind()` is the kind, from any goroutine. `d.onHostKind(fn)` calls `fn` with the current kind at once and again after each change, from the goroutine that made it, with no daemon lock held. `fn` must not block. The code is `aterm/host_kind.go`.

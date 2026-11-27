@@ -6,7 +6,9 @@ import { FEEDBACK_TEXT_MAX, feedbackRefusal } from "./feedback";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
 import { MOCK_FILES } from "./fixtures/mock-media";
 import { mediaRefusal } from "./media";
-import type { Ask, ContextReading, HostConnection, FeedbackChannel, HostEvent, ImageChannel, MediaChannel, PeerMessage, Session, TerminalChannel } from "./protocol";
+import type { Ask, ContextReading, HostConnection, FeedbackChannel, HostEvent, ImageChannel, MachineKindChannel, MediaChannel, PeerMessage, Session, TerminalChannel } from "./protocol";
+import type { MachineKind } from "./machine-kind";
+import { Refusal, typingNotice } from "./typing";
 import { parseRoster } from "./roster";
 import { CLAUDE_BOX, CLAUDE_DIALOG, drawHarness, loginFrame, type Frame, type LoginStage } from "./mock-harness";
 import { runShellLine, SHELL_PROMPT, type ShellStep } from "./mock-shell";
@@ -64,6 +66,17 @@ function mockMediaOn(): boolean {
 
 export class MockHost implements HostConnection {
   readonly canLaunch = true;
+  private kind: MachineKind = "personal";
+  // The daemon judges a set as typing, so the locked mock refuses it the same way.
+  readonly machineKind: MachineKindChannel = {
+    set: async (kind) => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      if (this.terminalMode === "locked") throw new Refusal(typingNotice({ allowed: false, reason: "peer_unread" }), "peer_unread");
+      this.kind = kind;
+      this.emit({ type: "machine_kind", kind });
+      return kind;
+    },
+  };
   // Off unless asked for: no daemon shares files yet, and this host scripts what one has.
   readonly media?: MediaChannel = mockMediaOn()
     ? {
@@ -214,6 +227,7 @@ export class MockHost implements HostConnection {
     for (const ask of this.asks) listener({ type: "ask", ask });
     if (this.terminalMode === "locked") listener({ type: "typing", typing: { allowed: false, reason: "peer_unread" } });
     listener({ type: "features", terminals: this.terminals !== undefined, feedback: true });
+    listener({ type: "machine_kind", kind: this.kind });
     if (this.media) for (const file of MOCK_FILES) listener({ type: "media", item: { id: file.id, session: MEDIA_SEAT, name: file.name, mime: file.mime, kind: file.kind, size: Math.floor((file.base64.length * 3) / 4) } });
     if (this.terminals && this.terminalMode !== "mute") listener({ type: "terminals", terminals: this.listShells() });
     return () => this.listeners.delete(listener);

@@ -10,6 +10,7 @@
   import Overview from "../components/Overview.svelte";
   import InstallCard from "../components/InstallCard.svelte";
   import ConnectionCheck from "../components/ConnectionCheck.svelte";
+  import MachineKindPicker from "../components/MachineKindPicker.svelte";
 
   const host = $derived(selectedHost());
   // A machine the broker lists as offline is not a fault, and has its own words when picked.
@@ -82,6 +83,7 @@
     <p class="lede" role="status">Asking the daemon at <code>{host.address}</code> whether it is up.</p>
   {:else if host.brokered && host.status.kind === "unreachable"}
     <h1>{host.label} is offline</h1>
+    <MachineKindPicker {host} />
     <div class="alert" role="alert">
       <p>{host.status.reason} It stays in your list, and it opens once it connects. This list checks again every half minute.</p>
       <button class="button" onclick={() => refreshMachines()}>Check again</button>
@@ -105,6 +107,7 @@
     {/if}
   {:else}
     <h1>{host.label}</h1>
+    <MachineKindPicker {host} />
     {#if reconnecting() && host.id === app.attachedHostId}
       {#if running === 0}
         <p class="lede">{app.link.state === "resting" ? "Not answering." : "Reconnecting."} Nothing was running when it stopped answering.</p>

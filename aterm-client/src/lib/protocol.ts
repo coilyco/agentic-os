@@ -11,6 +11,7 @@ import type { Activity } from "./seat-activity";
 import type { InputKind, SharedBrowser } from "./screencast";
 import type { ListedTerminal } from "./terminals";
 import type { Typing } from "./typing";
+import type { MachineKind } from "./machine-kind";
 
 export type HostKind = "daemon" | "mock";
 
@@ -32,6 +33,8 @@ export interface Host {
   answered?: boolean;
   /** Listed by the broker for the signed-in account, and reached through it. */
   brokered?: { daemonId: string; substrate: string };
+  /** Personal, ephemeral or durable, as the daemon, a peer or the broker last said. */
+  machineKind?: MachineKind;
 }
 
 /** The attached host's link: live, lost and being redialed, or just back. */
@@ -199,6 +202,8 @@ export type HostEvent =
   | { type: "passkey"; available: boolean }
   // Whether the daemon lists `device-key`. The page also needs the app's plugin.
   | { type: "device_key"; available: boolean }
+  // The attached host's kind. Null from a daemon without `host-kind`, which sets none.
+  | { type: "machine_kind"; kind: MachineKind | null }
   // The PTY's effective size, which a client sets its terminal to exactly.
   | { type: "size"; sessionId: string; rows: number; cols: number }
   | { type: "terminals"; terminals: ListedTerminal[] }
@@ -308,8 +313,15 @@ export interface DeviceKeyChannel {
   assert(): Promise<void>;
 }
 
+/** Sets the host's kind. Only a daemon that lists `host-kind` has one. */
+export interface MachineKindChannel {
+  /** Resolves the kind the host now holds. A locked device gets a `Refusal`. */
+  set(kind: MachineKind): Promise<MachineKind>;
+}
+
 export interface HostConnection {
   readonly canLaunch: boolean;
+  readonly machineKind?: MachineKindChannel;
   readonly canReopen?: boolean;
   /** Routed by the broker, so the daemon starts it locked until accounts unlocks it. */
   readonly brokered?: boolean;

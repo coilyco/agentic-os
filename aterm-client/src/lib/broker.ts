@@ -1,5 +1,6 @@
 // The client half of the Treehouse broker's API: which of the account's daemons are
 // in, and a one-use ticket to one. The access token comes from accounts.
+import { parseMachineKind, type MachineKind } from "./machine-kind";
 
 export interface BrokerDaemon {
   id: string;
@@ -9,6 +10,8 @@ export interface BrokerDaemon {
   /** Seconds since the epoch, absent when the broker has never seen it. */
   lastSeen?: number;
   channels: number;
+  /** Absent when the daemon never reported one. */
+  machineKind?: MachineKind;
 }
 
 export interface Ticket {
@@ -44,6 +47,7 @@ interface ListRow {
   state: "online" | "offline";
   last_seen?: number;
   channels: number;
+  kind?: unknown;
 }
 
 export class BrokerClient {
@@ -67,6 +71,7 @@ export class BrokerClient {
       state: row.state,
       channels: row.channels,
       ...(row.last_seen === undefined ? {} : { lastSeen: row.last_seen }),
+      ...(parseMachineKind(row.kind) ? { machineKind: parseMachineKind(row.kind) } : {}),
     }));
   }
 
