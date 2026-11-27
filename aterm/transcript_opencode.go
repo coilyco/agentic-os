@@ -120,9 +120,8 @@ ORDER BY p.time_created %s, p.id %s LIMIT %d`, opencodePartColumns, session, whe
 			rows[a], rows[b] = rows[b], rows[a]
 		}
 	}
-	var assistants []opencodeAssistant
-	if err := sqliteJSON(db, fmt.Sprintf(`SELECT time_created AS t, coalesce(json_extract(data,'$.time.completed'),0) AS done,
-  coalesce(json_extract(data,'$.finish'),'') AS finish FROM message WHERE session_id = '%s' AND json_extract(data,'$.role') = 'assistant'`, session), &assistants); err != nil {
+	assistants, err := opencodeAssistants(db, session)
+	if err != nil {
 		return transcriptReply{}, err
 	}
 	items, keys, openKey := opencodeItems(rows, assistants)
@@ -302,4 +301,37 @@ func opencodeTool(row opencodePartRow) *transcriptTool {
 		}
 	}
 	return tool
+}
+
+// opencodeAssistants is when each assistant message of a session began and ended.
+func opencodeAssistants(db, session string) ([]opencodeAssistant, error) {
+	var assistants []opencodeAssistant
+	err := sqliteJSON(db, fmt.Sprintf(`SELECT time_created AS t, coalesce(json_extract(data,'$.time.completed'),0) AS done,
+  coalesce(json_extract(data,'$.finish'),'') AS finish FROM message WHERE session_id = '%s' AND json_extract(data,'$.role') = 'assistant'`, session), &assistants)
+	return assistants, err
+}
+
+// opencodeAllItems is every item of an opencode seat's session, for a search. A part's
+// cursor is its own key, and `before` it pages up to it.
+func opencodeAllItems(entry ledgerEntry, all []ledgerEntry) (keyedItems, error) {
+	db := opencodeDB(entry)
+	session, err := opencodeSession(db, entry, all)
+	if err != nil {
+		return keyedItems{}, err
+	}
+	if !opencodeSessionID.MatchString(session) {
+		return keyedItems{}, withReason(reasonUnreadableFormat, fmt.Errorf("%q is not an opencode session id: %w", session, errUnreadableFormat))
+	}
+	var rows []opencodePartRow
+	if err := sqliteJSON(db, fmt.Sprintf(`SELECT %s FROM part p JOIN message m ON m.id = p.message_id
+WHERE p.session_id = '%s' AND json_extract(p.data,'$.type') IN ('text','tool','compaction')
+ORDER BY p.time_created ASC, p.id ASC`, opencodePartColumns, session), &rows); err != nil {
+		return keyedItems{}, err
+	}
+	assistants, err := opencodeAssistants(db, session)
+	if err != nil {
+		return keyedItems{}, err
+	}
+	items, keys, _ := opencodeItems(rows, assistants)
+	return keyedItems{reader: "opencode", items: items, keys: keys}, nil
 }

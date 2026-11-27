@@ -11,7 +11,7 @@ import { FeedbackRefused, feedbackRefusal } from "./feedback";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
 import { CHUNK_BYTES, decodeMedia, mediaRefusal } from "./media";
 import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, FeedbackChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MachineKindChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, TuiState, ViewChannel } from "./protocol";
-import { decodeReply, REFUSALS, TranscriptRefused } from "./transcript";
+import { decodeReply, decodeSearch, REFUSALS, TranscriptRefused } from "./transcript";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
 import { inAndroidApp } from "./open-external";
@@ -190,6 +190,10 @@ interface Frame {
   more?: boolean;
   reader?: string;
   updated_at?: string;
+  /** Answers a `transcript_search` request (COI-3797). */
+  matches?: unknown;
+  total?: number;
+  query?: string;
   /** A shared file's descriptor on `media`, and the chunk's place on `media_data`. */
   media?: unknown;
   media_id?: string;
@@ -747,6 +751,11 @@ export class DaemonHost implements HostConnection {
       const frame = await this.exchange({ type: "transcript", session: sessionId, ...options }, this.transcriptIds);
       return decodeReply(sessionId, frame as unknown as Record<string, unknown>);
     },
+    search: async (sessionId, query) => {
+      if (!this.features.has("transcript_search")) throw new Error("This host cannot search a transcript yet.");
+      const frame = await this.exchange({ type: "transcript_search", session: sessionId, query }, this.transcriptIds);
+      return decodeSearch(frame as unknown as Record<string, unknown>);
+    },
   };
 
   /** Only a welcome listing `media` sends the files a seat shares. */
@@ -1218,6 +1227,7 @@ export class DaemonHost implements HostConnection {
       case "view_result":
       case "last_reply":
       case "transcript":
+      case "transcript_search":
       case "media_data":
       case "image_uploaded":
       case "feedback_image_saved":

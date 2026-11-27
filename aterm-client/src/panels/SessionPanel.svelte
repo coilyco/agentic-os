@@ -46,6 +46,7 @@
   import { loadDraftImages, saveDraftImages } from "../lib/draft-images";
   import { mark } from "../lib/tap-trace";
   import { wantsFind } from "../lib/terminal-extras";
+  import { wantsTranscriptFind } from "../lib/transcript-search";
 
   let { role, session }: { role: Role; session: Session } = $props();
   // On a phone the switcher bar names the seat, so the header keeps only a heading for screen readers.
@@ -129,13 +130,16 @@
   const shared = $derived(app.connection?.media ? mediaOf(session.id) : []);
   let viewing = $state(false);
   let seatTerminal = $state<{ openFind: () => void }>();
+  let seatTranscript = $state<{ openSearch: () => void }>();
+  // While the transcript shows, Find searches all of it (COI-3797). The screen's find covers the raw views.
+  const find = () => (seatTranscript && !showRaw && transcripts?.search ? seatTranscript.openSearch() : seatTerminal?.openFind());
   const findChord = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "Cmd+F" : "Ctrl+Shift+F";
   // Cmd+F from the composer or the card finds in the seat's output, as it does from the terminal.
   function findKey(event: KeyboardEvent): void {
-    if (event.defaultPrevented || !wantsFind(event)) return;
+    if (event.defaultPrevented || !(seatTranscript && !showRaw ? wantsTranscriptFind(event) : wantsFind(event))) return;
     if (!(event.target instanceof Element) || !event.target.closest(".work")) return;
     event.preventDefault();
-    seatTerminal?.openFind();
+    find();
   }
   // A structured ask beats a menu read off the screen: it is the seat's own words.
   const ask = $derived(asksShownOn(session.id)[0]);
@@ -393,7 +397,7 @@
       <span class="state mono">{session.state}</span>
     {/if}
     {#if !phone}
-      <button type="button" class="head-button" aria-label="Find in output" title={`Find in output (${findChord})`} onclick={() => seatTerminal?.openFind()}>Find</button>
+      <button type="button" class="head-button" aria-label="Find in output" title={`Find in output (${findChord})`} onclick={find}>Find</button>
     {/if}
     {#if !phone}<PinSeat {session} />{/if}
     <ReloadSeat {session} />
@@ -422,7 +426,7 @@
                 <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} cropHarness covered={!!(ask || choice || login || screenMenu)} locked={!app.typing.allowed || reconnecting()} />
               </div>
               {#if transcripts && !showRaw}
-                <Transcript channel={transcripts} sessionId={session.id} hostId={app.selectedHostId ?? ""} restore={app.typing.allowed} level={view.level} marker={!hasRead} onread={() => (hasRead = true)} onrefused={(reason) => (fallback = reason)} onpeer={showPeer} />
+                <Transcript bind:this={seatTranscript} channel={transcripts} sessionId={session.id} hostId={app.selectedHostId ?? ""} restore={app.typing.allowed} level={view.level} marker={!hasRead} onread={() => (hasRead = true)} onrefused={(reason) => (fallback = reason)} onpeer={showPeer} />
               {/if}
             </div>
             {#if session.starting && blank}

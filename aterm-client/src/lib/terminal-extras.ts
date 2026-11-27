@@ -1,5 +1,5 @@
 // The small decisions behind links and find in a seat's terminal.
-interface Chord {
+export interface Chord {
   key: string;
   metaKey: boolean;
   ctrlKey: boolean;
