@@ -44,6 +44,7 @@ test.describe("on a phone", () => {
       expect(own.x, "right of the seat picker").toBeGreaterThanOrEqual(seats.x + seats.width);
       expect(own.x + own.width, "and left of Send feedback").toBeLessThanOrEqual(feedback.x);
       await expect(button, "names the view on screen in a word").toHaveText("Raw");
+      await bed.step("bar");
       await button.click();
       const picker = bed.page.getByRole("dialog", { name: "View" });
       const radios = picker.getByRole("radio");
