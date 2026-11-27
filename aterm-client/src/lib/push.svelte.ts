@@ -1,4 +1,5 @@
-import { app, openByPerson, openSeat, placeNow, selectHost } from "./app.svelte";
+import { app, appRegistrar, beforeSignOut, brokeredHostOf, openByPerson, openSeat, placeNow, selectHost } from "./app.svelte";
+import { disableAppPush, enableAppPush, listenForPushTaps, listenForTokenRefresh, loadAppPushOn, reRegister, refusal, SIGNED_OUT, storeAppPushOn, takeTap, type PushTap } from "./app-push";
 import { chime } from "./chime";
 import { askedBefore, askPermission, listenForTaps, nativeCore, permissionOf, rememberAsked, showNative } from "./native-notify";
 import { noticeFor, SeenIds, wantsDesktopNotice } from "./notify";
@@ -147,4 +148,87 @@ export async function handleNotify(note: Notify): Promise<void> {
   } catch {
     // A refused notice leaves the chime, which already played.
   }
+}
+
+// --- Push with the app closed, in the Mac and Android apps (COI-3752) ---
+
+/** The app's switch: the push plugin's token, registered with the broker. */
+export const appPush = $state({ on: loadAppPushOn(), busy: false, message: "", failed: false });
+
+const android = () => typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+
+/** True in the app with a Treehouse account surface. A browser keeps Web Push. */
+export const appPushShown = (): boolean => nativeCore() !== null && appRegistrar !== null && app.accounts.configured;
+
+/** Why the switch cannot turn on now, shown beside it. Null when it can. */
+export const appPushBlocked = (): string | null => (app.accounts.status === "signed-in" ? null : SIGNED_OUT);
+
+/** Flips the app's switch. A failure leaves it where it was and says why. */
+export async function setAppPush(want: boolean): Promise<void> {
+  const core = nativeCore();
+  if (!core || !appRegistrar || appPush.busy) return;
+  appPush.busy = true;
+  appPush.message = "";
+  appPush.failed = false;
+  try {
+    if (want) await enableAppPush(core, appRegistrar);
+    // Signed out, sign-out already dropped the token, so off is only kept here.
+    else if (app.accounts.status === "signed-in") await disableAppPush(core, appRegistrar);
+    appPush.on = want;
+    storeAppPushOn(want);
+  } catch (error) {
+    appPush.failed = true;
+    appPush.message = refusal(error, android());
+  } finally {
+    appPush.busy = false;
+  }
+}
+
+/** On each sign-in with the switch on, the broker gets this launch's token. */
+export async function registerOnSignIn(): Promise<void> {
+  const core = nativeCore();
+  if (!core || !appRegistrar || !appPush.on || app.accounts.status !== "signed-in") return;
+  await reRegister(core, appRegistrar);
+}
+
+let pendingTap: PushTap | null = null;
+
+/** A tapped push names a machine, which is listed only once the account is signed in. */
+export function openPushTap(tap: PushTap): void {
+  pendingTap = tap;
+  settlePushTap();
+}
+
+/** Run when the host list changes: the machine is listed, so open it, then its seat. */
+export function settlePushTap(): void {
+  const tap = pendingTap;
+  const host = tap ? brokeredHostOf(tap.daemonId) : undefined;
+  if (!tap || !host) return;
+  pendingTap = null;
+  if (app.attachedHostId !== host.id) {
+    if (host.status.kind === "online") selectHost(host);
+    else app.selectedHostId = host.id;
+  }
+  // Not openSeatFromNotification: its Web Push host would win over the tapped machine.
+  if (tap.session) {
+    pending = { session: tap.session, until: null };
+    settleSeat();
+  }
+}
+
+/** The app's push: a tap that launched it, taps while it runs, and a rotated token. */
+export async function startAppPush(): Promise<() => void> {
+  const core = nativeCore();
+  if (!core) return () => {};
+  beforeSignOut(async () => {
+    if (appRegistrar && appPush.on) await disableAppPush(core, appRegistrar).catch(() => undefined);
+  });
+  const launched = await takeTap(core);
+  if (launched) openPushTap(launched);
+  const stopTaps = await listenForPushTaps(core, openPushTap);
+  const stopRefresh = await listenForTokenRefresh(core, () => void registerOnSignIn());
+  return () => {
+    stopTaps();
+    stopRefresh();
+  };
 }

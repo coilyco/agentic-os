@@ -209,7 +209,12 @@ aterm-client-testbed *ARGS:
     @just aterm-client-install
     @cd aterm-client && {{pnpm}} exec playwright install chromium webkit
     @just aterm-client-build
+    @just aterm-client-build-testbed-treehouse
     @cd aterm-client && {{pnpm}} run testbed "$@"
+
+# A second test bed build that names Treehouse accounts and a broker at addresses that never resolve, so a journey answers both itself (app push, COI-3752). Lands in aterm-client/dist-treehouse/.
+aterm-client-build-testbed-treehouse:
+    @cd aterm-client && VITE_TREEHOUSE_ACCOUNTS_URL=https://accounts.testbed.invalid VITE_TREEHOUSE_BROKER_URL=https://broker.testbed.invalid VITE_TREEHOUSE_SIGNIN=hop {{pnpm}} run build --outDir dist-treehouse --emptyOutDir
 
 # Install the test bed's browsers with the OS libraries they need, on a CI runner. Needs apt, so not for a Mac.
 aterm-client-testbed-deps:
@@ -218,6 +223,7 @@ aterm-client-testbed-deps:
 # Accept what the aterm client test bed shows now as the new baselines. Review `git diff --stat aterm-client/testbed/baselines` first.
 aterm-client-testbed-update *ARGS:
     @just aterm-client-build
+    @just aterm-client-build-testbed-treehouse
     @cd aterm-client && {{pnpm}} run testbed --update-snapshots "$@"
 
 # Open the last test bed run's report, with each failing step's baseline, new screenshot and diff.

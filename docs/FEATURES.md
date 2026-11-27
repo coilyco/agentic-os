@@ -10,7 +10,7 @@ Major shipped capabilities, not files.
 - [Treehouse voice](../.agents/skills/tooling-aterm-client/references/android-dictation.md) - a composer mic, and [read aloud](../.agents/skills/tooling-aterm-client/references/android-speak.md), on Android.
 - [Signed macOS aterm](aos-cli.md#signed-macos-aterm) - the Mac release wraps `aterm` in a bundle signed on Linux with `rcodesign` and one stable certificate, so privacy grants survive an upgrade.
 - [Treehouse for the Mac](../.agents/skills/tooling-aterm-client/references/desktop.md) - a windowed Tauri app around the aterm client, built and installed with `just treehouse-mac-*`.
-- [A seat shows a file](../.agents/skills/tooling-aterm-client/references/media-daemon.md) - `aterm show <path>` hands a client an image, video or file.
+- [A seat shares](../.agents/skills/tooling-aterm-client/references/media-daemon.md) - `aterm show` hands a client a file, `aterm page` publishes a page.
 - [aterm client test bed](../.agents/skills/tooling-aterm-client/references/testbed.md) - Playwright journeys against a mock daemon.
 - [aterm screen feedback](../.agents/skills/tooling-aterm-client/references/feedback.md#the-daemon-half) - the daemon keeps a client's screenshot and note as a record for a frontend-eng seat.
 - **Karabiner key bindings** - external keyboard and Remote Desktop mappings.
