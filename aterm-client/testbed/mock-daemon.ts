@@ -184,11 +184,12 @@ export function loadSessions(): SessionSpec[] {
 }
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
- * `images`: Add image shows. `webPush`: Notify when closed shows. */
-export type MockOptions = { sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; feedback?: boolean; version?: string; transcript?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
+ * `images`: Add image. `webPush`: Notify when closed. `dist`: another build to serve. */
+export type MockOptions = { dist?: string; sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; feedback?: boolean; version?: string; transcript?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
-  if (!existsSync(join(DIST, "index.html"))) {
-    throw new Error("The mock daemon serves aterm-client/dist, which is not built. Run `just aterm-client-testbed`, which builds it first.");
+  const dist = options.dist ? join(HERE, "..", options.dist) : DIST;
+  if (!existsSync(join(dist, "index.html"))) {
+    throw new Error(`The mock daemon serves ${dist}, which is not built. Run \`just aterm-client-testbed\`, which builds it first.`);
   }
   const roster = JSON.parse(readFileSync(ROSTER, "utf8")) as { roles: { slug: string; pinned_by_default?: boolean }[] };
   // Roles the roster marks pinned by default, as a daemon with the attribute would.
@@ -547,7 +548,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     });
   });
 
-  const server: Server = createServer((request, response) => serve(request, response));
+  const server: Server = createServer((request, response) => serve(request, response, dist));
   server.on("upgrade", (request, socket, head) => {
     dials += 1;
     // A stopped daemon refuses at once. A dead path takes the SYN and answers nothing.
@@ -684,10 +685,10 @@ function withoutScene(spec: SessionSpec): Record<string, unknown> {
   };
 }
 
-function serve(request: IncomingMessage, response: ServerResponse): void {
+function serve(request: IncomingMessage, response: ServerResponse, dist: string): void {
   const path = normalize(decodeURIComponent(new URL(request.url ?? "/", "http://x").pathname)).replace(/^(\.\.[/\\])+/, "");
-  let file = join(DIST, path);
-  if (!file.startsWith(DIST) || !existsSync(file) || statSync(file).isDirectory()) file = join(DIST, "index.html");
+  let file = join(dist, path);
+  if (!file.startsWith(dist) || !existsSync(file) || statSync(file).isDirectory()) file = join(dist, "index.html");
   response.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream", "cache-control": "no-store" });
   response.end(readFileSync(file));
 }

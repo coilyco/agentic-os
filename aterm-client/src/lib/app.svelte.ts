@@ -1148,9 +1148,26 @@ export function refreshMachines(): Promise<void> {
   return refreshBrokered();
 }
 
+/** The broker's half of app push, or null in a build with no Treehouse addresses. */
+export const appRegistrar = brokerClient
+  ? { register: (token: string, device: string) => brokerClient.registerApp(token, device), unregister: (token: string) => brokerClient.unregisterApp(token) }
+  : null;
+
+const signOutHooks: (() => Promise<void>)[] = [];
+
+/** Runs before sign-out, while the session can still speak for the account. */
+export function beforeSignOut(hook: () => Promise<void>): void {
+  signOutHooks.push(hook);
+}
+
+/** The listed host of a brokered machine, or undefined before the list has it. */
+export const brokeredHostOf = (daemonId: string): Host | undefined => app.hosts.find((host) => host.brokered?.daemonId === daemonId);
+
 /** Ends the sign-in here at once, and at accounts as far as it answers. */
 export async function signOut(): Promise<void> {
   if (!accountsClient) return;
+  // A slow broker does not hold the sign-out up past a few seconds.
+  await Promise.race([Promise.allSettled(signOutHooks.map((hook) => hook())), new Promise((done) => setTimeout(done, 3000))]);
   endSignIn("");
   await accountsClient.signOut();
 }

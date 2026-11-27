@@ -76,6 +76,16 @@ export class BrokerClient {
     return { url: reply.url, expiresIn: reply.expires_in };
   }
 
+  /** This phone's FCM token, push.app-register.v1. The same token again replaces it. */
+  async registerApp(token: string, device: string): Promise<void> {
+    await this.#request("POST", "/v1/push/apps", { platform: "android", token, device });
+  }
+
+  /** Drops the token, push.app-unregister.v1. 204 whether or not it was held. */
+  async unregisterApp(token: string): Promise<void> {
+    await this.#request("POST", "/v1/push/apps/unregister", { token });
+  }
+
   async #request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const headers: Record<string, string> = { Authorization: `Bearer ${await this.#token()}` };
     if (body !== undefined) headers["Content-Type"] = "application/json";

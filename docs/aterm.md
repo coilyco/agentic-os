@@ -48,7 +48,7 @@ Every window stands its role's own creature behind the session. See
 
 ## The host daemon
 
-It routes every session. See [the aterm host daemon](aterm-daemon.md).
+It routes every session. See [the aterm host daemon](aterm-daemon.md). It [keeps a personal host awake](../.agents/skills/tooling-aterm-client/references/keep-awake.md).
 
 **`aterm resume` reopens the conversation of a session that is no longer live.** The daemon records each session's role, seat, argv, directory, home and harness dirs, never its environment, under `~/.local/state/aterm/sessions` (`ATERM_STATE_DIR` overrides) and keeps an ended one 30 days. `aterm resume <session or role>` relaunches the harness's own resume, found by the transcript finders (COI-3609): claude `--resume`, codex `resume`, opencode `--session`, goose `session --resume`. Only claude gets `--permission-mode bypassPermissions`, since it restores the stored mode (COI-2739). Args after `--` reach the harness, `--permission-mode keep` leaves the stored mode, and `--list` shows what can be resumed. **`aterm bypass`** reopens each idle live claude seat in bypass, keeping its conversation. It skips the caller, drafts and busy seats (`--busy` includes them).
 

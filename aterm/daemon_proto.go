@@ -95,9 +95,14 @@ type frame struct {
 	// one, and Waiting and SeatEnded are set only when they changed. See daemon_artifact.go.
 	Artifact   *artifactView `json:"artifact,omitempty"`
 	ArtifactID string        `json:"artifact_id,omitempty"`
-	Waiting    *bool         `json:"waiting,omitempty"`
-	SeatEnded  *bool         `json:"seat_ended,omitempty"`
-	Standing   bool          `json:"standing,omitempty"`
+	// Treehouse pages (treehouse_pages.go): PageID names a page, Page is one published,
+	// Pages answers a page_list.
+	PageID    string     `json:"page_id,omitempty"`
+	Page      *pageItem  `json:"page,omitempty"`
+	Pages     []pageItem `json:"pages,omitempty"`
+	Waiting   *bool      `json:"waiting,omitempty"`
+	SeatEnded *bool      `json:"seat_ended,omitempty"`
+	Standing  bool       `json:"standing,omitempty"`
 
 	// send
 	Token  string `json:"token,omitempty"`
@@ -232,6 +237,8 @@ type frame struct {
 
 	// Hosts answers a hosts request: the tailnet daemons that answered this one.
 	Hosts []hostView `json:"hosts,omitempty"`
+	// HostKind is this host's kind, on a welcome and a host_kind frame. Kind is taken.
+	HostKind string `json:"host_kind,omitempty"`
 
 	// Web Push: Key is the VAPID public key on a push_key reply, and Push is a
 	// browser's PushSubscription.toJSON(). See docs/aterm-daemon.md.

@@ -68,6 +68,9 @@ func newFakeAccounts(t *testing.T) *fakeAccounts {
 		case "/v1/daemons/provision":
 			a.handleProvision(w, r)
 			return
+		case "/v1/pages/token":
+			a.handlePagesToken(w, r)
+			return
 		}
 		if down || r.URL.Path != "/.well-known/jwks.json" {
 			http.Error(w, "down", http.StatusServiceUnavailable)
@@ -177,10 +180,23 @@ func (a *fakeAccounts) handleRenew(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.mu.Unlock()
-	certParts, proofParts := strings.Split(req.Cert, "."), strings.Split(req.Proof, ".")
-	if len(certParts) != 3 || len(proofParts) != 3 {
+	jkt, ok := provenJkt(req.Cert, req.Proof)
+	if !ok {
 		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 		return
+	}
+	a.mu.Lock()
+	a.renewals++
+	a.mu.Unlock()
+	_ = json.NewEncoder(w).Encode(certReply{DaemonID: testDaemonID, Cert: a.daemonCert(jkt, time.Hour), ExpiresIn: 3600})
+}
+
+// provenJkt checks a daemon proof as accounts does: signed by the key the certificate
+// names, aimed at accounts, fresh, with a jti. It returns that key's thumbprint.
+func provenJkt(certText, proofText string) (string, bool) {
+	certParts, proofParts := strings.Split(certText, "."), strings.Split(proofText, ".")
+	if len(certParts) != 3 || len(proofParts) != 3 {
+		return "", false
 	}
 	var cert struct{ Cnf struct{ Jkt string } }
 	raw, _ := rawURL.DecodeString(certParts[1])
@@ -200,13 +216,9 @@ func (a *fakeAccounts) handleRenew(w http.ResponseWriter, r *http.Request) {
 	if err != nil || jwkThumbprint(pub) != cert.Cnf.Jkt || len(sig) != 64 ||
 		!ecdsa.Verify(pub, digest[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])) ||
 		claims.Aud != "treehouse-accounts" || claims.Jti == "" || time.Since(time.Unix(claims.Iat, 0)) > time.Minute {
-		http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
-		return
+		return "", false
 	}
-	a.mu.Lock()
-	a.renewals++
-	a.mu.Unlock()
-	_ = json.NewEncoder(w).Encode(certReply{DaemonID: testDaemonID, Cert: a.daemonCert(cert.Cnf.Jkt, time.Hour), ExpiresIn: 3600})
+	return cert.Cnf.Jkt, true
 }
 
 func (a *fakeAccounts) setDown(down bool) {
@@ -273,11 +285,14 @@ type fakeBroker struct {
 	certs    chan brokerMsg
 	// rawEvents are the bytes of each reg.event, for a test that asserts the exact payload.
 	rawEvents chan []byte
+	// features rides each ready, and hosts gets each reg.host.
+	features []string
+	hosts    chan brokerMsg
 }
 
 func newFakeBroker(t *testing.T, a *fakeAccounts, identity daemonIdentity) *fakeBroker {
 	b := &fakeBroker{t: t, accounts: a, identity: identity, up: make(chan *websocket.Conn, 4), inbox: map[string]chan brokerMsg{}, rejected: make(chan string, 8),
-		events: make(chan brokerMsg, 16), certs: make(chan brokerMsg, 16), rawEvents: make(chan []byte, 16)}
+		events: make(chan brokerMsg, 16), certs: make(chan brokerMsg, 16), rawEvents: make(chan []byte, 16), hosts: make(chan brokerMsg, 16)}
 	b.server = httptest.NewServer(http.HandlerFunc(b.handle))
 	t.Cleanup(b.server.Close)
 	return b
@@ -333,7 +348,7 @@ func (b *fakeBroker) handle(w http.ResponseWriter, r *http.Request) {
 		b.reject(ws, why)
 		return
 	}
-	if b.write(ws, brokerMsg{Type: "treehouse.reg.ready.v1", DaemonID: b.identity.ID, HeartbeatS: 5, CertExpires: time.Now().Add(time.Hour).Unix()}) != nil {
+	if b.write(ws, brokerMsg{Type: "treehouse.reg.ready.v1", DaemonID: b.identity.ID, HeartbeatS: 5, CertExpires: time.Now().Add(time.Hour).Unix(), Features: b.features}) != nil {
 		return
 	}
 	b.up <- ws
@@ -352,9 +367,11 @@ func (b *fakeBroker) handle(w http.ResponseWriter, r *http.Request) {
 		case m.Type == "treehouse.reg.event.v1":
 			b.events <- m
 			b.rawEvents <- append([]byte(nil), data...)
+		case m.Type == "treehouse.reg.host.v1":
+			b.hosts <- m
 		case m.Type == "treehouse.reg.cert.v1":
 			b.certs <- m
-			_ = b.write(ws, brokerMsg{Type: "treehouse.reg.ready.v1", DaemonID: b.identity.ID, HeartbeatS: 5, CertExpires: time.Now().Add(time.Hour).Unix()})
+			_ = b.write(ws, brokerMsg{Type: "treehouse.reg.ready.v1", DaemonID: b.identity.ID, HeartbeatS: 5, CertExpires: time.Now().Add(time.Hour).Unix(), Features: b.features})
 		}
 	}
 }

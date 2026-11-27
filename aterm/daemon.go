@@ -33,7 +33,9 @@ const (
 )
 
 type daemon struct {
-	mu       sync.Mutex
+	mu sync.Mutex
+	// host is this host's kind. See host_kind.go.
+	host     hostKindStore
 	github   *githubBroker
 	sessions map[string]*ptySession
 	// terminals are plain login shells. They sit in their own map so every walk
@@ -75,12 +77,16 @@ type daemon struct {
 	// feedbackDir keeps each feedback report. It sits in the state directory and not
 	// beside the socket, since /tmp is cleared daily. Empty means none is taken.
 	feedbackDir string
-	feedback    feedbackState
+	// pages publishes to the Treehouse pages host, nil when none is configured.
+	pages    *pagesClient
+	feedback feedbackState
 	// shimDir holds the `open` shims a seat's PATH leads with, empty for none.
 	shimDir string
 	// openers are the clients subscribed to open_url, guarded by mu.
 	openers map[*conn]bool
 	tailnet tailnetState
+	// awake holds the OS sleep assertion while a seat runs, nil in tests. keepawake.go
+	awake *keepAwake
 	// loopbackAddr is where the loopback listener bound, empty while it is not
 	// serving. A session's Playwright reaches its browser there.
 	loopbackAddr string
@@ -302,12 +308,25 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 	d.sweepImages()
 	d.sweepMedia()
 	if d.ledgerDir != "" {
+		if err := d.host.load(filepath.Join(filepath.Dir(d.ledgerDir), hostKindFile)); err != nil {
+			logf("host kind reads as personal: %v", err)
+		}
 		d.artifactDir = filepath.Join(filepath.Dir(d.ledgerDir), "artifacts")
 		d.feedbackDir = filepath.Join(filepath.Dir(d.ledgerDir), "feedback")
 		d.sweepFeedback()
 		d.handWaitingFeedback()
 	}
 	d.restoreArtifacts()
+	if os.Getenv(keepAwakeEnv) != "off" {
+		// After the host kind loads and holders are adopted. Under mu, since an adopted
+		// seat ending nudges from its own goroutine.
+		awake := newKeepAwake(acquireAwake, func() bool { return d.hostKind() == hostPersonal }, d.seatCount, logf)
+		d.mu.Lock()
+		d.awake = awake
+		d.mu.Unlock()
+		go awake.run(contextDone)
+		d.onHostKind(func(hostKind) { awake.nudge() })
+	}
 	d.clientDir = options.ClientDir
 	d.discovery.port = func() string { return options.TailnetPort }
 	d.discovery.peerPorts = options.PeerPorts
@@ -348,6 +367,7 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		go d.serve(raw)
 	}
 	_ = os.Remove(socket)
+	d.awake.drop()
 	d.browsers.closeAll()
 	d.closeApps()
 	if options.EndSessions {
@@ -410,6 +430,7 @@ func (d *daemon) adoptHolders() {
 		} else {
 			d.sessions[s.name] = s
 			d.tokens[s.token] = s
+			d.awake.nudge()
 		}
 		d.mu.Unlock()
 		d.restoreGateways(s)
@@ -419,6 +440,12 @@ func (d *daemon) adoptHolders() {
 }
 
 // letGoAll detaches from every session and leaves each one running.
+func (d *daemon) seatCount() int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return len(d.sessions)
+}
+
 func (d *daemon) letGoAll() {
 	for _, s := range d.everySession() {
 		s.letGo()
@@ -481,7 +508,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{transcriptFeature, sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, closeSelfFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature, activityFeature, backgroundFeature, closeUnpushedFeature, reopenFeature, originFeature, notifyFeature}}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{transcriptFeature, sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, closeSelfFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature, activityFeature, backgroundFeature, closeUnpushedFeature, reopenFeature, originFeature, notifyFeature, hostKindFeature}, HostKind: string(d.hostKind())}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -496,6 +523,9 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	}
 	if d.feedbackDir != "" {
 		welcome.Features = append(welcome.Features, feedbackFeature)
+	}
+	if d.pages != nil {
+		welcome.Features = append(welcome.Features, pagesFeature)
 	}
 	if d.users.ResumeEnabled() {
 		welcome.Features = append(welcome.Features, resumeFeature)
@@ -635,6 +665,10 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return d.artifactAdd(cl, message)
 	case "artifact_waiting", "artifact_remove":
 		return d.artifactChange(cl, message)
+	case "page_publish":
+		return d.pagePublish(cl, message)
+	case "page_list", "page_remove":
+		return d.pageCall(cl, message)
 	case "resize":
 		if s := cl.attached[message.Session]; s != nil && d.mayResize(cl) {
 			s.report(cl.c, message.Rows, message.Cols, nil)
@@ -652,6 +686,7 @@ func (d *daemon) handle(cl *client, message frame) error {
 			return err
 		}
 		status := s.status(message.Lines)
+		status.Awake = d.awake.state()
 		return cl.c.write(frame{Type: "status", ID: message.ID, Session: s.name, Status: &status})
 	case "transcript":
 		return d.transcript(cl, message)
@@ -708,6 +743,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return cl.c.write(frame{Type: "roster", ID: message.ID, Roster: &roster})
 	case "hosts":
 		return d.hosts(cl.c, message)
+	case "host_kind":
+		return d.hostKindFrame(cl, message)
 	case "github_token":
 		return d.githubToken(cl, message)
 	case "whoami":
@@ -827,6 +864,7 @@ func (d *daemon) spawn(message frame) (*ptySession, error) {
 	d.mu.Lock()
 	d.sessions[name] = s
 	d.tokens[s.token] = s
+	d.awake.nudge()
 	delete(d.claims, name)
 	// A fresh instance answers one new-instance send, so two asked for at once
 	// open two sessions rather than both landing in the first.
@@ -961,6 +999,7 @@ func (d *daemon) forget(s *ptySession) {
 	d.mu.Lock()
 	if d.sessions[s.name] == s {
 		delete(d.sessions, s.name)
+		d.awake.nudge()
 	}
 	delete(d.tokens, s.token)
 	d.lastActive = time.Now()

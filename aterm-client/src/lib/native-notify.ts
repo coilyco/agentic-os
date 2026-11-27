@@ -2,7 +2,7 @@
 // plugin (COI-3578). A browser has no such bridge, so it keeps the Notification API.
 import type { Notify } from "./protocol";
 
-interface Core {
+export interface Core {
   invoke: (command: string, args?: unknown) => Promise<unknown>;
   addPluginListener?: (plugin: string, event: string, callback: (payload: unknown) => void) => Promise<{ unregister: () => Promise<void> }>;
 }

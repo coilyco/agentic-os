@@ -107,7 +107,8 @@ test.describe("a host that takes images", () => {
       let spent = false;
       (window as unknown as { __TAURI__: object }).__TAURI__ = {
         core: {
-          invoke: async () => {
+          invoke: async (command: string) => {
+            if (command !== "plugin:sharetarget|take") throw new Error(`no ${command}`);
             if (spent) return { images: [], skipped: [], text: null };
             spent = true;
             return { images: [{ name: "Screenshot_1.png", mime: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" }], skipped: [], text: null };

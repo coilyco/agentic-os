@@ -808,5 +808,6 @@
   }
   /* A phone on its side is wider than 720px, so the rules above miss it. Add, field and Send share one 44px row, and the field grows only while it holds text. */
   .composer[data-reading="true"] { gap: 8px; padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left)); }
-  .composer[data-reading="true"] textarea { min-height: 44px; max-height: min(112px, 40vh); padding: 9px 12px; font-size: 15px; }
+  /* Three line heights in all, padding included: 2 to 3 rows on Kai's Pixel, since a scrolled field shows its padding as text (COI-3371). */
+  .composer[data-reading="true"] textarea { min-height: 44px; max-height: min(calc(3lh + 2px), 40vh); padding: 9px 12px; font-size: 15px; }
 </style>

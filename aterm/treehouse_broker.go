@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -84,6 +85,8 @@ type brokerLink struct {
 	sendEvent func(brokerMsg)
 	// settings answers the per-user settings, nil reads every setting as off.
 	settings *settingsReader
+	// hostMu orders reg.host sends, so the last one carries the current kind.
+	hostMu sync.Mutex
 }
 
 func dialBroker(ctx context.Context, url string) (*websocket.Conn, error) {
@@ -153,6 +156,7 @@ func (l *brokerLink) session(ctx context.Context) (ready bool, err error) {
 	l.d.logf("registered with the Treehouse broker as %s", l.identity.ID)
 	sctx, end := context.WithCancel(ctx)
 	defer end()
+	session.hostKind = slices.Contains(ok.Features, hostKindFeature)
 	l.mu.Lock()
 	l.cur = session
 	l.mu.Unlock()
@@ -161,10 +165,27 @@ func (l *brokerLink) session(ctx context.Context) (ready bool, err error) {
 		l.cur = nil
 		l.mu.Unlock()
 	}()
+	l.sendHost(sctx)
 	beat := time.Duration(max(ok.HeartbeatS, 5)) * time.Second
 	go session.heartbeat(sctx, beat)
 	go session.renewLoop(sctx)
 	return true, session.serve(sctx)
+}
+
+// sendHost reports the current host kind on the live session, if its broker reads it.
+// An older broker ends a link on a message it does not know, hence the feature check.
+func (l *brokerLink) sendHost(ctx context.Context) {
+	l.hostMu.Lock()
+	defer l.hostMu.Unlock()
+	l.mu.Lock()
+	cur := l.cur
+	l.mu.Unlock()
+	if cur == nil || !cur.hostKind {
+		return
+	}
+	if err := cur.send(ctx, brokerMsg{Type: "treehouse.reg.host.v1", Kind: string(l.d.hostKind())}); err != nil {
+		l.d.logf("could not report the host kind to the Treehouse broker: %v", err)
+	}
 }
 
 // brokerSession is one dialed connection and the channels riding it.
@@ -174,6 +195,8 @@ type brokerSession struct {
 	writeMu  sync.Mutex
 	mu       sync.Mutex
 	channels map[string]*brokerChannel
+	// hostKind is set when the broker's ready listed host-kind, so it reads reg.host.
+	hostKind bool
 }
 
 func (s *brokerSession) read(ctx context.Context) (brokerMsg, error) {
@@ -432,6 +455,8 @@ func fetchJWKS(ctx context.Context, address string) ([]byte, error) {
 // treehouseOptions turn the brokered path on. All three empty leaves it off.
 type treehouseOptions struct {
 	Broker, Accounts, Dir string
+	// Pages is the pages API seats publish to through this daemon, empty for none.
+	Pages string
 	// ProvisionSecretFile, Name and Substrate let a daemon with no certificate claim one
 	// with a secret its secret store holds (treehouse_provision.go).
 	ProvisionSecretFile, Name, Substrate string
@@ -492,6 +517,14 @@ func (d *daemon) startTreehouse(ctx context.Context, o treehouseOptions) {
 		link.settings = newSettingsReader(dir)
 	}
 	users.brokerEvent = link.emit
+	if o.Pages != "" {
+		if pages, err := newPagesClient(o.Pages, link); err != nil {
+			d.logf("no Treehouse pages: %v", err)
+		} else {
+			d.pages = pages
+		}
+	}
+	d.onHostKind(func(hostKind) { go link.sendHost(ctx) })
 	d.logf("dialing the Treehouse broker as %s", identity.ID)
 	go link.run(ctx)
 	go link.watchSeats(ctx, pushWatchEvery)
