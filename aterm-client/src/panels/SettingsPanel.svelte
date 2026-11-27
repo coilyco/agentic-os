@@ -3,6 +3,7 @@
   import InstallCard from "../components/InstallCard.svelte";
   import RoleSwitches from "../components/RoleSwitches.svelte";
   import TapTraceSwitch from "../components/TapTraceSwitch.svelte";
+  import MachineKindPicker from "../components/MachineKindPicker.svelte";
   import { app, closeSettings, removeHost } from "../lib/app.svelte";
   import { THEME_CHOICES } from "../lib/theme";
   import { setThemeChoice, theme } from "../lib/theme.svelte";
@@ -44,6 +45,8 @@
   let size = $state(loadTextSize());
   // Hosts typed or saved here. The dev mock host and ones a daemon lists are not stored.
   const saved = $derived(app.hosts.filter((host) => host.kind === "daemon" && !host.found));
+  // Only the attached host can be set, so only it gets the group.
+  const attached = $derived(app.hosts.find((host) => host.id === app.attachedHostId));
 
   function setSize(next: number): void {
     size = next;
@@ -102,6 +105,14 @@
     </div>
     <p class="hint">When a seat's screen is wider than yours, fold its long lines to fit. Auto does it on a phone or a narrow window and not on a desktop. The Wrap button in a seat's toolbar overrides this for that seat.</p>
   </section>
+
+  {#if attached && app.machineKind}
+    <section class="group" aria-labelledby="machine-kind-label">
+      <h2 id="machine-kind-label">Host kind // {attached.label}</h2>
+      <MachineKindPicker host={attached} headingId="machine-kind-label" />
+      <p class="hint">Kept on the host, not on this device, so every device that reaches it sees the same kind.</p>
+    </section>
+  {/if}
 
   <section class="group" aria-labelledby="hosts-label">
     <h2 id="hosts-label">Hosts on this device</h2>
