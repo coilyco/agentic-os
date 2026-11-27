@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cancelPending, notePending, pendingFor, sameWords, settlePending, shownText, SKEW_MS, UNSENT_AFTER_MS } from "./pending-sends.svelte";
+import { cancelPending, notePending, pendingFor, readPast, sameWords, settlePending, shownText, SKEW_MS, UNSENT_AFTER_MS, waitingSince } from "./pending-sends.svelte";
 import type { TranscriptItem } from "./transcript";
 
 const prompt = (id: string, text: string, at?: number): TranscriptItem => ({ id, kind: "prompt", text, ...(at === undefined ? {} : { at }) });
@@ -83,5 +83,20 @@ describe("pending sends", () => {
   it("lets a send with words and a picture settle on the words, whatever marker leads them", () => {
     notePending("j", "what is this", Date.now(), 1);
     expect(settlePending("j", [prompt("p1", "[Image #1] what is this")], true)).toBe(1);
+  });
+
+  it("says how far back a waiting send could sit, and when a page has read past it", () => {
+    const sentAt = Date.now();
+    expect(waitingSince("k")).toBeUndefined();
+    notePending("k", "first", sentAt);
+    notePending("k", "second", sentAt + 5000);
+    const since = waitingSince("k")!;
+    expect(since).toBe(sentAt - SKEW_MS);
+    expect(readPast([prompt("new", "x", sentAt)], since)).toBe(false);
+    expect(readPast([prompt("old", "x", since - 1), prompt("new", "x", sentAt)], since)).toBe(true);
+    // A page with no stamps proves nothing, so the reach goes on.
+    expect(readPast([prompt("bare", "x")], since)).toBe(false);
+    settlePending("k", [prompt("p1", "first", sentAt), prompt("p2", "second", sentAt + 5000)], false);
+    expect(waitingSince("k")).toBeUndefined();
   });
 });
