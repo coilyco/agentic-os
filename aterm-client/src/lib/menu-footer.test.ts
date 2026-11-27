@@ -12,7 +12,8 @@ describe("a menu footer on the last rows (COI-3689)", () => {
   // The review screen draws no footer, and the card reader takes it by its Submit row.
   it("or the card reader sees every captured Claude Code menu", () => {
     const seen = (rows: string[]): boolean => menuFooterShowing(rows) || detectChoice(rows) !== null;
-    for (const name of menus(screens).filter((each) => each !== "idle-ready.txt")) {
+    // Idle and busy screens are no menu. Sign-in and resume have cards of their own.
+    for (const name of menus(screens).filter((each) => !/^(idle|busy|login|resume)-/.test(each))) {
       expect(seen(read(new URL(name, screens))), name).toBe(true);
     }
     for (const name of menus(captures).filter((each) => /^claude-2\.1\.31/.test(each))) {

@@ -10,7 +10,7 @@ import type { ToolResult, View, ViewCsp } from "./mcp-apps";
 import { FeedbackRefused, feedbackRefusal } from "./feedback";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
 import { CHUNK_BYTES, decodeMedia, mediaRefusal } from "./media";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, FeedbackChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, ViewChannel } from "./protocol";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, FeedbackChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, TuiState, ViewChannel } from "./protocol";
 import { decodeReply, REFUSALS, TranscriptRefused } from "./transcript";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
@@ -111,6 +111,7 @@ interface SessionView {
   quiet_seconds?: number;
   state_seconds?: number;
   state?: string;
+  tui?: string;
   ref?: string;
   origin?: string;
   background?: number;
@@ -340,6 +341,7 @@ const SELF_WINDOW_MS = 800;
 const REFRESH_MS = 20_000;
 
 const SCREEN_STATES = ["starting", "busy", "idle", "prompt"];
+const TUI_STATES: readonly string[] = ["starting", "idle", "busy", "choice", "permission", "mcp_menu", "resume_picker", "login", "unknown"];
 
 export function toSession(view: SessionView, busy = false, quiet?: number, receivedAt?: number): Session {
   const activity = toActivity(view.activity, view.activity_at);
@@ -355,6 +357,7 @@ export function toSession(view: SessionView, busy = false, quiet?: number, recei
     degraded: view.degraded ?? [],
     ...(view.ready ? {} : { starting: true }),
     ...(SCREEN_STATES.includes(view.state as never) ? { screen: view.state as NonNullable<Session["screen"]> } : {}),
+    ...(view.tui !== undefined && TUI_STATES.includes(view.tui) ? { tui: view.tui as TuiState } : {}),
     ...(typeof view.background === "number" ? { background: view.background } : {}),
     ...(view.ref ? { ref: view.ref } : {}),
     ...(view.origin === "window" || view.origin === "headless" ? { origin: view.origin } : {}),
@@ -433,6 +436,7 @@ export class DaemonHost implements HostConnection {
   // Close request ids to the seat they name, until the daemon answers.
   private closes = new Map<string, string>();
   private reopens = new Map<string, string>();
+  private reloads = new Map<string, string>();
   private features = new Set<string>();
   private calls = new Map<string, { resolve: (reply: Frame) => void; reject: (error: Error) => void }>();
   private socket?: WebSocket;
@@ -572,6 +576,7 @@ export class DaemonHost implements HostConnection {
     this.pendingOpens.clear();
     this.closes.clear();
     this.reopens.clear();
+    this.reloads.clear();
     this.launches.clear();
     this.outbox = [];
     const delay = backoffDelay(this.attempt);
@@ -956,6 +961,14 @@ export class DaemonHost implements HostConnection {
     return this.features.has("reopen");
   }
 
+  reloadSeat(session: string, ref: string): void {
+    this.reloads.set(this.request({ type: "reload", target: `${session}@${ref}` }), session);
+  }
+
+  get canReload(): boolean {
+    return this.features.has("reload");
+  }
+
   launch(role: string, seat: string): void {
     const id = this.request({ type: "launch", role, seat });
     this.launches.set(id, role);
@@ -1276,6 +1289,14 @@ export class DaemonHost implements HostConnection {
         }
         return;
       }
+      case "reloaded": {
+        const seat = frame.id ? this.reloads.get(frame.id) : undefined;
+        if (seat !== undefined && frame.id) {
+          this.reloads.delete(frame.id);
+          this.emit({ type: "seat_reload", session: frame.session || seat, state: "reloaded", text: frame.text ?? "Reloaded." });
+        }
+        return;
+      }
       case "reopened": {
         const seat = frame.id ? this.reopens.get(frame.id) : undefined;
         if (seat !== undefined && frame.id) {
@@ -1294,6 +1315,12 @@ export class DaemonHost implements HostConnection {
         if (closing !== undefined && frame.id) {
           this.closes.delete(frame.id);
           this.emit({ type: "seat_close_refused", session: closing, text: refused ? typingNotice(refused) : `Not closed. ${frame.error ?? "The daemon would not close it."}`, ...(frame.reason === "unpushed_work" ? { unpushed: true } : {}) });
+          return;
+        }
+        const reloading = frame.id ? this.reloads.get(frame.id) : undefined;
+        if (reloading !== undefined && frame.id) {
+          this.reloads.delete(frame.id);
+          this.emit({ type: "seat_reload", session: reloading, state: "refused", text: refused ? typingNotice(refused) : `Not reloaded. ${frame.error ?? "The daemon would not reload it."}` });
           return;
         }
         const reopening = frame.id ? this.reopens.get(frame.id) : undefined;

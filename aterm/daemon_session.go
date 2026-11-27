@@ -167,6 +167,8 @@ type ptySession struct {
 	// before the daemon first saw it is unknown, so a restart counts from the restart.
 	stateNow   string
 	stateSince time.Time
+	// screenNow is the detector's finer reading, pushed when it flips. See detectScreen.
+	screenNow string
 	// activity is the line a seat set with `aterm activity`, and activityAt when.
 	// Only that frame writes it, never the screen. See daemon_activity.go.
 	activity   string
@@ -418,7 +420,7 @@ func (s *ptySession) output(chunk []byte) {
 // noteCard follows whether a card is on the screen, chunk by chunk, so the moment one
 // leaves is known even when nothing asks during it. Caller holds mu.
 func (s *ptySession) noteCard() {
-	if len(promptScreens[s.seat]) == 0 {
+	if len(heldScreens[s.seat]) == 0 {
 		return
 	}
 	up := showsCard(s.seat, strings.Join(s.scr.text(), "\n"))
@@ -778,9 +780,15 @@ func (s *ptySession) deliverLoop() {
 // currentState is classify plus the card hold, and keeps the state's start. A held card
 // keeps the seat at prompt through a repaint. Caller holds mu.
 func (s *ptySession) currentState(now time.Time, lines []string, ready bool, quiet time.Duration) string {
-	state := classify(s.seat, lines, ready, quiet)
+	held := s.screenNow
+	s.screenNow = detectScreen(s.seat, lines, ready, quiet)
+	state := stateOf(s.screenNow, ready)
 	if ready && state != statePrompt && s.cardReason() != "" {
 		state = statePrompt
+		// The hold keeps the reading too, so a repaint does not flicker a native control.
+		if stateOf(held, true) == statePrompt {
+			s.screenNow = held
+		}
 	}
 	if s.stateNow != state {
 		s.stateNow, s.stateSince = state, now
@@ -799,9 +807,9 @@ func (s *ptySession) sampleState(now time.Time) {
 		s.mu.Unlock()
 		return
 	}
-	before := s.stateNow
+	before, screenBefore := s.stateNow, s.screenNow
 	s.currentState(now, s.scr.text(), s.ready(now), now.Sub(s.lastOutput))
-	flipped := before != "" && s.stateNow != before
+	flipped := before != "" && (s.stateNow != before || s.screenNow != screenBefore)
 	s.mu.Unlock()
 	if flipped && s.d != nil {
 		s.d.pushSessions()
@@ -1013,8 +1021,9 @@ func (s *ptySession) status(lines int) sessionStatus {
 	if !s.lastInput.IsZero() {
 		input = int(now.Sub(s.lastInput) / time.Second)
 	}
+	state := s.currentState(now, text, ready, quiet)
 	return sessionStatus{
-		Name: s.name, State: s.currentState(now, text, ready, quiet), Ready: ready,
+		Name: s.name, State: state, TUI: s.screenNow, Ready: ready,
 		QuietSeconds: int(quiet / time.Second), InputSeconds: input,
 		Drafted: s.draft > 0, Pending: len(s.pending), Clients: len(s.clients),
 		Rows: rows, Cols: cols, Prompt: promptLines(s.seat, text), Screen: tailLines(text, lines),
@@ -1051,6 +1060,7 @@ func (s *ptySession) view() sessionView {
 		Background:   background,
 		Origin:       s.origin,
 		State:        state,
+		TUI:          s.screenNow,
 		StateSeconds: &inState,
 		QuietSeconds: int(quiet / time.Second),
 		Name:         s.name,

@@ -12,32 +12,66 @@ const (
 	stateStarting = "starting"
 	stateBusy     = "busy"
 	stateIdle     = "idle"
-	// statePrompt is a permission or choice prompt holding the session for a person.
+	// statePrompt is a screen holding the session for a person: a card, a menu, a sign-in.
 	statePrompt = "prompt"
+)
+
+// What the screen detector names, the finer reading behind the state above. Every one
+// but busy, idle, starting and unknown holds the seat for a person (COI-3788).
+const (
+	screenChoice     = "choice"
+	screenPermission = "permission"
+	screenMCP        = "mcp_menu"
+	screenResume     = "resume_picker"
+	screenLogin      = "login"
+	screenUnknown    = "unknown"
 )
 
 // busyWindow is how recent output counts as work. A harness repaints its
 // spinner many times a second, so a few seconds of silence is not working.
 const busyWindow = 3 * time.Second
 
-// promptScreens are the harnesses' own words while they wait on a person, so a
-// reworded one reads as idle until it is added here.
-var promptScreens = map[string][]*regexp.Regexp{
+// screenSignature is one screen a harness draws while it waits on a person. Every mark
+// must match the screen text. The first signature that matches names the screen.
+type screenSignature struct {
+	kind  string
+	marks []*regexp.Regexp
+}
+
+func signature(kind string, marks ...string) screenSignature {
+	compiled := make([]*regexp.Regexp, len(marks))
+	for index, mark := range marks {
+		compiled[index] = regexp.MustCompile(mark)
+	}
+	return screenSignature{kind: kind, marks: compiled}
+}
+
+// heldScreens are each harness's words while it waits on a person, tried in order. A
+// reworded one reads unknown until added. Claude's come from testdata/claude-screens.
+var heldScreens = map[string][]screenSignature{
 	"claude": {
-		regexp.MustCompile(`(?i)do you want to (proceed|make this edit|create|allow|run)`),
-		regexp.MustCompile(`(?i)esc to cancel`),
-		regexp.MustCompile(`(?i)enter to select`),
+		signature(screenPermission, `(?i)do you want to (proceed|make this edit|create|allow|run)`),
+		// The menu and one server's page under it. A heading row, so the slash-command
+		// hint "Manage MCP servers" never reads as the menu.
+		signature(screenMCP, `(?m)^\s{0,4}MCP servers?$`, `(?i)esc to (close|go back)`),
+		signature(screenResume, `(?m)^\s{0,4}Resume session\b`, `(?i)esc to close`),
+		// A short terminal scrolls the heading away, and the footer stays on the last rows.
+		signature(screenMCP, `(?i)enter to view`, `(?i)esc to close`),
+		signature(screenResume, `(?i)enter to resume`, `(?i)esc to close`),
+		signature(screenLogin, `(?i)select login method|paste code here if prompted|oauth error:|login successful|choose the text style that looks best`),
+		signature(screenChoice, `(?i)enter to (select|confirm)`),
 		// The review page that ends a multi-question AskUserQuestion draws no footer,
 		// and Enter on it submits the answers. testdata/claude-screens/review.txt
-		regexp.MustCompile(`(?i)ready to submit your answers`),
+		signature(screenChoice, `(?i)ready to submit your answers`),
+		signature(screenChoice, `(?i)esc to cancel`),
 	},
 	"codex": {
-		regexp.MustCompile(`(?i)would you like to (run|make|allow)`),
-		regexp.MustCompile(`(?i)yes, proceed`),
+		signature(screenPermission, `(?i)would you like to (run|make|allow)`),
+		signature(screenPermission, `(?i)yes, proceed`),
 	},
 	"opencode": {
-		regexp.MustCompile(`(?i)permission required`),
-		regexp.MustCompile(`(?i)allow once`),
+		signature(screenPermission, `(?i)permission required`),
+		signature(screenPermission, `(?i)allow once`),
 	},
 }
 
@@ -50,25 +84,45 @@ var busyScreens = map[string]*regexp.Regexp{
 	"opencode": regexp.MustCompile(`(?i)esc interrupt`),
 }
 
-// showsCard is whether the screen text holds a permission or choice card.
-func showsCard(seat, text string) bool {
-	for _, mark := range promptScreens[seat] {
-		if mark.MatchString(text) {
-			return true
-		}
-	}
-	return false
+// idleScreens are each harness's empty input box, so idle is a reading and not the
+// absence of one. A quiet screen none of these match is unknown.
+var idleScreens = map[string]*regexp.Regexp{
+	// The ruled box, or the older boxed one with its shortcut hint.
+	"claude":   regexp.MustCompile(`(?m)^\s*─{8,}\n❯|\? for shortcuts`),
+	"codex":    regexp.MustCompile(`(?m)^\s*› .*(\n.*){0,3}\n\s*\? for shortcuts`),
+	"opencode": regexp.MustCompile(`ctrl\+p commands`),
+	"goose":    regexp.MustCompile(`(?m)^>\s+Enter to send`),
 }
 
-// classify names what a session is doing from its screen lines, its seat, whether
-// it can take a message yet, and how long it has been quiet.
-func classify(seat string, lines []string, ready bool, quiet time.Duration) string {
+// heldScreen is what holds the seat for a person, or "" when nothing does.
+func heldScreen(seat, text string) string {
+	for _, sig := range heldScreens[seat] {
+		matched := true
+		for _, mark := range sig.marks {
+			if !mark.MatchString(text) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return sig.kind
+		}
+	}
+	return ""
+}
+
+// showsCard is whether the screen holds the seat for a person, so Enter would answer it.
+func showsCard(seat, text string) bool { return heldScreen(seat, text) != "" }
+
+// detectScreen names what a seat's screen shows. A held screen reads even before the
+// seat is ready, since a sign-in screen is why one never becomes ready.
+func detectScreen(seat string, lines []string, ready bool, quiet time.Duration) string {
+	text := strings.Join(lines, "\n")
+	if kind := heldScreen(seat, text); kind != "" {
+		return kind
+	}
 	if !ready {
 		return stateStarting
-	}
-	text := strings.Join(lines, "\n")
-	if showsCard(seat, text) {
-		return statePrompt
 	}
 	if quiet < busyWindow {
 		return stateBusy
@@ -76,7 +130,30 @@ func classify(seat string, lines []string, ready bool, quiet time.Duration) stri
 	if mark, ok := busyScreens[seat]; ok && mark.MatchString(text) {
 		return stateBusy
 	}
-	return stateIdle
+	if mark, ok := idleScreens[seat]; ok && mark.MatchString(text) {
+		return stateIdle
+	}
+	return screenUnknown
+}
+
+// stateOf folds a screen reading into the coarse state, where unknown stays idle as it
+// always read.
+func stateOf(kind string, ready bool) string {
+	switch {
+	case !ready:
+		return stateStarting
+	case kind == stateBusy:
+		return stateBusy
+	case kind == stateIdle || kind == screenUnknown:
+		return stateIdle
+	}
+	return statePrompt
+}
+
+// classify names what a session is doing from its screen lines, its seat, whether
+// it can take a message yet, and how long it has been quiet.
+func classify(seat string, lines []string, ready bool, quiet time.Duration) string {
+	return stateOf(detectScreen(seat, lines, ready, quiet), ready)
 }
 
 // sessionStatus is the read-only answer to `aterm status`: what the session is
@@ -84,6 +161,8 @@ func classify(seat string, lines []string, ready bool, quiet time.Duration) stri
 type sessionStatus struct {
 	Name  string `json:"name"`
 	State string `json:"state"`
+	// TUI is the detector's finer reading. See detectScreen.
+	TUI   string `json:"tui,omitempty"`
 	Ready bool   `json:"ready"`
 	// QuietSeconds is the time since the session last wrote, and InputSeconds the
 	// time since anyone typed into it, or -1 when no one has.
@@ -109,12 +188,17 @@ const (
 	promptAfter  = 12
 )
 
-// promptLines is the rows around the first one a prompt mark matches, or nil.
+// promptLines is the rows around the first one a held screen's mark matches, or nil.
 func promptLines(seat string, lines []string) []string {
+	if !showsCard(seat, strings.Join(lines, "\n")) {
+		return nil
+	}
 	for index, line := range lines {
-		for _, mark := range promptScreens[seat] {
-			if mark.MatchString(line) {
-				return lines[max(index-promptBefore, 0):min(index+promptAfter, len(lines))]
+		for _, sig := range heldScreens[seat] {
+			for _, mark := range sig.marks {
+				if mark.MatchString(line) {
+					return lines[max(index-promptBefore, 0):min(index+promptAfter, len(lines))]
+				}
 			}
 		}
 	}
