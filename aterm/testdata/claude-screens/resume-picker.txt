@@ -1,0 +1,32 @@
+  ⎿  Rejected write /tmp/work/notes.txt
+     to
+      1 hi
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+  Resume session (1 of 49)
+  ╭──────────────────────────────────────────────────────────────────────────────────────────────╮
+  │ ⌕ Search…                                                                                    │
+  ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+
+  ❯ eng-platform-wise-beetle
+    16 seconds ago · HEAD · 1.5MB · /tmp/aos/native/qj75/projects
+
+    eng-platform-kind-beetle
+    23 seconds ago · HEAD · 1.5MB · /tmp/aos/native/mj98/projects
+
+    prod-director-breezy-griffin  ⧉ 1
+    41 seconds ago · HEAD · 4.6MB · /tmp/aos/native/pm56/projects
+
+    eng-platform-spry-beetle
+    53 seconds ago · HEAD · 1.5MB · /tmp/aos/native/bs98/projects
+
+    frontend-eng-modest-imp
+    1 minute ago · HEAD · 1.4MB · /tmp/aos/native/yh65/projects
+
+    eng-platform-fast-beetle
+    2 minutes ago · HEAD · 1.2MB · /tmp/aos/native/rm49/projects
+
+  ↓ eng-platform-trusty-beetle
+    4 minutes ago · HEAD · 1.3MB · /tmp/aos/native/tj58/projects
+
+  Ctrl+A to only show current repo · Ctrl+B to only show current branch · Space to preview ·
+  Ctrl+R to rename · Type to search · Enter to resume · Esc to close

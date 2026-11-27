@@ -14,7 +14,7 @@ const HERE = fileURLToPath(new URL(".", import.meta.url));
 const DIST = process.env.ATERM_TESTBED_DIST ?? join(HERE, "..", "dist");
 const ROSTER = join(HERE, "..", "src", "lib", "fixtures", "roster.json");
 /** What the real daemon offers on a loopback page, so the client takes its real paths. */
-const FEATURES = ["pty-size", "terminals", "terminal-label", "browser", "open-url", "background", "close-unpushed", "reopen", "origin", "last-reply", "notify"];
+const FEATURES = ["pty-size", "terminals", "terminal-label", "browser", "open-url", "background", "close-unpushed", "reopen", "reload", "origin", "last-reply", "notify"];
 
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -54,6 +54,8 @@ export interface SessionSpec {
   activity_age_seconds?: number;
   /** The screen reading, the `ref` a close takes, and background tasks running. */
   state?: "starting" | "busy" | "idle" | "prompt";
+  /** The detector's finer reading, COI-3788. */
+  tui?: string;
   ref?: string;
   origin?: "window" | "headless";
   /** The daemon refuses an unforced close, as it does for commits on no remote. */
@@ -97,6 +99,8 @@ export interface Mock {
   /** Every `close` sent with `force`, as `name@ref`, and every `reopen` target. */
   forced: string[];
   reopens: string[];
+  /** Every `reload` target, COI-3787. */
+  reloads: string[];
   /** Every `browser_*` frame and `subscribe` the client sent about a page, in order. */
   browserCalls: { type: string; session?: string; take?: boolean; url?: string; channel?: string }[];
   /** The scene a seat runs, to read what a native dialog received. */
@@ -107,6 +111,8 @@ export interface Mock {
   capRows(session: string, rows: number): void;
   /** Replace a seat's scene and redraw it on every client attached. */
   setScene(session: string, scene: Scene): void;
+  /** Change a seat's view, such as its detector reading or ref, and push the roster. */
+  patchSession(session: string, patch: Partial<SessionSpec>): void;
   /** Give a seat a finished reply: the first line rides the view, the text a request. */
   setLastReply(session: string, reply: { text: string; ageSeconds?: number; truncated?: boolean }): void;
   /** Send one daemon frame to every client, as the daemon would push it. */
@@ -213,7 +219,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const lastBox = new Map<string, { rows: number; cols: number }>();
   const closed = new Map<string, SessionSpec>();
   const artifactFrames = new Map<string, Record<string, unknown>>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], feedbacks: [] as Mock["feedbacks"], feedbackFrames: [] as string[], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"], attachCalls: [] as Mock["attachCalls"] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], reloads: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], feedbacks: [] as Mock["feedbacks"], feedbackFrames: [] as string[], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"], attachCalls: [] as Mock["attachCalls"] };
   const shared = new Map<string, { session: string; name: string; mime: string; kind: string; bytes: Buffer; at: number; unreadable?: boolean }>();
   const mediaFrame = (id: string) => {
     const file = shared.get(id)!;
@@ -521,6 +527,13 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           send(socket, { type: "closed", id: frame.id, session: seat.spec.name, code: 0 });
           return;
         }
+        case "reload": {
+          const target = String(frame.target);
+          mock.reloads.push(target);
+          const name = target.split("@")[0]!;
+          setTimeout(() => send(socket, { type: "reloaded", id: frame.id, session: name, state: "idle", text: `${name} is back on its conversation and idle.` }), 300);
+          return;
+        }
         case "reopen": {
           const target = String(frame.target);
           mock.reopens.push(target);
@@ -576,6 +589,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     closes: mock.closes,
     forced: mock.forced,
     reopens: mock.reopens,
+    reloads: mock.reloads,
     browserCalls: mock.browserCalls,
     pushCalls: mock.pushCalls,
     sceneOf: (session) => live.get(session)?.scene,
@@ -596,6 +610,12 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
       if (!seat) throw new Error(`no seat named ${session}`);
       seat.scene = scene;
       redraw(seat);
+    },
+    patchSession(session, patch) {
+      const seat = live.get(session);
+      if (!seat) throw new Error(`no seat named ${session}`);
+      Object.assign(seat.spec, patch);
+      broadcast(sessionsFrame());
     },
     setLastReply(session, reply) {
       const seat = live.get(session);

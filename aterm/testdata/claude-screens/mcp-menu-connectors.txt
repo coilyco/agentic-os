@@ -1,0 +1,32 @@
+ ▝▝   ▝▝   /tmp/work · /rc
+
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ scroll wheel is sending arrow keys · PgUp/PgDn to scroll ▔
+  MCP servers
+  61 servers
+
+    ↑ 49 more
+    ✔ claude.ai Slack                          30 tools
+    ✔ claude.ai Calendar                       5 tools
+    ⚠ claude.ai Example                        needs sign-in
+    ✔ claude.ai Notes                          55 tools
+    ✔ claude.ai Trello                         15 tools
+    ✔ claude.ai Typesafe Jev                   7 tools
+    ✔ claude.ai Drive                          16 tools
+    ✔ claude.ai Weather                        3 tools
+    claude.ai Linear · ◯ hidden — same URL as your server 'public_coilyco_linear'
+      To use this connector instead, run claude mcp remove public_coilyco_linear
+    claude.ai Eco Server · ◯ hidden — same URL as your server 'public_coilyco_eco'
+      To use this connector instead, run claude mcp remove public_coilyco_eco
+    claude.ai github · ◯ hidden — same URL as your server 'plugin:github:github'
+      To use this connector instead, disable the plugin server in /plugin
+
+    Plugin MCPs (/plugin to manage)
+    ✔ easel                                    1 tool
+    ✔ plugin:claude-platform:docs              4 tools
+    ✘ plugin:github:github
+
+    Other MCPs
+  ❯ ◯ computer-use
+  Learn more: https://code.claude.com/docs/en/mcp
+
+  ↑/↓ to navigate · Enter to view · Esc to close

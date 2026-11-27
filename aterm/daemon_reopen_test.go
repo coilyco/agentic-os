@@ -97,7 +97,7 @@ func TestWelcomeNamesTheFeaturesAClientBranchesOn(t *testing.T) {
 	d, _ := wsDaemon(t)
 	d.processes = func() ([]processEntry, error) { return []processEntry{{PID: os.Getpid(), PPID: 1}}, nil }
 	welcome := nextFrame(t, pipeClient(t, d, peerStanding{pids: []int{os.Getpid()}}), "welcome")
-	for _, feature := range []string{backgroundFeature, closeUnpushedFeature, reopenFeature} {
+	for _, feature := range []string{backgroundFeature, closeUnpushedFeature, reopenFeature, reloadFeature} {
 		if !slices.Contains(welcome.Features, feature) {
 			t.Errorf("welcome features %v lack %q", welcome.Features, feature)
 		}

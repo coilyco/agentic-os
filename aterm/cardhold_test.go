@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // What a real claude showed in an untrusted directory, read off a PTY on 2026-10-02.
@@ -96,14 +97,87 @@ func recordedScreens(t *testing.T) map[string]string {
 	return screens
 }
 
-func TestShowsCardReadsEveryRecordedAskUserQuestionPage(t *testing.T) {
+// recordedKind is the state a recorded screen shows, named by its file's prefix. The
+// AskUserQuestion pages (q*, review*) and the folder-trust dialog are choice dialogs.
+func recordedKind(name string) string {
+	prefixes := map[string]string{
+		"idle-": stateIdle, "busy-": stateBusy, "permission-": screenPermission,
+		"mcp-": screenMCP, "resume-": screenResume, "login-": screenLogin,
+	}
+	for prefix, kind := range prefixes {
+		if strings.HasPrefix(name, prefix) {
+			return kind
+		}
+	}
+	return screenChoice
+}
+
+// COI-3788: each recorded Claude Code screen names its own state, quiet for a minute.
+func TestEveryRecordedClaudeScreenReadsAsItsState(t *testing.T) {
 	for name, screen := range recordedScreens(t) {
 		t.Run(name, func(t *testing.T) {
-			// An idle-* screen is the control: a claude with nothing to answer.
-			if want := !strings.HasPrefix(name, "idle-"); showsCard("claude", screen) != want {
-				t.Fatalf("showsCard = %v, want %v for:\n%s", !want, want, screen)
+			want := recordedKind(name)
+			if got := detectScreen("claude", strings.Split(screen, "\n"), true, time.Minute); got != want {
+				t.Fatalf("detectScreen = %q, want %q for:\n%s", got, want, screen)
+			}
+			held := want != stateIdle && want != stateBusy
+			if showsCard("claude", screen) != held {
+				t.Fatalf("showsCard = %v, want %v, since Enter on a held screen would answer it", !held, held)
 			}
 		})
+	}
+}
+
+// A screen no signature knows reads unknown, never a guess, and stays idle in the
+// coarse state as it always read.
+func TestAnUnseenScreenReadsUnknown(t *testing.T) {
+	unseen := [][]string{
+		{"  Resume session", "", "  ✶ Loading sessions…"},
+		{"Some program printed this and stopped."},
+	}
+	for _, lines := range unseen {
+		if got := detectScreen("claude", lines, true, time.Minute); got != screenUnknown {
+			t.Fatalf("detectScreen(%q) = %q, want unknown", lines, got)
+		}
+		if got := classify("claude", lines, true, time.Minute); got != stateIdle {
+			t.Fatalf("classify(%q) = %q, want idle", lines, got)
+		}
+	}
+	if got := detectScreen("goose", []string{"anything"}, true, time.Minute); got != screenUnknown {
+		t.Fatalf("a harness with no idle mark matched reads unknown, got %q", got)
+	}
+}
+
+// A phone-sized terminal scrolls a menu's heading away, and its footer still names it.
+func TestAMenuWhoseHeadingScrolledAwayStillReads(t *testing.T) {
+	for name, want := range map[string]string{"resume-picker.txt": screenResume, "mcp-menu.txt": screenMCP} {
+		raw, err := os.ReadFile(filepath.Join(claudeScreens, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
+		tail := lines[len(lines)-8:]
+		if got := detectScreen("claude", tail, true, time.Minute); got != want {
+			t.Fatalf("%s, last 8 rows: detectScreen = %q, want %q:\n%s", name, got, want, strings.Join(tail, "\n"))
+		}
+	}
+}
+
+// A sign-in screen is why a seat never gets ready, so it reads before readiness does.
+func TestALoginScreenReadsBeforeTheSeatIsReady(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join(claudeScreens, "login-method.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(string(raw), "\n")
+	if got := detectScreen("claude", lines, false, time.Minute); got != screenLogin {
+		t.Fatalf("detectScreen = %q, want login", got)
+	}
+	if got := classify("claude", lines, false, time.Minute); got != stateStarting {
+		t.Fatalf("classify = %q, the coarse state still says starting", got)
+	}
+	if got := detectScreen("claude", []string{"booting"}, false, time.Minute); got != stateStarting {
+		t.Fatalf("detectScreen = %q, want starting", got)
 	}
 }
 
