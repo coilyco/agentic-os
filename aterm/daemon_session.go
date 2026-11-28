@@ -645,6 +645,7 @@ func (s *ptySession) end() {
 	}
 }
 
+// clientList is the clients to fan out to. Caller holds mu.
 func (s *ptySession) clientList() []*conn {
 	clients := make([]*conn, 0, len(s.clients))
 	for c := range s.clients {

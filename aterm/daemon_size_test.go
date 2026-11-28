@@ -274,3 +274,30 @@ func TestALockedRemoteDeviceNeverChangesASeatsSize(t *testing.T) {
 		t.Fatal("a local client's size counts")
 	}
 }
+
+// A resize fans out while clients come and go, and the daemon died on the map
+// read with no lock (COI-3796 follow-up).
+func TestRefitWhileClientsAttachAndDetach(t *testing.T) {
+	s, _ := sizedSession(t)
+	sizer, _ := pipeConn(t)
+	s.attach(sizer, false, 0)
+	stop := make(chan struct{})
+	var churn sync.WaitGroup
+	churn.Go(func() {
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			c, _ := pipeConn(t)
+			s.attach(c, false, 0)
+			s.detach(c)
+		}
+	})
+	for i := range 2000 {
+		s.report(sizer, 30+i%2, 100, nil)
+	}
+	close(stop)
+	churn.Wait()
+}
