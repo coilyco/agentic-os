@@ -517,6 +517,7 @@ export class DaemonHost implements HostConnection {
   private arrived = new Map<string, { since: number; frames: number; bytes: number }>();
   // What each opened seat's terminal drew, so a reopen asks only for the rest.
   private tails = new ScreenTails();
+  private heldDraws = new Map<string, Uint8Array>();
   private busy = new Set<string>();
   // When the latest `sessions` frame arrived. Its `quiet_seconds` count back from here.
   private viewsAt = 0;
@@ -958,13 +959,21 @@ export class DaemonHost implements HostConnection {
     this.request({ type: "attach", session: sessionId, replay: true, rows, cols, ...this.resumeFrom(sessionId), ...(this.ptySize ? { scales: true } : {}) });
   }
 
-  // Draws what the terminal held at once and names where the host goes on from.
+  // Keeps what the terminal held for the host's answer and names where the host goes on.
   private resumeFrom(sessionId: string): { offset?: number } {
     this.tails.keep(sessionId, this.runOf(sessionId));
     const held = this.tails.resume(sessionId);
     if (!held) return {};
-    this.emit({ type: "output", sessionId, data: held.bytes });
+    this.heldDraws.set(sessionId, held.bytes);
     return { offset: held.end };
+  }
+
+  // Drawn at once, a new xterm parsed them at 80x24, before the host's `size` (COI-3839).
+  private drawHeld(sessionId: string): void {
+    const bytes = this.heldDraws.get(sessionId);
+    if (!bytes) return;
+    this.heldDraws.delete(sessionId);
+    this.emit({ type: "output", sessionId, data: bytes });
   }
 
   private runOf = (name: string): string => {
@@ -997,6 +1006,7 @@ export class DaemonHost implements HostConnection {
     }
     this.refs.delete(sessionId);
     this.arrived.delete(sessionId);
+    this.heldDraws.delete(sessionId);
     this.request({ type: "detach", session: sessionId });
   }
 
@@ -1336,6 +1346,11 @@ export class DaemonHost implements HostConnection {
         return;
       case "size":
         if (frame.session && frame.rows && frame.cols) this.emit({ type: "size", sessionId: frame.session, rows: frame.rows, cols: frame.cols });
+        if (frame.session) this.drawHeld(frame.session);
+        return;
+      case "attached":
+        // A host without pty-size sends no `size`, and the terminal fit itself first.
+        if (frame.session && !this.ptySize) this.drawHeld(frame.session);
         return;
       case "roster":
         this.last.roles = { type: "roster", roles: parseRoster(frame.roster) };
@@ -1346,6 +1361,8 @@ export class DaemonHost implements HostConnection {
         this.noteOutput(frame.session);
         {
           const noted = this.tails.note(frame.session, decode(frame.data), frame.offset);
+          if (noted.reset) this.heldDraws.delete(frame.session);
+          else this.drawHeld(frame.session);
           if (noted.reset) this.emit({ type: "output_reset", sessionId: frame.session });
           if (noted.data) this.emit({ type: "output", sessionId: frame.session, data: this.counted(frame.session, noted.data) });
         }
