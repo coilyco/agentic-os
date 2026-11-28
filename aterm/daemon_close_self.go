@@ -57,7 +57,7 @@ func (d *daemon) closeSelf(cl *client, message frame) error {
 	go func() {
 		defer d.guard("close self")
 		time.Sleep(selfCloseDelay)
-		s.end()
+		s.endFor(endedByClose)
 	}()
 	return nil
 }

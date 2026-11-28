@@ -17,7 +17,8 @@ func (d *daemon) reopenSession(cl *client, message frame) error {
 	if target == "" {
 		return withExit(exitUsage, errors.New("reopen needs the name of a closed seat"))
 	}
-	if d.session(target) != nil {
+	// A pool name may be live again as another seat, which a ref tells apart.
+	if live := d.session(target); live != nil && (ref == "" || sessionRef(live.name, live.started) == ref) {
 		return withExit(exitUsage, fmt.Errorf("%s is live, so there is nothing to reopen", target))
 	}
 	entry, found := reopenable(d.entries(), target, ref)
@@ -33,6 +34,7 @@ func (d *daemon) reopenSession(cl *client, message frame) error {
 	if err := d.reopen(entry); err != nil {
 		return withExit(exitSpawn, err)
 	}
+	d.stampReopened(entry)
 	return cl.c.write(frame{Type: "reopened", ID: message.ID, Session: target, Role: entry.Role, Seat: entry.Seat})
 }
 
