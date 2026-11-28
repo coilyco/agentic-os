@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
   import { app } from "../lib/app.svelte";
+  import { openLink } from "../lib/link-notice.svelte";
   import { pageLabel, SHOW_WAIT_MS } from "../lib/pages";
   import type { Session } from "../lib/protocol";
   import type { SharedBrowser } from "../lib/screencast";
@@ -229,6 +230,14 @@
         <button type="button" class="button primary" onclick={() => channel?.control(session.id, true)}>Take control</button>
       {/if}
     </div>
+    {#if browser.state === "live" && browser.cloudflareCheck && browser.url}
+      <!-- The check fails any browser driven over CDP, a click through this pane included, so the pane never tries it (COI-3803). -->
+      {@const checked = browser.url}
+      <div class="check" role="group" aria-label="Cloudflare check">
+        <p>This page is a Cloudflare check, which can't pass in {session.identity}'s browser.</p>
+        <button type="button" class="button primary" onclick={() => openLink(checked)}>Open in your browser</button>
+      </div>
+    {/if}
     {#if browser.state === "live" && browser.reason}
       <p class="note">{browser.reason}</p>
     {/if}
@@ -278,6 +287,8 @@
   .bar { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
   .bar[data-driver="person"] { border-color: var(--brand); }
   .bar[data-driver="elsewhere"] { border-color: var(--warn-line); background: var(--warn-fill); }
+  .check { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--brand); background: var(--surface); }
+  .check p { margin: 0; flex: 1 1 200px; font-size: 14px; line-height: 1.4; }
   .note { margin: 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
   .bar[data-driver="closed"] { border-color: var(--danger-line); background: var(--danger-fill); }
   .who { margin: 0; flex: 1 1 160px; font-size: 14px; }

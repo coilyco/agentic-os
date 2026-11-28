@@ -117,6 +117,8 @@ export interface Mock {
   setLastReply(session: string, reply: { text: string; ageSeconds?: number; truncated?: boolean }): void;
   /** Send one daemon frame to every client, as the daemon would push it. */
   push(frame: Record<string, unknown>): void;
+  /** A seat's agent loads a page, which every later `browser_state` for it carries. */
+  loadPage(session: string, page: { url: string; title?: string; cloudflareCheck?: boolean }): void;
   /** A seat's page, as `aterm artifact add` registers it, replayed on subscribe. */
   addArtifact(session: string, artifact: Record<string, unknown>): void;
   /** The daemon closes a page, as a seat's remove or its end does. */
@@ -230,11 +232,11 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const transcriptHolds = new Map<string, number>();
   // A seat's browser: the agent drives until a screen takes control.
   // `client` is the name each connection was given.
-  const pages = new Map<string, { holder: WebSocket | null; url: string }>();
+  const pages = new Map<string, { holder: WebSocket | null; url: string; title?: string; cloudflareCheck?: boolean }>();
   const names = new WeakMap<WebSocket, string>();
   const browserState = (session: string, socket: WebSocket, id?: unknown): Record<string, unknown> => {
     const page = pages.get(session) ?? { holder: null, url: "about:blank" };
-    return { type: "browser_state", id, session, state: "live", driver: page.holder ? "person" : "agent", ...(page.holder ? { holder: names.get(page.holder) } : {}), url: page.url, title: "", client: names.get(socket) };
+    return { type: "browser_state", id, session, state: "live", driver: page.holder ? "person" : "agent", ...(page.holder ? { holder: names.get(page.holder) } : {}), url: page.url, title: page.title ?? "", ...(page.cloudflareCheck ? { cloudflare_check: true } : {}), client: names.get(socket) };
   };
   const tellWatchers = (session: string): void => {
     for (const socket of clients) send(socket, browserState(session, socket));
@@ -375,7 +377,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           const page = pages.get(session);
           // The daemon refuses a drive from a screen that does not hold control.
           if (page?.holder === socket) {
-            page.url = String(frame.url);
+            Object.assign(page, { url: String(frame.url), title: undefined, cloudflareCheck: undefined });
             tellWatchers(session);
           }
           return;
@@ -624,6 +626,10 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
       broadcast(sessionsFrame());
     },
     push: broadcast,
+    loadPage(session, page) {
+      pages.set(session, { holder: pages.get(session)?.holder ?? null, ...page });
+      tellWatchers(session);
+    },
     addArtifact(session, artifact) {
       const frame = { type: "artifact", session, artifact };
       artifactFrames.set(String(artifact.id), frame);
