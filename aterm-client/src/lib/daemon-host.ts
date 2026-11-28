@@ -283,6 +283,7 @@ interface ViewFrame {
 
 /** `welcome.features` names this when the daemon streams a session's browser. */
 export const BROWSER_FEATURE = "browser";
+export const BROWSER_CLOSE_FEATURE = "browser-close";
 
 /** `welcome.features` names this when the daemon has a VAPID key and answers `push_*`. */
 export const PUSH_FEATURE = "web-push";
@@ -1066,7 +1067,7 @@ export class DaemonHost implements HostConnection {
     this.socket?.close();
   }
 
-  private browserChannel(): BrowserChannel {
+  private browserChannel(features: readonly string[]): BrowserChannel {
     return {
       watch: (session, size) => {
         this.watching.set(session, size);
@@ -1080,6 +1081,7 @@ export class DaemonHost implements HostConnection {
       control: (session, take, force) => void this.request({ type: "browser_control", session, take, ...(force ? { force } : {}) }),
       input: (session: string, kind: InputKind, params: Record<string, unknown>) => void this.request({ type: "browser_input", session, kind, params }),
       navigate: (session, url) => void this.request({ type: "browser_navigate", session, url }),
+      ...(features.includes(BROWSER_CLOSE_FEATURE) ? { close: (session: string) => void this.request({ type: "browser_close", session }) } : {}),
     };
   }
 
@@ -1186,7 +1188,7 @@ export class DaemonHost implements HostConnection {
         this.servedBy ??= frame.version;
         this.resync = redialed;
         if (redialed) this.emit({ type: "reconnected", newerBuild: differentBuild(this.servedBy, frame.version) });
-        this.browser = frame.features?.includes(BROWSER_FEATURE) ? this.browserChannel() : undefined;
+        this.browser = frame.features?.includes(BROWSER_FEATURE) ? this.browserChannel(frame.features) : undefined;
         this.setTyping(parseTyping(frame.typing));
         this.features = new Set(frame.features ?? []);
         this.resumeUnlock(parseTyping(frame.typing));

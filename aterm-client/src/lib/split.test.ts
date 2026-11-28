@@ -54,19 +54,37 @@ describe("stored open state", () => {
   };
 
   it("starts put away, since an empty panel costs the terminal 360px", () => {
-    expect(loadSideOpen(stub())).toBe(false);
+    expect(loadSideOpen("seat-a", stub())).toBe(false);
   });
 
-  it("keeps what a person chose, either way", () => {
+  it("keeps what a person chose for each seat, either way", () => {
     const storage = stub();
-    storeSideOpen(true, storage);
-    expect(loadSideOpen(storage)).toBe(true);
-    storeSideOpen(false, storage);
-    expect(loadSideOpen(storage)).toBe(false);
+    storeSideOpen("seat-a", true, storage);
+    storeSideOpen("seat-b", false, storage);
+    expect(loadSideOpen("seat-a", storage)).toBe(true);
+    expect(loadSideOpen("seat-b", storage)).toBe(false);
+    storeSideOpen("seat-a", false, storage);
+    expect(loadSideOpen("seat-a", storage)).toBe(false);
+  });
+
+  it("gives a seat with no choice of its own the device-wide one kept before COI-3820", () => {
+    const storage = stub();
+    storage.setItem("aterm.side-open.v1", "open");
+    expect(loadSideOpen("seat-a", storage)).toBe(true);
+    storeSideOpen("seat-a", false, storage);
+    expect(loadSideOpen("seat-a", storage), "its own choice wins").toBe(false);
+    expect(loadSideOpen("seat-b", storage)).toBe(true);
+  });
+
+  it("keeps the newest 100 seats", () => {
+    const storage = stub();
+    for (let i = 0; i < 105; i++) storeSideOpen(`seat-${i}`, true, storage);
+    expect(loadSideOpen("seat-0", storage), "the oldest is forgotten").toBe(false);
+    expect(loadSideOpen("seat-104", storage)).toBe(true);
   });
 
   it("falls back to put away when storage is off or holds something else", () => {
-    expect(loadSideOpen({ getItem: () => { throw new Error("off"); } })).toBe(false);
-    expect(loadSideOpen({ getItem: () => "maybe" })).toBe(false);
+    expect(loadSideOpen("seat-a", { getItem: () => { throw new Error("off"); } })).toBe(false);
+    expect(loadSideOpen("seat-a", { getItem: () => "maybe" })).toBe(false);
   });
 });
