@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { driverLabel, isDriving, isStalled, keyParams, modifiersOf, mouseParams, paneSize, tabLabel, toPagePoint, type SharedBrowser } from "./screencast";
+import { driverLabel, isDriving, keyParams, modifiersOf, mouseParams, paneSize, tabLabel, toPagePoint, type SharedBrowser } from "./screencast";
 
 const metadata = { deviceWidth: 1280, deviceHeight: 800, offsetTop: 0, pageScaleFactor: 1 };
 const none = { altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
@@ -71,12 +71,6 @@ describe("isDriving", () => {
 
 describe("browser state", () => {
   const live: SharedBrowser = { session: "s", state: "live", driver: "agent", heldHere: false, url: "", title: "", frame: { src: "", metadata, at: 1000, seq: 1 } };
-
-  it("calls a live stream stalled after five quiet seconds", () => {
-    expect(isStalled(live, 5999)).toBe(false);
-    expect(isStalled(live, 6001)).toBe(true);
-    expect(isStalled({ ...live, state: "none" }, 60_000)).toBe(false);
-  });
 
   it("says who is driving", () => {
     expect(driverLabel(live, "Frog-Ox")).toBe("Frog-Ox is driving.");

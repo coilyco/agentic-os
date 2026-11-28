@@ -267,7 +267,10 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const send = (socket: WebSocket, frame: Record<string, unknown>): void => {
     if (socket.readyState === socket.OPEN && !silent.has(socket)) socket.send(JSON.stringify(frame));
   };
+  // The daemon replays a browser's newest frame to a screen that starts watching.
+  const lastFrames = new Map<string, Record<string, unknown>>();
   const broadcast = (frame: Record<string, unknown>): void => {
+    if (frame.type === "browser_frame") lastFrames.set(String(frame.session), frame);
     for (const socket of clients) send(socket, frame);
   };
   // Plain shells by name, each with its seat. Attached like a seat, listed apart.
@@ -356,6 +359,8 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           mock.browserCalls.push({ type: "browser_watch", session: String(frame.session) });
           if (!pages.has(String(frame.session))) pages.set(String(frame.session), { holder: null, url: "about:blank" });
           send(socket, browserState(String(frame.session), socket, frame.id));
+          const replay = lastFrames.get(String(frame.session));
+          if (replay) send(socket, replay);
           return;
         case "push_key":
         case "push_subscribe":
