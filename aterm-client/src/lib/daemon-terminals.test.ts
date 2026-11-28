@@ -199,3 +199,18 @@ describe("a refused spawn", () => {
     host.close();
   });
 });
+
+describe("dead seats on the sessions frame", () => {
+  it("passes the daemon's list on, and an empty one once the seat is reopened", () => {
+    const { host, events, socket } = connect(["reopen"]);
+    socket.receive({ type: "sessions", sessions: [], dead: [{ name: "eng-platform-sturdy-imp", ref: "0a1b2c3d", role: "eng-platform", identity: "Sturdy Imp", seat: "claude", ended: "2026-11-27T12:00:00Z" }] });
+    socket.receive({ type: "sessions", sessions: [] });
+    expect(ofType(events, "dead_seats")).toEqual([
+      { type: "dead_seats", seats: [{ name: "eng-platform-sturdy-imp", ref: "0a1b2c3d", role: "eng-platform", identity: "Sturdy Imp", seat: "claude", endedAt: Date.parse("2026-11-27T12:00:00Z") }] },
+      { type: "dead_seats", seats: [] },
+    ]);
+    host.reopenSeat("eng-platform-sturdy-imp", "0a1b2c3d");
+    expect(socket.lastSent()).toMatchObject({ type: "reopen", target: "eng-platform-sturdy-imp@0a1b2c3d" });
+    host.close();
+  });
+});

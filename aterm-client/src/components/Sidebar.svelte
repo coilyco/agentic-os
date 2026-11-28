@@ -11,11 +11,12 @@
   import SettingsLink from "./SettingsLink.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
   import SeatPreview from "./SeatPreview.svelte";
-  import { app, askLineFor, asksShownOn, colorOf, closeAnyway, dismissCloseNote, glowSeats, layout, needsKaiIds, overviewShown, pinnedNow, reopenClosed, showAllRoles, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
+  import { app, askLineFor, asksShownOn, colorOf, closeAnyway, dismissCloseNote, glowSeats, layout, needsKaiIds, overviewShown, pinnedNow, reopenClosed, reopenDead, showAllRoles, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
   import type { Host, Session } from "../lib/protocol";
   import { MACHINE_KIND_LABEL } from "../lib/machine-kind";
   import { stateWithAge } from "../lib/age";
+  import { deadDetail } from "../lib/dead-seats";
   import { activityFlag, activityWords } from "../lib/seat-activity";
   import { splitHidden } from "../lib/hidden-roles";
   import { hostRunning, orderSessions, roleFor, sessionCode, sessionLabel, splitSessions } from "../lib/sessions";
@@ -299,6 +300,22 @@
       {#each live.failed as session (session.id)}{@render seatTab(session, live.failed)}{/each}
     </div>
   {/if}
+  {@render deadGroup()}
+{/snippet}
+
+{#snippet deadGroup()}
+  {#if app.deadSeats.length}
+    {@const canReopen = !!app.connection?.reopenSeat && app.connection.canReopen === true && app.typing.allowed && !reconnecting()}
+    <h2 id="dead-label">Dead <span class="count">{app.deadSeats.length}</span></h2>
+    <ul class="dead" aria-labelledby="dead-label">
+      {#each app.deadSeats as seat (`${seat.name}@${seat.ref}`)}
+        <li>
+          <span class="text"><span class="name">{seat.identity}</span><span class="detail">{deadDetail(app.roles.find((role) => role.slug === seat.role)?.displayName ?? seat.role, seat.endedAt, now)}</span></span>
+          {#if canReopen}<button type="button" aria-label={`Reopen ${seat.identity}`} onclick={() => reopenDead(seat)}>Reopen</button>{/if}
+        </li>
+      {/each}
+    </ul>
+  {/if}
 {/snippet}
 
 {#snippet startGroup()}
@@ -406,6 +423,12 @@
   .note-actions { display: flex; gap: 8px; margin: 4px 10px 8px; }
   .note-actions button { min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 13px var(--font-body); }
   .note-actions .danger { border-color: var(--danger); color: var(--danger-text); }
+  .dead { list-style: none; margin: 0 0 8px; padding: 0; }
+  .dead li { display: flex; align-items: center; gap: 8px; margin: 0 10px; min-height: 44px; }
+  .dead .text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+  .dead .name { color: var(--text); font: 600 14px var(--font-body); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dead .detail { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dead button { min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--control-line); background: transparent; color: var(--text); font: 600 13px var(--font-body); flex: none; }
   .seat-row { display: flex; align-items: center; gap: 6px; }
   .seat-top { flex: 1; min-width: 0; display: flex; align-items: stretch; gap: 2px; }
   .seat-top .tab { flex: 1; min-width: 0; width: auto; }
