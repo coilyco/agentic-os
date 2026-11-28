@@ -4,6 +4,7 @@ import rosterJson from "./fixtures/roster.json";
 import { envelope } from "./messages";
 import { FEEDBACK_TEXT_MAX, feedbackRefusal } from "./feedback";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
+import { ImageReadRefused } from "./sent-images";
 import { MOCK_FILES } from "./fixtures/mock-media";
 import { mediaRefusal } from "./media";
 import type { Ask, ContextReading, HostConnection, FeedbackChannel, HostEvent, ImageChannel, MachineKindChannel, MediaChannel, PeerMessage, Session, TerminalChannel } from "./protocol";
@@ -99,9 +100,20 @@ export class MockHost implements HostConnection {
       const held = (this.uploads.get(sessionId) ?? 0) + 1;
       this.uploads.set(sessionId, held);
       await new Promise((resolve) => setTimeout(resolve, 400));
-      return `/tmp/aterm-mock/images/${sessionId}-1/${String(held).padStart(4, "0")}.png`;
+      const path = `/tmp/aterm-mock/images/${sessionId}-1/${String(held).padStart(4, "0")}.png`;
+      this.uploaded.set(path, image);
+      return path;
+    },
+    // The daemon serves only the seat's own directory. The mock sends no smaller copy.
+    read: async (sessionId, path) => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      if (!path.startsWith(`/tmp/aterm-mock/images/${sessionId}-1/`) || path.includes("/../")) throw new ImageReadRefused("bad_path");
+      const held = this.uploaded.get(path);
+      if (!held) throw new ImageReadRefused("image_gone");
+      return held;
     },
   };
+  private uploaded = new Map<string, Blob>();
   // COI-3345's frames, scripted before the daemon has them, under the image rules above.
   readonly feedback: FeedbackChannel = {
     maxBytes: IMAGE_UPLOAD_MAX_BYTES,

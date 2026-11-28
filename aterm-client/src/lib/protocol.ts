@@ -268,6 +268,8 @@ export interface ImageChannel {
   maxBytes: number;
   /** Puts the image on the seat's host and resolves its path. Rejects in words. */
   upload(sessionId: string, image: Blob): Promise<string>;
+  /** A sent image by its upload path, a thumbnail unless `full`. Needs `image-thumb`. */
+  read?(sessionId: string, path: string, full: boolean): Promise<Blob>;
 }
 
 /** The screen as the client saw it. Display text, never trusted. */

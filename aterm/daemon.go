@@ -516,7 +516,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		welcome.Features = append(welcome.Features, pushFeature)
 	}
 	if d.imageRoot != "" {
-		welcome.Features = append(welcome.Features, imageUploadFeature)
+		welcome.Features = append(welcome.Features, imageUploadFeature, imageThumbFeature)
 	}
 	if d.mediaRoot != "" {
 		welcome.Features = append(welcome.Features, mediaFeature)
@@ -655,6 +655,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return s.typeInput(message.Data)
 	case "image_upload":
 		return d.uploadImage(cl, message)
+	case "image_thumb":
+		return d.imageThumb(cl, message)
 	case "feedback_image":
 		return d.feedbackImage(cl, message)
 	case "feedback":

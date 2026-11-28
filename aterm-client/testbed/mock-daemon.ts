@@ -145,6 +145,10 @@ export interface Mock {
   uploads: { session: string; bytes: Buffer }[];
   /** The daemon refuses every `image_upload` with this reason, until set back to null. */
   refuseUploads(reason: string | null): void;
+  /** Each `image_thumb` asked: the seat, the path, and whether it wanted it whole. */
+  thumbReads: { session: string; path: string; full: boolean }[];
+  /** Puts bytes at an upload path, as if another device had sent them. */
+  hostImage(path: string, bytes: Buffer): void;
   /** Each `feedback` taken: the note, the screen it names, and the screenshots' bytes. */
   feedbacks: { text: string; screen: Record<string, unknown>; images: Buffer[] }[];
   /** Every `feedback_image` and `feedback` frame heard, to count what a retry resent. */
@@ -191,7 +195,7 @@ export function loadSessions(): SessionSpec[] {
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
  * `images`: Add image. `webPush`: Notify when closed. `dist`: another build to serve. */
-export type MockOptions = { dist?: string; sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; feedback?: boolean; version?: string; transcript?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
+export type MockOptions = { dist?: string; sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; thumbs?: boolean; feedback?: boolean; version?: string; transcript?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const dist = options.dist ? join(HERE, "..", options.dist) : DIST;
   if (!existsSync(join(dist, "index.html"))) {
@@ -205,6 +209,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const live = new Map<string, Live>();
   const typedBy = new Map<string, string[]>();
   let uploadRefusal: string | null = null;
+  const held = new Map<string, Buffer>();
   let feedbackRefusal: string | null = null;
   const staged = new Map<string, Buffer>();
   let stagedCount = 0;
@@ -219,7 +224,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const lastBox = new Map<string, { rows: number; cols: number }>();
   const closed = new Map<string, SessionSpec>();
   const artifactFrames = new Map<string, Record<string, unknown>>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], reloads: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], feedbacks: [] as Mock["feedbacks"], feedbackFrames: [] as string[], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"], attachCalls: [] as Mock["attachCalls"] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], reloads: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], thumbReads: [] as Mock["thumbReads"], feedbacks: [] as Mock["feedbacks"], feedbackFrames: [] as string[], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"], attachCalls: [] as Mock["attachCalls"] };
   const shared = new Map<string, { session: string; name: string; mime: string; kind: string; bytes: Buffer; at: number; unreadable?: boolean }>();
   const mediaFrame = (id: string) => {
     const file = shared.get(id)!;
@@ -313,7 +318,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           if (options.lock) {
             send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...unlockedFeatures, ...pushFeature], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
           } else {
-            send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...(options.images ? ["image-upload"] : []), ...(options.feedback ? ["feedback"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.media ? ["media"] : []), ...(options.artifacts ? ["artifacts"] : []), ...pushFeature], typing: { allowed: true } });
+            send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...(options.images ? ["image-upload"] : []), ...(options.images && options.thumbs ? ["image-thumb"] : []), ...(options.feedback ? ["feedback"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.media ? ["media"] : []), ...(options.artifacts ? ["artifacts"] : []), ...pushFeature], typing: { allowed: true } });
           }
           return;
         case "device_assert_begin":
@@ -482,7 +487,20 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
             return;
           }
           mock.uploads.push({ session: seat.spec.name, bytes: Buffer.from(String(frame.data ?? ""), "base64") });
-          send(socket, { type: "image_uploaded", id: frame.id, session: frame.session, path: `/tmp/aterm/images/${seat.spec.name}-1/upload-${mock.uploads.length}.png` });
+          const path = `/tmp/aterm/images/${seat.spec.name}-1/upload-${mock.uploads.length}.png`;
+          held.set(path, mock.uploads.at(-1)!.bytes);
+          send(socket, { type: "image_uploaded", id: frame.id, session: frame.session, path });
+          return;
+        }
+        // The daemon's rule: only a file directly in the seat's directory. No scaling.
+        case "image_thumb": {
+          const session = String(frame.session ?? "");
+          const path = String(frame.path ?? "");
+          mock.thumbReads.push({ session, path, full: frame.full === true });
+          const dir = `/tmp/aterm/images/${session}-1/`;
+          const reason = !path.startsWith(dir) || path.slice(dir.length).includes("/") ? "bad_path" : held.has(path) ? null : "image_gone";
+          if (reason) send(socket, { type: "error", id: frame.id, code: 6, error: "refused", reason });
+          else send(socket, { type: "image_thumb", id: frame.id, session, path, data: held.get(path)!.toString("base64") });
           return;
         }
         case "input": {
@@ -658,6 +676,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     heard,
     resumes: mock.resumes,
     uploads: mock.uploads,
+    thumbReads: mock.thumbReads,
     attachCalls: mock.attachCalls,
     transcriptCalls: mock.transcriptCalls,
     setTranscript: (session, items) => void transcripts.set(session, items),
@@ -682,6 +701,9 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     },
     expireFeedbackImages() {
       staged.clear();
+    },
+    hostImage(path, bytes) {
+      held.set(path, bytes);
     },
     refuseUploads(reason) {
       uploadRefusal = reason;

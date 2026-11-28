@@ -72,8 +72,10 @@ type frame struct {
 	// input and output, and the image bytes of an image_upload
 	Data   []byte `json:"data,omitempty"`
 	Offset int64  `json:"offset,omitempty"`
-	// Path is the absolute file an image_uploaded names.
+	// Path is the absolute file an image_uploaded names, and an image_thumb reads back.
 	Path string `json:"path,omitempty"`
+	// Full asks an image_thumb for the bytes as uploaded rather than a thumbnail.
+	Full bool `json:"full,omitempty"`
 	// feedback: Image and Images are screenshot tokens, Screen the client's display text
 	// (not "context", which a seat's meter owns), Record the report's id.
 	Image  string          `json:"image,omitempty"`
