@@ -33,6 +33,20 @@ const (
 	seedQuiet = 600 * time.Millisecond
 )
 
+// browserProbePace is how often a watched page is round-tripped, and how long
+// one may go unanswered before it is stalled (COI-3825).
+type browserProbePace struct{ every, timeout time.Duration }
+
+func (p browserProbePace) orDefaults() browserProbePace {
+	if p.every <= 0 {
+		p.every = 2 * time.Second
+	}
+	if p.timeout <= 0 {
+		p.timeout = 3 * time.Second
+	}
+	return p
+}
+
 // browserHub keeps one sharedBrowser per session, started when the first
 // client watches it. The zero value is ready.
 type browserHub struct {
@@ -151,6 +165,8 @@ type sharedBrowser struct {
 	// closedByPerson is set when browser_close ends the last page, so the browser
 	// ends as none rather than closed and a repeat watch does not reopen it.
 	closedByPerson bool
+	// stalled is set while the followed page leaves a probe unanswered.
+	stalled bool
 }
 
 // watcher is one client's view of a browser. It keeps the newest state and frame only,
@@ -223,7 +239,7 @@ func (sb *sharedBrowser) stateFrame(client, id string) *frame {
 	return &frame{
 		Type: "browser_state", ID: id, Session: sb.session, State: sb.state, Driver: sb.driver,
 		Holder: sb.holder, URL: sb.url, Title: sb.title, Reason: sb.reason, Client: client,
-		Tab: tab, Tabs: tabs, CloudflareCheck: sb.challenged(),
+		Tab: tab, Tabs: tabs, CloudflareCheck: sb.challenged(), Stalled: sb.state == "live" && sb.stalled,
 	}
 }
 
@@ -475,7 +491,7 @@ func (sb *sharedBrowser) start() {
 	sb.url, sb.title = target.URL, target.Title
 	sb.pages = []pageTab{{targetID: target.TargetID, session: page, url: target.URL, title: target.Title}}
 	sb.challengeFrames = nil
-	sb.closedByPerson = false
+	sb.closedByPerson, sb.stalled = false, false
 	sb.starting = false
 	sb.state, sb.reason = "live", link.note
 	if sb.reason == "" {
@@ -486,6 +502,7 @@ func (sb *sharedBrowser) start() {
 	sb.mu.Unlock()
 	sb.startScreencast(cdp, page)
 	go sb.followTitle(cdp)
+	go sb.probe(cdp)
 	go func() {
 		select {
 		case <-link.exited:
@@ -531,6 +548,43 @@ func attachPage(ctx context.Context, cdp *cdpClient) (targetInfo, string, error)
 		return target, session, nil
 	}
 	return targetInfo{}, "", errors.New("the browser has no page")
+}
+
+// probe round-trips the followed page while a screen watches, so a hung renderer
+// reads as stalled though its process lives. State goes out on change only.
+func (sb *sharedBrowser) probe(cdp *cdpClient) {
+	pace := sb.d.browserProbe.orDefaults()
+	for {
+		select {
+		case <-cdp.done:
+			return
+		case <-time.After(pace.every):
+		}
+		sb.mu.Lock()
+		if sb.cdp != cdp {
+			sb.mu.Unlock()
+			return
+		}
+		page := sb.page
+		if sb.state != "live" || len(sb.watchers) == 0 {
+			// Nobody to tell, and a screen that watches later must not inherit it.
+			sb.stalled = false
+			sb.mu.Unlock()
+			continue
+		}
+		sb.mu.Unlock()
+		ctx, cancel := context.WithTimeout(context.Background(), pace.timeout)
+		_, err := cdp.call(ctx, page, "Runtime.evaluate", map[string]any{"expression": "1"})
+		cancel()
+		// Only silence is a hang. A refusal, such as a page detached mid-follow, is an answer.
+		missed := errors.Is(err, context.DeadlineExceeded)
+		sb.mu.Lock()
+		if sb.cdp == cdp && sb.page == page && sb.stalled != missed {
+			sb.stalled = missed
+			sb.broadcast()
+		}
+		sb.mu.Unlock()
+	}
 }
 
 // closed marks the browser gone, unless a newer one has replaced cdp. One a
