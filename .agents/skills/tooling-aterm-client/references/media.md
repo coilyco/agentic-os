@@ -8,6 +8,7 @@ A seat's images, video and other files open in a viewer over the seat (COI-3458)
 * **A viewer** over the whole screen. An image is fitted to the screen and a Rotate button turns it in quarters, since the first camera frame came out upside down. A video plays from its own controls. Previous and Next step through the sequence, with `2 of 8` in the header, and the view follows the newest frame until the person steps back.
 * **Anything else** (a PDF, a G-code file, an archive) gets a card with its name and size and a Download button. The file is read only when Download is pressed, in 2 MB chunks.
 * **A file the host no longer has** says so in words, with Try again. It keeps the newest 32 a seat shares.
+* **In the transcript**, under the step that shared it, at every level. The client reads the step's own output, the `<kind> "<name>", <n> bytes, ...` line `aterm show` and `show_media` print, and finds the shelf item with that kind, name and size, nearest the step in time. An image up to 4 MB is drawn there once scrolled into view, anything else is a card, and either opens the viewer on that item. A file the host no longer has, because the seat ended or the daemon restarted, says so in words, and a locked device is asked to unlock.
 * **By keyboard:** arrows step, Escape closes, Tab stays inside the viewer, and focus returns to the chip. The controls are 44px targets that fit 320px.
 
 ## What it relies on

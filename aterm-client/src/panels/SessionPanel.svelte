@@ -150,6 +150,8 @@
   // Files this seat shared. The chip says so and the viewer opens over the seat (COI-3458).
   const shared = $derived(app.connection?.media ? mediaOf(session.id) : []);
   let viewing = $state(false);
+  // The item a transcript step opened the viewer on. The chip opens on the newest.
+  let viewFrom = $state<string | undefined>();
   let seatTerminal = $state<{ openFind: () => void; wrap: (next: boolean) => void }>();
   let seatTranscript = $state<{ openSearch: () => void }>();
   // While the transcript shows, Find searches all of it (COI-3797). The screen's find covers the raw views.
@@ -453,7 +455,7 @@
                 <Terminal bind:this={seatTerminal} connection={app.connection} sessionId={session.id} label={session.identity} accent={role.color} {messages} {colorOf} onscreen={readScreen} onwrap={(next) => (wrapping = next)} cropHarness covered={!!(ask || choice || login || screenMenu)} locked={!app.typing.allowed || reconnecting()} />
               </div>
               {#if transcripts && !showRaw}
-                <Transcript bind:this={seatTranscript} channel={transcripts} sessionId={session.id} hostId={app.selectedHostId ?? ""} restore={app.typing.allowed} level={view.level} marker={!hasRead} onread={() => (hasRead = true)} onrefused={(reason) => (fallback = reason)} onpeer={showPeer} />
+                <Transcript bind:this={seatTranscript} channel={transcripts} sessionId={session.id} hostId={app.selectedHostId ?? ""} restore={app.typing.allowed} level={view.level} marker={!hasRead} onread={() => (hasRead = true)} onrefused={(reason) => (fallback = reason)} onpeer={showPeer} onmedia={(id) => { viewFrom = id; viewing = true; }} />
               {/if}
             </div>
             {#if session.starting && blank}
@@ -532,10 +534,10 @@
           </div>
           {#if relayed}<RelayNotice seat={relayed} />{/if}
           {#if shared.length > 0}
-            <MediaChip seat={session.identity} count={shared.length} unseen={unseenMedia(session.id)} onopen={() => (viewing = true)} />
+            <MediaChip seat={session.identity} count={shared.length} unseen={unseenMedia(session.id)} onopen={() => { viewFrom = undefined; viewing = true; }} />
           {/if}
           {#if viewing && app.connection?.media}
-            <MediaViewer channel={app.connection.media} items={shared} seat={session.identity} onclose={() => (viewing = false)} onseen={() => markMediaSeen(session.id)} />
+            <MediaViewer channel={app.connection.media} items={shared} startId={viewFrom} seat={session.identity} onclose={() => (viewing = false)} onseen={() => markMediaSeen(session.id)} />
           {/if}
           {#if app.inputNotice}
             <p class="input-notice" role="alert">

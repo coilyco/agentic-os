@@ -5,6 +5,7 @@
   import { clearMatches, matchRanges, paintMatches } from "../lib/transcript-search";
   import { takeJump } from "../lib/search-jump.svelte";
   import SentImages from "./SentImages.svelte";
+  import TranscriptMedia from "./TranscriptMedia.svelte";
   import { replyAge } from "../lib/last-reply";
   import { openLink } from "../lib/link-notice.svelte";
   import type { TranscriptChannel } from "../lib/protocol";
@@ -16,7 +17,7 @@
   import { parseSent } from "../lib/sent-images";
 
   // `restore` is false for a device that has not unlocked, which never shows a kept page.
-  let { channel, sessionId, hostId, restore, level, marker, onread, onrefused, onpeer }: { channel: TranscriptChannel; sessionId: string; hostId: string; restore: boolean; level: Level; marker: boolean; onread: () => void; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void } = $props();
+  let { channel, sessionId, hostId, restore, level, marker, onread, onrefused, onpeer, onmedia }: { channel: TranscriptChannel; sessionId: string; hostId: string; restore: boolean; level: Level; marker: boolean; onread: () => void; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void; onmedia: (id: string) => void } = $props();
 
   const PAGE = 50;
   // The most items held at once, so a seat watched for hours costs what a fresh one does (COI-3648).
@@ -354,6 +355,7 @@
       {:else if row.kind === "tool"}
         <div class="step" data-row={row.key} data-failed={row.ok === false}>
           <p class="line">{row.summary}{#if row.ok === false}<span class="bad">failed</span>{/if}</p>
+          {#if row.shown}<TranscriptMedia shown={row.shown} at={row.at} {sessionId} onopen={onmedia} />{/if}
           {#if row.lines.length}<pre>{row.lines.join("\n")}</pre>{/if}
           {#if row.hidden}<p class="more">{row.hidden} more {row.hidden === 1 ? "line" : "lines"}. Verbose shows them.</p>{/if}
           {#if row.cut}<p class="more">The host cut this output.</p>{/if}
