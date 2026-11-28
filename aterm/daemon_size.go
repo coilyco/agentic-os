@@ -79,8 +79,9 @@ func (s *ptySession) refit() {
 	if s.scr != nil {
 		s.scr.resize(rows, cols)
 	}
+	clients := s.clientList()
 	s.mu.Unlock()
-	s.sendTo(s.clientList(), frame{Type: "size", Session: s.name, Rows: rows, Cols: cols})
+	s.sendTo(clients, frame{Type: "size", Session: s.name, Rows: rows, Cols: cols})
 }
 
 // sizeFrame is the size now chosen, for a client that just attached.
