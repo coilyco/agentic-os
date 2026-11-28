@@ -36,6 +36,7 @@
     cropHarness = false,
     covered = false,
     ontype,
+    onwrap,
   }: {
     connection: HostConnection;
     sessionId: string;
@@ -53,6 +54,8 @@
     covered?: boolean;
     /** Every typed chunk this terminal sent, for the line a seat staged (COI-3306). */
     ontype?: (data: string) => void;
+    /** Whether long lines fold now, for the seat's View button (COI-3757). */
+    onwrap?: (wrapping: boolean) => void;
   } = $props();
 
   let host: HTMLDivElement;
@@ -735,6 +738,13 @@
     if (wrapPick !== undefined || wrapping || !overflows || !wrapsByDefault(loadWrapDefault(), handheld)) return;
     fold(true);
   });
+
+  $effect(() => onwrap?.(wrapping));
+
+  /** A pick from the View button, kept as this seat's own choice like the toolbar switch. */
+  export function wrap(next: boolean): void {
+    if (next !== wrapping || wrapPick !== next) setWrap(next);
+  }
 
   function setWrap(next: boolean): void {
     wrapPick = next;

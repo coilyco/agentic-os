@@ -1,6 +1,6 @@
 // COI-3705: a send of only pictures leaves a pending entry and a history entry with its
 // images, so a swallowed one can be recalled and sent again.
-import { expect, kindOf, reopenSeat, SEATS, test, type Bed } from "../harness.ts";
+import { expect, kindOf, reopenSeat, SEATS, test, type Bed, pickView } from "../harness.ts";
 
 test.use({ mockOptions: { images: true, transcript: true } });
 
@@ -13,7 +13,7 @@ const chip = (bed: Bed) => bed.page.getByRole("button", { name: "Remove image 1"
 async function openTranscript(bed: Bed): Promise<void> {
   bed.mock.setTranscript(imp, [{ id: "p1", kind: "prompt", text: "an earlier message", at: "2026-11-10T21:00:00Z" }]);
   await bed.openSeat(SEATS.imp);
-  if (kindOf(test.info()) === "desktop") await bed.page.getByRole("radio", { name: "Focus" }).click();
+  if (kindOf(test.info()) === "desktop") await pickView(bed.page, "Focus");
   await expect(bed.page.locator(".transcript")).toContainText("an earlier message");
 }
 

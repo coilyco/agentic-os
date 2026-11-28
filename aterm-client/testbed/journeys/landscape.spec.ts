@@ -1,6 +1,6 @@
 // Journeys for COI-3341: a phone in landscape. Height is scarce, so the seat's terminal
 // should fill the screen. These record how many rows of output a person can read.
-import { expect, SEATS, test } from "../harness.ts";
+import { expect, pickView, SEATS, test } from "../harness.ts";
 
 const measure = (page: import("@playwright/test").Page) =>
   page.evaluate(() => {
@@ -46,7 +46,7 @@ test.describe("with the transcript", () => {
   test("the transcript's freshness line is not shown on its side", async ({ bed }) => {
     bed.mock.setTranscript(SEATS.imp.id, [{ id: "p1", kind: "prompt", text: "an earlier message", at: "2026-11-10T21:00:00Z" }]);
     await bed.openSeat(SEATS.imp);
-    await bed.page.getByRole("radio", { name: "Focus" }).click();
+    await pickView(bed.page, "Focus");
     await expect(bed.page.locator(".transcript")).toContainText("an earlier message");
     await expect(bed.page.getByText(/^From the transcript/)).toHaveCount(0);
   });
