@@ -227,6 +227,8 @@ interface Frame {
   holder?: string;
   tab?: number;
   tabs?: number;
+  /** A browser_state's: the page shows a Cloudflare check (COI-3803). */
+  cloudflare_check?: boolean;
   client?: string;
   seq?: number;
   metadata?: Record<string, number>;
@@ -308,6 +310,7 @@ export function toBrowserState(frame: Frame, previous: SharedBrowser | undefined
     ...(frame.holder ? { holder: frame.holder } : {}),
     ...(typeof frame.reason === "string" && frame.reason ? { reason: frame.reason } : {}),
     ...(frame.tab && frame.tabs ? { tab: frame.tab, tabs: frame.tabs } : {}),
+    ...(frame.cloudflare_check === true ? { cloudflareCheck: true } : {}),
     ...(previous?.frame ? { frame: previous.frame } : {}),
   };
 }

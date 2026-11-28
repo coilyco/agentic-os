@@ -212,17 +212,19 @@ type frame struct {
 	URL    string `json:"url,omitempty"`
 	Title  string `json:"title,omitempty"`
 	// Notify is a `notify` event for clients, and NotifyID the id a `notified` reply names.
-	Notify   *notifyEvent    `json:"notify,omitempty"`
-	NotifyID string          `json:"notify_id,omitempty"`
-	Holder   string          `json:"holder,omitempty"`
-	Tab      int             `json:"tab,omitempty"`
-	Tabs     int             `json:"tabs,omitempty"`
-	Client   string          `json:"client,omitempty"`
-	Width    int             `json:"width,omitempty"`
-	Height   int             `json:"height,omitempty"`
-	Seq      int64           `json:"seq,omitempty"`
-	Take     bool            `json:"take,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
+	Notify   *notifyEvent `json:"notify,omitempty"`
+	NotifyID string       `json:"notify_id,omitempty"`
+	Holder   string       `json:"holder,omitempty"`
+	Tab      int          `json:"tab,omitempty"`
+	Tabs     int          `json:"tabs,omitempty"`
+	// CloudflareCheck: the followed page shows a Cloudflare check (COI-3803).
+	CloudflareCheck bool            `json:"cloudflare_check,omitempty"`
+	Client          string          `json:"client,omitempty"`
+	Width           int             `json:"width,omitempty"`
+	Height          int             `json:"height,omitempty"`
+	Seq             int64           `json:"seq,omitempty"`
+	Take            bool            `json:"take,omitempty"`
+	Metadata        json.RawMessage `json:"metadata,omitempty"`
 
 	// MCP Apps: the gateway and the views channel. See docs/aterm-daemon.md.
 	View       *viewFrame      `json:"view,omitempty"`

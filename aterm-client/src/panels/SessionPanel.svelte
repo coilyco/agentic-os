@@ -19,7 +19,7 @@
   import { viewChoice } from "../lib/view-choice.svelte";
   import Terminal from "../components/Terminal.svelte";
   import Transcript from "../components/Transcript.svelte";
-  import { app, asksShownOn, colorOf, layout, markMediaSeen, mediaOf, messagesFor, needsKaiIds, placeNow, reconnecting, relayedTo, unseenMedia } from "../lib/app.svelte";
+  import { app, asksShownOn, colorOf, setSigningIn, layout, markMediaSeen, mediaOf, messagesFor, needsKaiIds, placeNow, reconnecting, relayedTo, unseenMedia } from "../lib/app.svelte";
   import { readTabs, tabKeys, type TabReading } from "../lib/dialog-tabs";
   import type { TabBarCells } from "../lib/screen";
   import { askScope, cardMemo, forgetCardMemos, memoKey, screenScope, tickedRows } from "../lib/card-memo.svelte";
@@ -301,6 +301,14 @@
     untrack(() => {
       if (lastRead) readScreen(lastRead.rows, lastRead.tabBar);
     });
+  });
+
+  // Up, the sign-in card takes over this seat's own copy of its authorize page (COI-3803).
+  $effect(() => {
+    const id = session.id;
+    const up = login !== null;
+    untrack(() => setSigningIn(id, up));
+    return () => untrack(() => setSigningIn(id, false));
   });
 
   // A redraw arrives in pieces, so a frame without the sign-in screen is not it closing.

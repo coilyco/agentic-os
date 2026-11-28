@@ -33,6 +33,7 @@ import { applyList, claim, loadClosed, loadSeats, NO_ANSWER, OPEN_TIMEOUT_MS, re
 import { treehouseConfig } from "./treehouse";
 import { Refusal, TYPING_OPEN, type Typing } from "./typing";
 import { offer, pageLabel, type OpenedPage } from "./pages";
+import { isClaudeSignIn } from "./sign-in-pages";
 import { loadLastOpen, storeLastOpen, type LastOpen } from "./last-open";
 import { beginLaunch, newSeatFor, type PendingLaunch } from "./launch-follow";
 
@@ -92,6 +93,8 @@ export const app = $state({
   openedPages: [] as OpenedPage[],
   /** The page a click is loading into a seat's pane, until it holds control and loads. */
   pageToShow: null as { sessionId: string; url: string; since: number } | null,
+  /** Seats whose sign-in card is up (COI-3679), which opens their authorize page. */
+  signingIn: {} as Record<string, true>,
   /** The command each seat staged on its shell, until the line is run or cleared. */
   staged: {} as Record<string, StagedLine>,
   /** A stage for the seat on screen asks its Terminal tab forward, once. */
@@ -482,6 +485,7 @@ export function selectHost(host: Host): void {
   app.notice = "";
   app.openedPages = [];
   app.pageToShow = null;
+  app.signingIn = {};
   if (host.status.kind !== "online" || app.attachedHostId === host.id) return;
   resetAttached();
   // DEV first, so a production build folds the branch away and ships no mock.
@@ -859,7 +863,19 @@ let nextPage = 0;
 
 /** A seat asked to open a page. It becomes a card, and the screen stays where it is. */
 export function offerPage(sessionId: string, url: string): void {
+  // The sign-in card opens this page itself, so a second card is noise (COI-3803).
+  if (app.signingIn[sessionId] && isClaudeSignIn(url)) return;
   app.openedPages = offer(app.openedPages, { sessionId, url, at: Date.now() }, ++nextPage);
+}
+
+/** A seat's sign-in card came up or went. Up, it takes over its authorize page. */
+export function setSigningIn(sessionId: string, up: boolean): void {
+  if (!up) {
+    delete app.signingIn[sessionId];
+    return;
+  }
+  app.signingIn[sessionId] = true;
+  app.openedPages = app.openedPages.filter((page) => page.sessionId !== sessionId || !isClaudeSignIn(page.url));
 }
 
 export function dismissPage(id: number): void {
