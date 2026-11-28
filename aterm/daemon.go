@@ -526,7 +526,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
 	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{transcriptFeature, transcriptSearchFeature, transcriptSearchAllFeature, sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, closeSelfFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature, activityFeature, backgroundFeature, closeUnpushedFeature, reopenFeature, reloadFeature, originFeature, notifyFeature, hostKindFeature}, HostKind: string(d.hostKind())}
 	if d.browserServed() {
-		welcome.Features = append(welcome.Features, browserFeature)
+		welcome.Features = append(welcome.Features, browserFeature, browserCloseFeature)
 	}
 	if d.users.PushEnabled() {
 		welcome.Features = append(welcome.Features, pushFeature)
@@ -813,6 +813,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 		return d.browserControl(cl, message)
 	case "browser_input", "browser_navigate":
 		return d.browserDrive(cl, message)
+	case "browser_close":
+		return d.browserClose(cl, message)
 	case "gateway_add":
 		return d.addGateway(cl, message)
 	case "view_call":

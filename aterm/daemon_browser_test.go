@@ -111,6 +111,12 @@ func (f *fakeBrowser) answer(request cdpMessage) {
 		if title != "" {
 			result = map[string]any{"targetInfo": targetInfo{TargetID: "T1", Type: "page", URL: "about:blank", Title: title}}
 		}
+	case "Target.closeTarget":
+		var params struct{ TargetID string }
+		_ = json.Unmarshal(request.Params, &params)
+		// Chromium reports the page gone before it answers, the order that races closePage.
+		f.closePage(params.TargetID)
+		result = map[string]any{"success": true}
 	case "Page.captureScreenshot":
 		result = map[string]any{"data": fakeJPEG}
 	case "Page.getLayoutMetrics":
@@ -668,4 +674,81 @@ func TestBrowserTitleOnlyChangeReachesWatchersWithoutATargetInfoEvent(t *testing
 	fake.pageTitle = "clicked"
 	fake.mu.Unlock()
 	client.untilState("live", func(m frame) bool { return m.Title == "clicked" && m.URL == "about:blank" })
+}
+
+func TestBrowserCloseEndsTheFollowedPageThenTheBrowser(t *testing.T) {
+	d, address, fake := browserDaemon(t)
+	launches := 0
+	launch := d.browserLaunch
+	d.browserLaunch = func(session string) (*browserLink, error) {
+		launches++
+		return launch(session)
+	}
+	client, welcome := dialLoopbackClient(t, address)
+	if !slices.Contains(welcome.Features, browserCloseFeature) {
+		t.Fatalf("welcome should carry %s: %v", browserCloseFeature, welcome.Features)
+	}
+	client.send(frame{Type: "browser_close", ID: "x0", Session: "scientist-evie"})
+	if refused := client.refusal("x0"); refused.Reason != reasonNoBrowser {
+		t.Fatalf("a seat with no page has nothing to close: %+v", refused)
+	}
+	client.send(frame{Type: "browser_close", ID: "x1", Session: "no-such-session"})
+	if refused := client.refusal("x1"); !strings.Contains(refused.Error, "no live session") {
+		t.Fatalf("an unknown seat is refused: %+v", refused)
+	}
+
+	client.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	client.untilState("live", nil)
+	fake.openPage("T2", "https://two.example/", "Two")
+	client.untilState("live", func(m frame) bool { return m.Tab == 2 })
+
+	// No control taken: any screen that may type may close the page.
+	client.send(frame{Type: "browser_close", Session: "scientist-evie"})
+	back := client.untilState("live", func(m frame) bool { return m.Tabs == 1 })
+	if back.Tab != 1 || back.URL != "about:blank" {
+		t.Fatalf("closing the followed page with another open follows that one: %+v", back)
+	}
+	if closes := fake.waitFor("Target.closeTarget", 1); !strings.Contains(string(closes[0].Params), `"targetId":"T2"`) || closes[0].SessionID != "" {
+		t.Fatalf("the followed target should be closed at browser level: %+v", closes[0])
+	}
+
+	client.send(frame{Type: "browser_close", Session: "scientist-evie"})
+	ended := client.untilState("none", nil)
+	if ended.Reason != closedByPersonReason || ended.URL != "" {
+		t.Fatalf("closing the last page ends the browser as none: %+v", ended)
+	}
+	if closes := fake.waitFor("Target.closeTarget", 2); !strings.Contains(string(closes[1].Params), `"targetId":"T1"`) {
+		t.Fatalf("the last page should be closed: %+v", closes[1])
+	}
+
+	// A pane's resize re-watches, and must not reopen the page.
+	client.send(frame{Type: "browser_watch", ID: "w2", Session: "scientist-evie", Width: 400, Height: 700})
+	if again := client.untilFrame("repeat watch", func(m frame) bool { return m.Type == "browser_state" && m.ID == "w2" }); again.State != "none" {
+		t.Fatalf("a repeat watch after a close keeps it closed: %+v", again)
+	}
+	client.send(frame{Type: "browser_close", ID: "x2", Session: "scientist-evie"})
+	if refused := client.refusal("x2"); refused.Reason != reasonNoBrowser {
+		t.Fatalf("a closed browser has no page to close: %+v", refused)
+	}
+	if launches != 1 {
+		t.Fatalf("the browser started %d times, want once", launches)
+	}
+}
+
+func TestBrowserCloseIsRefusedToAProcessInsideASession(t *testing.T) {
+	d, address, fake := browserDaemon(t)
+	client, _ := dialLoopbackClient(t, address)
+	client.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	client.untilState("live", nil)
+	seat := d.session("scientist-evie")
+	d.processes = func() ([]processEntry, error) {
+		return []processEntry{{PID: seat.pid, PPID: 1}, {PID: os.Getpid(), PPID: seat.pid}}, nil
+	}
+	client.send(frame{Type: "browser_close", ID: "x", Session: "scientist-evie"})
+	if refused := client.refusal("x"); refused.Reason != reasonSessionDescendant {
+		t.Fatalf("an agent's own browser may not close the page as Kai: %+v", refused)
+	}
+	if len(fake.called("Target.closeTarget")) != 0 {
+		t.Fatal("a refused close reached the browser")
+	}
 }

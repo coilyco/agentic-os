@@ -13,6 +13,12 @@ import (
 // browserFeature is how a client knows the daemon streams a session's browser.
 const browserFeature = "browser"
 
+// browserCloseFeature: a client may end a seat's page with browser_close (COI-3828).
+const browserCloseFeature = "browser-close"
+
+// closedByPersonReason is what a browser ended by browser_close says, its state none.
+const closedByPersonReason = "A person closed the page from aterm."
+
 // Reasons a browser refusal names, for a client to branch on.
 const (
 	reasonBrowserHeld  = "browser_held"
@@ -142,6 +148,9 @@ type sharedBrowser struct {
 	// challengeFrames are open Turnstile iframes by target id, each with its parent frame.
 	challengeFrames map[string]string
 	watchers        map[*conn]*watcher
+	// closedByPerson is set when browser_close ends the last page, so the browser
+	// ends as none rather than closed and a repeat watch does not reopen it.
+	closedByPerson bool
 }
 
 // watcher is one client's view of a browser. It keeps the newest state and frame only,
@@ -231,10 +240,29 @@ func (d *daemon) browserWatch(cl *client, message frame) error {
 	}
 	sb := d.browsers.sharedFor(d, message.Session)
 	name := d.browsers.clientName(cl.c)
-	sb.watch(cl.c, name, message.ID)
+	fresh := sb.watch(cl.c, name, message.ID)
 	sb.size(message.Width, message.Height)
-	sb.ensureStarted()
+	// A pane's resize is a repeat watch, and must not reopen a page a person closed.
+	if fresh || !sb.personClosed() {
+		sb.ensureStarted()
+	}
 	return nil
+}
+
+// browserClose ends the page a seat's browser shows (COI-3828). Any screen the
+// typing guard lets type may send it, holding control or not.
+func (d *daemon) browserClose(cl *client, message frame) error {
+	if d.session(message.Session) == nil {
+		return withExit(exitOffRoster, fmt.Errorf("no live session named %q", message.Session))
+	}
+	if err := d.typingRefusal(cl, "a process inside an aterm session cannot close a browser page as Kai"); err != nil {
+		return err
+	}
+	sb := d.browsers.existing(message.Session)
+	if sb == nil {
+		return withReason(reasonNoBrowser, fmt.Errorf("%s has no page to close", message.Session))
+	}
+	return sb.closePage()
 }
 
 func (d *daemon) browserUnwatch(cl *client, message frame) error {
@@ -280,17 +308,57 @@ func (d *daemon) browserDrive(cl *client, message frame) error {
 	return sb.input(name, message.Kind, message.Params)
 }
 
-func (sb *sharedBrowser) watch(c *conn, name, id string) {
+// watch adds c as a watcher and reports whether it is new, not a repeat.
+func (sb *sharedBrowser) watch(c *conn, name, id string) bool {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
 	if sb.watchers[c] != nil {
 		sb.watchers[c].post(sb.stateFrame(name, id), nil)
-		return
+		return false
 	}
 	w := newWatcher(c, name)
 	sb.watchers[c] = w
 	go w.run(func() { sb.unwatch(c) })
 	w.post(sb.stateFrame(name, id), sb.last)
+	return true
+}
+
+func (sb *sharedBrowser) personClosed() bool {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.closedByPerson
+}
+
+// closePage closes the followed page. With another page open the stream follows
+// it as on any page closing. With none, the browser ends as none.
+func (sb *sharedBrowser) closePage() error {
+	sb.mu.Lock()
+	if sb.state != "live" || sb.cdp == nil || sb.targetID == "" {
+		sb.mu.Unlock()
+		return withReason(reasonNoBrowser, fmt.Errorf("%s has no page to close", sb.session))
+	}
+	cdp, link, target := sb.cdp, sb.link, sb.targetID
+	last := len(sb.pages) <= 1
+	// Set first, since Chromium may report the page gone, or exit, before it answers.
+	sb.closedByPerson = last
+	sb.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), browserCallTimeout)
+	defer cancel()
+	if _, err := cdp.call(ctx, "", "Target.closeTarget", map[string]any{"targetId": target}); err != nil {
+		sb.mu.Lock()
+		if sb.cdp == cdp {
+			sb.closedByPerson = false
+		}
+		sb.mu.Unlock()
+		return fmt.Errorf("the page did not close: %w", err)
+	}
+	if last {
+		sb.closed(cdp, closedByPersonReason)
+		if link != nil {
+			link.stop()
+		}
+	}
+	return nil
 }
 
 func (sb *sharedBrowser) watchedBy(c *conn) bool {
@@ -393,6 +461,7 @@ func (sb *sharedBrowser) start() {
 	sb.url, sb.title = target.URL, target.Title
 	sb.pages = []pageTab{{targetID: target.TargetID, session: page, url: target.URL, title: target.Title}}
 	sb.challengeFrames = nil
+	sb.closedByPerson = false
 	sb.starting = false
 	sb.state, sb.reason = "live", link.note
 	if sb.reason == "" {
@@ -450,7 +519,8 @@ func attachPage(ctx context.Context, cdp *cdpClient) (targetInfo, string, error)
 	return targetInfo{}, "", errors.New("the browser has no page")
 }
 
-// closed marks the browser gone, unless a newer one has replaced cdp.
+// closed marks the browser gone, unless a newer one has replaced cdp. One a
+// person ended with browser_close is none, whichever path saw it go first.
 func (sb *sharedBrowser) closed(cdp *cdpClient, reason string) {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
@@ -459,6 +529,10 @@ func (sb *sharedBrowser) closed(cdp *cdpClient, reason string) {
 	}
 	sb.cdp, sb.link = nil, nil
 	sb.state, sb.reason = "closed", reason
+	if sb.closedByPerson {
+		sb.state, sb.reason = "none", closedByPersonReason
+		sb.url, sb.title, sb.last = "", "", nil
+	}
 	sb.driver, sb.holder = "agent", ""
 	sb.broadcast()
 }
