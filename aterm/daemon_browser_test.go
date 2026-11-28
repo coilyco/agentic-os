@@ -759,6 +759,41 @@ func TestBrowserCloseIsRefusedToAProcessInsideASession(t *testing.T) {
 	}
 }
 
+// A real Chromium: closing the last page ends the browser as none, with no refusal.
+func TestRealChromiumBrowserCloseEndsTheLastPage(t *testing.T) {
+	if chromiumPath() == "" {
+		t.Skip("no Chromium or Chrome on this host")
+	}
+	d, address := wsDaemon(t)
+	wsSession(t, d, false)
+	d.peerLookup = func(net.Addr, net.Addr) ([]int, error) { return []int{os.Getpid()}, nil }
+	hold := testHoldDir(t)
+	d.browserLaunch = func(session string) (*browserLink, error) {
+		return launchChromium(hold, session, browserProfile{})
+	}
+	t.Cleanup(func() { d.browsers.end("scientist-evie") })
+	client, _ := dialLoopbackClient(t, address)
+	client.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	client.untilState("live", nil)
+	client.send(frame{Type: "browser_close", ID: "x", Session: "scientist-evie"})
+	if ended := client.untilState("none", nil); ended.Reason != closedByPersonReason {
+		t.Fatalf("closing the only page ends the browser as none: %+v", ended)
+	}
+	client.send(frame{Type: "browser_close", ID: "again", Session: "scientist-evie"})
+	for {
+		message := client.nextAny()
+		if message.Type == "error" && message.ID == "x" {
+			t.Fatalf("a close that ended the page must not be refused: %+v", message)
+		}
+		if message.Type == "error" && message.ID == "again" {
+			if message.Reason != reasonNoBrowser {
+				t.Fatalf("a second close finds no page: %+v", message)
+			}
+			return
+		}
+	}
+}
+
 func TestBrowserReportsAHungPageAsStalledAndClearsItWhenItAnswers(t *testing.T) {
 	d, address, fake := browserDaemon(t)
 	d.browserProbe = browserProbePace{every: 40 * time.Millisecond, timeout: 120 * time.Millisecond}

@@ -360,12 +360,26 @@ func (sb *sharedBrowser) closePage() error {
 	sb.mu.Unlock()
 	ctx, cancel := context.WithTimeout(context.Background(), browserCallTimeout)
 	defer cancel()
+	// The last page gone ends the browser, often before Chromium answers.
+	if link != nil {
+		go func() {
+			select {
+			case <-link.exited:
+				cancel()
+			case <-ctx.Done():
+			}
+		}()
+	}
 	if _, err := cdp.call(ctx, "", "Target.closeTarget", map[string]any{"targetId": target}); err != nil {
 		sb.mu.Lock()
-		if sb.cdp == cdp {
+		gone := sb.cdp != cdp
+		if !gone {
 			sb.closedByPerson = false
 		}
 		sb.mu.Unlock()
+		if last && gone {
+			return nil
+		}
 		return fmt.Errorf("the page did not close: %w", err)
 	}
 	if last {
