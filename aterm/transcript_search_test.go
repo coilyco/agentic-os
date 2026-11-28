@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Every item a search can return is paged in by its `before` cursor, for each harness.
@@ -157,5 +159,36 @@ func TestSnippetKeepsTheMatchOnOneLineWithItsNeighbours(t *testing.T) {
 	}
 	if snippet, ok := snippetOf("ÉCOLE", foldRunes("école")); !ok || snippet != "ÉCOLE" {
 		t.Fatalf("a non-ASCII rune folds: %q %v", snippet, ok)
+	}
+}
+
+// COI-3797 slice 2: one search covers every live seat, and one without a transcript says
+// why without hiding the others.
+func TestTranscriptSearchCoversEveryLiveSeat(t *testing.T) {
+	state := t.TempDir()
+	d := newDaemon(func(string, ...any) {})
+	d.ledgerDir = state
+	seat := func(name, phrase string) {
+		home, id := filepath.Join(t.TempDir(), "home"), newConversationID()
+		seatTranscript(t, home, id, userLine("go"), assistantLine("end_turn", text(phrase)))
+		if err := writeLedger(state, ledgerEntry{Name: name, Role: "eng-platform", Seat: "claude", Conversation: id, Home: home, Started: time.Now().UTC()}); err != nil {
+			t.Fatal(err)
+		}
+		d.sessions[name] = &ptySession{d: d, name: name, seat: "claude", done: make(chan struct{})}
+	}
+	seat("eng-platform-b", "The Lighthouse migration is done.")
+	seat("eng-platform-a", "I checked the lighthouse logs.")
+	seat("eng-platform-c", "Nothing to see.")
+	d.sessions["shell-z"] = &ptySession{d: d, name: "shell-z", seat: "goose", done: make(chan struct{})}
+	results := d.searchEverySeat(readLedger(state), "lighthouse")
+	var got []string
+	for _, result := range results {
+		got = append(got, fmt.Sprintf("%s:%d:%s", result.Session, result.Total, result.Reason))
+	}
+	if want := "eng-platform-a:1: eng-platform-b:1: eng-platform-c:0: shell-z:0:no_transcript"; strings.Join(got, " ") != want {
+		t.Fatalf("results = %s, want %s", strings.Join(got, " "), want)
+	}
+	if match := results[1].Matches[0]; match.Kind != transcriptKindReply || !strings.Contains(match.Snippet, "Lighthouse migration") {
+		t.Fatalf("a seat's match carries its snippet: %+v", match)
 	}
 }

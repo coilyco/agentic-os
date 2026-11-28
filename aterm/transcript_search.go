@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -14,6 +15,8 @@ import (
 
 const (
 	transcriptSearchFeature = "transcript_search"
+	// transcriptSearchAllFeature says a search with `all` covers every live seat.
+	transcriptSearchAllFeature = "transcript_search_all"
 	// transcriptSearchMax bounds the matches one reply carries, newest kept.
 	transcriptSearchMax = 500
 	// transcriptSearchContext is how many items after a match its page keeps, so the match
@@ -198,16 +201,39 @@ func runeIndex(haystack, needle []rune) int {
 	return -1
 }
 
-// transcriptSearch answers a transcript_search request. It is gated like the read itself,
-// since a snippet of tool output can hold a secret (remoteLocked).
+// transcriptSeatResult is one seat's part of a search of every live seat. Reason names
+// why a seat could not be searched, and such a seat carries no matches.
+type transcriptSeatResult struct {
+	Session string            `json:"session"`
+	Reader  string            `json:"reader,omitempty"`
+	Matches []transcriptMatch `json:"matches,omitempty"`
+	Total   int               `json:"total"`
+	Partial bool              `json:"more,omitempty"`
+	Reason  string            `json:"reason,omitempty"`
+}
+
+// transcriptSeatMax bounds one seat's matches in a search across every seat, newest kept.
+const transcriptSeatMax = 50
+
+// searchSeat searches one live seat's transcript, found by its ledger record.
+func searchSeat(s *ptySession, recorded []ledgerEntry, query string) (transcriptSearchReply, error) {
+	entry, err := findRecorded(recorded, s.name)
+	if err != nil {
+		return transcriptSearchReply{}, withReason(reasonNoTranscript, fmt.Errorf("%s has no ledger record to find its transcript by: %w", s.name, errNoTranscript))
+	}
+	keyed, err := allTranscriptItems(withLiveCwd(entry, s.pid), recorded)
+	if err != nil {
+		return transcriptSearchReply{}, err
+	}
+	return searchTranscript(keyed, query), nil
+}
+
+// transcriptSearch answers a transcript_search request, for one seat or, with All, every
+// live seat. It is gated like the read itself, since a snippet can hold a secret.
 func (d *daemon) transcriptSearch(cl *client, message frame) error {
 	query := strings.TrimSpace(message.Query)
 	if query == "" || utf8.RuneCountInString(query) > transcriptQueryMaxRunes {
 		return withExit(exitUsage, fmt.Errorf("a search needs a phrase of 1 to %d characters", transcriptQueryMaxRunes))
-	}
-	s, err := d.oneTarget(firstNonEmpty(message.Session, message.Target))
-	if err != nil {
-		return err
 	}
 	d.mu.Lock()
 	ledger := d.ledgerDir
@@ -216,17 +242,48 @@ func (d *daemon) transcriptSearch(cl *client, message frame) error {
 	if ledger != "" {
 		recorded = readLedger(ledger)
 	}
-	entry, err := findRecorded(recorded, s.name)
-	if err != nil {
-		return withReason(reasonNoTranscript, fmt.Errorf("%s has no ledger record to find its transcript by: %w", s.name, errNoTranscript))
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if message.All {
+		return cl.c.write(frame{Type: "transcript_search", ID: message.ID, Query: query, Seats: d.searchEverySeat(recorded, query), UpdatedAt: now})
 	}
-	keyed, err := allTranscriptItems(withLiveCwd(entry, s.pid), recorded)
+	s, err := d.oneTarget(firstNonEmpty(message.Session, message.Target))
 	if err != nil {
 		return err
 	}
-	reply := searchTranscript(keyed, query)
+	reply, err := searchSeat(s, recorded, query)
+	if err != nil {
+		return err
+	}
 	return cl.c.write(frame{
 		Type: "transcript_search", ID: message.ID, Session: s.name, Reader: reply.Reader, Query: query,
-		Matches: reply.Matches, Total: reply.Total, More: reply.Partial, UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano),
+		Matches: reply.Matches, Total: reply.Total, More: reply.Partial, UpdatedAt: now,
 	})
+}
+
+// searchEverySeat searches each live seat by name. A seat that cannot be read says
+// why, so one harness without a transcript never hides the rest.
+func (d *daemon) searchEverySeat(recorded []ledgerEntry, query string) []transcriptSeatResult {
+	d.mu.Lock()
+	seats := make([]*ptySession, 0, len(d.sessions))
+	for _, s := range d.sessions {
+		seats = append(seats, s)
+	}
+	d.mu.Unlock()
+	sort.Slice(seats, func(a, b int) bool { return seats[a].name < seats[b].name })
+	results := make([]transcriptSeatResult, 0, len(seats))
+	for _, s := range seats {
+		result := transcriptSeatResult{Session: s.name}
+		reply, err := searchSeat(s, recorded, query)
+		if err != nil {
+			result.Reason = firstNonEmpty(reasonFor(transcriptRefusal(err)), reasonNoTranscript)
+		} else {
+			result.Reader, result.Total, result.Partial = reply.Reader, reply.Total, reply.Partial
+			result.Matches = reply.Matches
+			if len(result.Matches) > transcriptSeatMax {
+				result.Matches = result.Matches[len(result.Matches)-transcriptSeatMax:]
+			}
+		}
+		results = append(results, result)
+	}
+	return results
 }

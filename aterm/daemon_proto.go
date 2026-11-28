@@ -164,6 +164,8 @@ type frame struct {
 	Query   string            `json:"query,omitempty"`
 	Matches []transcriptMatch `json:"matches,omitempty"`
 	Total   int               `json:"total,omitempty"`
+	// A transcript_search with All answers with Seats, one per live seat.
+	Seats []transcriptSeatResult `json:"seats,omitempty"`
 	// ask_choice
 	Ask    *choiceAsk    `json:"ask,omitempty"`
 	AskID  string        `json:"ask_id,omitempty"`
