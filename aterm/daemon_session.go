@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -189,6 +190,10 @@ type keyState struct {
 	strEsc bool
 	// skip counts the raw bytes after an X10 mouse report's CSI M.
 	skip int
+	// escs counts Escape presses in a row, escCounted that a chunk ending on a lone
+	// ESC already counted it. See references/kai-draft.md.
+	escs       int
+	escCounted bool
 }
 
 // startPTYSession starts a holder for the spawn and attaches to it. The
@@ -731,8 +736,8 @@ func (s *ptySession) typeCommand(command string) error {
 	return s.writePTY([]byte("\r"))
 }
 
-// trackDraft counts what Kai has typed and not sent. Escape sequences and a
-// terminal's replies to queries are not text. Caller holds mu.
+// trackDraft counts what Kai has typed and not sent, by the rule in
+// references/kai-draft.md. Caller holds mu.
 func (s *ptySession) trackDraft(data []byte) {
 	keys := &s.keys
 	for _, b := range data {
@@ -752,29 +757,112 @@ func (s *ptySession) trackDraft(data []byte) {
 					keys.inPaste = false
 				case "M":
 					keys.skip = 3
+				default:
+					s.csiKey(keys.params)
 				}
 				keys.csi, keys.params = false, nil
 			}
 		case keys.ss3:
 			keys.ss3 = false
+			keys.escs = 0
+		case keys.escape && b == 0x1b:
+			// The ESC before this one was a key of its own.
+			if !keys.escCounted {
+				s.escapeKey()
+			}
+			keys.escCounted = false
 		case keys.escape:
-			keys.escape = false
+			keys.escape, keys.escCounted = false, false
 			keys.csi = b == '['
 			keys.ss3 = b == 'O'
 			keys.str = b == ']' || b == 'P' || b == '_' || b == '^' || b == 'X'
+			if !keys.csi && !keys.ss3 && !keys.str {
+				keys.escs = 0
+			}
 		case b == 0x1b:
-			keys.escape = true
+			keys.escape, keys.escCounted = true, false
 		case keys.inPaste:
 			s.draft++
-		case b == '\r' || b == '\n' || b == 0x03 || b == 0x15:
-			s.draft = 0
-		case b == 0x7f || b == 0x08:
-			if s.draft > 0 {
-				s.draft--
+		default:
+			keys.escs = 0
+			switch {
+			case b == '\r' || b == '\n' || b == 0x03 || b == 0x15:
+				s.draft = 0
+			case b == 0x7f || b == 0x08:
+				s.unType()
+			case b >= 0x20 && (b < 0x80 || b >= 0xc0):
+				s.draft++
 			}
-		case b >= 0x20 && (b < 0x80 || b >= 0xc0):
-			s.draft++
 		}
+	}
+	if keys.escape && !keys.escCounted {
+		s.escapeKey()
+		keys.escCounted = true
+	}
+}
+
+// escapeKey is one press of Escape. Claude Code clears its input line on two in
+// a row, and a shell does not, so a terminal session's draft stays.
+func (s *ptySession) escapeKey() {
+	s.keys.escs++
+	if s.keys.escs >= 2 && s.kind != kindTerminal {
+		s.draft, s.keys.escs = 0, 0
+	}
+}
+
+func (s *ptySession) unType() {
+	if s.draft > 0 {
+		s.draft--
+	}
+}
+
+// csiKey reads a finished CSI sequence as a key. Only the kitty protocol's
+// CSI code;mods u edits the line, so Ctrl+C is CSI 99;5u, not 0x03.
+func (s *ptySession) csiKey(params []byte) {
+	fields := strings.Split(string(params[:len(params)-1]), ";")
+	if params[len(params)-1] != 'u' {
+		s.keys.escs = 0
+		return
+	}
+	field := func(i int) []string {
+		if i >= len(fields) {
+			return nil
+		}
+		return strings.Split(fields[i], ":")
+	}
+	code, err := strconv.Atoi(field(0)[0])
+	if err != nil {
+		s.keys.escs = 0
+		return
+	}
+	mods, event := 0, 1
+	if m := field(1); m != nil {
+		if n, err := strconv.Atoi(m[0]); err == nil && n > 0 {
+			mods = (n - 1) &^ (64 | 128) // caps lock and num lock are not chords
+		}
+		if len(m) > 1 {
+			event, _ = strconv.Atoi(m[1])
+		}
+	}
+	if event == 3 {
+		return // a release, after the press already counted
+	}
+	if code == 27 && mods == 0 {
+		s.escapeKey()
+		return
+	}
+	s.keys.escs = 0
+	const shift, ctrl = 1, 4
+	switch {
+	case code == 13 && mods == 0, mods == ctrl && (code == 'c' || code == 'u'):
+		s.draft = 0
+	case code == 127 || code == 8:
+		s.unType()
+	case mods&^shift == 0 && code >= 0x20 && code != 0x7f && (code < 0xe000 || code > 0xf8ff):
+		// Text sent as a key, under the report-all-keys flag.
+		s.draft++
+	case code == 13 && mods == shift:
+		s.draft++ // a newline in the draft, not a send
 	}
 }
 

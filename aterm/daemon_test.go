@@ -64,6 +64,21 @@ func TestTrackDraftFollowsWhatKaiHasNotSent(t *testing.T) {
 		{"one key per frame after a reply, then Enter", []string{"\x1b]11;rgb:0/0/0\x07", "l", "s", "\r"}, 0},
 		{"xterm.js device attributes and a cursor report", []string{"\x1b[?1;2c", "\x1b[12;1R"}, 0},
 		{"typing after a reply still counts", []string{"\x1b]11;rgb:0/0/0\x07", "l", "s"}, 2},
+		// Claude Code pushes the kitty keyboard protocol, so clears arrive as CSI u (COI-3841).
+		{"kitty Ctrl-C clears the line", []string{"abc", "\x1b[99;5u"}, 0},
+		{"kitty Ctrl-U clears the line", []string{"abc", "\x1b[117;5u"}, 0},
+		{"kitty Ctrl-C under caps lock, press then release", []string{"abc", "\x1b[99;69:1u", "\x1b[99;69:3u"}, 0},
+		{"kitty Enter sends", []string{"abc", "\x1b[13u"}, 0},
+		{"kitty Shift-Enter is a newline in the draft", []string{"abc", "\x1b[13;2u"}, 4},
+		{"kitty Backspace", []string{"abc", "\x1b[127u"}, 2},
+		{"kitty Ctrl-A is not text", []string{"abc", "\x1b[97;5u"}, 3},
+		{"kitty report-all-keys text counts", []string{"\x1b[97u", "\x1b[66;2u"}, 2},
+		{"Esc Esc clears the line, a key per frame", []string{"abc", "\x1b", "\x1b"}, 0},
+		{"Esc Esc clears the line, one frame", []string{"abc", "\x1b\x1b"}, 0},
+		{"kitty Esc Esc clears the line", []string{"abc", "\x1b[27u", "\x1b[27u"}, 0},
+		{"one Esc keeps the draft", []string{"abc", "\x1b"}, 3},
+		{"Esc, an arrow, Esc keeps the draft", []string{"abc", "\x1b", "\x1b[A", "\x1b"}, 3},
+		{"Esc, a key, Esc keeps the draft", []string{"abc", "\x1b[27u", "\x1b[D", "\x1b[27u"}, 3},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			s := &ptySession{}
@@ -74,6 +89,17 @@ func TestTrackDraftFollowsWhatKaiHasNotSent(t *testing.T) {
 				t.Fatalf("draft = %d, want %d", s.draft, testCase.want)
 			}
 		})
+	}
+}
+
+// A shell completes on Esc Esc and keeps its line, so a terminal's draft stays.
+func TestTrackDraftKeepsATerminalLineThroughEscEsc(t *testing.T) {
+	s := &ptySession{kind: kindTerminal}
+	for _, chunk := range []string{"ls", "\x1b", "\x1b"} {
+		s.trackDraft([]byte(chunk))
+	}
+	if s.draft != 2 {
+		t.Fatalf("draft = %d, want 2", s.draft)
 	}
 }
 
