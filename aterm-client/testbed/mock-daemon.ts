@@ -199,7 +199,7 @@ export function loadSessions(): SessionSpec[] {
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
  * `images`: Add image. `webPush`: Notify when closed. `dist`: another build to serve. */
-export type MockOptions = { dist?: string; sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; thumbs?: boolean; feedback?: boolean; version?: string; transcript?: boolean; transcriptSearch?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
+export type MockOptions = { dist?: string; sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; thumbs?: boolean; feedback?: boolean; version?: string; transcript?: boolean; transcriptSearch?: boolean; transcriptSearchAll?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const dist = options.dist ? join(HERE, "..", options.dist) : DIST;
   if (!existsSync(join(dist, "index.html"))) {
@@ -325,7 +325,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           if (options.lock) {
             send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...unlockedFeatures, ...pushFeature], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
           } else {
-            send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...(options.images ? ["image-upload"] : []), ...(options.images && options.thumbs ? ["image-thumb"] : []), ...(options.feedback ? ["feedback"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.transcriptSearch ? ["transcript_search"] : []), ...(options.media ? ["media"] : []), ...(options.artifacts ? ["artifacts"] : []), ...pushFeature], typing: { allowed: true } });
+            send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...(options.images ? ["image-upload"] : []), ...(options.images && options.thumbs ? ["image-thumb"] : []), ...(options.feedback ? ["feedback"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.transcriptSearch ? ["transcript_search"] : []), ...(options.transcriptSearchAll ? ["transcript_search_all"] : []), ...(options.media ? ["media"] : []), ...(options.artifacts ? ["artifacts"] : []), ...pushFeature], typing: { allowed: true } });
           }
           return;
         case "device_assert_begin":
@@ -431,18 +431,31 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
         }
         case "transcript_search": {
           // The daemon's rule: text, tool line, output, case folded, no peers.
-          const session = String(frame.session);
           const query = String(frame.query ?? "").trim();
-          mock.searchCalls.push({ session, query });
           const needle = query.toLowerCase();
-          const all = (transcripts.get(session) ?? []) as { id: string; kind: string; text?: string; for?: string; shared?: boolean; at?: string; tool?: { summary?: string; output?: string } }[];
-          const matches = all.flatMap((item, at) => {
-            if (!needle || item.kind === "peer" || (item.for && !item.shared)) return [];
-            const field = [["text", item.text], ["summary", item.tool?.summary], ["output", item.tool?.output]].find(([, text]) => text?.toLowerCase().includes(needle));
-            if (!field) return [];
-            const end = at + 8;
-            return [{ id: item.id, kind: item.kind, field: field[0], snippet: String(field[1]).slice(0, 120), ...(item.at ? { at: item.at } : {}), ...(end < all.length ? { before: String(end) } : {}) }];
-          });
+          const search = (session: string) => {
+            const all = (transcripts.get(session) ?? []) as { id: string; kind: string; text?: string; for?: string; shared?: boolean; at?: string; tool?: { summary?: string; output?: string } }[];
+            const matches = all.flatMap((item, at) => {
+              if (!needle || item.kind === "peer" || (item.for && !item.shared)) return [];
+              const field = [["text", item.text], ["summary", item.tool?.summary], ["output", item.tool?.output]].find(([, text]) => text?.toLowerCase().includes(needle));
+              if (!field) return [];
+              const end = at + 8;
+              return [{ id: item.id, kind: item.kind, field: field[0], snippet: String(field[1]).slice(0, 120), ...(item.at ? { at: item.at } : {}), ...(end < all.length ? { before: String(end) } : {}) }];
+            });
+            return matches;
+          };
+          if (frame.all === true) {
+            mock.searchCalls.push({ session: "*", query });
+            const seats = [...transcripts.keys()].sort().map((session) => {
+              const matches = search(session);
+              return { session, reader: "claude", matches, total: matches.length };
+            });
+            send(socket, { type: "transcript_search", id: frame.id, query, seats, updated_at: new Date().toISOString() });
+            return;
+          }
+          const session = String(frame.session);
+          mock.searchCalls.push({ session, query });
+          const matches = search(session);
           send(socket, { type: "transcript_search", id: frame.id, session, reader: "claude", query, matches, total: matches.length, updated_at: new Date().toISOString() });
           return;
         }

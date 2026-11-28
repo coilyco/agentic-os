@@ -12,7 +12,7 @@ import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
 import { ImageReadRefused, sniffType } from "./sent-images";
 import { CHUNK_BYTES, decodeMedia, mediaRefusal } from "./media";
 import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeadSeat, DeviceKeyChannel, FeedbackChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MachineKindChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, TuiState, ViewChannel } from "./protocol";
-import { decodeReply, decodeSearch, REFUSALS, TranscriptRefused } from "./transcript";
+import { decodeEverySeat, decodeReply, decodeSearch, REFUSALS, TranscriptRefused } from "./transcript";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
 import { inAndroidApp } from "./open-external";
@@ -210,6 +210,7 @@ interface Frame {
   matches?: unknown;
   total?: number;
   query?: string;
+  seats?: unknown;
   /** A shared file's descriptor on `media`, and the chunk's place on `media_data`. */
   media?: unknown;
   media_id?: string;
@@ -791,6 +792,11 @@ export class DaemonHost implements HostConnection {
       if (!this.features.has("transcript_search")) throw new Error("This host cannot search a transcript yet.");
       const frame = await this.exchange({ type: "transcript_search", session: sessionId, query }, this.transcriptIds);
       return decodeSearch(frame as unknown as Record<string, unknown>);
+    },
+    searchAll: async (query) => {
+      if (!this.features.has("transcript_search_all")) throw new Error("This host cannot search every seat yet.");
+      const frame = await this.exchange({ type: "transcript_search", all: true, query }, this.transcriptIds);
+      return decodeEverySeat(frame as unknown as Record<string, unknown>);
     },
   };
 

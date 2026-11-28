@@ -279,3 +279,25 @@ export function decodeSearch(frame: Record<string, unknown>): TranscriptSearchRe
   }
   return { query: str(frame.query) ?? "", matches, total: Math.max(num(frame.total) ?? 0, matches.length), partial: frame.more === true };
 }
+
+/** One seat's part of an every-seat search. `reason` says why it was not searched. */
+export interface SeatSearchResult {
+  session: string;
+  matches: TranscriptMatch[];
+  total: number;
+  partial: boolean;
+  reason?: string;
+}
+
+export function decodeEverySeat(frame: Record<string, unknown>): SeatSearchResult[] {
+  const out: SeatSearchResult[] = [];
+  for (const raw of Array.isArray(frame.seats) ? frame.seats : []) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const seat = raw as Record<string, unknown>;
+    const session = str(seat.session);
+    if (!session) continue;
+    const one = decodeSearch(seat);
+    out.push({ session, matches: one.matches, total: one.total, partial: one.partial, ...(str(seat.reason) ? { reason: str(seat.reason) } : {}) });
+  }
+  return out;
+}

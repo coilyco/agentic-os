@@ -5,7 +5,8 @@
   import { searchStatusText, stepMatch } from "../lib/transcript-search";
 
   // The host searches the seat's whole transcript, and this bar steps between what it found (COI-3797).
-  let { channel, sessionId, onshow, onclose }: { channel: TranscriptChannel; sessionId: string; onshow: (match: TranscriptMatch | null, query: string) => void; onclose: () => void } = $props();
+  // `initial` opens on a phrase and one match, as a tap in the every-seat search does.
+  let { channel, sessionId, initial, onshow, onclose }: { channel: TranscriptChannel; sessionId: string; initial?: { query: string; id: string }; onshow: (match: TranscriptMatch | null, query: string) => void; onclose: () => void } = $props();
 
   const WAIT_MS = 300;
   let query = $state("");
@@ -21,6 +22,11 @@
 
   onMount(() => {
     input.focus();
+    if (initial) {
+      query = initial.query;
+      phase = "searching";
+      void run(initial.id);
+    }
     return () => clearTimeout(timer);
   });
 
@@ -38,7 +44,7 @@
     timer = setTimeout(() => void run(), WAIT_MS);
   }
 
-  async function run(): Promise<void> {
+  async function run(start?: string): Promise<void> {
     if (!channel.search) return;
     const mine = ++asked;
     const phrase = query.trim();
@@ -50,7 +56,8 @@
       partial = reply.partial;
       phase = "done";
       // The newest match first, since the view sits at the newest line.
-      at = matches.length - 1;
+      const wanted = start ? matches.findIndex((match) => match.id === start) : -1;
+      at = wanted >= 0 ? wanted : matches.length - 1;
       onshow(matches[at] ?? null, phrase);
     } catch {
       if (mine === asked) phase = "failed";

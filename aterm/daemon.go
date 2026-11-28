@@ -38,6 +38,8 @@ type daemon struct {
 	host     hostKindStore
 	github   *githubBroker
 	sessions map[string]*ptySession
+	// searching runs transcript searches and keeps their parsed items (COI-3797).
+	searching searchRunner
 	// terminals are plain login shells. They sit in their own map so every walk
 	// of sessions (send targets, roster, counts) skips them without a filter.
 	terminals map[string]*ptySession
@@ -500,6 +502,9 @@ type client struct {
 	// resumeKey is the hash of the proof this connection holds, if resumeHeld.
 	resumeKey  [sha256.Size]byte
 	resumeHeld bool
+	// searchCancel stops this connection's transcript search still running (COI-3797).
+	searchMu     sync.Mutex
+	searchCancel context.CancelFunc
 }
 
 func (d *daemon) serve(raw net.Conn) {
@@ -519,7 +524,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 		return
 	}
 	cl := &client{c: c, peerStanding: peer, owned: map[string]bool{}, attached: map[string]*ptySession{}}
-	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{transcriptFeature, transcriptSearchFeature, sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, closeSelfFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature, activityFeature, backgroundFeature, closeUnpushedFeature, reopenFeature, reloadFeature, originFeature, notifyFeature, hostKindFeature}, HostKind: string(d.hostKind())}
+	welcome := frame{Type: "welcome", Format: daemonFormat, Version: version, PID: os.Getpid(), Features: []string{transcriptFeature, transcriptSearchFeature, transcriptSearchAllFeature, sendNewFeature, sendWaitFeature, sendIdleFeature, closeFeature, closeSelfFeature, holdFeature, statusFeature, clearFeature, contextFeature, claimFeature, typingGuardFeature, passkeyFeature, terminalsFeature, terminalLabelFeature, openURLFeature, artifactsFeature, mcpAppsFeature, inboxFeature, ptySizeFeature, deviceKeyFeature, githubTokenFeature, githubWorkflowsFeature, askRelayFeature, stageFeature, stateAgeFeature, lastReplyFeature, activityFeature, backgroundFeature, closeUnpushedFeature, reopenFeature, reloadFeature, originFeature, notifyFeature, hostKindFeature}, HostKind: string(d.hostKind())}
 	if d.browserServed() {
 		welcome.Features = append(welcome.Features, browserFeature)
 	}
@@ -555,6 +560,7 @@ func (d *daemon) serveConn(c *conn, peer peerStanding) {
 	d.lastActive = time.Now()
 	d.mu.Unlock()
 	defer func() {
+		cl.stopSearch()
 		d.users.Disconnected(cl)
 		for _, s := range cl.attached {
 			s.detach(c)
@@ -704,7 +710,7 @@ func (d *daemon) handle(cl *client, message frame) error {
 	case "transcript":
 		return d.transcript(cl, message)
 	case "transcript_search":
-		return d.transcriptSearch(cl, message)
+		return d.startSearch(cl, message)
 	case "last_reply":
 		s, err := d.oneTarget(message.Target)
 		if err != nil {
@@ -1023,6 +1029,7 @@ func (d *daemon) forget(s *ptySession) {
 	d.mu.Lock()
 	if d.sessions[s.name] == s {
 		delete(d.sessions, s.name)
+		d.searching.drop(s.name)
 		d.awake.nudge()
 	}
 	delete(d.tokens, s.token)
