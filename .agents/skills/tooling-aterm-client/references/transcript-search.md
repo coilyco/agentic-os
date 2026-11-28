@@ -18,6 +18,17 @@
 * **Reply** - `{type: "transcript_search", id, query, seats, updated_at}`. `seats` holds one entry per live seat, by name: `{session, reader?, matches, total, more?, reason?}`, with that seat's newest 50 matches. A seat that cannot be read carries its refusal `reason` and no matches, so one harness without a transcript never hides the rest.
 * **The client** - a Search every seat field at the top of the Seats overview. Results group by seat, newest first, and each leads with what it is (You, Reply, Tool, Tool output, Note) and marks the phrase. A tap opens that seat on its transcript, moving a desktop off its raw screen, with the seat's own search bar filled in and the match paged in (`search-jump.svelte.ts`).
 
+## How a search runs, and what it costs
+
+* **Off the read loop** - a search runs on its own goroutine, so the asking connection keeps taking polls and typing. A newer `transcript_search` from the same connection cancels its search still running, which ends with an `error` carrying reason `search_cancelled`. The client drops that reply, since it already asked again. Closing the connection cancels its search too.
+* **Two at once** - at most 2 searches run across the daemon. The rest wait for a slot, and a waiting search can still be cancelled.
+* **A cache of parsed items per seat** - kept while the seat's file (and opencode's `-wal`) keeps the same size and modification time. A grown file is parsed again. The cache holds at most 256 MiB of item text across every seat, and drops the least recently searched seat first. A seat larger than the whole budget is searched and not kept. A seat's items leave when its session ends.
+* **An ASCII phrase** is found in the bytes with no copy. Any other phrase folds rune by rune.
+* **Measured** (COI-3797, 2026-11-28, M3 Pro, `ATERM_MEASURE_SEARCH` in `aterm/transcript_search_measure_test.go`):
+  * Every seat over 10 synthetic seats of 12.8 MB: 1.23 s before the cache, 80 ms after it. With 3 of the 10 seats growing between searches, 331 ms.
+  * One real seat of 12.9 MB, read without the cache: 41 ms.
+  * One synthetic seat of 127 MiB, read without the cache: about 1 s, with a 617 MiB peak while it parses.
+
 ## What matches
 
 * Case folds rune by rune, so `É` finds `é` and `ß` never becomes `ss`.

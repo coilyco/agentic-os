@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -142,14 +144,17 @@ func pageAfter(keys []string, index int) string {
 // matchItem looks in the text a view draws for an item: its words, then a tool's line,
 // then a tool's output.
 func matchItem(item transcriptItem, needle []rune) (string, string, bool) {
-	fields := []struct{ name, text string }{{"text", item.Text}}
-	if item.Tool != nil {
-		fields = append(fields, struct{ name, text string }{"summary", firstNonEmpty(item.Tool.FullSummary, item.Tool.Summary)}, struct{ name, text string }{"output", item.Tool.Output})
+	if snippet, ok := snippetOf(item.Text, needle); ok {
+		return "text", snippet, true
 	}
-	for _, field := range fields {
-		if snippet, ok := snippetOf(field.text, needle); ok {
-			return field.name, snippet, true
-		}
+	if item.Tool == nil {
+		return "", "", false
+	}
+	if snippet, ok := snippetOf(firstNonEmpty(item.Tool.FullSummary, item.Tool.Summary), needle); ok {
+		return "summary", snippet, true
+	}
+	if snippet, ok := snippetOf(item.Tool.Output, needle); ok {
+		return "output", snippet, true
 	}
 	return "", "", false
 }
@@ -165,7 +170,19 @@ func foldRunes(text string) []rune {
 
 // snippetOf is the first match of needle in text with a little either side, on one line.
 func snippetOf(text string, needle []rune) (string, bool) {
-	if text == "" || !utf8.ValidString(text) {
+	if text == "" {
+		return "", false
+	}
+	// An ASCII phrase is found in the bytes, with no copy. Only K (U+212A) and I (U+0130)
+	// fold to ASCII from outside it, so a text holding either takes the rune path.
+	if ascii, ok := asciiNeedle(needle); ok && !strings.Contains(text, "\u212a") && !strings.Contains(text, "\u0130") {
+		at := indexFoldASCII(text, ascii)
+		if at < 0 || !utf8.ValidString(text) {
+			return "", false
+		}
+		return snippetAround(text, at, len(ascii)), true
+	}
+	if !utf8.ValidString(text) {
 		return "", false
 	}
 	runes := []rune(text)
@@ -216,12 +233,15 @@ type transcriptSeatResult struct {
 const transcriptSeatMax = 50
 
 // searchSeat searches one live seat's transcript, found by its ledger record.
-func searchSeat(s *ptySession, recorded []ledgerEntry, query string) (transcriptSearchReply, error) {
+func (d *daemon) searchSeat(ctx context.Context, s *ptySession, recorded []ledgerEntry, query string) (transcriptSearchReply, error) {
+	if ctx.Err() != nil {
+		return transcriptSearchReply{}, searchCancelled()
+	}
 	entry, err := findRecorded(recorded, s.name)
 	if err != nil {
 		return transcriptSearchReply{}, withReason(reasonNoTranscript, fmt.Errorf("%s has no ledger record to find its transcript by: %w", s.name, errNoTranscript))
 	}
-	keyed, err := allTranscriptItems(withLiveCwd(entry, s.pid), recorded)
+	keyed, err := d.searching.items(s.name, withLiveCwd(entry, s.pid), recorded)
 	if err != nil {
 		return transcriptSearchReply{}, err
 	}
@@ -230,11 +250,16 @@ func searchSeat(s *ptySession, recorded []ledgerEntry, query string) (transcript
 
 // transcriptSearch answers a transcript_search request, for one seat or, with All, every
 // live seat. It is gated like the read itself, since a snippet can hold a secret.
-func (d *daemon) transcriptSearch(cl *client, message frame) error {
+func (d *daemon) transcriptSearch(ctx context.Context, cl *client, message frame) error {
 	query := strings.TrimSpace(message.Query)
 	if query == "" || utf8.RuneCountInString(query) > transcriptQueryMaxRunes {
 		return withExit(exitUsage, fmt.Errorf("a search needs a phrase of 1 to %d characters", transcriptQueryMaxRunes))
 	}
+	release, err := d.searching.acquire(ctx)
+	if err != nil {
+		return err
+	}
+	defer release()
 	d.mu.Lock()
 	ledger := d.ledgerDir
 	d.mu.Unlock()
@@ -244,13 +269,17 @@ func (d *daemon) transcriptSearch(cl *client, message frame) error {
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	if message.All {
-		return cl.c.write(frame{Type: "transcript_search", ID: message.ID, Query: query, Seats: d.searchEverySeat(recorded, query), UpdatedAt: now})
+		seats, err := d.searchEverySeat(ctx, recorded, query)
+		if err != nil {
+			return err
+		}
+		return cl.c.write(frame{Type: "transcript_search", ID: message.ID, Query: query, Seats: seats, UpdatedAt: now})
 	}
 	s, err := d.oneTarget(firstNonEmpty(message.Session, message.Target))
 	if err != nil {
 		return err
 	}
-	reply, err := searchSeat(s, recorded, query)
+	reply, err := d.searchSeat(ctx, s, recorded, query)
 	if err != nil {
 		return err
 	}
@@ -262,7 +291,7 @@ func (d *daemon) transcriptSearch(cl *client, message frame) error {
 
 // searchEverySeat searches each live seat by name. A seat that cannot be read says
 // why, so one harness without a transcript never hides the rest.
-func (d *daemon) searchEverySeat(recorded []ledgerEntry, query string) []transcriptSeatResult {
+func (d *daemon) searchEverySeat(ctx context.Context, recorded []ledgerEntry, query string) ([]transcriptSeatResult, error) {
 	d.mu.Lock()
 	seats := make([]*ptySession, 0, len(d.sessions))
 	for _, s := range d.sessions {
@@ -273,7 +302,10 @@ func (d *daemon) searchEverySeat(recorded []ledgerEntry, query string) []transcr
 	results := make([]transcriptSeatResult, 0, len(seats))
 	for _, s := range seats {
 		result := transcriptSeatResult{Session: s.name}
-		reply, err := searchSeat(s, recorded, query)
+		reply, err := d.searchSeat(ctx, s, recorded, query)
+		if errors.Is(err, errSearchCancelled) {
+			return nil, err
+		}
 		if err != nil {
 			result.Reason = firstNonEmpty(reasonFor(transcriptRefusal(err)), reasonNoTranscript)
 		} else {
@@ -285,5 +317,66 @@ func (d *daemon) searchEverySeat(recorded []ledgerEntry, query string) []transcr
 		}
 		results = append(results, result)
 	}
-	return results
+	return results, nil
+}
+
+// asciiNeedle is a folded needle as bytes, when every rune of it is ASCII.
+func asciiNeedle(needle []rune) (string, bool) {
+	out := make([]byte, len(needle))
+	for index, r := range needle {
+		if r >= utf8.RuneSelf {
+			return "", false
+		}
+		out[index] = byte(r)
+	}
+	return string(out), true
+}
+
+// indexFoldASCII is the byte offset of needle (lower case ASCII) in text, case folded.
+func indexFoldASCII(text, needle string) int {
+	first, upper := needle[0], needle[0]
+	if first >= 'a' && first <= 'z' {
+		upper = first - 'a' + 'A'
+	}
+	for start := 0; start+len(needle) <= len(text); start++ {
+		if text[start] != first && text[start] != upper {
+			continue
+		}
+		matched := true
+		for offset := 1; offset < len(needle); offset++ {
+			c := text[start+offset]
+			if c >= 'A' && c <= 'Z' {
+				c += 'a' - 'A'
+			}
+			if c != needle[offset] {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return start
+		}
+	}
+	return -1
+}
+
+// snippetAround is text at a byte match, transcriptSnippetRunes either side, on one line.
+func snippetAround(text string, at, size int) string {
+	start, end := at, at+size
+	for count := 0; count < transcriptSnippetRunes && start > 0; count++ {
+		_, width := utf8.DecodeLastRuneInString(text[:start])
+		start -= width
+	}
+	for count := 0; count < transcriptSnippetRunes && end < len(text); count++ {
+		_, width := utf8.DecodeRuneInString(text[end:])
+		end += width
+	}
+	prefix, suffix := "…", "…"
+	if start == 0 {
+		prefix = ""
+	}
+	if end == len(text) {
+		suffix = ""
+	}
+	return prefix + strings.Join(strings.Fields(text[start:end]), " ") + suffix
 }

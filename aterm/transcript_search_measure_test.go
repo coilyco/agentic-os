@@ -112,10 +112,19 @@ func TestMeasureTranscriptSearch(t *testing.T) {
 			}
 			return total
 		})
-	case "ten", "ten-concurrent":
+	case "ten", "ten-churn", "ten-concurrent":
 		d, recorded := measureSeats(t, os.Getenv("ATERM_MEASURE_DIR"), 10, 12_800_000)
-		if mode == "ten" {
-			measureRuns(t, fmt.Sprintf("searchEverySeat over 10 x 12.8 MB %q", query), runs, func() int { return seatTotal(d.searchEverySeat(recorded, query)) })
+		defer func() {
+			t.Logf("MEASURE cache holds %d MiB of %d MiB", d.searching.cachedBytes()>>20, transcriptCacheBudget>>20)
+		}()
+		if mode != "ten-concurrent" {
+			measureRuns(t, fmt.Sprintf("%s over 10 x 12.8 MB %q", mode, query), runs, func() int {
+				// Three seats at work write a line before each search.
+				for index := 0; mode == "ten-churn" && index < 3; index++ {
+					growSeat(t, os.Getenv("ATERM_MEASURE_DIR"), index)
+				}
+				return seatTotal(everySeat(t, d, recorded, query))
+			})
 			return
 		}
 		// Three searches at once, as three devices, or keystrokes past the debounce, send them.
@@ -123,7 +132,7 @@ func TestMeasureTranscriptSearch(t *testing.T) {
 			var wait sync.WaitGroup
 			for range 3 {
 				wait.Add(1)
-				go func() { defer wait.Done(); d.searchEverySeat(recorded, query) }()
+				go func() { defer wait.Done(); everySeat(t, d, recorded, query) }()
 			}
 			wait.Wait()
 			return 0
@@ -185,4 +194,14 @@ func measureSeats(t *testing.T, dir string, count int, size int64) (*daemon, []l
 		d.sessions[name] = &ptySession{d: d, name: name, seat: "claude", done: make(chan struct{})}
 	}
 	return d, readLedger(state)
+}
+
+func growSeat(t *testing.T, dir string, n int) {
+	path := filepath.Join(dir, fmt.Sprintf("eng-platform-measure-%02d", n), ".claude", "projects", "measure", fmt.Sprintf("00000000-0000-4000-8000-%012d.jsonl", n))
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	fmt.Fprintf(file, `{"type":"assistant","uuid":"g%d","parentUuid":"p","timestamp":"2026-11-28T09:00:00.000Z","message":{"id":"msg_g%d","model":"m","stop_reason":"end_turn","content":[{"type":"text","text":"another line"}]}}`+"\n", time.Now().UnixNano(), time.Now().UnixNano())
 }
