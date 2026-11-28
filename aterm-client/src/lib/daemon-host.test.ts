@@ -232,6 +232,17 @@ describe("the shared browser", () => {
     host.close();
   });
 
+  it("reads a page that stopped answering, and the daemon omitting the field as answering", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["browser"] });
+    socket.receive({ type: "browser_state", session: "s", state: "live", driver: "agent", client: "c", stalled: true });
+    socket.receive({ type: "browser_state", session: "s", state: "live", driver: "agent", client: "c" });
+    const [hung, answering] = browsers(events);
+    expect(hung?.stalled).toBe(true);
+    expect(answering).not.toHaveProperty("stalled");
+    host.close();
+  });
+
   it("draws a frame onto its browser and keeps it through the next state", () => {
     const { host, events, socket } = connect();
     socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["browser"] });
@@ -244,6 +255,18 @@ describe("the shared browser", () => {
     expect(framed?.frame).toMatchObject({ src: "data:image/jpeg;base64,AAAA", seq: 7, metadata: { deviceWidth: 1280, deviceHeight: 800, offsetTop: 4, pageScaleFactor: 2 } });
     expect(later?.frame?.seq).toBe(7);
     expect(later?.heldHere).toBe(true);
+    host.close();
+  });
+
+  it("keeps the browser's paint time on a frame, and none for a frame that carries none", () => {
+    const { host, events, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["browser"] });
+    socket.receive({ type: "browser_state", session: "s", state: "live", driver: "agent", client: "c" });
+    socket.receive({ type: "browser_frame", session: "s", data: "AAAA", seq: 1, metadata: { device_width: 390, device_height: 844 } });
+    socket.receive({ type: "browser_frame", session: "s", data: "AAAA", seq: 2, metadata: { device_width: 390, device_height: 844, timestamp: 1700000000.25 } });
+    const [, seeded, painted] = browsers(events);
+    expect(seeded?.frame).not.toHaveProperty("paintedAt");
+    expect(painted?.frame?.paintedAt).toBe(1700000000250);
     host.close();
   });
 
