@@ -270,7 +270,7 @@
     {#if phase === "loading"}
       <p class="status" role="status">Reading this seat's transcript.</p>
     {:else if rows.length === 0 && sending.length === 0}
-      <p class="status" role="status">No messages yet. Verbose has the raw screen.</p>
+      <p class="status" role="status">No messages yet. View shows the seat's own screen as Raw.</p>
     {/if}
     {#each rows as row (row.key)}
       {#if row.key === markerKey}<p class="since" role="separator" data-since>New since you were last here</p>{/if}

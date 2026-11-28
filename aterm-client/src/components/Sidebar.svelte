@@ -10,6 +10,7 @@
   import ConfigurationLink from "./ConfigurationLink.svelte";
   import SettingsLink from "./SettingsLink.svelte";
   import FeedbackEntry from "./FeedbackEntry.svelte";
+  import ViewChoice from "./ViewChoice.svelte";
   import SeatPreview from "./SeatPreview.svelte";
   import { app, askLineFor, asksShownOn, colorOf, closeAnyway, dismissCloseNote, glowSeats, layout, needsKaiIds, overviewShown, pinnedNow, reopenClosed, showAllRoles, openByPerson, reconnecting, selectHost, selectRole, sessionById, waitingSeats } from "../lib/app.svelte";
   import { previewFor } from "../lib/preview";
@@ -352,6 +353,7 @@
             {#if waitingElsewhere}<span class="elsewhere" aria-hidden="true">{waitingElsewhere}<span class="word">&nbsp;waiting</span></span>{/if}
             <svg class="chevron" viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
           </button>
+          <ViewChoice />
           <FeedbackEntry compact />
         {:else if app.attachedHostId}
           <div class="seats">{@render runningGroup()}{@render failedGroup()}</div>
