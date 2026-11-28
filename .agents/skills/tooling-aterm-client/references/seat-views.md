@@ -44,6 +44,16 @@ The transcript shows a message only once the harness writes it, and the client p
 * **Not covered** - a restart: entries live in memory (send history is COI-3691).
 * **Journey** - `pending-send`, with the page clock moved 31 seconds for the unsent state.
 
+## Your own messages (COI-3800)
+
+**A sent message renders with the replies' markdown renderer**, at every level and on the pending entry too, so `code`, lists and links read formatted. The raw screen stays raw.
+
+* **Markers** - `[Image #1]` (claude, codex), `[Image 1]` (opencode), the composer's `[Attached image: <path>]` and claude's `<pasted_content>` wrapper are not words. `parseSent` in `sent-images.ts` takes them out and keeps each path. A bare upload path leads only for a seat without bracketed paste.
+* **This device first** - the Composer keeps each image it uploads by its path, in memory, newest 32. The pending entry and the settled prompt draw that copy, so the picture is there on the next frame and never asks the host.
+* **Any other device, or after a reload** - the host's thumbnail, by `image_thumb` ([image-upload.md](image-upload.md)), read once per path and kept for the page's life. A refusal reads in words: the host no longer holds it (the seat ended), it is not this seat's upload, or the host is too old to show it.
+* **A tap** opens the media viewer full size: this device's copy, else the host's whole file. The viewer mounts on the body, since the transcript is its own stacking context.
+* **Journey** - `sent-message`, at 1440 and 320.
+
 ## Where it lives
 
 `src/lib/transcript.ts` (types, decoder, `rowsFor`), `src/lib/seat-view.ts`, `src/components/ViewChoice.svelte` (the View button and its picker), `src/lib/view-choice.svelte.ts`, `src/components/Transcript.svelte`, `src/lib/pending-sends.svelte.ts`, `src/lib/transcript-cache.ts`, and the host channel `transcripts` in `daemon-host.ts`. The journey is `seat-views`, and the bed's mock answers `transcript` from `setTranscript`.

@@ -14,6 +14,7 @@
   import { anchorAt, dictationAvailable, placeSpeech, startDictation, type Anchor, type Session as Dictation } from "../lib/dictation";
   import { attachNote, chipLabel, fitImage, formatSize, pastedImages, pasteSteps, pickerAccept, screenImages, withImagePaths } from "../lib/images";
   import { inAndroidApp } from "../lib/open-external";
+  import { rememberSent } from "../lib/sent-images";
 
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
   // `offline` is the host not answering: the draft stays editable and Send waits, since a frame typed into a dead link is lost.
@@ -47,7 +48,7 @@
     /** The seat's `state` is working, the value the sidebar's spinner reads. The field stays open to typing. */
     busy?: boolean;
     /** Where a send shows in the transcript before the harness writes it (COI-3690). */
-    pending?: { note(session: string, text: string, images: number): number; cancel(id: number): void };
+    pending?: { note(session: string, text: string, images: number, paths: string[]): number; cancel(id: number): void };
     /** Keys this device's send history with the seat's, as drafts are (COI-3691). */
     hostId?: string;
   } = $props();
@@ -353,7 +354,9 @@
       try {
         for (const [index, chip] of sending.entries()) {
           uploading = { done: index, total: sending.length };
-          paths.push(await channel.upload(target.id, chip.file));
+          const path = await channel.upload(target.id, chip.file);
+          paths.push(path);
+          rememberSent(path, chip.file);
         }
       } catch (error) {
         imageNote = `Not sent. ${error instanceof Error && error.message ? error.message : "The upload failed."} Your message and images stay here.`;
@@ -373,7 +376,7 @@
     }
     if (!typed && paths.length === 0) return;
     // Before the first byte leaves, so it shows in the transcript on the next frame.
-    lastPending = typed || paths.length > 0 ? pending?.note(target.id, typed, paths.length) : undefined;
+    lastPending = typed || paths.length > 0 ? pending?.note(target.id, typed, paths.length, paths) : undefined;
     if (target.paste) {
       // Each path is its own paste, which is what a harness reads as an attachment (references/image-upload.md).
       const steps = pasteSteps(paths, typed, PASTE_OPEN, PASTE_CLOSE);

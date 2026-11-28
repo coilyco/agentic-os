@@ -11,6 +11,8 @@ export interface PendingSend {
   text: string;
   /** How many images went with it. With no words, the entry names them. */
   images: number;
+  /** Each image's upload path, which this device's own copy is held under (COI-3800). */
+  paths: string[];
   /** When the person pressed send, in ms on this device. */
   at: number;
   state: "pending" | "unsent";
@@ -43,9 +45,9 @@ export function shownText(send: Pick<PendingSend, "text" | "images">): string {
   return send.images === 1 ? "An image sent" : `${send.images} images sent`;
 }
 
-export function notePending(key: string, text: string, at = Date.now(), images = 0): number {
+export function notePending(key: string, text: string, at = Date.now(), images = 0, paths: string[] = []): number {
   const id = nextId++;
-  held[key] = [...(held[key] ?? []), { id, text, images, at, state: "pending" }];
+  held[key] = [...(held[key] ?? []), { id, text, images, paths, at, state: "pending" }];
   timers.set(
     id,
     setTimeout(() => {
