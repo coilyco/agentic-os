@@ -4,6 +4,7 @@
   import CloseSeat from "./CloseSeat.svelte";
   import Creature from "./Creature.svelte";
   import PagesList from "./PagesList.svelte";
+  import SeatSearch from "./SeatSearch.svelte";
   import { app, askLineFor, needsKaiIds, openByPerson, openConfiguration, openPage, openSettings, pinnedNow, reconnecting, reopenDead, selectedHost, showAllRoles, showLogo } from "../lib/app.svelte";
   import { deadDetail } from "../lib/dead-seats";
   import { pageRows } from "../lib/artifact-pages";
@@ -84,6 +85,8 @@
   <div class="entries"><button type="button" class="settings" onclick={openConfiguration}>Roles</button></div>
 
   {#if app.notice}<p class="note" role="status">{app.notice}</p>{/if}
+
+  <SeatSearch />
 
   {#if pages.length}<PagesList rows={pages} onopen={openPage} headingId="overview-pages" />{/if}
 

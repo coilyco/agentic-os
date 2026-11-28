@@ -1,9 +1,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Every item a search can return is paged in by its `before` cursor, for each harness.
@@ -157,5 +162,186 @@ func TestSnippetKeepsTheMatchOnOneLineWithItsNeighbours(t *testing.T) {
 	}
 	if snippet, ok := snippetOf("ÉCOLE", foldRunes("école")); !ok || snippet != "ÉCOLE" {
 		t.Fatalf("a non-ASCII rune folds: %q %v", snippet, ok)
+	}
+}
+
+// COI-3797 slice 2: one search covers every live seat, and one without a transcript says
+// why without hiding the others.
+func TestTranscriptSearchCoversEveryLiveSeat(t *testing.T) {
+	d, state, seat := searchRig(t)
+	seat("eng-platform-b", "The Lighthouse migration is done.")
+	seat("eng-platform-a", "I checked the lighthouse logs.")
+	seat("eng-platform-c", "Nothing to see.")
+	d.sessions["shell-z"] = &ptySession{d: d, name: "shell-z", seat: "goose", done: make(chan struct{})}
+	results := everySeat(t, d, readLedger(state), "lighthouse")
+	var got []string
+	for _, result := range results {
+		got = append(got, fmt.Sprintf("%s:%d:%s", result.Session, result.Total, result.Reason))
+	}
+	if want := "eng-platform-a:1: eng-platform-b:1: eng-platform-c:0: shell-z:0:no_transcript"; strings.Join(got, " ") != want {
+		t.Fatalf("results = %s, want %s", strings.Join(got, " "), want)
+	}
+	if match := results[1].Matches[0]; match.Kind != transcriptKindReply || !strings.Contains(match.Snippet, "Lighthouse migration") {
+		t.Fatalf("a seat's match carries its snippet: %+v", match)
+	}
+}
+
+// searchRig is a daemon with live claude seats recorded in a ledger. seat adds one and
+// returns its transcript file.
+func searchRig(t *testing.T) (*daemon, string, func(name, phrase string) string) {
+	t.Helper()
+	state := t.TempDir()
+	d := newDaemon(func(string, ...any) {})
+	d.ledgerDir = state
+	return d, state, func(name, phrase string) string {
+		home, id := filepath.Join(t.TempDir(), "home"), newConversationID()
+		seatTranscript(t, home, id, userLine("go"), assistantLine("end_turn", text(phrase)))
+		if err := writeLedger(state, ledgerEntry{Name: name, Role: "eng-platform", Seat: "claude", Conversation: id, Home: home, Started: time.Now().UTC()}); err != nil {
+			t.Fatal(err)
+		}
+		d.sessions[name] = &ptySession{d: d, name: name, seat: "claude", done: make(chan struct{})}
+		return filepath.Join(home, ".claude", "projects", "-some-project", id+".jsonl")
+	}
+}
+
+func everySeat(t *testing.T, d *daemon, recorded []ledgerEntry, query string) []transcriptSeatResult {
+	t.Helper()
+	results, err := d.searchEverySeat(context.Background(), recorded, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return results
+}
+
+func readFrame(t *testing.T, c *conn) frame {
+	t.Helper()
+	got := make(chan frame, 1)
+	go func() {
+		message, _ := c.read()
+		got <- message
+	}()
+	select {
+	case message := <-got:
+		return message
+	case <-time.After(5 * time.Second):
+		t.Fatal("no frame came back")
+		return frame{}
+	}
+}
+
+// A search waits off the read loop, so the connection keeps taking frames, and a newer
+// search from the same connection cancels the one still waiting.
+func TestASearchNeverBlocksItsConnectionAndANewerOneCancelsIt(t *testing.T) {
+	d, _, seat := searchRig(t)
+	seat("eng-platform-a", "The lighthouse logs.")
+	server, peer := net.Pipe()
+	defer server.Close()
+	defer peer.Close()
+	cl := &client{c: newConn(server), owned: map[string]bool{}, attached: map[string]*ptySession{}}
+	device := newConn(peer)
+	// Both slots are taken, as by two other devices' searches.
+	d.searching.init()
+	for range transcriptSearchSlots {
+		d.searching.slots <- struct{}{}
+	}
+	returned := make(chan error, 1)
+	go func() {
+		returned <- d.handle(cl, frame{Type: "transcript_search", ID: "1", All: true, Query: "lighthouse"})
+	}()
+	select {
+	case err := <-returned:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("handle waited for the search, so the connection's polls and typing would wait too")
+	}
+	if err := d.handle(cl, frame{Type: "transcript_search", ID: "2", Session: "eng-platform-a", Query: "lighthouse"}); err != nil {
+		t.Fatal(err)
+	}
+	if first := readFrame(t, device); first.ID != "1" || first.Type != "error" || first.Reason != reasonSearchCancelled {
+		t.Fatalf("the replaced search ends with its own reason: %+v", first)
+	}
+	for range transcriptSearchSlots {
+		<-d.searching.slots
+	}
+	if second := readFrame(t, device); second.ID != "2" || second.Type != "transcript_search" || second.Total != 1 {
+		t.Fatalf("the newer search answers once a slot frees: %+v", second)
+	}
+}
+
+// The cache answers an unchanged file, reads a grown one again, stays in its budget, and
+// lets a seat's items go when its session ends.
+func TestTheItemCacheFollowsTheFilesStaysInBudgetAndLeavesWithTheSeat(t *testing.T) {
+	d, state, seat := searchRig(t)
+	pathA := seat("eng-platform-a", "The lighthouse logs.")
+	seat("eng-platform-b", "More lighthouse notes.")
+	seat("eng-platform-c", "Nothing here.")
+	recorded := readLedger(state)
+	everySeat(t, d, recorded, "lighthouse")
+	if d.searching.misses != 3 || d.searching.cachedBytes() == 0 {
+		t.Fatalf("a first search reads every seat and keeps them: misses %d, bytes %d", d.searching.misses, d.searching.cachedBytes())
+	}
+	everySeat(t, d, recorded, "notes")
+	if d.searching.misses != 3 {
+		t.Fatalf("unchanged files are answered from the cache: misses %d", d.searching.misses)
+	}
+	file, _ := os.OpenFile(pathA, os.O_APPEND|os.O_WRONLY, 0)
+	file.WriteString(assistantLine("end_turn", text("A later lighthouse line.")) + "\n")
+	file.Close()
+	if results := everySeat(t, d, recorded, "lighthouse"); d.searching.misses != 4 || !strings.Contains(results[0].Matches[0].Snippet, "A later lighthouse line") {
+		t.Fatalf("a grown file is read again and its new line found: misses %d, %+v", d.searching.misses, results[0])
+	}
+	one := d.searching.cachedBytes() / 3
+	saved := transcriptCacheBudget
+	transcriptCacheBudget = 2*one + one/2
+	defer func() { transcriptCacheBudget = saved }()
+	d.searching.drop("eng-platform-a")
+	d.searching.drop("eng-platform-b")
+	d.searching.drop("eng-platform-c")
+	everySeat(t, d, recorded, "lighthouse")
+	if held := d.searching.cachedBytes(); held > transcriptCacheBudget || len(d.searching.cache) != 2 {
+		t.Fatalf("the cache keeps within its budget: %d of %d bytes, %d seats", held, transcriptCacheBudget, len(d.searching.cache))
+	}
+	s := d.sessions["eng-platform-c"]
+	d.forget(s)
+	if _, held := d.searching.cache["eng-platform-c"]; held {
+		t.Fatal("a seat that ended keeps no cached items")
+	}
+}
+
+// The ASCII fast path finds what folding rune by rune finds, at the same place.
+func TestTheASCIIPathAgreesWithTheRunePath(t *testing.T) {
+	runePath := func(text string, needle []rune) (string, bool) {
+		runes, folded := []rune(text), foldRunes(text)
+		at := runeIndex(folded, needle)
+		if at < 0 {
+			return "", false
+		}
+		start, end := max(at-transcriptSnippetRunes, 0), min(at+len(needle)+transcriptSnippetRunes, len(runes))
+		prefix, suffix := "…", "…"
+		if start == 0 {
+			prefix = ""
+		}
+		if end == len(runes) {
+			suffix = ""
+		}
+		return prefix + strings.Join(strings.Fields(string(runes[start:end])), " ") + suffix, true
+	}
+	texts := []string{
+		"Ran the Gate → it passed, then the GATE again",
+		strings.Repeat("é", 70) + " the gate " + strings.Repeat("→", 70),
+		"no match here at all",
+		"gat",
+		"Kelvin is a temperature",
+	}
+	for _, text := range texts {
+		for _, query := range []string{"gate", "GATE", "the gate", "kelvin", "→"} {
+			want, wantOK := runePath(text, foldRunes(query))
+			got, gotOK := snippetOf(text, foldRunes(query))
+			if got != want || gotOK != wantOK {
+				t.Errorf("%q in %q: got %q %v, the rune path %q %v", query, text, got, gotOK, want, wantOK)
+			}
+		}
 	}
 }

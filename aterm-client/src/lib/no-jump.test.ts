@@ -22,6 +22,7 @@ describe("seat selection", () => {
     expect(filesWith(/\b(selectSession|openByPerson)\(/)).toEqual([
       "components/Overview.svelte",
       "components/RelayNotice.svelte",
+      "components/SeatSearch.svelte", // a tapped result in the every-seat search
       "components/SeatToast.svelte",
       "components/ShareSheet.svelte",
       "components/Sidebar.svelte",

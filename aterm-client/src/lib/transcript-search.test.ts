@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { decodeSearch, rowsFor, type TranscriptItem } from "./transcript";
-import { searchStatusText, stepMatch, wantsTranscriptFind } from "./transcript-search";
+import { decodeEverySeat, decodeSearch, rowsFor, type TranscriptItem } from "./transcript";
+import { searchStatusText, splitMarks, stepMatch, wantsTranscriptFind } from "./transcript-search";
 
 const chord = (init: { key: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean }) => ({ metaKey: false, ctrlKey: false, shiftKey: false, altKey: false, ...init });
 
@@ -76,5 +76,34 @@ describe("rowsFor with a match drawn whole", () => {
     expect(rows.map((row) => row.key)).toEqual(["p", "r1", "t", "r2"]);
     const tool = rows.find((row) => row.key === "t");
     expect(tool?.kind === "tool" && tool.lines).toEqual(["1", "2", "3", "4", "the phrase"]);
+  });
+});
+
+describe("splitMarks", () => {
+  it("marks every hit whatever its case and keeps the rest as text", () => {
+    expect(splitMarks("Gate, then the GATE again", "gate")).toEqual([
+      { text: "Gate", hit: true },
+      { text: ", then the ", hit: false },
+      { text: "GATE", hit: true },
+      { text: " again", hit: false },
+    ]);
+    expect(splitMarks("nothing here", "gate")).toEqual([{ text: "nothing here", hit: false }]);
+    expect(splitMarks("text", "  ")).toEqual([{ text: "text", hit: false }]);
+  });
+});
+
+describe("decodeEverySeat", () => {
+  it("keeps each seat's matches and the reason a seat was not searched", () => {
+    const seats = decodeEverySeat({
+      seats: [
+        { session: "a", total: 2, matches: [{ id: "x", kind: "reply", field: "text", snippet: "the gate" }] },
+        { session: "b", total: 0, reason: "no_transcript" },
+        { total: 3 },
+      ],
+    });
+    expect(seats).toEqual([
+      { session: "a", matches: [{ id: "x", kind: "reply", field: "text", snippet: "the gate" }], total: 2, partial: false },
+      { session: "b", matches: [], total: 0, partial: false, reason: "no_transcript" },
+    ]);
   });
 });

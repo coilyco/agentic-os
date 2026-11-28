@@ -48,6 +48,7 @@
   import { mark } from "../lib/tap-trace";
   import { wantsFind } from "../lib/terminal-extras";
   import { wantsTranscriptFind } from "../lib/transcript-search";
+  import { searchJump } from "../lib/search-jump.svelte";
 
   let { role, session }: { role: Role; session: Session } = $props();
   // On a phone the switcher bar names the seat, so the header keeps only a heading for screen readers.
@@ -98,6 +99,10 @@
   // The first read of this panel may mark what is new. A later view switch may not.
   let hasRead = $state(false);
   const showRaw = $derived(!transcripts || view.raw || fallback !== null);
+  // A match picked in the every-seat search shows in the transcript, whatever view was kept.
+  $effect(() => {
+    if (transcripts && searchJump.next?.session === session.id && view.raw) untrack(() => (view = { level: view.level, raw: false }));
+  });
   const RETRY_MS = 5000;
   // A refusal on open (a cold start races the unlock, a starting seat has no file yet) must not strand the seat on its screen (COI-3646).
   $effect(() => {

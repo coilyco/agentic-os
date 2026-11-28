@@ -5,7 +5,7 @@
   import { pageLabel, SHOW_WAIT_MS } from "../lib/pages";
   import type { Session } from "../lib/protocol";
   import type { SharedBrowser } from "../lib/screencast";
-  import { driverLabel, isDriving, isStalled, keyParams, mouseParams, paneSize, tabLabel, toPagePoint, wheelParams } from "../lib/screencast";
+  import { driverLabel, isDriving, keyParams, mouseParams, paneSize, tabLabel, toPagePoint, wheelParams } from "../lib/screencast";
 
   let { session }: { session: Session } = $props();
 
@@ -26,7 +26,6 @@
   let bar: HTMLDivElement | undefined = $state();
   let stage: HTMLDivElement | undefined = $state();
   let handBack: HTMLButtonElement | undefined = $state();
-  let now = $state(Date.now());
   let address = $state("");
   let lastMove = 0;
   let restarting = $state(false);
@@ -128,11 +127,6 @@
     // Watching again starts a closed browser, so this stays a watcher throughout.
     watchNow();
   }
-
-  $effect(() => {
-    const timer = setInterval(() => (now = Date.now()), 1000);
-    return () => clearInterval(timer);
-  });
 
   $effect(() => {
     address = browser?.url ?? "";
@@ -282,9 +276,6 @@
       <input id={`address-${session.id}`} class="mono" bind:value={address} readonly={!driving} spellcheck="false" autocomplete="off" />
       {#if driving}<button type="submit" class="button">Go</button>{/if}
     </form>
-    {#if isStalled(browser, now)}
-      <p class="strip" role="status">The stream stalled. The last frame is {Math.round((now - (browser.frame?.at ?? now)) / 1000)} seconds old.</p>
-    {/if}
     <!-- The page is a picture of the host's browser, so its own elements are not here to focus. The application role hands keys and pointer to it whole. -->
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
     <div
@@ -333,7 +324,6 @@
   .address { display: flex; gap: 8px; }
   .address input { flex: 1; min-width: 0; min-height: 40px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--control-line); background: var(--terminal); color: var(--text-soft); font-size: 13px; }
   .address input[readonly] { color: var(--muted); }
-  .strip { margin: 0; padding: 8px 10px; border-radius: 8px; font-size: 13px; color: var(--warn-text); background: var(--warn-fill); }
   .stage { position: relative; flex: 1; min-height: 240px; border-radius: 10px; border: 1px solid var(--line); background: var(--terminal); display: grid; place-items: center; overflow: hidden; touch-action: none; }
   .stage.driving { border-color: var(--brand); cursor: default; }
   .stage img { width: 100%; height: 100%; object-fit: contain; user-select: none; pointer-events: none; }

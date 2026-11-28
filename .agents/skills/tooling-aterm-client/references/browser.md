@@ -51,6 +51,8 @@ Request frames carry an `id`, and a refusal comes back as `error` with that `id`
 
 The Browser pane names the followed page above the address: its title, and `Tab 2 of 3` beside it while more than one page is open. A daemon that sends no `tab` and `tabs` shows the title alone. When the numbers change, the pane says `Now showing tab 3 of 3` to a screen reader, since the daemon moves the stream without a click. The pane draws only what `browser_state` carries.
 
+**A still page is not a stalled stream (COI-3823).** Chromium casts only what repaints, so the pane never reads frame age as a fault. `browser-idle` holds one frame for 30 seconds and shows no warning. Telling a hung page from a still one needs a daemon probe, not built yet (COI-3825).
+
 ## What is not built
 
 * A list of the open tabs with their titles and urls. `browser_state` carries a place and a count, so a list needs a daemon frame for it (COI-2558 files the request).
