@@ -47,13 +47,6 @@ export function paneSize(box: { width: number; height: number } | undefined, min
   return height < 1 ? undefined : { width: Math.round(box.width), height };
 }
 
-/** A frame older than this while the page is live means the stream stalled. */
-export const STALL_MS = 5000;
-
-export function isStalled(browser: SharedBrowser, now: number): boolean {
-  return browser.state === "live" && browser.frame !== undefined && now - browser.frame.at > STALL_MS;
-}
-
 interface Box {
   left: number;
   top: number;
