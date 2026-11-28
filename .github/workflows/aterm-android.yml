@@ -16,7 +16,7 @@ on:
       - "scripts/ci/aterm-android*.sh"
       - ".github/workflows/aterm-android.yml"
   schedule:
-    - cron: "23 9 * * *"
+    - cron: "5 11 * * *"
   workflow_dispatch:
     inputs:
       bump:
