@@ -223,6 +223,35 @@ def host_kind(browser, url: str, size: tuple[int, int], tag: str, expect) -> Non
     page.close()
 
 
+def dead_seats(browser, url: str, size: tuple[int, int], tag: str, expect) -> None:
+    """A seat whose holder died (COI-3799): listed under Dead, reopened from the keyboard."""
+    page = browser.new_page(viewport={"width": size[0], "height": size[1]})
+    page.goto(url + "?dead=1")
+    page.get_by_role("tab", name=re.compile("^Mock host")).click()
+    page.wait_for_timeout(600)
+    heading = page.get_by_role("heading", name=re.compile("^Dead"))
+    expect(f"{tag} dead seat: the Dead group shows", heading.count() >= 1 and heading.first.is_visible(), heading.count())
+    row = page.locator("ul.dead li").first
+    text = row.inner_text() if row.count() else ""
+    expect(f"{tag} dead seat: the row names the seat and when it was found", "Sturdy-Imp" in text and "found dead 3h ago" in text, text)
+    width = page.evaluate("() => document.documentElement.scrollWidth")
+    expect(f"{tag} dead seat: no sideways scroll", width <= size[0], width)
+    page.screenshot(path=str(CLIENT / f"drive-{size[0]}-dead.png"))
+    reached = False
+    for _ in range(80):
+        page.keyboard.press("Tab")
+        if page.evaluate("() => document.activeElement?.getAttribute('aria-label')") == "Reopen Sturdy-Imp":
+            reached = True
+            break
+    expect(f"{tag} dead seat: Tab reaches Reopen", reached, None)
+    if reached:
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(600)
+        expect(f"{tag} dead seat: Reopen takes it off the list", page.get_by_role("heading", name=re.compile("^Dead")).count() == 0, None)
+        page.screenshot(path=str(CLIENT / f"drive-{size[0]}-dead-reopened.png"))
+    page.close()
+
+
 def main() -> int:
     port = free_port()
     server = serve(port)
@@ -240,6 +269,8 @@ def main() -> int:
                 sign_in(browser, f"http://localhost:{port}/", size, f"{size[0]}px", expect)
             for size in WIDTHS:
                 host_kind(browser, f"http://localhost:{port}/", size, f"{size[0]}px", expect)
+            for size in WIDTHS:
+                dead_seats(browser, f"http://localhost:{port}/", size, f"{size[0]}px", expect)
             for size in WIDTHS:
                 tag = f"{size[0]}px"
                 page = open_seat(browser, f"http://localhost:{port}/", size, "Imp-Dragonfly")

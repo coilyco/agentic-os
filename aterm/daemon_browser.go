@@ -139,7 +139,9 @@ type sharedBrowser struct {
 	// moving the stream between them.
 	pages     []pageTab
 	following sync.Mutex
-	watchers  map[*conn]*watcher
+	// challengeFrames are open Turnstile iframes by target id, each with its parent frame.
+	challengeFrames map[string]string
+	watchers        map[*conn]*watcher
 }
 
 // watcher is one client's view of a browser. It keeps the newest state and frame only,
@@ -212,7 +214,7 @@ func (sb *sharedBrowser) stateFrame(client, id string) *frame {
 	return &frame{
 		Type: "browser_state", ID: id, Session: sb.session, State: sb.state, Driver: sb.driver,
 		Holder: sb.holder, URL: sb.url, Title: sb.title, Reason: sb.reason, Client: client,
-		Tab: tab, Tabs: tabs,
+		Tab: tab, Tabs: tabs, CloudflareCheck: sb.challenged(),
 	}
 }
 
@@ -390,6 +392,7 @@ func (sb *sharedBrowser) start() {
 	sb.targetID, sb.page = target.TargetID, page
 	sb.url, sb.title = target.URL, target.Title
 	sb.pages = []pageTab{{targetID: target.TargetID, session: page, url: target.URL, title: target.Title}}
+	sb.challengeFrames = nil
 	sb.starting = false
 	sb.state, sb.reason = "live", link.note
 	if sb.reason == "" {
@@ -414,6 +417,8 @@ type targetInfo struct {
 	Type     string `json:"type"`
 	Title    string `json:"title"`
 	URL      string `json:"url"`
+	// ParentFrameID is set on an iframe target by Chromium versions that report it.
+	ParentFrameID string `json:"parentFrameId,omitempty"`
 }
 
 // attachPage finds the browser's first page and attaches to it flattened, so
@@ -525,6 +530,9 @@ func (sb *sharedBrowser) onEvent(sessionID, method string, params json.RawMessag
 			return
 		}
 		sb.mu.Lock()
+		if created.TargetInfo.Type == "iframe" {
+			sb.iframeChanged(created.TargetInfo)
+		}
 		isNew := sb.tabCreated(created.TargetInfo)
 		sb.mu.Unlock()
 		if isNew {
@@ -539,6 +547,9 @@ func (sb *sharedBrowser) onEvent(sessionID, method string, params json.RawMessag
 		}
 		sb.mu.Lock()
 		defer sb.mu.Unlock()
+		if changed.TargetInfo.Type == "iframe" {
+			sb.iframeChanged(changed.TargetInfo)
+		}
 		sb.tabChanged(changed.TargetInfo)
 	case "Target.targetDestroyed":
 		var gone struct {
@@ -549,6 +560,7 @@ func (sb *sharedBrowser) onEvent(sessionID, method string, params json.RawMessag
 		}
 		sb.mu.Lock()
 		link, cdp := sb.link, sb.cdp
+		sb.iframeGone(gone.TargetID)
 		followed, remaining := sb.tabGone(gone.TargetID)
 		sb.mu.Unlock()
 		switch {

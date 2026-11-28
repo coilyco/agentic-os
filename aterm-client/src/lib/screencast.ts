@@ -26,6 +26,8 @@ export interface SharedBrowser {
   /** The followed page's place among the open ones (from 1), and how many are open. */
   tab?: number;
   tabs?: number;
+  /** The page shows a Cloudflare check, which never passes in this browser (COI-3803). */
+  cloudflareCheck?: boolean;
   /** `seq` counts frames, so a gap is frames the daemon dropped for a slow client. */
   frame?: { src: string; metadata: FrameMetadata; at: number; seq: number };
 }

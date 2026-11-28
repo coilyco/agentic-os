@@ -216,6 +216,8 @@ export type HostEvent =
   // The PTY's effective size, which a client sets its terminal to exactly.
   | { type: "size"; sessionId: string; rows: number; cols: number }
   | { type: "terminals"; terminals: ListedTerminal[] }
+  // Seats whose holder died, newest first, each reopenable (COI-3799).
+  | { type: "dead_seats"; seats: DeadSeat[] }
   | { type: "terminal_opened"; label: string; id: string }
   | { type: "terminal_exit"; id: string; code: number }
   | { type: "terminal_refused"; label: string; text: string };
@@ -270,6 +272,8 @@ export interface ImageChannel {
   maxBytes: number;
   /** Puts the image on the seat's host and resolves its path. Rejects in words. */
   upload(sessionId: string, image: Blob): Promise<string>;
+  /** A sent image by its upload path, a thumbnail unless `full`. Needs `image-thumb`. */
+  read?(sessionId: string, path: string, full: boolean): Promise<Blob>;
 }
 
 /** The screen as the client saw it. Display text, never trusted. */
@@ -328,6 +332,17 @@ export interface DeviceKeyChannel {
 export interface MachineKindChannel {
   /** Resolves the kind the host now holds. A locked device gets a `Refusal`. */
   set(kind: MachineKind): Promise<MachineKind>;
+}
+
+/** A seat whose holder went without an exit. `name@ref` is what a reopen names. */
+export interface DeadSeat {
+  name: string;
+  ref: string;
+  role: string;
+  identity: string;
+  seat: string;
+  /** When the daemon found it dead, in ms. */
+  endedAt: number;
 }
 
 export interface HostConnection {

@@ -3,6 +3,7 @@
   import { clearLinkNotice, linkNotice, openLink } from "../lib/link-notice.svelte";
   import { inApp, isArtifactUrl } from "../lib/open-external";
   import { cardText, pageLabel } from "../lib/pages";
+  import { isSignInPage } from "../lib/sign-in-pages";
 
   // The newest link leads, since it is the one a seat is waiting on. The rest are counted.
   const page = $derived(app.openedPages.at(-1));
@@ -11,7 +12,8 @@
   const label = $derived(page ? pageLabel(page.url) : "");
   // The device's own browser opens an artifact, where Kai is signed in, since the seat's streamed
   // browser is not and claude.ai refuses framing. It also opens every page when the host serves no browser.
-  const outside = $derived(page !== undefined && inApp() && (isArtifactUrl(page.url) || !app.connection?.browser));
+  // A sign-in page always opens there, since Cloudflare's check never passes in the seat's browser (COI-3803).
+  const outside = $derived(page !== undefined && (isSignInPage(page.url) || (inApp() && (isArtifactUrl(page.url) || !app.connection?.browser))));
 
   async function openOutside(id: number, url: string): Promise<void> {
     // A failed open keeps the card, so the address stays to copy and the person can try again.

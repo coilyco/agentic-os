@@ -29,6 +29,12 @@ Observed on 2026-11-04 against a private daemon on this build, with a fake clien
 * **Which tab or pane the client uses is the client's call.** The frame carries the seat and the address and says nothing about showing it. Whether a page lands in the seat's own browser pane or a separate tab is for Kai to decide (COI-3258).
 * **A harness that opens a page without `PATH` or `BROWSER`** is not reached. An absolute `/usr/bin/open`, or a native library calling the system directly, opens the native browser as before.
 
+## Sign-in pages open on the device (COI-3803)
+
+* **A sign-in page never offers Show here.** Claude's `/oauth/authorize` on claude.ai and claude.com, `accounts.google.com`, GitHub's login, device and two-factor pages, and the build's Treehouse accounts origin get only **Open in browser**, in the app and in a browser tab alike, since Cloudflare's check never passes in the seat's streamed browser. `isSignInPage` in `sign-in-pages.ts` is the list.
+* **A seat's sign-in card takes over its own authorize page.** While COI-3679's card is up for a seat, an `open_url` for a Claude authorize page from that seat is no card, and one already waiting is cleared, since the card opens that page itself.
+* **The daemon half is unchanged.** `aterm open` still offers every address to subscribers, so the routing is the client's.
+
 ## Who subscribes (COI-3559)
 
 * **The browser client subscribes only when the host serves a browser**, since "Show here" needs one. With none it stays out and the host's own browser opens, which is on the same screen for a person at the host.
