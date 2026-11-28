@@ -3,6 +3,7 @@
   import Markdown from "./Markdown.svelte";
   import TranscriptSearch from "./TranscriptSearch.svelte";
   import { clearMatches, matchRanges, paintMatches } from "../lib/transcript-search";
+  import { takeJump } from "../lib/search-jump.svelte";
   import { replyAge } from "../lib/last-reply";
   import { openLink } from "../lib/link-notice.svelte";
   import type { TranscriptChannel } from "../lib/protocol";
@@ -49,6 +50,14 @@
   let searchQuery = $state("");
   let current = $state<string | undefined>();
   const whole = $derived(new Set(current ? [current] : []));
+  // A tap in the every-seat search opens this seat on its match, once.
+  // svelte-ignore state_referenced_locally
+  const jumped = takeJump(sessionId);
+  const opening = jumped ? { query: jumped.query, id: jumped.match.id } : undefined;
+  if (opening) searching = true;
+  let loaded: () => void = () => {};
+  // A jump waits for the first read, which would otherwise land after it and replace its page.
+  const readOnce = new Promise<void>((done) => (loaded = done));
   const rows = $derived(rowsFor(items, level, whole));
   const sending = $derived(pendingFor(key));
   const markerKey = $derived(markerRow(items, rows.map((row) => row.key), newFrom));
@@ -96,6 +105,7 @@
     catching = false;
     heard = true;
     onread();
+    loaded();
     if (newFrom) void showMarker();
     else void follow();
     keep();
@@ -274,6 +284,8 @@
     searchQuery = query;
     current = match?.id;
     if (!match) return;
+    await Promise.race([readOnce, new Promise((done) => setTimeout(done, 5000))]);
+    if (current !== match.id) return;
     if (!items.some((item) => item.id === match.id)) {
       try {
         const reply = await channel.read(sessionId, match.before ? { before: match.before, limit: PAGE } : { limit: PAGE });
@@ -319,7 +331,7 @@
 
 <section class="transcript" aria-label="Transcript">
   {#if searching && channel.search}
-    <TranscriptSearch {channel} {sessionId} onshow={(match, query) => void showMatch(match, query)} onclose={closeSearch} />
+    <TranscriptSearch {channel} {sessionId} initial={opening} onshow={(match, query) => void showMatch(match, query)} onclose={closeSearch} />
   {/if}
   <div class="feed" bind:this={list} onscroll={() => (pinned = atEnd())} tabindex="-1">
     {#if older}

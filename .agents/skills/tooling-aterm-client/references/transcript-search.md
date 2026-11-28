@@ -11,6 +11,13 @@
 * **`before`** - the cursor a `transcript` read sends to page the match in: its page ends 8 items past the match, so what followed shows too. Absent means the newest page holds it. It is the same opaque cursor `older` carries, so a client never builds one.
 * **Gate** - the same as `transcript`, since a snippet of tool output can hold a secret. Refusals are the transcript's reasons.
 
+## Every seat at once
+
+* **Feature** - `transcript_search_all` in `welcome`.
+* **Request** - `{type: "transcript_search", id, all: true, query}`, with no session.
+* **Reply** - `{type: "transcript_search", id, query, seats, updated_at}`. `seats` holds one entry per live seat, by name: `{session, reader?, matches, total, more?, reason?}`, with that seat's newest 50 matches. A seat that cannot be read carries its refusal `reason` and no matches, so one harness without a transcript never hides the rest.
+* **The client** - a Search every seat field at the top of the Seats overview. Results group by seat, newest first, and each leads with what it is (You, Reply, Tool, Tool output, Note) and marks the phrase. A tap opens that seat on its transcript, moving a desktop off its raw screen, with the seat's own search bar filled in and the match paged in (`search-jump.svelte.ts`).
+
 ## What matches
 
 * Case folds rune by rune, so `É` finds `é` and `ß` never becomes `ss`.
@@ -27,10 +34,11 @@
 
 ## Not covered
 
-* Search across every live seat on a host is the second slice of COI-3797.
 * Text a seat wrote as markdown matches its source, so a phrase split by formatting is found by the host and may not be marked on screen.
 
 ## Tests
 
 * `go test -run 'TranscriptSearch|Snippet' ./aterm` - every item of each harness's fixture is paged in by its own cursor, peers never match, and a phrase at the start of a 1,401-line file is found and paged in.
 * Journey `transcript-search` at every size - no match, one match from item 3 of 1,200, and twelve with Older, Newer and wrapping.
+* Journey `seat-search` at every size - two seats' matches grouped, a seat without one left out, and a tap that opens Beetle at item 5 of 606.
+* `go test -run TranscriptSearchCoversEveryLiveSeat ./aterm` - three claude seats and a goose seat in name order, the goose one naming `no_transcript`.

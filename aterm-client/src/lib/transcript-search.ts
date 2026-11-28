@@ -74,3 +74,27 @@ export function clearMatches(): void {
   found?.registry.delete(MATCH_HIGHLIGHT);
   found?.registry.delete(CURRENT_HIGHLIGHT);
 }
+
+/** Text split around each case-insensitive hit of query, for marks. */
+export function splitMarks(text: string, query: string): { text: string; hit: boolean }[] {
+  const needle = query.trim().toLocaleLowerCase();
+  const lower = text.toLocaleLowerCase();
+  if (!needle || lower.length !== text.length) return [{ text, hit: false }];
+  const parts: { text: string; hit: boolean }[] = [];
+  let from = 0;
+  for (let at = lower.indexOf(needle); at >= 0; at = lower.indexOf(needle, at + needle.length)) {
+    if (at > from) parts.push({ text: text.slice(from, at), hit: false });
+    parts.push({ text: text.slice(at, at + needle.length), hit: true });
+    from = at + needle.length;
+  }
+  if (from < text.length) parts.push({ text: text.slice(from), hit: false });
+  return parts;
+}
+
+/** What a match is, in the words a result row leads with. */
+export function matchKindText(kind: string, field: string): string {
+  if (kind === "prompt") return "You";
+  if (kind === "tool") return field === "output" ? "Tool output" : "Tool";
+  if (kind === "note") return "Note";
+  return "Reply";
+}
