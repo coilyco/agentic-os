@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick, untrack } from "svelte";
   import Terminal from "./Terminal.svelte";
+  import { startsWithBang, TERMINAL_HINT, trackLine } from "../lib/bang";
   import { app, clearStaged, closeTerminal, colorOf, openTerminal } from "../lib/app.svelte";
   import { clearsLine } from "../lib/staged";
   import type { Session } from "../lib/protocol";
@@ -29,6 +30,19 @@
 
   // A command this seat staged, while its line is still on the shell's input (COI-3306).
   const staged = $derived(view.kind === "live" && app.staged[session.id]?.terminal === view.entry.id ? app.staged[session.id] : undefined);
+
+  // The shell's input line from what is typed, for the "!" hint (COI-3802). A staged
+  // command or a new shell puts a line there that typing did not, so it starts unknown.
+  let line = $state<string | null>("");
+  const lineOwner = $derived(view.kind === "live" ? `${view.entry.id}\n${staged?.body ?? ""}` : "");
+  $effect(() => {
+    line = lineOwner.endsWith("\n") || !lineOwner ? "" : null;
+  });
+  const bang = $derived(view.kind === "live" && line !== null && startsWithBang(line) ? TERMINAL_HINT : "");
+  function typedIn(data: string): void {
+    line = trackLine(line, data);
+    if (clearsLine(data)) clearStaged(session.id);
+  }
 
   let pane: HTMLDivElement;
   let primary = $state<HTMLButtonElement>();
@@ -84,7 +98,8 @@
 <div class="pane" bind:this={pane}>
   {#if view.kind === "live" || view.kind === "exited"}
     <div class="bar">
-      <span class="name">Shell beside {session.identity}</span>
+      <!-- The label says where a ! line runs. A floating line covered a fresh prompt. -->
+      {#if bang}<span class="name bang" aria-hidden="true">{bang}</span>{:else}<span class="name">Shell beside {session.identity}</span>{/if}
       <button type="button" class="quiet" onclick={dismiss}>Close</button>
     </div>
     {#if staged}
@@ -95,9 +110,10 @@
       </section>
     {/if}
     {#key view.entry.id}
-      <Terminal connection={app.connection!} sessionId={view.entry.id} label={`shell beside ${session.identity}`} {accent} messages={[]} {colorOf} locked={!app.typing.allowed || view.kind === "exited"} ontype={(data) => clearsLine(data) && clearStaged(session.id)} />
+      <Terminal connection={app.connection!} sessionId={view.entry.id} label={`shell beside ${session.identity}`} {accent} messages={[]} {colorOf} locked={!app.typing.allowed || view.kind === "exited"} ontype={typedIn} />
     {/key}
     <p class="hint mono">Ctrl+Alt+Left returns to {session.identity}</p>
+    <p id={`bang-${session.id}`} class="visually-hidden" role="status">{bang}</p>
     <!-- Present from the first frame, since a status inserted at exit is not announced. -->
     <div role="status">
       {#if watchOnly && view.kind === "live"}
@@ -126,6 +142,7 @@
   .pane { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
   .bar { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 0 12px; border-bottom: 1px solid var(--line); }
   .name { font-family: var(--font-display); font-weight: 600; font-size: 14px; }
+  .name.bang { font: 500 13px/1.3 var(--font-body); color: var(--text-soft); }
   .staged { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--warn-line); background: var(--warn-fill); }
   .staged .who { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 13px; color: var(--warn-text); }
   .staged code { font-size: 13px; color: var(--text); overflow-wrap: anywhere; white-space: pre-wrap; }
