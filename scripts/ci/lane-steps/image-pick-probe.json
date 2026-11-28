@@ -1,0 +1,33 @@
+{
+  "name": "pick an image through Android's own picker, read it at once and at Send (COI-3739, COI-3580)",
+  "start": "seat",
+  "steps": [
+    {"op": "seed-photo"},
+    {
+      "op": "eval",
+      "js": "window.__probe=[];document.addEventListener('change',e=>{const i=e.target;if(!(i instanceof HTMLInputElement)||i.type!=='file')return;for(const f of Array.from(i.files||[])){const row={name:f.name,type:f.type,size:f.size,modified:f.lastModified};window.__probe.push(row);f.arrayBuffer().then(b=>{row.at_once=b.byteLength}).catch(err=>{row.at_once=String(err&&err.name)+': '+String(err&&err.message)});}},true);'armed'",
+      "expect": "armed"
+    },
+    {"op": "pick-image", "mode": "thumb"},
+    {"op": "sleep", "seconds": 4},
+    {"op": "eval", "js": "JSON.stringify(window.__probe)", "save": "thumb_pick"},
+    {"op": "eval", "js": "document.querySelectorAll('form.composer ul.chips li').length", "save": "thumb_chips"},
+    {"op": "shot", "name": "thumb-picked"},
+    {"op": "tap", "selector": "form.composer button.primary"},
+    {"op": "sleep", "seconds": 8},
+    {"op": "eval", "js": "JSON.stringify({chips:document.querySelectorAll('form.composer ul.chips li').length,notes:[...document.querySelectorAll('form.composer [role=alert], form.composer [role=status]')].map(n=>n.textContent.trim()).filter(Boolean)})", "save": "thumb_after_send"},
+    {"op": "shot", "name": "thumb-after-send"},
+    {"op": "logcat", "name": "thumb", "pattern": "chromium|cr_|NotReadable|FileChooser|Permission Denial|UriGrants|photopicker|MediaProvider|PickerDataLayer"},
+    {"op": "adb", "args": ["shell", "dumpsys activity permissions | grep -i -A2 picker | head -40"]},
+    {"op": "eval", "js": "window.__probe=[];document.querySelectorAll('form.composer ul.chips li button').forEach(b=>b.click());'reset'"},
+    {"op": "pick-image", "mode": "browse"},
+    {"op": "sleep", "seconds": 4},
+    {"op": "eval", "js": "JSON.stringify(window.__probe)", "save": "browse_pick"},
+    {"op": "shot", "name": "browse-picked"},
+    {"op": "tap", "selector": "form.composer button.primary"},
+    {"op": "sleep", "seconds": 8},
+    {"op": "eval", "js": "JSON.stringify({chips:document.querySelectorAll('form.composer ul.chips li').length,notes:[...document.querySelectorAll('form.composer [role=alert], form.composer [role=status]')].map(n=>n.textContent.trim()).filter(Boolean)})", "save": "browse_after_send"},
+    {"op": "shot", "name": "browse-after-send"},
+    {"op": "logcat", "name": "browse", "pattern": "chromium|cr_|NotReadable|FileChooser|Permission Denial|UriGrants|documentsui|MediaProvider"}
+  ]
+}

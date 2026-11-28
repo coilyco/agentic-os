@@ -3,7 +3,8 @@
   import { app } from "../lib/app.svelte";
   import { FEEDBACK_TEXT_MAX, canSend, contextLine, feedbackMissing, feedbackRefusal, prepareScreenshots, sendingLine } from "../lib/feedback";
   import { sheet } from "../lib/feedback.svelte";
-  import { IMAGE_TYPES, MAX_IMAGES, chipLabel, pastedImages } from "../lib/images";
+  import { MAX_IMAGES, chipLabel, pastedImages, pickerAccept } from "../lib/images";
+  import { inAndroidApp } from "../lib/open-external";
 
   let dialog = $state<HTMLDialogElement>();
   let picker = $state<HTMLInputElement>();
@@ -142,7 +143,7 @@
           {/each}
         </ul>
       {/if}
-      <input bind:this={picker} hidden type="file" accept={IMAGE_TYPES.join(",")} multiple onchange={picked} />
+      <input bind:this={picker} hidden type="file" accept={pickerAccept(inAndroidApp())} multiple onchange={picked} />
       <button class="button add" type="button" disabled={phase === "sending" || preparing || chips.length >= MAX_IMAGES || !channel} onclick={() => picker?.click()}>Add screenshot</button>
       <div class="status" role="status" aria-live="polite">
         {#if phase === "sending"}{sendingLine(progress.done, progress.total)}{:else if preparing}Getting your screenshot ready.{:else if info}{info}{/if}

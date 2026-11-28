@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMAGE_UPLOAD_MAX_BYTES, MAX_IMAGES, attachNote, chipLabel, fitAttempts, formatSize, imagePrefix, imageRefusal, pastedImages, pasteSteps, screenImages, typedPath, withImagePaths } from "./images";
+import { IMAGE_UPLOAD_MAX_BYTES, MAX_IMAGES, attachNote, chipLabel, fitAttempts, formatSize, imagePrefix, imageRefusal, pastedImages, pasteSteps, pickerAccept, screenImages, typedPath, withImagePaths } from "./images";
 
 function file(name: string, type: string, size = 100): File {
   return new File([new Uint8Array(size)], name, { type });
@@ -207,5 +207,15 @@ describe("imagePrefix", () => {
   it("names one image plainly and several by their place, each with its absolute path in brackets", () => {
     expect(imagePrefix(["/tmp/a b/x.png"])).toBe("[Attached image: /tmp/a b/x.png]");
     expect(imagePrefix(["/t/a.png", "/t/b.png"])).toBe("[Attached image 1 of 2: /t/a.png] [Attached image 2 of 2: /t/b.png]");
+  });
+});
+
+describe("pickerAccept", () => {
+  it("filters to the image types in a browser", () => {
+    expect(pickerAccept(false)).toBe("image/png,image/jpeg,image/gif,image/webp");
+  });
+
+  it("sets no filter in the Android app, so Android opens its file browser and not the Photo Picker", () => {
+    expect(pickerAccept(true)).toBeUndefined();
   });
 });

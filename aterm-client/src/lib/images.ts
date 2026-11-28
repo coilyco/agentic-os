@@ -5,6 +5,12 @@ import type { ImageChannel } from "./protocol";
 
 export const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"] as const;
 
+/** The file input's `accept`. None in the Android app, where an image filter opens
+ * the Photo Picker, whose pick cannot be read (COI-3739, references/android.md). */
+export function pickerAccept(androidApp: boolean): string | undefined {
+  return androidApp ? undefined : IMAGE_TYPES.join(",");
+}
+
 /** Most images one message carries. A phone link uploads them one after another. */
 export const MAX_IMAGES = 4;
 
