@@ -22,7 +22,7 @@ The scripted steps are [`scripts/ci/aterm-android.sh`](../../../../scripts/ci/at
 
 ## Stable channel
 
-**A push to main builds and uploads a workflow artifact, never a release (COI-3307).** [`aterm-android.yml`](../../../../.github/workflows/aterm-android.yml) publishes at 09:23 UTC daily when an app path changed since the last stable build, and on `workflow_dispatch` (`dry_run` builds and verifies without publishing). [`aterm-android-release.sh`](../../../../scripts/ci/aterm-android-release.sh) holds the plan, the notes and the publish.
+**A push to main builds and uploads a workflow artifact, never a release (COI-3307).** [`aterm-android.yml`](../../../../.github/workflows/aterm-android.yml) publishes daily at 11:05 UTC (3am PST, 4am PDT) when an app path changed since the last stable build, and on `workflow_dispatch` (`dry_run` builds and verifies without publishing). [`aterm-android-release.sh`](../../../../scripts/ci/aterm-android-release.sh) holds the plan, the notes and the publish.
 
 * **Obtainium** - add `https://github.com/coilyco/agentic-os` and set the release title filter to the regular expression `^aterm Android stable$`. Every stable release carries exactly that title, tagged `aterm-android-vX.Y.0`. Leave the pre-release option off. The older per-push releases carry other titles and drop out.
 * **Fixed link** - `https://github.com/coilyco/agentic-os/releases/download/aterm-android-newest/aterm.apk` always serves the newest stable APK, and a tester can bookmark it. It is a pre-release titled `aterm Android newest (fixed link)`, so it never takes the repo's latest flag from the aos CLI and Obtainium's filter skips it. Its tag stays on the commit that first created it, so the release notes name the build.
