@@ -1,6 +1,6 @@
 # The aterm host daemon
 
-`aterm daemon` routes every session [`aterm`](aterm.md) opens. The kitty window is one client of it.
+`aterm daemon` routes every session [`aterm`](aterm.md) opens.
 
 ## What the daemon owns
 
@@ -14,7 +14,7 @@
 
 **A terminal is a login shell, not a seat.** `spawn` with `kind: "terminal"` and optional `cwd` runs `$SHELL -l` under a holder, named `terminal-<hex>`, with no token, and refuses every seat field, `argv` and `env`. It is absent from `sessions`, seat counts and every `send`, `status` and `clear` target. A spawn `label` (feature `terminal-label`, up to 256 bytes) is opaque and kept by a restart. `attach`, `input`, `resize` and `close` take its name, an exiting shell ends it, a restart adopts it.
 
-**A session outlives its window.** `aterm close` types the harness's exit at an idle prompt, then SIGTERM at 10s, SIGKILL 3s on.
+**Closing a window leaves its session, and `aterm close` ends both.** It types the harness's exit at an idle prompt, then SIGTERM at 10s, SIGKILL 3s on.
 
 **A holder owns each session's terminal, so a daemon crash leaves sessions running.** See [holders, launch, Sentry](aterm-bundles.md#daemon-internals-launch-holders-and-sentry).
 

@@ -47,7 +47,7 @@ The scripted steps are [`scripts/ci/aterm-android.sh`](../../../../scripts/ci/at
 ## Not yet verified
 
 * An APK installed and opened on a phone.
-* Add image's picker on a real phone. A CI emulator run (Android 15, debug x86_64, 2026-11-09, COI-3485) opened the Photo Picker (`PhotoPickerGetContentActivity`, not a `documentsui` package), so `onShowFileChooser` works there. Picking a file and the send on the emulator, and any run on a phone, are not yet observed.
+* Add image's picker on a real phone. **In the app the file input has no `accept`, so Android opens its file browser and not the Photo Picker (COI-3739).** On the Android 16 emulator a Photo Picker pick could not be read even at once (`picker_get_content`, MediaProvider answered `EFAULT`) and Send said "Not sent", while the file browser's pick read and sent. The lane's `image-pick-app` steps prove the app path. A picker that keeps the photo grid needs a native read, which is plugin work. No run on a phone is observed yet.
 * The share target: the merged manifest filters, Treehouse in the Share menu, and the sheet on a phone ([android-sharetarget.md](android-sharetarget.md)).
 * Dictation on a phone: the mic prompt, Google's recognizer, and a sentence into the composer ([android-dictation.md](android-dictation.md)).
 * Whether Android System WebView honours `interactive-widget=resizes-content` for the keyboard.

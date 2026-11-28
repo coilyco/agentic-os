@@ -52,7 +52,7 @@ than editing it by hand.
 
 ## References
 
-* [bang-hint.md](references/bang-hint.md) - where a `!` line runs, per box and harness.
+* [bang-hint.md](references/bang-hint.md) - where a `!` line runs.
 * [features.md](references/features.md) - what ships today.
 * [colour-meaning.md](references/colour-meaning.md) - the one-meaning-per-colour rule, the terminal palette, and the busy-seat before and after.
 * [testbed.md](references/testbed.md) - the test bed: journeys against a mock daemon at desktop and phone sizes, baselines, and reported quirks.
@@ -67,12 +67,13 @@ than editing it by hand.
 * [seat-state.md](references/seat-state.md) - how long a seat has been in its state, and its last reply.
 * [transcript.md](references/transcript.md) - the `transcript` read: a seat's prompts, replies and tool steps, the frame, and peer messages.
 * [session-names.md](references/session-names.md) - session refs, name@ref, and why a close by stale name is refused.
+* [dead-seats.md](references/dead-seats.md) - dead seats and Reopen, and the window a close ends.
 * [grants.md](references/grants.md) - approval grants: one Kai decision carried to the executing seats, and the daemon's refusals.
 * [passkey.md](references/passkey.md) - the passkey unlock a remote device needs before it types.
 * [tailnet-access.md](references/tailnet-access.md) - which tailnet devices attach, owner logins on a tagged node, and why a Tailscale Serve front is never loopback.
 * [linux-seat.md](references/linux-seat.md) - what the listeners allow a seat user on Linux, and the probe that checks it (COI-3498).
 * [reach.md](references/reach.md) - why a device cannot reach the daemon, the layers the client names, and the six-hop connection check.
-* [seat-views.md](references/seat-views.md) - a seat's five views on one View button, Focus, Default, Verbose and the two raw screens, the client half of the transcript read: the peer rule, paging, and what a refusal does.
+* [seat-views.md](references/seat-views.md) - a seat's five views on the View button, and the client half of the transcript read: peers, paging, refusals.
 * [media.md](references/media.md) - the viewer for images, video and files a seat shares, the sequence, the file fallback, and trying it with no daemon that shares files.
 * [sizing.md](references/sizing.md) - how a session's PTY is sized when clients of different sizes attach, the `size` frame, and `pty-size`.
 * [desktop.md](references/desktop.md) - the windowed Treehouse app for the Mac: its identity, what it does at launch, and the verbs that build and install it.

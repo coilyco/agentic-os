@@ -283,6 +283,33 @@ class Lane(J.Journey):
         if not self.tap_node(wanted, spec.get("timeout", 20)):
             raise Fail(f"no system UI node matched /{spec['pattern']}/")
 
+    def op_seed_photo(self, spec: dict) -> None:
+        """Put the seeded PNG in MediaStore under `name`, so Android's own picker lists it."""
+        self.seed(spec.get("name", J.PNG_NAME), spec.get("red", 220))
+
+    def op_pick_image(self, spec: dict) -> None:
+        """Open Add image and pick through Android's picker: `mode` thumb (Photo Picker), browse
+        (the Photo Picker's file browser), or docs (the file browser opened straight, for any type)."""
+        self.open_picker()
+        mode = spec.get("mode", "thumb")
+        if mode != "docs":
+            self.pick_image(mode)
+            return
+        def seeded(node) -> bool:
+            return node.get("content-desc", "").startswith(f"{J.PNG_NAME},") or node.get("text") == J.PNG_NAME
+        if self.tap_node(seeded, 10):
+            return
+        # Recent can leave the seed out, and its search is Recent only. So the drawer:
+        # Images (Android 15, not the chip) or the storage root (16), then Pictures.
+        def root(n) -> bool:
+            return n.get("resource-id") == "android:id/title" and (n.get("text") == "Images" or n.get("text", "").startswith("sdk_gphone"))
+        if self.tap_node(lambda n: n.get("content-desc") == "Show roots", 10) and self.tap_node(root, 10):
+            if self.tap_node(seeded, 8):
+                return
+            if self.tap_node(lambda n: n.get("text") == "Pictures", 15) and self.tap_node(seeded, 20):
+                return
+        raise Fail(f"the file browser did not show {J.PNG_NAME}, ui.xml has what it did show")
+
     def op_logcat(self, spec: dict) -> None:
         lines = [line for line in adb("logcat", "-d", "-t", "10000", check=False).splitlines() if re.search(spec["pattern"], line, re.IGNORECASE)]
         (self.out / f"logcat-{spec['name']}.txt").write_text("\n".join(lines[-400:]))

@@ -54,6 +54,8 @@ type attachResult struct {
 	code     int
 	lost     bool
 	detached bool
+	// endedBy is the daemon's reason, so a window knows a close from a failure.
+	endedBy string
 }
 
 // attachLoop is one terminal on one session, returning when it exits, the
@@ -72,7 +74,7 @@ func attachLoop(c *conn, session string, pump *inputPump, stdout *os.File, detac
 	signal.Notify(winch, syscall.SIGWINCH)
 	defer signal.Stop(winch)
 	resize()
-	exited := make(chan int, 1)
+	exited := make(chan frame, 1)
 	lost := make(chan struct{})
 	go func() {
 		defer close(lost)
@@ -89,7 +91,7 @@ func attachLoop(c *conn, session string, pump *inputPump, stdout *os.File, detac
 				}
 			case "exit":
 				if message.Session == session {
-					exited <- message.Code
+					exited <- message
 					return
 				}
 			}
@@ -97,12 +99,12 @@ func attachLoop(c *conn, session string, pump *inputPump, stdout *os.File, detac
 	}()
 	for {
 		select {
-		case code := <-exited:
-			return attachResult{code: code}
+		case ended := <-exited:
+			return attachResult{code: ended.Code, endedBy: ended.EndedBy}
 		case <-lost:
 			select {
-			case code := <-exited:
-				return attachResult{code: code}
+			case ended := <-exited:
+				return attachResult{code: ended.Code, endedBy: ended.EndedBy}
 			default:
 			}
 			return attachResult{code: exitFailure, lost: true}
@@ -149,7 +151,7 @@ func attachReconnecting(c *conn, session string, pump *inputPump, stdout *os.Fil
 			return result
 		}
 		if reply.Type == "exited" {
-			return attachResult{code: reply.Code}
+			return attachResult{code: reply.Code, endedBy: reply.EndedBy}
 		}
 		c = again
 	}

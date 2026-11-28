@@ -59,7 +59,7 @@ func (d *daemon) reloadSession(cl *client, message frame) error {
 		by = caller.name
 	}
 	d.logf("reloading session %s (pid %d) for %s", s.name, s.pid, by)
-	s.end()
+	s.endFor(endedByReload)
 	select {
 	case <-s.done:
 	default:

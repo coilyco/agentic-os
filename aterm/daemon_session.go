@@ -149,6 +149,8 @@ type ptySession struct {
 	// after done: a reply that the name is free waits on this one.
 	forgotten chan struct{}
 	exitCode  int
+	// endedBy says why the session ended, when the daemon knows: endedByClose and the rest.
+	endedBy string
 	// released is a daemon letting go of a session that keeps running.
 	released bool
 	// context is the last context reading, kept across rounds that read nothing.
@@ -315,6 +317,7 @@ func (s *ptySession) readHold() {
 			released := s.released
 			s.mu.Unlock()
 			if !released {
+				s.noteEnd(endedByLost)
 				s.finish(1)
 			}
 			return
@@ -467,6 +470,7 @@ func (s *ptySession) finish(code int) {
 	s.finishOnce.Do(func() {
 		s.mu.Lock()
 		s.exitCode = code
+		by := s.endedBy
 		clients := s.clientList()
 		var pending []*pendingSend
 		for _, p := range s.pending {
@@ -484,7 +488,7 @@ func (s *ptySession) finish(code int) {
 		close(s.done)
 		_ = s.holder.write(frame{Type: "release"})
 		_ = s.holder.Close()
-		s.sendTo(clients, frame{Type: "exit", Session: s.name, Code: code})
+		s.sendTo(clients, frame{Type: "exit", Session: s.name, Code: code, EndedBy: by})
 		for _, p := range pending {
 			p.setState("failed", s.name+" ended before it was delivered")
 		}
@@ -573,11 +577,45 @@ func (s *ptySession) waitEnded(limit, poll time.Duration) bool {
 			}
 			if time.Since(goneSince) >= exitFrameGrace {
 				s.d.logf("session %s (pid %d) is gone and its holder sent no exit", s.name, s.pid)
+				s.noteEnd(endedByLost)
 				s.finish(1)
 				return true
 			}
 		}
 	}
+}
+
+// Why a session ended. A window holds its last screen for a failure, never for
+// an end someone asked for, and a lost holder marks the seat dead (COI-3799).
+const (
+	endedByClose  = "close"
+	endedByReload = "reload"
+	endedByLost   = "lost"
+)
+
+// endedOnPurpose is an end someone asked for, so a window closes on it whatever the code.
+func endedOnPurpose(by string) bool { return by == endedByClose || by == endedByReload }
+
+// noteEnd keeps the first reason, so a close that finds the holder gone stays a close.
+func (s *ptySession) noteEnd(by string) {
+	s.mu.Lock()
+	if s.endedBy == "" {
+		s.endedBy = by
+	}
+	s.mu.Unlock()
+}
+
+// endFor is end with the reason the window and the ledger read.
+// endReason reads endedBy under the session lock.
+func (s *ptySession) endReason() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.endedBy
+}
+
+func (s *ptySession) endFor(by string) {
+	s.noteEnd(by)
+	s.end()
 }
 
 // end asks the harness to quit, then stops it the way closing its terminal
