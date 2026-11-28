@@ -9,8 +9,9 @@ import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
 import { FeedbackRefused, feedbackRefusal } from "./feedback";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
+import { ImageReadRefused, sniffType } from "./sent-images";
 import { CHUNK_BYTES, decodeMedia, mediaRefusal } from "./media";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, FeedbackChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MachineKindChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, TuiState, ViewChannel } from "./protocol";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeadSeat, DeviceKeyChannel, FeedbackChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MachineKindChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, TuiState, ViewChannel } from "./protocol";
 import { decodeEverySeat, decodeReply, decodeSearch, REFUSALS, TranscriptRefused } from "./transcript";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
@@ -128,6 +129,21 @@ interface TerminalView {
   label?: string;
 }
 
+// One `dead` entry beside a sessions frame. See references/dead-seats.md.
+interface DeadSeatView {
+  name: string;
+  ref: string;
+  role: string;
+  identity?: string;
+  seat: string;
+  ended: string;
+}
+
+/** The dead seats a sessions frame carries, absent meaning none. */
+export function toDeadSeats(views: DeadSeatView[] | undefined): DeadSeat[] {
+  return (views ?? []).map((view) => ({ name: view.name, ref: view.ref, role: view.role, identity: view.identity ?? view.name, seat: view.seat, endedAt: Date.parse(view.ended) || 0 }));
+}
+
 interface MessageView {
   id: string;
   from: string;
@@ -210,6 +226,7 @@ interface Frame {
   error?: string;
   ask?: AskView;
   terminals?: TerminalView[];
+  dead?: DeadSeatView[];
   ask_id?: string;
   state?: string;
   typing?: unknown;
@@ -232,6 +249,8 @@ interface Frame {
   holder?: string;
   tab?: number;
   tabs?: number;
+  /** A browser_state's: the page shows a Cloudflare check (COI-3803). */
+  cloudflare_check?: boolean;
   client?: string;
   seq?: number;
   metadata?: Record<string, number>;
@@ -283,6 +302,8 @@ const FEEDBACK_FEATURE = "feedback";
 const FEEDBACK_TOKEN_MS = 9 * 60 * 1000;
 /** `welcome.features` names this when the daemon answers `image_upload` (COI-3239). */
 const IMAGE_UPLOAD_FEATURE = "image-upload";
+/** And this when it answers `image_thumb`, a sent image read back (COI-3800). */
+const IMAGE_THUMB_FEATURE = "image-thumb";
 /** `welcome.features` names this when the daemon reports and sets `host_kind`. */
 const HOST_KIND_FEATURE = "host-kind";
 
@@ -313,6 +334,7 @@ export function toBrowserState(frame: Frame, previous: SharedBrowser | undefined
     ...(frame.holder ? { holder: frame.holder } : {}),
     ...(typeof frame.reason === "string" && frame.reason ? { reason: frame.reason } : {}),
     ...(frame.tab && frame.tabs ? { tab: frame.tab, tabs: frame.tabs } : {}),
+    ...(frame.cloudflare_check === true ? { cloudflareCheck: true } : {}),
     ...(previous?.frame ? { frame: previous.frame } : {}),
   };
 }
@@ -483,7 +505,7 @@ export class DaemonHost implements HostConnection {
   private nextId = 0;
   // Input has no reply on success, so an error naming one of these is its only failure.
   private inputIds = new Set<string>();
-  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; passkey?: HostEvent; deviceKey?: HostEvent; machineKind?: HostEvent; terminals?: HostEvent } = {};
+  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; passkey?: HostEvent; deviceKey?: HostEvent; machineKind?: HostEvent; terminals?: HostEvent; deadSeats?: HostEvent } = {};
   private sessionViews: SessionView[] = [];
   // The daemon's one-use unlock proof. Memory only, replaced on every use.
   private resumeToken: string | undefined;
@@ -657,6 +679,7 @@ export class DaemonHost implements HostConnection {
     if (this.last.features) tell(this.last.features);
     if (this.last.machineKind) tell(this.last.machineKind);
     if (this.last.terminals) tell(this.last.terminals);
+    if (this.last.deadSeats) tell(this.last.deadSeats);
     return () => this.listeners.delete(listener);
   }
 
@@ -678,8 +701,12 @@ export class DaemonHost implements HostConnection {
 
   /** Only a welcome listing `image-upload` takes an image for a seat. */
   get images(): ImageChannel | undefined {
-    return this.features.has(IMAGE_UPLOAD_FEATURE) ? this.imageChannel : undefined;
+    if (!this.features.has(IMAGE_UPLOAD_FEATURE)) return undefined;
+    return this.features.has(IMAGE_THUMB_FEATURE) ? this.imageReadChannel : this.imageChannel;
   }
+
+  /** Requests for a sent image, whose refusal reasons are this feature's own. */
+  private imageReadIds = new Set<string>();
 
   private imageChannel: ImageChannel = {
     maxBytes: IMAGE_UPLOAD_MAX_BYTES,
@@ -688,6 +715,15 @@ export class DaemonHost implements HostConnection {
       const reply = await this.exchange({ type: "image_upload", session: sessionId, data });
       if (!reply.path) throw new Error("The host took the image but named no file for it.");
       return reply.path;
+    },
+  };
+
+  private imageReadChannel: ImageChannel = {
+    ...this.imageChannel,
+    read: async (sessionId, path, full) => {
+      const reply = await this.exchange({ type: "image_thumb", session: sessionId, path, ...(full ? { full: true } : {}) }, this.imageReadIds);
+      const bytes = reply.data ? decode(reply.data) : new Uint8Array();
+      return new Blob([bytes as BlobPart], { type: sniffType(bytes) });
     },
   };
 
@@ -1193,6 +1229,8 @@ export class DaemonHost implements HostConnection {
         // Absent means none, so a daemon with no shells still reports a list.
         this.last.terminals = { type: "terminals", terminals: (frame.terminals ?? []).map(({ name, label }) => (label ? { id: name, label } : { id: name })) };
         this.emit(this.last.terminals);
+        this.last.deadSeats = { type: "dead_seats", seats: toDeadSeats(frame.dead) };
+        this.emit(this.last.deadSeats);
         return;
       case "spawned": {
         const label = frame.id ? this.pendingOpens.get(frame.id) : undefined;
@@ -1236,6 +1274,7 @@ export class DaemonHost implements HostConnection {
       case "transcript_search":
       case "media_data":
       case "image_uploaded":
+      case "image_thumb":
       case "feedback_image_saved":
       case "feedback_saved":
       case "passkey_enroll_options":
@@ -1262,6 +1301,7 @@ export class DaemonHost implements HostConnection {
         if (call && frame.id) {
           this.calls.delete(frame.id);
           this.transcriptIds.delete(frame.id);
+          this.imageReadIds.delete(frame.id);
           this.feedbackIds.delete(frame.id);
           call.resolve(frame);
         }
@@ -1388,6 +1428,7 @@ export class DaemonHost implements HostConnection {
           const imageWords = refused ? null : imageRefusal(frame.reason);
           if (frame.id && this.feedbackIds.delete(frame.id)) call.reject(new FeedbackRefused(feedbackRefusal(frame.reason) ?? frame.error ?? "The host refused the feedback.", typeof frame.reason === "string" ? frame.reason : undefined));
           else if (frame.id && this.transcriptIds.delete(frame.id) && typeof frame.reason === "string" && Object.hasOwn(REFUSALS, frame.reason)) call.reject(new TranscriptRefused(frame.reason));
+          else if (frame.id && this.imageReadIds.delete(frame.id)) call.reject(new ImageReadRefused(typeof frame.reason === "string" ? frame.reason : ""));
           else if (frame.reason === "media_unknown") call.reject(new Error(mediaRefusal(frame.reason)));
           else if (frame.reason === RESUME_ENDED_REASON) call.reject(new ResumeEndedError());
           else if (frame.reason === KEY_UNKNOWN_REASON) call.reject(new DeviceKeyError(KEY_UNKNOWN, KEY_UNKNOWN_REASON));

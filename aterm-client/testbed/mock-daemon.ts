@@ -117,6 +117,8 @@ export interface Mock {
   setLastReply(session: string, reply: { text: string; ageSeconds?: number; truncated?: boolean }): void;
   /** Send one daemon frame to every client, as the daemon would push it. */
   push(frame: Record<string, unknown>): void;
+  /** A seat's agent loads a page, which every later `browser_state` for it carries. */
+  loadPage(session: string, page: { url: string; title?: string; cloudflareCheck?: boolean }): void;
   /** A seat's page, as `aterm artifact add` registers it, replayed on subscribe. */
   addArtifact(session: string, artifact: Record<string, unknown>): void;
   /** The daemon closes a page, as a seat's remove or its end does. */
@@ -145,6 +147,10 @@ export interface Mock {
   uploads: { session: string; bytes: Buffer }[];
   /** The daemon refuses every `image_upload` with this reason, until set back to null. */
   refuseUploads(reason: string | null): void;
+  /** Each `image_thumb` asked: the seat, the path, and whether it wanted it whole. */
+  thumbReads: { session: string; path: string; full: boolean }[];
+  /** Puts bytes at an upload path, as if another device had sent them. */
+  hostImage(path: string, bytes: Buffer): void;
   /** Each `feedback` taken: the note, the screen it names, and the screenshots' bytes. */
   feedbacks: { text: string; screen: Record<string, unknown>; images: Buffer[] }[];
   /** Every `feedback_image` and `feedback` frame heard, to count what a retry resent. */
@@ -193,7 +199,7 @@ export function loadSessions(): SessionSpec[] {
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
  * `images`: Add image. `webPush`: Notify when closed. `dist`: another build to serve. */
-export type MockOptions = { dist?: string; sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; feedback?: boolean; version?: string; transcript?: boolean; transcriptSearch?: boolean; transcriptSearchAll?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
+export type MockOptions = { dist?: string; sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; thumbs?: boolean; feedback?: boolean; version?: string; transcript?: boolean; transcriptSearch?: boolean; transcriptSearchAll?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const dist = options.dist ? join(HERE, "..", options.dist) : DIST;
   if (!existsSync(join(dist, "index.html"))) {
@@ -207,6 +213,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const live = new Map<string, Live>();
   const typedBy = new Map<string, string[]>();
   let uploadRefusal: string | null = null;
+  const held = new Map<string, Buffer>();
   let feedbackRefusal: string | null = null;
   const staged = new Map<string, Buffer>();
   let stagedCount = 0;
@@ -221,7 +228,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const lastBox = new Map<string, { rows: number; cols: number }>();
   const closed = new Map<string, SessionSpec>();
   const artifactFrames = new Map<string, Record<string, unknown>>();
-  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], reloads: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], feedbacks: [] as Mock["feedbacks"], feedbackFrames: [] as string[], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"], searchCalls: [] as Mock["searchCalls"], attachCalls: [] as Mock["attachCalls"] };
+  const mock = { answers: [] as Mock["answers"], launches: [] as Mock["launches"], closes: [] as string[], forced: [] as string[], reopens: [] as string[], reloads: [] as string[], browserCalls: [] as Mock["browserCalls"], pushCalls: [] as Mock["pushCalls"], resumes: [] as string[], uploads: [] as Mock["uploads"], thumbReads: [] as Mock["thumbReads"], feedbacks: [] as Mock["feedbacks"], feedbackFrames: [] as string[], mediaReads: [] as Mock["mediaReads"], transcriptCalls: [] as Mock["transcriptCalls"], searchCalls: [] as Mock["searchCalls"], attachCalls: [] as Mock["attachCalls"] };
   const shared = new Map<string, { session: string; name: string; mime: string; kind: string; bytes: Buffer; at: number; unreadable?: boolean }>();
   const mediaFrame = (id: string) => {
     const file = shared.get(id)!;
@@ -232,11 +239,11 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const transcriptHolds = new Map<string, number>();
   // A seat's browser: the agent drives until a screen takes control.
   // `client` is the name each connection was given.
-  const pages = new Map<string, { holder: WebSocket | null; url: string }>();
+  const pages = new Map<string, { holder: WebSocket | null; url: string; title?: string; cloudflareCheck?: boolean }>();
   const names = new WeakMap<WebSocket, string>();
   const browserState = (session: string, socket: WebSocket, id?: unknown): Record<string, unknown> => {
     const page = pages.get(session) ?? { holder: null, url: "about:blank" };
-    return { type: "browser_state", id, session, state: "live", driver: page.holder ? "person" : "agent", ...(page.holder ? { holder: names.get(page.holder) } : {}), url: page.url, title: "", client: names.get(socket) };
+    return { type: "browser_state", id, session, state: "live", driver: page.holder ? "person" : "agent", ...(page.holder ? { holder: names.get(page.holder) } : {}), url: page.url, title: page.title ?? "", ...(page.cloudflareCheck ? { cloudflare_check: true } : {}), client: names.get(socket) };
   };
   const tellWatchers = (session: string): void => {
     for (const socket of clients) send(socket, browserState(session, socket));
@@ -315,7 +322,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           if (options.lock) {
             send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...unlockedFeatures, ...pushFeature], typing: { allowed: false, reason: "passkey_required", device_key: "enrolled" } });
           } else {
-            send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...(options.images ? ["image-upload"] : []), ...(options.feedback ? ["feedback"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.transcriptSearch ? ["transcript_search"] : []), ...(options.transcriptSearchAll ? ["transcript_search_all"] : []), ...(options.media ? ["media"] : []), ...(options.artifacts ? ["artifacts"] : []), ...pushFeature], typing: { allowed: true } });
+            send(socket, { type: "welcome", format: FORMAT, version: options.version ?? "testbed", features: [...served(), ...(options.images ? ["image-upload"] : []), ...(options.images && options.thumbs ? ["image-thumb"] : []), ...(options.feedback ? ["feedback"] : []), ...(options.transcript ? ["transcript"] : []), ...(options.transcriptSearch ? ["transcript_search"] : []), ...(options.transcriptSearchAll ? ["transcript_search_all"] : []), ...(options.media ? ["media"] : []), ...(options.artifacts ? ["artifacts"] : []), ...pushFeature], typing: { allowed: true } });
           }
           return;
         case "device_assert_begin":
@@ -377,7 +384,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           const page = pages.get(session);
           // The daemon refuses a drive from a screen that does not hold control.
           if (page?.holder === socket) {
-            page.url = String(frame.url);
+            Object.assign(page, { url: String(frame.url), title: undefined, cloudflareCheck: undefined });
             tellWatchers(session);
           }
           return;
@@ -514,7 +521,20 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
             return;
           }
           mock.uploads.push({ session: seat.spec.name, bytes: Buffer.from(String(frame.data ?? ""), "base64") });
-          send(socket, { type: "image_uploaded", id: frame.id, session: frame.session, path: `/tmp/aterm/images/${seat.spec.name}-1/upload-${mock.uploads.length}.png` });
+          const path = `/tmp/aterm/images/${seat.spec.name}-1/upload-${mock.uploads.length}.png`;
+          held.set(path, mock.uploads.at(-1)!.bytes);
+          send(socket, { type: "image_uploaded", id: frame.id, session: frame.session, path });
+          return;
+        }
+        // The daemon's rule: only a file directly in the seat's directory. No scaling.
+        case "image_thumb": {
+          const session = String(frame.session ?? "");
+          const path = String(frame.path ?? "");
+          mock.thumbReads.push({ session, path, full: frame.full === true });
+          const dir = `/tmp/aterm/images/${session}-1/`;
+          const reason = !path.startsWith(dir) || path.slice(dir.length).includes("/") ? "bad_path" : held.has(path) ? null : "image_gone";
+          if (reason) send(socket, { type: "error", id: frame.id, code: 6, error: "refused", reason });
+          else send(socket, { type: "image_thumb", id: frame.id, session, path, data: held.get(path)!.toString("base64") });
           return;
         }
         case "input": {
@@ -656,6 +676,10 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
       broadcast(sessionsFrame());
     },
     push: broadcast,
+    loadPage(session, page) {
+      pages.set(session, { holder: pages.get(session)?.holder ?? null, ...page });
+      tellWatchers(session);
+    },
     addArtifact(session, artifact) {
       const frame = { type: "artifact", session, artifact };
       artifactFrames.set(String(artifact.id), frame);
@@ -690,6 +714,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     heard,
     resumes: mock.resumes,
     uploads: mock.uploads,
+    thumbReads: mock.thumbReads,
     attachCalls: mock.attachCalls,
     transcriptCalls: mock.transcriptCalls,
     searchCalls: mock.searchCalls,
@@ -715,6 +740,9 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     },
     expireFeedbackImages() {
       staged.clear();
+    },
+    hostImage(path, bytes) {
+      held.set(path, bytes);
     },
     refuseUploads(reason) {
       uploadRefusal = reason;

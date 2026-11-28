@@ -5,7 +5,8 @@
   import Creature from "./Creature.svelte";
   import PagesList from "./PagesList.svelte";
   import SeatSearch from "./SeatSearch.svelte";
-  import { app, askLineFor, needsKaiIds, openByPerson, openConfiguration, openPage, openSettings, pinnedNow, selectedHost, showAllRoles, showLogo } from "../lib/app.svelte";
+  import { app, askLineFor, needsKaiIds, openByPerson, openConfiguration, openPage, openSettings, pinnedNow, reconnecting, reopenDead, selectedHost, showAllRoles, showLogo } from "../lib/app.svelte";
+  import { deadDetail } from "../lib/dead-seats";
   import { pageRows } from "../lib/artifact-pages";
   import { ageText } from "../lib/age";
   import { splitHidden } from "../lib/hidden-roles";
@@ -22,6 +23,7 @@
   const groups = $derived(groupSeats(split.shown, { needs, unseen: app.unseen }));
   const running = $derived(splitSessions(app.sessions).running.length);
   const pages = $derived(pageRows(Object.values(app.artifacts), app.sessions));
+  const canReopen = $derived(!!app.connection?.reopenSeat && app.connection.canReopen === true && app.typing.allowed && !reconnecting());
   // The stylesheet's own breakpoint, as the list tracks it, since Close stacks under a row on a phone.
   let narrow = $state(typeof matchMedia === "function" && matchMedia("(max-width: 720px)").matches);
   onMount(() => {
@@ -116,6 +118,25 @@
       </ul>
     </section>
   {/each}
+  {#if app.deadSeats.length}
+    <section class="group" data-group="dead" aria-labelledby="overview-dead">
+      <h2 id="overview-dead">Dead <span class="n">{app.deadSeats.length}</span></h2>
+      <ul class="dead">
+        {#each app.deadSeats as seat (`${seat.name}@${seat.ref}`)}
+          {@const role = app.roles.find((each) => each.slug === seat.role)}
+          <li class="row">
+            <span class="gone">
+              <span class="text">
+                <span class="top"><span class="name">{seat.identity}</span></span>
+                <span class="line"><span class="said">{deadDetail(role?.displayName ?? seat.role, seat.endedAt, now)}</span></span>
+              </span>
+            </span>
+            {#if canReopen}<button type="button" class="show" aria-label={`Reopen ${seat.identity}`} onclick={() => reopenDead(seat)}>Reopen</button>{/if}
+          </li>
+        {/each}
+      </ul>
+    </section>
+  {/if}
   {#if split.hidden.length}
     <p class="hidden-note" role="status">{split.hidden.length} {split.hidden.length === 1 ? "seat is" : "seats are"} hidden. <button type="button" class="show" onclick={showAllRoles}>Show them</button></p>
   {/if}
@@ -144,6 +165,7 @@
   .row { display: flex; align-items: center; gap: 6px; min-width: 0; }
   .open { flex: 1; min-width: 0; min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--terminal); color: var(--text); text-align: left; font: inherit; }
   .open:hover { border-color: var(--brand); }
+  .gone { flex: 1; min-width: 0; min-height: 56px; display: flex; align-items: center; padding: 8px 12px; border-radius: 10px; border: 1px dashed var(--line); color: var(--text); }
   /* The same faint tint and thin rail a waiting seat gets in the list, so the two read as one thing. */
   .row[data-group="needs"] .open { background: var(--warn-fill); box-shadow: inset 2px 0 0 var(--warn); }
   .text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }

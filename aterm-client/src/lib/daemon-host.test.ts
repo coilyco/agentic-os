@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { HostEvent } from "./protocol";
+import { ImageReadRefused } from "./sent-images";
 import { TranscriptRefused } from "./transcript";
 import { DaemonHost, daemonUrl, hostLabel, launchRefusal, toAsk, toMessage, toSession, toView } from "./daemon-host";
 
@@ -1198,6 +1199,31 @@ describe("the image channel", () => {
     await sentUpload(socket);
     socket.drop();
     await expect(attempt).rejects.toThrow(/closed the connection/);
+    host.close();
+  });
+
+  // COI-3800: a sent image read back by its path, for a device that did not send it.
+  it("reads a sent image back only with image-thumb, typed from its bytes, and names a refusal", async () => {
+    const { host, socket } = connect();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload"] });
+    expect(host.images?.read).toBeUndefined();
+    socket.receive({ type: "welcome", format: "aterm.daemon.v1", features: ["image-upload", "image-thumb"] });
+    const path = "/tmp/aterm/images/seat-a-1/x.png";
+    const thumb = host.images!.read!("seat-a", path, false);
+    await vi.waitFor(() => expect(socket.sent.some((line) => JSON.parse(line).type === "image_thumb")).toBe(true));
+    const frame = JSON.parse(socket.sent.find((line) => JSON.parse(line).type === "image_thumb") ?? "{}");
+    expect(frame).toMatchObject({ type: "image_thumb", session: "seat-a", path });
+    expect(frame).not.toHaveProperty("full");
+    socket.receive({ type: "image_thumb", id: frame.id, session: "seat-a", path, data: btoa("\x89PNG\r\n") });
+    const blob = await thumb;
+    expect(blob.type).toBe("image/png");
+    expect(blob.size).toBe(6);
+
+    const gone = host.images!.read!("seat-a", path, true);
+    await vi.waitFor(() => expect(JSON.parse(socket.sent.at(-1) ?? "{}")).toMatchObject({ type: "image_thumb", full: true }));
+    socket.receive({ type: "error", id: JSON.parse(socket.sent.at(-1) ?? "{}").id, code: 6, error: "daemon words", reason: "image_gone" });
+    await expect(gone).rejects.toBeInstanceOf(ImageReadRefused);
+    await expect(gone).rejects.toThrow(/no longer holds this image/);
     host.close();
   });
 });

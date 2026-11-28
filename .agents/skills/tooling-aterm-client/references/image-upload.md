@@ -22,6 +22,14 @@ A browser, possibly on a phone, cannot put a file where a seat on the host can r
 
 **A native seat can read the file at that path.** Checked 2026-11-09 from a native claude seat as the same user: the images root beside the socket is traversable and a stored PNG's first bytes read as `89 50 4e 47`. A harness that sandboxes reads to its working directory is the case this does not cover.
 
+## Reading a sent image back (COI-3800)
+
+**`image_thumb {session, path, full?}` answers `image_thumb {session, path, data, width?, height?}`**, so a device that did not send the image can show it. The welcome feature is `image-thumb`, beside `image-upload`. Without `full` the picture fits 480px on its longest side, a PNG staying a PNG and anything else a JPEG. `width` and `height` are absent when the bytes are the original's: a WebP the standard library cannot decode, or a header claiming over 40 million pixels.
+
+* **Only the seat's own directory** - the path must be absolute, already clean, and directly in `images/<session>-<start>/` for the seat named, compared as given and never resolved. A file opens with `O_NOFOLLOW` and must be a regular image. Anything else is `bad_path`, a missing file `image_gone`. `/etc/hosts`, `..`, another seat's directory, a file at the image root and a symlink out are each refused in `daemon_image_thumb_test.go`.
+* **The typing guard**, as for an upload: `passkey_required` for a locked remote device, `session_descendant` for a process inside a session.
+* **No path or byte reaches a log.** The daemon logs the seat and the size sent.
+
 ## What each harness does with the path
 
 Observed on 2026-11-04 against a private daemon on this build. Each seat started in a directory outside `images/`, was handed one 11.9 KB PNG reading `ZEBRA 4417`, and was asked what it said. The path was sent twice, as plain `input` keystrokes and as a bracketed paste (`ESC[200~` path `ESC[201~`).

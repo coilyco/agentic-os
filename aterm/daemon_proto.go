@@ -72,8 +72,10 @@ type frame struct {
 	// input and output, and the image bytes of an image_upload
 	Data   []byte `json:"data,omitempty"`
 	Offset int64  `json:"offset,omitempty"`
-	// Path is the absolute file an image_uploaded names.
+	// Path is the absolute file an image_uploaded names, and an image_thumb reads back.
 	Path string `json:"path,omitempty"`
+	// Full asks an image_thumb for the bytes as uploaded rather than a thumbnail.
+	Full bool `json:"full,omitempty"`
 	// feedback: Image and Images are screenshot tokens, Screen the client's display text
 	// (not "context", which a seat's meter owns), Record the report's id.
 	Image  string          `json:"image,omitempty"`
@@ -119,6 +121,8 @@ type frame struct {
 	Force bool `json:"force,omitempty"`
 	// Self closes the caller's own session, named by Token alone and never by Target.
 	Self bool `json:"self,omitempty"`
+	// EndedBy rides exit and exited: close, reload, or lost. See the dead-seats reference.
+	EndedBy string `json:"ended_by,omitempty"`
 	// Peek asks a claim which name it would grant, without holding it.
 	Peek bool `json:"peek,omitempty"`
 	// All asks an inbox for the messages already read as well as the unread.
@@ -144,6 +148,8 @@ type frame struct {
 	// Terminals rides beside Sessions and never inside it, so a consumer that
 	// counts or targets seats cannot meet a shell.
 	Terminals []terminalView `json:"terminals,omitempty"`
+	// Dead rides beside Sessions too: seats whose holder died, each reopenable (COI-3799).
+	Dead []deadSeat `json:"dead,omitempty"`
 
 	// Lines is how many screen rows a status asks for, and Status is its answer.
 	Lines  int            `json:"lines,omitempty"`
@@ -218,17 +224,19 @@ type frame struct {
 	URL    string `json:"url,omitempty"`
 	Title  string `json:"title,omitempty"`
 	// Notify is a `notify` event for clients, and NotifyID the id a `notified` reply names.
-	Notify   *notifyEvent    `json:"notify,omitempty"`
-	NotifyID string          `json:"notify_id,omitempty"`
-	Holder   string          `json:"holder,omitempty"`
-	Tab      int             `json:"tab,omitempty"`
-	Tabs     int             `json:"tabs,omitempty"`
-	Client   string          `json:"client,omitempty"`
-	Width    int             `json:"width,omitempty"`
-	Height   int             `json:"height,omitempty"`
-	Seq      int64           `json:"seq,omitempty"`
-	Take     bool            `json:"take,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
+	Notify   *notifyEvent `json:"notify,omitempty"`
+	NotifyID string       `json:"notify_id,omitempty"`
+	Holder   string       `json:"holder,omitempty"`
+	Tab      int          `json:"tab,omitempty"`
+	Tabs     int          `json:"tabs,omitempty"`
+	// CloudflareCheck: the followed page shows a Cloudflare check (COI-3803).
+	CloudflareCheck bool            `json:"cloudflare_check,omitempty"`
+	Client          string          `json:"client,omitempty"`
+	Width           int             `json:"width,omitempty"`
+	Height          int             `json:"height,omitempty"`
+	Seq             int64           `json:"seq,omitempty"`
+	Take            bool            `json:"take,omitempty"`
+	Metadata        json.RawMessage `json:"metadata,omitempty"`
 
 	// MCP Apps: the gateway and the views channel. See docs/aterm-daemon.md.
 	View       *viewFrame      `json:"view,omitempty"`

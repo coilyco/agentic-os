@@ -156,7 +156,7 @@ func (d *daemon) closeTerminal(cl *client, message frame, s *ptySession) error {
 		return withExit(exitUsage, fmt.Errorf("this caller runs inside %s, so closing it would end the caller too", s.name))
 	}
 	d.logf("closing terminal %s (pid %d)", s.name, s.pid)
-	s.end()
+	s.endFor(endedByClose)
 	select {
 	case <-s.done:
 	default:
@@ -176,12 +176,13 @@ func (d *daemon) closeTerminal(cl *client, message frame, s *ptySession) error {
 // forgetTerminal drops an ended shell. It leaves no ledger record, since there
 // is nothing for `aterm resume` to resume.
 func (d *daemon) forgetTerminal(s *ptySession) {
+	by := s.endReason()
 	d.mu.Lock()
 	if d.terminals[s.name] == s {
 		delete(d.terminals, s.name)
 	}
 	d.lastActive = time.Now()
-	d.ended[s.name] = endedSession{code: s.exitCode, at: time.Now()}
+	d.ended[s.name] = endedSession{code: s.exitCode, by: by, at: time.Now()}
 	d.mu.Unlock()
 	d.pushSessions()
 }

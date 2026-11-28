@@ -4,6 +4,7 @@
   import TranscriptSearch from "./TranscriptSearch.svelte";
   import { clearMatches, matchRanges, paintMatches } from "../lib/transcript-search";
   import { takeJump } from "../lib/search-jump.svelte";
+  import SentImages from "./SentImages.svelte";
   import { replyAge } from "../lib/last-reply";
   import { openLink } from "../lib/link-notice.svelte";
   import type { TranscriptChannel } from "../lib/protocol";
@@ -12,6 +13,7 @@
   import { cacheKey, catchUp, loadSnapshot, markerRow, MAX_ITEMS, saveSnapshot } from "../lib/transcript-cache";
   import { cancelPending, pendingFor, readPast, settlePending, shownText, waitingSince } from "../lib/pending-sends.svelte";
   import { app, layout } from "../lib/app.svelte";
+  import { parseSent } from "../lib/sent-images";
 
   // `restore` is false for a device that has not unlocked, which never shows a kept page.
   let { channel, sessionId, hostId, restore, level, marker, onread, onrefused, onpeer }: { channel: TranscriptChannel; sessionId: string; hostId: string; restore: boolean; level: Level; marker: boolean; onread: () => void; onrefused: (reason: string) => void; onpeer: (peer: PeerRef) => void } = $props();
@@ -345,7 +347,8 @@
     {#each rows as row (row.key)}
       {#if row.key === markerKey}<p class="since" role="separator" data-since>New since you were last here</p>{/if}
       {#if row.kind === "prompt"}
-        <div class="turn me" data-row={row.key}><span class="who">You</span><p class="plain">{row.text}</p>{#if row.cut}<p class="maybe">The host cut this message.</p>{/if}</div>
+        {@const sent = parseSent(row.text)}
+        <div class="turn me" data-row={row.key}><span class="who">You</span>{#if sent.words}<Markdown source={sent.words} onlink={open} />{/if}{#if sent.paths.length}<SentImages paths={sent.paths} {sessionId} channel={app.connection?.images} />{/if}{#if row.cut}<p class="maybe">The host cut this message.</p>{/if}</div>
       {:else if row.kind === "reply"}
         <div class="turn" data-row={row.key}><Markdown source={row.text} onlink={open} />{#if row.cut}<p class="maybe">The host cut this reply.</p>{/if}{#if row.peer}{@render maybe(row.peer)}{/if}</div>
       {:else if row.kind === "tool"}
@@ -362,7 +365,8 @@
     {/each}
     {#each sending as send (send.id)}
       <div class="turn me sending" data-row={`sending-${send.id}`} data-state={shownState(send.state)}>
-        <span class="who">You</span><p class="plain">{shownText(send)}</p>
+        <span class="who">You</span>{#if send.text}<Markdown source={send.text} onlink={open} />{:else}<p class="plain">{shownText(send)}</p>{/if}
+        {#if send.paths.length}<SentImages paths={send.paths} {sessionId} channel={app.connection?.images} />{/if}
         {#if shownState(send.state) === "queued"}
           <p class="maybe" role="status">Queued. The seat is working and takes it at its next step.</p>
         {:else if send.state === "unsent"}

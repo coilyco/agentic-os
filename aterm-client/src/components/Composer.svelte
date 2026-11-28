@@ -12,7 +12,9 @@
   import type { Place } from "../lib/build";
   import { typingNotice, type Typing } from "../lib/typing";
   import { anchorAt, dictationAvailable, placeSpeech, startDictation, type Anchor, type Session as Dictation } from "../lib/dictation";
-  import { IMAGE_TYPES, attachNote, chipLabel, fitImage, formatSize, pastedImages, pasteSteps, screenImages, withImagePaths } from "../lib/images";
+  import { attachNote, chipLabel, fitImage, formatSize, pastedImages, pasteSteps, pickerAccept, screenImages, withImagePaths } from "../lib/images";
+  import { inAndroidApp } from "../lib/open-external";
+  import { rememberSent } from "../lib/sent-images";
 
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
   // `offline` is the host not answering: the draft stays editable and Send waits, since a frame typed into a dead link is lost.
@@ -46,7 +48,7 @@
     /** The seat's `state` is working, the value the sidebar's spinner reads. The field stays open to typing. */
     busy?: boolean;
     /** Where a send shows in the transcript before the harness writes it (COI-3690). */
-    pending?: { note(session: string, text: string, images: number): number; cancel(id: number): void };
+    pending?: { note(session: string, text: string, images: number, paths: string[]): number; cancel(id: number): void };
     /** Keys this device's send history with the seat's, as drafts are (COI-3691). */
     hostId?: string;
   } = $props();
@@ -352,7 +354,9 @@
       try {
         for (const [index, chip] of sending.entries()) {
           uploading = { done: index, total: sending.length };
-          paths.push(await channel.upload(target.id, chip.file));
+          const path = await channel.upload(target.id, chip.file);
+          paths.push(path);
+          rememberSent(path, chip.file);
         }
       } catch (error) {
         imageNote = `Not sent. ${error instanceof Error && error.message ? error.message : "The upload failed."} Your message and images stay here.`;
@@ -372,7 +376,7 @@
     }
     if (!typed && paths.length === 0) return;
     // Before the first byte leaves, so it shows in the transcript on the next frame.
-    lastPending = typed || paths.length > 0 ? pending?.note(target.id, typed, paths.length) : undefined;
+    lastPending = typed || paths.length > 0 ? pending?.note(target.id, typed, paths.length, paths) : undefined;
     if (target.paste) {
       // Each path is its own paste, which is what a harness reads as an attachment (references/image-upload.md).
       const steps = pasteSteps(paths, typed, PASTE_OPEN, PASTE_CLOSE);
@@ -628,7 +632,7 @@
   {/if}
   {#if connection.images}
     <!-- The button is the way a phone adds an image, and the way to one with no clipboard image. -->
-    <input bind:this={picker} hidden type="file" accept={IMAGE_TYPES.join(",")} multiple onchange={picked} />
+    <input bind:this={picker} hidden type="file" accept={pickerAccept(inAndroidApp())} multiple onchange={picked} />
     <button class="add-image" type="button" aria-label="Add image" title="Add image" disabled={uploading !== null || resizing || offline} onmousedown={keepFocus} onclick={() => picker?.click()}>
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8" /><circle cx="9" cy="10" r="1.6" fill="currentColor" /><path d="M4.5 17.5l4.5-4.5 3.5 3.5 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg>
     </button>
