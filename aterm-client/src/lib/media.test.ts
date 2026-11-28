@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addToShelf, decodeMedia, describe as words, MAX_SHELF, mediaRefusal, removeFromShelf, stepped, turned, unseenCount, type MediaItem } from "./media";
+import { addToShelf, decodeMedia, describe as words, findShown, MAX_SHELF, parseShown, mediaRefusal, removeFromShelf, stepped, turned, unseenCount, type MediaItem } from "./media";
 
 const item = (id: string, extra: Partial<MediaItem> = {}): MediaItem => ({ id, session: "s", name: `${id}.jpg`, mime: "image/jpeg", kind: "image", size: 1000, ...extra });
 
@@ -73,5 +73,29 @@ describe("words", () => {
     for (const reason of ["media_unknown", "too_large", "locked"]) expect(mediaRefusal(reason)).not.toMatch(/_/);
     expect(mediaRefusal("something_new")).toBe("The host would not send that file.");
     expect(mediaRefusal("constructor")).toBe("The host would not send that file.");
+  });
+});
+
+describe("a transcript step that shared a file", () => {
+  it("reads the kind, name and size the daemon printed, from the tool and the verb alike", () => {
+    expect(parseShown('image "banner.png", 51234 bytes, shown to 2 clients')).toEqual({ kind: "image", name: "banner.png", size: 51234 });
+    expect(parseShown('video "a \\"loop\\".mp4", 340000 bytes, kept, no client is showing media now')).toEqual({ kind: "video", name: 'a "loop".mp4', size: 340000 });
+    expect(parseShown('note first\nfile "pack.zip", 4300000 bytes, shown to 1 clients')).toEqual({ kind: "file", name: "pack.zip", size: 4300000 });
+  });
+
+  it("finds nothing in other output", () => {
+    expect(parseShown(undefined)).toBeNull();
+    expect(parseShown("added art-1, shown to 2 clients")).toBeNull();
+    expect(parseShown('picture "x.png", 3 bytes, shown')).toBeNull();
+  });
+
+  it("matches the shelf by kind, name and size, and of a camera's repeats takes the one nearest the step", () => {
+    const shelf = [item("a", { name: "latest.jpg", at: 1000 }), item("b", { name: "latest.jpg", at: 5000 }), item("c", { name: "other.jpg", at: 5000 })];
+    const shown = { kind: "image" as const, name: "latest.jpg", size: 1000 };
+    expect(findShown(shelf, shown, 1200)?.id).toBe("a");
+    expect(findShown(shelf, shown, 4800)?.id).toBe("b");
+    expect(findShown(shelf, shown)?.id).toBe("b");
+    expect(findShown(shelf, { ...shown, size: 999 })).toBeUndefined();
+    expect(findShown([], shown)).toBeUndefined();
   });
 });

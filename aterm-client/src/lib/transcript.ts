@@ -1,5 +1,6 @@
 // A seat's transcript, read by the daemon from its harness's files (COI-3532).
 // The client only reads it. See the transcript reference in the aterm-client skill.
+import { parseShown, type Shown } from "./media";
 
 export type Level = "focus" | "default" | "verbose";
 export const LEVELS: readonly Level[] = ["focus", "default", "verbose"];
@@ -183,7 +184,7 @@ export function withoutThinking(text: string): string {
 /** A row the view draws. */
 export type Row =
   | { key: string; kind: "prompt" | "reply" | "note"; text: string; at?: number; model?: string; peer?: PeerRef; cut: boolean }
-  | { key: string; kind: "tool"; name: string; summary: string; lines: string[]; hidden: number; ok: boolean | undefined; cut: boolean; peer?: PeerRef };
+  | { key: string; kind: "tool"; name: string; summary: string; lines: string[]; hidden: number; ok: boolean | undefined; cut: boolean; peer?: PeerRef; at?: number; shown?: Shown };
 
 /** Lines of a result Default shows before saying how many more there are. */
 export const DEFAULT_OUTPUT_LINES = 3;
@@ -220,6 +221,8 @@ export function rowsFor(all: readonly TranscriptItem[], level: Level, whole?: Re
     } else if (item.kind === "tool" && item.tool) {
       const all = level === "focus" || !item.tool.output ? [] : item.tool.output.replace(/\n+$/, "").split("\n");
       const shown = level === "verbose" ? all : all.slice(0, DEFAULT_OUTPUT_LINES);
+      // A file the step shared shows at every level, Focus included.
+      const shared = parseShown(item.tool.output);
       rows.push({
         key: item.id,
         kind: "tool",
@@ -230,6 +233,8 @@ export function rowsFor(all: readonly TranscriptItem[], level: Level, whole?: Re
         ok: item.tool.ok,
         cut: item.tool.truncated === true,
         ...peerOf(item),
+        ...(item.at ? { at: item.at } : {}),
+        ...(shared ? { shown: shared } : {}),
       });
     } else if (item.kind === "note" && level !== "focus" && item.text) {
       rows.push({ key: item.id, kind: "note", text: item.text, cut: item.truncated === true, ...peerOf(item) });

@@ -212,3 +212,47 @@ test("when the app cannot write the file the viewer says why, and it can be trie
   await expect(viewer(bed).getByRole("button", { name: "Download" })).toBeEnabled();
   await bed.step("in-app-save-refused", { compare: false });
 });
+
+test.describe("in the transcript, where the seat said it shared", () => {
+  test.use({ mockOptions: { media: true, transcript: true } });
+  test.beforeEach(({}, info) => test.skip(kindOf(info) !== "phone", "a phone opens on the transcript"));
+
+  const step = (id: string, name: string, kind: string, size: number) => ({ id, kind: "tool", tool: { name: "mcp__local_coilyco_aterm__show_media", class: "mcp", summary: "Called local_coilyco_aterm.show_media", output: `${kind} ${JSON.stringify(name)}, ${size} bytes, shown to 2 clients`, ok: true } });
+
+  test("a shared image draws under its step, opens the viewer on it, and a file the host lost says why", async ({ bed }) => {
+    const banner = frame(1);
+    bed.mock.shareMedia(imp, banner);
+    bed.mock.setTranscript(imp, [
+      { id: "p1", kind: "prompt", text: "Show me the banner and the pack." },
+      step("t1", "pack.zip", "file", 4300000),
+      step("t2", banner.name, "image", banner.bytes.length),
+      { id: "r1", kind: "reply", text: "Both are shared.", complete: true },
+    ]);
+    await bed.openSeat(SEATS.imp);
+    const transcript = bed.page.locator(".transcript");
+    const picture = transcript.getByRole("button", { name: /^Open frame1\.png/ });
+    await expect(picture, "the image is drawn where the seat shared it").toBeVisible();
+    expect(await picture.locator("img").evaluate((img: HTMLImageElement) => img.naturalWidth), "the bytes decoded").toBe(320);
+    await expect(transcript, "a file the host no longer has is named, with the reason").toContainText("Shared pack.zip, which the host no longer has.");
+    await bed.step("inline", { compare: false });
+    await picture.click();
+    await expect(viewer(bed)).toBeVisible();
+    await expect(viewer(bed).getByRole("img", { name: "frame1.png" })).toBeVisible();
+  });
+
+  test("a video or other file is a card that opens the viewer on that item", async ({ bed }) => {
+    const first = frame(1);
+    const clip = { name: "loop.mp4", mime: "video/mp4", kind: "video" as const, bytes: file("frame2.jpg") };
+    bed.mock.shareMedia(imp, first);
+    bed.mock.shareMedia(imp, clip);
+    bed.mock.shareMedia(imp, frame(3));
+    bed.mock.setTranscript(imp, [{ id: "p1", kind: "prompt", text: "The clip?" }, step("t1", clip.name, "video", clip.bytes.length)]);
+    await bed.openSeat(SEATS.imp);
+    const card = bed.page.locator(".transcript").getByRole("button", { name: /loop\.mp4.*View/ });
+    await expect(card).toBeVisible();
+    const box = (await card.boundingBox())!;
+    expect(box.height, "a 44px target").toBeGreaterThanOrEqual(44);
+    await card.click();
+    await expect(viewer(bed), "the viewer opens on the clip, not the newest").toContainText("2 of 3");
+  });
+});

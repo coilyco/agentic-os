@@ -75,6 +75,36 @@ export function mediaRefusal(reason: unknown): string {
   return (typeof reason === "string" && Object.hasOwn(REFUSALS, reason) && REFUSALS[reason]) || "The host would not send that file.";
 }
 
+/** What `aterm show` and `show_media` print, so a transcript step names its item. */
+export interface Shown {
+  kind: MediaKind;
+  name: string;
+  size: number;
+}
+
+// The daemon's describeShown line. The name is Go's %q. See references/media.md.
+const SHOWN = /^(image|video|file) ("(?:[^"\\]|\\.)*"), (\d+) bytes, /m;
+
+export function parseShown(output: string | undefined): Shown | null {
+  const [, kind = "", quoted = "", size = ""] = output?.match(SHOWN) ?? [];
+  if (!quoted) return null;
+  let name: string;
+  try {
+    name = JSON.parse(quoted) as string;
+  } catch {
+    name = quoted.slice(1, -1);
+  }
+  return { kind: kind as MediaKind, name, size: Number(size) };
+}
+
+/** The item a step shared: same kind, name and size, nearest the step in time. */
+export function findShown(shelf: readonly MediaItem[], shown: Shown, at?: number): MediaItem | undefined {
+  const same = shelf.filter((item) => item.kind === shown.kind && item.name === shown.name && item.size === shown.size);
+  if (same.length < 2 || at === undefined) return same.at(-1);
+  const gap = (item: MediaItem) => (item.at === undefined ? Infinity : Math.abs(item.at - at));
+  return same.reduce((best, item) => (gap(item) < gap(best) ? item : best));
+}
+
 /** The line under a name: what it is and how big. */
 export function describe(item: MediaItem): string {
   const kind = item.kind === "image" ? "Image" : item.kind === "video" ? "Video" : "File";

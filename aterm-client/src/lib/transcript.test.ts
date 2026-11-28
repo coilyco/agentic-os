@@ -182,3 +182,19 @@ describe("mayClear", () => {
     expect(mayClear("unsupported_harness")).toBe(false);
   });
 });
+
+describe("a step that shared a file", () => {
+  const turn: TranscriptItem[] = [
+    { id: "p1", kind: "prompt", text: "Show me the banner." },
+    { id: "t1", kind: "tool", at: 1000, tool: { name: "mcp__local_coilyco_aterm__show_media", class: "mcp", summary: "Called local_coilyco_aterm.show_media", output: 'image "banner.png", 51234 bytes, shown to 2 clients', ok: true } },
+    { id: "t2", kind: "tool", tool: { name: "Bash", class: "shell", summary: "Ran ls", output: "banner.png", ok: true } },
+  ];
+
+  it("carries what it shared at every level, Focus included", () => {
+    for (const level of ["focus", "default", "verbose"] as const) {
+      const rows = rowsFor(turn, level);
+      expect(rows.find((row) => row.key === "t1")).toMatchObject({ shown: { kind: "image", name: "banner.png", size: 51234 }, at: 1000 });
+      expect(rows.find((row) => row.key === "t2")).not.toHaveProperty("shown");
+    }
+  });
+});
