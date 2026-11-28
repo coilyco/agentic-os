@@ -11,7 +11,7 @@ import { FeedbackRefused, feedbackRefusal } from "./feedback";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
 import { ImageReadRefused, sniffType } from "./sent-images";
 import { CHUNK_BYTES, decodeMedia, mediaRefusal } from "./media";
-import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeviceKeyChannel, FeedbackChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MachineKindChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, TuiState, ViewChannel } from "./protocol";
+import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeadSeat, DeviceKeyChannel, FeedbackChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MachineKindChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, TuiState, ViewChannel } from "./protocol";
 import { decodeReply, REFUSALS, TranscriptRefused } from "./transcript";
 import { parseRoster } from "./roster";
 import type { BrowserState, Driver, FrameMetadata, InputKind, SharedBrowser } from "./screencast";
@@ -129,6 +129,21 @@ interface TerminalView {
   label?: string;
 }
 
+// One `dead` entry beside a sessions frame. See references/dead-seats.md.
+interface DeadSeatView {
+  name: string;
+  ref: string;
+  role: string;
+  identity?: string;
+  seat: string;
+  ended: string;
+}
+
+/** The dead seats a sessions frame carries, absent meaning none. */
+export function toDeadSeats(views: DeadSeatView[] | undefined): DeadSeat[] {
+  return (views ?? []).map((view) => ({ name: view.name, ref: view.ref, role: view.role, identity: view.identity ?? view.name, seat: view.seat, endedAt: Date.parse(view.ended) || 0 }));
+}
+
 interface MessageView {
   id: string;
   from: string;
@@ -206,6 +221,7 @@ interface Frame {
   error?: string;
   ask?: AskView;
   terminals?: TerminalView[];
+  dead?: DeadSeatView[];
   ask_id?: string;
   state?: string;
   typing?: unknown;
@@ -481,7 +497,7 @@ export class DaemonHost implements HostConnection {
   private nextId = 0;
   // Input has no reply on success, so an error naming one of these is its only failure.
   private inputIds = new Set<string>();
-  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; passkey?: HostEvent; deviceKey?: HostEvent; machineKind?: HostEvent; terminals?: HostEvent } = {};
+  private last: { sessions?: Session[]; roles?: HostEvent; typing?: Typing; features?: HostEvent; passkey?: HostEvent; deviceKey?: HostEvent; machineKind?: HostEvent; terminals?: HostEvent; deadSeats?: HostEvent } = {};
   private sessionViews: SessionView[] = [];
   // The daemon's one-use unlock proof. Memory only, replaced on every use.
   private resumeToken: string | undefined;
@@ -655,6 +671,7 @@ export class DaemonHost implements HostConnection {
     if (this.last.features) tell(this.last.features);
     if (this.last.machineKind) tell(this.last.machineKind);
     if (this.last.terminals) tell(this.last.terminals);
+    if (this.last.deadSeats) tell(this.last.deadSeats);
     return () => this.listeners.delete(listener);
   }
 
@@ -1194,6 +1211,8 @@ export class DaemonHost implements HostConnection {
         // Absent means none, so a daemon with no shells still reports a list.
         this.last.terminals = { type: "terminals", terminals: (frame.terminals ?? []).map(({ name, label }) => (label ? { id: name, label } : { id: name })) };
         this.emit(this.last.terminals);
+        this.last.deadSeats = { type: "dead_seats", seats: toDeadSeats(frame.dead) };
+        this.emit(this.last.deadSeats);
         return;
       case "spawned": {
         const label = frame.id ? this.pendingOpens.get(frame.id) : undefined;

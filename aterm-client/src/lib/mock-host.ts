@@ -7,7 +7,7 @@ import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
 import { ImageReadRefused } from "./sent-images";
 import { MOCK_FILES } from "./fixtures/mock-media";
 import { mediaRefusal } from "./media";
-import type { Ask, ContextReading, HostConnection, FeedbackChannel, HostEvent, ImageChannel, MachineKindChannel, MediaChannel, PeerMessage, Session, TerminalChannel } from "./protocol";
+import type { Ask, ContextReading, DeadSeat, HostConnection, FeedbackChannel, HostEvent, ImageChannel, MachineKindChannel, MediaChannel, PeerMessage, Session, TerminalChannel } from "./protocol";
 import type { MachineKind } from "./machine-kind";
 import { Refusal, typingNotice } from "./typing";
 import { parseRoster } from "./roster";
@@ -49,6 +49,11 @@ export function terminalModeFrom(search: string): TerminalMode {
   return TERMINAL_MODES.find((mode) => mode === asked) ?? "ok";
 }
 
+/** `?dead=1` lists one seat whose holder died, as the daemon does (COI-3799). */
+export function deadSeatsFrom(search: string): boolean {
+  return new URLSearchParams(search).get("dead") === "1";
+}
+
 function isImage(head: Uint8Array): boolean {
   const starts = (...bytes: number[]) => bytes.every((byte, at) => head[at] === byte);
   return starts(0x89, 0x50, 0x4e, 0x47) || starts(0xff, 0xd8, 0xff) || starts(0x47, 0x49, 0x46, 0x38) || (starts(0x52, 0x49, 0x46, 0x46) && head[8] === 0x57 && head[9] === 0x45);
@@ -67,6 +72,8 @@ function mockMediaOn(): boolean {
 
 export class MockHost implements HostConnection {
   readonly canLaunch = true;
+  readonly canReopen: boolean;
+  private dead: DeadSeat[] = [];
   private kind: MachineKind = "personal";
   // The daemon judges a set as typing, so the locked mock refuses it the same way.
   readonly machineKind: MachineKindChannel = {
@@ -161,7 +168,10 @@ export class MockHost implements HostConnection {
   constructor(
     private readonly delayMs = 1200,
     private readonly terminalMode: TerminalMode = "ok",
+    withDead = false,
   ) {
+    this.canReopen = withDead;
+    if (withDead) this.dead = [{ name: "eng-platform-sturdy-imp-ox", ref: "5e1f0a2b", role: "eng-platform", identity: "Sturdy-Imp", seat: "claude", endedAt: Date.now() - 3 * 3600_000 - 300_000 }];
     if (terminalMode !== "off") this.terminals = { open: (label) => this.openShell(label), close: (id) => this.endShell(id, null) };
     for (const each of this.sessions) this.buffers.set(each.id, this.drawn(each.id) ?? (scripts[each.role] ?? []).join("\r\n") + PROMPT);
     this.timers.push(setTimeout(() => this.deliverScriptedMessage(), delayMs));
@@ -242,6 +252,7 @@ export class MockHost implements HostConnection {
     listener({ type: "machine_kind", kind: this.kind });
     if (this.media) for (const file of MOCK_FILES) listener({ type: "media", item: { id: file.id, session: MEDIA_SEAT, name: file.name, mime: file.mime, kind: file.kind, size: Math.floor((file.base64.length * 3) / 4) } });
     if (this.terminals && this.terminalMode !== "mute") listener({ type: "terminals", terminals: this.listShells() });
+    if (this.canReopen) listener({ type: "dead_seats", seats: this.dead });
     return () => this.listeners.delete(listener);
   }
 
@@ -312,6 +323,19 @@ export class MockHost implements HostConnection {
     this.buffers.set(id, `${DIM}${seat} started for ${identity}${RESET}${PROMPT}`);
     this.emit({ type: "launch", role, state: "started", text: `${role} launched on the mock host.` });
     this.emit({ type: "sessions", sessions: this.sessions });
+  }
+
+  // Like the daemon, a reopen takes the seat off the dead list and opens its role again.
+  reopenSeat(session: string, ref: string): void {
+    const seat = this.dead.find((each) => each.name === session && each.ref === ref);
+    if (!seat) {
+      this.emit({ type: "seat_reopen_refused", session, text: `Not reopened. ${session} has no recorded seat to resume.` });
+      return;
+    }
+    this.dead = this.dead.filter((each) => each !== seat);
+    this.emit({ type: "dead_seats", seats: this.dead });
+    this.emit({ type: "seat_reopened", session, role: seat.role });
+    this.launch(seat.role, seat.seat);
   }
 
   closeSeat(session: string): void {

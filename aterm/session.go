@@ -237,7 +237,16 @@ func runDaemonSession(daemon *conn, options sessionOptions, name string, stdout,
 	if result.lost {
 		fmt.Fprintf(stderr, "\r\naterm: lost the aterm daemon for good, and %s with it\r\n", name)
 	}
-	return holdAttached(pump, stdout, result.code, options.Hold)
+	return windowEnd(pump, stdout, result, options.Hold)
+}
+
+// windowEnd holds only a failure: a close ends at 143 as often as 0, and a window held
+// on that outlived its seat (COI-3799).
+func windowEnd(pump *inputPump, stdout io.Writer, result attachResult, hold bool) int {
+	if endedOnPurpose(result.endedBy) {
+		return result.code
+	}
+	return holdAttached(pump, stdout, result.code, hold)
 }
 
 // headlessSize is the terminal a headless session starts in, until a client

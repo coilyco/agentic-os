@@ -180,7 +180,10 @@ func listResumable(out io.Writer, entries []ledgerEntry, live map[string]bool) e
 			continue
 		}
 		state, note := "running when last seen", ""
-		if entry.Ended != nil {
+		switch {
+		case entry.Ended != nil && entry.Lost:
+			state = "dead, holder gone, found " + entry.Ended.Local().Format(time.DateTime)
+		case entry.Ended != nil:
 			state = "ended " + entry.Ended.Local().Format(time.DateTime)
 		}
 		if _, err := resumeHarnessArgs(entry, entries); err != nil {

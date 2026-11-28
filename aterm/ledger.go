@@ -41,6 +41,10 @@ type ledgerEntry struct {
 	Started time.Time         `json:"started"`
 	Ended   *time.Time        `json:"ended,omitempty"`
 	Code    *int              `json:"code,omitempty"`
+	// Lost is an end with no exit from the holder, a dead seat Treehouse offers to reopen.
+	Lost bool `json:"lost,omitempty"`
+	// Reopened is when a reopen resumed this record, which takes it off the dead list.
+	Reopened *time.Time `json:"reopened,omitempty"`
 }
 
 // ledgerDir is under the real home from the password database, since a shadow

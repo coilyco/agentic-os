@@ -121,6 +121,8 @@ type frame struct {
 	Force bool `json:"force,omitempty"`
 	// Self closes the caller's own session, named by Token alone and never by Target.
 	Self bool `json:"self,omitempty"`
+	// EndedBy rides exit and exited: close, reload, or lost. See the dead-seats reference.
+	EndedBy string `json:"ended_by,omitempty"`
 	// Peek asks a claim which name it would grant, without holding it.
 	Peek bool `json:"peek,omitempty"`
 	// All asks an inbox for the messages already read as well as the unread.
@@ -146,6 +148,8 @@ type frame struct {
 	// Terminals rides beside Sessions and never inside it, so a consumer that
 	// counts or targets seats cannot meet a shell.
 	Terminals []terminalView `json:"terminals,omitempty"`
+	// Dead rides beside Sessions too: seats whose holder died, each reopenable (COI-3799).
+	Dead []deadSeat `json:"dead,omitempty"`
 
 	// Lines is how many screen rows a status asks for, and Status is its answer.
 	Lines  int            `json:"lines,omitempty"`

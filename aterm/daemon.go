@@ -104,6 +104,10 @@ type daemon struct {
 	// ended remembers how recent sessions exited, so a window that was
 	// disconnected when its session ended still learns the code.
 	ended map[string]endedSession
+	// dead is the reopenable dead seats the sessions frames carry. See daemon_dead.go.
+	dead []deadSeat
+	// unadopted counts holders that answered and still failed adoption.
+	unadopted atomic.Int32
 	// claims holds a granted pool name until its spawn arrives or the hold lapses,
 	// so two launches at once never settle on one name.
 	claims      map[string]time.Time
@@ -305,6 +309,12 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		go d.users.WatchWaiting(contextDone, pushWatchEvery)
 	}
 	d.adoptHolders()
+	if n := d.unadopted.Load(); n > 0 {
+		logf("%d holder(s) could not be adopted, so no seat is marked dead until a restart", n)
+	}
+	d.sweepDead()
+	d.refreshDead()
+	go d.watchDead(contextDone, deadSweepEvery)
 	d.sweepImages()
 	d.sweepMedia()
 	if d.ledgerDir != "" {
@@ -416,6 +426,7 @@ func (d *daemon) adoptHolders() {
 				continue
 			}
 			d.logf("could not adopt %s: %v", filepath.Base(socket), err)
+			d.unadopted.Add(1)
 			continue
 		}
 		d.mu.Lock()
@@ -615,8 +626,8 @@ func (d *daemon) handle(cl *client, message frame) error {
 	case "attach":
 		s := d.attachable(message.Session)
 		if s == nil {
-			if code, ok := d.endedCode(message.Session); ok {
-				return cl.c.write(frame{Type: "exited", ID: message.ID, Session: message.Session, Code: code})
+			if earlier, ok := d.endedCode(message.Session); ok {
+				return cl.c.write(frame{Type: "exited", ID: message.ID, Session: message.Session, Code: earlier.code, EndedBy: earlier.by})
 			}
 			return withExit(exitOffRoster, fmt.Errorf("no live session named %q", message.Session))
 		}
@@ -719,7 +730,7 @@ func (d *daemon) handle(cl *client, message frame) error {
 	case "list":
 		views := d.views()
 		d.noteSeen(d.callerSession(cl, message.Token), views)
-		return cl.c.write(frame{Type: "sessions", ID: message.ID, Sessions: views, Terminals: d.terminalViews()})
+		return cl.c.write(frame{Type: "sessions", ID: message.ID, Sessions: views, Terminals: d.terminalViews(), Dead: d.deadList()})
 	case "launch":
 		if cl.web {
 			if err := d.typingRefusal(cl, "a process inside an aterm session cannot launch a seat as Kai, use `aterm send --launch`"); err != nil {
@@ -773,7 +784,7 @@ func (d *daemon) handle(cl *client, message frame) error {
 		d.mu.Lock()
 		d.subscribers[cl.c] = cl
 		d.mu.Unlock()
-		if err := cl.c.write(frame{Type: "sessions", ID: message.ID, Channel: "sessions", Sessions: d.views(), Terminals: d.terminalViews()}); err != nil {
+		if err := cl.c.write(frame{Type: "sessions", ID: message.ID, Channel: "sessions", Sessions: d.views(), Terminals: d.terminalViews(), Dead: d.deadList()}); err != nil {
 			return err
 		}
 		for _, ask := range d.pendingAsks() {
@@ -937,14 +948,15 @@ const endedMemory = 10 * time.Minute
 
 type endedSession struct {
 	code int
+	by   string
 	at   time.Time
 }
 
-func (d *daemon) endedCode(name string) (int, bool) {
+func (d *daemon) endedCode(name string) (endedSession, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	earlier, ok := d.ended[name]
-	return earlier.code, ok && time.Since(earlier.at) <= endedMemory
+	return earlier, ok && time.Since(earlier.at) <= endedMemory
 }
 
 // recordSession writes the session's ledger record, logging a failure. A child
@@ -978,7 +990,7 @@ func (d *daemon) markEnded(s *ptySession) {
 		return
 	}
 	d.ledgerMu.Lock()
-	defer d.ledgerMu.Unlock()
+	lost := s.endReason() == endedByLost
 	for _, entry := range readLedger(d.ledgerDir) {
 		// A pool name recurs, so the record under it may already be a newer session's.
 		if entry.Name != s.name || !entry.Started.Equal(s.started) {
@@ -988,9 +1000,14 @@ func (d *daemon) markEnded(s *ptySession) {
 		now, code := time.Now().UTC(), s.exitCode
 		s.mu.Unlock()
 		entry.Ended, entry.Code = &now, &code
+		entry.Lost = lost
 		if err := writeLedger(d.ledgerDir, entry); err != nil {
 			d.logf("could not mark %s ended: %v", s.name, err)
 		}
+	}
+	d.ledgerMu.Unlock()
+	if lost {
+		d.refreshDead()
 	}
 }
 
@@ -1000,6 +1017,7 @@ func (d *daemon) forget(s *ptySession) {
 		d.forgetTerminal(s)
 		return
 	}
+	by := s.endReason()
 	d.mu.Lock()
 	if d.sessions[s.name] == s {
 		delete(d.sessions, s.name)
@@ -1007,7 +1025,7 @@ func (d *daemon) forget(s *ptySession) {
 	}
 	delete(d.tokens, s.token)
 	d.lastActive = time.Now()
-	d.ended[s.name] = endedSession{code: s.exitCode, at: time.Now()}
+	d.ended[s.name] = endedSession{code: s.exitCode, by: by, at: time.Now()}
 	d.retire(s.name, time.Now())
 	delete(d.seen, s.name)
 	defer d.markEnded(s)
@@ -1157,7 +1175,7 @@ func (d *daemon) closeSession(cl *client, message frame) error {
 		by = caller.name
 	}
 	d.logf("closing session %s (pid %d) for %s", s.name, s.pid, by)
-	s.end()
+	s.endFor(endedByClose)
 	select {
 	case <-s.done:
 	default:
@@ -1305,7 +1323,7 @@ func (d *daemon) expireOrphans(now time.Time) {
 }
 
 func (d *daemon) pushSessions() {
-	d.broadcast(frame{Type: "sessions", Channel: "sessions", Sessions: d.views(), Terminals: d.terminalViews()})
+	d.broadcast(frame{Type: "sessions", Channel: "sessions", Sessions: d.views(), Terminals: d.terminalViews(), Dead: d.deadList()})
 }
 
 func (d *daemon) broadcast(message frame) {
