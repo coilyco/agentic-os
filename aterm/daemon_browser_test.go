@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -31,6 +32,8 @@ type fakeBrowser struct {
 	pageTitle string // what Target.getTargetInfo reports, guarded by mu
 	// silent leaves a started screencast without frames, as a page that never repaints does.
 	silent bool
+	// hung leaves Runtime.evaluate unanswered, as a frozen renderer does.
+	hung atomic.Bool
 }
 
 func newFakeBrowser(t *testing.T) (*browserLink, *fakeBrowser) {
@@ -93,6 +96,9 @@ func (f *fakeBrowser) event(sessionID, method string, params any) {
 }
 
 func (f *fakeBrowser) answer(request cdpMessage) {
+	if request.Method == "Runtime.evaluate" && f.hung.Load() {
+		return
+	}
 	result := map[string]any{}
 	switch request.Method {
 	case "Target.getTargets":
@@ -751,4 +757,79 @@ func TestBrowserCloseIsRefusedToAProcessInsideASession(t *testing.T) {
 	if len(fake.called("Target.closeTarget")) != 0 {
 		t.Fatal("a refused close reached the browser")
 	}
+}
+
+func TestBrowserReportsAHungPageAsStalledAndClearsItWhenItAnswers(t *testing.T) {
+	d, address, fake := browserDaemon(t)
+	d.browserProbe = browserProbePace{every: 40 * time.Millisecond, timeout: 120 * time.Millisecond}
+	client, _ := dialLoopbackClient(t, address)
+	client.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	client.untilState("live", nil)
+
+	probes := fake.waitFor("Runtime.evaluate", 3)
+	if probes[0].SessionID != "PAGE" || !strings.Contains(string(probes[0].Params), `"expression":"1"`) {
+		t.Fatalf("the probe should round-trip the followed page: %+v", probes[0])
+	}
+	sb := d.browsers.existing("scientist-evie")
+	sb.mu.Lock()
+	healthy := !sb.stalled
+	sb.mu.Unlock()
+	if !healthy {
+		t.Fatal("a page that answers is not stalled")
+	}
+
+	fake.hung.Store(true)
+	client.untilState("live", func(m frame) bool { return m.Stalled })
+	fake.hung.Store(false)
+	cleared := client.untilState("live", func(m frame) bool { return !m.Stalled })
+	if cleared.URL != "about:blank" {
+		t.Fatalf("the cleared state is the same page: %+v", cleared)
+	}
+}
+
+func TestBrowserProbesOnlyAWatchedPage(t *testing.T) {
+	d, address, fake := browserDaemon(t)
+	d.browserProbe = browserProbePace{every: 20 * time.Millisecond}
+	client, _ := dialLoopbackClient(t, address)
+	client.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	client.untilState("live", nil)
+	fake.waitFor("Runtime.evaluate", 1)
+	client.send(frame{Type: "browser_unwatch", Session: "scientist-evie"})
+	time.Sleep(60 * time.Millisecond)
+	before := len(fake.called("Runtime.evaluate"))
+	time.Sleep(200 * time.Millisecond)
+	if after := len(fake.called("Runtime.evaluate")); after != before {
+		t.Fatalf("a page nobody watches is not probed: %d probes became %d", before, after)
+	}
+}
+
+// A real Chromium: a renderer spinning in script reads as stalled, then clears.
+func TestRealChromiumHungPageIsStalledUntilItAnswers(t *testing.T) {
+	if chromiumPath() == "" {
+		t.Skip("no Chromium or Chrome on this host")
+	}
+	d, address := wsDaemon(t)
+	wsSession(t, d, false)
+	d.browserProbe = browserProbePace{every: 100 * time.Millisecond, timeout: 400 * time.Millisecond}
+	hold := testHoldDir(t)
+	d.browserLaunch = func(session string) (*browserLink, error) {
+		return launchChromium(hold, session, browserProfile{})
+	}
+	client, _ := dialLoopbackClient(t, address)
+	client.send(frame{Type: "browser_watch", Session: "scientist-evie"})
+	client.untilState("live", nil)
+	sb := d.browsers.existing("scientist-evie")
+	sb.mu.Lock()
+	cdp, page := sb.cdp, sb.page
+	sb.mu.Unlock()
+	t.Cleanup(func() { d.browsers.end("scientist-evie") })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	spin := map[string]any{"expression": `setTimeout(() => { const end = Date.now() + 2500; while (Date.now() < end) {} }, 0)`}
+	if _, err := cdp.call(ctx, page, "Runtime.evaluate", spin); err != nil {
+		t.Fatalf("spin: %v", err)
+	}
+	client.untilState("live", func(m frame) bool { return m.Stalled })
+	client.untilState("live", func(m frame) bool { return !m.Stalled })
 }

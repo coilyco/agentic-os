@@ -230,13 +230,15 @@ type frame struct {
 	Tab      int          `json:"tab,omitempty"`
 	Tabs     int          `json:"tabs,omitempty"`
 	// CloudflareCheck: the followed page shows a Cloudflare check (COI-3803).
-	CloudflareCheck bool            `json:"cloudflare_check,omitempty"`
-	Client          string          `json:"client,omitempty"`
-	Width           int             `json:"width,omitempty"`
-	Height          int             `json:"height,omitempty"`
-	Seq             int64           `json:"seq,omitempty"`
-	Take            bool            `json:"take,omitempty"`
-	Metadata        json.RawMessage `json:"metadata,omitempty"`
+	CloudflareCheck bool `json:"cloudflare_check,omitempty"`
+	// Stalled: the followed page left the daemon's probe unanswered (COI-3825).
+	Stalled  bool            `json:"stalled,omitempty"`
+	Client   string          `json:"client,omitempty"`
+	Width    int             `json:"width,omitempty"`
+	Height   int             `json:"height,omitempty"`
+	Seq      int64           `json:"seq,omitempty"`
+	Take     bool            `json:"take,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
 
 	// MCP Apps: the gateway and the views channel. See docs/aterm-daemon.md.
 	View       *viewFrame      `json:"view,omitempty"`

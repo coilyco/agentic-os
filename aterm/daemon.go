@@ -132,8 +132,10 @@ type daemon struct {
 	// real one in tests.
 	browsers      browserHub
 	browserLaunch browserLauncher
-	logf          func(string, ...any)
-	refused       refusalLog
+	// browserProbe paces the hung-page probe, zero fields taking the defaults.
+	browserProbe browserProbePace
+	logf         func(string, ...any)
+	refused      refusalLog
 	// finishShadow collects an ended session's native shadow. Nil in tests.
 	finishShadow func(pid int)
 
