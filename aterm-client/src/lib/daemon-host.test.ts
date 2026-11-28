@@ -528,12 +528,12 @@ describe("riding out a daemon restart", () => {
   const reconnecting = (events: HostEvent[]) => events.filter((event) => event.type === "reconnecting");
   const kinds = (socket: StubSocket) => sentFrames(socket).map((frame) => frame.type);
 
-  function answering(version = "0.443.0") {
+  function answering(version = "0.443.0", features = ["terminals"]) {
     vi.useFakeTimers();
     vi.spyOn(Math, "random").mockReturnValue(0.5);
     StubSocket.all = [];
     const dialed = connect();
-    dialed.socket.receive({ ...WELCOME, version, features: ["terminals"] });
+    dialed.socket.receive({ ...WELCOME, version, features });
     dialed.socket.receive(SEATS);
     return dialed;
   }
@@ -579,7 +579,7 @@ describe("riding out a daemon restart", () => {
     const outputs = (events: HostEvent[]) => events.flatMap((event) => (event.type === "output" ? [text(event)] : []));
     const attaches = (socket: StubSocket) => sentFrames(socket).filter((frame) => frame.type === "attach" && frame.session === "s1");
 
-    it("asks a first open for the whole screen, then a reopen only for what came after, drawing what it held first", () => {
+    it("asks a first open for the whole screen, then a reopen only for what came after, drawing what it held on the host's answer", () => {
       const { host, events, socket } = answering();
       host.attach("s1", 30, 100);
       expect(attaches(socket).at(-1)).not.toHaveProperty("offset");
@@ -588,10 +588,27 @@ describe("riding out a daemon restart", () => {
       host.detach("s1");
       events.length = 0;
       host.attach("s1", 30, 100);
-      expect(outputs(events), "the held screen is drawn before the host answers").toEqual(["screen one two"]);
+      expect(outputs(events), "nothing is drawn before the host answers").toEqual([]);
       expect(attaches(socket).at(-1)).toMatchObject({ replay: true, offset: 114 });
+      socket.receive({ type: "attached", session: "s1" });
+      expect(outputs(events), "a host without pty-size answers with attached").toEqual(["screen one two"]);
       socket.receive({ type: "output", session: "s1", data: btoa(" three"), offset: 114 });
       expect(outputs(events).at(-1)).toBe(" three");
+      host.close();
+    });
+
+    it("on a pty-size host, draws what it held only after the host's size (COI-3839)", () => {
+      const { host, events, socket } = answering("0.443.0", ["terminals", "pty-size"]);
+      host.attach("s1", 30, 100);
+      socket.receive({ type: "output", session: "s1", data: btoa("held"), offset: 0 });
+      host.detach("s1");
+      events.length = 0;
+      host.attach("s1", 30, 100);
+      socket.receive({ type: "attached", session: "s1" });
+      expect(outputs(events), "a new xterm is still at its default size").toEqual([]);
+      socket.receive({ type: "size", session: "s1", rows: 44, cols: 159 });
+      expect(events.filter((event) => event.type === "size" || event.type === "output").map((event) => event.type)).toEqual(["size", "output"]);
+      expect(outputs(events)).toEqual(["held"]);
       host.close();
     });
 
