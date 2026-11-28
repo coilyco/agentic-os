@@ -251,6 +251,8 @@ interface Frame {
   tabs?: number;
   /** A browser_state's: the page shows a Cloudflare check (COI-3803). */
   cloudflare_check?: boolean;
+  /** A browser_state's: the page left the daemon's probe unanswered (COI-3825). */
+  stalled?: boolean;
   client?: string;
   seq?: number;
   metadata?: Record<string, number>;
@@ -336,6 +338,7 @@ export function toBrowserState(frame: Frame, previous: SharedBrowser | undefined
     ...(typeof frame.reason === "string" && frame.reason ? { reason: frame.reason } : {}),
     ...(frame.tab && frame.tabs ? { tab: frame.tab, tabs: frame.tabs } : {}),
     ...(frame.cloudflare_check === true ? { cloudflareCheck: true } : {}),
+    ...(frame.stalled === true ? { stalled: true } : {}),
     ...(previous?.frame ? { frame: previous.frame } : {}),
   };
 }
@@ -343,7 +346,9 @@ export function toBrowserState(frame: Frame, previous: SharedBrowser | undefined
 /** A `browser_frame` drawn onto the browser it belongs to. Null before any state. */
 export function withBrowserFrame(previous: SharedBrowser | undefined, frame: Frame, at: number): SharedBrowser | null {
   if (!previous || !frame.data) return null;
-  return { ...previous, frame: { src: `data:image/jpeg;base64,${frame.data}`, metadata: toFrameMetadata(frame.metadata), at, seq: frame.seq ?? 0 } };
+  // The paint time in epoch seconds, which a replay keeps. A seed frame has none.
+  const painted = frame.metadata?.timestamp ?? 0;
+  return { ...previous, frame: { src: `data:image/jpeg;base64,${frame.data}`, metadata: toFrameMetadata(frame.metadata), at, seq: frame.seq ?? 0, ...(painted > 0 ? { paintedAt: painted * 1000 } : {}) } };
 }
 
 /** A `view` frame as the client holds it. The result comes later, in `view_update`. */

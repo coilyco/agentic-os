@@ -119,6 +119,8 @@ export interface Mock {
   push(frame: Record<string, unknown>): void;
   /** A seat's agent loads a page, which every later `browser_state` for it carries. */
   loadPage(session: string, page: { url: string; title?: string; cloudflareCheck?: boolean }): void;
+  /** A seat's page stops answering the daemon's probe, or answers again (COI-3825). */
+  setStalled(session: string, stalled: boolean): void;
   /** A seat's page, as `aterm artifact add` registers it, replayed on subscribe. */
   addArtifact(session: string, artifact: Record<string, unknown>): void;
   /** The daemon closes a page, as a seat's remove or its end does. */
@@ -239,14 +241,14 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const transcriptHolds = new Map<string, number>();
   // A seat's browser: the agent drives until a screen takes control.
   // `client` is the name each connection was given.
-  const pages = new Map<string, { holder: WebSocket | null; url: string; title?: string; cloudflareCheck?: boolean }>();
+  const pages = new Map<string, { holder: WebSocket | null; url: string; title?: string; cloudflareCheck?: boolean; stalled?: boolean }>();
   // Seats whose page a screen closed (COI-3820): no page until the seat loads one.
   const closedPages = new Set<string>();
   const names = new WeakMap<WebSocket, string>();
   const browserState = (session: string, socket: WebSocket, id?: unknown): Record<string, unknown> => {
     if (closedPages.has(session)) return { type: "browser_state", id, session, state: "none", client: names.get(socket) };
     const page = pages.get(session) ?? { holder: null, url: "about:blank" };
-    return { type: "browser_state", id, session, state: "live", driver: page.holder ? "person" : "agent", ...(page.holder ? { holder: names.get(page.holder) } : {}), url: page.url, title: page.title ?? "", ...(page.cloudflareCheck ? { cloudflare_check: true } : {}), client: names.get(socket) };
+    return { type: "browser_state", id, session, state: "live", driver: page.holder ? "person" : "agent", ...(page.holder ? { holder: names.get(page.holder) } : {}), url: page.url, title: page.title ?? "", ...(page.cloudflareCheck ? { cloudflare_check: true } : {}), ...(page.stalled ? { stalled: true } : {}), client: names.get(socket) };
   };
   const tellWatchers = (session: string): void => {
     for (const socket of clients) send(socket, browserState(session, socket));
@@ -696,6 +698,12 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     loadPage(session, page) {
       closedPages.delete(session);
       pages.set(session, { holder: pages.get(session)?.holder ?? null, ...page });
+      tellWatchers(session);
+    },
+    setStalled(session, stalled) {
+      const page = pages.get(session);
+      if (!page || !!page.stalled === stalled) return;
+      page.stalled = stalled;
       tellWatchers(session);
     },
     addArtifact(session, artifact) {

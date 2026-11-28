@@ -28,8 +28,10 @@ export interface SharedBrowser {
   tabs?: number;
   /** The page shows a Cloudflare check, which never passes in this browser (COI-3803). */
   cloudflareCheck?: boolean;
+  /** The page left the daemon's probe unanswered (COI-3825). */
+  stalled?: boolean;
   /** `seq` counts frames, so a gap is frames the daemon dropped for a slow client. */
-  frame?: { src: string; metadata: FrameMetadata; at: number; seq: number };
+  frame?: { src: string; metadata: FrameMetadata; at: number; seq: number; paintedAt?: number };
 }
 
 /** Pointer and keys go to the page only from the client holding control. */

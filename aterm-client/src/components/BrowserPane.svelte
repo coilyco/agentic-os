@@ -1,5 +1,6 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
+  import { ageText } from "../lib/age";
   import { app } from "../lib/app.svelte";
   import { openLink } from "../lib/link-notice.svelte";
   import { pageLabel, SHOW_WAIT_MS } from "../lib/pages";
@@ -58,6 +59,31 @@
     confirmClose = false;
     closedHere = true;
   }
+
+  // A hung page (COI-3825). It can clear on its own, so amber, not red.
+  const stalled = $derived(browser?.state === "live" && browser.stalled === true);
+  let now = $state(Date.now());
+  $effect(() => {
+    if (!stalled) return;
+    now = Date.now();
+    const timer = setInterval(() => (now = Date.now()), 1000);
+    return () => clearInterval(timer);
+  });
+  const pictureAge = $derived.by(() => {
+    // Not `frame.at`: every watch replays the last frame, which would read as new.
+    const at = browser?.frame?.paintedAt;
+    if (at === undefined) return "";
+    const age = ageText(Math.max(0, (now - at) / 1000));
+    return age ? `${age} ago` : "just now";
+  });
+  // The strip leaving is silent to a screen reader, so the recovery is said.
+  let answering = $state(false);
+  let wasStalled = false;
+  $effect(() => {
+    const hung = stalled;
+    answering = wasStalled && !hung && untrack(() => browser?.state) === "live";
+    wasStalled = hung;
+  });
 
   const sizeNow = () => paneSize(root?.getBoundingClientRect(), STAGE_MIN_HEIGHT);
   let sentSize: { width: number; height: number } | undefined;
@@ -255,6 +281,15 @@
         <button type="button" class="button" onclick={() => closePage(true)}>Close it anyway</button>
       </div>
     {/if}
+    <!-- Kept while live: a region inserted with its words is not reliably read. -->
+    <div class={stalled ? "stall" : "visually-hidden"} role="status">
+      {#if stalled}
+        <p>The page stopped answering.</p>
+        <p class="detail">{#if pictureAge}<span aria-live="off">Last picture {pictureAge}.</span>{" "}{/if}A script stuck in a loop, or a dialog open on the page, does this.{channel?.close ? " Close page ends it." : ""}</p>
+      {:else if answering}
+        The page is answering again.
+      {/if}
+    </div>
     {#if browser.state === "live" && browser.cloudflareCheck && browser.url}
       <!-- The check fails any browser driven over CDP, a click through this pane included, so the pane never tries it (COI-3803). -->
       {@const checked = browser.url}
@@ -311,6 +346,9 @@
   .bar[data-driver="elsewhere"] { border-color: var(--warn-line); background: var(--warn-fill); }
   .check { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--brand); background: var(--surface); }
   .check p { margin: 0; flex: 1 1 200px; font-size: 14px; line-height: 1.4; }
+  .stall { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--warn-line); background: var(--warn-fill); }
+  .stall p { margin: 0; font-size: 14px; line-height: 1.4; color: var(--warn-text); }
+  .stall .detail { font-size: 13px; }
   .note { margin: 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
   .bar[data-driver="closed"] { border-color: var(--danger-line); background: var(--danger-fill); }
   .who { margin: 0; flex: 1 1 160px; font-size: 14px; }
