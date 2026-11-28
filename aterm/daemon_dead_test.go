@@ -67,22 +67,27 @@ func TestADaemonStartingMarksARecordWithNoHolderDead(t *testing.T) {
 		t.Fatalf("seed: %v", err)
 	}
 	testDaemon(t)
-	var record ledgerEntry
-	for _, entry := range readLedger(ledgerDir()) {
-		if entry.Name == stale.Name {
-			record = entry
+	// The socket answers before adoption and the sweep, so both are waited on.
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var record ledgerEntry
+		for _, entry := range readLedger(ledgerDir()) {
+			if entry.Name == stale.Name {
+				record = entry
+			}
 		}
-	}
-	if !record.Lost || record.Ended == nil {
-		t.Fatalf("record = %+v, want it marked dead at startup", record)
-	}
-	listed := dialTest(t).list()
-	found := false
-	for _, seat := range listed.Dead {
-		found = found || seat.Name == stale.Name
-	}
-	if !found {
-		t.Fatalf("dead = %v, want %s offered to reopen", deadNames(listed.Dead), stale.Name)
+		listed := dialTest(t).list()
+		found := false
+		for _, seat := range listed.Dead {
+			found = found || seat.Name == stale.Name
+		}
+		if record.Lost && record.Ended != nil && found {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("record = %+v, dead = %v, want it marked dead and offered to reopen", record, deadNames(listed.Dead))
+		}
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 

@@ -8,7 +8,8 @@ import (
 // A dead seat is one whose holder went without an exit, seen or found by the sweep.
 // See .agents/skills/tooling-aterm-client/references/dead-seats.md.
 const (
-	deadSweepEvery = 30 * time.Second
+	deadSweepEvery   = 30 * time.Second
+	deadRefreshEvery = time.Hour
 	// deadSeatWindow and deadSeatCap bound what the sessions frame offers to reopen.
 	deadSeatWindow = 7 * 24 * time.Hour
 	deadSeatCap    = 12
@@ -25,34 +26,35 @@ type deadSeat struct {
 	Ended    time.Time `json:"ended"`
 }
 
-// watchDead sweeps until done. The startup sweep runs in runDaemon, after adoption.
+// watchDead sweeps until done, after runDaemon's startup sweep. The list is rebuilt on a
+// mark or hourly, since finding a non-claude conversation reads that harness's files.
 func (d *daemon) watchDead(done <-chan struct{}, every time.Duration) {
 	defer d.guard("dead seat sweep")
 	ticker := time.NewTicker(every)
 	defer ticker.Stop()
+	refreshed := time.Now()
 	for {
 		select {
 		case <-done:
 			return
 		case <-ticker.C:
-			d.sweepDead()
+			if d.sweepDead() > 0 || time.Since(refreshed) >= deadRefreshEvery {
+				d.refreshDead()
+				refreshed = time.Now()
+			}
 		}
 	}
 }
 
 // sweepDead marks dead every open record whose session this daemon does not hold.
 // It runs only after adoptHolders, so by then a holder still alive is a session here.
-func (d *daemon) sweepDead() {
-	if d.ledgerDir == "" {
-		return
-	}
+func (d *daemon) sweepDead() int {
 	// A holder that answered but failed adoption still runs its seat, and its name
 	// is unknown, so no record can be called dead until a restart adopts it.
-	if n := d.unadopted.Load(); n > 0 {
-		d.logf("%d holder(s) could not be adopted, so no seat is marked dead", n)
-		d.refreshDead()
-		return
+	if d.ledgerDir == "" || d.unadopted.Load() > 0 {
+		return 0
 	}
+	marked := 0
 	d.ledgerMu.Lock()
 	entries := readLedger(d.ledgerDir)
 	live := d.liveStarts()
@@ -70,9 +72,10 @@ func (d *daemon) sweepDead() {
 			continue
 		}
 		d.logf("marked %s dead: no holder answers for it", entry.Name)
+		marked++
 	}
 	d.ledgerMu.Unlock()
-	d.refreshDead()
+	return marked
 }
 
 // liveStarts is each held seat's name and start, the pair a ledger record carries.

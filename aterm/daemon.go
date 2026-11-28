@@ -309,7 +309,11 @@ func runDaemon(options daemonOptions, stderr io.Writer) error {
 		go d.users.WatchWaiting(contextDone, pushWatchEvery)
 	}
 	d.adoptHolders()
+	if n := d.unadopted.Load(); n > 0 {
+		logf("%d holder(s) could not be adopted, so no seat is marked dead until a restart", n)
+	}
 	d.sweepDead()
+	d.refreshDead()
 	go d.watchDead(contextDone, deadSweepEvery)
 	d.sweepImages()
 	d.sweepMedia()
