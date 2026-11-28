@@ -295,7 +295,7 @@
     {/each}
     {#each sending as send (send.id)}
       <div class="turn me sending" data-row={`sending-${send.id}`} data-state={shownState(send.state)}>
-        <span class="who">You</span>{#if send.text}<Markdown source={send.text} onlink={open} />{:else if !send.paths.length}<p class="plain">{shownText(send)}</p>{/if}
+        <span class="who">You</span>{#if send.text}<Markdown source={send.text} onlink={open} />{:else}<p class="plain">{shownText(send)}</p>{/if}
         {#if send.paths.length}<SentImages paths={send.paths} {sessionId} channel={app.connection?.images} />{/if}
         {#if shownState(send.state) === "queued"}
           <p class="maybe" role="status">Queued. The seat is working and takes it at its next step.</p>

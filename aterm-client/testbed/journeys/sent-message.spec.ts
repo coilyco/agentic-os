@@ -82,7 +82,9 @@ test("another device reads the thumbnail from the host, and a tap opens it full 
   expect(bed.mock.thumbReads).toEqual([{ session: imp, path, full: false }]);
   await bed.step("host-thumb", { compare: false });
 
-  await mine.getByRole("button", { name: "Open image full size" }).click();
+  // By keyboard: a tap focuses no button in WebKit, and focus return is for the keyboard.
+  await mine.getByRole("button", { name: "Open image full size" }).focus();
+  await bed.page.keyboard.press("Enter");
   const viewer = bed.page.getByRole("dialog", { name: "Image you sent" });
   await expect(viewer.getByRole("img")).toBeVisible();
   expect(bed.mock.thumbReads.at(-1)).toEqual({ session: imp, path, full: true });
@@ -90,6 +92,8 @@ test("another device reads the thumbnail from the host, and a tap opens it full 
   await bed.page.keyboard.press("Escape");
   await expect(viewer).toHaveCount(0);
   await expect(mine.getByRole("button", { name: "Open image full size" }), "focus goes back to the picture").toBeFocused();
+  await mine.getByRole("button", { name: "Open image full size" }).click();
+  await expect(viewer.getByRole("img"), "a tap opens it too").toBeVisible();
 });
 
 test("an image the host no longer holds says so in words", async ({ bed }) => {
