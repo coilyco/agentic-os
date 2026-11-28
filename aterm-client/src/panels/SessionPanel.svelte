@@ -83,6 +83,21 @@
       wide.removeEventListener("change", read);
     };
   });
+  // The soft keyboard is up when the composer has focus and the window is well short of the tallest it has been at
+  // this width (interactive-widget=resizes-content). Focus alone is not it: Android's back key drops the keyboard and
+  // keeps the focus, and the strip must clear the gesture bar again then.
+  let tallest = $state({ width: 0, height: 0 });
+  let height = $state(0);
+  onMount(() => {
+    const read = () => {
+      height = innerHeight;
+      tallest = innerWidth === tallest.width ? { width: innerWidth, height: Math.max(tallest.height, innerHeight) } : { width: innerWidth, height: innerHeight };
+    };
+    read();
+    addEventListener("resize", read);
+    return () => removeEventListener("resize", read);
+  });
+  const keyboard = $derived(app.composing && tallest.height - height > 150);
   // The line's age moves on without a frame, so the page looks again every ten seconds.
   let now = $state(Date.now());
   onMount(() => {
@@ -441,7 +456,7 @@
       <p class="degraded">Started without {session.degraded.join(", ")}. agent-compose skipped these steps at launch, so this seat may be missing what they set up.</p>
     {/if}
   </header>
-  <div bind:this={body} class="body" class:wide class:away={split && !sideOpen} data-reading={layout.reading && !split} style:--side={sideWidth ? `${sideWidth}px` : undefined} style:--sheet-top={sheetTop === null ? undefined : `${sheetTop}px`}>
+  <div bind:this={body} class="body" class:wide class:away={split && !sideOpen} data-reading={layout.reading && !split} data-keyboard={keyboard} style:--side={sideWidth ? `${sideWidth}px` : undefined} style:--sheet-top={sheetTop === null ? undefined : `${sheetTop}px`}>
     <div class="work">
       {#if app.connection}
         {#key session.id}
@@ -640,5 +655,8 @@
     .body, .body.wide { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr); padding-bottom: var(--strip); min-height: calc(320px + var(--strip)); }
     /* A phone on its side has no strip to keep clear, and its height is too scarce to reserve any. */
     .body[data-reading="true"] { --strip: 0px; }
+    /* Keyboard up, the window is shorter than the floor, so the floor would push the composer under the fixed strip. The seat's
+       output gives way instead, and the strip drops its gesture-bar clearance, since the keyboard covers that bar. */
+    .body[data-keyboard="true"] { --bottom-clear: 0px; grid-template-rows: minmax(0, 1fr); min-height: 0; }
   }
 </style>
