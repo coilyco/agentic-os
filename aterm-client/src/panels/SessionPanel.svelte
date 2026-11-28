@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, untrack } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
   import Creature from "../components/Creature.svelte";
   import ChoiceCard from "../components/ChoiceCard.svelte";
   import LoginCard from "../components/LoginCard.svelte";
@@ -56,10 +56,16 @@
   const phone = $derived(narrow || layout.reading);
   // Above 1000px the side panel sits beside the seat, and a person opens it. Below, it is a sheet that starts put away.
   let split = $state(typeof matchMedia === "function" && matchMedia("(min-width: 1001px)").matches);
-  let sideOpen = $state(loadSideOpen());
+  // Kept per seat, so a panel closed for one seat stays closed for it across reloads (COI-3820).
+  let sideOpen = $state(untrack(() => loadSideOpen(session.id)));
   function toggleSide(): void {
     sideOpen = !sideOpen;
-    storeSideOpen(sideOpen);
+    storeSideOpen(session.id, sideOpen);
+  }
+  function closeSide(): void {
+    sideOpen = false;
+    storeSideOpen(session.id, false);
+    void tick().then(() => document.getElementById("side-toggle")?.focus());
   }
   onMount(() => {
     const query = matchMedia("(max-width: 720px)");
@@ -422,7 +428,7 @@
     <ReloadSeat {session} />
     <CloseSeat {session} needsKai={needsKaiIds().has(session.id)} where="view" />
     {#if split}
-      <button type="button" class="head-button" aria-expanded={sideOpen} aria-controls="side-panel" onclick={toggleSide}>
+      <button type="button" id="side-toggle" class="head-button" aria-expanded={sideOpen} aria-controls="side-panel" title={sideOpen ? "Close the side panel" : "Open the side panel"} onclick={toggleSide}>
         Side panel{#if messages.length}<span class="count">{messages.length}</span>{/if}
       </button>
     {/if}
@@ -572,7 +578,7 @@
     </div>
     {#if !split || sideOpen}
       <SplitHandle onchange={resize} onreset={() => resize(null)} />
-      <SidePanel {session} {messages} selfRole={role.slug} {colorOf} accent={role.color} bind:tab={side} bind:open={raised} onpick={(tab) => storeOverride(role.slug, tab)} {focusMessage} />
+      <SidePanel {session} {messages} selfRole={role.slug} {colorOf} accent={role.color} bind:tab={side} bind:open={raised} onpick={(tab) => storeOverride(role.slug, tab)} onclose={split ? closeSide : undefined} {focusMessage} />
     {/if}
   </div>
 </section>

@@ -43,19 +43,33 @@ export function storeSide(width: number | null, storage: Pick<Storage, "setItem"
 }
 
 const OPEN_KEY = "aterm.side-open.v1";
+/** Per seat since COI-3820. A seat with none falls back to the device-wide choice. */
+const SEAT_OPEN_KEY = "aterm.side-open.v2";
+const SEATS_KEPT = 100;
+
+function seatChoices(storage: Pick<Storage, "getItem"> | undefined): Record<string, boolean> {
+  const parsed: unknown = JSON.parse(storage?.getItem(SEAT_OPEN_KEY) ?? "{}");
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, boolean>) : {};
+}
 
 /** Put away until a person opens it: an empty panel costs the terminal 360px. */
-export function loadSideOpen(storage: Pick<Storage, "getItem"> | undefined = safeStorage()): boolean {
+export function loadSideOpen(seat: string, storage: Pick<Storage, "getItem"> | undefined = safeStorage()): boolean {
   try {
+    const chosen = seatChoices(storage)[seat];
+    if (typeof chosen === "boolean") return chosen;
     return storage?.getItem(OPEN_KEY) === "open";
   } catch {
     return false;
   }
 }
 
-export function storeSideOpen(open: boolean, storage: Pick<Storage, "setItem"> | undefined = safeStorage()): void {
+export function storeSideOpen(seat: string, open: boolean, storage: Pick<Storage, "getItem" | "setItem"> | undefined = safeStorage()): void {
   try {
-    storage?.setItem(OPEN_KEY, open ? "open" : "closed");
+    const choices = seatChoices(storage);
+    delete choices[seat];
+    choices[seat] = open;
+    const kept = Object.entries(choices).slice(-SEATS_KEPT);
+    storage?.setItem(SEAT_OPEN_KEY, JSON.stringify(Object.fromEntries(kept)));
   } catch {
     // Storage can be off. The choice holds until reload.
   }

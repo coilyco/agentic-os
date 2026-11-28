@@ -30,6 +30,15 @@ The split handle is a window splitter. Drag, Left and Right (Shift for larger st
 
 `?terminals=` picks one: `ok`, `early` (reply before the list), `off` (no channel), `refuse`, `silent` (never answers), `mute` (no first list), `locked` (typing refused). They script COI-2498's frame, with the list ahead of the `spawned` reply and the exit.
 
+## Closing the panel and its page (COI-3820)
+
+Kai, 2026-11-28: "I dont see an option to close the sidebar browser." Beside the seat, only the header's Side panel button closed it.
+
+* **Close** - an X at the right end of the tab strip, a 44px target named Close the side panel. Beside the seat it closes the panel and returns focus to the header's Side panel button, whose `aria-expanded` and tint say which it is. On the sheet it puts the sheet away to its strip, as the chevron did.
+* **Escape** - closes the panel beside the seat as it puts the sheet away, from the strip and the Messages and Views tabs. The shell and a driven page keep Escape (`escapeAnswered` in `sheet.ts`).
+* **Kept per seat** - `aterm.side-open.v2` holds each seat's choice, the newest 100. A seat with none falls back to the device-wide `aterm.side-open.v1`. A sheet starts put away on every load, as before.
+* **Close page** - on a host whose welcome lists `browser-close`, the Browser tab's bar offers Close page. It sends `browser_close` with the seat, and the host ends that page and answers `browser_state` `none`, which reads "You closed the page." A page the seat is driving asks first, with focus on Keep it so a second Enter ends nothing. A page this screen holds closes at once. The daemon half is not built yet (COI-3828), so no live host offers it. The mock's `browserClose` option models it.
+
 ## Left-sidebar terminal
 
 ## A staged command (COI-3306)

@@ -10,7 +10,7 @@
   import { onMount, tick } from "svelte";
   import { app, layout, viewsFor } from "../lib/app.svelte";
   import type { PeerMessage, Session } from "../lib/protocol";
-  import { escapeHides, openAfterPick } from "../lib/sheet";
+  import { escapeAnswered, escapeHides, openAfterPick } from "../lib/sheet";
   import type { SideTab } from "../lib/side-tab";
   import { terminalFor } from "../lib/terminals";
   import { tablistKeys } from "../lib/tabs";
@@ -24,6 +24,7 @@
     tab = $bindable("messages"),
     open = $bindable(false),
     onpick,
+    onclose,
     focusMessage = null,
   }: {
     session: Session;
@@ -36,6 +37,8 @@
     open?: boolean;
     /** Fires for a tab a person picked, never for the one the role opened on. */
     onpick?: (tab: SideTab) => void;
+    /** Beside the seat, closes the panel. A sheet is put away with `open` instead (COI-3820). */
+    onclose?: () => void;
     /** A message the transcript pointed at. The Messages tab opens it. */
     focusMessage?: { id: string; n: number } | null;
   } = $props();
@@ -71,7 +74,13 @@
 
   function escape(event: KeyboardEvent): void {
     if (event.key !== "Escape" || event.defaultPrevented) return;
-    if (!escapeHides(narrow, open, tab, (event.target as HTMLElement).closest(".head") !== null)) return;
+    const inStrip = (event.target as HTMLElement).closest(".head") !== null;
+    if (!narrow && onclose && escapeAnswered(tab, inStrip)) {
+      event.preventDefault();
+      onclose();
+      return;
+    }
+    if (!escapeHides(narrow, open, tab, inStrip)) return;
     event.preventDefault();
     hide();
   }
@@ -119,8 +128,12 @@
       {/each}
     </div>
     {#if narrow && open}
-      <button type="button" class="hide" aria-label="Hide the side panel" aria-controls="side-panel" onclick={hide}>
-        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" /></svg>
+      <button type="button" class="hide" aria-label="Close the side panel" title="Close the side panel" aria-controls="side-panel" onclick={hide}>
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
+      </button>
+    {:else if !narrow && onclose}
+      <button type="button" class="hide" aria-label="Close the side panel" title="Close the side panel (Esc)" aria-controls="side-panel" aria-keyshortcuts="Escape" onclick={onclose}>
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>
       </button>
     {/if}
   </div>
@@ -145,13 +158,15 @@
   [role="tab"][aria-selected="true"] { color: var(--text); border-bottom-color: var(--brand); }
   .badge { font-family: var(--font-body); font-weight: 600; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--line); color: var(--text-soft); }
   .badge[data-live="true"] { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
-  .hide { flex: none; width: 44px; min-height: 44px; display: grid; place-items: center; border: none; background: transparent; color: var(--text-soft); }
+  .hide { flex: none; align-self: center; width: 44px; min-height: 44px; display: grid; place-items: center; border: none; background: transparent; color: var(--text-soft); }
+  .hide:hover { color: var(--text); }
+  .hide:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
   .content { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; }
   .content[data-tab="terminal"] { padding: 0; overflow: hidden; }
   @media (max-width: 480px) {
     .tabs { gap: 0; padding: 4px 4px 0; }
     [role="tab"] { padding: 0 6px; font-size: 14px; }
-    /* Four tabs and the hide button share 320px, so a badge sits on its tab's corner instead of widening the row. "live" is a dot, still in the accessible name. */
+    /* Four tabs and the close button share 320px, so a badge sits on its tab's corner instead of widening the row. "live" is a dot, still in the accessible name. */
     [role="tab"] { position: relative; }
     .badge { position: absolute; top: 1px; right: -2px; padding: 0 5px; font-size: 10px; line-height: 14px; }
     .badge[data-live="true"] { top: 5px; right: 1px; width: 8px; height: 8px; padding: 0; background: var(--ok); }

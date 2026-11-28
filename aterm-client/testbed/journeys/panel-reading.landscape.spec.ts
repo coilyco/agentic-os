@@ -3,7 +3,7 @@ import { expect, SEATS, test } from "../harness.ts";
 import type { Page } from "@playwright/test";
 
 const reveal = (page: Page) => page.getByRole("button", { name: /Open the side panel/ });
-const hide = (page: Page) => page.getByRole("button", { name: "Hide the side panel" });
+const hide = (page: Page) => page.getByRole("button", { name: "Close the side panel" });
 
 test("no strip, and one 44px button inside the screen opens the panel", async ({ bed }) => {
   await bed.openSeat(SEATS.imp);

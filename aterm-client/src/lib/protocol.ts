@@ -237,6 +237,8 @@ export interface BrowserChannel {
   control(sessionId: string, take: boolean, force?: boolean): void;
   input(sessionId: string, kind: InputKind, params: Record<string, unknown>): void;
   navigate(sessionId: string, url: string): void;
+  /** Ends the seat's page, on a host listing `browser-close` (COI-3820). */
+  close?(sessionId: string): void;
 }
 
 /** Plain shells beside a seat (COI-2498). Only a daemon with that kind has this. */

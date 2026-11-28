@@ -64,7 +64,7 @@ test("a long and a short message each open to their full text and close again", 
   await expect(short).toHaveAttribute("aria-expanded", "false");
 
   // Reading answered nothing and left the question waiting. A phone's sheet hides it.
-  const hide = bed.page.getByRole("button", { name: "Hide the side panel" });
+  const hide = bed.page.getByRole("button", { name: "Close the side panel" });
   if (await hide.isVisible()) await hide.click();
   await expect(card(bed.page), "opening a message cleared the waiting question").toBeVisible();
   expect(bed.mock.answers, "opening a message answered something").toEqual([]);

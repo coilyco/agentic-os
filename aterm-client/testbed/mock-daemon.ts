@@ -199,7 +199,7 @@ export function loadSessions(): SessionSpec[] {
 
 /** `lock`: a device kept read only until a key unlocks it (COI-3305).
  * `images`: Add image. `webPush`: Notify when closed. `dist`: another build to serve. */
-export type MockOptions = { dist?: string; sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; thumbs?: boolean; feedback?: boolean; version?: string; transcript?: boolean; transcriptSearch?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean };
+export type MockOptions = { dist?: string; sessions?: SessionSpec[]; port?: number; lock?: boolean; images?: boolean; thumbs?: boolean; feedback?: boolean; version?: string; transcript?: boolean; transcriptSearch?: boolean; media?: boolean; artifacts?: boolean; offsets?: boolean; webPush?: boolean; launchDelayMs?: number; pinnedRoles?: string[]; noBrowser?: boolean; browserClose?: boolean };
 export async function startMock(options: MockOptions = {}): Promise<Mock> {
   const dist = options.dist ? join(HERE, "..", options.dist) : DIST;
   if (!existsSync(join(dist, "index.html"))) {
@@ -209,7 +209,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   // Roles the roster marks pinned by default, as a daemon with the attribute would.
   for (const role of roster.roles) if (options.pinnedRoles?.includes(role.slug)) role.pinned_by_default = true;
   // A daemon with no browser to stream does not list the feature.
-  const served = () => (options.noBrowser ? FEATURES.filter((feature) => feature !== "browser") : FEATURES);
+  const served = () => (options.noBrowser ? FEATURES.filter((feature) => feature !== "browser") : options.browserClose ? [...FEATURES, "browser-close"] : FEATURES);
   const live = new Map<string, Live>();
   const typedBy = new Map<string, string[]>();
   let uploadRefusal: string | null = null;
@@ -240,8 +240,11 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
   // A seat's browser: the agent drives until a screen takes control.
   // `client` is the name each connection was given.
   const pages = new Map<string, { holder: WebSocket | null; url: string; title?: string; cloudflareCheck?: boolean }>();
+  // Seats whose page a screen closed (COI-3820): no page until the seat loads one.
+  const closedPages = new Set<string>();
   const names = new WeakMap<WebSocket, string>();
   const browserState = (session: string, socket: WebSocket, id?: unknown): Record<string, unknown> => {
+    if (closedPages.has(session)) return { type: "browser_state", id, session, state: "none", client: names.get(socket) };
     const page = pages.get(session) ?? { holder: null, url: "about:blank" };
     return { type: "browser_state", id, session, state: "live", driver: page.holder ? "person" : "agent", ...(page.holder ? { holder: names.get(page.holder) } : {}), url: page.url, title: page.title ?? "", ...(page.cloudflareCheck ? { cloudflare_check: true } : {}), client: names.get(socket) };
   };
@@ -375,6 +378,15 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
           mock.browserCalls.push({ type: "browser_control", session, take: frame.take === true });
           const page = pages.get(session);
           if (page) page.holder = frame.take === true ? socket : null;
+          tellWatchers(session);
+          return;
+        }
+        case "browser_close": {
+          const session = String(frame.session);
+          mock.browserCalls.push({ type: "browser_close", session });
+          if (!options.browserClose) return void send(socket, { type: "error", id: frame.id, error: "the test bed daemon does not model browser_close" });
+          pages.delete(session);
+          closedPages.add(session);
           tellWatchers(session);
           return;
         }
@@ -664,6 +676,7 @@ export async function startMock(options: MockOptions = {}): Promise<Mock> {
     },
     push: broadcast,
     loadPage(session, page) {
+      closedPages.delete(session);
       pages.set(session, { holder: pages.get(session)?.holder ?? null, ...page });
       tellWatchers(session);
     },

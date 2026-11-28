@@ -38,6 +38,27 @@
   let followed = $state("");
   let lastTab: string | undefined;
   const restartBar = $derived(browser?.state === "closed" || (restarting && browser?.state !== "live"));
+  // Close page (COI-3820): a page the seat is driving asks once, and the empty state then says who closed it.
+  let confirmClose = $state(false);
+  let closedHere = $state(false);
+  let keepIt: HTMLButtonElement | undefined = $state();
+  $effect(() => {
+    void browser?.url;
+    if (browser?.state !== "live") confirmClose = false;
+    else closedHere = false;
+  });
+  function closePage(confirmed = false): void {
+    if (!channel?.close) return;
+    if (browser?.driver === "agent" && !confirmed) {
+      confirmClose = true;
+      // Focus waits on the safe choice, so a second Enter does not end the seat's page.
+      void tick().then(() => keepIt?.focus());
+      return;
+    }
+    channel.close(session.id);
+    confirmClose = false;
+    closedHere = true;
+  }
 
   const sizeNow = () => paneSize(root?.getBoundingClientRect(), STAGE_MIN_HEIGHT);
   let sentSize: { width: number; height: number } | undefined;
@@ -217,7 +238,7 @@
       <button type="button" class="button primary" aria-disabled={restarting} onclick={restart}>{restarting ? "Restarting" : "Restart browser"}</button>
     </div>
   {:else if !browser || browser.state === "none"}
-    <p class="empty">{session.identity} hasn't opened a browser yet. The page shows up here as soon as it loads one.</p>
+    <p class="empty" role="status">{closedHere ? `You closed the page. ${session.identity}'s next page shows up here.` : `${session.identity} hasn't opened a browser yet. The page shows up here as soon as it loads one.`}</p>
     {#if browser?.reason}<p class="empty">{browser.reason}</p>{/if}
   {:else}
     <div class="bar" bind:this={bar} data-driver={heldElsewhere ? "elsewhere" : browser.driver}>
@@ -229,7 +250,17 @@
       {:else}
         <button type="button" class="button primary" onclick={() => channel?.control(session.id, true)}>Take control</button>
       {/if}
+      {#if channel?.close && browser.state === "live" && !confirmClose}
+        <button type="button" class="button" onclick={() => closePage()}>Close page</button>
+      {/if}
     </div>
+    {#if confirmClose}
+      <div class="confirm" role="group" aria-label="Close this page?">
+        <p role="alert">{session.identity} is using this page. Closing it ends the page in {session.identity}'s browser.</p>
+        <button bind:this={keepIt} type="button" class="button" onclick={() => (confirmClose = false)}>Keep it</button>
+        <button type="button" class="button" onclick={() => closePage(true)}>Close it anyway</button>
+      </div>
+    {/if}
     {#if browser.state === "live" && browser.cloudflareCheck && browser.url}
       <!-- The check fails any browser driven over CDP, a click through this pane included, so the pane never tries it (COI-3803). -->
       {@const checked = browser.url}
@@ -292,6 +323,8 @@
   .note { margin: 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
   .bar[data-driver="closed"] { border-color: var(--danger-line); background: var(--danger-fill); }
   .who { margin: 0; flex: 1 1 160px; font-size: 14px; }
+  .confirm { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--warn-line); background: var(--warn-fill); }
+  .confirm p { margin: 0; flex: 1 1 200px; font-size: 14px; line-height: 1.4; color: var(--warn-text); }
   .bar .button[aria-disabled="true"] { opacity: 0.6; cursor: progress; }
   .bar[data-driver="closed"] .who { color: var(--danger-text); }
   .tab { display: flex; align-items: center; gap: 8px; margin: 0; min-width: 0; font-size: 13px; }
