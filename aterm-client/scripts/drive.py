@@ -90,6 +90,23 @@ def side_sheet(page, tag: str, expect) -> None:
     field.fill("")
 
 
+def keyboard_up(page, tag: str, expect) -> None:
+    """A soft keyboard taking half the screen, as a phone's does: the words typed stay above the strip."""
+    size = page.viewport_size
+    field = page.locator("#composer-input")
+    field.click()
+    field.type("my words stay in view")
+    page.set_viewport_size({"width": size["width"], "height": size["height"] // 2})
+    page.wait_for_timeout(600)
+    field_box = field.bounding_box()
+    strip = page.locator("aside.panel").bounding_box()
+    expect(f"{tag} keyboard up: the composer sits above the tab strip", field_box is not None and strip is not None and field_box["y"] + field_box["height"] <= strip["y"], (field_box, strip))
+    page.screenshot(path=str(CLIENT / f"drive-{size['width']}-keyboard.png"))
+    field.fill("")
+    page.set_viewport_size(size)
+    page.wait_for_timeout(300)
+
+
 def open_entry(page) -> None:
     """A phone has the icon in its bar, one tap. A desktop has the sidebar's entry."""
     icon = page.locator("button.icon[aria-label='Send feedback']")
@@ -289,6 +306,7 @@ def main() -> int:
                 page.screenshot(path=str(CLIENT / f"drive-{size[0]}-resting.png"))
                 if size[0] <= 1000:
                     side_sheet(page, tag, expect)
+                    keyboard_up(page, tag, expect)
                 feedback(page, tag, expect)
                 page.close()
                 page = open_seat(browser, f"http://localhost:{port}/", size, "Beetle-Ox, Platform Engineer on claude")

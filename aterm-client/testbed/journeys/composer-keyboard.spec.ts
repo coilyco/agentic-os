@@ -26,6 +26,10 @@ test("type to a seat with the keyboard up", async ({ bed }, info) => {
   await bed.step("typed");
   const box = (await composer.boundingBox())!;
   expect(box.y + box.height, "the composer sits below the keyboard's edge").toBeLessThanOrEqual(size.height - keyboard);
+  // The strip is fixed to the window, so a seat taller than it slid the composer under.
+  const sheet = (await bed.page.locator("aside.panel").boundingBox())!;
+  expect(box.y + box.height, "the composer sits above the tab strip").toBeLessThanOrEqual(sheet.y);
+  expect(sheet.y + sheet.height, "the keyboard covers the gesture bar, so the strip keeps no gap above it").toBe(size.height - keyboard);
   const terminal = (await bed.screen().boundingBox())!;
   expect(terminal.height, "pixels of the seat's text left above the composer").toBeGreaterThanOrEqual(120);
   // On touch the return key is a newline (COI-3514), so Send sends.
