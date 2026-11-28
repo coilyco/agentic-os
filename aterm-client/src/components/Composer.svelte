@@ -9,6 +9,8 @@
   import { findMention, insertMention, mentionMatches } from "../lib/mentions";
   import type { HostConnection, Session } from "../lib/protocol";
   import Unlock from "./Unlock.svelte";
+  import BangHint from "./BangHint.svelte";
+  import { seatHint, startsWithBang } from "../lib/bang";
   import type { Place } from "../lib/build";
   import { typingNotice, type Typing } from "../lib/typing";
   import { anchorAt, dictationAvailable, placeSpeech, startDictation, type Anchor, type Session as Dictation } from "../lib/dictation";
@@ -213,6 +215,8 @@
   const mention = $derived(findMention(text, caret));
   const matches = $derived(mention ? mentionMatches(sessions, mention.query) : []);
   const open = $derived(mention !== null && matches.length > 0 && dismissedAt !== mention.start);
+  // Where a "!" draft runs, while it starts with one and no list is over the field (COI-3802).
+  const bang = $derived(startsWithBang(text) && !open && !historyOpen ? seatHint(session.seat, session.identity) : "");
   const current = $derived(Math.min(active, Math.max(matches.length - 1, 0)));
   const note = $derived(
     open ? `${matches.length} live ${matches.length === 1 ? "session matches" : "sessions match"}. Up and down choose, Tab or Enter inserts, Escape closes.` : status,
@@ -651,6 +655,7 @@
     </button>
   {/if}
   <div class="field" data-working={ringing}>
+    <BangHint id="composer-bang" text={bang} />
     {#if open}
       <ul class="mentions" id="composer-mentions" role="listbox" aria-label="Live sessions">
         {#each matches as match, index (match.id)}
@@ -691,7 +696,7 @@
       enterkeyhint={touch ? "enter" : "send"}
       aria-autocomplete="list"
       aria-controls={open ? "composer-mentions" : undefined}
-      aria-describedby={ringing ? "composer-working" : undefined}
+      aria-describedby={[ringing && "composer-working", bang && "composer-bang"].filter(Boolean).join(" ") || undefined}
       aria-activedescendant={open ? `mention-${current}` : undefined}
       rows="1"
       placeholder={narrow || reading ? `Message ${session.identity}` : `Type or dictate to ${session.identity}. Enter sends, Shift+Enter for a new line, @ names a session.${connection.images ? " Paste or drop an image to attach it." : ""}`}

@@ -52,6 +52,7 @@ than editing it by hand.
 
 ## References
 
+* [bang-hint.md](references/bang-hint.md) - where a `!` line runs, per box and harness.
 * [features.md](references/features.md) - what ships today.
 * [colour-meaning.md](references/colour-meaning.md) - the one-meaning-per-colour rule, the terminal palette, and the busy-seat before and after.
 * [testbed.md](references/testbed.md) - the test bed: journeys against a mock daemon at desktop and phone sizes, baselines, and reported quirks.
