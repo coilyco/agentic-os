@@ -166,6 +166,10 @@ type frame struct {
 	Older     string           `json:"older,omitempty"`
 	More      bool             `json:"more,omitempty"`
 	UpdatedAt string           `json:"updated_at,omitempty"`
+	// transcript_search asks with Query, and answers with Matches and Total.
+	Query   string            `json:"query,omitempty"`
+	Matches []transcriptMatch `json:"matches,omitempty"`
+	Total   int               `json:"total,omitempty"`
 	// ask_choice
 	Ask    *choiceAsk    `json:"ask,omitempty"`
 	AskID  string        `json:"ask_id,omitempty"`

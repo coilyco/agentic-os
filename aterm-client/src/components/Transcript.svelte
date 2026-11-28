@@ -1,12 +1,14 @@
 <script lang="ts">
   import { onMount, tick, untrack } from "svelte";
   import Markdown from "./Markdown.svelte";
+  import TranscriptSearch from "./TranscriptSearch.svelte";
+  import { clearMatches, matchRanges, paintMatches } from "../lib/transcript-search";
   import SentImages from "./SentImages.svelte";
   import { replyAge } from "../lib/last-reply";
   import { openLink } from "../lib/link-notice.svelte";
   import type { TranscriptChannel } from "../lib/protocol";
   import { linkTarget } from "../lib/terminal-extras";
-  import { mergeItems, rowsFor, TranscriptRefused, type Level, type PeerRef, type TranscriptItem } from "../lib/transcript";
+  import { mergeItems, rowsFor, TranscriptRefused, type Level, type PeerRef, type TranscriptItem, type TranscriptMatch } from "../lib/transcript";
   import { cacheKey, catchUp, loadSnapshot, markerRow, MAX_ITEMS, saveSnapshot } from "../lib/transcript-cache";
   import { cancelPending, pendingFor, readPast, settlePending, shownText, waitingSince } from "../lib/pending-sends.svelte";
   import { app, layout } from "../lib/app.svelte";
@@ -44,7 +46,12 @@
   let list = $state<HTMLDivElement>();
   // Whether the view sits at the newest line, so arriving text follows and a person's place is kept.
   let pinned = $state(true);
-  const rows = $derived(rowsFor(items, level));
+  // Search (COI-3797): the host finds a phrase anywhere in the transcript, and the match shown draws whole.
+  let searching = $state(false);
+  let searchQuery = $state("");
+  let current = $state<string | undefined>();
+  const whole = $derived(new Set(current ? [current] : []));
+  const rows = $derived(rowsFor(items, level, whole));
   const sending = $derived(pendingFor(key));
   const markerKey = $derived(markerRow(items, rows.map((row) => row.key), newFrom));
   const age = $derived(replyAge(updatedAt, now));
@@ -253,6 +260,54 @@
     }
   }
 
+  export function openSearch(): void {
+    searching = true;
+  }
+
+  function closeSearch(): void {
+    searching = false;
+    searchQuery = "";
+    current = undefined;
+    clearMatches();
+  }
+
+  // A match outside the held items pages its part in, which stops following the newest line until Jump to latest.
+  async function showMatch(match: TranscriptMatch | null, query: string): Promise<void> {
+    searchQuery = query;
+    current = match?.id;
+    if (!match) return;
+    if (!items.some((item) => item.id === match.id)) {
+      try {
+        const reply = await channel.read(sessionId, match.before ? { before: match.before, limit: PAGE } : { limit: PAGE });
+        if (current !== match.id) return;
+        items = reply.items;
+        older = reply.older;
+        detached = !!match.before;
+        if (!match.before) cursor = reply.cursor;
+      } catch (error) {
+        if (!refused(error)) stale = true;
+        return;
+      }
+    }
+    pinned = false;
+    await tick();
+    list?.querySelector(`[data-row="${CSS.escape(match.id)}"]`)?.scrollIntoView({ block: "center" });
+  }
+
+  $effect(() => {
+    void rows;
+    const query = searchQuery;
+    const id = current;
+    if (!searching || !query) return void clearMatches();
+    void tick().then(() => {
+      if (!list) return;
+      const all = matchRanges(list, query);
+      const row = id ? list.querySelector(`[data-row="${CSS.escape(id)}"]`) : null;
+      paintMatches(all, row ? all.filter((range) => row.contains(range.startContainer)) : []);
+    });
+  });
+  onMount(() => clearMatches);
+
   function open(href: string): void {
     const target = linkTarget(href);
     if (target) void openLink(target);
@@ -265,6 +320,9 @@
 {/snippet}
 
 <section class="transcript" aria-label="Transcript">
+  {#if searching && channel.search}
+    <TranscriptSearch {channel} {sessionId} onshow={(match, query) => void showMatch(match, query)} onclose={closeSearch} />
+  {/if}
   <div class="feed" bind:this={list} onscroll={() => (pinned = atEnd())} tabindex="-1">
     {#if older}
       <button type="button" class="earlier" disabled={loadingOlder} onclick={() => void earlier()}>{loadingOlder ? "Reading earlier messages." : "Show earlier"}</button>
@@ -307,8 +365,11 @@
       </div>
     {/each}
   </div>
+  {#if !searching && channel.search}
+    <button type="button" class="open-search" aria-label="Search transcript" title="Search transcript" onclick={openSearch}><svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="M10.5 10.5 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg></button>
+  {/if}
   {#if !pinned || detached}
-    <button type="button" class="jump" onclick={() => void jump()}><span aria-hidden="true">↓</span> Jump to latest</button>
+    <button type="button" class="jump" class:beside={!searching && !!channel.search} onclick={() => void jump()}><span aria-hidden="true">↓</span> Jump to latest</button>
   {/if}
   <!-- A phone on its side keeps the line only when something is wrong or still catching up (COI-3371). -->
   {#if !layout.reading || catching || stale}
@@ -345,6 +406,15 @@
   .earlier:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
   .jump { position: absolute; right: 12px; bottom: 44px; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--brand); background: var(--surface); color: var(--text); font: 600 14px var(--font-body); box-shadow: 0 6px 24px var(--shade); }
   .jump:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  /* A phone has no Find in its bar, so search sits bottom right, clear of the screen's Wrap and Aa corner. */
+  .open-search { display: none; position: absolute; right: 12px; bottom: 44px; width: 44px; height: 44px; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--control-line); background: var(--surface); color: var(--text); box-shadow: 0 6px 24px var(--shade); }
+  .open-search:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  @media (max-width: 720px), (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+    .open-search { display: inline-flex; }
+    .jump.beside { right: 64px; }
+  }
+  :global(::highlight(transcript-match)) { background-color: color-mix(in srgb, var(--treehouse) 30%, transparent); color: inherit; }
+  :global(::highlight(transcript-current)) { background-color: var(--treehouse); color: var(--ground); }
   .turn :global(p) { margin: 0 0 8px; }
   .turn :global(p:last-child) { margin-bottom: 0; }
   .turn :global(pre) { white-space: pre-wrap; overflow-wrap: anywhere; }

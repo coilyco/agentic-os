@@ -1,6 +1,6 @@
 // The client's view of a host. `DaemonHost` maps aterm.daemon.v1 onto it,
 // and `MockHost` scripts it for `just dev`. Why: the architecture reference.
-import type { TranscriptReply } from "./transcript";
+import type { TranscriptReply, TranscriptSearchReply } from "./transcript";
 import type { MediaItem } from "./media";
 import type { KeyStatus } from "./device-key";
 import type { ToolResult, View } from "./mcp-apps";
@@ -256,6 +256,8 @@ export interface LastReplyChannel {
 export interface TranscriptChannel {
   /** Newest page first, or what came `since` a cursor. Rejects with TranscriptRefused. */
   read(sessionId: string, options?: { limit?: number; before?: string; since?: string }): Promise<TranscriptReply>;
+  /** A phrase's matches in the whole transcript, on a `transcript_search` host. */
+  search?(sessionId: string, query: string): Promise<TranscriptSearchReply>;
 }
 
 /** Files a seat shares (COI-3458). Only a host whose welcome lists `media` has one. */

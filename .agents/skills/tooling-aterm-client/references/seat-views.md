@@ -44,6 +44,9 @@ The transcript shows a message only once the harness writes it, and the client p
 * **Not covered** - a restart: entries live in memory (send history is COI-3691).
 * **Journey** - `pending-send`, with the page clock moved 31 seconds for the unsent state.
 
+## Search (COI-3797)
+
+Find on a desktop and a search button on a phone search the whole transcript on the host, and a match outside the held items is paged in. [transcript-search.md](transcript-search.md).
 ## Your own messages (COI-3800)
 
 **A sent message renders with the replies' markdown renderer**, at every level and on the pending entry too, so `code`, lists and links read formatted. The raw screen stays raw.

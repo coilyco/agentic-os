@@ -193,7 +193,7 @@ const replyText = (item: TranscriptItem, level: Level): string => (level === "ve
 
 // Claude Code's viewMode: Focus is a turn's prompt, a line per tool and its final reply.
 // Default keeps every reply and a few lines of each result. Verbose keeps everything.
-export function rowsFor(all: readonly TranscriptItem[], level: Level): Row[] {
+export function rowsFor(all: readonly TranscriptItem[], level: Level, whole?: ReadonlySet<string>): Row[] {
   const items = withoutPeers(all);
   const peers = new Map(all.filter((item) => item.kind === "peer").map((item) => [item.id, { id: item.id, ...(item.from ? { from: item.from } : {}), ...(item.text ? { text: item.text } : {}) } as PeerRef]));
   // A shared item names the peer it may answer, even when only its id is known.
@@ -201,12 +201,14 @@ export function rowsFor(all: readonly TranscriptItem[], level: Level): Row[] {
   const rows: Row[] = [];
   const lastReply = new Map<number, string>();
   let turn = 0;
+  const base = level;
   items.forEach((item) => {
     if (item.kind === "prompt") turn += 1;
-    else if (item.kind === "reply" && replyText(item, level)) lastReply.set(turn, item.id);
+    else if (item.kind === "reply" && replyText(item, base)) lastReply.set(turn, item.id);
   });
   turn = 0;
   for (const item of items) {
+    const level = whole?.has(item.id) ? "verbose" : base;
     if (item.kind === "prompt") {
       turn += 1;
       if (item.text) rows.push({ key: item.id, kind: "prompt", text: item.text, cut: item.truncated === true, ...peerOf(item), ...(item.at ? { at: item.at } : {}) });
@@ -234,4 +236,46 @@ export function rowsFor(all: readonly TranscriptItem[], level: Level): Row[] {
     }
   }
   return rows;
+}
+
+/** An item holding a searched phrase (COI-3797). No `before` means the newest page. */
+export interface TranscriptMatch {
+  id: string;
+  kind: TranscriptItem["kind"];
+  at?: number;
+  /** Where in the item: its words, a tool's line, or a tool's output. */
+  field: "text" | "summary" | "output";
+  snippet: string;
+  before?: string;
+}
+
+export interface TranscriptSearchReply {
+  query: string;
+  /** Oldest first. The host sends at most its newest 500, and `total` counts them all. */
+  matches: TranscriptMatch[];
+  total: number;
+  /** The file ran past what one read covers, so its oldest part was not searched. */
+  partial: boolean;
+}
+
+const FIELDS: readonly string[] = ["text", "summary", "output"];
+
+export function decodeSearch(frame: Record<string, unknown>): TranscriptSearchReply {
+  const matches: TranscriptMatch[] = [];
+  for (const raw of Array.isArray(frame.matches) ? frame.matches : []) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const match = raw as Record<string, unknown>;
+    const id = str(match.id);
+    const kind = match.kind;
+    if (!id || (kind !== "prompt" && kind !== "peer" && kind !== "reply" && kind !== "tool" && kind !== "note")) continue;
+    matches.push({
+      id,
+      kind,
+      field: FIELDS.includes(String(match.field)) ? (match.field as TranscriptMatch["field"]) : "text",
+      snippet: typeof match.snippet === "string" ? match.snippet : "",
+      ...(stamp(match.at) !== undefined ? { at: stamp(match.at) } : {}),
+      ...(str(match.before) ? { before: str(match.before) } : {}),
+    });
+  }
+  return { query: str(frame.query) ?? "", matches, total: Math.max(num(frame.total) ?? 0, matches.length), partial: frame.more === true };
 }

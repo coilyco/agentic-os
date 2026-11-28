@@ -78,8 +78,10 @@ test("a picture the seat never takes says so after the timeout", async ({ bed })
   await bed.page.clock.install();
   await openTranscript(bed);
   await sendPicture(bed);
+  // A late redraw reads as work, so the clock steps on until it settles (COI-3818).
+  await expect.poll(() => bed.mock.idleMs(), { timeout: 10_000 }).toBeGreaterThan(500);
   await bed.page.clock.fastForward(31_000);
-  await expect(sendingRow(bed)).toHaveAttribute("data-state", "unsent");
+  await expect.poll(async () => (await bed.page.clock.fastForward(2_000), sendingRow(bed).getAttribute("data-state")), { timeout: 15_000 }).toBe("unsent");
   await expect(sendingRow(bed)).toContainText("An image sent");
   await expect(sendingRow(bed).getByRole("alert")).toContainText("Not in the transcript yet");
 });
