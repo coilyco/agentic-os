@@ -1,7 +1,7 @@
 // COI-3800: the person's own messages render as markdown, and an image they sent shows
 // inline. The sending device draws its own copy at once, another reads the host's.
 import { crc32, deflateSync } from "node:zlib";
-import { expect, kindOf, SEATS, test, type Bed } from "../harness.ts";
+import { expect, kindOf, pickView, SEATS, test, type Bed } from "../harness.ts";
 
 test.use({ mockOptions: { transcript: true, images: true, thumbs: true } });
 
@@ -30,7 +30,7 @@ function png(width: number, height: number): Buffer {
 async function openFocus(bed: Bed, items: unknown[]): Promise<void> {
   bed.mock.setTranscript(imp, [reply, ...items]);
   await bed.openSeat(SEATS.imp);
-  if (kindOf(test.info()) === "desktop") await bed.page.getByRole("radio", { name: "Focus" }).click();
+  if (kindOf(test.info()) === "desktop") await pickView(bed.page, "Focus");
   await expect(bed.page.locator(".transcript")).toContainText("Ready.");
 }
 

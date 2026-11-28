@@ -225,7 +225,11 @@ class Journey:
         deadline = time.monotonic() + wait
         while time.monotonic() < deadline:
             # uiautomator's dump from the emulator this job started, not untrusted XML.
-            tree = ET.fromstring(self.ui_xml() or "<hierarchy/>")
+            try:
+                tree = ET.fromstring(self.ui_xml() or "<hierarchy/>")
+            except ET.ParseError:
+                time.sleep(1)
+                continue
             for node in tree.iter("node"):
                 if wanted(node):
                     x0, y0, x1, y1 = map(int, re.findall(r"\d+", node.get("bounds", "0,0,0,0")))

@@ -1,5 +1,5 @@
 // COI-3648: the open seat holds a bounded window, not every item it has ever read.
-import { expect, SEATS, test, type Bed } from "../harness.ts";
+import { expect, SEATS, test, type Bed, pickView } from "../harness.ts";
 
 test.use({ mockOptions: { transcript: true } });
 
@@ -14,8 +14,8 @@ const gap = (bed: Bed) => feed(bed).evaluate((el) => el.scrollHeight - el.scroll
 
 async function openVerbose(bed: Bed) {
   await bed.openSeat(SEATS.imp);
-  await bed.page.getByRole("radio", { name: "Focus" }).click();
-  await bed.page.getByRole("radio", { name: "Verbose" }).click();
+  await pickView(bed.page, "Focus");
+  await pickView(bed.page, "Verbose");
   await expect(feed(bed)).toBeVisible();
 }
 

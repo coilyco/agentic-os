@@ -1,5 +1,5 @@
 // COI-3646: a seat whose view is Focus opens in Focus on a cold start, with no switching.
-import { expect, reopenSeat, SEATS, test, type Bed } from "../harness.ts";
+import { expect, reopenSeat, SEATS, test, type Bed, viewButton } from "../harness.ts";
 
 test.use({ mockOptions: { transcript: true } });
 
@@ -8,7 +8,6 @@ const transcript = [
   { id: "p1", kind: "prompt", text: "Why does the wrapped row hide the stripe?" },
   { id: "r1", kind: "reply", text: "The stripe was placed by row number.", complete: true },
 ];
-const focus = (bed: Bed) => bed.page.getByRole("radio", { name: "Focus" });
 const feed = (bed: Bed) => bed.page.locator(".transcript");
 
 // A stored view of Focus: the device default.
@@ -22,7 +21,7 @@ test("a cold start opens a Focus seat in Focus", async ({ bed }) => {
   bed.mock.setTranscript(imp, transcript);
   await bed.openSeat(SEATS.imp);
   await reopenSeat(bed.page, SEATS.imp);
-  await expect(focus(bed)).toHaveAttribute("aria-checked", "true");
+  await expect(viewButton(bed.page)).toHaveAccessibleName("View: Focus. Change the view");
   await expect(feed(bed)).toContainText("The stripe was placed by row number.");
   await expect(bed.page.locator(".rawscreen")).toHaveAttribute("aria-hidden", "true");
 });

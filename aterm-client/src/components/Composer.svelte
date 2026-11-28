@@ -12,7 +12,8 @@
   import type { Place } from "../lib/build";
   import { typingNotice, type Typing } from "../lib/typing";
   import { anchorAt, dictationAvailable, placeSpeech, startDictation, type Anchor, type Session as Dictation } from "../lib/dictation";
-  import { IMAGE_TYPES, attachNote, chipLabel, fitImage, formatSize, pastedImages, pasteSteps, screenImages, withImagePaths } from "../lib/images";
+  import { attachNote, chipLabel, fitImage, formatSize, pastedImages, pasteSteps, pickerAccept, screenImages, withImagePaths } from "../lib/images";
+  import { inAndroidApp } from "../lib/open-external";
   import { rememberSent } from "../lib/sent-images";
 
   // `sessions` is the list the sidebar holds, so `@` completion adds no daemon verb.
@@ -631,7 +632,7 @@
   {/if}
   {#if connection.images}
     <!-- The button is the way a phone adds an image, and the way to one with no clipboard image. -->
-    <input bind:this={picker} hidden type="file" accept={IMAGE_TYPES.join(",")} multiple onchange={picked} />
+    <input bind:this={picker} hidden type="file" accept={pickerAccept(inAndroidApp())} multiple onchange={picked} />
     <button class="add-image" type="button" aria-label="Add image" title="Add image" disabled={uploading !== null || resizing || offline} onmousedown={keepFocus} onclick={() => picker?.click()}>
       <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8" /><circle cx="9" cy="10" r="1.6" fill="currentColor" /><path d="M4.5 17.5l4.5-4.5 3.5 3.5 3-3 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg>
     </button>

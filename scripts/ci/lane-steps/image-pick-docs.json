@@ -1,0 +1,21 @@
+{
+  "name": "pick an image through the file browser with no type filter, read it at once and at Send (COI-3739)",
+  "start": "seat",
+  "steps": [
+    {"op": "seed-photo"},
+    {
+      "op": "eval",
+      "js": "window.__probe=[];document.querySelector('form.composer input[type=file]').removeAttribute('accept');document.addEventListener('change',e=>{const i=e.target;if(!(i instanceof HTMLInputElement)||i.type!=='file')return;for(const f of Array.from(i.files||[])){const row={name:f.name,type:f.type,size:f.size,modified:f.lastModified};window.__probe.push(row);f.arrayBuffer().then(b=>{row.at_once=b.byteLength}).catch(err=>{row.at_once=String(err&&err.name)+': '+String(err&&err.message)});}},true);'armed'",
+      "expect": "armed"
+    },
+    {"op": "pick-image", "mode": "docs"},
+    {"op": "sleep", "seconds": 4},
+    {"op": "eval", "js": "JSON.stringify(window.__probe)", "save": "docs_pick"},
+    {"op": "shot", "name": "docs-picked"},
+    {"op": "tap", "selector": "form.composer button.primary"},
+    {"op": "sleep", "seconds": 8},
+    {"op": "eval", "js": "JSON.stringify({chips:document.querySelectorAll('form.composer ul.chips li').length,notes:[...document.querySelectorAll('form.composer [role=alert], form.composer [role=status]')].map(n=>n.textContent.trim()).filter(Boolean)})", "save": "docs_after_send"},
+    {"op": "shot", "name": "docs-after-send"},
+    {"op": "logcat", "name": "docs", "pattern": "cr_|NotReadable|FileChooser|Permission Denial|documentsui"}
+  ]
+}

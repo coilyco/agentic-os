@@ -27,7 +27,9 @@ JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add
 * `tap` - `selector`. A DevTools-measured tap at the element's centre.
 * `tap-text` - `text`, optionally `within`. The first element whose text or label holds it.
 * `fill` - `selector`, `text`. Waits for the element, sets the value and fires `input`.
-* `attach-image` - gives the composer's file input the seeded PNG, the way a pick would.
+* `attach-image` - gives the composer's file input the seeded PNG, the way a pick would. It skips Android's picker.
+* `seed-photo` - puts the seeded PNG in MediaStore, so Android's picker lists it.
+* `pick-image` - `mode` `thumb` (the Photo Picker's own thumbnail), `browse` (its file browser) or `docs` (the file browser opened straight, for an input with no `accept`). Taps Add image and picks the seeded PNG through Android's picker, which `attach-image` does not.
 * `eval` - `js`, optionally `expect` (a regex on the result) and `save` (a name in the result file).
 * `wait` - `pattern`, `timeout`. Waits for the page text to match.
 * `assert` - `js`, `message`. A script that must be true, with `$name` for a value an earlier `eval` saved. `eval` takes `$name` too.
@@ -46,7 +48,7 @@ JSON: `{"name", "start", "steps": [...]}`. `start` is `seat` (install, open, add
 * `retry` - `steps`, `times`, `every`. Runs the steps again, `every` seconds apart, until they pass. For what needs a system to settle, such as Google's speech pack.
 * `sleep` - `seconds`.
 
-Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill` (settles 3 s first), `draft-kill-0s`, `-1s` and `-3s`, `draft-kill-rate` (5 rounds at each of 0.2, 1 and 3 s in one run), `draft-image-survives-kill`, `screen-off-timer`, `composer-above-keyboard`, which fails on a build where the keyboard covers the message box, `notify-ask-once` (revokes the notification permission, then checks the prompt shows once, on the overview, and does not return on the next launch). Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.
+Samples in `scripts/ci/lane-steps/`: `smoke`, `dictation-fake`, `dictation-spoken`, `draft-survives-kill` (settles 3 s first), `draft-kill-0s`, `-1s` and `-3s`, `draft-kill-rate` (5 rounds at each of 0.2, 1 and 3 s in one run), `draft-image-survives-kill`, `screen-off-timer`, `composer-above-keyboard`, which fails on a build where the keyboard covers the message box, `image-pick-app` (Add image opens Android's file browser in the app, and the pick reads and sends, COI-3739), `notify-ask-once` (revokes the notification permission, then checks the prompt shows once, on the overview, and does not return on the next launch). Code: `scripts/ci/aterm_android_lane.py`. It subclasses the journey in `aterm_android_journey.py`, so attach, tap and evidence are shared.
 
 ## What comes back
 
