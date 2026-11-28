@@ -559,7 +559,7 @@
             working={session.state === "working" && !blank}
             busy={session.state === "working"}
             hostId={app.selectedHostId ?? ""}
-            pending={{ note: (id, text, images) => notePending(cacheKey(app.selectedHostId ?? "", id), text, Date.now(), images), cancel: cancelPending }}
+            pending={{ note: (id, text, images, paths) => notePending(cacheKey(app.selectedHostId ?? "", id), text, Date.now(), images, paths), cancel: cancelPending }}
           />
           <!-- Gives way to the keyboard, so the pin never takes the terminal's last lines. -->
           {#if narrow && !layout.reading && showRaw}<LastReply {session} connection={app.connection} hidden={app.composing} />{/if}

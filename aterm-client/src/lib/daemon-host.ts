@@ -9,6 +9,7 @@ import { parseFrom } from "./messages";
 import type { ToolResult, View, ViewCsp } from "./mcp-apps";
 import { FeedbackRefused, feedbackRefusal } from "./feedback";
 import { IMAGE_UPLOAD_MAX_BYTES, imageRefusal } from "./images";
+import { ImageReadRefused, sniffType } from "./sent-images";
 import { CHUNK_BYTES, decodeMedia, mediaRefusal } from "./media";
 import type { Ask, AskOutcome, BrowserChannel, ContextReading, DeadSeat, DeviceKeyChannel, FeedbackChannel, HostConnection, HostEvent, ImageChannel, LastReplyChannel, MachineKindChannel, MediaChannel, MessageState, PasskeyChannel, PeerMessage, PushChannel, Session, TerminalChannel, TranscriptChannel, TuiState, ViewChannel } from "./protocol";
 import { decodeReply, REFUSALS, TranscriptRefused } from "./transcript";
@@ -296,6 +297,8 @@ const FEEDBACK_FEATURE = "feedback";
 const FEEDBACK_TOKEN_MS = 9 * 60 * 1000;
 /** `welcome.features` names this when the daemon answers `image_upload` (COI-3239). */
 const IMAGE_UPLOAD_FEATURE = "image-upload";
+/** And this when it answers `image_thumb`, a sent image read back (COI-3800). */
+const IMAGE_THUMB_FEATURE = "image-thumb";
 /** `welcome.features` names this when the daemon reports and sets `host_kind`. */
 const HOST_KIND_FEATURE = "host-kind";
 
@@ -693,8 +696,12 @@ export class DaemonHost implements HostConnection {
 
   /** Only a welcome listing `image-upload` takes an image for a seat. */
   get images(): ImageChannel | undefined {
-    return this.features.has(IMAGE_UPLOAD_FEATURE) ? this.imageChannel : undefined;
+    if (!this.features.has(IMAGE_UPLOAD_FEATURE)) return undefined;
+    return this.features.has(IMAGE_THUMB_FEATURE) ? this.imageReadChannel : this.imageChannel;
   }
+
+  /** Requests for a sent image, whose refusal reasons are this feature's own. */
+  private imageReadIds = new Set<string>();
 
   private imageChannel: ImageChannel = {
     maxBytes: IMAGE_UPLOAD_MAX_BYTES,
@@ -703,6 +710,15 @@ export class DaemonHost implements HostConnection {
       const reply = await this.exchange({ type: "image_upload", session: sessionId, data });
       if (!reply.path) throw new Error("The host took the image but named no file for it.");
       return reply.path;
+    },
+  };
+
+  private imageReadChannel: ImageChannel = {
+    ...this.imageChannel,
+    read: async (sessionId, path, full) => {
+      const reply = await this.exchange({ type: "image_thumb", session: sessionId, path, ...(full ? { full: true } : {}) }, this.imageReadIds);
+      const bytes = reply.data ? decode(reply.data) : new Uint8Array();
+      return new Blob([bytes as BlobPart], { type: sniffType(bytes) });
     },
   };
 
@@ -1242,6 +1258,7 @@ export class DaemonHost implements HostConnection {
       case "transcript":
       case "media_data":
       case "image_uploaded":
+      case "image_thumb":
       case "feedback_image_saved":
       case "feedback_saved":
       case "passkey_enroll_options":
@@ -1268,6 +1285,7 @@ export class DaemonHost implements HostConnection {
         if (call && frame.id) {
           this.calls.delete(frame.id);
           this.transcriptIds.delete(frame.id);
+          this.imageReadIds.delete(frame.id);
           this.feedbackIds.delete(frame.id);
           call.resolve(frame);
         }
@@ -1394,6 +1412,7 @@ export class DaemonHost implements HostConnection {
           const imageWords = refused ? null : imageRefusal(frame.reason);
           if (frame.id && this.feedbackIds.delete(frame.id)) call.reject(new FeedbackRefused(feedbackRefusal(frame.reason) ?? frame.error ?? "The host refused the feedback.", typeof frame.reason === "string" ? frame.reason : undefined));
           else if (frame.id && this.transcriptIds.delete(frame.id) && typeof frame.reason === "string" && Object.hasOwn(REFUSALS, frame.reason)) call.reject(new TranscriptRefused(frame.reason));
+          else if (frame.id && this.imageReadIds.delete(frame.id)) call.reject(new ImageReadRefused(typeof frame.reason === "string" ? frame.reason : ""));
           else if (frame.reason === "media_unknown") call.reject(new Error(mediaRefusal(frame.reason)));
           else if (frame.reason === RESUME_ENDED_REASON) call.reject(new ResumeEndedError());
           else if (frame.reason === KEY_UNKNOWN_REASON) call.reject(new DeviceKeyError(KEY_UNKNOWN, KEY_UNKNOWN_REASON));

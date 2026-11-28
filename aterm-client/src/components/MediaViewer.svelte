@@ -7,7 +7,7 @@
   import { bridge } from "../lib/device-key";
   import { saveAvailable, saveInApp } from "../lib/save-file";
 
-  let { channel, items, startId, seat, onclose, onseen }: { channel: MediaChannel; items: MediaItem[]; startId?: string; seat: string; onclose: () => void; onseen: () => void } = $props();
+  let { channel, items, startId, seat, label, onclose, onseen }: { channel: MediaChannel; items: MediaItem[]; startId?: string; seat: string; label?: string; onclose: () => void; onseen: () => void } = $props();
 
   // svelte-ignore state_referenced_locally
   let at = $state(Math.max(0, startId ? items.findIndex((item) => item.id === startId) : items.length - 1));
@@ -134,7 +134,7 @@
 </script>
 
 {#if current}
-  <div class="viewer" role="dialog" aria-modal="true" aria-label={`Shared by ${seat}`} tabindex="-1" bind:this={root} onkeydown={key}>
+  <div class="viewer" role="dialog" aria-modal="true" aria-label={label ?? `Shared by ${seat}`} tabindex="-1" bind:this={root} onkeydown={key}>
     <header>
       <div class="who">
         <strong>{current.name}</strong>
