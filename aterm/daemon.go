@@ -471,7 +471,14 @@ func (d *daemon) endAll() {
 	// Together, since each may spend its typed-exit grace before the signal.
 	var group sync.WaitGroup
 	for _, s := range d.everySession() {
-		group.Go(s.end)
+		group.Go(func() {
+			s.end()
+			// done closes before forget stamps the ledger, so a stop waits on that (COI-3796).
+			select {
+			case <-s.forgotten:
+			case <-time.After(forgetGrace):
+			}
+		})
 	}
 	group.Wait()
 }
